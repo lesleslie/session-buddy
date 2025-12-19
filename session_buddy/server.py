@@ -54,12 +54,18 @@ from session_buddy.server_core import (
 
 # Get ACB logger from DI container (deferred until first use)
 def _get_session_logger():
+    """Get logger, handling both sync and async returns from DI."""
+    import logging
+
     try:
-        return depends.get_sync("acb_logger")
+        logger = depends.get_sync("acb_logger")
+        # Check if DI returned a coroutine (async getter issue)
+        if asyncio.iscoroutine(logger):
+            # Fall back to standard logging rather than trying to await at module level
+            return logging.getLogger(__name__)
+        return logger
     except Exception:
         # Fallback logger in case of dependency injection issues
-        import logging
-
         return logging.getLogger(__name__)
 
 
@@ -221,17 +227,20 @@ _mcp_config = _load_mcp_config()
 mcp = FastMCP("session-buddy", lifespan=session_lifecycle)
 
 # Add rate limiting middleware (Phase 3 Security Hardening)
-if RATE_LIMITING_AVAILABLE:
-    from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
-
-    rate_limiter = RateLimitingMiddleware(
-        max_requests_per_second=10.0,  # Sustainable rate for session management operations
-        burst_capacity=30,  # Allow bursts for checkpoint/status operations
-        global_limit=True,  # Protect the session management server globally
-    )
-    # Use public API (Phase 3.1 C1 fix: standardize middleware access)
-    mcp.add_middleware(rate_limiter)
-    _get_logger().info("Rate limiting enabled: 10 req/sec, burst 30")
+# NOTE: Disabled temporarily due to FastMCP bug where MiddlewareContext becomes unhashable
+# when it contains CallToolRequestParams (which has __hash__ = None).
+# See: https://github.com/jlowin/fastmcp/issues for tracking
+# if RATE_LIMITING_AVAILABLE:
+#     from fastmcp.server.middleware.rate_limiting import RateLimitingMiddleware
+#
+#     rate_limiter = RateLimitingMiddleware(
+#         max_requests_per_second=10.0,  # Sustainable rate for session management operations
+#         burst_capacity=30,  # Allow bursts for checkpoint/status operations
+#         global_limit=True,  # Protect the session management server globally
+#     )
+#     # Use public API (Phase 3.1 C1 fix: standardize middleware access)
+#     mcp.add_middleware(rate_limiter)
+#     _get_logger().info("Rate limiting enabled: 10 req/sec, burst 30")
 
 # Register extracted tool modules following crackerjack architecture patterns
 # Import LLM provider validation (Phase 3 Security Hardening)

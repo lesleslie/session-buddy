@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "acb"
-version = "0.31.20"
+version = "0.31.21"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aioconsole" },
@@ -41,9 +41,9 @@ dependencies = [
     { name = "uuid-utils" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/81/673b6098013917c2f7480525fb88c2035cd4adcfff7450ca6d3265539a7c/acb-0.31.20.tar.gz", hash = "sha256:f127d7a9b3c8a3135ad0c7d205b4c909b081e388aebcdaa095a08b60a4b9f302", size = 1457589, upload-time = "2025-12-12T13:36:01.17Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/fb/95fb36ebeb98c020428b05ed8f73822438fcf8ce84a5716c38034efada11/acb-0.31.21.tar.gz", hash = "sha256:6e1a7eee2ebd528f85599204a6d84afe83c1474da9e4d67bcd0346084af421ee", size = 1458139, upload-time = "2025-12-19T19:19:19.828Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/18/c45748fa668d2c9f365c3a11a6f2b5f6abc615291aa2e4e36a1dcadc8110/acb-0.31.20-py3-none-any.whl", hash = "sha256:67228e4fedb104f95f4cdccc0b056d170080e0fab7824fb3b918ee70f4e32d6e", size = 820896, upload-time = "2025-12-12T13:36:03.46Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/5b/79a3e9cdb7f7574f2d312471577c8605c5a91d2560d85de94f11beb90b68/acb-0.31.21-py3-none-any.whl", hash = "sha256:a363afaf015db506b3d941ab00383bff51c4bafd099b3682a7febe44d40ba918", size = 820896, upload-time = "2025-12-19T19:19:21.774Z" },
 ]
 
 [[package]]
@@ -746,6 +746,7 @@ dependencies = [
     { name = "websockets" },
     { name = "zuban" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/ed/1c/4d4ce9f2aef2f89ce90322d4e05549a7f50056029b4c4ed3fb0ff12027a0/crackerjack-0.46.1.tar.gz", hash = "sha256:0f45125c97e3378c265f2aeb8200fb0c24811f86c4e7ac95c518da7a366b5572", size = 2082050, upload-time = "2025-12-19T17:55:25.976Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/88/03864ba91e96d945c4aabaa88c05bedb07d130e1e44df1f63fd5bc4f1775/crackerjack-0.46.1-py3-none-any.whl", hash = "sha256:2e6585ae84df709b20100fc992d0a552e3190db963e4673b4059933a172b7661", size = 1341627, upload-time = "2025-12-19T17:55:21.208Z" },
 ]
@@ -979,21 +980,22 @@ wheels = [
 
 [[package]]
 name = "excalidraw-mcp"
-version = "0.34.0"
+version = "0.34.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "fastmcp" },
     { name = "httpx", extra = ["http2"] },
+    { name = "mcp-common" },
     { name = "psutil" },
     { name = "pydantic" },
     { name = "pyjwt" },
     { name = "rich" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e9/20/7f5daf9d0818a50fd6af503aab1a07fc2d8da48e869a7ca937868de2bc9f/excalidraw_mcp-0.34.0.tar.gz", hash = "sha256:c7d5ee0788e0099d28cd35cf3cf47441597c21a4186a1bafedd97931697bac16", size = 1030845, upload-time = "2025-09-19T02:06:50.748Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/80/f9/89b2fe1fc5e98c95aae4a08856d8c25e2fd4ecb512c24d2954b92a9883ce/excalidraw_mcp-0.34.1.tar.gz", hash = "sha256:4663f525007121d8596900bde0cbfe810587ac063fe7fd89c512818d3ff72200", size = 1133738, upload-time = "2025-12-19T19:30:03.731Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f7/8a/e4dda474ba2d69b444ba89fbe48f4c31fbea70f73e095f43d7566468850d/excalidraw_mcp-0.34.0-py3-none-any.whl", hash = "sha256:1345bb7f1cba303186345eeaf71c53a59f4e5e20f280010f8a9e7d7f62081fb9", size = 48716, upload-time = "2025-09-19T02:06:48.203Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/c8/b3f1da78dfd856c69fca3ecf68f2de0749aff862672c83dc533b2df514f2/excalidraw_mcp-0.34.1-py3-none-any.whl", hash = "sha256:25cb5c4436d9b4e82bc9ad6a56fca184bc7981df898d2f8fecb5fa2a37d0b247", size = 50357, upload-time = "2025-12-19T19:30:01.642Z" },
 ]
 
 [[package]]
@@ -3851,7 +3853,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.10.1"
+version = "0.10.2"
 source = { editable = "." }
 dependencies = [
     { name = "acb" },
