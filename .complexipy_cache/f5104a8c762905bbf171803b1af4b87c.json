@@ -117,12 +117,6 @@
     {
       "complexity": 1,
       "file_name": "server.py",
-      "function_name": "_get_session_logger",
-      "path": "server.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "server.py",
       "function_name": "_has_statistics_data",
       "path": "server.py"
     },
@@ -172,6 +166,12 @@
       "complexity": 3,
       "file_name": "server.py",
       "function_name": "_call_tool",
+      "path": "server.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "server.py",
+      "function_name": "_get_session_logger",
       "path": "server.py"
     },
     {

@@ -19,16 +19,19 @@ This error occurred in the MCP protocol layer when using FastMCP's middleware sy
 ### The Issue
 
 1. **CallToolRequestParams is Unhashable**
+
    - `CallToolRequestParams` is a Pydantic model (subclass of `BaseModel`)
    - Pydantic models set `__hash__ = None` by default to prevent accidental hashing of mutable objects
    - This makes instances of `CallToolRequestParams` unhashable
 
-2. **MiddlewareContext Contains Unhashable Field**
+1. **MiddlewareContext Contains Unhashable Field**
+
    - FastMCP's `MiddlewareContext` dataclass is marked as `frozen=True`
    - It contains a `message: T` field that holds `CallToolRequestParams`
    - When a frozen dataclass contains an unhashable field, the dataclass itself becomes unhashable
 
-3. **Code Attempting to Hash Context**
+1. **Code Attempting to Hash Context**
+
    ```python
    # From fastmcp/server/middleware/middleware.py:46
    @dataclass(kw_only=True, frozen=True)
@@ -38,6 +41,7 @@ This error occurred in the MCP protocol layer when using FastMCP's middleware sy
    ```
 
    When any code tries to:
+
    - Use `MiddlewareContext` as a dict key
    - Add it to a set
    - Call `hash()` on it
@@ -52,13 +56,13 @@ from mcp.types import CallToolRequestParams
 from fastmcp.server.middleware.middleware import MiddlewareContext
 from datetime import datetime, timezone
 
-params = CallToolRequestParams(name='checkpoint', arguments={})
+params = CallToolRequestParams(name="checkpoint", arguments={})
 context = MiddlewareContext(
     message=params,
-    source='client',
-    type='request',
-    method='tools/call',
-    timestamp=datetime.now(timezone.utc)
+    source="client",
+    type="request",
+    method="tools/call",
+    timestamp=datetime.now(timezone.utc),
 )
 
 # This fails with: unhashable type: 'CallToolRequestParams'
@@ -107,12 +111,14 @@ def _get_session_logger():
 ## Impact
 
 ### What Works
+
 - ✅ Server starts successfully
 - ✅ All tools are registered
 - ✅ Checkpoint tool functions correctly
 - ✅ No runtime errors
 
 ### What's Disabled
+
 - ⚠️ Rate limiting middleware (temporarily disabled)
   - Was protecting against: 10 req/sec sustained, 30 burst capacity
   - Impact: Server is vulnerable to request flooding
@@ -125,14 +131,15 @@ def _get_session_logger():
 Based on web search, similar parameter-related issues exist:
 
 1. **[Issue #932](https://github.com/jlowin/fastmcp/issues/932)** - LLM-to-MCP Parameter Error: JSON Arguments Encapsulated as String Cause Validation Failure
-2. **[Issue #1252](https://github.com/jlowin/fastmcp/issues/1252)** - Returning CallToolResult from `on_call_tool` yields "'CallToolResult' object has no attribute 'to_mcp_result'"
-3. **[Issue #381](https://github.com/modelcontextprotocol/python-sdk/issues/381)** - Fastmcp tool parameter parsing type error
+1. **[Issue #1252](https://github.com/jlowin/fastmcp/issues/1252)** - Returning CallToolResult from `on_call_tool` yields "'CallToolResult' object has no attribute 'to_mcp_result'"
+1. **[Issue #381](https://github.com/modelcontextprotocol/python-sdk/issues/381)** - Fastmcp tool parameter parsing type error
 
 ### What Needs to be Fixed
 
 The ideal fix should be in **FastMCP** or **MCP Python SDK**:
 
 **Option 1: Make CallToolRequestParams Hashable**
+
 ```python
 # In mcp/types.py
 class CallToolRequestParams(RequestParams):
@@ -146,10 +153,16 @@ class CallToolRequestParams(RequestParams):
 
     def __hash__(self) -> int:
         # Hash based on immutable fields only
-        return hash((self.name, tuple(sorted(self.arguments.items())) if self.arguments else None))
+        return hash(
+            (
+                self.name,
+                tuple(sorted(self.arguments.items())) if self.arguments else None,
+            )
+        )
 ```
 
 **Option 2: Change MiddlewareContext to not be Frozen**
+
 ```python
 # In fastmcp/server/middleware/middleware.py
 @dataclass(kw_only=True)  # Remove frozen=True
@@ -159,6 +172,7 @@ class MiddlewareContext(Generic[T]):
 ```
 
 **Option 3: Middleware Should Not Hash Context**
+
 - Review middleware implementations to avoid using context as dict keys
 - Use alternative identification strategies (request IDs, message content hashes)
 
@@ -182,15 +196,17 @@ The checkpoint tool should work without errors when called from Claude Code.
 ## Recommendations
 
 ### Short-term (Current Workaround)
+
 1. ✅ Keep rate limiting disabled until FastMCP fix is available
-2. ✅ Monitor for upstream fixes in FastMCP releases
-3. ✅ Only run in trusted environments (local development)
+1. ✅ Monitor for upstream fixes in FastMCP releases
+1. ✅ Only run in trusted environments (local development)
 
 ### Long-term (Proper Fix)
+
 1. Report this issue to FastMCP maintainers with reproduction case
-2. Propose one of the fix options above
-3. Re-enable rate limiting middleware once fix is merged
-4. Update to fixed FastMCP version
+1. Propose one of the fix options above
+1. Re-enable rate limiting middleware once fix is merged
+1. Update to fixed FastMCP version
 
 ## References
 
@@ -205,6 +221,6 @@ The checkpoint tool should work without errors when called from Claude Code.
 - **2025-01-19:** Initial bug discovery and workaround implementation
 - **TBD:** Re-enable after upstream fix
 
----
+______________________________________________________________________
 
 **Status:** ⚠️ Workaround Active - Awaiting Upstream Fix
