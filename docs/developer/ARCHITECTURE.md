@@ -1724,7 +1724,7 @@ ______________________________________________________________________
 
 **Related Documentation:**
 
-- [CONFIGURATION.md](CONFIGURATION.md) - Configuration options and environment setup
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment strategies and production setup
+- [CONFIGURATION.md](../user/CONFIGURATION.md) - Configuration options and environment setup
+- [DEPLOYMENT.md](../user/DEPLOYMENT.md) - Deployment strategies and production setup
 - [MCP_SCHEMA_REFERENCE.md](../reference/MCP_SCHEMA_REFERENCE.md) - Complete MCP tool reference
 - [API_REFERENCE.md](../reference/API_REFERENCE.md) - Python API reference for mcp_common

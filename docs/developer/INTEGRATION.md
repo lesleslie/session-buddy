@@ -1200,7 +1200,7 @@ ______________________________________________________________________
 
 **Related Documentation:**
 
-- [QUICK_START.md](QUICK_START.md) - Getting started guide
-- [CONFIGURATION.md](CONFIGURATION.md) - Configuration options
+- [QUICK_START.md](../user/QUICK_START.md) - Getting started guide
+- [CONFIGURATION.md](../user/CONFIGURATION.md) - Configuration options
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture details
-- [MCP_TOOLS_REFERENCE.md](MCP_TOOLS_REFERENCE.md) - Complete tool reference
+- [MCP_TOOLS_REFERENCE.md](../user/MCP_TOOLS_REFERENCE.md) - Complete tool reference

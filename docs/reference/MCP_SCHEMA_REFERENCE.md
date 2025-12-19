@@ -431,4 +431,4 @@ async function robustSearch(query: string, retries = 2) {
 
 ______________________________________________________________________
 
-**Next Steps**: See [AI Integration Patterns](AI_INTEGRATION_PATTERNS.md) for detailed usage examples and workflow patterns.
+**Next Steps**: See [AI Integration Patterns](../features/AI_INTEGRATION.md) for detailed usage examples and workflow patterns.

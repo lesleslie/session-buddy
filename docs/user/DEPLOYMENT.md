@@ -1339,5 +1339,5 @@ ______________________________________________________________________
 **Next Steps:**
 
 - Review [CONFIGURATION.md](CONFIGURATION.md) for advanced configuration options
-- See [INTEGRATION.md](INTEGRATION.md) for integrating with existing tools
+- See [INTEGRATION.md](../developer/INTEGRATION.md) for integrating with existing tools
 - Check [MCP_TOOLS_REFERENCE.md](MCP_TOOLS_REFERENCE.md) for complete tool documentation

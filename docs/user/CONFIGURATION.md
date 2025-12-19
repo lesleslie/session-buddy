@@ -507,4 +507,4 @@ if __name__ == "__main__":
 
 ______________________________________________________________________
 
-**Next Steps**: See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system architecture and [DEPLOYMENT.md](DEPLOYMENT.md) for deployment strategies.
+**Next Steps**: See [ARCHITECTURE.md](../developer/ARCHITECTURE.md) for detailed system architecture and [DEPLOYMENT.md](DEPLOYMENT.md) for deployment strategies.

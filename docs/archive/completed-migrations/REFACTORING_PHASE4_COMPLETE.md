@@ -314,6 +314,5 @@ ______________________________________________________________________
 
 **Related Documents:**
 
-- [Phase 4 Plan](REFACTORING_PHASE4_PLAN.md)
-- [Phase 3 Summary](REFACTORING_PHASE3_SUMMARY.md)
-- [Complete Refactoring History](archive/refactoring/)
+- [Phase 4 Plan](../../REFACTORING_PHASE4_PLAN.md)
+- [Phase 3 Summary](../../REFACTORING_PHASE3_COMPLETE.md)

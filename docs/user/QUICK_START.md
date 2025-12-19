@@ -177,15 +177,15 @@ ls /path/to/session-buddy/session_buddy/server.py
 ## What's Next?
 
 - 📚 **[MCP Tools Reference](MCP_TOOLS_REFERENCE.md)** - Complete guide to all available commands
-- 🏗️ **[Architecture Guide](ARCHITECTURE.md)** - Deep dive into how it all works
+- 🏗️ **[Architecture Guide](../developer/ARCHITECTURE.md)** - Deep dive into how it all works
 - 🔧 **[Configuration Reference](CONFIGURATION.md)** - Advanced setup options
-- 🤝 **[Integration Guide](INTEGRATION.md)** - Connect with your existing tools
+- 🤝 **[Integration Guide](../developer/INTEGRATION.md)** - Connect with your existing tools
 
 ## Support
 
 - 🐛 **Issues**: [GitHub Issues](https://github.com/lesleslie/session-buddy/issues)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/lesleslie/session-buddy/discussions)
-- 📖 **Documentation**: [Full Documentation](README.md)
+- 📖 **Documentation**: [Full Documentation](../../README.md)
 
 ______________________________________________________________________
 

@@ -578,7 +578,7 @@ Staged enablement plan with daily steps and rollback guidance.
 - **[README.md](../../README.md)** - Project overview with complete tool inventory (70+ tools)
 - **[Quick Start Guide](QUICK_START.md)** - Get up and running in 5 minutes
 - **[MCP Schema Reference](../reference/MCP_SCHEMA_REFERENCE.md)** - Complete API reference
-- **[AI Integration Patterns](../features/AI_INTEGRATION_PATTERNS.md)** - Advanced patterns
+- **[AI Integration Patterns](../features/AI_INTEGRATION.md)** - Advanced patterns
 - **[CLAUDE.md](../../CLAUDE.md)** - Development guide for contributors
 - **[Configuration Reference](CONFIGURATION.md)** - Advanced setup options
 

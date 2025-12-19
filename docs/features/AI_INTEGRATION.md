@@ -588,6 +588,5 @@ ______________________________________________________________________
 
 **Next Steps**:
 
-- **[Architecture Guide](ARCHITECTURE.md)** - Deep dive into system design
-- **[Configuration Reference](CONFIGURATION.md)** - Advanced setup options
-- **[Performance Guide](PERFORMANCE.md)** - Optimization techniques
+- **[Architecture Guide](../developer/ARCHITECTURE.md)** - Deep dive into system design
+- **[Configuration Reference](../user/CONFIGURATION.md)** - Advanced setup options

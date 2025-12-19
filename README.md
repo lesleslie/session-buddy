@@ -58,7 +58,7 @@ For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_
 
 - Entity and relationship management for project knowledge
 - SQL/PGQ graph queries for complex relationship analysis
-- See [Knowledge Graph Integration Guide](./docs/KNOWLEDGE_GRAPH_INTEGRATION.md)
+- See [Knowledge Graph Integration Guide](docs/archive/integration-docs/KNOWLEDGE_GRAPH_INTEGRATION.md)
 
 All tools use **local processing** for privacy, with **DuckDB vector storage** (FLOAT[384] embeddings) and **ONNX-based semantic search** requiring no external API calls.
 
@@ -250,4 +250,4 @@ Complete documentation is available in the [docs/](docs/) directory:
 PYTHONPATH=/path/to/session-buddy python -m session_buddy.server --debug
 ```
 
-For more detailed troubleshooting guidance, see [Troubleshooting Guide](docs/user/TROUBLESHOOTING.md).
+For more detailed troubleshooting guidance, see [Configuration Guide](docs/user/CONFIGURATION.md) or [Quick Start Guide](docs/user/QUICK_START.md).

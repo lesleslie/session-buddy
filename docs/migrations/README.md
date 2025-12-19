@@ -6,16 +6,8 @@ Step-by-step guides for migrating between versions and adopting new patterns in 
 
 ### Core Migrations
 
-1. **[External Memory to Local Memory](external-memory-to-local.md)** - Migrate from external memory services to local ONNX-based embeddings
 1. **[HTTP Client Adapter](http-client-adapter.md)** - Migrate from aiohttp to mcp_common HTTPClientAdapter (11x performance improvement)
 1. **[Health Check Implementation](health-check-implementation.md)** - Add production-ready health checks to your server
-1. **[Graceful Shutdown](graceful-shutdown.md)** - Implement signal handling and resource cleanup
-
-### Pattern Migrations
-
-5. **[ACB Dependency Injection](acb-dependency-injection.md)** - Migrate to ACB DI patterns for better testability
-1. **[Lazy Logger Initialization](lazy-logger-pattern.md)** - Fix DI initialization issues during module imports
-1. **[Quality Scoring V2](quality-scoring-v2.md)** - Upgrade from V1 to V2 quality assessment algorithm
 
 ## Migration Strategy
 
@@ -71,30 +63,14 @@ Each migration guide includes:
 **High Priority** (Production Impact):
 
 - ✅ [Health Check Implementation](health-check-implementation.md) - Essential for production monitoring
-- ✅ [Graceful Shutdown](graceful-shutdown.md) - Prevents data loss during shutdown
 - ✅ [HTTP Client Adapter](http-client-adapter.md) - Significant performance improvement
-
-**Medium Priority** (Code Quality):
-
-- 📋 [ACB Dependency Injection](acb-dependency-injection.md) - Improves testability and maintainability
-- 📋 [Lazy Logger Initialization](lazy-logger-pattern.md) - Fixes import-time DI issues
-
-**Low Priority** (Optional Enhancements):
-
-- 📝 [Quality Scoring V2](quality-scoring-v2.md) - Enhanced quality metrics
-- 📝 [External Memory to Local Memory](external-memory-to-local.md) - Privacy and performance benefits
 
 ## Version Compatibility
 
 | Migration Guide | Minimum Version | Target Version | Breaking Changes |
 |----------------|----------------|----------------|------------------|
-| External Memory → Local | 1.x | 2.0+ | ✅ Yes - API changes |
 | HTTP Client Adapter | 1.x | 2.0+ | ✅ Yes - New adapter pattern |
 | Health Checks | Any | 2.0+ | ❌ No - Additive only |
-| Graceful Shutdown | Any | 2.0+ | ❌ No - Additive only |
-| ACB DI | 1.x | 2.0+ | ⚠️ Partial - Backward compatible |
-| Lazy Logger | Any | 2.0+ | ❌ No - Pattern improvement |
-| Quality V2 | 1.x | 2.0+ | ✅ Yes - Algorithm changes |
 
 ## Getting Help
 

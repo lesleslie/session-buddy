@@ -247,7 +247,6 @@ ______________________________________________________________________
 
 - [Phase 5 Plan](REFACTORING_PHASE5_PLAN.md)
 - [Phase 4 Summary](REFACTORING_PHASE4_COMPLETE.md)
-- [Phase 3 Summary](REFACTORING_PHASE3_SUMMARY.md)
-- [Complete Refactoring History](archive/refactoring/)
+- [Phase 3 Summary](../../REFACTORING_PHASE3_COMPLETE.md)
 
 **Grand Total Across All Phases:** **-4,571 lines eliminated**
