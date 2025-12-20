@@ -147,9 +147,18 @@ class ReflectionDatabaseAdapter:
             try:
                 self.vector_adapter = depends.get_sync(Vector)
             except (KeyError, AttributeError, RuntimeError) as e:
+                # Enhanced diagnostics for debugging DI issues
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(
+                    f"Failed to get Vector adapter from DI: {type(e).__name__}: {e}"
+                )
+                logger.error(f"DI container state: {hasattr(depends, '_instances')}")
+
                 msg = (
                     "Vector adapter not registered in DI container. "
-                    "Ensure configure() was called in di/__init__.py"
+                    "Ensure configure() was called in di/__init__.py. "
+                    f"Error: {type(e).__name__}: {e}"
                 )
                 raise RuntimeError(msg) from e
 
