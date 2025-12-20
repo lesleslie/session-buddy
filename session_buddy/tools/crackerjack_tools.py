@@ -60,9 +60,14 @@ async def execute_crackerjack_command(
         "lint",
         "check",
         "format",
+        "typecheck",
         "security",
         "complexity",
+        "analyze",
+        "build",
+        "clean",
         "all",
+        "run",
     }
 
     if command.startswith("--"):
@@ -262,8 +267,11 @@ async def quality_monitor() -> str:
 
 def _get_logger() -> t.Any:
     """Lazy logger resolution using ACB's logger adapter from DI container."""
-    logger_class = import_adapter("logger")
-    return depends.get_sync(logger_class)
+    try:
+        logger_class = import_adapter("logger")
+        return depends.get_sync(logger_class)
+    except Exception:
+        return logger
 
 
 async def _get_reflection_db() -> Any | None:

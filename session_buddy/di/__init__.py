@@ -88,11 +88,7 @@ def _register_logger(logs_dir: Path, force: bool) -> None:
         the best available logger (loguru, logly, or structlog).
 
     """
-    from acb.adapters import import_adapter
-
-    # Import ACB's Logger class (returns the instance, not class)
-    logger_instance = import_adapter("logger")
-
+    # Check if already registered first (before importing)
     if not force:
         with suppress(KeyError, AttributeError, RuntimeError):
             # RuntimeError: when adapter requires async (re-register)
@@ -100,6 +96,20 @@ def _register_logger(logs_dir: Path, force: bool) -> None:
             # Only skip if we already have a Logger instance (not just the module name string)
             if existing is not None and hasattr(existing, "add"):
                 return
+
+    # Try to import ACB's logger adapter
+    # This may fail if called from async context, so we have a fallback
+    try:
+        from acb.adapters import import_adapter
+
+        # Import ACB's Logger class (returns the instance, not class)
+        logger_instance = import_adapter("logger")
+    except (RuntimeError, Exception):
+        # Called from async context or adapter not available - use standard logging as fallback
+        import logging
+
+        logger_instance = logging.getLogger("session_buddy")
+        logger_instance.setLevel(logging.INFO)
 
     # Configure logger with file sink, falling back to a temp directory when
     # the default home-based location is not writable (e.g., sandboxed tests).
@@ -240,18 +250,13 @@ def _register_vector_adapter(paths: SessionPaths, force: bool) -> None:
     vector_adapter = Vector()
     vector_adapter.config = config  # Override _DependencyMarker with actual Config
 
-    # Set logger from DI (adapters need a logger instance)
-    try:
-        from acb.adapters import import_adapter
+    # Set logger directly to avoid DI type resolution conflicts
+    # Using string-based DI keys for logger causes bevy type inference issues
+    # when resolving other dependencies like SessionLogger
+    import logging
 
-        logger_class = import_adapter("logger")
-        logger_instance = depends.get_sync(logger_class)
-        vector_adapter.logger = logger_instance
-    except Exception:
-        # If logger not available, create a minimal print-based logger
-        import logging
-
-        vector_adapter.logger = logging.getLogger("acb.vector")
+    vector_adapter.logger = logging.getLogger("acb.vector")
+    vector_adapter.logger.setLevel(logging.INFO)
 
     # Initialize adapter to create vectors schema (ACB requirement)
     # Note: Initialization is deferred - schema creation happens on first use

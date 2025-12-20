@@ -422,7 +422,7 @@ class TokenOptimizer:
             Dict with chunk data and metadata, or None if not found
 
         """
-        if not await (cache_key in self.chunk_cache):
+        if not await self.chunk_cache.__contains__(cache_key):
             return None
 
         chunk_result = await self.chunk_cache.get(cache_key)

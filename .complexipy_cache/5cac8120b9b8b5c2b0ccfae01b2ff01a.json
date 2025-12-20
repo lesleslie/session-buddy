@@ -1,6 +1,18 @@
 {
   "functions": [
     {
+      "complexity": 1,
+      "file_name": "patch_hashable.py",
+      "function_name": "_debug_context_hash",
+      "path": "patch_hashable.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "patch_hashable.py",
+      "function_name": "_debug_params_hash",
+      "path": "patch_hashable.py"
+    },
+    {
       "complexity": 0,
       "file_name": "serverless_mode.py",
       "function_name": "ServerlessSessionManager::__init__",
@@ -165,7 +177,13 @@
     {
       "complexity": 3,
       "file_name": "server.py",
-      "function_name": "_call_tool",
+      "function_name": "_build_memory_optimization_policy",
+      "path": "server.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "server.py",
+      "function_name": "_call_registered_tool",
       "path": "server.py"
     },
     {
@@ -178,6 +196,12 @@
       "complexity": 3,
       "file_name": "server.py",
       "function_name": "_optimize_results",
+      "path": "server.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "server.py",
+      "function_name": "_parse_http_args",
       "path": "server.py"
     },
     {
@@ -214,6 +238,12 @@
       "complexity": 6,
       "file_name": "server.py",
       "function_name": "_resolve_tool_callable",
+      "path": "server.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "server.py",
+      "function_name": "_format_memory_optimization_results",
       "path": "server.py"
     },
     {
@@ -2037,30 +2067,6 @@
     {
       "complexity": 0,
       "file_name": "server_optimized.py",
-      "function_name": "SessionPermissionsManager::__init__",
-      "path": "server_optimized.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "server_optimized.py",
-      "function_name": "SessionPermissionsManager::add_trusted_operation",
-      "path": "server_optimized.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "server_optimized.py",
-      "function_name": "SessionPermissionsManager::is_operation_trusted",
-      "path": "server_optimized.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "server_optimized.py",
-      "function_name": "SessionPermissionsManager::should_auto_checkpoint",
-      "path": "server_optimized.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "server_optimized.py",
       "function_name": "_get_default_compaction_reason",
       "path": "server_optimized.py"
     },
@@ -2098,12 +2104,6 @@
       "complexity": 2,
       "file_name": "server_optimized.py",
       "function_name": "auto_compact",
-      "path": "server_optimized.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "server_optimized.py",
-      "function_name": "SessionPermissionsManager::configure_auto_checkpoint",
       "path": "server_optimized.py"
     },
     {
@@ -4401,12 +4401,6 @@
     {
       "complexity": 0,
       "file_name": "crackerjack_tools.py",
-      "function_name": "_get_logger",
-      "path": "crackerjack_tools.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "crackerjack_tools.py",
       "function_name": "analyze_crackerjack_test_patterns",
       "path": "crackerjack_tools.py"
     },
@@ -4504,6 +4498,12 @@
       "complexity": 1,
       "file_name": "crackerjack_tools.py",
       "function_name": "_get_failure_pattern_results",
+      "path": "crackerjack_tools.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "crackerjack_tools.py",
+      "function_name": "_get_logger",
       "path": "crackerjack_tools.py"
     },
     {
@@ -6735,12 +6735,6 @@
     {
       "complexity": 1,
       "file_name": "session_manager.py",
-      "function_name": "SessionLifecycleManager::calculate_quality_score",
-      "path": "session_manager.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "session_manager.py",
       "function_name": "SessionLifecycleManager::get_previous_quality_score",
       "path": "session_manager.py"
     },
@@ -6772,6 +6766,12 @@
       "complexity": 3,
       "file_name": "session_manager.py",
       "function_name": "SessionLifecycleManager::_calculate_permissions_score",
+      "path": "session_manager.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "session_manager.py",
+      "function_name": "SessionLifecycleManager::calculate_quality_score",
       "path": "session_manager.py"
     },
     {
@@ -9505,7 +9505,7 @@
       "path": "reflection_adapter.py"
     },
     {
-      "complexity": 10,
+      "complexity": 12,
       "file_name": "reflection_adapter.py",
       "function_name": "ReflectionDatabaseAdapter::initialize",
       "path": "reflection_adapter.py"
@@ -10359,6 +10359,7 @@
   ],
   "targets": [
     "/Users/les/Projects/session-buddy/examples/acb_storage_adapter_usage.py",
+    "/Users/les/Projects/session-buddy/patch_hashable.py",
     "/Users/les/Projects/session-buddy/scripts/__init__.py",
     "/Users/les/Projects/session-buddy/scripts/migrate_graph_database.py",
     "/Users/les/Projects/session-buddy/scripts/migrate_vector_database.py",
@@ -10490,6 +10491,7 @@
     "/Users/les/Projects/session-buddy/session_buddy/utils/search/utilities.py",
     "/Users/les/Projects/session-buddy/session_buddy/utils/server_helpers.py",
     "/Users/les/Projects/session-buddy/session_buddy/utils/tool_wrapper.py",
-    "/Users/les/Projects/session-buddy/session_buddy/worktree_manager.py"
+    "/Users/les/Projects/session-buddy/session_buddy/worktree_manager.py",
+    "/Users/les/Projects/session-buddy/start_server_debug.py"
   ]
 }

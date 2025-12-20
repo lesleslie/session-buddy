@@ -155,12 +155,13 @@ def _format_cleanup_results(cleaned_items: list[str], total_size_mb: float) -> s
 def _cleanup_uv_cache() -> str:
     """Clean up UV package manager cache to free space."""
     try:
-        # Run uv cache clean command
+        # Run uv cache clean command with timeout to prevent hanging
         result = subprocess.run(
             ["uv", "cache", "clean"],
             capture_output=True,
             text=True,
             check=False,
+            timeout=30,  # 30 second timeout to prevent test hangs
         )
 
         if result.returncode == 0:
@@ -173,6 +174,8 @@ def _cleanup_uv_cache() -> str:
 
     except FileNotFoundError:
         return "⚠️ UV not found, skipping cache cleanup"
+    except subprocess.TimeoutExpired:
+        return "⚠️ UV cache cleanup timed out after 30 seconds"
     except Exception as e:
         return f"⚠️ UV cache cleanup error: {e}"
 

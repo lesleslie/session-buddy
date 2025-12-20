@@ -150,10 +150,9 @@ def register_storage_adapter(
 
     # Set logger from DI
     try:
-        from acb.adapters import import_adapter
-
-        logger_class = import_adapter("logger")
-        logger_instance = depends.get_sync(logger_class)
+        # Use the already-registered logger from DI container
+        # Don't call import_adapter() here - it fails from async context
+        logger_instance = depends.get_sync("acb_logger")
         storage_adapter.logger = logger_instance
     except Exception:
         import logging

@@ -5,8 +5,11 @@ This module handles session initialization, quality assessment, checkpoints,
 and cleanup operations.
 """
 
+import asyncio
+import importlib
 import os
 import shutil
+import sys
 import typing as t
 from datetime import datetime
 from pathlib import Path
@@ -25,8 +28,9 @@ def get_session_logger() -> t.Any:
     This function is used in tests for mocking purposes.
     """
     try:
-        logger_class = import_adapter("logger")
-        return depends.get_sync(logger_class)
+        # Use the already-registered logger from DI container
+        # Don't call import_adapter() here - it fails from async context
+        return depends.get_sync("acb_logger")
     except Exception:
         # If dependency injection fails, create a basic logger
         import logging
@@ -47,8 +51,9 @@ class SessionLifecycleManager:
         if logger is None:
             # Fallback for manual instantiation
             try:
-                logger_class = import_adapter("logger")
-                logger = depends.get_sync(logger_class)
+                # Use the already-registered logger from DI container
+                # Don't call import_adapter() here - it fails from async context
+                logger = depends.get_sync("acb_logger")
             except Exception:
                 # If dependency injection fails, create a basic logger
                 import logging
@@ -95,13 +100,21 @@ class SessionLifecycleManager:
             project_dir: Path to the project directory. If not provided, will use current directory.
 
         """
-        # Import to avoid circular dependencies
-        from session_buddy import server
-
         if project_dir is None:
             project_dir = Path.cwd()
 
-        return await server.calculate_quality_score(project_dir=project_dir)
+        if "session_buddy.server" in sys.modules:
+            server = sys.modules["session_buddy.server"]
+        else:
+            server = await asyncio.to_thread(
+                importlib.import_module,
+                "session_buddy.server",
+            )
+
+        return t.cast(
+            "dict[str, t.Any]",
+            await server.calculate_quality_score(project_dir=project_dir),
+        )
 
     def _calculate_project_score(self, project_context: dict[str, bool]) -> float:
         """Calculate project health score (40% of total)."""

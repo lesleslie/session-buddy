@@ -656,13 +656,11 @@ async def git_worktree_add(
     create_branch: bool = False,
 ) -> str:
     """Create a new git worktree."""
-    from acb import depends
-
-    from .utils.logging import SessionLogger
+    from .utils.logging import get_session_logger
     from .worktree_manager import WorktreeManager
 
-    # Get session logger from DI container
-    session_logger = depends.get_sync(SessionLogger)
+    # Get session logger from DI container (using helper to avoid bevy type conflicts)
+    session_logger = get_session_logger()
 
     working_dir = Path(working_directory or str(Path.cwd()))
     new_path = Path(path)
@@ -715,11 +713,11 @@ async def git_worktree_remove(
     """Remove an existing git worktree."""
     from acb import depends
 
-    from .utils.logging import SessionLogger
+    from .utils.logging import get_session_logger
     from .worktree_manager import WorktreeManager
 
-    # Get session logger from DI container
-    session_logger = depends.get_sync(SessionLogger)
+    # Get session logger from DI container (using helper to avoid bevy type conflicts)
+    session_logger = get_session_logger()
 
     working_dir = Path(working_directory or str(Path.cwd()))
     remove_path = Path(path)
@@ -765,11 +763,11 @@ async def git_worktree_switch(from_path: str, to_path: str) -> str:
     """Switch context between git worktrees with session preservation."""
     from acb import depends
 
-    from .utils.logging import SessionLogger
+    from .utils.logging import get_session_logger
     from .worktree_manager import WorktreeManager
 
-    # Get session logger from DI container
-    session_logger = depends.get_sync(SessionLogger)
+    # Get session logger from DI container (using helper to avoid bevy type conflicts)
+    session_logger = get_session_logger()
 
     manager = WorktreeManager(session_logger=session_logger)
 

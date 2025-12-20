@@ -630,6 +630,8 @@ class TestOptimizationIntegration:
             )
 
             # Step 1: Search with chunking
+            from session_buddy.server import reflect_on_past
+
             search_result = await reflect_on_past(
                 query="Python functions",
                 optimize_tokens=True,
@@ -669,6 +671,8 @@ class TestOptimizationIntegration:
             mock_optimize.side_effect = Exception("Optimization failed")
 
             # Should fall back to unoptimized results
+            from session_buddy.server import reflect_on_past
+
             result = await reflect_on_past(
                 query="Python functions",
                 optimize_tokens=True,

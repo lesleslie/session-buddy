@@ -95,7 +95,7 @@ class ReflectionDatabase:
 
         # Use thread-local storage for connections to avoid threading issues
         self.local = threading.local()
-        self.lock = threading.Lock()  # Add a lock for synchronized access
+        self.lock = threading.RLock()  # Re-entrant for nested access in temp DB
         self.onnx_session: ort.InferenceSession | None = None
         self.tokenizer = None
         self.embedding_dim = 384  # all-MiniLM-L6-v2 dimension

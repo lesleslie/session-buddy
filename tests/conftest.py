@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Global test configuration and fixtures for session-mgmt-mcp tests."""
 
+pytest_plugins = ["tests.helpers"]
+
 import asyncio
 import os
 import tempfile
@@ -758,6 +760,11 @@ def performance_monitor():
 
 def pytest_collection_modifyitems(config, items):
     """Modify test collection based on markers and environment."""
+    run_performance = os.environ.get("RUN_PERFORMANCE_TESTS") == "1"
+    skip_performance = pytest.mark.skip(
+        reason="performance tests disabled; set RUN_PERFORMANCE_TESTS=1 to run"
+    )
+
     # Add async marker to all async tests
     for item in items:
         if asyncio.iscoroutinefunction(item.function):
@@ -774,6 +781,9 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker("performance")
         elif "security" in str(item.fspath):
             item.add_marker("security")
+
+        if "performance" in item.keywords and not run_performance:
+            item.add_marker(skip_performance)
 
 
 # Session management specific fixtures

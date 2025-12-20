@@ -9,9 +9,11 @@ Tests security aspects of:
 """
 
 import asyncio
+import os
 import tempfile
 import threading
 import time
+from contextlib import suppress
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -291,20 +293,21 @@ class TestDatabaseSecurity:
     @pytest.fixture
     async def secure_database(self):
         """Create database for security testing."""
-        temp_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-        temp_file.close()
-
-        db = ReflectionDatabase(temp_file.name)
+        temp_dir = tempfile.TemporaryDirectory()
+        db_path = Path(temp_dir.name) / "secure.db"
+        db = ReflectionDatabase(str(db_path))
         await db.initialize()  # Proper initialization
+        with suppress(Exception):
+            os.chmod(db_path, 0o600)
 
         yield db
 
         # Cleanup
         try:
             db.close()  # Use the proper close method
-            Path(temp_file.name).unlink(missing_ok=True)
         except Exception:
             pass
+        temp_dir.cleanup()
 
     @pytest.mark.asyncio
     async def test_sql_injection_prevention(self, secure_database):
@@ -327,21 +330,19 @@ class TestDatabaseSecurity:
             # Try to inject SQL through content field
             result = await secure_database.store_reflection(
                 content=payload,
-                project="security_test",
+                tags=["security_test"],
             )
 
             # Should succeed (properly escaped) rather than cause SQL error
-            assert result is True, f"Failed to handle SQL injection payload: {payload}"
+            assert result, f"Failed to handle SQL injection payload: {payload}"
 
-            # Try to inject through project field
+            # Try to inject through tag field
             result = await secure_database.store_reflection(
                 content="Test content",
-                project=payload,
+                tags=[payload],
             )
 
-            assert result is True, (
-                f"Failed to handle SQL injection in project: {payload}"
-            )
+            assert result, f"Failed to handle SQL injection in tags: {payload}"
 
             # Try to inject through search query
             search_results = await secure_database.search_reflections(
@@ -373,18 +374,14 @@ class TestDatabaseSecurity:
             # Store dangerous content
             result = await secure_database.store_reflection(
                 content=dangerous_input,
-                project="security_test",
                 tags=["security", "dangerous_input"],
             )
 
-            assert result is True, (
-                f"Failed to store dangerous input: {dangerous_input[:50]}"
-            )
+            assert result, f"Failed to store dangerous input: {dangerous_input[:50]}"
 
             # Search for it to verify it was stored safely
             search_results = await secure_database.search_reflections(
                 query="dangerous_input",
-                project="security_test",
                 limit=10,
             )
 
@@ -434,8 +431,7 @@ class TestDatabaseSecurity:
             for i in range(50):
                 await secure_database.store_reflection(
                     content=f"Malicious content {i} with SQL: '; DROP TABLE reflections; --",
-                    project="malicious_project",
-                    tags=["malicious", f"attempt_{i}"],
+                    tags=["malicious", "malicious_project", f"attempt_{i}"],
                 )
 
         async def legitimate_writer() -> None:
@@ -443,8 +439,7 @@ class TestDatabaseSecurity:
             for i in range(50):
                 await secure_database.store_reflection(
                     content=f"Legitimate reflection {i}",
-                    project="legitimate_project",
-                    tags=["legitimate", f"entry_{i}"],
+                    tags=["legitimate", "legitimate_project", f"entry_{i}"],
                 )
 
         async def concurrent_reader():
@@ -483,10 +478,10 @@ class TestDatabaseSecurity:
 
         # Should have stored both malicious and legitimate data safely
         malicious_count = sum(
-            1 for r in all_results if "malicious" in r.get("project", "")
+            1 for r in all_results if "malicious_project" in r.get("tags", [])
         )
         legitimate_count = sum(
-            1 for r in all_results if "legitimate" in r.get("project", "")
+            1 for r in all_results if "legitimate_project" in r.get("tags", [])
         )
 
         assert malicious_count > 0, "Malicious data not stored (unexpected)"
@@ -545,7 +540,7 @@ class TestInputValidationSecurity:
         """Test validation of reflection content."""
         security_data = SecurityTestDataFactory()
         test_inputs = [
-            security_data.malicious_input,
+            security_data["malicious_input"],
             "",  # Empty content
             None,  # None content
             "A" * 100000,  # Very large content
@@ -695,9 +690,10 @@ class TestRateLimitingSecurity:
         assert rate_limiter.is_allowed() is False
 
         # Mock time progression to simulate window expiry
+        current_time = time.time()
         with patch("time.time") as mock_time:
             # Simulate time passing beyond the window
-            mock_time.return_value = time.time() + rate_limiter.time_window + 1
+            mock_time.return_value = current_time + rate_limiter.time_window + 1
 
             # Should allow requests again after window expires
             assert rate_limiter.is_allowed() is True

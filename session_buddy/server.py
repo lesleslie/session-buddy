@@ -28,6 +28,20 @@ if TYPE_CHECKING:
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 warnings.filterwarnings("ignore", message=".*PyTorch.*TensorFlow.*Flax.*")
 
+# DEBUG: Patch CallToolRequestParams to be hashable and log when hash is called
+# This helps us identify where the unhashable type error is coming from
+from pathlib import Path as _PatchPath
+
+_patch_file = _PatchPath(__file__).parent.parent / "patch_hashable.py"
+if _patch_file.exists():
+    import importlib.util as _util
+
+    spec = _util.spec_from_file_location("patch_hashable", _patch_file)
+    if spec and spec.loader:
+        patch_module = _util.module_from_spec(spec)
+        sys.modules["patch_hashable"] = patch_module
+        spec.loader.exec_module(patch_module)
+
 from acb.adapters import import_adapter
 from acb.depends import depends
 from session_buddy.di import configure as configure_di
@@ -94,6 +108,8 @@ TOKEN_OPTIMIZER_AVAILABLE = (
 
 if TOKEN_OPTIMIZER_AVAILABLE:
     from session_buddy.token_optimizer import (
+        get_cached_chunk,
+        get_token_usage_stats,
         optimize_search_response,
         track_token_usage,
     )
@@ -190,6 +206,83 @@ except Exception:
 # Import required components for automatic lifecycle
 from session_buddy.core import SessionLifecycleManager
 from session_buddy.reflection_tools import get_reflection_database
+
+
+# Token optimizer helpers (only used when available)
+def _build_memory_optimization_policy(
+    strategy: str, max_age_days: int
+) -> dict[str, Any]:
+    if strategy == "aggressive":
+        importance_threshold = 0.3
+    elif strategy == "conservative":
+        importance_threshold = 0.7
+    else:
+        importance_threshold = 0.5
+
+    return {
+        "consolidation_age_days": max_age_days,
+        "importance_threshold": importance_threshold,
+    }
+
+
+def _format_memory_optimization_results(results: dict[str, Any], dry_run: bool) -> str:
+    header = "🧠 Memory Optimization Results"
+    if dry_run:
+        header += " (DRY RUN)"
+
+    lines = [header]
+    lines.append(f"Total Conversations: {results.get('total_conversations', 0)}")
+    lines.append(f"Conversations to Keep: {results.get('conversations_to_keep', 0)}")
+    lines.append(
+        f"Conversations to Consolidate: {results.get('conversations_to_consolidate', 0)}"
+    )
+    lines.append(f"Clusters Created: {results.get('clusters_created', 0)}")
+
+    saved = results.get("space_saved_estimate")
+    if isinstance(saved, (int, float)):
+        lines.append(f"{saved:,.0f} characters saved")
+
+    ratio = results.get("compression_ratio")
+    if isinstance(ratio, (int, float)):
+        lines.append(f"{ratio * 100:.1f}% compression ratio")
+
+    summaries = results.get("consolidated_summaries") or []
+    if summaries:
+        first = summaries[0]
+        if isinstance(first, dict) and "original_count" in first:
+            lines.append(f"{first['original_count']} conversations → 1 summary")
+
+    if dry_run:
+        lines.append("Run with dry_run=False to apply changes")
+
+    return "\n".join(lines)
+
+
+if TOKEN_OPTIMIZER_AVAILABLE:
+
+    async def optimize_memory_usage(
+        strategy: str = "auto",
+        max_age_days: int = 30,
+        dry_run: bool = True,
+    ) -> str:
+        if not REFLECTION_TOOLS_AVAILABLE or not MEMORY_OPTIMIZER_AVAILABLE:
+            return "❌ Memory optimization requires both token optimizer and reflection tools"
+
+        try:
+            db = await get_reflection_database()
+            from session_buddy.memory_optimizer import MemoryOptimizer
+
+            policy = _build_memory_optimization_policy(strategy, max_age_days)
+            optimizer = MemoryOptimizer(db)
+            results = await optimizer.compress_memory(policy=policy, dry_run=dry_run)
+
+            if isinstance(results, dict) and "error" in results:
+                return f"❌ Memory optimization error: {results['error']}"
+
+            return _format_memory_optimization_results(results, dry_run)
+        except Exception as e:
+            return f"❌ Error optimizing memory: {e}"
+
 
 # Check mcp-common ServerPanels availability (Phase 3.3 M2: improved pattern)
 SERVERPANELS_AVAILABLE = importlib.util.find_spec("mcp_common.ui") is not None
@@ -337,7 +430,9 @@ def _build_tool_arguments(
     return filtered_args
 
 
-async def _call_tool(mcp_instance, tool_name: str, arguments: dict | None = None):
+async def _call_registered_tool(
+    mcp_instance, tool_name: str, arguments: dict | None = None
+):
     """Programmatically call a tool by name with provided arguments."""
     provided_args = arguments or {}
     tools = await _resolve_tool_registry(mcp_instance)
@@ -357,10 +452,12 @@ async def _call_tool(mcp_instance, tool_name: str, arguments: dict | None = None
 # Attach the method to the mcp instance as a bound method
 async def _call_tool_bound(tool_name: str, arguments: dict | None = None):
     """Bound _call_tool method for the mcp instance."""
-    return await _call_tool(mcp, tool_name, arguments)
+    return await _call_registered_tool(mcp, tool_name, arguments)
 
 
-mcp._call_tool = _call_tool_bound
+# CRITICAL: DO NOT override mcp._call_tool - it breaks FastMCP's internal middleware handling!
+# FastMCP's _call_tool expects MiddlewareContext, our function expects string tool_name
+# mcp._call_tool = _call_tool_bound  # DISABLED - causes "Tool 'MiddlewareContext(...)' is not registered"
 
 
 async def reflect_on_past(
@@ -737,16 +834,26 @@ def _has_statistics_data(
     return bool(sessions or interruptions or snapshots)
 
 
+def _parse_http_args(argv: list[str]) -> tuple[bool, int | None]:
+    """Parse HTTP mode and port from argv."""
+    http_mode = "--http" in argv
+    http_port = None
+
+    if "--http-port" in argv:
+        port_idx = argv.index("--http-port")
+        if port_idx + 1 < len(argv):
+            http_port = int(argv[port_idx + 1])
+
+    return http_mode, http_port
+
+
+# Export ASGI app for uvicorn (standardized startup pattern)
+http_app = mcp.http_app
+
+
 if __name__ == "__main__":
     import sys
 
     # Check for HTTP mode flags
-    http_mode = "--http" in sys.argv
-    http_port = None
-
-    if "--http-port" in sys.argv:
-        port_idx = sys.argv.index("--http-port")
-        if port_idx + 1 < len(sys.argv):
-            http_port = int(sys.argv[port_idx + 1])
-
+    http_mode, http_port = _parse_http_args(sys.argv)
     main(http_mode, http_port)

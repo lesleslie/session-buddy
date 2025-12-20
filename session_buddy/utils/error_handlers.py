@@ -21,8 +21,9 @@ T = TypeVar("T")
 
 def _get_logger() -> t.Any:
     """Lazy logger resolution using ACB's logger adapter from DI container."""
-    logger_class = import_adapter("logger")
-    return depends.get_sync(logger_class)
+    # Use the already-registered logger from DI container
+    # Don't call import_adapter() here - it fails from async context
+    return depends.get_sync("acb_logger")
 
 
 class ToolError(Exception):

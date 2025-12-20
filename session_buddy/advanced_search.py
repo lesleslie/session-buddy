@@ -787,6 +787,84 @@ class AdvancedSearchEngine:
 
         return SQLCondition(condition=sql, params=params)
 
+    def _add_filter_conditions_to_sql(
+        self,
+        sql: str,
+        params: list[str | datetime],
+        filters: list[SearchFilter] | None,
+    ) -> SQLCondition:
+        """Add custom filter conditions to SQL query.
+
+        Args:
+            sql: Base SQL query
+            params: Query parameters
+            filters: List of SearchFilter objects to apply
+
+        Returns:
+            SQLCondition with updated SQL and parameters
+
+        """
+        if not filters:
+            return SQLCondition(condition=sql, params=params)
+
+        # Map filter field names to SQL column expressions
+        # Direct columns: content_type, last_indexed
+        # JSON metadata: project, timestamp, author, tags, etc.
+        field_mappings = {
+            "content_type": "content_type",
+            "last_indexed": "last_indexed",
+            # JSON metadata fields use JSON_EXTRACT_STRING
+            "project": "JSON_EXTRACT_STRING(search_metadata, '$.project')",
+            "timestamp": "JSON_EXTRACT_STRING(search_metadata, '$.timestamp')",
+            "author": "JSON_EXTRACT_STRING(search_metadata, '$.author')",
+            "tags": "JSON_EXTRACT_STRING(search_metadata, '$.tags')",
+        }
+
+        for filter_obj in filters:
+            # Get the SQL column expression for this field
+            sql_field = field_mappings.get(
+                filter_obj.field,
+                # Fallback: assume it's a metadata field
+                f"JSON_EXTRACT_STRING(search_metadata, '$.{filter_obj.field}')",
+            )
+
+            negation = "NOT " if filter_obj.negate else ""
+
+            if filter_obj.operator == "eq":
+                sql += f" AND {negation}{sql_field} = ?"
+                params.append(str(filter_obj.value))
+            elif filter_obj.operator == "ne":
+                sql += f" AND {negation}{sql_field} != ?"
+                params.append(str(filter_obj.value))
+            elif filter_obj.operator == "in":
+                if isinstance(filter_obj.value, list):
+                    placeholders = ", ".join("?" * len(filter_obj.value))
+                    sql += f" AND {negation}{sql_field} IN ({placeholders})"
+                    params.extend([str(v) for v in filter_obj.value])
+            elif filter_obj.operator == "not_in":
+                if isinstance(filter_obj.value, list):
+                    placeholders = ", ".join("?" * len(filter_obj.value))
+                    sql += f" AND {negation}{sql_field} NOT IN ({placeholders})"
+                    params.extend([str(v) for v in filter_obj.value])
+            elif filter_obj.operator == "contains":
+                sql += f" AND {negation}{sql_field} LIKE ?"
+                params.append(f"%{filter_obj.value}%")
+            elif filter_obj.operator == "starts_with":
+                sql += f" AND {negation}{sql_field} LIKE ?"
+                params.append(f"{filter_obj.value}%")
+            elif filter_obj.operator == "ends_with":
+                sql += f" AND {negation}{sql_field} LIKE ?"
+                params.append(f"%{filter_obj.value}")
+            elif filter_obj.operator == "range":
+                if isinstance(filter_obj.value, tuple) and len(filter_obj.value) == 2:
+                    if filter_obj.negate:
+                        sql += f" AND ({sql_field} < ? OR {sql_field} > ?)"
+                    else:
+                        sql += f" AND {sql_field} BETWEEN ? AND ?"
+                    params.extend([str(filter_obj.value[0]), str(filter_obj.value[1])])
+
+        return SQLCondition(condition=sql, params=params)
+
     def _add_content_type_filter(
         self,
         sql: str,

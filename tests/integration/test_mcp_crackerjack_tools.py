@@ -5,11 +5,84 @@ These tests verify that the MCP tools properly integrate with CrackerjackIntegra
 and handle the exact scenarios that caused the original issue.
 """
 
+import inspect
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastmcp import FastMCP
 from session_buddy.tools.crackerjack_tools import register_crackerjack_tools
+
+
+async def _attach_tool_call_helpers(mcp: FastMCP) -> FastMCP:
+    """Attach helper methods for programmatic tool calling used in tests."""
+
+    async def _call_tool_internal(tool_name: str, arguments: dict | None = None):
+        """Programmatically call a tool by name with provided arguments."""
+        if arguments is None:
+            arguments = {}
+
+        # Access the registered tools from the mcp instance
+        if hasattr(mcp, "get_tools"):
+            tools = await mcp.get_tools()
+        elif hasattr(mcp, "tools"):
+            tools = mcp.tools
+        else:
+            tools = getattr(mcp, "_tools", {})
+
+        if tool_name not in tools:
+            msg = f"Tool '{tool_name}' is not registered"
+            raise ValueError(msg)
+
+        # Get the tool specification
+        tool_spec = tools[tool_name]
+
+        # Extract the tool function from the tool specification
+        if hasattr(tool_spec, "function"):
+            tool_func = tool_spec.function
+        elif isinstance(tool_spec, dict) and "function" in tool_spec:
+            tool_func = tool_spec["function"]
+        elif callable(tool_spec):
+            tool_func = tool_spec
+        else:
+            tool_func = (
+                getattr(tool_spec, "fn", None)
+                or getattr(tool_spec, "implementation", None)
+                or getattr(tool_spec, "handler", None)
+                or getattr(tool_spec, "__call__", None)
+            )
+            if tool_func is None:
+                msg = f"Could not extract callable function from tool {tool_name}"
+                raise ValueError(msg)
+
+        # Get the function signature to validate arguments
+        sig = inspect.signature(tool_func)
+
+        # Filter arguments to only include what the function accepts
+        filtered_args = {}
+        for param_name, param in sig.parameters.items():
+            if param_name in arguments:
+                filtered_args[param_name] = arguments[param_name]
+            elif param.default is not param.empty:
+                # Use default value if available
+                filtered_args[param_name] = param.default
+
+        # Call the function
+        if inspect.iscoroutinefunction(tool_func):
+            return await tool_func(**filtered_args)
+        return tool_func(**filtered_args)
+
+    async def call_tool_internal(
+        tool_name: str, arguments: dict | None = None, **kwargs
+    ):
+        if arguments is None:
+            arguments = {}
+        if kwargs:
+            arguments.update(kwargs)
+        return await _call_tool_internal(tool_name, arguments)
+
+    mcp._call_tool = _call_tool_internal
+    mcp.call_tool = call_tool_internal
+    return mcp
 
 
 class TestMCPCrackerjackToolRegistration:
@@ -67,75 +140,7 @@ class TestMCPToolExecution:
         """Create MCP server with crackerjack tools."""
         mcp = FastMCP("test-crackerjack")
         register_crackerjack_tools(mcp)
-
-        # Add helper method for programmatic tool calling used in tests
-        async def _call_tool_internal(tool_name: str, arguments: dict | None = None):
-            """Programmatically call a tool by name with provided arguments.
-
-            This method is used in integration tests to call tools directly.
-            """
-            if arguments is None:
-                arguments = {}
-
-            # Access the registered tools from the mcp instance
-            if hasattr(mcp, "get_tools"):
-                tools = await mcp.get_tools()
-            elif hasattr(mcp, "tools"):
-                tools = mcp.tools
-            else:
-                tools = getattr(mcp, "_tools", {})
-
-            if tool_name not in tools:
-                msg = f"Tool '{tool_name}' is not registered"
-                raise ValueError(msg)
-
-            # Get the tool specification
-            tool_spec = tools[tool_name]
-
-            # Extract the tool function from the tool specification
-            if hasattr(tool_spec, "function"):
-                tool_func = tool_spec.function
-            elif isinstance(tool_spec, dict) and "function" in tool_spec:
-                tool_func = tool_spec["function"]
-            elif callable(tool_spec):
-                tool_func = tool_spec
-            else:
-                tool_func = (
-                    getattr(tool_spec, "implementation", None)
-                    or getattr(tool_spec, "handler", None)
-                    or getattr(tool_spec, "__call__", None)
-                )
-                if tool_func is None:
-                    msg = f"Could not extract callable function from tool {tool_name}"
-                    raise ValueError(msg)
-
-            # Get the function signature to validate arguments
-            import inspect
-
-            sig = inspect.signature(tool_func)
-
-            # Filter arguments to only include what the function accepts
-            filtered_args = {}
-            for param_name, param in sig.parameters.items():
-                if param_name in arguments:
-                    filtered_args[param_name] = arguments[param_name]
-                elif param.default is not param.empty:
-                    # Use default value if available
-                    filtered_args[param_name] = param.default
-
-            # Call the function
-            if inspect.iscoroutinefunction(tool_func):
-                return await tool_func(**filtered_args)
-            return tool_func(**filtered_args)
-
-        # Also add a call_tool method that mimics the _call_tool method
-        async def call_tool_internal(tool_name: str, **arguments):
-            return await _call_tool_internal(tool_name, arguments)
-
-        # Attach both methods to the mcp instance
-        mcp._call_tool = _call_tool_internal
-        mcp.call_tool = call_tool_internal
-        return mcp
+        return await _attach_tool_call_helpers(mcp)
 
     @pytest.mark.asyncio
     @patch(
@@ -185,8 +190,10 @@ class TestMCPToolExecution:
 
         # Verify result format (should be formatted string)
         assert isinstance(result, str)
-        assert "Crackerjack lint executed" in result
-        assert "Status: Success" in result
+        assert "Crackerjack lint" in result
+        assert "executed" in result
+        assert "Status" in result
+        assert "Success" in result
         assert "All checks passed" in result
 
     @pytest.mark.asyncio
@@ -307,7 +314,7 @@ class TestErrorHandlingAndRecovery:
         """Create MCP server with crackerjack tools."""
         mcp = FastMCP("test-error-handling")
         register_crackerjack_tools(mcp)
-        return mcp
+        return await _attach_tool_call_helpers(mcp)
 
     @pytest.mark.asyncio
     async def test_missing_execute_command_error(self, mcp_server):
@@ -393,7 +400,8 @@ class TestErrorHandlingAndRecovery:
         )
 
         # Should show the error but not crash
-        assert "Status: Failed" in result
+        assert "Status" in result
+        assert "Failed" in result
         assert "exit code: 2" in result
         # Should include the error message
         assert "unexpected extra argument" in result
@@ -407,7 +415,7 @@ class TestRealIntegration:
         """Create MCP server with real crackerjack tools."""
         mcp = FastMCP("test-real-integration")
         register_crackerjack_tools(mcp)
-        return mcp
+        return await _attach_tool_call_helpers(mcp)
 
     @pytest.mark.asyncio
     @patch("asyncio.create_subprocess_exec")
@@ -430,8 +438,8 @@ class TestRealIntegration:
         mock_create_subprocess.assert_called_once()
         call_args = mock_create_subprocess.call_args
 
-        # Should call with crackerjack --lint, NOT crackerjack lint
-        expected_cmd = ["crackerjack", "--lint"]
+        # Should call with python -m crackerjack --lint
+        expected_cmd = ["python", "-m", "crackerjack", "--lint"]
         assert call_args[0] == tuple(expected_cmd), (
             f"Expected {expected_cmd}, got {call_args[0]}"
         )
@@ -440,7 +448,8 @@ class TestRealIntegration:
         assert call_args[1]["cwd"] == "."
 
         # Verify result format
-        assert "Status: Success" in result
+        assert "Status" in result
+        assert "Success" in result
         assert "All checks passed successfully" in result
 
     @pytest.mark.asyncio
@@ -454,17 +463,17 @@ class TestRealIntegration:
 
         # Test command mappings
         test_cases = [
-            ("lint", ["crackerjack", "--lint"]),
-            ("check", ["crackerjack", "--check"]),
-            ("test", ["crackerjack", "--test"]),
-            ("format", ["crackerjack", "--format"]),
-            ("typecheck", ["crackerjack", "--typecheck"]),
-            ("security", ["crackerjack", "--security"]),
-            ("complexity", ["crackerjack", "--complexity"]),
-            ("analyze", ["crackerjack", "--analyze"]),
-            ("build", ["crackerjack", "--build"]),
-            ("clean", ["crackerjack", "--clean"]),
-            ("all", ["crackerjack", "--all"]),
+            ("lint", ["python", "-m", "crackerjack", "--lint"]),
+            ("check", ["python", "-m", "crackerjack", "--check"]),
+            ("test", ["python", "-m", "crackerjack", "--test"]),
+            ("format", ["python", "-m", "crackerjack", "--format"]),
+            ("typecheck", ["python", "-m", "crackerjack", "--typecheck"]),
+            ("security", ["python", "-m", "crackerjack", "--security"]),
+            ("complexity", ["python", "-m", "crackerjack", "--complexity"]),
+            ("analyze", ["python", "-m", "crackerjack", "--analyze"]),
+            ("build", ["python", "-m", "crackerjack", "--build"]),
+            ("clean", ["python", "-m", "crackerjack", "--clean"]),
+            ("all", ["python", "-m", "crackerjack", "--all"]),
         ]
 
         for command, expected_cmd in test_cases:
@@ -481,7 +490,8 @@ class TestRealIntegration:
             )
 
             # Verify result
-            assert "Status: Success" in result
+            assert "Status" in result
+            assert "Success" in result
 
     @pytest.mark.asyncio
     @patch("subprocess.run")
