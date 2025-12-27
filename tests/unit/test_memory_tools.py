@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from session_buddy.tools.memory_tools import (
+    _format_new_stats,
+    _format_old_stats,
     _format_stats_new,
     _format_stats_old,
     _quick_search_impl,

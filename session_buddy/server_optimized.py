@@ -532,7 +532,7 @@ def run_server() -> None:
             logger.warning("Running in mock mode - FastMCP not available")
 
     except Exception as e:
-        logger.exception("Server startup failed", error=str(e))
+        logger.exception("Server startup failed: %s", str(e))
         sys.exit(1)
 
 

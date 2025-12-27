@@ -88,9 +88,14 @@ class SessionLogger:
 
 def get_session_logger() -> SessionLogger:
     """Get the global session logger instance managed by the DI container."""
-    with suppress(KeyError, AttributeError, RuntimeError, TypeError):
+    from bevy.injection_types import DependencyResolutionError
+
+    with suppress(
+        KeyError, AttributeError, RuntimeError, TypeError, DependencyResolutionError
+    ):
         # RuntimeError: when adapter requires async
         # TypeError: when bevy has DI confusion between string keys and classes
+        # DependencyResolutionError: when dependency not registered in DI container
         logger = depends.get_sync(SessionLogger)
         if isinstance(logger, SessionLogger):
             return logger
@@ -101,17 +106,22 @@ def get_session_logger() -> SessionLogger:
 
 
 def _resolve_logs_dir() -> Path:
-    with suppress(KeyError, AttributeError, RuntimeError, TypeError):
-        # RuntimeError: when adapter requires async
-        # TypeError: when bevy has DI confusion between string keys and classes
-        configured = depends.get_sync(LOGS_DIR_KEY)
-        if isinstance(configured, Path):
-            configured.mkdir(parents=True, exist_ok=True)
-            return configured
+    from bevy.injection_types import DependencyResolutionError
 
+    # Try to get SessionPaths from DI (modern ACB pattern)
+    with suppress(
+        KeyError, AttributeError, RuntimeError, TypeError, DependencyResolutionError
+    ):
+        from session_buddy.di.config import SessionPaths
+
+        paths = depends.get_sync(SessionPaths)
+        if hasattr(paths, "logs_dir") and isinstance(paths.logs_dir, Path):
+            paths.logs_dir.mkdir(parents=True, exist_ok=True)
+            return paths.logs_dir
+
+    # Fallback: create default logs directory
     logs_dir = Path.home() / ".claude" / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
-    depends.set(LOGS_DIR_KEY, logs_dir)
     return logs_dir
 
 

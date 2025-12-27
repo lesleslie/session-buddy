@@ -290,11 +290,11 @@ class CrackerjackIntegration:
     def _build_command_flags(self, command: str, ai_agent_mode: bool) -> list[str]:
         """Build appropriate command flags for the given command."""
         command_mappings = {
-            "lint": ["--lint"],
-            "check": ["--check"],
+            "lint": ["--fast"],
+            "check": ["--comp"],
             "test": ["--test"],
-            "format": ["--format"],
-            "typecheck": ["--typecheck"],
+            "format": ["--fast"],
+            "typecheck": ["--comp"],
             "security": ["--security"],
             "complexity": ["--complexity"],
             "analyze": ["--analyze"],
@@ -379,6 +379,12 @@ class CrackerjackIntegration:
         """Execute Crackerjack command and capture results."""
         args = args or []
         command_flags = self._build_command_flags(command, ai_agent_mode)
+        quick_commands = {"lint", "check", "test", "format", "typecheck"}
+        if command.lower() in quick_commands and "--quick" not in args:
+            if "--ai-fix" in command_flags:
+                command_flags.insert(command_flags.index("--ai-fix"), "--quick")
+            else:
+                command_flags.append("--quick")
         full_command = ["python", "-m", "crackerjack", *command_flags, *args]
 
         start_time = time.time()

@@ -1,0 +1,507 @@
+{
+  "functions": [
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::__init__",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_contains_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_ends_with_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_eq_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_ne_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_starts_with_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_build_search_query",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_build_search_sql",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_get_facet_queries",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_get_sql_field",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_prepare_sql_params",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_process_conversation_for_index",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::search",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_add_content_type_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_in_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_not_in_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_build_conversation_search_metadata",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_commit_conversation_index",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_fetch_conversations_for_indexing",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_format_search_response",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_insert_conversation_into_search_index",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_insert_facet_value",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_parse_conversation_metadata",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_process_facets",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_process_search_results",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_rebuild_search_index",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_should_process_facet_value",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_build_contains_condition",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_build_indexed_content",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_ensure_search_index",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_execute_search",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_index_conversations",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::search_by_timeframe",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::suggest_completions",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_add_sorting_to_sql",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_build_filter_conditions",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_convert_sql_results_to_search_results",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_update_search_facets",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_add_timeframe_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_build_equality_condition",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_build_single_filter_condition",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::get_similar_content",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_range_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_build_timestamp_range_condition",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::aggregate_metrics",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_add_filter_conditions_to_sql",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_add_highlights",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_calculate_facets",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_process_facet_query",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 12,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_get_last_index_update",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 12,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_index_reflections",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "health_tools.py",
+      "function_name": "_prepare_liveness_result",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "health_tools.py",
+      "function_name": "_prepare_readiness_result",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "health_tools.py",
+      "function_name": "_normalize_dict_component",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "health_tools.py",
+      "function_name": "get_health_status",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "health_tools.py",
+      "function_name": "_normalize_object_component",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "health_tools.py",
+      "function_name": "_normalize_components",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::__aenter__",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::__aexit__",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::__del__",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::__enter__",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::__exit__",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::__init__",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_text_search_conversations",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::reset_database",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::similarity_search",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_get_adapter",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_try_adapter_query",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_log_accesses",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::aclose",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::get_embedding",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::search_conversations",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_try_direct_query",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::get_reflection_by_id",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::close",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::store_conversation",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_parse_metadata",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::store_reflection",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 8,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_semantic_search_conversations",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::get_stats",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::search_reflections",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 12,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_text_search_fallback",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 14,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::initialize",
+      "path": "reflection_adapter.py"
+    }
+  ],
+  "targets": [
+    "/Users/les/Projects/session-buddy/session_buddy/adapters/reflection_adapter.py",
+    "/Users/les/Projects/session-buddy/session_buddy/advanced_search.py",
+    "/Users/les/Projects/session-buddy/session_buddy/tools/health_tools.py"
+  ]
+}

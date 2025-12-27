@@ -27,15 +27,9 @@ def get_session_logger() -> t.Any:
 
     This function is used in tests for mocking purposes.
     """
-    try:
-        # Use the already-registered logger from DI container
-        # Don't call import_adapter() here - it fails from async context
-        return depends.get_sync("acb_logger")
-    except Exception:
-        # If dependency injection fails, create a basic logger
-        import logging
+    import logging
 
-        return logging.getLogger(__name__)
+    return logging.getLogger(__name__)
 
 
 class SessionLifecycleManager:
@@ -49,16 +43,10 @@ class SessionLifecycleManager:
 
         """
         if logger is None:
-            # Fallback for manual instantiation
-            try:
-                # Use the already-registered logger from DI container
-                # Don't call import_adapter() here - it fails from async context
-                logger = depends.get_sync("acb_logger")
-            except Exception:
-                # If dependency injection fails, create a basic logger
-                import logging
+            # Fallback for manual instantiation - use standard logging
+            import logging
 
-                logger = logging.getLogger(__name__)
+            logger = logging.getLogger(__name__)
 
         self.logger = logger
         self.current_project: str | None = None

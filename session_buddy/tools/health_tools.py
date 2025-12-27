@@ -17,6 +17,90 @@ from mcp_common.health import HealthCheckResponse
 _SERVER_START_TIME = time.time()
 
 
+def _normalize_dict_component(
+    component: dict[str, t.Any],
+) -> t.Any:  # Returns MCPComponentHealth
+    """Normalize dictionary component to MCPComponentHealth."""
+    from mcp_common.health import ComponentHealth as MCPComponentHealth
+    from mcp_common.health import HealthStatus as MCPHealthStatus
+
+    status_value = component.get("status", "degraded")
+    try:
+        status = MCPHealthStatus(status_value)
+    except ValueError:
+        status = MCPHealthStatus.DEGRADED
+
+    return MCPComponentHealth(
+        name=component.get("name", "unknown"),
+        status=status,
+        message=component.get("message"),
+        latency_ms=component.get("latency_ms"),
+        metadata=component.get("metadata", {}),
+    )
+
+
+def _normalize_object_component(
+    component: t.Any,
+) -> t.Any:  # Returns MCPComponentHealth
+    """Normalize object component to MCPComponentHealth."""
+    from mcp_common.health import ComponentHealth as MCPComponentHealth
+    from mcp_common.health import HealthStatus as MCPHealthStatus
+
+    status_attr = getattr(component, "status", MCPHealthStatus.DEGRADED)
+    try:
+        status = (
+            status_attr
+            if isinstance(status_attr, MCPHealthStatus)
+            else MCPHealthStatus(str(status_attr))
+        )
+    except ValueError:
+        status = MCPHealthStatus.DEGRADED
+
+    return MCPComponentHealth(
+        name=getattr(component, "name", "unknown"),
+        status=status,
+        message=getattr(component, "message", None),
+        latency_ms=getattr(component, "latency_ms", None),
+        metadata=getattr(component, "metadata", {}),
+    )
+
+
+def _normalize_components(
+    components: list[t.Any],
+) -> list[t.Any]:  # Returns list[MCPComponentHealth]
+    """Normalize health check components to standard format."""
+    from mcp_common.health import ComponentHealth as MCPComponentHealth
+
+    normalized: list[t.Any] = []  # list[MCPComponentHealth]
+    for component in components:
+        if isinstance(component, MCPComponentHealth):
+            normalized.append(component)
+        elif isinstance(component, dict):
+            normalized.append(_normalize_dict_component(component))
+        else:
+            normalized.append(_normalize_object_component(component))
+
+    return normalized
+
+
+def _prepare_readiness_result(
+    response: t.Any,  # HealthCheckResponse
+) -> dict[str, t.Any]:
+    """Prepare result for readiness check."""
+    result: dict[str, t.Any] = response.to_dict()
+    result["ready"] = response.is_healthy()
+    return result
+
+
+def _prepare_liveness_result(
+    response: t.Any,  # HealthCheckResponse
+) -> dict[str, t.Any]:
+    """Prepare result for liveness check."""
+    result: dict[str, t.Any] = response.to_dict()
+    result["alive"] = response.is_ready()
+    return result
+
+
 async def get_health_status(ready: bool = False) -> dict[str, t.Any]:
     """Get comprehensive health status of the session management server.
 
@@ -65,39 +149,24 @@ async def get_health_status(ready: bool = False) -> dict[str, t.Any]:
     except (ImportError, AttributeError):
         version = "unknown"
 
-    # Run all health checks
+    # Run all health checks and normalize
     components = await get_all_health_checks()
+    normalized_components = _normalize_components(components)
 
     # Create health response
     response = HealthCheckResponse.create(
-        components=components,  # type: ignore[arg-type]  # ComponentHealth structurally compatible
+        components=normalized_components,
         version=version,
         start_time=_SERVER_START_TIME,
         metadata={"check_type": "readiness" if ready else "liveness"},
     )
 
-    # For readiness checks, be strict (only HEALTHY passes)
-    # For liveness checks, be loose (only UNHEALTHY fails)
-    if ready and not response.is_healthy():
-        # Readiness check failed - server not ready for traffic
-        result = response.to_dict()
-        result["ready"] = False
-        return result
-
-    if not ready and not response.is_ready():
-        # Liveness check failed - server should be restarted
-        result = response.to_dict()
-        result["alive"] = False
-        return result
-
-    # Checks passed
-    result = response.to_dict()
-    if ready:
-        result["ready"] = True
-    else:
-        result["alive"] = True
-
-    return result
+    # Return appropriate result based on check type
+    return (
+        _prepare_readiness_result(response)
+        if ready
+        else _prepare_liveness_result(response)
+    )
 
 
 __all__ = ["get_health_status"]

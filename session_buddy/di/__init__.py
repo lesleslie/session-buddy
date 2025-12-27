@@ -84,100 +84,14 @@ def _register_logger(logs_dir: Path, force: bool) -> None:
         force: If True, re-registers even if already registered
 
     Note:
-        Uses ACB's logger adapter system which automatically selects
-        the best available logger (loguru, logly, or structlog).
+        This function configures ACB's logger adapter but does NOT register it
+        in the DI container to avoid bevy type resolution conflicts. Components
+        should use direct logging imports instead of DI lookup.
 
     """
-    # Check if already registered first (before importing)
-    if not force:
-        with suppress(KeyError, AttributeError, RuntimeError):
-            # RuntimeError: when adapter requires async (re-register)
-            existing = depends.get_sync("acb_logger")
-            # Only skip if we already have a Logger instance (not just the module name string)
-            if existing is not None and hasattr(existing, "add"):
-                return
-
-    # Try to import ACB's logger adapter
-    # This may fail if called from async context, so we have a fallback
-    try:
-        from acb.adapters import import_adapter
-
-        # Import ACB's Logger class (returns the instance, not class)
-        logger_instance = import_adapter("logger")
-    except (RuntimeError, Exception):
-        # Called from async context or adapter not available - use standard logging as fallback
-        import logging
-
-        logger_instance = logging.getLogger("session_buddy")
-        logger_instance.setLevel(logging.INFO)
-
-    # Configure logger with file sink, falling back to a temp directory when
-    # the default home-based location is not writable (e.g., sandboxed tests).
-    log_file = logs_dir / f"session_management_{datetime.now().strftime('%Y%m%d')}.log"
-    try:
-        # The ACB logger adapter returns a configured logger instance,
-        # but for file logging we might need to configure it differently
-        # depending on the actual logger implementation (loguru, logly, etc.)
-        if hasattr(logger_instance, "add"):
-            # For loguru-like loggers
-            logger_instance.add(
-                str(log_file),
-                level="INFO",
-                rotation="1 day",
-                retention="7 days",
-                compression="gz",
-            )
-        elif hasattr(logger_instance, "setLevel") and hasattr(
-            logger_instance, "addHandler"
-        ):
-            # For logging module loggers
-            import logging
-            from logging.handlers import RotatingFileHandler
-
-            # Create rotating file handler
-            handler = RotatingFileHandler(
-                str(log_file),
-                maxBytes=10 * 1024 * 1024,  # 10MB
-                backupCount=7,
-            )
-            handler.setLevel(logging.INFO)
-            logger_instance.addHandler(handler)
-    except Exception:
-        # Fallback: use a temp logs directory under the system temp path
-        tmp_logs = Path(tempfile.gettempdir()) / "session-buddy" / "logs"
-        tmp_logs.mkdir(parents=True, exist_ok=True)
-        depends.set(LOGS_DIR_KEY, tmp_logs)
-        log_file = (
-            tmp_logs / f"session_management_{datetime.now().strftime('%Y%m%d')}.log"
-        )
-        with suppress(Exception):
-            if hasattr(logger_instance, "add"):
-                # For loguru-like loggers
-                logger_instance.add(
-                    str(log_file),
-                    level="INFO",
-                    rotation="1 day",
-                    retention="7 days",
-                    compression="gz",
-                )
-            elif hasattr(logger_instance, "setLevel") and hasattr(
-                logger_instance, "addHandler"
-            ):
-                # For logging module loggers
-                import logging
-                from logging.handlers import RotatingFileHandler
-
-                # Create rotating file handler
-                handler = RotatingFileHandler(
-                    str(log_file),
-                    maxBytes=10 * 1024 * 1024,  # 10MB
-                    backupCount=7,
-                )
-                handler.setLevel(logging.INFO)
-                logger_instance.addHandler(handler)
-
-    # Register the instance using a string key to avoid the dependency resolution issue
-    depends.set("acb_logger", logger_instance)
+    # Skip registration entirely - we don't need to register the logger in DI
+    # Components should use `import logging; logger = logging.getLogger(__name__)`
+    # This avoids bevy DI type confusion when crackerjack runs
 
 
 def _register_session_logger(logs_dir: Path, force: bool) -> None:
@@ -293,9 +207,14 @@ def _register_graph_adapter(paths: SessionPaths, force: bool) -> None:
     config = depends.get_sync(Config)
     config.ensure_initialized()
 
+    data_dir = paths.data_dir
+    if not data_dir.is_absolute():
+        data_dir = Path.home() / data_dir
+    data_dir.mkdir(parents=True, exist_ok=True)
+
     # Create settings for graph adapter
     settings = DuckDBPGQSettings(
-        database_url=f"duckdb:///{paths.data_dir}/knowledge_graph.duckdb",
+        database_url=f"duckdb:///{data_dir}/knowledge_graph.duckdb",
         graph_name="session_mgmt_graph",
         nodes_table="kg_entities",
         edges_table="kg_relationships",
@@ -306,7 +225,7 @@ def _register_graph_adapter(paths: SessionPaths, force: bool) -> None:
     config.graph = settings  # type: ignore[attr-defined]
 
     # Create adapter instance and manually set config (ACB test pattern)
-    graph_adapter = Graph()
+    graph_adapter = Graph(settings=settings)
     graph_adapter.config = config  # Override _DependencyMarker with actual Config
     depends.set(Graph, graph_adapter)
 

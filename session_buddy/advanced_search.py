@@ -163,12 +163,16 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return []
 
-        results = self.reflection_db.conn.execute(
-            sql,
-            [f"%{query}%", limit],
-        ).fetchall()
+        try:
+            results = self.reflection_db.conn.execute(
+                sql,
+                [f"%{query}%", limit],
+            ).fetchall()
 
-        return [{"text": row[0], "frequency": row[1]} for row in results]
+            return [{"text": row[0], "frequency": row[1]} for row in results]
+        except Exception:
+            # Table doesn't exist yet, will be created during index rebuild
+            return []
 
     async def get_similar_content(
         self,
@@ -187,12 +191,16 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return []
 
-        result = self.reflection_db.conn.execute(
-            sql,
-            [content_id, content_type],
-        ).fetchone()
+        try:
+            result = self.reflection_db.conn.execute(
+                sql,
+                [content_id, content_type],
+            ).fetchone()
 
-        if not result:
+            if not result:
+                return []
+        except Exception:
+            # Table doesn't exist yet, will be created during index rebuild
             return []
 
         source_content = result[0]
@@ -329,17 +337,25 @@ class AdvancedSearchEngine:
                 "error": f"Database connection not available for metric type: {metric_type}",
             }
 
-        # Use simplified parameters for the base time range
-        base_params = [start_time, end_time]
-        results = self.reflection_db.conn.execute(sql, base_params).fetchall()
+        try:
+            # Use simplified parameters for the base time range
+            base_params = [start_time, end_time]
+            results = self.reflection_db.conn.execute(sql, base_params).fetchall()
 
-        return {
-            "metric_type": metric_type,
-            "timeframe": timeframe,
-            "data": [{"key": row[0], "value": row[1]} for row in results]
-            if results
-            else [],
-        }
+            return {
+                "metric_type": metric_type,
+                "timeframe": timeframe,
+                "data": [{"key": row[0], "value": row[1]} for row in results]
+                if results
+                else [],
+            }
+        except Exception:
+            # Table doesn't exist yet, will be created during index rebuild
+            return {
+                "metric_type": metric_type,
+                "timeframe": timeframe,
+                "data": [],
+            }
 
     async def _ensure_search_index(self) -> None:
         """Ensure search index is up to date."""
@@ -357,18 +373,26 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return None
 
-        result = self.reflection_db.conn.execute(sql).fetchone()
+        try:
+            result = self.reflection_db.conn.execute(sql).fetchone()
 
-        if result and result[0]:
-            dt = result[0]
-            # Ensure datetime is timezone-aware
-            if isinstance(dt, datetime) and dt.tzinfo is None:
-                dt = dt.replace(tzinfo=UTC)
-            return dt if isinstance(dt, datetime) else None
-        return None
+            if result and result[0]:
+                dt = result[0]
+                # Ensure datetime is timezone-aware
+                if isinstance(dt, datetime) and dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
+                return dt if isinstance(dt, datetime) else None
+            return None
+        except Exception:
+            # Table doesn't exist yet, will be created during index rebuild
+            return None
 
     async def _rebuild_search_index(self) -> None:
         """Rebuild the search index from conversations and reflections."""
+        # Ensure database tables exist before indexing
+        if self.reflection_db.conn:
+            await self.reflection_db._ensure_tables()
+
         # Index conversations
         await self._index_conversations()
 
@@ -616,11 +640,15 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return
 
-        results = self.reflection_db.conn.execute(sql).fetchall()
+        try:
+            results = self.reflection_db.conn.execute(sql).fetchall()
 
-        for facet_value, _count in results:
-            if self._should_process_facet_value(facet_value):
-                self._insert_facet_value(facet_name, facet_value)
+            for facet_value, _count in results:
+                if self._should_process_facet_value(facet_value):
+                    self._insert_facet_value(facet_name, facet_value)
+        except Exception:
+            # Table doesn't exist yet, will be created during index rebuild
+            return
 
     async def _update_search_facets(self) -> None:
         """Update search facets based on indexed content."""
@@ -748,11 +776,15 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return []
 
-        results = self.reflection_db.conn.execute(
-            sql_result.condition,
-            self._prepare_sql_params(sql_result.params),
-        ).fetchall()
-        return self._convert_sql_results_to_search_results(results)
+        try:
+            results = self.reflection_db.conn.execute(
+                sql_result.condition,
+                self._prepare_sql_params(sql_result.params),
+            ).fetchall()
+            return self._convert_sql_results_to_search_results(results)
+        except Exception:
+            # Table doesn't exist yet, will be created during index rebuild
+            return []
 
     def _build_search_sql(
         self,
@@ -787,81 +819,196 @@ class AdvancedSearchEngine:
 
         return SQLCondition(condition=sql, params=params)
 
+    def _get_sql_field(self, field: str) -> str:
+        """Map filter field to SQL column expression."""
+        field_mappings = {
+            "content_type": "content_type",
+            "last_indexed": "last_indexed",
+            "project": "JSON_EXTRACT_STRING(search_metadata, '$.project')",
+            "timestamp": "JSON_EXTRACT_STRING(search_metadata, '$.timestamp')",
+            "author": "JSON_EXTRACT_STRING(search_metadata, '$.author')",
+            "tags": "JSON_EXTRACT_STRING(search_metadata, '$.tags')",
+        }
+        return field_mappings.get(
+            field,
+            f"JSON_EXTRACT_STRING(search_metadata, '$.{field}')",
+        )
+
+    def _apply_eq_filter(
+        self,
+        sql_field: str,
+        negation: str,
+        value: Any,
+        params: list[str | datetime],
+    ) -> tuple[str, list[str | datetime]]:
+        """Apply equality filter."""
+        sql_part = f" AND {negation}{sql_field} = ?"
+        params.append(str(value))
+        return sql_part, params
+
+    def _apply_ne_filter(
+        self,
+        sql_field: str,
+        negation: str,
+        value: Any,
+        params: list[str | datetime],
+    ) -> tuple[str, list[str | datetime]]:
+        """Apply not-equal filter."""
+        sql_part = f" AND {negation}{sql_field} != ?"
+        params.append(str(value))
+        return sql_part, params
+
+    def _apply_in_filter(
+        self,
+        sql_field: str,
+        negation: str,
+        value: Any,
+        params: list[str | datetime],
+    ) -> tuple[str, list[str | datetime]]:
+        """Apply IN filter."""
+        if isinstance(value, list):
+            placeholders = ", ".join("?" * len(value))
+            sql_part = f" AND {negation}{sql_field} IN ({placeholders})"
+            params.extend([str(v) for v in value])
+            return sql_part, params
+        return "", params
+
+    def _apply_not_in_filter(
+        self,
+        sql_field: str,
+        negation: str,
+        value: Any,
+        params: list[str | datetime],
+    ) -> tuple[str, list[str | datetime]]:
+        """Apply NOT IN filter."""
+        if isinstance(value, list):
+            placeholders = ", ".join("?" * len(value))
+            sql_part = f" AND {negation}{sql_field} NOT IN ({placeholders})"
+            params.extend([str(v) for v in value])
+            return sql_part, params
+        return "", params
+
+    def _apply_contains_filter(
+        self,
+        sql_field: str,
+        negation: str,
+        value: Any,
+        params: list[str | datetime],
+    ) -> tuple[str, list[str | datetime]]:
+        """Apply CONTAINS filter."""
+        sql_part = f" AND {negation}{sql_field} LIKE ?"
+        params.append(f"%{value}%")
+        return sql_part, params
+
+    def _apply_starts_with_filter(
+        self,
+        sql_field: str,
+        negation: str,
+        value: Any,
+        params: list[str | datetime],
+    ) -> tuple[str, list[str | datetime]]:
+        """Apply STARTS_WITH filter."""
+        sql_part = f" AND {negation}{sql_field} LIKE ?"
+        params.append(f"{value}%")
+        return sql_part, params
+
+    def _apply_ends_with_filter(
+        self,
+        sql_field: str,
+        negation: str,
+        value: Any,
+        params: list[str | datetime],
+    ) -> tuple[str, list[str | datetime]]:
+        """Apply ENDS_WITH filter."""
+        sql_part = f" AND {negation}{sql_field} LIKE ?"
+        params.append(f"%{value}")
+        return sql_part, params
+
+    def _apply_range_filter(
+        self,
+        sql_field: str,
+        filter_obj: SearchFilter,
+        params: list[str | datetime],
+    ) -> tuple[str, list[str | datetime]]:
+        """Apply RANGE filter."""
+        if isinstance(filter_obj.value, tuple) and len(filter_obj.value) == 2:
+            if filter_obj.negate:
+                sql_part = f" AND ({sql_field} < ? OR {sql_field} > ?)"
+            else:
+                sql_part = f" AND {sql_field} BETWEEN ? AND ?"
+            params.extend([str(filter_obj.value[0]), str(filter_obj.value[1])])
+            return sql_part, params
+        return "", params
+
     def _add_filter_conditions_to_sql(
         self,
         sql: str,
         params: list[str | datetime],
         filters: list[SearchFilter] | None,
     ) -> SQLCondition:
-        """Add custom filter conditions to SQL query.
-
-        Args:
-            sql: Base SQL query
-            params: Query parameters
-            filters: List of SearchFilter objects to apply
-
-        Returns:
-            SQLCondition with updated SQL and parameters
-
-        """
+        """Add custom filter conditions to SQL query."""
         if not filters:
             return SQLCondition(condition=sql, params=params)
 
-        # Map filter field names to SQL column expressions
-        # Direct columns: content_type, last_indexed
-        # JSON metadata: project, timestamp, author, tags, etc.
-        field_mappings = {
-            "content_type": "content_type",
-            "last_indexed": "last_indexed",
-            # JSON metadata fields use JSON_EXTRACT_STRING
-            "project": "JSON_EXTRACT_STRING(search_metadata, '$.project')",
-            "timestamp": "JSON_EXTRACT_STRING(search_metadata, '$.timestamp')",
-            "author": "JSON_EXTRACT_STRING(search_metadata, '$.author')",
-            "tags": "JSON_EXTRACT_STRING(search_metadata, '$.tags')",
-        }
-
         for filter_obj in filters:
-            # Get the SQL column expression for this field
-            sql_field = field_mappings.get(
-                filter_obj.field,
-                # Fallback: assume it's a metadata field
-                f"JSON_EXTRACT_STRING(search_metadata, '$.{filter_obj.field}')",
-            )
-
+            sql_field = self._get_sql_field(filter_obj.field)
             negation = "NOT " if filter_obj.negate else ""
 
-            if filter_obj.operator == "eq":
-                sql += f" AND {negation}{sql_field} = ?"
-                params.append(str(filter_obj.value))
-            elif filter_obj.operator == "ne":
-                sql += f" AND {negation}{sql_field} != ?"
-                params.append(str(filter_obj.value))
-            elif filter_obj.operator == "in":
-                if isinstance(filter_obj.value, list):
-                    placeholders = ", ".join("?" * len(filter_obj.value))
-                    sql += f" AND {negation}{sql_field} IN ({placeholders})"
-                    params.extend([str(v) for v in filter_obj.value])
-            elif filter_obj.operator == "not_in":
-                if isinstance(filter_obj.value, list):
-                    placeholders = ", ".join("?" * len(filter_obj.value))
-                    sql += f" AND {negation}{sql_field} NOT IN ({placeholders})"
-                    params.extend([str(v) for v in filter_obj.value])
-            elif filter_obj.operator == "contains":
-                sql += f" AND {negation}{sql_field} LIKE ?"
-                params.append(f"%{filter_obj.value}%")
-            elif filter_obj.operator == "starts_with":
-                sql += f" AND {negation}{sql_field} LIKE ?"
-                params.append(f"{filter_obj.value}%")
-            elif filter_obj.operator == "ends_with":
-                sql += f" AND {negation}{sql_field} LIKE ?"
-                params.append(f"%{filter_obj.value}")
-            elif filter_obj.operator == "range":
-                if isinstance(filter_obj.value, tuple) and len(filter_obj.value) == 2:
-                    if filter_obj.negate:
-                        sql += f" AND ({sql_field} < ? OR {sql_field} > ?)"
-                    else:
-                        sql += f" AND {sql_field} BETWEEN ? AND ?"
-                    params.extend([str(filter_obj.value[0]), str(filter_obj.value[1])])
+            # Dispatch to appropriate filter handler
+            operator_handlers = {
+                "eq": lambda: self._apply_eq_filter(
+                    sql_field,
+                    negation,
+                    filter_obj.value,
+                    params,
+                ),
+                "ne": lambda: self._apply_ne_filter(
+                    sql_field,
+                    negation,
+                    filter_obj.value,
+                    params,
+                ),
+                "in": lambda: self._apply_in_filter(
+                    sql_field,
+                    negation,
+                    filter_obj.value,
+                    params,
+                ),
+                "not_in": lambda: self._apply_not_in_filter(
+                    sql_field,
+                    negation,
+                    filter_obj.value,
+                    params,
+                ),
+                "contains": lambda: self._apply_contains_filter(
+                    sql_field,
+                    negation,
+                    filter_obj.value,
+                    params,
+                ),
+                "starts_with": lambda: self._apply_starts_with_filter(
+                    sql_field,
+                    negation,
+                    filter_obj.value,
+                    params,
+                ),
+                "ends_with": lambda: self._apply_ends_with_filter(
+                    sql_field,
+                    negation,
+                    filter_obj.value,
+                    params,
+                ),
+                "range": lambda: self._apply_range_filter(
+                    sql_field,
+                    filter_obj,
+                    params,
+                ),
+            }
+
+            handler = operator_handlers.get(filter_obj.operator)
+            if handler:
+                sql_part, params = handler()
+                sql += sql_part
 
         return SQLCondition(condition=sql, params=params)
 
@@ -996,18 +1143,22 @@ class AdvancedSearchEngine:
                 if not self.reflection_db.conn:
                     continue
 
-                results = self.reflection_db.conn.execute(
-                    sql,
-                    [facet_name, f"%{query}%", facet_config["size"]],
-                ).fetchall()
+                try:
+                    results = self.reflection_db.conn.execute(
+                        sql,
+                        [facet_name, f"%{query}%", facet_config["size"]],
+                    ).fetchall()
 
-                facets[facet_name] = SearchFacet(
-                    name=facet_name,
-                    values=[
-                        (str(row[0]) if row[0] is not None else "", row[1])
-                        for row in results
-                    ],
-                    facet_type=str(facet_config["type"]),
-                )
+                    facets[facet_name] = SearchFacet(
+                        name=facet_name,
+                        values=[
+                            (str(row[0]) if row[0] is not None else "", row[1])
+                            for row in results
+                        ],
+                        facet_type=str(facet_config["type"]),
+                    )
+                except Exception:
+                    # Table doesn't exist yet, will be created during index rebuild
+                    continue
 
         return facets

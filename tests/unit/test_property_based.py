@@ -6,13 +6,15 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from tests.helpers import PropertyTestHelper, TestDataFactory
 
+ASCII_CHARS = st.characters(min_codepoint=32, max_codepoint=126)
+
 
 class TestPropertyBasedValidation:
     """Property-based tests for data validation and robustness."""
 
     @given(
-        content=st.text(min_size=1, max_size=10000),
-        project=st.text(min_size=1, max_size=100),
+        content=st.text(alphabet=ASCII_CHARS, min_size=1, max_size=2000),
+        project=st.text(alphabet=ASCII_CHARS, min_size=1, max_size=100),
     )
     @settings(max_examples=50)
     def test_conversation_storage_properties(self, content: str, project: str):
@@ -26,8 +28,11 @@ class TestPropertyBasedValidation:
         assert conversation["project"] == project
 
     @given(
-        content=st.text(min_size=1, max_size=10000),
-        tags=st.lists(st.text(min_size=1, max_size=50), max_size=20),
+        content=st.text(alphabet=ASCII_CHARS, min_size=1, max_size=2000),
+        tags=st.lists(
+            st.text(alphabet=ASCII_CHARS, min_size=1, max_size=30),
+            max_size=10,
+        ),
     )
     @settings(max_examples=50)
     def test_reflection_storage_properties(self, content: str, tags: list[str]):

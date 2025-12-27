@@ -438,8 +438,8 @@ class TestRealIntegration:
         mock_create_subprocess.assert_called_once()
         call_args = mock_create_subprocess.call_args
 
-        # Should call with python -m crackerjack --lint
-        expected_cmd = ["python", "-m", "crackerjack", "--lint"]
+        # Should call with python -m crackerjack --fast --quick
+        expected_cmd = ["python", "-m", "crackerjack", "--fast", "--quick"]
         assert call_args[0] == tuple(expected_cmd), (
             f"Expected {expected_cmd}, got {call_args[0]}"
         )
@@ -463,11 +463,11 @@ class TestRealIntegration:
 
         # Test command mappings
         test_cases = [
-            ("lint", ["python", "-m", "crackerjack", "--lint"]),
-            ("check", ["python", "-m", "crackerjack", "--check"]),
-            ("test", ["python", "-m", "crackerjack", "--test"]),
-            ("format", ["python", "-m", "crackerjack", "--format"]),
-            ("typecheck", ["python", "-m", "crackerjack", "--typecheck"]),
+            ("lint", ["python", "-m", "crackerjack", "--fast", "--quick"]),
+            ("check", ["python", "-m", "crackerjack", "--comp", "--quick"]),
+            ("test", ["python", "-m", "crackerjack", "--test", "--quick"]),
+            ("format", ["python", "-m", "crackerjack", "--fast", "--quick"]),
+            ("typecheck", ["python", "-m", "crackerjack", "--comp", "--quick"]),
             ("security", ["python", "-m", "crackerjack", "--security"]),
             ("complexity", ["python", "-m", "crackerjack", "--complexity"]),
             ("analyze", ["python", "-m", "crackerjack", "--analyze"]),

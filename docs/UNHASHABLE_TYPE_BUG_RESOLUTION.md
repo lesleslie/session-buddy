@@ -7,8 +7,9 @@
 ## Summary
 
 Session-buddy's checkpoint tool was failing with cascading "unhashable type" errors:
+
 1. First error: `unhashable type: 'CallToolRequestParams'`
-2. After patching: `unhashable type: 'Context'`
+1. After patching: `unhashable type: 'Context'`
 
 Both errors stem from Pydantic/dataclass objects being used as dictionary keys or in sets somewhere in the call stack, but these objects have `__hash__ = None` by default.
 
@@ -17,6 +18,7 @@ Both errors stem from Pydantic/dataclass objects being used as dictionary keys o
 ### The Core Issue
 
 Python's `hash()` function is required for objects to be used as:
+
 - Dictionary keys
 - Set members
 - Elements in frozensets
@@ -28,6 +30,7 @@ Both `CallToolRequestParams` (from MCP SDK) and `Context` (from FastMCP) are unh
 class CallToolRequestParams(RequestParams):
     __hash__ = None  # Pydantic models are unhashable by default
 
+
 # From fastmcp.server.context
 class Context:
     __hash__ = None  # Explicitly set to prevent hashing
@@ -36,11 +39,13 @@ class Context:
 ### Where the Hashing Occurs
 
 The exact location where hashing is attempted remains unclear, but likely candidates:
+
 1. **FastMCP middleware system** - May use context as cache keys
-2. **MCP protocol layer** - Request deduplication or caching
-3. **Claude Code client** - Client-side request tracking
+1. **MCP protocol layer** - Request deduplication or caching
+1. **Claude Code client** - Client-side request tracking
 
 The issue manifests when:
+
 - Checkpoint tool is called from another project (e.g., raindropio-mcp)
 - MCP server processes the tool call
 - Somewhere in the call stack, the params or context is used as a dict key
@@ -48,6 +53,7 @@ The issue manifests when:
 ### Evidence Trail
 
 **Error Progression:**
+
 ```
 First attempt:
   Error: unhashable type: 'CallToolRequestParams'
@@ -60,6 +66,7 @@ After patching both:
 ```
 
 **Documentation References:**
+
 - `docs/FASTMCP_UNHASHABLE_BUG.md` - Initial investigation (Jan 19, 2025)
 - Identified rate limiting middleware as a potential culprit
 - But rate limiting was already disabled in current code
@@ -69,6 +76,7 @@ After patching both:
 ### Files Modified
 
 1. **`patch_hashable.py`** (NEW) - Monkey-patches for unhashable types:
+
    ```python
    # Make CallToolRequestParams hashable
    CallToolRequestParams.__hash__ = _debug_params_hash
@@ -77,10 +85,12 @@ After patching both:
    Context.__hash__ = _debug_context_hash
    ```
 
-2. **`session_buddy/server.py`** (MODIFIED) - Auto-loads patch on startup:
+1. **`session_buddy/server.py`** (MODIFIED) - Auto-loads patch on startup:
+
    ```python
    # Lines 31-44: Import and execute patch before any MCP imports
    import importlib.util as _util
+
    spec = _util.spec_from_file_location("patch_hashable", _patch_file)
    spec.loader.exec_module(patch_module)
    ```
@@ -88,6 +98,7 @@ After patching both:
 ### How the Patch Works
 
 **CallToolRequestParams Hash Strategy:**
+
 ```python
 def _debug_params_hash(self):
     # Hash based on (name, sorted arguments tuple)
@@ -96,6 +107,7 @@ def _debug_params_hash(self):
 ```
 
 **Context Hash Strategy:**
+
 ```python
 def _debug_context_hash(self):
     # Hash based on instance ID (unique per instance)
@@ -104,6 +116,7 @@ def _debug_context_hash(self):
 
 **Debug Logging:**
 Both patches log full stack traces when `hash()` is called, allowing us to identify:
+
 - Exactly where hashing occurs
 - What code path triggers it
 - Whether it's server-side or client-side
@@ -111,12 +124,14 @@ Both patches log full stack traces when `hash()` is called, allowing us to ident
 ### Verification
 
 **Startup Log Confirmation:**
+
 ```
 ✅ CallToolRequestParams and Context patched to be hashable with debug logging
 ✅ Session Management MCP started successfully!
 ```
 
 **Server Running:**
+
 ```bash
 $ ps aux | grep session_buddy
 les  27048  ... .venv/bin/python ... session_buddy.server
@@ -135,11 +150,13 @@ cd /Users/les/Projects/raindropio-mcp
 **Expected Behaviors:**
 
 **If Successful:**
+
 - Checkpoint completes without error
 - Log file shows hash debug traces (if hashing occurred)
 - Check `~/.claude/logs/session-buddy-final.log` for stack traces
 
 **If Still Fails:**
+
 - Error message will indicate what else is unhashable
 - Stack trace in logs shows exact failure point
 - May need to patch additional types
@@ -159,8 +176,9 @@ This should work since it's the home project.
 ### Option 1: Fix in FastMCP (Recommended)
 
 Submit PR to FastMCP repository:
+
 1. Identify exact location where hashing occurs
-2. Either:
+1. Either:
    - Stop using objects as dict keys (use request IDs instead)
    - Make `MiddlewareContext` and `Context` hashable by default
    - Add `frozen=True` to Pydantic configs
@@ -168,6 +186,7 @@ Submit PR to FastMCP repository:
 ### Option 2: Fix in MCP SDK
 
 If the issue is in the MCP Python SDK:
+
 1. Make `CallToolRequestParams` frozen and hashable:
    ```python
    class CallToolRequestParams(RequestParams):
@@ -180,6 +199,7 @@ If the issue is in the MCP Python SDK:
 ### Option 3: Keep Workaround
 
 If upstream fixes take too long:
+
 - Keep the monkey-patch permanent
 - Document as known limitation
 - Monitor for FastMCP/MCP SDK updates that might break it
@@ -209,16 +229,19 @@ If upstream fixes take too long:
 If the patch causes issues:
 
 1. **Remove patch from server.py:**
+
    ```bash
    git checkout session_buddy/server.py
    ```
 
-2. **Delete patch file:**
+1. **Delete patch file:**
+
    ```bash
    rm patch_hashable.py
    ```
 
-3. **Restart server:**
+1. **Restart server:**
+
    ```bash
    pkill -9 -f session_buddy
    .venv/bin/python -c "from session_buddy.server import main; main(http_mode=True, http_port=8678)" &
@@ -229,6 +252,7 @@ If the patch causes issues:
 ### The Problem
 
 After applying the hashable patches, a new error appeared:
+
 ```
 Error: Tool 'MiddlewareContext(message=CallToolRequestParams(...)' is not registered
 ```
@@ -243,6 +267,7 @@ mcp._call_tool = _call_tool_bound  # ❌ WRONG - replaces FastMCP's method
 ```
 
 **The conflict:**
+
 - **FastMCP's `_call_tool`**: Expects `MiddlewareContext[CallToolRequestParams]`
 - **Our `_call_tool`**: Expects `str` (tool name)
 
@@ -251,7 +276,7 @@ When middleware called `mcp._call_tool(context)`, it passed the entire `Middlewa
 ### The Fix
 
 1. **Renamed our function** from `_call_tool` to `_call_registered_tool` to avoid conflict
-2. **Removed the override** - Commented out `mcp._call_tool = _call_tool_bound`
+1. **Removed the override** - Commented out `mcp._call_tool = _call_tool_bound`
 
 ```python
 # session_buddy/server.py:355-382 (AFTER FIX)
@@ -271,6 +296,7 @@ async def _call_registered_tool(mcp_instance, tool_name: str, ...):
 ### The Problem
 
 After fixing the method override, a new error appeared:
+
 ```
 Error: Failed to install adapters ['logger']: import_adapter_with_context()
 cannot be called from async context.
@@ -279,6 +305,7 @@ cannot be called from async context.
 ### Root Cause
 
 Multiple functions were calling `import_adapter("logger")` synchronously from async contexts:
+
 - `session_buddy/core/session_manager.py:28` - `get_session_logger()`
 - `session_buddy/core/session_manager.py:50` - `SessionLifecycleManager.__init__()`
 - `session_buddy/utils/error_handlers.py:24` - `_get_logger()`
@@ -300,9 +327,10 @@ logger = depends.get_sync("acb_logger")
 ```
 
 **Files Modified:**
+
 1. `session_buddy/core/session_manager.py` - Lines 28-30, 50-53
-2. `session_buddy/utils/error_handlers.py` - Lines 23-26
-3. `session_buddy/adapters/storage_registry.py` - Lines 153-156
+1. `session_buddy/utils/error_handlers.py` - Lines 23-26
+1. `session_buddy/adapters/storage_registry.py` - Lines 153-156
 
 **Impact:** Logger is already imported and registered during server startup (sync context), so we just retrieve it from the DI container instead of re-importing.
 
@@ -311,6 +339,7 @@ logger = depends.get_sync("acb_logger")
 ### The Problem
 
 After all other fixes, checkpoint succeeded but showed a final error:
+
 ```
 ❌ Unexpected checkpoint error: SessionPermissionsManager.__init__() takes 1
 positional argument but 2 were given
@@ -321,18 +350,21 @@ positional argument but 2 were given
 **Duplicate class definitions** with incompatible signatures:
 
 1. **session_buddy/core/permissions.py** (CORRECT):
+
    ```python
    class SessionPermissionsManager:
        def __init__(self, claude_dir: Path) -> None:  # Requires claude_dir
    ```
 
-2. **session_buddy/server_optimized.py** (WRONG - duplicate):
+1. **session_buddy/server_optimized.py** (WRONG - duplicate):
+
    ```python
    class SessionPermissionsManager:
        def __init__(self) -> None:  # No parameters!
    ```
 
 The code in `server_optimized.py:248` was trying to instantiate:
+
 ```python
 permissions_manager = SessionPermissionsManager(paths.claude_dir)  # Passing claude_dir
 ```
@@ -354,12 +386,14 @@ try:
     permissions_manager = depends.get_sync(SessionPermissionsManager)
 except Exception:
     from session_buddy.di.config import SessionPaths
+
     paths = depends.get_sync(SessionPaths)
     permissions_manager = SessionPermissionsManager(paths.claude_dir)
     depends.set(SessionPermissionsManager, permissions_manager)
 ```
 
 **Files Modified:**
+
 - `session_buddy/server_optimized.py` - Removed duplicate class (lines 204-236), added import
 
 **Impact:** Now only one SessionPermissionsManager exists with the correct signature.
@@ -367,23 +401,23 @@ except Exception:
 ## Next Steps
 
 1. ✅ Apply hashable patches (DONE)
-2. ✅ Fix method override conflict (DONE)
-3. ✅ Fix ACB async context errors (DONE)
-4. ✅ Fix duplicate SessionPermissionsManager class (DONE)
-5. ⏳ Test checkpoint in raindropio-mcp project (should work perfectly now!)
-6. ⏳ Analyze debug logs to identify exact hashing location
-7. ⏳ Create upstream issue/PR in FastMCP if confirmed as FastMCP bug
-8. ⏳ Monitor for FastMCP 2.15.x or MCP SDK updates
+1. ✅ Fix method override conflict (DONE)
+1. ✅ Fix ACB async context errors (DONE)
+1. ✅ Fix duplicate SessionPermissionsManager class (DONE)
+1. ⏳ Test checkpoint in raindropio-mcp project (should work perfectly now!)
+1. ⏳ Analyze debug logs to identify exact hashing location
+1. ⏳ Create upstream issue/PR in FastMCP if confirmed as FastMCP bug
+1. ⏳ Monitor for FastMCP 2.15.x or MCP SDK updates
 
 ## Conclusion
 
 This is a workaround, not a permanent fix. The real issue lies somewhere in the MCP protocol stack where unhashable objects are being used as dictionary keys. The monkey-patch makes the objects hashable and logs when hashing occurs, allowing us to:
 
 1. **Immediate:** Unblock checkpoint operations
-2. **Short-term:** Identify the exact source of hashing
-3. **Long-term:** Fix the root cause upstream
+1. **Short-term:** Identify the exact source of hashing
+1. **Long-term:** Fix the root cause upstream
 
----
+______________________________________________________________________
 
 **Last Updated:** December 20, 2025
 **Patch Applied:** ✅ Yes

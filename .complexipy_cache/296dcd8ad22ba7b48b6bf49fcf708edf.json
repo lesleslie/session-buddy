@@ -2,6 +2,24 @@
   "functions": [
     {
       "complexity": 1,
+      "file_name": "debug_detailed.py",
+      "function_name": "debug_execution_flow",
+      "path": "debug_detailed.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "debug_search.py",
+      "function_name": "debug_search",
+      "path": "debug_search.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "debug_sql.py",
+      "function_name": "debug_sql_query",
+      "path": "debug_sql.py"
+    },
+    {
+      "complexity": 1,
       "file_name": "patch_hashable.py",
       "function_name": "_debug_context_hash",
       "path": "patch_hashable.py"
@@ -99,6 +117,12 @@
     {
       "complexity": 0,
       "file_name": "server.py",
+      "function_name": "_get_session_logger",
+      "path": "server.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "server.py",
       "function_name": "health_check",
       "path": "server.py"
     },
@@ -159,18 +183,6 @@
     {
       "complexity": 2,
       "file_name": "server.py",
-      "function_name": "_display_http_startup",
-      "path": "server.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "server.py",
-      "function_name": "_display_stdio_startup",
-      "path": "server.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "server.py",
       "function_name": "_resolve_tool_registry",
       "path": "server.py"
     },
@@ -184,12 +196,6 @@
       "complexity": 3,
       "file_name": "server.py",
       "function_name": "_call_registered_tool",
-      "path": "server.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "server.py",
-      "function_name": "_get_session_logger",
       "path": "server.py"
     },
     {
@@ -214,6 +220,18 @@
       "complexity": 4,
       "file_name": "server.py",
       "function_name": "_build_tool_arguments",
+      "path": "server.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "server.py",
+      "function_name": "_display_http_startup",
+      "path": "server.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "server.py",
+      "function_name": "_display_stdio_startup",
       "path": "server.py"
     },
     {
@@ -369,12 +387,6 @@
     {
       "complexity": 2,
       "file_name": "context_manager.py",
-      "function_name": "ContextDetector::_resolve_working_path",
-      "path": "context_manager.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "context_manager.py",
       "function_name": "RelevanceScorer::_score_project_match",
       "path": "context_manager.py"
     },
@@ -382,6 +394,12 @@
       "complexity": 3,
       "file_name": "context_manager.py",
       "function_name": "ContextDetector::_detect_project_type",
+      "path": "context_manager.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "context_manager.py",
+      "function_name": "ContextDetector::_resolve_working_path",
       "path": "context_manager.py"
     },
     {
@@ -687,6 +705,12 @@
     {
       "complexity": 2,
       "file_name": "advanced_features.py",
+      "function_name": "_resolve_worktree_working_dir",
+      "path": "advanced_features.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_features.py",
       "function_name": "get_project_insights",
       "path": "advanced_features.py"
     },
@@ -753,6 +777,12 @@
     {
       "complexity": 6,
       "file_name": "advanced_features.py",
+      "function_name": "git_worktree_remove",
+      "path": "advanced_features.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "advanced_features.py",
       "function_name": "search_suggestions",
       "path": "advanced_features.py"
     },
@@ -769,19 +799,13 @@
       "path": "advanced_features.py"
     },
     {
-      "complexity": 7,
-      "file_name": "advanced_features.py",
-      "function_name": "git_worktree_remove",
-      "path": "advanced_features.py"
-    },
-    {
       "complexity": 8,
       "file_name": "advanced_features.py",
       "function_name": "get_search_metrics",
       "path": "advanced_features.py"
     },
     {
-      "complexity": 9,
+      "complexity": 8,
       "file_name": "advanced_features.py",
       "function_name": "git_worktree_add",
       "path": "advanced_features.py"
@@ -1593,12 +1617,6 @@
     {
       "complexity": 4,
       "file_name": "health_checks.py",
-      "function_name": "check_database_health",
-      "path": "health_checks.py"
-    },
-    {
-      "complexity": 4,
-      "file_name": "health_checks.py",
       "function_name": "get_all_health_checks",
       "path": "health_checks.py"
     },
@@ -1615,7 +1633,13 @@
       "path": "health_checks.py"
     },
     {
-      "complexity": 12,
+      "complexity": 11,
+      "file_name": "health_checks.py",
+      "function_name": "check_database_health",
+      "path": "health_checks.py"
+    },
+    {
+      "complexity": 14,
       "file_name": "health_checks.py",
       "function_name": "check_dependencies_health",
       "path": "health_checks.py"
@@ -1657,9 +1681,21 @@
       "path": "llm_providers.py"
     },
     {
+      "complexity": 1,
+      "file_name": "llm_providers.py",
+      "function_name": "_validate_provider_basic",
+      "path": "llm_providers.py"
+    },
+    {
       "complexity": 2,
       "file_name": "llm_providers.py",
       "function_name": "LLMManager::_select_primary_provider",
+      "path": "llm_providers.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "llm_providers.py",
+      "function_name": "_get_configured_providers",
       "path": "llm_providers.py"
     },
     {
@@ -1672,6 +1708,12 @@
       "complexity": 4,
       "file_name": "llm_providers.py",
       "function_name": "LLMManager::_try_primary_provider_generate",
+      "path": "llm_providers.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "llm_providers.py",
+      "function_name": "_validate_provider_with_security",
       "path": "llm_providers.py"
     },
     {
@@ -1690,6 +1732,12 @@
       "complexity": 5,
       "file_name": "llm_providers.py",
       "function_name": "LLMManager::stream_generate",
+      "path": "llm_providers.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "llm_providers.py",
+      "function_name": "get_masked_api_key",
       "path": "llm_providers.py"
     },
     {
@@ -1717,6 +1765,12 @@
       "path": "llm_providers.py"
     },
     {
+      "complexity": 7,
+      "file_name": "llm_providers.py",
+      "function_name": "_get_provider_api_key_and_env",
+      "path": "llm_providers.py"
+    },
+    {
       "complexity": 9,
       "file_name": "llm_providers.py",
       "function_name": "LLMManager::_stream_from_fallback_providers",
@@ -1726,6 +1780,12 @@
       "complexity": 9,
       "file_name": "llm_providers.py",
       "function_name": "LLMManager::_try_fallback_providers_generate",
+      "path": "llm_providers.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "llm_providers.py",
+      "function_name": "validate_llm_api_keys_at_startup",
       "path": "llm_providers.py"
     },
     {
@@ -2277,12 +2337,6 @@
     {
       "complexity": 3,
       "file_name": "crackerjack_integration.py",
-      "function_name": "CrackerjackIntegration::execute_crackerjack_command",
-      "path": "crackerjack_integration.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "crackerjack_integration.py",
       "function_name": "CrackerjackIntegration::get_quality_trends",
       "path": "crackerjack_integration.py"
     },
@@ -2314,6 +2368,12 @@
       "complexity": 7,
       "file_name": "crackerjack_integration.py",
       "function_name": "CrackerjackIntegration::get_recent_results",
+      "path": "crackerjack_integration.py"
+    },
+    {
+      "complexity": 8,
+      "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::execute_crackerjack_command",
       "path": "crackerjack_integration.py"
     },
     {
@@ -2685,6 +2745,36 @@
     {
       "complexity": 0,
       "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_contains_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_ends_with_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_eq_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_ne_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_starts_with_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
       "function_name": "AdvancedSearchEngine::_build_search_query",
       "path": "advanced_search.py"
     },
@@ -2703,6 +2793,12 @@
     {
       "complexity": 0,
       "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_get_sql_field",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "advanced_search.py",
       "function_name": "AdvancedSearchEngine::_prepare_sql_params",
       "path": "advanced_search.py"
     },
@@ -2710,12 +2806,6 @@
       "complexity": 0,
       "file_name": "advanced_search.py",
       "function_name": "AdvancedSearchEngine::_process_conversation_for_index",
-      "path": "advanced_search.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "advanced_search.py",
-      "function_name": "AdvancedSearchEngine::_rebuild_search_index",
       "path": "advanced_search.py"
     },
     {
@@ -2733,6 +2823,18 @@
     {
       "complexity": 1,
       "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_in_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_not_in_filter",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_search.py",
       "function_name": "AdvancedSearchEngine::_build_conversation_search_metadata",
       "path": "advanced_search.py"
     },
@@ -2740,12 +2842,6 @@
       "complexity": 1,
       "file_name": "advanced_search.py",
       "function_name": "AdvancedSearchEngine::_commit_conversation_index",
-      "path": "advanced_search.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "advanced_search.py",
-      "function_name": "AdvancedSearchEngine::_execute_search",
       "path": "advanced_search.py"
     },
     {
@@ -2793,13 +2889,13 @@
     {
       "complexity": 1,
       "file_name": "advanced_search.py",
-      "function_name": "AdvancedSearchEngine::_should_process_facet_value",
+      "function_name": "AdvancedSearchEngine::_rebuild_search_index",
       "path": "advanced_search.py"
     },
     {
       "complexity": 1,
       "file_name": "advanced_search.py",
-      "function_name": "AdvancedSearchEngine::suggest_completions",
+      "function_name": "AdvancedSearchEngine::_should_process_facet_value",
       "path": "advanced_search.py"
     },
     {
@@ -2823,19 +2919,25 @@
     {
       "complexity": 2,
       "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_execute_search",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_search.py",
       "function_name": "AdvancedSearchEngine::_index_conversations",
       "path": "advanced_search.py"
     },
     {
       "complexity": 2,
       "file_name": "advanced_search.py",
-      "function_name": "AdvancedSearchEngine::get_similar_content",
+      "function_name": "AdvancedSearchEngine::search_by_timeframe",
       "path": "advanced_search.py"
     },
     {
       "complexity": 2,
       "file_name": "advanced_search.py",
-      "function_name": "AdvancedSearchEngine::search_by_timeframe",
+      "function_name": "AdvancedSearchEngine::suggest_completions",
       "path": "advanced_search.py"
     },
     {
@@ -2863,12 +2965,6 @@
       "path": "advanced_search.py"
     },
     {
-      "complexity": 3,
-      "file_name": "advanced_search.py",
-      "function_name": "AdvancedSearchEngine::aggregate_metrics",
-      "path": "advanced_search.py"
-    },
-    {
       "complexity": 4,
       "file_name": "advanced_search.py",
       "function_name": "AdvancedSearchEngine::_add_timeframe_filter",
@@ -2889,7 +2985,13 @@
     {
       "complexity": 4,
       "file_name": "advanced_search.py",
-      "function_name": "AdvancedSearchEngine::_process_facet_query",
+      "function_name": "AdvancedSearchEngine::get_similar_content",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_apply_range_filter",
       "path": "advanced_search.py"
     },
     {
@@ -2899,19 +3001,37 @@
       "path": "advanced_search.py"
     },
     {
+      "complexity": 5,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::aggregate_metrics",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_add_filter_conditions_to_sql",
+      "path": "advanced_search.py"
+    },
+    {
       "complexity": 6,
       "file_name": "advanced_search.py",
       "function_name": "AdvancedSearchEngine::_add_highlights",
       "path": "advanced_search.py"
     },
     {
-      "complexity": 6,
+      "complexity": 7,
       "file_name": "advanced_search.py",
       "function_name": "AdvancedSearchEngine::_calculate_facets",
       "path": "advanced_search.py"
     },
     {
-      "complexity": 8,
+      "complexity": 7,
+      "file_name": "advanced_search.py",
+      "function_name": "AdvancedSearchEngine::_process_facet_query",
+      "path": "advanced_search.py"
+    },
+    {
+      "complexity": 12,
       "file_name": "advanced_search.py",
       "function_name": "AdvancedSearchEngine::_get_last_index_update",
       "path": "advanced_search.py"
@@ -3403,6 +3523,12 @@
       "path": "reflection_tools.py"
     },
     {
+      "complexity": 0,
+      "file_name": "reflection_tools.py",
+      "function_name": "get_initialized_reflection_database",
+      "path": "reflection_tools.py"
+    },
+    {
       "complexity": 1,
       "file_name": "reflection_tools.py",
       "function_name": "ReflectionDatabase::_ensure_indices",
@@ -3507,12 +3633,6 @@
     {
       "complexity": 6,
       "file_name": "reflection_tools.py",
-      "function_name": "ReflectionDatabase::_get_conn",
-      "path": "reflection_tools.py"
-    },
-    {
-      "complexity": 6,
-      "file_name": "reflection_tools.py",
       "function_name": "ReflectionDatabase::_get_conversation_count",
       "path": "reflection_tools.py"
     },
@@ -3520,12 +3640,6 @@
       "complexity": 6,
       "file_name": "reflection_tools.py",
       "function_name": "ReflectionDatabase::_get_reflection_count",
-      "path": "reflection_tools.py"
-    },
-    {
-      "complexity": 6,
-      "file_name": "reflection_tools.py",
-      "function_name": "ReflectionDatabase::_text_search_conversations",
       "path": "reflection_tools.py"
     },
     {
@@ -3548,6 +3662,18 @@
     },
     {
       "complexity": 7,
+      "file_name": "reflection_tools.py",
+      "function_name": "ReflectionDatabase::_get_conn",
+      "path": "reflection_tools.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "reflection_tools.py",
+      "function_name": "ReflectionDatabase::_text_search_conversations",
+      "path": "reflection_tools.py"
+    },
+    {
+      "complexity": 11,
       "file_name": "reflection_tools.py",
       "function_name": "ReflectionDatabase::initialize",
       "path": "reflection_tools.py"
@@ -5229,6 +5355,18 @@
     {
       "complexity": 0,
       "file_name": "memory_tools.py",
+      "function_name": "_format_new_stats",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "memory_tools.py",
+      "function_name": "_format_old_stats",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "memory_tools.py",
       "function_name": "_format_score",
       "path": "memory_tools.py"
     },
@@ -5241,31 +5379,7 @@
     {
       "complexity": 0,
       "file_name": "memory_tools.py",
-      "function_name": "_quick_search_impl",
-      "path": "memory_tools.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "memory_tools.py",
-      "function_name": "_reflection_stats_impl",
-      "path": "memory_tools.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "memory_tools.py",
-      "function_name": "_search_by_concept_impl",
-      "path": "memory_tools.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "memory_tools.py",
       "function_name": "_search_by_concept_operation",
-      "path": "memory_tools.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "memory_tools.py",
-      "function_name": "_search_by_file_impl",
       "path": "memory_tools.py"
     },
     {
@@ -5277,19 +5391,7 @@
     {
       "complexity": 0,
       "file_name": "memory_tools.py",
-      "function_name": "_search_summary_impl",
-      "path": "memory_tools.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "memory_tools.py",
       "function_name": "_search_summary_operation",
-      "path": "memory_tools.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "memory_tools.py",
-      "function_name": "_store_reflection_impl",
       "path": "memory_tools.py"
     },
     {
@@ -5325,7 +5427,31 @@
     {
       "complexity": 1,
       "file_name": "memory_tools.py",
-      "function_name": "_reset_reflection_database_impl",
+      "function_name": "_get_reflection_database",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "memory_tools.py",
+      "function_name": "_quick_search_impl",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "memory_tools.py",
+      "function_name": "_reflection_stats_impl",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "memory_tools.py",
+      "function_name": "_check_reflection_tools_available",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "memory_tools.py",
+      "function_name": "_execute_simple_database_tool",
       "path": "memory_tools.py"
     },
     {
@@ -5335,9 +5461,45 @@
       "path": "memory_tools.py"
     },
     {
+      "complexity": 3,
+      "file_name": "memory_tools.py",
+      "function_name": "_search_by_concept_impl",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "memory_tools.py",
+      "function_name": "_search_by_file_impl",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "memory_tools.py",
+      "function_name": "_search_summary_impl",
+      "path": "memory_tools.py"
+    },
+    {
       "complexity": 4,
       "file_name": "memory_tools.py",
       "function_name": "_extract_common_themes",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "memory_tools.py",
+      "function_name": "_reset_reflection_database_impl",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "memory_tools.py",
+      "function_name": "_store_reflection_impl",
+      "path": "memory_tools.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "memory_tools.py",
+      "function_name": "_execute_database_tool",
       "path": "memory_tools.py"
     },
     {
@@ -6057,12 +6219,6 @@
     {
       "complexity": 5,
       "file_name": "session_tools.py",
-      "function_name": "_checkpoint_impl",
-      "path": "session_tools.py"
-    },
-    {
-      "complexity": 5,
-      "file_name": "session_tools.py",
       "function_name": "_end_impl",
       "path": "session_tools.py"
     },
@@ -6082,6 +6238,12 @@
       "complexity": 7,
       "file_name": "session_tools.py",
       "function_name": "_check_environment_variables",
+      "path": "session_tools.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "session_tools.py",
+      "function_name": "_checkpoint_impl",
       "path": "session_tools.py"
     },
     {
@@ -6139,9 +6301,39 @@
       "path": "history_cache.py"
     },
     {
-      "complexity": 7,
+      "complexity": 0,
+      "file_name": "health_tools.py",
+      "function_name": "_prepare_liveness_result",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "health_tools.py",
+      "function_name": "_prepare_readiness_result",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "health_tools.py",
+      "function_name": "_normalize_dict_component",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 2,
       "file_name": "health_tools.py",
       "function_name": "get_health_status",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "health_tools.py",
+      "function_name": "_normalize_object_component",
+      "path": "health_tools.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "health_tools.py",
+      "function_name": "_normalize_components",
       "path": "health_tools.py"
     },
     {
@@ -6195,6 +6387,12 @@
     {
       "complexity": 0,
       "file_name": "knowledge_graph_tools.py",
+      "function_name": "_get_knowledge_graph_stats_operation",
+      "path": "knowledge_graph_tools.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "knowledge_graph_tools.py",
       "function_name": "_search_entities_impl",
       "path": "knowledge_graph_tools.py"
     },
@@ -6219,7 +6417,25 @@
     {
       "complexity": 1,
       "file_name": "knowledge_graph_tools.py",
+      "function_name": "_check_knowledge_graph_available",
+      "path": "knowledge_graph_tools.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "knowledge_graph_tools.py",
       "function_name": "_create_single_entity",
+      "path": "knowledge_graph_tools.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "knowledge_graph_tools.py",
+      "function_name": "_format_entity_types",
+      "path": "knowledge_graph_tools.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "knowledge_graph_tools.py",
+      "function_name": "_format_relationship_types",
       "path": "knowledge_graph_tools.py"
     },
     {
@@ -6261,12 +6477,6 @@
     {
       "complexity": 2,
       "file_name": "knowledge_graph_tools.py",
-      "function_name": "_get_knowledge_graph_stats_operation",
-      "path": "knowledge_graph_tools.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "knowledge_graph_tools.py",
       "function_name": "_search_entities_operation",
       "path": "knowledge_graph_tools.py"
     },
@@ -6298,6 +6508,12 @@
       "complexity": 6,
       "file_name": "knowledge_graph_tools.py",
       "function_name": "_extract_entities_from_context_impl",
+      "path": "knowledge_graph_tools.py"
+    },
+    {
+      "complexity": 10,
+      "file_name": "knowledge_graph_tools.py",
+      "function_name": "_format_batch_results",
       "path": "knowledge_graph_tools.py"
     },
     {
@@ -6621,6 +6837,12 @@
     {
       "complexity": 0,
       "file_name": "__init__.py",
+      "function_name": "_register_logger",
+      "path": "__init__.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "__init__.py",
       "function_name": "reset",
       "path": "__init__.py"
     },
@@ -6639,12 +6861,6 @@
     {
       "complexity": 4,
       "file_name": "__init__.py",
-      "function_name": "_register_graph_adapter",
-      "path": "__init__.py"
-    },
-    {
-      "complexity": 4,
-      "file_name": "__init__.py",
       "function_name": "_register_lifecycle_manager",
       "path": "__init__.py"
     },
@@ -6655,21 +6871,21 @@
       "path": "__init__.py"
     },
     {
-      "complexity": 5,
-      "file_name": "__init__.py",
-      "function_name": "_register_session_logger",
-      "path": "__init__.py"
-    },
-    {
-      "complexity": 5,
+      "complexity": 4,
       "file_name": "__init__.py",
       "function_name": "_register_vector_adapter",
       "path": "__init__.py"
     },
     {
-      "complexity": 15,
+      "complexity": 5,
       "file_name": "__init__.py",
-      "function_name": "_register_logger",
+      "function_name": "_register_graph_adapter",
+      "path": "__init__.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "__init__.py",
+      "function_name": "_register_session_logger",
       "path": "__init__.py"
     },
     {
@@ -6709,6 +6925,18 @@
       "path": "session_manager.py"
     },
     {
+      "complexity": 0,
+      "file_name": "session_manager.py",
+      "function_name": "get_session_logger",
+      "path": "session_manager.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "session_manager.py",
+      "function_name": "SessionLifecycleManager::__init__",
+      "path": "session_manager.py"
+    },
+    {
       "complexity": 1,
       "file_name": "session_manager.py",
       "function_name": "SessionLifecycleManager::_calculate_tool_score",
@@ -6742,18 +6970,6 @@
       "complexity": 1,
       "file_name": "session_manager.py",
       "function_name": "SessionLifecycleManager::initialize_session",
-      "path": "session_manager.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "session_manager.py",
-      "function_name": "get_session_logger",
-      "path": "session_manager.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "session_manager.py",
-      "function_name": "SessionLifecycleManager::__init__",
       "path": "session_manager.py"
     },
     {
@@ -6945,12 +7161,6 @@
     {
       "complexity": 0,
       "file_name": "permissions.py",
-      "function_name": "SessionPermissionsManager::_generate_session_id",
-      "path": "permissions.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "permissions.py",
       "function_name": "SessionPermissionsManager::_save_permissions",
       "path": "permissions.py"
     },
@@ -6982,6 +7192,12 @@
       "complexity": 1,
       "file_name": "permissions.py",
       "function_name": "SessionPermissionsManager::__new__",
+      "path": "permissions.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "permissions.py",
+      "function_name": "SessionPermissionsManager::_generate_session_id",
       "path": "permissions.py"
     },
     {
@@ -7809,13 +8025,13 @@
     {
       "complexity": 2,
       "file_name": "logging.py",
-      "function_name": "_resolve_logs_dir",
+      "function_name": "get_session_logger",
       "path": "logging.py"
     },
     {
-      "complexity": 2,
+      "complexity": 3,
       "file_name": "logging.py",
-      "function_name": "get_session_logger",
+      "function_name": "_resolve_logs_dir",
       "path": "logging.py"
     },
     {
@@ -8647,7 +8863,7 @@
       "path": "file_utils.py"
     },
     {
-      "complexity": 8,
+      "complexity": 9,
       "file_name": "file_utils.py",
       "function_name": "_cleanup_uv_cache",
       "path": "file_utils.py"
@@ -9037,7 +9253,7 @@
       "path": "storage_registry.py"
     },
     {
-      "complexity": 9,
+      "complexity": 8,
       "file_name": "storage_registry.py",
       "function_name": "register_storage_adapter",
       "path": "storage_registry.py"
@@ -9073,15 +9289,15 @@
       "path": "knowledge_graph_adapter.py"
     },
     {
-      "complexity": 0,
+      "complexity": 1,
       "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::_create_schema",
+      "function_name": "KnowledgeGraphDatabaseAdapter::__init__",
       "path": "knowledge_graph_adapter.py"
     },
     {
       "complexity": 1,
       "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__init__",
+      "function_name": "KnowledgeGraphDatabaseAdapter::_create_schema",
       "path": "knowledge_graph_adapter.py"
     },
     {
@@ -9100,6 +9316,18 @@
       "complexity": 1,
       "file_name": "knowledge_graph_adapter.py",
       "function_name": "KnowledgeGraphDatabaseAdapter::close",
+      "path": "knowledge_graph_adapter.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "knowledge_graph_adapter.py",
+      "function_name": "KnowledgeGraphDatabaseAdapter::_format_timestamp",
+      "path": "knowledge_graph_adapter.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "knowledge_graph_adapter.py",
+      "function_name": "KnowledgeGraphDatabaseAdapter::create_relation",
       "path": "knowledge_graph_adapter.py"
     },
     {
@@ -9135,7 +9363,7 @@
     {
       "complexity": 4,
       "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::create_relation",
+      "function_name": "KnowledgeGraphDatabaseAdapter::get_entity",
       "path": "knowledge_graph_adapter.py"
     },
     {
@@ -9147,13 +9375,13 @@
     {
       "complexity": 6,
       "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::find_entity_by_name",
+      "function_name": "KnowledgeGraphDatabaseAdapter::_resolve_entity_id",
       "path": "knowledge_graph_adapter.py"
     },
     {
       "complexity": 6,
       "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::get_entity",
+      "function_name": "KnowledgeGraphDatabaseAdapter::find_entity_by_name",
       "path": "knowledge_graph_adapter.py"
     },
     {
@@ -9441,13 +9669,13 @@
     {
       "complexity": 0,
       "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::close",
+      "function_name": "ReflectionDatabaseAdapter::reset_database",
       "path": "reflection_adapter.py"
     },
     {
       "complexity": 0,
       "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::reset_database",
+      "function_name": "ReflectionDatabaseAdapter::similarity_search",
       "path": "reflection_adapter.py"
     },
     {
@@ -9457,9 +9685,21 @@
       "path": "reflection_adapter.py"
     },
     {
+      "complexity": 1,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_try_adapter_query",
+      "path": "reflection_adapter.py"
+    },
+    {
       "complexity": 2,
       "file_name": "reflection_adapter.py",
       "function_name": "ReflectionDatabaseAdapter::_log_accesses",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::aclose",
       "path": "reflection_adapter.py"
     },
     {
@@ -9475,9 +9715,33 @@
       "path": "reflection_adapter.py"
     },
     {
+      "complexity": 3,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_try_direct_query",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::get_reflection_by_id",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::close",
+      "path": "reflection_adapter.py"
+    },
+    {
       "complexity": 5,
       "file_name": "reflection_adapter.py",
       "function_name": "ReflectionDatabaseAdapter::store_conversation",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_parse_metadata",
       "path": "reflection_adapter.py"
     },
     {
@@ -9506,6 +9770,12 @@
     },
     {
       "complexity": 12,
+      "file_name": "reflection_adapter.py",
+      "function_name": "ReflectionDatabaseAdapter::_text_search_fallback",
+      "path": "reflection_adapter.py"
+    },
+    {
+      "complexity": 14,
       "file_name": "reflection_adapter.py",
       "function_name": "ReflectionDatabaseAdapter::initialize",
       "path": "reflection_adapter.py"
@@ -10358,6 +10628,9 @@
     }
   ],
   "targets": [
+    "/Users/les/Projects/session-buddy/debug_detailed.py",
+    "/Users/les/Projects/session-buddy/debug_search.py",
+    "/Users/les/Projects/session-buddy/debug_sql.py",
     "/Users/les/Projects/session-buddy/examples/acb_storage_adapter_usage.py",
     "/Users/les/Projects/session-buddy/patch_hashable.py",
     "/Users/les/Projects/session-buddy/scripts/__init__.py",

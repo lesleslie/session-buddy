@@ -5,6 +5,7 @@ pytest_plugins = ["tests.helpers"]
 
 import asyncio
 import os
+import shutil
 import tempfile
 from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import suppress
@@ -123,6 +124,77 @@ def temp_test_dir(temp_base_dir: Path) -> Generator[Path]:
     return test_dir
 
 
+@pytest.fixture
+async def fast_async_context():
+    """Optimized async context with minimal overhead."""
+    loop = asyncio.get_event_loop()
+
+    context = {
+        "loop": loop,
+        "tasks": [],
+    }
+
+    yield context
+
+    for task in context["tasks"]:
+        if not task.done():
+            task.cancel()
+
+    if context["tasks"]:
+        await asyncio.gather(*context["tasks"], return_exceptions=True)
+
+
+class ResourcePool:
+    """Pool expensive test resources for reuse across tests."""
+
+    def __init__(self):
+        self._resources: dict[str, Any] = {}
+
+    def get_or_create(self, key: str, factory):
+        """Get existing resource or create new one."""
+        if key not in self._resources:
+            self._resources[key] = factory()
+        return self._resources[key]
+
+    def cleanup(self):
+        """Clean up all pooled resources."""
+        self._resources.clear()
+
+
+@pytest.fixture(scope="session")
+def resource_pool():
+    """Session-wide resource pool."""
+    pool = ResourcePool()
+    yield pool
+    pool.cleanup()
+
+
+class TestPerformanceTracker:
+    """Track test performance metrics for optimization analysis."""
+
+    def __init__(self):
+        self.timings: dict[str, float] = {}
+        self.slow_threshold = 1.0  # seconds
+
+    def record(self, test_name: str, duration: float):
+        """Record test duration."""
+        self.timings[test_name] = duration
+
+    def get_slow_tests(self) -> list[tuple[str, float]]:
+        """Get tests exceeding slow threshold."""
+        return [
+            (name, duration)
+            for name, duration in self.timings.items()
+            if duration > self.slow_threshold
+        ]
+
+
+@pytest.fixture(scope="session")
+def performance_tracker():
+    """Session-wide performance tracker."""
+    return TestPerformanceTracker()
+
+
 @pytest.fixture(scope="session")
 def mock_logger_factory():
     """Factory for creating mock loggers - session scoped for reuse."""
@@ -148,7 +220,11 @@ async def fast_temp_db() -> AsyncGenerator[ReflectionDatabase]:
     await db.initialize()
     yield db
     with suppress(Exception):
-        db.close()
+        close = getattr(db, "aclose", None)
+        if callable(close):
+            await close()
+        else:
+            db.close()
 
 
 @pytest.fixture
@@ -180,14 +256,51 @@ def mock_project_factory():
     """Factory for creating mock project structures."""
 
     def create_mock_project(path: Path, features: dict[str, bool]):
+        cleanup_files = [
+            path / "pyproject.toml",
+            path / "uv.lock",
+            path / "README.md",
+            path / "coverage.json",
+            path / ".gitignore",
+        ]
+        cleanup_dirs = [
+            path / ".git",
+            path / "tests",
+            path / "src",
+            path / "docs",
+        ]
+        for cleanup_file in cleanup_files:
+            with suppress(FileNotFoundError):
+                cleanup_file.unlink()
+        for cleanup_dir in cleanup_dirs:
+            if cleanup_dir.exists():
+                shutil.rmtree(cleanup_dir, ignore_errors=True)
+
+        from session_buddy.utils import quality_utils_v2
+
+        quality_utils_v2._metrics_cache.pop(str(path.resolve()), None)
+
         if features.get("has_pyproject_toml"):
             (path / "pyproject.toml").write_text('[project]\nname = "test"\n')
+            (path / "uv.lock").write_text("version = 1\n")
+        if features.get("has_git_repo"):
+            git_dir = path / ".git"
+            git_dir.mkdir(parents=True, exist_ok=True)
+            (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
+            refs_dir = git_dir / "refs" / "heads"
+            refs_dir.mkdir(parents=True, exist_ok=True)
+            (refs_dir / "main").write_text("0" * 40 + "\n")
+            (path / ".gitignore").write_text(".env\n")
         if features.get("has_readme"):
             (path / "README.md").write_text("# Test Project\n")
         if features.get("has_tests"):
             tests_dir = path / "tests"
             tests_dir.mkdir(exist_ok=True)
-            (tests_dir / "test_example.py").write_text("def test_x(): pass\n")
+            for index in range(5):
+                (tests_dir / f"test_example_{index}.py").write_text(
+                    "def test_x(): pass\n"
+                )
+            (path / "coverage.json").write_text('{"totals": {"percent_covered": 80}}')
         if features.get("has_src"):
             src_dir = path / "src"
             src_dir.mkdir(exist_ok=True)
@@ -408,7 +521,11 @@ async def reflection_db(temp_db_path: str) -> AsyncGenerator[ReflectionDatabase]
         await db.initialize()
         yield db
     finally:
-        db.close()
+        close = getattr(db, "aclose", None)
+        if callable(close):
+            await close()
+        else:
+            db.close()
 
 
 @pytest.fixture
@@ -482,7 +599,11 @@ async def shared_reflection_db() -> AsyncGenerator[ReflectionDatabase]:
 
         yield db
     finally:
-        db.close()
+        close = getattr(db, "aclose", None)
+        if callable(close):
+            await close()
+        else:
+            db.close()
         # Cleanup
         try:
             db_path_obj = Path(db_path)

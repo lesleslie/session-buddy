@@ -350,9 +350,11 @@ class TestValidateMcpParams:
 
         validated = validate_mcp_params(SearchQueryParams, **params)
 
-        assert validated["query"] == "test query"
-        assert validated["limit"] == 5
-        assert validated["min_score"] == 0.8
+        assert validated.is_valid
+        assert validated.params is not None
+        assert validated.params.query == "test query"
+        assert validated.params.limit == 5
+        assert validated.params.min_score == 0.8
 
     def test_validation_error_handling(self):
         """Test validation error handling with helpful messages."""
@@ -362,11 +364,11 @@ class TestValidateMcpParams:
             "min_score": 1.5,  # Invalid: above maximum
         }
 
-        with pytest.raises(ValueError, match="Parameter validation failed") as exc_info:
-            validate_mcp_params(SearchQueryParams, **params)
+        validated = validate_mcp_params(SearchQueryParams, **params)
 
-        error_message = str(exc_info.value)
-        assert "Parameter validation failed" in error_message
+        assert not validated.is_valid
+        assert validated.errors is not None
+        assert "Parameter validation failed" in validated.errors
         # Should contain details about multiple validation errors
 
     def test_exclude_none_values(self):
@@ -375,8 +377,11 @@ class TestValidateMcpParams:
 
         validated = validate_mcp_params(SearchQueryParams, **params)
 
-        assert "query" in validated
-        assert "project" not in validated  # None values excluded
+        assert validated.is_valid
+        assert validated.params is not None
+        params_dict = validated.params.model_dump(exclude_none=True)
+        assert "query" in params_dict
+        assert "project" not in params_dict  # None values excluded
 
 
 class TestCommandExecutionParams:

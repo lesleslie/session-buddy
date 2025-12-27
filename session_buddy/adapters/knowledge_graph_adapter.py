@@ -123,15 +123,17 @@ class KnowledgeGraphDatabaseAdapter:
             Database file path
 
         """
-        # Try to get from ACB config first
+        # Prefer instance path when provided
+        if self.db_path:
+            return self.db_path
+
+        # Try to get from ACB config next
         with suppress(Exception):
             config = depends.get_sync(Config)
             if hasattr(config, "graph") and hasattr(config.graph, "database_path"):
                 return str(config.graph.database_path)
 
-        # Fallback to instance path or default
-        if self.db_path:
-            return self.db_path
+        # Fallback to default path
 
         # Default path
         from pathlib import Path
@@ -188,6 +190,35 @@ class KnowledgeGraphDatabaseAdapter:
             raise RuntimeError(msg)
         return self.conn
 
+    async def _resolve_entity_id(self, identifier: str) -> str:
+        """Resolve an entity identifier to its canonical ID."""
+        entity = await self.find_entity_by_name(identifier)
+        if entity:
+            # Type narrow entity["id"] to str
+            entity_id = entity["id"]
+            return entity_id if isinstance(entity_id, str) else str(entity_id)
+
+        row = (
+            self._get_conn()
+            .execute(
+                "SELECT id FROM kg_entities WHERE id = ?",
+                (identifier,),
+            )
+            .fetchone()
+        )
+        if row:
+            # Type narrow row[0] to str (id column is TEXT in SQL)
+            return row[0] if isinstance(row[0], str) else str(row[0])
+
+        msg = f"Entity '{identifier}' not found"
+        raise ValueError(msg)
+
+    def _format_timestamp(self, value: t.Any) -> str | None:
+        """Format timestamps consistently across DuckDB outputs."""
+        if value is None:
+            return None
+        return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
     async def _create_schema(self) -> None:
         """Create knowledge graph schema.
 
@@ -227,6 +258,17 @@ class KnowledgeGraphDatabaseAdapter:
                 metadata JSON
             )
         """)
+
+        # Ensure columns exist when DuckPGQ pre-creates tables without all fields.
+        relationship_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info('kg_relationships')").fetchall()
+        }
+        if "updated_at" not in relationship_columns:
+            conn.execute(
+                "ALTER TABLE kg_relationships "
+                "ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            )
 
         # Create indexes for performance
         conn.execute(
@@ -339,8 +381,8 @@ class KnowledgeGraphDatabaseAdapter:
             "entity_type": result[2],
             "observations": list(result[3]) if result[3] else [],
             "properties": json.loads(result[4]) if result[4] else {},
-            "created_at": result[5].isoformat() if result[5] else None,
-            "updated_at": result[6].isoformat() if result[6] else None,
+            "created_at": self._format_timestamp(result[5]),
+            "updated_at": self._format_timestamp(result[6]),
             "metadata": json.loads(result[7]) if result[7] else {},
         }
 
@@ -357,7 +399,12 @@ class KnowledgeGraphDatabaseAdapter:
         conn = self._get_conn()
 
         result = conn.execute(
-            "SELECT * FROM kg_entities WHERE name = ?",
+            """
+            SELECT id, name, entity_type, observations, properties,
+                   created_at, updated_at, metadata
+            FROM kg_entities
+            WHERE name = ?
+            """,
             (name,),
         ).fetchone()
 
@@ -401,16 +448,9 @@ class KnowledgeGraphDatabaseAdapter:
         """
         conn = self._get_conn()
 
-        # Verify both entities exist
-        from_ent = await self.find_entity_by_name(from_entity)
-        to_ent = await self.find_entity_by_name(to_entity)
-
-        if not from_ent:
-            msg = f"Entity '{from_entity}' not found"
-            raise ValueError(msg)
-        if not to_ent:
-            msg = f"Entity '{to_entity}' not found"
-            raise ValueError(msg)
+        # Resolve entity identifiers to IDs (accepts names or IDs)
+        resolved_from_entity = await self._resolve_entity_id(from_entity)
+        resolved_to_entity = await self._resolve_entity_id(to_entity)
 
         relation_id = str(uuid.uuid4())
         now = datetime.now(tz=UTC)
@@ -423,8 +463,8 @@ class KnowledgeGraphDatabaseAdapter:
             """,
             (
                 relation_id,
-                from_entity,
-                to_entity,
+                resolved_from_entity,
+                resolved_to_entity,
                 relation_type,
                 json.dumps(properties or {}),
                 now,
@@ -435,8 +475,8 @@ class KnowledgeGraphDatabaseAdapter:
 
         return {
             "id": relation_id,
-            "from_entity": from_entity,
-            "to_entity": to_entity,
+            "from_entity": resolved_from_entity,
+            "to_entity": resolved_to_entity,
             "relation_type": relation_type,
             "properties": properties or {},
             "created_at": now.isoformat(),
@@ -519,7 +559,9 @@ class KnowledgeGraphDatabaseAdapter:
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         # Build SQL safely - all user input is parameterized via params list
         sql = (
-            "SELECT * FROM kg_entities WHERE "
+            "SELECT id, name, entity_type, observations, properties, "
+            "created_at, updated_at, metadata "
+            "FROM kg_entities WHERE "
             + where_clause
             + " ORDER BY created_at DESC LIMIT ?"
         )
@@ -535,8 +577,8 @@ class KnowledgeGraphDatabaseAdapter:
                 "entity_type": row[2],
                 "observations": list(row[3]) if row[3] else [],
                 "properties": json.loads(row[4]) if row[4] else {},
-                "created_at": row[5].isoformat() if row[5] else None,
-                "updated_at": row[6].isoformat() if row[6] else None,
+                "created_at": self._format_timestamp(row[5]),
+                "updated_at": self._format_timestamp(row[6]),
                 "metadata": json.loads(row[7]) if row[7] else {},
             }
             for row in result
@@ -560,19 +602,20 @@ class KnowledgeGraphDatabaseAdapter:
 
         """
         conn = self._get_conn()
+        resolved_entity = await self._resolve_entity_id(entity_name)
 
         conditions = []
         params: list[t.Any] = []
 
         if direction == "outgoing":
             conditions.append("from_entity = ?")
-            params.append(entity_name)
+            params.append(resolved_entity)
         elif direction == "incoming":
             conditions.append("to_entity = ?")
-            params.append(entity_name)
+            params.append(resolved_entity)
         else:  # both
             conditions.append("(from_entity = ? OR to_entity = ?)")
-            params.extend([entity_name, entity_name])
+            params.extend([resolved_entity, resolved_entity])
 
         if relation_type:
             conditions.append("relation_type = ?")
@@ -581,9 +624,9 @@ class KnowledgeGraphDatabaseAdapter:
         where_clause = " AND ".join(conditions)
         # Build SQL safely - all user input is parameterized via params list
         sql = (
-            "SELECT * FROM kg_relationships WHERE "
-            + where_clause
-            + " ORDER BY created_at DESC"
+            "SELECT id, from_entity, to_entity, relation_type, properties, "
+            "created_at, updated_at, metadata "
+            "FROM kg_relationships WHERE " + where_clause + " ORDER BY created_at DESC"
         )
 
         result = conn.execute(sql, params).fetchall()
@@ -596,8 +639,8 @@ class KnowledgeGraphDatabaseAdapter:
                 "to_entity": row[2],
                 "relation_type": row[3],
                 "properties": json.loads(row[4]) if row[4] else {},
-                "created_at": row[5].isoformat() if row[5] else None,
-                "updated_at": row[6].isoformat() if row[6] else None,
+                "created_at": self._format_timestamp(row[5]),
+                "updated_at": self._format_timestamp(row[6]),
                 "metadata": json.loads(row[7]) if row[7] else {},
             }
             for row in result
@@ -621,6 +664,8 @@ class KnowledgeGraphDatabaseAdapter:
 
         """
         conn = self._get_conn()
+        resolved_from_entity = await self._resolve_entity_id(from_entity)
+        resolved_to_entity = await self._resolve_entity_id(to_entity)
 
         # Get all relationships in one query (sync, fast local operation)
         result = conn.execute(
@@ -642,9 +687,9 @@ class KnowledgeGraphDatabaseAdapter:
         from collections import deque
 
         queue: deque[tuple[str, list[str], list[str]]] = deque(
-            [(from_entity, [from_entity], [])],
+            [(resolved_from_entity, [resolved_from_entity], [])],
         )
-        visited = {from_entity}
+        visited = {resolved_from_entity}
 
         paths: list[dict[str, t.Any]] = []
         while queue and not paths:  # Find first path only (refurb FURB115)
@@ -653,7 +698,7 @@ class KnowledgeGraphDatabaseAdapter:
             if len(path) > max_depth + 1:
                 continue
 
-            if current == to_entity and len(path) > 1:
+            if current == resolved_to_entity and len(path) > 1:
                 paths.append(
                     {
                         "path": path,

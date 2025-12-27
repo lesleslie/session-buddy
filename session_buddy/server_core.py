@@ -28,6 +28,8 @@ if TYPE_CHECKING:
     from session_buddy.core.permissions import SessionPermissionsManager
     from session_buddy.utils.logging import SessionLogger
 
+# Re-export for backward compatibility in tests and integrations.
+
 # Suppress transformers warnings
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 warnings.filterwarnings("ignore", message=".*PyTorch.*TensorFlow.*Flax.*")

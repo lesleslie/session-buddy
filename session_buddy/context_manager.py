@@ -169,8 +169,12 @@ class ContextDetector:
     def _resolve_working_path(self, working_dir: str | None) -> Path:
         """Resolve the working directory path."""
         if not working_dir:
-            working_dir = os.environ.get("PWD", str(Path.cwd()))
-        return Path(working_dir) if working_dir else Path.cwd()
+            try:
+                cwd = Path.cwd()
+            except FileNotFoundError:
+                cwd = Path.home()
+            working_dir = os.environ.get("PWD", str(cwd))
+        return Path(working_dir) if working_dir else Path.home()
 
     def _gather_project_context(
         self,

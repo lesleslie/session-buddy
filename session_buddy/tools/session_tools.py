@@ -661,7 +661,7 @@ async def _start_impl(working_directory: str | None = None) -> str:
             )
 
     except Exception as e:
-        _get_logger().exception("Session initialization error", error=str(e))
+        _get_logger().exception("Session initialization error: %s", str(e))
         output_builder.add_simple_item(
             f"❌ Unexpected error during initialization: {e}",
         )
@@ -698,10 +698,20 @@ async def _checkpoint_impl(working_directory: str | None = None) -> str:
             output.extend(result["git_output"])
 
             # Handle selective auto-store reflection
-            await _handle_auto_store_reflection(result, output)
+            try:
+                await _handle_auto_store_reflection(result, output)
+            except Exception as e:
+                _get_logger().warning(
+                    f"Auto-store reflection error (non-critical): {e}"
+                )
+                # Continue - this is not critical for checkpoint success
 
             # Auto-compact when needed
-            await _handle_auto_compaction(output)
+            try:
+                await _handle_auto_compaction(output)
+            except Exception as e:
+                _get_logger().warning(f"Auto-compaction error (non-critical): {e}")
+                output.append(f"\n⚠️ Auto-compaction skipped: {e!s}")
 
             output.extend(
                 (
@@ -713,7 +723,7 @@ async def _checkpoint_impl(working_directory: str | None = None) -> str:
             output.append(f"❌ Checkpoint failed: {result['error']}")
 
     except Exception as e:
-        _get_logger().exception("Checkpoint error", error=str(e))
+        _get_logger().exception("Checkpoint error: %s", str(e))
         output.append(f"❌ Unexpected checkpoint error: {e}")
 
     return "\n".join(output)
@@ -739,7 +749,7 @@ async def _end_impl(working_directory: str | None = None) -> str:
             output.append(f"❌ Session end failed: {result['error']}")
 
     except Exception as e:
-        _get_logger().exception("Session end error", error=str(e))
+        _get_logger().exception("Session end error: %s", str(e))
         output.append(f"❌ Unexpected error during session end: {e}")
 
     return "\n".join(output)
@@ -775,7 +785,7 @@ async def _status_impl(working_directory: str | None = None) -> str:
             output_builder.add_simple_item(f"❌ Status check failed: {result['error']}")
 
     except Exception as e:
-        _get_logger().exception("Status check error", error=str(e))
+        _get_logger().exception("Status check error: %s", str(e))
         output_builder.add_simple_item(f"❌ Unexpected error during status check: {e}")
 
     return output_builder.build()

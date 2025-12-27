@@ -116,7 +116,7 @@ class TestMCPServerInitialization:
 
             # Server name should be set (FastMCP or MockFastMCP)
             if hasattr(mcp, "name"):
-                assert mcp.name == "session-mgmt-mcp"
+                assert mcp.name == "session-buddy"
         except ImportError:
             pytest.skip("FastMCP not available in test environment")
 

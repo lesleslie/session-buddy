@@ -66,21 +66,12 @@ from session_buddy.server_core import (
 )
 
 
-# Get ACB logger from DI container (deferred until first use)
+# Get logger using standard logging (avoid DI type resolution conflicts)
 def _get_session_logger():
-    """Get logger, handling both sync and async returns from DI."""
+    """Get logger using standard logging module."""
     import logging
 
-    try:
-        logger = depends.get_sync("acb_logger")
-        # Check if DI returned a coroutine (async getter issue)
-        if asyncio.iscoroutine(logger):
-            # Fall back to standard logging rather than trying to await at module level
-            return logging.getLogger(__name__)
-        return logger
-    except Exception:
-        # Fallback logger in case of dependency injection issues
-        return logging.getLogger(__name__)
+    return logging.getLogger(__name__)
 
 
 # Initialize global session_logger as None to prevent undefined variable
@@ -763,8 +754,12 @@ def _display_http_startup(host: str, port: int, features: list[str]) -> None:
             transport="HTTP (streamable)",
         )
     else:
-        # Fallback to simple print
-        pass
+        # Fallback to simple print when ServerPanels not available
+        print("✅ Session Management MCP v2.0.0", file=sys.stderr)
+        print(f"🔗 Endpoint: http://{host}:{port}/mcp", file=sys.stderr)
+        print("📡 Transport: HTTP (streamable)", file=sys.stderr)
+        if features:
+            print(f"🎯 Features: {', '.join(features)}", file=sys.stderr)
 
 
 def _display_stdio_startup(features: list[str]) -> None:
@@ -780,8 +775,11 @@ def _display_stdio_startup(features: list[str]) -> None:
             mode="Claude Desktop",
         )
     else:
-        # Fallback to simple print
-        pass
+        # Fallback to simple print when ServerPanels not available
+        print("✅ Session Management MCP v2.0.0", file=sys.stderr)
+        print("📡 Transport: STDIO (Claude Desktop)", file=sys.stderr)
+        if features:
+            print(f"🎯 Features: {', '.join(features)}", file=sys.stderr)
 
 
 def main(http_mode: bool = False, http_port: int | None = None) -> None:

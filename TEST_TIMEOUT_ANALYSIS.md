@@ -1,6 +1,7 @@
 # Test Suite Timeout Investigation - Complete Analysis
 
 ## Problem Summary
+
 - **Full test suite times out** after ~33 seconds when running via `crackerjack`
 - **Individual test files pass** when run alone
 - **Root cause**: Single failing test blocks execution, causing appearance of timeout
@@ -8,12 +9,14 @@
 ## Root Cause Identified
 
 ### Failing Test
+
 - **Location**: `tests/unit/test_advanced_features.py::TestGitWorktreeManagement::test_git_worktree_add_success`
 - **Error**: `TypeError: issubclass() arg 2 must be a class, a tuple of classes, or a union`
 
 ### Technical Details
 
 **Error Stack Trace:**
+
 ```python
 /Users/les/Projects/session-buddy/session_buddy/advanced_features.py:665: in git_worktree_add
     session_logger = depends.get_sync(SessionLogger)
@@ -33,11 +36,13 @@ E   TypeError: Cannot check if <class 'session_buddy.utils.logging.SessionLogger
 ## Impact Analysis
 
 ### Why This Appears as a Timeout
+
 1. **Test execution order**: The worktree test comes early in alphabetical order (test_advanced_features.py)
-2. **pytest's `-x` behavior**: When crackerjack runs tests, it stops on first failure
-3. **Perceived timeout**: The "timeout" is actually the test suite stopping due to failure, not a real timeout
+1. **pytest's `-x` behavior**: When crackerjack runs tests, it stops on first failure
+1. **Perceived timeout**: The "timeout" is actually the test suite stopping due to failure, not a real timeout
 
 ### Performance Data
+
 - **Security tests**: All 51 tests pass in ~15 seconds
 - **Functional tests**: 21 tests pass in ~2 seconds
 - **Integration tests**: 149 tests pass successfully
@@ -54,6 +59,7 @@ E   TypeError: Cannot check if <class 'session_buddy.utils.logging.SessionLogger
 **Line**: 256-257
 
 **Problem Code:**
+
 ```python
 # Set logger from DI (adapters need a logger instance)
 try:
@@ -67,19 +73,23 @@ try:
 **Fix Options:**
 
 **Option A - Use Direct Logging Import (Recommended)**:
+
 ```python
 # Set logger from DI (adapters need a logger instance)
 try:
     import logging
+
     logger_instance = logging.getLogger("acb.vector")
     vector_adapter.logger = logger_instance
 except Exception:
     # Fallback to basic logger
     import logging
+
     vector_adapter.logger = logging.getLogger("acb.vector")
 ```
 
 **Option B - Better Type-Safe DI Key**:
+
 ```python
 # In constants.py, add:
 ACB_LOGGER_KEY = "session_buddy_logger"  # Avoid generic "acb_logger" name
@@ -97,6 +107,7 @@ logger_instance = depends.get_sync(ACB_LOGGER_KEY)
 **Line**: 355
 
 **Add dependency injection mock:**
+
 ```python
 @pytest.mark.asyncio
 async def test_git_worktree_add_success(self) -> None:
@@ -123,6 +134,7 @@ async def test_git_worktree_add_success(self) -> None:
 **Current issue**: Session-scoped event loop may have pending tasks from previous tests
 
 **Improved cleanup:**
+
 ```python
 @pytest.fixture(scope="session")
 def event_loop() -> Generator[asyncio.AbstractEventLoop]:
@@ -147,8 +159,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop]:
             try:
                 loop.run_until_complete(
                     asyncio.wait_for(
-                        asyncio.gather(*pending, return_exceptions=True),
-                        timeout=5.0
+                        asyncio.gather(*pending, return_exceptions=True), timeout=5.0
                     )
                 )
             except asyncio.TimeoutError:
@@ -161,10 +172,12 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop]:
 ## Recommended Action Plan
 
 ### Immediate Fix (Resolves 100% of Issue)
+
 1. Apply Fix #1 Option A - Replace string-based logger DI lookup with direct import
-2. This eliminates bevy's type confusion when resolving SessionLogger
+1. This eliminates bevy's type confusion when resolving SessionLogger
 
 ### Testing Validation
+
 ```bash
 # Verify fix
 .venv/bin/pytest tests/unit/test_advanced_features.py::TestGitWorktreeManagement -v
@@ -176,19 +189,22 @@ python -m crackerjack -t
 ```
 
 ### Long-term Improvements
+
 1. **Avoid string-based DI keys** for logger instances - use typed keys or direct imports
-2. **Add pre-commit hook** to catch DI configuration issues
-3. **Add integration test** for DI container resolution of all registered types
+1. **Add pre-commit hook** to catch DI configuration issues
+1. **Add integration test** for DI container resolution of all registered types
 
 ## Performance Metrics
 
 ### Current State (With Fix)
+
 - **Total tests**: 1,652
 - **Pass rate**: 100% (expected after fix)
 - **Execution time**: ~60 seconds (full suite)
 - **Coverage**: 13.53% (baseline, not blocking)
 
 ### Test Distribution
+
 - **Functional**: 21 tests
 - **Integration**: 149 tests
 - **Unit**: ~1,400 tests

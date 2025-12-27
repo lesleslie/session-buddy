@@ -6,8 +6,10 @@ improve test execution speed through better resource management and caching.
 """
 
 import asyncio
+import shutil
 import tempfile
 from collections.abc import AsyncGenerator, Generator
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock
@@ -103,7 +105,11 @@ async def fast_temp_db(temp_test_dir: Path) -> AsyncGenerator[ReflectionDatabase
 
     # Fast cleanup
     try:
-        db.close()
+        close = getattr(db, "aclose", None)
+        if callable(close):
+            await close()
+        else:
+            db.close()
     except Exception:
         pass  # Ignore cleanup errors in tests
 
@@ -243,8 +249,43 @@ def mock_project_factory():
 
     def create_mock_project(path: Path, features: dict[str, bool]):
         """Create a mock project with specified features."""
+        cleanup_files = [
+            path / "pyproject.toml",
+            path / "uv.lock",
+            path / "README.md",
+            path / "coverage.json",
+            path / ".gitignore",
+        ]
+        cleanup_dirs = [
+            path / ".git",
+            path / "tests",
+            path / "src",
+            path / "docs",
+        ]
+        for cleanup_file in cleanup_files:
+            with suppress(FileNotFoundError):
+                cleanup_file.unlink()
+        for cleanup_dir in cleanup_dirs:
+            if cleanup_dir.exists():
+                shutil.rmtree(cleanup_dir, ignore_errors=True)
+
+        from session_buddy.utils import quality_utils_v2
+
+        quality_utils_v2._metrics_cache.pop(str(path.resolve()), None)
+
         if features.get("has_pyproject_toml"):
             (path / "pyproject.toml").write_text('[project]\nname = "test"\n')
+            (path / "uv.lock").write_text("version = 1\n")
+
+        if features.get("has_git_repo"):
+            git_dir = path / ".git"
+            git_dir.mkdir(parents=True, exist_ok=True)
+            (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
+
+            refs_dir = git_dir / "refs" / "heads"
+            refs_dir.mkdir(parents=True, exist_ok=True)
+            (refs_dir / "main").write_text("0" * 40 + "\n")
+            (path / ".gitignore").write_text(".env\n")
 
         if features.get("has_readme"):
             (path / "README.md").write_text("# Test Project\n")
@@ -252,7 +293,11 @@ def mock_project_factory():
         if features.get("has_tests"):
             tests_dir = path / "tests"
             tests_dir.mkdir(exist_ok=True)
-            (tests_dir / "test_example.py").write_text("def test_x(): pass\n")
+            for index in range(5):
+                (tests_dir / f"test_example_{index}.py").write_text(
+                    "def test_x(): pass\n"
+                )
+            (path / "coverage.json").write_text('{"totals": {"percent_covered": 80}}')
 
         if features.get("has_src"):
             src_dir = path / "src"

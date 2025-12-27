@@ -189,16 +189,18 @@ class TestExecuteCrackerjackCommandMethod:
 
         # Test the command mappings directly via _build_command_flags
         test_cases = [
-            ("lint", ["--fast", "--quick"]),
-            ("check", ["--comp", "--quick"]),
-            ("test", ["--run-tests", "--quick"]),
-            ("format", ["--fast", "--quick"]),
-            ("typecheck", ["--comp", "--quick"]),
-            ("security", ["--comp", "--quick"]),
-            ("analyze", ["--comp", "--quick"]),
-            ("clean", ["--quick"]),
-            ("build", ["--quick"]),
-            ("all", ["--all", "--quick"]),
+            ("lint", ["--fast"]),
+            ("check", ["--comp"]),
+            ("test", ["--test"]),
+            ("format", ["--fast"]),
+            ("typecheck", ["--comp"]),
+            ("security", ["--security"]),
+            ("complexity", ["--complexity"]),
+            ("analyze", ["--analyze"]),
+            ("clean", ["--clean"]),
+            ("build", ["--build"]),
+            ("all", ["--all"]),
+            ("run", ["--run"]),
         ]
 
         # Test the _build_command_flags method
@@ -261,7 +263,7 @@ class TestExecuteCrackerjackCommandMethod:
             "python",
             "-m",
             "crackerjack",
-            "--run-tests",
+            "--test",
             "--quick",
             "--verbose",
         ]

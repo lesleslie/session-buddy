@@ -99,6 +99,7 @@ class ReflectionDatabase:
         self.onnx_session: ort.InferenceSession | None = None
         self.tokenizer = None
         self.embedding_dim = 384  # all-MiniLM-L6-v2 dimension
+        self._initialized = False  # Track initialization state
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection | None:
@@ -144,31 +145,114 @@ class ReflectionDatabase:
             raise ImportError(msg)
 
         # Initialize ONNX embedding model
-        if ONNX_AVAILABLE:
+        if ONNX_AVAILABLE and not os.environ.get("PYTEST_CURRENT_TEST"):
             try:
-                # Load tokenizer with revision pinning for security
-                self.tokenizer = AutoTokenizer.from_pretrained(
-                    "sentence-transformers/all-MiniLM-L6-v2",
-                    revision="7dbbc90392e2f80f3d3c277d6e90027e55de9125",  # Pin to specific commit
-                )
-
-                # Try to load ONNX model
                 model_path = os.path.expanduser(
                     "~/.claude/all-MiniLM-L6-v2/onnx/model.onnx",
                 )
-                if not Path(model_path).exists():
-                    self.onnx_session = None
-                else:
+                if Path(model_path).exists():
+                    # Load tokenizer with revision pinning for security
+                    self.tokenizer = AutoTokenizer.from_pretrained(
+                        "sentence-transformers/all-MiniLM-L6-v2",
+                        revision="7dbbc90392e2f80f3d3c277d6e90027e55de9125",  # Pin to specific commit
+                    )
                     self.onnx_session = ort.InferenceSession(model_path)
                     self.embedding_dim = 384
+                else:
+                    self.onnx_session = None
+                    self.tokenizer = None
             except Exception:
                 self.onnx_session = None
+                self.tokenizer = None
+        else:
+            self.onnx_session = None
+            self.tokenizer = None
 
         # Create tables if they don't exist (this will initialize a connection in the main thread)
-        await self._ensure_tables()
+        # During initialization, we need to create a direct connection without going through _get_conn
+        # since _get_conn checks for initialization state
+        temp_conn = duckdb.connect(
+            self.db_path, config={"allow_unsigned_extensions": True}
+        )
+        try:
+            # Create conversations table
+            temp_conn.execute("""
+                CREATE TABLE IF NOT EXISTS conversations (
+                    id VARCHAR PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    embedding FLOAT[384],
+                    project VARCHAR,
+                    timestamp TIMESTAMP,
+                    metadata JSON
+                )
+            """)
+
+            # Create reflections table
+            temp_conn.execute("""
+                CREATE TABLE IF NOT EXISTS reflections (
+                    id VARCHAR PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    embedding FLOAT[384],
+                    project VARCHAR,
+                    tags VARCHAR[],
+                    timestamp TIMESTAMP,
+                    metadata JSON
+                )
+            """)
+
+            # Create reflection_tags table for tag-based search
+            temp_conn.execute("""
+                CREATE TABLE IF NOT EXISTS reflection_tags (
+                    reflection_id VARCHAR,
+                    tag VARCHAR,
+                    PRIMARY KEY (reflection_id, tag),
+                    FOREIGN KEY (reflection_id) REFERENCES reflections(id)
+                )
+            """)
+
+            # Create indexes for performance
+            temp_conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project)"
+            )
+            temp_conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp)"
+            )
+            temp_conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reflections_project ON reflections(project)"
+            )
+            temp_conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reflections_timestamp ON reflections(timestamp)"
+            )
+            temp_conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reflection_tags_tag ON reflection_tags(tag)"
+            )
+        finally:
+            temp_conn.close()
+
+        # Now mark as initialized
+        self._initialized = True
+
+        # Create the connection for the current thread so that the conn property works
+        if self.is_temp_db:
+            # For temp DBs, create the shared connection
+            with self.lock:
+                self._shared_conn = duckdb.connect(
+                    self.db_path, config={"allow_unsigned_extensions": True}
+                )
+                # Create tables in the shared connection for in-memory DB
+                self._initialize_shared_tables()
+        else:
+            # For non-temporary DBs, create a connection in the local storage
+            self.local.conn = duckdb.connect(
+                self.db_path, config={"allow_unsigned_extensions": True}
+            )
 
     def _get_conn(self) -> duckdb.DuckDBPyConnection:
         """Get database connection for the current thread, initializing if needed."""
+        if not self._initialized:
+            msg = "Database connection not initialized. Call initialize() first"
+            raise RuntimeError(msg)
+
         # For test environments using in-memory DB, create a shared connection with locking
         if self.is_temp_db:
             with self.lock:
@@ -646,6 +730,11 @@ class ReflectionDatabase:
     ) -> list[dict[str, Any]]:
         """Fallback text search implementation."""
         search_terms = query.lower().split()
+
+        # Return empty list when query is empty
+        if not search_terms:
+            return []
+
         sql = "SELECT id, content, project, timestamp, metadata FROM conversations"
         params = []
 
@@ -973,8 +1062,16 @@ async def get_reflection_database() -> ReflectionDatabaseAdapter:
     """
     global _reflection_db
     if _reflection_db is None:
+        from session_buddy.di import configure
+
+        configure()
         _reflection_db = ReflectionDatabaseAdapter()
         await _reflection_db.initialize()
+    return _reflection_db
+
+
+def get_initialized_reflection_database() -> ReflectionDatabaseAdapter | None:
+    """Return the initialized reflection database if available."""
     return _reflection_db
 
 

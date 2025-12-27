@@ -51,7 +51,7 @@ async def test_get_app_monitor_registers_singleton(
     # Monkeypatch HOME first, then reset and configure
     monkeypatch.setenv("HOME", str(tmp_path))
     os.chdir(tmp_path)
-    from session_buddy.server_core import SessionPermissionsManager
+    from session_buddy.core.permissions import SessionPermissionsManager
 
     SessionPermissionsManager.reset_singleton()
     configure(force=True)
@@ -83,7 +83,7 @@ async def test_get_llm_manager_uses_di_cache(
 
     # Monkeypatch HOME first, then reset and configure
     monkeypatch.setenv("HOME", str(tmp_path))
-    from session_buddy.server_core import SessionPermissionsManager
+    from session_buddy.core.permissions import SessionPermissionsManager
 
     SessionPermissionsManager.reset_singleton()
     configure(force=True)
@@ -139,7 +139,7 @@ async def test_serverless_manager_uses_config(
 
     # Monkeypatch HOME first, then reset and configure
     monkeypatch.setenv("HOME", str(tmp_path))
-    from session_buddy.server_core import SessionPermissionsManager
+    from session_buddy.core.permissions import SessionPermissionsManager
 
     SessionPermissionsManager.reset_singleton()
     configure(force=True)

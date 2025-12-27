@@ -189,7 +189,7 @@ class TestDatabasePathResolution:
                 side_effect=Exception("ACB not configured"),
             ),
             patch(
-                "session_buddy.adapters.knowledge_graph_adapter.Path.home",
+                "pathlib.Path.home",
                 return_value=tmp_path,
             ),
         ):
@@ -242,8 +242,8 @@ class TestInitialization:
         )
         tables = {row[0] for row in cursor.fetchall()}
 
-        assert "entities" in tables
-        assert "relationships" in tables
+        assert "kg_entities" in tables
+        assert "kg_relationships" in tables
 
         adapter.close()
 
@@ -433,9 +433,12 @@ class TestEntityOperations:
             )
 
             # Add observation using entity name (not ID)
-            success = await kg.add_observation(entity["name"], "second observation")
+            updated_entity = await kg.add_observation(
+                entity["name"], "second observation"
+            )
 
-            assert success is True
+            assert isinstance(updated_entity, dict)
+            assert "second observation" in updated_entity["observations"]
 
             # Verify observation was added
             updated = await kg.find_entity_by_name(unique_name)

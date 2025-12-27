@@ -8,22 +8,87 @@ Refactored to use utility modules for reduced code duplication.
 
 from __future__ import annotations
 
+import asyncio
 import operator
 import typing as t
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.utils.database_helpers import require_reflection_database
-from session_buddy.utils.error_handlers import validate_required
-from session_buddy.utils.messages import ToolMessages
-from session_buddy.utils.tool_wrapper import (
-    execute_database_tool,
-    execute_simple_database_tool,
-    format_reflection_result,
+from session_buddy.utils.error_handlers import (
+    DatabaseUnavailableError,
+    ValidationError,
+    _get_logger,
+    validate_required,
 )
+from session_buddy.utils.messages import ToolMessages
+from session_buddy.utils.tool_wrapper import format_reflection_result
 
 if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter
+
+
+_reflection_tools_available: bool | None = None
+_reflection_db: ReflectionDatabaseAdapter | None = None
+
+
+def _check_reflection_tools_available() -> bool:
+    """Check if reflection tools are available, cached for reuse."""
+    global _reflection_tools_available
+    if _reflection_tools_available is not None:
+        return _reflection_tools_available
+    try:
+        import duckdb
+
+        _reflection_tools_available = True
+    except ImportError:
+        _reflection_tools_available = False
+    return _reflection_tools_available
+
+
+async def _get_reflection_database() -> ReflectionDatabaseAdapter:
+    """Get reflection database instance (patchable for tests)."""
+    global _reflection_db
+    if _reflection_db is not None:
+        return _reflection_db
+    _reflection_db = await require_reflection_database()
+    return _reflection_db
+
+
+async def _execute_database_tool(
+    operation: t.Callable[[ReflectionDatabaseAdapter], t.Awaitable[t.Any]],
+    formatter: t.Callable[[t.Any], str],
+    operation_name: str,
+    validator: t.Callable[[], None] | None = None,
+) -> str:
+    try:
+        if validator:
+            validator()
+
+        db = await _get_reflection_database()
+        result = await operation(db)
+        return formatter(result)
+    except ValidationError as e:
+        return ToolMessages.validation_error(operation_name, str(e))
+    except DatabaseUnavailableError as e:
+        return ToolMessages.not_available(operation_name, str(e))
+    except Exception as e:
+        _get_logger().exception(f"Error in {operation_name}: {e}")
+        return ToolMessages.operation_failed(operation_name, e)
+
+
+async def _execute_simple_database_tool(
+    operation: t.Callable[[ReflectionDatabaseAdapter], t.Awaitable[str]],
+    operation_name: str,
+) -> str:
+    try:
+        db = await _get_reflection_database()
+        return await operation(db)
+    except DatabaseUnavailableError as e:
+        return ToolMessages.not_available(operation_name, str(e))
+    except Exception as e:
+        _get_logger().exception(f"Error in {operation_name}: {e}")
+        return ToolMessages.operation_failed(operation_name, e)
 
 
 def _format_score(score: float) -> str:
@@ -61,19 +126,21 @@ def _format_store_reflection_result(result: dict[str, Any]) -> str:
 
 async def _store_reflection_impl(content: str, tags: list[str] | None = None) -> str:
     """Implementation for store_reflection tool."""
+    if not _check_reflection_tools_available():
+        return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
 
-    def validator() -> None:
+    try:
         validate_required(content, "content")
-
-    async def operation(db: ReflectionDatabaseAdapter) -> dict[str, Any]:
-        return await _store_reflection_operation(db, content, tags or [])
-
-    return await execute_database_tool(
-        operation,
-        _format_store_reflection_result,
-        "Store reflection",
-        validator,
-    )
+        db = await _get_reflection_database()
+        result = await _store_reflection_operation(db, content, tags or [])
+        return _format_store_reflection_result(result)
+    except ValidationError as e:
+        return ToolMessages.validation_error("Store reflection", str(e))
+    except DatabaseUnavailableError as e:
+        return ToolMessages.not_available("Store reflection", str(e))
+    except Exception as e:
+        _get_logger().exception(f"Error storing reflection: {e}")
+        return f"Error storing reflection: {e}"
 
 
 # ============================================================================
@@ -127,11 +194,13 @@ async def _quick_search_impl(
     project: str | None = None,
 ) -> str:
     """Implementation for quick_search tool."""
+    if not _check_reflection_tools_available():
+        return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
 
     async def operation(db: ReflectionDatabaseAdapter) -> str:
         return await _quick_search_operation(db, query, project, min_score)
 
-    return await execute_simple_database_tool(operation, "Quick search")
+    return await _execute_simple_database_tool(operation, "Quick search")
 
 
 # ============================================================================
@@ -249,11 +318,17 @@ async def _search_summary_impl(
     project: str | None = None,
 ) -> str:
     """Implementation for search_summary tool."""
+    if not _check_reflection_tools_available():
+        return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
 
-    async def operation(db: ReflectionDatabaseAdapter) -> str:
+    try:
+        db = await _get_reflection_database()
         return await _search_summary_operation(db, query, project, min_score)
-
-    return await execute_simple_database_tool(operation, "Search summary")
+    except DatabaseUnavailableError as e:
+        return ToolMessages.not_available("Search summary", str(e))
+    except Exception as e:
+        _get_logger().exception(f"Search summary error: {e}")
+        return f"Search summary error: {e}"
 
 
 # ============================================================================
@@ -317,11 +392,17 @@ async def _search_by_file_impl(
     project: str | None = None,
 ) -> str:
     """Implementation for search_by_file tool."""
+    if not _check_reflection_tools_available():
+        return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
 
-    async def operation(db: ReflectionDatabaseAdapter) -> str:
+    try:
+        db = await _get_reflection_database()
         return await _search_by_file_operation(db, file_path, limit, project)
-
-    return await execute_simple_database_tool(operation, "Search by file")
+    except DatabaseUnavailableError as e:
+        return ToolMessages.not_available("Search by file", str(e))
+    except Exception as e:
+        _get_logger().exception(f"File search error: {e}")
+        return f"File search error: {e}"
 
 
 # ============================================================================
@@ -393,13 +474,19 @@ async def _search_by_concept_impl(
     project: str | None = None,
 ) -> str:
     """Implementation for search_by_concept tool."""
+    if not _check_reflection_tools_available():
+        return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
 
-    async def operation(db: ReflectionDatabaseAdapter) -> str:
+    try:
+        db = await _get_reflection_database()
         return await _search_by_concept_operation(
             db, concept, include_files, limit, project
         )
-
-    return await execute_simple_database_tool(operation, "Search by concept")
+    except DatabaseUnavailableError as e:
+        return ToolMessages.not_available("Search by concept", str(e))
+    except Exception as e:
+        _get_logger().exception(f"Concept search error: {e}")
+        return f"Concept search error: {e}"
 
 
 # ============================================================================
@@ -419,6 +506,11 @@ def _format_stats_new(stats: dict[str, t.Any]) -> list[str]:
         f"🔧 Embedding provider: {provider}",
         f"\n🏥 Database health: {'✅ Healthy' if (conv_count + refl_count) > 0 else '⚠️ Empty'}",
     ]
+
+
+def _format_new_stats(stats: dict[str, t.Any]) -> list[str]:
+    """Backward-compatible alias for _format_stats_new."""
+    return _format_stats_new(stats)
 
 
 def _format_stats_old(stats: dict[str, t.Any]) -> list[str]:
@@ -448,6 +540,11 @@ def _format_stats_old(stats: dict[str, t.Any]) -> list[str]:
     return output
 
 
+def _format_old_stats(stats: dict[str, t.Any]) -> list[str]:
+    """Backward-compatible alias for _format_stats_old."""
+    return _format_stats_old(stats)
+
+
 async def _reflection_stats_operation(db: ReflectionDatabaseAdapter) -> str:
     """Execute reflection stats operation."""
     stats = await db.get_stats()
@@ -473,11 +570,13 @@ async def _reflection_stats_operation(db: ReflectionDatabaseAdapter) -> str:
 
 async def _reflection_stats_impl() -> str:
     """Implementation for reflection_stats tool."""
+    if not _check_reflection_tools_available():
+        return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
 
     async def operation(db: ReflectionDatabaseAdapter) -> str:
         return await _reflection_stats_operation(db)
 
-    return await execute_simple_database_tool(operation, "Reflection stats")
+    return await _execute_simple_database_tool(operation, "Reflection stats")
 
 
 # ============================================================================
@@ -487,9 +586,15 @@ async def _reflection_stats_impl() -> str:
 
 async def _reset_reflection_database_impl() -> str:
     """Implementation for reset_reflection_database tool."""
+    if not _check_reflection_tools_available():
+        return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
+    global _reflection_db
     try:
-        # Try to create a new database connection (DI will handle cleanup)
-        await require_reflection_database()
+        if _reflection_db:
+            # Use the adapter's close method instead of accessing conn directly
+            await _reflection_db.aclose()
+        _reflection_db = None
+        await _get_reflection_database()
 
         lines = [
             "🔄 Reflection database connection reset",

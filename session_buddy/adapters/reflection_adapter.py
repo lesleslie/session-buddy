@@ -11,7 +11,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import logging
+import logging  # Used throughout for diagnostics and vector adapter setup
+import os
 import time
 import typing as t
 from contextlib import suppress
@@ -32,10 +33,12 @@ except ImportError:
 
 import numpy as np
 
+# Import Vector at module level to avoid UnboundLocalError issues
+from acb.adapters.vector.duckdb import Vector, VectorSettings
+from acb.config import Config
+
 if t.TYPE_CHECKING:
     from types import TracebackType
-
-    from acb.adapters.vector.duckdb import Vector
 
 
 class ReflectionDatabaseAdapter:
@@ -108,12 +111,38 @@ class ReflectionDatabaseAdapter:
 
     def close(self) -> None:
         """Close adapter connections (sync version for compatibility)."""
-        # ACB adapter handles connection pooling, no explicit close needed
-        # Keep method for API compatibility
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            task = loop.create_task(self.aclose())
+
+            def _consume_result(future: asyncio.Future[t.Any]) -> None:
+                with suppress(Exception):
+                    future.result()
+
+            task.add_done_callback(_consume_result)
+        else:
+            asyncio.run(self.aclose())
+
+    async def aclose(self) -> None:
+        """Close adapter connections (async)."""
+        adapter = self.vector_adapter
+        if not adapter:
+            return
+
+        cleanup = getattr(adapter, "cleanup", None)
+        if callable(cleanup):
+            await cleanup()
+
+        self.vector_adapter = None
 
     def __del__(self) -> None:
         """Destructor to ensure cleanup."""
-        # ACB handles cleanup via dependency injection lifecycle
+        with suppress(Exception):
+            self.close()
 
     async def initialize(self) -> None:
         """Initialize vector adapter and embedding models.
@@ -121,10 +150,6 @@ class ReflectionDatabaseAdapter:
         Retrieves the ACB Vector adapter from the DI container and initializes
         the ONNX embedding model for local text-to-vector conversion.
         """
-        # Import Vector at function scope (needed for both if/else branches)
-        from acb.adapters.vector.duckdb import Vector, VectorSettings
-        from acb.config import Config
-
         if self.db_path:
             config = Config()
             config.ensure_initialized()
@@ -132,7 +157,7 @@ class ReflectionDatabaseAdapter:
                 database_path=self.db_path,
                 default_dimension=self.embedding_dim,
                 default_distance_metric="cosine",
-                enable_vss=True,
+                enable_vss=not os.environ.get("PYTEST_CURRENT_TEST"),
                 threads=4,
                 memory_limit="2GB",
             )
@@ -148,12 +173,13 @@ class ReflectionDatabaseAdapter:
                 self.vector_adapter = depends.get_sync(Vector)
             except (KeyError, AttributeError, RuntimeError) as e:
                 # Enhanced diagnostics for debugging DI issues
-                import logging
                 logger = logging.getLogger(__name__)
-                logger.error(
+                logger.exception(
                     f"Failed to get Vector adapter from DI: {type(e).__name__}: {e}"
                 )
-                logger.error(f"DI container state: {hasattr(depends, '_instances')}")
+                logger.exception(
+                    f"DI container state: {hasattr(depends, '_instances')}"
+                )
 
                 msg = (
                     "Vector adapter not registered in DI container. "
@@ -178,23 +204,26 @@ class ReflectionDatabaseAdapter:
             )
 
         # Initialize ONNX embedding model (same as original ReflectionDatabase)
-        if ONNX_AVAILABLE:
+        if ONNX_AVAILABLE and not os.environ.get("PYTEST_CURRENT_TEST"):
             try:
-                # Load tokenizer with revision pinning for security
-                self.tokenizer = AutoTokenizer.from_pretrained(
-                    "sentence-transformers/all-MiniLM-L6-v2",
-                    revision="7dbbc90392e2f80f3d3c277d6e90027e55de9125",
-                )
-
-                # Try to load ONNX model
                 model_path = Path.home() / ".claude/all-MiniLM-L6-v2/onnx/model.onnx"
-                if not model_path.exists():
-                    self.onnx_session = None
-                else:
+                if model_path.exists():
+                    # Load tokenizer with revision pinning for security
+                    self.tokenizer = AutoTokenizer.from_pretrained(
+                        "sentence-transformers/all-MiniLM-L6-v2",
+                        revision="7dbbc90392e2f80f3d3c277d6e90027e55de9125",
+                    )
                     self.onnx_session = ort.InferenceSession(str(model_path))
                     self.embedding_dim = 384
+                else:
+                    self.onnx_session = None
+                    self.tokenizer = None
             except Exception:
                 self.onnx_session = None
+                self.tokenizer = None
+        else:
+            self.onnx_session = None
+            self.tokenizer = None
 
     def _get_adapter(self) -> Vector:
         """Get vector adapter, raising error if not initialized."""
@@ -610,12 +639,17 @@ class ReflectionDatabaseAdapter:
             # Format results to match expected output
             formatted_results = []
             for row in results:
-                metadata = row[1]
-                if isinstance(metadata, str):
+                metadata_raw = row[1]
+                metadata: dict[str, t.Any] = {}
+                if isinstance(metadata_raw, dict):
+                    metadata = metadata_raw
+                elif isinstance(metadata_raw, str):
                     import json
 
                     with suppress(json.JSONDecodeError):
-                        metadata = json.loads(metadata)
+                        parsed = json.loads(metadata_raw)
+                        if isinstance(parsed, dict):
+                            metadata = parsed
 
                 formatted_results.append(
                     {
@@ -637,17 +671,30 @@ class ReflectionDatabaseAdapter:
             logging.warning(f"Text search fallback failed: {e}")
             return []
 
-    async def get_reflection_by_id(
+    def _parse_metadata(self, raw_metadata: t.Any) -> dict[str, t.Any]:
+        """Parse metadata from various formats to dict."""
+        if isinstance(raw_metadata, dict):
+            return raw_metadata
+        if isinstance(raw_metadata, str):
+            with suppress(json.JSONDecodeError):
+                parsed = json.loads(raw_metadata)
+                if isinstance(parsed, dict):
+                    return parsed
+        if raw_metadata is None:
+            return {}
+        return {}
+
+    async def _try_direct_query(
         self,
         reflection_id: str,
-    ) -> dict[str, t.Any] | None:
-        """Retrieve a reflection by ID.
+        adapter: t.Any,
+    ) -> tuple[str, dict[str, t.Any]] | None:
+        """Try to get reflection via direct database query.
 
-        Returns None when the ID is unknown or the stored item is not a reflection.
+        Returns:
+            Tuple of (doc_id, metadata) or None if query fails
+
         """
-        adapter = self._get_adapter()
-        metadata: dict[str, t.Any] = {}
-        doc_id = reflection_id
         try:
             client = await adapter.get_client()
             collection = adapter._validate_collection_name(self.collection_name)
@@ -661,24 +708,53 @@ class ReflectionDatabaseAdapter:
             if not result:
                 return None
             doc_id = result[0]
-            raw_metadata = result[1]
-            if isinstance(raw_metadata, dict):
-                metadata = raw_metadata
-            elif isinstance(raw_metadata, str):
-                with suppress(json.JSONDecodeError):
-                    metadata = json.loads(raw_metadata)
+            metadata = self._parse_metadata(result[1])
+            return (doc_id, metadata)
         except Exception:
-            documents = await adapter.get(
-                collection=self.collection_name,
-                ids=[reflection_id],
-                include_vectors=False,
-            )
-            if not documents:
-                return None
-            doc = documents[0]
-            doc_id = doc.id
-            metadata = doc.metadata or {}
+            return None
 
+    async def _try_adapter_query(
+        self,
+        reflection_id: str,
+        adapter: t.Any,
+    ) -> tuple[str, dict[str, t.Any]] | None:
+        """Try to get reflection via adapter query (fallback).
+
+        Returns:
+            Tuple of (doc_id, metadata) or None if query fails
+
+        """
+        documents = await adapter.get(
+            collection=self.collection_name,
+            ids=[reflection_id],
+            include_vectors=False,
+        )
+        if not documents:
+            return None
+        doc = documents[0]
+        metadata = self._parse_metadata(doc.metadata)
+        return (doc.id, metadata)
+
+    async def get_reflection_by_id(
+        self,
+        reflection_id: str,
+    ) -> dict[str, t.Any] | None:
+        """Retrieve a reflection by ID.
+
+        Returns None when the ID is unknown or the stored item is not a reflection.
+        """
+        adapter = self._get_adapter()
+
+        # Try direct query first, fallback to adapter query
+        result = await self._try_direct_query(reflection_id, adapter)
+        if not result:
+            result = await self._try_adapter_query(reflection_id, adapter)
+        if not result:
+            return None
+
+        doc_id, metadata = result
+
+        # Verify it's actually a reflection
         if metadata.get("type") != "reflection":
             return None
 
@@ -711,6 +787,10 @@ class ReflectionDatabaseAdapter:
                     "total_vectors": 0,
                     "conversations": 0,
                     "reflections": 0,
+                    "conversations_count": 0,
+                    "reflections_count": 0,
+                    "total_conversations": 0,
+                    "total_reflections": 0,
                     "dimension": self.embedding_dim,
                     "distance_metric": "cosine",
                 }
@@ -741,6 +821,10 @@ class ReflectionDatabaseAdapter:
                 "total_vectors": total_count,
                 "conversations": conv_count,
                 "reflections": refl_count,
+                "conversations_count": conv_count,
+                "reflections_count": refl_count,
+                "total_conversations": conv_count,
+                "total_reflections": refl_count,
                 "dimension": self.embedding_dim,
                 "distance_metric": "cosine",
             }

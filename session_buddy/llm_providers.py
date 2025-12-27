@@ -23,8 +23,18 @@ from session_buddy.llm import (
     StreamGenerationOptions,
 )
 
+# Security utilities for API key validation/masking
+try:
+    from mcp_common.security import APIKeyValidator
+
+    SECURITY_AVAILABLE = True
+except ImportError:
+    APIKeyValidator = None  # type: ignore[assignment]
+    SECURITY_AVAILABLE = False
+
 # Re-export for backwards compatibility
 __all__ = [
+    "SECURITY_AVAILABLE",
     "LLMManager",
     "LLMMessage",
     "LLMProvider",
@@ -32,6 +42,106 @@ __all__ = [
     "StreamChunk",
     "StreamGenerationOptions",
 ]
+
+
+def _get_provider_api_key_and_env(
+    provider: str,
+) -> tuple[str | None, str | None]:
+    """Return the provider API key and its environment variable name."""
+    if provider == "openai":
+        return os.getenv("OPENAI_API_KEY"), "OPENAI_API_KEY"
+    if provider == "gemini":
+        if os.getenv("GEMINI_API_KEY"):
+            return os.getenv("GEMINI_API_KEY"), "GEMINI_API_KEY"
+        if os.getenv("GOOGLE_API_KEY"):
+            return os.getenv("GOOGLE_API_KEY"), "GOOGLE_API_KEY"
+        return None, "GEMINI_API_KEY"
+    if provider == "ollama":
+        return None, None
+    return None, None
+
+
+def _get_configured_providers() -> list[str]:
+    """Get list of configured providers based on environment variables."""
+    providers: list[str] = []
+    if os.getenv("OPENAI_API_KEY"):
+        providers.append("openai")
+    if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
+        providers.append("gemini")
+    return providers
+
+
+def _validate_provider_basic(provider: str, api_key: str) -> str:
+    """Basic API key validation without security module."""
+    import sys
+
+    if len(api_key.strip()) < 16:
+        print(
+            f"API Key Warning: {provider} API key appears very short",
+            file=sys.stderr,
+        )
+    return "basic_check"
+
+
+def _validate_provider_with_security(provider: str, api_key: str) -> tuple[bool, str]:
+    """Validate API key with security module."""
+    import sys
+
+    validator = APIKeyValidator(provider=provider) if APIKeyValidator else None
+    try:
+        if validator is None:
+            return False, "unavailable"
+        validator.validate(api_key, raise_on_invalid=True)
+        print(f"✅ API Key validated for {provider}", file=sys.stderr)
+        return True, "valid"
+    except ValueError as exc:
+        print(f"❌ API Key validation failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def validate_llm_api_keys_at_startup() -> dict[str, str]:
+    """Validate configured LLM API keys and return status by provider."""
+    import sys
+
+    configured = _get_configured_providers()
+    if not configured:
+        print("No LLM Provider API Keys Configured", file=sys.stderr)
+        return {}
+
+    results: dict[str, str] = {}
+    for provider in configured:
+        api_key, env_var = _get_provider_api_key_and_env(provider)
+        if api_key is None:
+            continue
+        if not api_key.strip():
+            print(f"❌ {env_var} is empty", file=sys.stderr)
+            sys.exit(1)
+
+        if SECURITY_AVAILABLE:
+            _, status = _validate_provider_with_security(provider, api_key)
+        else:
+            status = _validate_provider_basic(provider, api_key)
+        results[provider] = status
+
+    return results
+
+
+def get_masked_api_key(provider: str = "openai") -> str:
+    """Return masked API key for safe logging."""
+    api_key, _ = _get_provider_api_key_and_env(provider)
+
+    if provider == "ollama":
+        return "N/A (local service)"
+
+    if not api_key:
+        return "***"
+
+    if SECURITY_AVAILABLE and APIKeyValidator:
+        return APIKeyValidator.mask_key(api_key, visible_chars=4)
+
+    if len(api_key) <= 4:
+        return "***"
+    return f"...{api_key[-4:]}"
 
 
 class LLMManager:

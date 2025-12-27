@@ -28,6 +28,16 @@ if TYPE_CHECKING:
 # ============================================================================
 
 
+def _check_knowledge_graph_available() -> bool:
+    """Check if knowledge graph dependencies are available."""
+    try:
+        import duckdb
+
+        return True
+    except ImportError:
+        return False
+
+
 async def _require_knowledge_graph() -> KnowledgeGraphDatabase:
     """Get knowledge graph database instance or raise error."""
     try:
@@ -244,6 +254,38 @@ def _format_entity_result(entity: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _format_batch_results(
+    created: list[str],
+    failed: list[tuple[str, str]],
+) -> list[str]:
+    """Format batch entity creation results."""
+    lines = [
+        "📦 Batch Entity Creation Results",
+        "",
+        f"Successfully Created: {len(created)}",
+    ]
+
+    if created:
+        max_show = 10
+        for name in created[:max_show]:
+            lines.append(f"  • {name}")
+        remaining = len(created) - max_show
+        if remaining > 0:
+            lines.append(f"  • and {remaining} more")
+
+    if failed:
+        lines.append("")
+        lines.append(f"Failed: {len(failed)}")
+        max_failed = 5
+        for name, error in failed[:max_failed]:
+            lines.append(f"  • {name}: {error}")
+        remaining_failed = len(failed) - max_failed
+        if remaining_failed > 0:
+            lines.append(f"  • and {remaining_failed} more")
+
+    return lines
+
+
 async def _search_entities_operation(
     kg: Any, query: str, entity_type: str | None, limit: int
 ) -> str:
@@ -406,6 +448,30 @@ async def _find_path_impl(
 # ============================================================================
 
 
+def _format_entity_types(entity_types: dict[str, int]) -> list[str]:
+    """Format entity type counts for statistics output."""
+    if not entity_types:
+        return []
+
+    lines = ["📊 Entity Types:"]
+    lines.extend(f"   • {etype}: {count}" for etype, count in entity_types.items())
+    lines.append("")
+    return lines
+
+
+def _format_relationship_types(relationship_types: dict[str, int]) -> list[str]:
+    """Format relationship type counts for statistics output."""
+    if not relationship_types:
+        return []
+
+    lines = ["🔗 Relationship Types:"]
+    lines.extend(
+        f"   • {rtype}: {count}" for rtype, count in relationship_types.items()
+    )
+    lines.append("")
+    return lines
+
+
 async def _get_knowledge_graph_stats_operation(kg: Any) -> str:
     """Get knowledge graph statistics."""
     stats = await kg.get_stats()
@@ -420,19 +486,11 @@ async def _get_knowledge_graph_stats_operation(kg: Any) -> str:
 
     # Entity types
     entity_types = stats.get("entity_types", {})
-    if entity_types:
-        lines.append("📊 Entity Types:")
-        lines.extend(f"   • {etype}: {count}" for etype, count in entity_types.items())
-        lines.append("")
+    lines.extend(_format_entity_types(entity_types))
 
     # Relationship types
     relationship_types = stats.get("relationship_types", {})
-    if relationship_types:
-        lines.append("🔗 Relationship Types:")
-        lines.extend(
-            f"   • {rtype}: {count}" for rtype, count in relationship_types.items()
-        )
-        lines.append("")
+    lines.extend(_format_relationship_types(relationship_types))
 
     lines.extend(
         [

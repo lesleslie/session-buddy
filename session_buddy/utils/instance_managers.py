@@ -203,8 +203,14 @@ def _resolve_claude_dir() -> Path:
         eliminating bevy type confusion errors.
 
     """
-    with suppress(KeyError, AttributeError, RuntimeError):
+    from bevy.injection_types import DependencyResolutionError
+
+    with suppress(
+        KeyError, AttributeError, RuntimeError, TypeError, DependencyResolutionError
+    ):
         # RuntimeError: when adapter requires async
+        # TypeError: when bevy has DI type confusion
+        # DependencyResolutionError: when dependency not registered in DI container
         paths = depends.get_sync(SessionPaths)
         if isinstance(paths, SessionPaths):
             paths.claude_dir.mkdir(parents=True, exist_ok=True)

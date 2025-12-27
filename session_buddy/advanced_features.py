@@ -649,6 +649,16 @@ def _get_worktree_indicators(is_main: bool, is_detached: bool) -> tuple[str, str
     return main_indicator, detached_indicator
 
 
+def _resolve_worktree_working_dir(working_directory: str | None) -> Path:
+    """Resolve a safe working directory for git worktree operations."""
+    if working_directory:
+        return Path(working_directory)
+    try:
+        return Path.cwd()
+    except FileNotFoundError:
+        return Path.home()
+
+
 async def git_worktree_add(
     branch: str,
     path: str,
@@ -662,7 +672,7 @@ async def git_worktree_add(
     # Get session logger from DI container (using helper to avoid bevy type conflicts)
     session_logger = get_session_logger()
 
-    working_dir = Path(working_directory or str(Path.cwd()))
+    working_dir = _resolve_worktree_working_dir(working_directory)
     new_path = Path(path)
 
     if not new_path.is_absolute():
@@ -719,7 +729,7 @@ async def git_worktree_remove(
     # Get session logger from DI container (using helper to avoid bevy type conflicts)
     session_logger = get_session_logger()
 
-    working_dir = Path(working_directory or str(Path.cwd()))
+    working_dir = _resolve_worktree_working_dir(working_directory)
     remove_path = Path(path)
 
     if not remove_path.is_absolute():

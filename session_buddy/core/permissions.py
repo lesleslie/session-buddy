@@ -39,7 +39,7 @@ class SessionPermissionsManager:
             return
         self.claude_dir = claude_dir
         self.permissions_file = claude_dir / "sessions" / "trusted_permissions.json"
-        self.permissions_file.parent.mkdir(exist_ok=True)
+        self.permissions_file.parent.mkdir(parents=True, exist_ok=True)
         self.trusted_operations: set[str] = set()
         self.auto_checkpoint = False  # Add the required attribute for tests
         self.checkpoint_frequency = 300  # Default frequency (5 minutes)
@@ -53,7 +53,11 @@ class SessionPermissionsManager:
 
     def _generate_session_id(self) -> str:
         """Generate unique session ID based on current time and working directory."""
-        session_data = f"{datetime.now().isoformat()}_{Path.cwd()}"
+        try:
+            cwd = Path.cwd()
+        except FileNotFoundError:
+            cwd = Path.home()
+        session_data = f"{datetime.now().isoformat()}_{cwd}"
         return hashlib.md5(session_data.encode(), usedforsecurity=False).hexdigest()[
             :12
         ]

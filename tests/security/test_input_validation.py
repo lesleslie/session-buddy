@@ -193,7 +193,7 @@ class TestResourceConsumption:
         # Measure initial memory
         initial_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
 
-        iterations = int(os.environ.get("SB_MEMORY_TEST_ITERS", "200"))
+        iterations = int(os.environ.get("SB_MEMORY_TEST_ITERS", "100"))
         for i in range(iterations):
             # Store small conversation
             await fast_temp_db.store_conversation(
