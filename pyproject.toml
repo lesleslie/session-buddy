@@ -33,16 +33,16 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "acb>=0.31.19",
+    "acb>=0.32.0",
     "aiocache>=0.12.3",
     "duckdb>=1.4.3",
     "jinja2>=3.1.6",
     "jinja2-async-environment>=0.18.6",
-    "mcp-common>=0.3.3",
-    "numpy>=2.3.5",
+    "mcp-common>=0.3.6",
+    "numpy>=2.4.0",
     "onnxruntime>=1.23.2,<1.24.0.dev",
     "httpx>=0.28.1,<1.0.0",
-    "psutil>=7.1.3",
+    "psutil>=7.2.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
     "rich>=14.2.0",
@@ -50,11 +50,11 @@ dependencies = [
     "tiktoken>=0.12.0",
     "tomli>=2.3.0",
     "transformers>=4.57.3",
-    "typer>=0.20.0",
-    "crackerjack>=0.45.2",
+    "typer>=0.21.0",
+    "crackerjack>=0.46.4",
     "bevy>=3.1.0b12",
     "logly>=0.1.6",
-    "fastapi>=0.126.0",
+    "fastapi>=0.127.1",
 ]
 
 [project.license]
@@ -493,7 +493,7 @@ test = [
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",
     "coverage>=7.13.0",
-    "hypothesis>=6.148.7",
+    "hypothesis>=6.148.8",
     "factory-boy>=3.3.3",
 ]
 lint = [
@@ -502,5 +502,5 @@ lint = [
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
-    "excalidraw-mcp>=0.34.0",
+    "excalidraw-mcp>=0.34.2",
 ]
