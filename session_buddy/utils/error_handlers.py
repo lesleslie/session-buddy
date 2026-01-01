@@ -10,9 +10,6 @@ from __future__ import annotations
 import typing as t
 from typing import Any, TypeVar
 
-from acb.adapters import import_adapter
-from acb.depends import depends
-
 if t.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 

@@ -11,15 +11,33 @@ from __future__ import annotations
 SESSION_COMMANDS = {
     "init": """# Session Initialization
 
-Initialize Claude session with comprehensive setup including UV dependencies and automation tools.
+Initialize Claude session with comprehensive setup and intelligent lifecycle management.
 
 This command will:
-- Set up Claude directory structure
-- Check for required toolkits and automation tools
-- Sync UV dependencies and generate requirements.txt
-- Analyze project context and create health report
-- Configure permissions and auto-checkpoints
-- Provide setup summary and next steps
+- **Set up Claude directory structure** (~/.claude/ for logs, data, cache)
+- **Initialize ACB storage adapters** (file, S3, Azure, GCS support)
+- **Configure vector database** (DuckDB with FLOAT[384] embeddings)
+- **Set up knowledge graph** (DuckPGQ for entity/relationship queries)
+- **Initialize quality scoring V2** (filesystem-based assessment)
+- **Configure dependency injection** (ACB lifecycle management)
+- **Enable auto-session management** (git repos: automatic init/cleanup)
+- **Set up conversation memory** (local ONNX embeddings, no external APIs)
+- **Configure Crackerjack integration** (quality metrics tracking)
+- **Create slash command shortcuts** (/start, /checkpoint, /end)
+
+**Key Features:**
+- 🚀 **Automatic for git repos**: Zero manual intervention required
+- 🔒 **Local-first privacy**: All embeddings generated locally via ONNX
+- 📊 **Quality monitoring**: V2 scoring with project health metrics
+- 🧠 **Semantic search**: 384-dimensional vector similarity
+- 🔄 **Auto-cleanup**: Crash-resilient session management
+- 📦 **ACB integration**: Modern async component lifecycle
+
+**Storage Options** (configurable in settings/session-buddy.yaml):
+- `file` - Local file storage (default)
+- `s3` - AWS S3/MinIO cloud storage
+- `azure` - Azure Blob Storage
+- `gcs` - Google Cloud Storage
 
 Run this at the start of any coding session for optimal Claude integration.
 """,
@@ -28,23 +46,33 @@ Run this at the start of any coding session for optimal Claude integration.
 Perform mid-session quality checkpoint with workflow analysis and optimization recommendations.
 
 This command will:
-- Analyze current session progress and workflow effectiveness
-- Check for performance bottlenecks and optimization opportunities
-- Validate current task completion status
-- Provide recommendations for workflow improvements
-- Create checkpoint for session recovery if needed
-- **Analyze context usage and recommend /compact when beneficial**
-- Perform strategic compaction and cleanup (replaces disabled auto-compact):
-  • DuckDB reflection database optimization (VACUUM/ANALYZE)
-  • Session log cleanup (retain last 10 files)
-  • Temporary file cleanup (cache files, .DS_Store, old coverage files)
+- **Calculate quality score V2** (filesystem-based assessment, 0-100 scale)
+- **Analyze project health** (maturity, dependencies, documentation coverage)
+- **Review session permissions** (trusted operations for workflow efficiency)
+- **Track Crackerjack metrics** (quality trends, test patterns, error resolutions)
+- **Optimize storage adapters** (ACB-based vector/graph database performance)
+- **Perform strategic cleanup** (when context window is high):
+  • DuckDB VACUUM/ANALYZE for vector database optimization
+  • Knowledge graph cleanup (orphaned entities/relationships)
+  • Session log rotation (retain last 10 files)
+  • Cache cleanup (.DS_Store, .coverage files, __pycache__)
   • Git repository optimization (gc --auto, prune remote branches)
   • UV package cache cleanup
+- **Analyze context usage** and recommend `/compact` when beneficial
+- **Create automatic git commit** with checkpoint metadata
+- **Generate workflow recommendations** for productivity improvements
+
+**Quality Score V2 Factors:**
+- Project maturity (README, docs structure, test coverage)
+- Code quality (Ruff complexity, type hints coverage)
+- Session optimization (permissions, tools integration)
+- Development workflow (git history, commit patterns)
 
 **RECOMMENDED WORKFLOW:**
-1. Run /session-buddy:checkpoint for comprehensive analysis
-2. If checkpoint recommends context compaction, run: `/compact`
-3. Continue with optimized session context
+1. Run `/session-buddy:checkpoint` for comprehensive analysis
+2. Review quality score and workflow recommendations
+3. If context compaction is recommended, run: `/compact`
+4. Continue with optimized session context
 
 Use this periodically during long coding sessions to maintain optimal productivity and system performance.
 """,
@@ -53,37 +81,60 @@ Use this periodically during long coding sessions to maintain optimal productivi
 Complete your Claude Code session with comprehensive cleanup, learning capture, and handoff documentation.
 
 This command will:
-- Generate session handoff documentation with key insights
-- Perform final quality assessment and recommendations
-- Clean up temporary files and session artifacts
-- Optimize the reflection database for future sessions
-- Capture learning insights for team knowledge sharing
-- Create final commit with session summary (if requested)
-- Provide next session preparation recommendations
+- **Generate session handoff documentation** with key insights
+- **Perform final quality assessment V2** (filesystem-based scoring)
+- **Store session reflections** in vector database with embeddings
+- **Optimize ACB storage adapters** (compact vector/graph databases)
+- **Clean up temporary files** (cache, .DS_Store, test artifacts)
+- **Capture Crackerjack insights** (quality trends, successful patterns)
+- **Create final commit** with session summary metadata
+- **Provide next session recommendations** based on current state
 
-The handoff documentation includes:
-- Quality assessment summary with detailed metrics
+**Handoff Documentation Includes:**
+- Quality score V2 with detailed metrics (0-100 scale)
 - Actionable recommendations for next session
-- Key achievements during the session
+- Key achievements and technical insights
 - Next steps for continuing work
 - Session context and environment information
+- Reflection database statistics (conversations stored)
+- Knowledge graph summary (entities/relationships)
 
-Run this at the end of your coding session to ensure proper closure and knowledge transfer.
+**Automatic for Git Repos:**
+If you're in a git repository, session end happens automatically on disconnect, quit, or crash. No manual action needed.
+
+**For Non-Git Projects:**
+Run this command at the end of your session to ensure proper closure and knowledge transfer.
 """,
     "status": """# Session Status
 
-Get comprehensive status of your current Claude Code session including project health, permissions, tool availability, and optimization opportunities.
+Get comprehensive status of your current Claude Code session including project health, storage adapters, permissions, and optimization opportunities.
 
 This command provides:
-- Current project context and Git status analysis
-- Session permissions and trusted operations overview
-- Available tools and MCP server integrations
-- Project health score and maturity indicators
-- Performance metrics and optimization recommendations
-- Memory usage and context optimization suggestions
-- Recent activity summary and workflow insights
+- **Current session state** (active/inactive, duration)
+- **Quality score V2** (0-100 with detailed breakdown)
+- **Project health metrics** (maturity, dependencies, documentation)
+- **Storage adapter status** (ACB backend: file/S3/Azure/GCS)
+- **Database status** (vector database + knowledge graph)
+- **Session permissions** (trusted operations for workflow efficiency)
+- **MCP server integrations** (79+ tools available)
+- **Crackerjack metrics** (recent quality scores, trends)
+- **Memory usage** (context window, optimization suggestions)
+- **Git status** (branch, uncommitted changes, repo health)
+- **Recent activity** (last checkpoint, reflections stored)
 
-Use this to quickly understand your current development environment and identify optimization opportunities.
+**Storage Adapters (ACB-Based):**
+- Current backend: file, S3, Azure, or GCS
+- Connection status and health check
+- Vector database: DuckDB with FLOAT[384] embeddings
+- Knowledge graph: DuckPGQ entity/relationship queries
+
+**Quality Metrics:**
+- Project maturity (README, docs, tests)
+- Code quality (complexity, type hints)
+- Session optimization (permissions, shortcuts)
+- Development workflow (git patterns, automation)
+
+Use this to quickly understand your development environment and identify optimization opportunities.
 """,
     "permissions": """# Session Permissions Management
 

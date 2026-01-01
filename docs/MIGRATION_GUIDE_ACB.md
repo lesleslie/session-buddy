@@ -255,7 +255,7 @@ backends:
 storage_backend: s3
 backends:
   s3:
-    bucket_name: ${S3_BUCKET:session-mgmt}
+    bucket_name: ${S3_BUCKET:session-buddy}
     region: ${S3_REGION:us-east-1}
 ```
 
@@ -285,7 +285,7 @@ backends:
 storage_backend: gcs
 backends:
   gcs:
-    bucket_name: ${GCS_BUCKET:session-mgmt}
+    bucket_name: ${GCS_BUCKET:session-buddy}
     project_id: ${GCS_PROJECT_ID}
     credentials_path: ${GCS_CREDENTIALS:~/.gcp/credentials.json}
 ```
@@ -305,7 +305,7 @@ storage:
     auto_mkdir: true
 
   s3:
-    bucket_name: "${S3_BUCKET:session-mgmt}"
+    bucket_name: "${S3_BUCKET:session-buddy}"
     endpoint_url: "${S3_ENDPOINT:}"
     access_key_id: "${S3_ACCESS_KEY:}"
     secret_access_key: "${S3_SECRET_KEY:}"
@@ -317,7 +317,7 @@ storage:
     container_name: "${AZURE_CONTAINER:sessions}"
 
   gcs:
-    bucket_name: "${GCS_BUCKET:session-mgmt}"
+    bucket_name: "${GCS_BUCKET:session-buddy}"
     project_id: "${GCS_PROJECT_ID}"
     credentials_path: "${GCS_CREDENTIALS:}"
 ```

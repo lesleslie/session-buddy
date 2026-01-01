@@ -95,10 +95,26 @@ async def db_schema_cache() -> dict[str, Any]:
 async def fast_temp_db(temp_test_dir: Path) -> AsyncGenerator[ReflectionDatabase]:
     """Optimized temporary database with minimal setup time.
 
-    Uses in-memory database when possible for faster tests.
+    Uses a temporary file database for compatibility with the new adapter.
     """
-    # Use in-memory database for speed
-    db = ReflectionDatabase(db_path=":memory:")
+    from session_buddy.adapters.settings import ReflectionAdapterSettings
+
+    # Use a temporary file instead of in-memory for compatibility with the new adapter
+    temp_db_path = temp_test_dir / "fast_test.duckdb"
+
+    # Create settings with temporary database path
+    settings = ReflectionAdapterSettings(
+        database_path=temp_db_path,
+        collection_name="default",
+        embedding_dim=384,
+        distance_metric="cosine",
+        enable_vss=False,  # Disable vector similarity search for tests
+        threads=1,
+        memory_limit="512MB",
+        enable_embeddings=False  # Disable embeddings for faster tests
+    )
+
+    db = ReflectionDatabase(settings=settings)
     await db.initialize()
 
     yield db

@@ -14,10 +14,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from session_buddy.adapters import (
-    DEFAULT_SESSION_BUCKET,
     SessionStorageAdapter,
     get_default_storage_adapter,
 )
+from session_buddy.adapters.session_storage_adapter import DEFAULT_SESSION_BUCKET
 
 
 class TestSessionStorageAdapterInitialization:
@@ -346,15 +346,11 @@ class TestDefaultStorageAdapter:
         assert isinstance(adapter, SessionStorageAdapter)
         assert adapter.backend == "file"
 
-    @patch("session_buddy.adapters.session_storage_adapter.depends")
-    def test_get_default_storage_adapter_from_config(self, mock_depends):
-        """Test get_default_storage_adapter uses config if available."""
-        # Mock config with storage settings
-        mock_config = MagicMock()
-        mock_config.storage.default_backend = "s3"
-        mock_depends.get_sync.return_value = mock_config
-
+    def test_get_default_storage_adapter_from_settings(self):
+        """Test get_default_storage_adapter uses settings."""
+        # This test verifies that the function works with the actual settings
         adapter = get_default_storage_adapter()
 
         assert isinstance(adapter, SessionStorageAdapter)
-        assert adapter.backend == "s3"
+        # By default, it should use 'file' backend
+        assert adapter.backend == "file"

@@ -33,6 +33,29 @@ python -c "from session_buddy.server import mcp; print('✅ Ready to go!')"
 pip install session-buddy
 ```
 
+## Search Capabilities
+
+Session Buddy includes two search modes for finding past conversations:
+
+**Text Search (Default ✅)**
+- Fast keyword-based search using DuckDB FTS5
+- Works out of the box with no additional setup
+- Highly effective for most use cases
+
+**Semantic Search (Optional ✅)**
+- Concept-based search using AI embeddings
+- **No PyTorch required** - uses pre-converted ONNX models
+- Enhanced for finding conceptually similar content
+
+**Setup for Semantic Search:**
+```bash
+python scripts/download_embedding_model.py
+```
+
+This downloads the Xenova/all-MiniLM-L6-v2 model (~100MB) for semantic search.
+
+**Note**: Text search is the default and works excellently. Semantic search is an optional enhancement that provides conceptual understanding beyond keywords.
+
 ## Configure Claude Code
 
 Add to your `.mcp.json` configuration:
@@ -40,7 +63,7 @@ Add to your `.mcp.json` configuration:
 ```json
 {
   "mcpServers": {
-    "session-mgmt": {
+    "session-buddy": {
       "command": "python",
       "args": ["-m", "session_buddy.server"],
       "cwd": "/path/to/session-buddy",
@@ -92,7 +115,7 @@ Every 30-45 minutes, get:
 ### 4. Search Your History
 
 ```
-/session-buddy:reflect_on_past how did I implement authentication last week?
+/session-buddy:quick_search how did I implement authentication last week?
 ```
 
 Instantly find:
@@ -119,7 +142,7 @@ Automatic cleanup with:
 |---------|---------|-------------|
 | `/session-buddy:start` | Full session setup | Start of every session |
 | `/session-buddy:checkpoint` | Quality monitoring | Every 30-45 minutes |
-| `/session-buddy:reflect_on_past` | Search conversations | When you need past context |
+| `/session-buddy:quick_search` | Search conversations | When you need past context |
 | `/session-buddy:store_reflection` | Save important insights | After solving tough problems |
 | `/session-buddy:end` | Session cleanup | End of every session |
 

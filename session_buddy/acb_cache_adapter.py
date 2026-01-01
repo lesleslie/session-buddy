@@ -7,10 +7,24 @@ lifecycle management.
 
 import hashlib
 import typing as t
+from contextlib import suppress
 from dataclasses import dataclass
 
-from aiocache import SimpleMemoryCache
-from aiocache.serializers import PickleSerializer
+if t.TYPE_CHECKING:
+    from aiocache import SimpleMemoryCache
+    from aiocache.serializers import PickleSerializer
+    from session_buddy.adapters.settings import CacheAdapterSettings
+
+try:
+    from aiocache import SimpleMemoryCache
+    from aiocache.serializers import PickleSerializer
+
+    AIOCACHE_AVAILABLE = True
+except ImportError:
+    AIOCACHE_AVAILABLE = False
+    # Type stubs for when aiocache is not installed
+    SimpleMemoryCache: t.Any = object  # type: ignore[no-redef]
+    PickleSerializer: t.Any = object  # type: ignore[no-redef]
 
 
 @dataclass
@@ -49,11 +63,15 @@ class ACBChunkCache:
             ttl: Default time-to-live in seconds (default: 1 hour)
 
         """
-        self._cache = SimpleMemoryCache(
-            serializer=PickleSerializer(),
-            namespace="session_mgmt:chunks:",
-        )
-        self._cache.timeout = 0.0  # No operation timeout
+        if AIOCACHE_AVAILABLE:
+            self._cache = SimpleMemoryCache(
+                serializer=PickleSerializer(),
+                namespace="session_mgmt:chunks:",
+            )
+            self._cache.timeout = 0.0  # No operation timeout
+        else:
+            # Fallback when aiocache is not available
+            self._cache = None
         self._ttl = ttl
         self.stats = CacheStats()
 
@@ -66,6 +84,9 @@ class ACBChunkCache:
             ttl: Optional TTL override in seconds
 
         """
+        if self._cache is None:
+            # Fallback when aiocache is not available
+            return
         effective_ttl = ttl or self._ttl
         await self._cache.set(key, value, ttl=effective_ttl)
         self.stats.total_entries += 1
@@ -80,6 +101,10 @@ class ACBChunkCache:
             Cached value or None if not found/expired
 
         """
+        if self._cache is None:
+            # Fallback when aiocache is not available
+            self.stats.misses += 1
+            return None
         result = await self._cache.get(key)
         if result is None:
             self.stats.misses += 1
@@ -94,12 +119,14 @@ class ACBChunkCache:
             key: Cache key to delete
 
         """
-        await self._cache.delete(key)
+        if self._cache is not None:
+            await self._cache.delete(key)
         self.stats.evictions += 1
 
     async def clear(self) -> None:
         """Clear all cached chunk data asynchronously."""
-        await self._cache.clear()
+        if self._cache is not None:
+            await self._cache.clear()
         self.stats = CacheStats()
 
     async def __contains__(self, key: str) -> bool:
@@ -112,6 +139,8 @@ class ACBChunkCache:
             True if key exists and is not expired
 
         """
+        if self._cache is None:
+            return False
         result = await self._cache.exists(key)
         return bool(result)
 
@@ -171,11 +200,15 @@ class ACBHistoryCache:
             ttl: Time-to-live in seconds (default: 5 minutes)
 
         """
-        self._cache = SimpleMemoryCache(
-            serializer=PickleSerializer(),
-            namespace="session_mgmt:history:",
-        )
-        self._cache.timeout = 0.0
+        if AIOCACHE_AVAILABLE:
+            self._cache = SimpleMemoryCache(
+                serializer=PickleSerializer(),
+                namespace="session_mgmt:history:",
+            )
+            self._cache.timeout = 0.0
+        else:
+            # Fallback when aiocache is not available
+            self._cache = None
         self._ttl = int(ttl)
         self.stats = CacheStats()
 
@@ -195,6 +228,10 @@ class ACBHistoryCache:
             Cached analysis dict or None if not found/expired
 
         """
+        if self._cache is None:
+            # Fallback when aiocache is not available
+            self.stats.misses += 1
+            return None
         key = self._generate_key(project, days)
         result: dict[str, t.Any] | None = await self._cache.get(key)
         if result is None:
@@ -212,8 +249,9 @@ class ACBHistoryCache:
             data: Analysis result dictionary
 
         """
-        key = self._generate_key(project, days)
-        await self._cache.set(key, data, ttl=self._ttl)
+        if self._cache is not None:
+            key = self._generate_key(project, days)
+            await self._cache.set(key, data, ttl=self._ttl)
         self.stats.total_entries += 1
 
     async def invalidate(self, project: str | None = None) -> None:
@@ -224,7 +262,8 @@ class ACBHistoryCache:
 
         """
         if project is None:
-            await self._cache.clear()
+            if self._cache is not None:
+                await self._cache.clear()
             self.stats = CacheStats()
         else:
             import warnings
@@ -255,19 +294,34 @@ _chunk_cache: ACBChunkCache | None = None
 _history_cache: ACBHistoryCache | None = None
 
 
-def get_chunk_cache(ttl: int = 3600) -> ACBChunkCache:
+def _resolve_cache_settings() -> "CacheAdapterSettings":
+    from session_buddy.adapters.settings import CacheAdapterSettings
+    from session_buddy.di.container import depends
+
+    with suppress(Exception):
+        settings = depends.get_sync(CacheAdapterSettings)
+        if isinstance(settings, CacheAdapterSettings):
+            return settings
+    return CacheAdapterSettings()
+
+
+def get_chunk_cache(ttl: int | None = None) -> ACBChunkCache:
     """Get or create global async chunk cache instance."""
     global _chunk_cache
+    settings = _resolve_cache_settings()
+    effective_ttl = ttl if ttl is not None else settings.chunk_cache_ttl_seconds
     if _chunk_cache is None:
-        _chunk_cache = ACBChunkCache(ttl=ttl)
+        _chunk_cache = ACBChunkCache(ttl=effective_ttl)
     return _chunk_cache
 
 
-def get_history_cache(ttl: float = 300.0) -> ACBHistoryCache:
+def get_history_cache(ttl: float | None = None) -> ACBHistoryCache:
     """Get or create global async history cache instance."""
     global _history_cache
+    settings = _resolve_cache_settings()
+    effective_ttl = ttl if ttl is not None else settings.history_cache_ttl_seconds
     if _history_cache is None:
-        _history_cache = ACBHistoryCache(ttl=ttl)
+        _history_cache = ACBHistoryCache(ttl=effective_ttl)
     return _history_cache
 
 

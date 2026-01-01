@@ -227,7 +227,7 @@
 
 **Configuration**:
 
-- `settings/session-mgmt.yaml` (storage configuration with env vars)
+- `settings/session-buddy.yaml` (storage configuration with env vars)
 - `session_buddy/di/__init__.py` (DI registration)
 
 ## Test Execution

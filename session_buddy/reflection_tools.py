@@ -30,6 +30,7 @@ import warnings
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
+from types import TracebackType
 from typing import Any, Self
 
 # Database and embedding imports
@@ -53,6 +54,7 @@ except ImportError:
 import operator
 
 import numpy as np
+
 # Import the new adapter for replacement
 from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter
 
@@ -110,7 +112,12 @@ class ReflectionDatabase:
         """Context manager entry."""
         return self
 
-    def __exit__(self, *_exc_info) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Context manager exit with cleanup."""
         self.close()
 
@@ -119,7 +126,12 @@ class ReflectionDatabase:
         await self.initialize()
         return self
 
-    async def __aexit__(self, *_exc_info) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Async context manager exit with cleanup."""
         self.close()
 
@@ -952,25 +964,6 @@ class ReflectionDatabase:
 
                 _log_access(str(row[0]), access_type="search")
         return output
-
-    async def _execute_query(self, query: str, params: list[Any] | None = None) -> list:
-        """Execute a raw SQL query and return results."""
-        if params is None:
-            params = []
-
-        # For synchronized database access in test environments using in-memory DB
-        if self.is_temp_db:
-            # Use lock to protect database operations for in-memory DB
-            with self.lock:
-                results = self._get_conn().execute(query, params).fetchall()
-        else:
-            # For normal file-based DB, run in executor for thread safety
-            results = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self._get_conn().execute(query, params).fetchall(),
-            )
-
-        return results
 
     async def get_stats(self) -> dict[str, Any]:
         """Get database statistics."""

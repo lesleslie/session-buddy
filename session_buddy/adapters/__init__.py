@@ -1,20 +1,31 @@
-"""ACB adapter compatibility wrappers for session management.
+"""Oneiric-only adapter implementations for session management.
 
-This module provides compatibility wrappers that maintain the existing ReflectionDatabase
-and KnowledgeGraphDatabase APIs while using ACB adapters under the hood.
+This module provides Oneiric-only adapters that completely replace ACB adapters.
+All adapters use native DuckDB implementations without any ACB dependencies.
 
-Phase 1: Storage adapter integration for session state persistence
-Phase 2.7 (Week 7 Day 1-5): Migration to ACB dependency injection
+Phase 5: Oneiric Adapter Conversion - Complete Oneiric-only implementation
 """
 
 from __future__ import annotations
 
+from .knowledge_graph_adapter_oneiric import (
+    KnowledgeGraphDatabaseAdapterOneiric as KnowledgeGraphDatabaseAdapter,
+)
+
+# Import Oneiric-only adapters (no ACB fallbacks)
+from .reflection_adapter_oneiric import (
+    ReflectionDatabaseAdapterOneiric as ReflectionDatabaseAdapter,
+)
+
+# Import the session storage adapter from its dedicated module
 from .session_storage_adapter import (
     DEFAULT_SESSION_BUCKET,
     SessionStorageAdapter,
     get_default_storage_adapter,
 )
-from .storage_registry import (
+
+# Use Oneiric-only storage implementation
+from .storage_oneiric import (
     SUPPORTED_BACKENDS,
     configure_storage_buckets,
     get_default_session_buckets,
@@ -25,14 +36,15 @@ from .storage_registry import (
 __all__ = [
     "DEFAULT_SESSION_BUCKET",
     "SUPPORTED_BACKENDS",
-    # Reflection adapter (Phase 2.7)
+    # Knowledge graph adapter (Oneiric-only implementation)
+    "KnowledgeGraphDatabaseAdapter",
+    # Reflection adapter (Oneiric-only implementation)
     "ReflectionDatabaseAdapter",
-    # Storage adapters (Phase 1)
+    # Storage adapters (Oneiric-only implementations)
     "SessionStorageAdapter",
     "configure_storage_buckets",
     "get_default_session_buckets",
     "get_default_storage_adapter",
     "get_storage_adapter",
-    # Storage registry
     "register_storage_adapter",
 ]

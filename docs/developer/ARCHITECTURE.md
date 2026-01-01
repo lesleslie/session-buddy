@@ -74,7 +74,7 @@ Built on FastMCP framework providing:
 # Core server setup
 from fastmcp import FastMCP
 
-mcp = FastMCP("session-mgmt")
+mcp = FastMCP("session-buddy")
 
 
 @mcp.tool()

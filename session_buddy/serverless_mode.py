@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Stateless/Serverless Mode for Session Management MCP Server.
 
-Enables request-scoped sessions with external storage backends (Redis, S3, DynamoDB).
-Allows the session management server to operate in cloud/serverless environments.
+Enables request-scoped sessions with Oneiric storage backends and keeps session
+state external to the request lifecycle.
 """
 
 import hashlib
@@ -12,17 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from session_buddy.adapters.serverless_storage_adapter import (
-    ServerlessStorageAdapter,
-)
-from session_buddy.backends import (
-    ACBCacheStorage,
-    LocalFileStorage,
-    RedisStorage,
-    S3Storage,
-    SessionState,
-    SessionStorage,
-)
+from session_buddy.adapters.serverless_storage_adapter import ServerlessStorageAdapter
+from session_buddy.backends import SessionState, SessionStorage
 
 CONFIG_LOGGER = logging.getLogger("serverless.config")
 
@@ -157,24 +148,14 @@ class ServerlessConfigManager:
     def load_config(config_path: str | None = None) -> dict[str, Any]:
         """Load serverless configuration."""
         default_config = {
-            "storage_backend": "local",
+            "storage_backend": "file",
             "session_ttl_hours": 24,
             "cleanup_interval_hours": 6,
             "backends": {
-                "redis": {
-                    "host": "localhost",
-                    "port": 6379,
-                    "db": 0,
-                    "key_prefix": "session_mgmt:",
-                },
-                "s3": {
-                    "bucket_name": "session-buddy",
-                    "region": "us-east-1",
-                    "key_prefix": "sessions/",
-                },
-                "local": {
+                "file": {
                     "storage_dir": str(Path.home() / ".claude" / "data" / "sessions"),
                 },
+                "memory": {},
             },
         }
 
@@ -192,92 +173,25 @@ class ServerlessConfigManager:
     def create_storage_backend(config: dict[str, Any]) -> SessionStorage:
         """Create storage backend from config.
 
-        Supports new ACB storage adapters (file, s3, azure, gcs, memory) and
-        legacy backends (redis, local, acb cache) for backward compatibility.
+        Supports Oneiric storage adapters registered in the storage registry.
 
-        Recommended backends (ACB storage adapters):
+        Recommended backends:
         - "file": Local file storage (default, best for development)
-        - "s3": AWS S3/MinIO (production cloud storage)
-        - "azure": Azure Blob Storage (Azure deployments)
-        - "gcs": Google Cloud Storage (GCP deployments)
         - "memory": In-memory storage (testing only)
-
-        Legacy backends (deprecated, will be removed in v1.0):
-        - "redis": Redis cache (use "acb" or "s3" instead)
-        - "local": Old local file storage (use "file" instead)
-        - "acb": Old ACB cache backend (use "file" or "s3" instead)
         """
         backend_type = config.get("storage_backend", "file")  # Default to file
         backend_config = config.get("backends", {}).get(backend_type, {})
 
-        # New ACB storage adapters (recommended)
-        if backend_type in ("file", "s3", "azure", "gcs", "memory"):
+        if backend_type in ("file", "memory"):
             CONFIG_LOGGER.info(
-                f"Using ACB storage adapter: {backend_type} "
-                "(recommended for production deployments)"
+                f"Using Oneiric storage adapter: {backend_type}",
             )
             return ServerlessStorageAdapter(config=backend_config, backend=backend_type)
 
-        # ACB-style cache backend (using aiocache directly)
-        if backend_type == "acb":
-            try:
-                # Use aiocache directly (same as ACB uses internally)
-                # This avoids ACB DI complexity while still getting benefits
-                from aiocache import Cache as AIOCache
-                from aiocache.serializers import PickleSerializer
-
-                cache_type = backend_config.get("cache_type", "memory")
-
-                # Configure aiocache backend
-                if cache_type == "redis":
-                    try:
-                        from aiocache.backends.redis import RedisBackend
-
-                        cache = AIOCache(
-                            cache_class=RedisBackend,
-                            serializer=PickleSerializer(),
-                            endpoint=backend_config.get("host", "localhost"),
-                            port=backend_config.get("port", 6379),
-                            password=backend_config.get("password"),
-                            db=backend_config.get("db", 0),
-                        )
-                    except ImportError:
-                        CONFIG_LOGGER.warning("redis not available, using memory cache")
-                        cache = AIOCache(serializer=PickleSerializer())
-                else:
-                    # Memory cache (default)
-                    cache = AIOCache(serializer=PickleSerializer())
-
-                namespace = backend_config.get("namespace", "session")
-                return ACBCacheStorage(cache, namespace, backend_config)
-
-            except ImportError as e:
-                CONFIG_LOGGER.warning(
-                    f"aiocache not available ({e}), falling back to local file storage. "
-                    "Install with: pip install aiocache[redis]",
-                )
-                # Fallback to local storage if aiocache not available
-                return LocalFileStorage(backend_config)
-
-        # Legacy backends (deprecated)
-        if backend_type == "redis":
-            CONFIG_LOGGER.warning(
-                "RedisStorage is deprecated. Use 'acb' backend for better "
-                "connection pooling, SSL/TLS support, and automatic compression.",
-            )
-            return RedisStorage(backend_config)
-
-        if backend_type == "s3":
-            CONFIG_LOGGER.warning(
-                "S3Storage is deprecated. Consider using ACB cache backends "
-                "with Redis for production deployments.",
-            )
-            return S3Storage(backend_config)
-
-        if backend_type == "local":
-            return LocalFileStorage(backend_config)
-
-        msg = f"Unsupported storage backend: {backend_type}"
+        msg = (
+            f"Unsupported storage backend: {backend_type}. "
+            "Supported backends: file, memory."
+        )
         raise ValueError(msg)
 
     @staticmethod
@@ -289,32 +203,10 @@ class ServerlessConfigManager:
             try:
                 storage: SessionStorage
                 match backend_name:
-                    # New ACB storage adapters
-                    case "file" | "s3" | "azure" | "gcs" | "memory":
+                    case "file" | "memory":
                         storage = ServerlessStorageAdapter(
                             config=backend_config, backend=backend_name
                         )
-
-                    case "acb":
-                        # Test ACB-style cache backend
-                        try:
-                            from aiocache import Cache as AIOCache
-                            from aiocache.serializers import PickleSerializer
-
-                            backend_config.get("cache_type", "memory")
-                            cache = AIOCache(serializer=PickleSerializer())
-                            namespace = backend_config.get("namespace", "session")
-                            storage = ACBCacheStorage(cache, namespace, backend_config)
-                        except ImportError:
-                            results[backend_name] = False
-                            continue
-
-                    case "redis":
-                        storage = RedisStorage(backend_config)
-                    case "s3":
-                        storage = S3Storage(backend_config)
-                    case "local":
-                        storage = LocalFileStorage(backend_config)
                     case _:
                         results[backend_name] = False
                         continue

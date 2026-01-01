@@ -298,7 +298,7 @@ class TestDatabaseSecurity:
         db = ReflectionDatabase(str(db_path))
         await db.initialize()  # Proper initialization
         with suppress(Exception):
-            os.chmod(db_path, 0o600)
+            db_path.chmod(0o600)
 
         yield db
 

@@ -13,7 +13,7 @@ from typing import Any
 
 from .reflection_tools import ReflectionDatabase
 from .search_enhanced import EnhancedSearchEngine
-from .types import SQLCondition
+from .session_types import SQLCondition
 from .utils.search import (
     SearchFacet,
     SearchFilter,
@@ -24,6 +24,8 @@ from .utils.search import (
     parse_timeframe_single,
     truncate_content,
 )
+
+__all__ = ["AdvancedSearchEngine", "SearchFilter"]
 
 
 class AdvancedSearchEngine:

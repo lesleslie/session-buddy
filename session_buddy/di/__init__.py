@@ -3,10 +3,9 @@ from __future__ import annotations
 import tempfile
 import typing as t
 from contextlib import suppress
-from datetime import datetime
 from pathlib import Path
 
-from acb.depends import depends
+from session_buddy.di.container import depends
 
 if t.TYPE_CHECKING:
     from session_buddy.core import (
@@ -23,6 +22,31 @@ from .config import SessionPaths
 from .constants import CLAUDE_DIR_KEY, COMMANDS_DIR_KEY, LOGS_DIR_KEY
 
 _configured = False
+
+
+T = t.TypeVar("T")
+
+
+def get_sync_typed[T](key: type[T]) -> T:
+    """Type-safe wrapper for depends.get_sync.
+
+    This helper provides proper type information for the dependency injection
+    container, avoiding 'no-any-return' type checker errors.
+
+    Args:
+        key: The class type to retrieve from the DI container
+
+    Returns:
+        The instance of type T from the DI container
+
+    Example:
+        >>> from session_buddy.core.session_manager import SessionLifecycleManager
+        >>> manager = get_sync_typed(SessionLifecycleManager)  # Properly typed
+
+    """
+    result = depends.get_sync(key)
+    # Trust the DI container - type checker will verify usage
+    return t.cast("T", result)  # type: ignore[no-any-return]
 
 
 def configure(*, force: bool = False) -> None:
@@ -57,11 +81,6 @@ def configure(*, force: bool = False) -> None:
     _register_permissions_manager(paths.claude_dir, force)
     _register_lifecycle_manager(force)
 
-    # Register ACB adapters (Phase 2.7: DuckDB migration)
-    _register_vector_adapter(paths, force)
-    _register_graph_adapter(paths, force)  # Fixed: ACB ssl_enabled bug resolved
-    _register_storage_adapters(paths, force)  # Phase 1: Storage adapters
-
     _configured = True
 
 
@@ -85,13 +104,13 @@ def _register_logger(logs_dir: Path, force: bool) -> None:
 
     Note:
         This function configures ACB's logger adapter but does NOT register it
-        in the DI container to avoid bevy type resolution conflicts. Components
+        in the DI container to avoid type resolution conflicts. Components
         should use direct logging imports instead of DI lookup.
 
     """
     # Skip registration entirely - we don't need to register the logger in DI
     # Components should use `import logging; logger = logging.getLogger(__name__)`
-    # This avoids bevy DI type confusion when crackerjack runs
+    # This avoids DI type confusion when crackerjack runs
 
 
 def _register_session_logger(logs_dir: Path, force: bool) -> None:
@@ -119,162 +138,6 @@ def _register_session_logger(logs_dir: Path, force: bool) -> None:
         depends.set(LOGS_DIR_KEY, tmp_logs)
         session_logger = SessionLogger(tmp_logs)
     depends.set(SessionLogger, session_logger)
-
-
-def _register_vector_adapter(paths: SessionPaths, force: bool) -> None:
-    """Register ACB vector adapter with DuckDB backend.
-
-    Args:
-        paths: Session paths configuration with data directory
-        force: If True, re-registers even if already registered
-
-    Note:
-        Uses ACB's vector adapter with VSS extension for semantic search.
-        Configured for 384-dimensional embeddings (all-MiniLM-L6-v2 model).
-
-    """
-    # Import ACB's Vector adapter and settings
-    from acb.adapters.vector.duckdb import Vector, VectorSettings
-    from acb.config import Config
-
-    if not force:
-        with suppress(KeyError, AttributeError, RuntimeError):
-            existing = depends.get_sync(Vector)
-            if isinstance(existing, Vector):
-                return
-
-    # Get Config singleton and ensure it's initialized
-    config = depends.get_sync(Config)
-    config.ensure_initialized()
-
-    # Create settings for vector adapter
-    settings = VectorSettings(
-        database_path=str(paths.data_dir / "reflection.duckdb"),
-        default_dimension=384,  # all-MiniLM-L6-v2 embeddings
-        default_distance_metric="cosine",
-        enable_vss=True,  # Enable DuckDB VSS extension
-        threads=4,
-        memory_limit="2GB",
-    )
-
-    # Register settings in Config object
-    config.vector = settings  # type: ignore[attr-defined]
-
-    # Create adapter instance and manually set config (ACB test pattern)
-    vector_adapter = Vector()
-    vector_adapter.config = config  # Override _DependencyMarker with actual Config
-
-    # Set logger directly to avoid DI type resolution conflicts
-    # Using string-based DI keys for logger causes bevy type inference issues
-    # when resolving other dependencies like SessionLogger
-    import logging
-
-    vector_adapter.logger = logging.getLogger("acb.vector")
-    vector_adapter.logger.setLevel(logging.INFO)
-
-    # Initialize adapter to create vectors schema (ACB requirement)
-    # Note: Initialization is deferred - schema creation happens on first use
-    # This avoids event loop conflicts when configure() is called from async contexts
-    depends.set(Vector, vector_adapter)
-
-    # Mark that initialization is needed
-    vector_adapter._schema_initialized = False
-
-
-def _register_graph_adapter(paths: SessionPaths, force: bool) -> None:
-    """Register ACB graph adapter with DuckDB PGQ backend.
-
-    Args:
-        paths: Session paths configuration with data directory
-        force: If True, re-registers even if already registered
-
-    Note:
-        Uses ACB's graph adapter with DuckPGQ extension for property graphs.
-        Maintains compatibility with existing kg_entities/kg_relationships schema.
-
-    """
-    # Import ACB's Graph adapter and settings
-    from acb.adapters.graph.duckdb_pgq import DuckDBPGQSettings, Graph
-    from acb.config import Config
-
-    if not force:
-        with suppress(KeyError, AttributeError, RuntimeError):
-            existing = depends.get_sync(Graph)
-            if isinstance(existing, Graph):
-                return
-
-    # Get Config singleton and ensure it's initialized
-    config = depends.get_sync(Config)
-    config.ensure_initialized()
-
-    data_dir = paths.data_dir
-    if not data_dir.is_absolute():
-        data_dir = Path.home() / data_dir
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create settings for graph adapter
-    settings = DuckDBPGQSettings(
-        database_url=f"duckdb:///{data_dir}/knowledge_graph.duckdb",
-        graph_name="session_mgmt_graph",
-        nodes_table="kg_entities",
-        edges_table="kg_relationships",
-        install_extensions=["duckpgq"],
-    )
-
-    # Register settings in Config object
-    config.graph = settings  # type: ignore[attr-defined]
-
-    # Create adapter instance and manually set config (ACB test pattern)
-    graph_adapter = Graph(settings=settings)
-    graph_adapter.config = config  # Override _DependencyMarker with actual Config
-    depends.set(Graph, graph_adapter)
-
-
-def _register_storage_adapters(paths: SessionPaths, force: bool) -> None:
-    """Register ACB storage adapters for session state persistence.
-
-    Args:
-        paths: Session paths configuration with data directory
-        force: If True, re-registers even if already registered
-
-    Note:
-        Registers file storage adapter by default for local session storage.
-        Additional backends (S3, Azure, GCS, Memory) can be registered on-demand
-        via the storage_registry module when needed for serverless deployments.
-
-    """
-    from session_buddy.adapters.storage_registry import (
-        configure_storage_buckets,
-        get_default_session_buckets,
-        register_storage_adapter,
-    )
-
-    # Configure default buckets for session management
-    buckets = get_default_session_buckets(paths.data_dir)
-    configure_storage_buckets(buckets)
-
-    # Register file storage adapter by default (local session storage)
-    config_overrides = {
-        "local_path": str(paths.data_dir),
-        "buckets": buckets,
-    }
-
-    try:
-        storage_adapter = register_storage_adapter(
-            "file",
-            config_overrides=config_overrides,
-            force=force,
-        )
-        # Initialize buckets
-        # Note: Initialization is deferred to avoid event loop conflicts
-        # Buckets will be created on first use
-        storage_adapter._buckets_initialized = False
-    except Exception as e:
-        # Log but don't fail - storage is optional for basic session management
-        import logging
-
-        logger = logging.getLogger("session_buddy.di")
-        logger.warning(f"Failed to register storage adapter: {e}")
 
 
 def _register_permissions_manager(claude_dir: Path, force: bool) -> None:
@@ -329,5 +192,7 @@ __all__ = [
     "LOGS_DIR_KEY",
     "SessionPaths",
     "configure",
+    "depends",
+    "get_sync_typed",
     "reset",
 ]

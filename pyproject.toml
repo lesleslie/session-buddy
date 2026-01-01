@@ -33,7 +33,6 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "acb>=0.32.0",
     "aiocache>=0.12.3",
     "duckdb>=1.4.3",
     "jinja2>=3.1.6",
@@ -55,6 +54,7 @@ dependencies = [
     "bevy>=3.1.0b12",
     "logly>=0.1.6",
     "fastapi>=0.127.1",
+    "oneiric>=0.3.3",
 ]
 
 [project.license]
@@ -68,6 +68,7 @@ Repository = "https://github.com/lesleslie/session-buddy"
 [project.scripts]
 session-buddy = "session_buddy.server:main"
 run-quality-checks = "session_buddy.scripts.quality:run_checks"
+run-tests = "session_buddy.scripts.test_runner:main"
 
 [tool.session-buddy]
 mcp_http_port = 8678
@@ -250,8 +251,6 @@ ignore-words-list = "crate,uptodate,nd,nin"
 [tool.pytest]
 minversion = "7.0"
 addopts = [
-    "--cov=session_buddy",
-    "--cov-report=term",
     "--tb=short",
     "--strict-markers",
     "--durations=20",
@@ -324,6 +323,7 @@ omit = [
     ".venv/*",
     "build/*",
     "dist/*",
+    ".venv/lib/python*/site-packages/mcp_common/*",
 ]
 branch = true
 data_file = ".coverage"
@@ -383,8 +383,6 @@ ignore = [
     "**/tests",
 ]
 
-[tool.pyright.defineConstant]
-DEBUG = true
 
 [tool.complexipy]
 default_pattern = "**/*.py"
@@ -502,5 +500,6 @@ lint = [
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
+    "crackerjack>=0.46.4",
     "excalidraw-mcp>=0.34.2",
 ]

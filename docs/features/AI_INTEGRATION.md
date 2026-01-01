@@ -10,12 +10,12 @@ Advanced patterns for integrating Claude Code with the Session Management MCP se
 
 ```typescript
 // 1. Initialize session with project analysis
-const initResult = await mcp_tool("mcp__session-mgmt__start", {
+const initResult = await mcp_tool("mcp__session-buddy__start", {
   working_directory: "/path/to/project"
 })
 
 // 2. Search for related previous work
-const context = await mcp_tool("mcp__session-mgmt__reflect_on_past", {
+const context = await mcp_tool("mcp__session-buddy__quick_search", {
   query: "user authentication implementation OAuth JWT",
   limit: 5,
   min_score: 0.75,
@@ -35,7 +35,7 @@ if (context.success && context.results.length > 0) {
 // ... development work ...
 
 // 5. Store new insights for future use
-await mcp_tool("mcp__session-mgmt__store_reflection", {
+await mcp_tool("mcp__session-buddy__store_reflection", {
   content: "Implemented OAuth 2.0 with PKCE extension for SPA security. Key insight: Use state parameter for CSRF protection and nonce for replay attack prevention.",
   tags: ["oauth", "security", "spa", "authentication", "pkce"]
 })
@@ -55,7 +55,7 @@ ______________________________________________________________________
 
 ```typescript
 // Stage 1: Quick assessment
-const quickCheck = await mcp_tool("mcp__session-mgmt__quick_search", {
+const quickCheck = await mcp_tool("mcp__session-buddy__quick_search", {
   query: "Redis caching implementation patterns",
   project: "current"
 })
@@ -64,14 +64,14 @@ console.log(`Found ${quickCheck.total_count} related conversations`)
 
 if (quickCheck.has_more && quickCheck.total_count > 3) {
   // Stage 2: Detailed exploration
-  const detailed = await mcp_tool("mcp__session-mgmt__reflect_on_past", {
+  const detailed = await mcp_tool("mcp__session-buddy__quick_search", {
     query: "Redis caching implementation patterns",
     limit: 10,
     min_score: 0.7
   })
 
   // Stage 3: Concept-based exploration
-  const concepts = await mcp_tool("mcp__session-mgmt__search_by_concept", {
+  const concepts = await mcp_tool("mcp__session-buddy__search_by_concept", {
     concept: "caching strategies",
     include_files: true,
     limit: 8
@@ -79,7 +79,7 @@ if (quickCheck.has_more && quickCheck.total_count > 3) {
 
   // Stage 4: File-specific context if specific files identified
   if (concepts.results.some(r => r.files?.includes("cache.py"))) {
-    const fileContext = await mcp_tool("mcp__session-mgmt__search_by_file", {
+    const fileContext = await mcp_tool("mcp__session-buddy__search_by_file", {
       file_path: "cache.py",
       limit: 5
     })
@@ -107,7 +107,7 @@ class QualityDrivenWorkflow {
   private readonly checkpointInterval = 45 * 60 * 1000 // 45 minutes
 
   async startSession(workingDirectory: string) {
-    const result = await mcp_tool("mcp__session-mgmt__start", {
+    const result = await mcp_tool("mcp__session-buddy__start", {
       working_directory: workingDirectory
     })
 
@@ -125,7 +125,7 @@ class QualityDrivenWorkflow {
   async performQualityCheck() {
     if (!this.sessionStarted) return
 
-    const checkpoint = await mcp_tool("mcp__session-mgmt__checkpoint", {})
+    const checkpoint = await mcp_tool("mcp__session-buddy__checkpoint", {})
 
     if (checkpoint.success) {
       console.log(`Current quality score: ${checkpoint.quality_score.overall}/100`)
@@ -154,7 +154,7 @@ class QualityDrivenWorkflow {
   }
 
   async endSession() {
-    const result = await mcp_tool("mcp__session-mgmt__end", {})
+    const result = await mcp_tool("mcp__session-buddy__end", {})
 
     if (result.success) {
       console.log(`Session ended. Final quality: ${result.final_quality_score}/100`)
@@ -185,7 +185,7 @@ ______________________________________________________________________
 ```typescript
 async function crossProjectSolution(problemDescription: string, currentProject: string) {
   // 1. Search across all projects for solutions
-  const globalSearch = await mcp_tool("mcp__session-mgmt__reflect_on_past", {
+  const globalSearch = await mcp_tool("mcp__session-buddy__quick_search", {
     query: problemDescription,
     limit: 15,
     min_score: 0.7
@@ -202,7 +202,7 @@ async function crossProjectSolution(problemDescription: string, currentProject: 
   })
 
   // 3. Get concept-level insights across projects
-  const conceptSearch = await mcp_tool("mcp__session-mgmt__search_by_concept", {
+  const conceptSearch = await mcp_tool("mcp__session-buddy__search_by_concept", {
     concept: extractConcepts(problemDescription),
     include_files: true,
     limit: 10
@@ -212,7 +212,7 @@ async function crossProjectSolution(problemDescription: string, currentProject: 
   const patterns = synthesizePatterns(projectSolutions, conceptSearch)
 
   // 5. Store meta-insight about cross-project patterns
-  await mcp_tool("mcp__session-mgmt__store_reflection", {
+  await mcp_tool("mcp__session-buddy__store_reflection", {
     content: `Cross-project analysis for "${problemDescription}": ${patterns.summary}.
               Common patterns: ${patterns.commonApproaches.join(", ")}.
               Recommended approach for ${currentProject}: ${patterns.recommendation}`,
@@ -255,14 +255,14 @@ ______________________________________________________________________
 ```typescript
 async function intelligentErrorRecovery(errorMessage: string, stackTrace: string, context: any) {
   // 1. Search for similar errors in past conversations
-  const errorSearch = await mcp_tool("mcp__session-mgmt__reflect_on_past", {
+  const errorSearch = await mcp_tool("mcp__session-buddy__quick_search", {
     query: `error "${errorMessage}" debugging solution`,
     limit: 10,
     min_score: 0.6 // Lower threshold for error patterns
   })
 
   // 2. Search by error concepts and patterns
-  const conceptSearch = await mcp_tool("mcp__session-mgmt__search_by_concept", {
+  const conceptSearch = await mcp_tool("mcp__session-buddy__search_by_concept", {
     concept: "error handling debugging",
     include_files: true,
     limit: 8
@@ -272,7 +272,7 @@ async function intelligentErrorRecovery(errorMessage: string, stackTrace: string
   const relevantFiles = extractFilesFromStackTrace(stackTrace)
   const fileContexts = await Promise.all(
     relevantFiles.map(file =>
-      mcp_tool("mcp__session-mgmt__search_by_file", {
+      mcp_tool("mcp__session-buddy__search_by_file", {
         file_path: file,
         limit: 5
       })
@@ -289,7 +289,7 @@ async function intelligentErrorRecovery(errorMessage: string, stackTrace: string
   // 5. Store successful resolution for future use
   const resolutionTracker = {
     async recordResolution(solution: string, effectiveness: number) {
-      await mcp_tool("mcp__session-mgmt__store_reflection", {
+      await mcp_tool("mcp__session-buddy__store_reflection", {
         content: `Error Resolution: "${errorMessage}" - Solution: ${solution}. Effectiveness: ${effectiveness}/10. Context: ${JSON.stringify(context)}`,
         tags: ["debugging", "error-resolution", "troubleshooting", getErrorCategory(errorMessage)]
       })
@@ -342,10 +342,10 @@ ______________________________________________________________________
 class SessionContinuityManager {
   async prepareHandoff(sessionSummary: string, nextSteps: string[]) {
     // 1. Perform final checkpoint
-    const checkpoint = await mcp_tool("mcp__session-mgmt__checkpoint", {})
+    const checkpoint = await mcp_tool("mcp__session-buddy__checkpoint", {})
 
     // 2. Store critical session insights
-    await mcp_tool("mcp__session-mgmt__store_reflection", {
+    await mcp_tool("mcp__session-buddy__store_reflection", {
       content: `Session Handoff - ${sessionSummary}. Current state: ${checkpoint.quality_score.overall}/100 quality. Next steps: ${nextSteps.join(", ")}`,
       tags: ["session-handoff", "continuity", "next-steps"]
     })
@@ -354,7 +354,7 @@ class SessionContinuityManager {
     const contextPackage = await this.createContextPackage(sessionSummary)
 
     // 4. End session with handoff documentation
-    const endResult = await mcp_tool("mcp__session-mgmt__end", {})
+    const endResult = await mcp_tool("mcp__session-buddy__end", {})
 
     return {
       handoff_file: endResult.handoff_file_path,
@@ -366,10 +366,10 @@ class SessionContinuityManager {
 
   async resumeFromHandoff(handoffInfo: any) {
     // 1. Initialize new session
-    const initResult = await mcp_tool("mcp__session-mgmt__start", {})
+    const initResult = await mcp_tool("mcp__session-buddy__start", {})
 
     // 2. Load previous session context
-    const previousContext = await mcp_tool("mcp__session-mgmt__reflect_on_past", {
+    const previousContext = await mcp_tool("mcp__session-buddy__quick_search", {
       query: "session-handoff continuity next-steps",
       limit: 5,
       min_score: 0.8
@@ -379,7 +379,7 @@ class SessionContinuityManager {
     if (handoffInfo.active_files) {
       const fileContexts = await Promise.all(
         handoffInfo.active_files.map(file =>
-          mcp_tool("mcp__session-mgmt__search_by_file", {
+          mcp_tool("mcp__session-buddy__search_by_file", {
             file_path: file,
             limit: 3
           })
@@ -396,13 +396,13 @@ class SessionContinuityManager {
 
   private async createContextPackage(sessionSummary: string) {
     // Gather comprehensive session context
-    const recentWork = await mcp_tool("mcp__session-mgmt__reflect_on_past", {
+    const recentWork = await mcp_tool("mcp__session-buddy__quick_search", {
       query: sessionSummary,
       limit: 10,
       min_score: 0.7
     })
 
-    const stats = await mcp_tool("mcp__session-mgmt__reflection_stats", {})
+    const stats = await mcp_tool("mcp__session-buddy__reflection_stats", {})
 
     return {
       recent_work: recentWork.results,
@@ -453,7 +453,7 @@ class SmartSearchStrategy {
 
   private async focusedSearch(query: string, context: SearchContext) {
     // High similarity, specific project, recent timeframe
-    return await mcp_tool("mcp__session-mgmt__reflect_on_past", {
+    return await mcp_tool("mcp__session-buddy__quick_search", {
       query,
       limit: 5,
       min_score: 0.85,
@@ -463,13 +463,13 @@ class SmartSearchStrategy {
 
   private async exploratorySearch(query: string, context: SearchContext) {
     // Lower similarity, cross-project, concept-based
-    const semantic = await mcp_tool("mcp__session-mgmt__reflect_on_past", {
+    const semantic = await mcp_tool("mcp__session-buddy__quick_search", {
       query,
       limit: 8,
       min_score: 0.6
     })
 
-    const conceptual = await mcp_tool("mcp__session-mgmt__search_by_concept", {
+    const conceptual = await mcp_tool("mcp__session-buddy__search_by_concept", {
       concept: this.extractMainConcept(query),
       include_files: true,
       limit: 6
@@ -505,7 +505,7 @@ interface SearchContext {
 class WorkflowIntegration {
   // Git hook integration
   async onPreCommit() {
-    const checkpoint = await mcp_tool("mcp__session-mgmt__checkpoint", {})
+    const checkpoint = await mcp_tool("mcp__session-buddy__checkpoint", {})
 
     if (checkpoint.quality_score.overall < 70) {
       console.warn("⚠️ Quality score low before commit. Consider reviewing:")
@@ -521,13 +521,13 @@ class WorkflowIntegration {
   // CI/CD integration
   async onDeploymentStart(environment: string) {
     // Store deployment context
-    await mcp_tool("mcp__session-mgmt__store_reflection", {
+    await mcp_tool("mcp__session-buddy__store_reflection", {
       content: `Deployment to ${environment} initiated. Pre-deployment quality score: ${await this.getCurrentQualityScore()}`,
       tags: ["deployment", environment, "quality-gate"]
     })
 
     // Search for previous deployment issues
-    return await mcp_tool("mcp__session-mgmt__reflect_on_past", {
+    return await mcp_tool("mcp__session-buddy__quick_search", {
       query: `deployment ${environment} issues problems`,
       limit: 5,
       min_score: 0.7
@@ -537,7 +537,7 @@ class WorkflowIntegration {
   // IDE integration hooks
   async onFileOpen(filePath: string) {
     // Get context for newly opened file
-    return await mcp_tool("mcp__session-mgmt__search_by_file", {
+    return await mcp_tool("mcp__session-buddy__search_by_file", {
       file_path: filePath,
       limit: 3
     })

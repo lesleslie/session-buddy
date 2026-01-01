@@ -183,7 +183,7 @@ config.storage.endpoint_url = "https://s3.amazonaws.com"  # For S3
 
 ## YAML Configuration
 
-ACB storage adapters read configuration from `settings/session-mgmt.yaml`:
+ACB storage adapters read configuration from `settings/session-buddy.yaml`:
 
 ```yaml
 storage:
@@ -197,7 +197,7 @@ storage:
 
   # S3 storage settings
   s3:
-    bucket_name: "${S3_BUCKET:session-mgmt}"
+    bucket_name: "${S3_BUCKET:session-buddy}"
     endpoint_url: "${S3_ENDPOINT:}"
     access_key_id: "${S3_ACCESS_KEY:}"
     secret_access_key: "${S3_SECRET_KEY:}"

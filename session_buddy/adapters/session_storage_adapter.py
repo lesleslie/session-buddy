@@ -1,11 +1,10 @@
 """Session storage adapter facade for unified session state persistence.
 
 This module provides a high-level interface for storing and retrieving session
-state using ACB storage adapters as the backend. It abstracts away the
-bucket-based API of ACB storage and provides a session-centric interface.
+state using Oneiric storage adapters as the backend. It abstracts away the
+bucket-based API of the storage adapters and provides a session-centric interface.
 
-The adapter supports multiple backends (S3, Azure, GCS, File, Memory) with
-transparent fallback and error handling.
+The adapter supports the Oneiric storage backends registered in the storage registry.
 
 Example:
     >>> from session_buddy.adapters import SessionStorageAdapter
@@ -25,10 +24,8 @@ from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 
-from acb.depends import depends
-
 if t.TYPE_CHECKING:
-    from acb.adapters.storage._base import StorageBase
+    from session_buddy.adapters.storage_oneiric import StorageBaseOneiric
 
 # Default bucket for session storage
 DEFAULT_SESSION_BUCKET = "sessions"
@@ -65,10 +62,10 @@ class SessionStorageAdapter:
         """
         self.backend = backend
         self.bucket = bucket
-        self._adapter: StorageBase | None = None
+        self._adapter: StorageBaseOneiric | None = None
         self._initialized = False
 
-    async def _ensure_adapter(self) -> StorageBase:
+    async def _ensure_adapter(self) -> StorageBaseOneiric:
         """Ensure storage adapter is initialized.
 
         Returns:
@@ -193,7 +190,12 @@ class SessionStorageAdapter:
         try:
             file_obj = await adapter.download(self.bucket, path)
             # Read file content (file_obj is a BinaryIO or bytes)
-            data = file_obj.read() if hasattr(file_obj, "read") else file_obj
+            if isinstance(file_obj, (bytes, bytearray)):
+                # file_obj is already bytes
+                data = file_obj
+            else:
+                # file_obj is a file-like object
+                data = file_obj.read()
 
             # Decode and parse JSON
             result: dict[str, t.Any] = json.loads(data.decode("utf-8"))
@@ -346,17 +348,11 @@ def get_default_storage_adapter() -> SessionStorageAdapter:
         >>> await storage.store_session("abc123", {"status": "active"})
 
     """
-    # Get default backend from config or use "file"
-    with suppress(Exception):
-        from acb.config import Config
+    from session_buddy.adapters.settings import StorageAdapterSettings
 
-        config = depends.get_sync(Config)
-        if hasattr(config, "storage") and hasattr(config.storage, "default_backend"):
-            backend = config.storage.default_backend
-            return SessionStorageAdapter(backend=backend)
-
-    # Fallback to file storage
-    return SessionStorageAdapter(backend="file")
+    settings = StorageAdapterSettings.from_settings()
+    backend = settings.default_backend or "file"
+    return SessionStorageAdapter(backend=backend)
 
 
 __all__ = [

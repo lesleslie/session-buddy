@@ -2,13 +2,13 @@
 
 ## Overview
 
-The session-mgmt MCP server automatically creates Claude Code slash command shortcuts the first time `session-mgmt:start` is executed. These shortcuts provide convenient aliases for session management operations.
+The session-buddy MCP server automatically creates Claude Code slash command shortcuts the first time `session-buddy:start` is executed. These shortcuts provide convenient aliases for session management operations.
 
 ## Auto-Created Shortcuts
 
-When you run `session-mgmt:start` for the first time, the following shortcuts are automatically created in `~/.claude/commands/`:
+When you run `session-buddy:start` for the first time, the following shortcuts are automatically created in `~/.claude/commands/`:
 
-### `/start` → `session-mgmt:start`
+### `/start` → `session-buddy:start`
 
 **File**: `~/.claude/commands/start.md`
 
@@ -18,7 +18,7 @@ When you run `session-mgmt:start` for the first time, the following shortcuts ar
 - Prepares project for enhanced Claude Code workflows
 - Installs UV dependencies and automation tools
 
-### `/checkpoint [name]` → `session-mgmt:checkpoint`
+### `/checkpoint [name]` → `session-buddy:checkpoint`
 
 **File**: `~/.claude/commands/checkpoint.md`
 
@@ -28,7 +28,7 @@ When you run `session-mgmt:start` for the first time, the following shortcuts ar
 - Prepares for seamless session resumption
 - Accepts optional checkpoint name argument
 
-### `/end` → `session-mgmt:end`
+### `/end` → `session-buddy:end`
 
 **File**: `~/.claude/commands/end.md`
 
@@ -40,7 +40,7 @@ When you run `session-mgmt:start` for the first time, the following shortcuts ar
 
 ## How It Works
 
-1. **First-Time Setup**: When `session-mgmt:start` runs, it calls `_create_session_shortcuts()`
+1. **First-Time Setup**: When `session-buddy:start` runs, it calls `_create_session_shortcuts()`
 1. **Directory Creation**: Creates `~/.claude/commands/` if it doesn't exist
 1. **Shortcut Detection**: Checks if shortcuts already exist to avoid overwriting
 1. **File Creation**: Creates Markdown files with proper Claude Code slash command format
@@ -74,7 +74,7 @@ When you run `session-mgmt:start` for the first time, the following shortcuts ar
 ### Integration Points
 
 1. **Called from**: `_start_impl()` in session_tools.py
-1. **Triggered by**: First `session-mgmt:start` execution
+1. **Triggered by**: First `session-buddy:start` execution
 1. **File format**: Markdown with YAML frontmatter (Claude Code standard)
 1. **Location**: Global `~/.claude/commands/` (available in all projects)
 
@@ -88,15 +88,15 @@ description: Command description
 argument-hint: [optional-args]
 ---
 
-Command execution instructions using session-mgmt MCP tools.
+Command execution instructions using session-buddy MCP tools.
 ```
 
 ### Key Features:
 
-- **Global Availability**: Shortcuts work in any project with session-mgmt configured
+- **Global Availability**: Shortcuts work in any project with session-buddy configured
 - **Argument Support**: `/checkpoint` accepts optional checkpoint names
 - **Descriptive**: Clear descriptions show in Claude Code slash command menu
-- **Future-Proof**: Uses stable session-mgmt MCP tool names
+- **Future-Proof**: Uses stable session-buddy MCP tool names
 
 ## User Experience
 
@@ -104,9 +104,9 @@ Command execution instructions using session-mgmt MCP tools.
 
 ```bash
 # User had to manually create shortcuts or use full MCP tool names
-session-mgmt:start
-session-mgmt:checkpoint
-session-mgmt:end
+session-buddy:start
+session-buddy:checkpoint
+session-buddy:end
 ```
 
 ### After Auto-Creation:

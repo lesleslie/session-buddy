@@ -106,7 +106,7 @@ This document tracks the refactoring effort to align session-buddy with ACB (Asy
 
 - [x] **Task 2.1**: Create storage configuration schema ✅
 
-  - File: `settings/session-mgmt.yaml` (updated existing file)
+  - File: `settings/session-buddy.yaml` (updated existing file)
   - Define S3, Azure, GCS, File, Memory settings
   - Support environment variable overrides
   - Commit: 8762deb
@@ -116,7 +116,7 @@ This document tracks the refactoring effort to align session-buddy with ACB (Asy
     default_backend: "file"  # file, s3, azure, gcs, memory
 
     s3:
-      bucket_name: "${S3_BUCKET:session-mgmt}"
+      bucket_name: "${S3_BUCKET:session-buddy}"
       endpoint_url: "${S3_ENDPOINT:}"
       access_key: "${S3_ACCESS_KEY:}"
       secret_key: "${S3_SECRET_KEY:}"
@@ -140,7 +140,7 @@ This document tracks the refactoring effort to align session-buddy with ACB (Asy
 
 - [x] **Task 2.2**: Update Config class to load storage settings ✅
 
-  - File: `settings/session-mgmt.yaml` (ACB uses its own Config system)
+  - File: `settings/session-buddy.yaml` (ACB uses its own Config system)
   - Storage configuration via YAML and environment variables
   - ACB StorageBaseSettings handles configuration loading
   - Commit: 8762deb

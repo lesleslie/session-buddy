@@ -21,7 +21,7 @@ ______________________________________________________________________
 
 ### 🔴 Track 1: Critical Path (Serial)
 
-**Focus**: Foundation validation in session-mgmt → extraction to mcp-common → ecosystem rollout
+**Focus**: Foundation validation in session-buddy → extraction to mcp-common → ecosystem rollout
 **Timeline**: Weeks 1-6
 **Priority**: HIGHEST - Blocks 8 other servers
 
@@ -33,7 +33,7 @@ ______________________________________________________________________
 
 ### 🟢 Track 3: Deep Integration
 
-**Focus**: session-mgmt advanced features
+**Focus**: session-buddy advanced features
 **Timeline**: Weeks 7-16
 **Priority**: MEDIUM - After foundations complete
 
@@ -130,7 +130,7 @@ ______________________________________________________________________
 
 **Track 1 (Critical Path)**:
 
-- [ ] Day 1-3: session-mgmt Phase 2.7 - ACB Dependency Injection
+- [ ] Day 1-3: session-buddy Phase 2.7 - ACB Dependency Injection
   - Implement `session_buddy/di/` package
   - Apply `depends.inject` to core, quality, tool layers
   - Migration: Server core, tool modules to DI
@@ -145,7 +145,7 @@ ______________________________________________________________________
 
 **Deliverables**:
 
-- ✅ Phase 2.7 complete (DI operational in session-mgmt)
+- ✅ Phase 2.7 complete (DI operational in session-buddy)
 - ✅ mcp-common v2.0.0-beta released (HTTP, DI, health)
 - ✅ Security adapters implemented
 - ✅ Pattern documentation complete
@@ -168,7 +168,7 @@ ______________________________________________________________________
   - opera-cloud-mcp
   - raindropio-mcp (minor changes)
 - [ ] Day 3-5: Extract shutdown coordinator pattern
-  - Document graceful shutdown from session-mgmt
+  - Document graceful shutdown from session-buddy
   - Add to `mcp-common/lifecycle/shutdown.py`
 
 **Track 2 (Parallel)**:
@@ -210,14 +210,14 @@ ______________________________________________________________________
 
 **Milestone 2 Gate**: Ecosystem Adoption Complete
 
-- If passed → session-mgmt continues Phase 3
+- If passed → session-buddy continues Phase 3
 - If failed → extend ecosystem work 1 week
 
 **🎉 MAJOR MILESTONE**: mcp-common foundation deployed across all 9 servers!
 
 ______________________________________________________________________
 
-### Week 7-8: Template-Based Formatting (session-mgmt Phase 3.1)
+### Week 7-8: Template-Based Formatting (session-buddy Phase 3.1)
 
 **Track 3 (Deep Integration)**:
 
@@ -243,7 +243,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-### Week 9-10: Universal Query Interface (session-mgmt Phase 3.2)
+### Week 9-10: Universal Query Interface (session-buddy Phase 3.2)
 
 **Track 3 (Deep Integration)**:
 
@@ -272,7 +272,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-### Week 11-12: Event-Driven Orchestration (session-mgmt Phase 3.3)
+### Week 11-12: Event-Driven Orchestration (session-buddy Phase 3.3)
 
 **Track 3 (Deep Integration)**:
 
@@ -301,7 +301,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-### Week 13-14: Test Coverage Sprint (session-mgmt Phase 4)
+### Week 13-14: Test Coverage Sprint (session-buddy Phase 4)
 
 **Track 3 (Excellence)**:
 
@@ -327,7 +327,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-### Week 15-16: Performance & Polish (session-mgmt Phase 4)
+### Week 15-16: Performance & Polish (session-buddy Phase 4)
 
 **Track 3 (Excellence)**:
 
@@ -365,7 +365,7 @@ ______________________________________________________________________
 - [ ] HTTPClientAdapter proven (11x performance improvement)
 - [ ] DI patterns validated (Phase 2.7 complete)
 - [ ] mcp-common v2.0.0-beta released
-- [ ] session-mgmt using mcp-common adapters
+- [ ] session-buddy using mcp-common adapters
 
 **Go/No-Go Decision**:
 
@@ -389,7 +389,7 @@ ______________________________________________________________________
 
 **Go/No-Go Decision**:
 
-- **GO**: session-mgmt continues Phase 3 (deep integration)
+- **GO**: session-buddy continues Phase 3 (deep integration)
 - **NO-GO**: Extend ecosystem rollout, address issues
 
 **Status**: Scheduled for end of Week 6
@@ -407,7 +407,7 @@ ______________________________________________________________________
 
 **Gate Criteria**:
 
-- [ ] session-mgmt quality score 95/100
+- [ ] session-buddy quality score 95/100
 - [ ] Test coverage 85%+
 - [ ] ACB integration 9/10
 - [ ] Production ready
@@ -440,7 +440,7 @@ mcp-common Metrics
 ├── Status:               Week 2 Days 1-3
 ├── HTTPClientAdapter:    🔄 Implementing
 ├── Version:              Not yet released
-└── Servers Adopted:      0/9 (session-mgmt testing)
+└── Servers Adopted:      0/9 (session-buddy testing)
 
 Ecosystem Metrics
 ├── Average Health:       74/100
@@ -531,10 +531,10 @@ ______________________________________________________________________
 
 ## Key Decisions & Trade-offs
 
-### Decision 1: session-mgmt as Pilot
+### Decision 1: session-buddy as Pilot
 
 **Rationale**: Most complex standalone server, best validation for ecosystem patterns
-**Trade-off**: Delays session-mgmt Phase 3 work, but de-risks ecosystem
+**Trade-off**: Delays session-buddy Phase 3 work, but de-risks ecosystem
 **Status**: ✅ Validated - Phase 2 completion proves value
 
 ### Decision 2: Extract Health Checks + Shutdown
@@ -543,9 +543,9 @@ ______________________________________________________________________
 **Trade-off**: Adds 2-3 hours per server to rollout (acceptable)
 **Status**: ✅ Approved - Integration into unified plan (Week 4-5)
 
-### Decision 3: Templates in session-mgmt Only
+### Decision 3: Templates in session-buddy Only
 
-**Rationale**: Unique to session-mgmt's verbose output formatting needs
+**Rationale**: Unique to session-buddy's verbose output formatting needs
 **Trade-off**: Not extracted to mcp-common (may reconsider later)
 **Status**: 🟡 Deferred - Evaluate at Week 9 for potential extraction
 
@@ -640,7 +640,7 @@ ______________________________________________________________________
 - [ ] Connection pooling: Max 100 connections, reuse validated
 - [ ] Error handling: Timeout, retry, circuit breaker tested
 - [ ] Memory: No leaks over 1000 requests
-- [ ] Integration: Works with all session-mgmt MCP tools
+- [ ] Integration: Works with all session-buddy MCP tools
 
 ### Appendix B: DI Pattern Validation Criteria
 

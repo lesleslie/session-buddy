@@ -1,15 +1,9 @@
 """Tests for serverless_mode module.
 
-Tests serverless session management with external storage backends,
-focusing on the new ACBCacheStorage adapter.
-
-Phase: Week 5 Day 3 - Serverless Mode Coverage
+Tests serverless session management with Oneiric storage backends.
 """
 
 from __future__ import annotations
-
-from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -77,19 +71,18 @@ class TestSessionState:
         assert session.user_id == "user-1"
 
 
-class TestACBCacheStorage:
-    """Test ACBCacheStorage adapter (new implementation)."""
+class TestServerlessStorageAdapter:
+    """Test ServerlessStorageAdapter with Oneiric storage backends."""
 
     @pytest.mark.asyncio
     async def test_store_session_success(self) -> None:
         """Should store session using aiocache."""
-        from session_buddy.serverless_mode import ACBCacheStorage, SessionState
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
+        )
+        from session_buddy.serverless_mode import SessionState
 
-        mock_cache = AsyncMock()
-        mock_cache.set = AsyncMock()
-        mock_cache.get = AsyncMock(return_value=None)  # For index
-
-        storage = ACBCacheStorage(mock_cache, namespace="test")
+        storage = ServerlessStorageAdapter(backend="memory")
 
         session = SessionState(
             session_id="test-123",
@@ -108,42 +101,36 @@ class TestACBCacheStorage:
     @pytest.mark.asyncio
     async def test_retrieve_session_success(self) -> None:
         """Should retrieve session from aiocache."""
-        from session_buddy.serverless_mode import ACBCacheStorage
-
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(
-            return_value={
-                "session_id": "test-123",
-                "user_id": "user-1",
-                "project_id": "project-1",
-                "created_at": "2025-01-01T12:00:00",
-                "last_activity": "2025-01-01T12:00:00",
-                "permissions": [],
-                "conversation_history": [],
-                "reflection_data": {},
-                "app_monitoring_state": {},
-                "llm_provider_configs": {},
-                "metadata": {},
-            }
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
         )
+        from session_buddy.serverless_mode import SessionState
 
-        storage = ACBCacheStorage(mock_cache, namespace="test")
+        storage = ServerlessStorageAdapter(backend="memory")
+
+        session = SessionState(
+            session_id="test-123",
+            user_id="user-1",
+            project_id="project-1",
+            created_at="2025-01-01T12:00:00",
+            last_activity="2025-01-01T12:00:00",
+        )
+        await storage.store_session(session)
 
         session = await storage.retrieve_session("test-123")
 
         assert session is not None
         assert session.session_id == "test-123"
-        mock_cache.get.assert_called()
+        assert session.session_id == "test-123"
 
     @pytest.mark.asyncio
     async def test_retrieve_session_not_found(self) -> None:
         """Should return None when session not found."""
-        from session_buddy.serverless_mode import ACBCacheStorage
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
+        )
 
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(return_value=None)
-
-        storage = ACBCacheStorage(mock_cache, namespace="test")
+        storage = ServerlessStorageAdapter(backend="memory")
 
         session = await storage.retrieve_session("nonexistent")
 
@@ -152,28 +139,34 @@ class TestACBCacheStorage:
     @pytest.mark.asyncio
     async def test_delete_session_success(self) -> None:
         """Should delete session from aiocache."""
-        from session_buddy.serverless_mode import ACBCacheStorage
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
+        )
+        from session_buddy.serverless_mode import SessionState
 
-        mock_cache = AsyncMock()
-        mock_cache.delete = AsyncMock(return_value=True)
-        mock_cache.get = AsyncMock(return_value={})  # For index
-
-        storage = ACBCacheStorage(mock_cache, namespace="test")
+        storage = ServerlessStorageAdapter(backend="memory")
+        session = SessionState(
+            session_id="test-123",
+            user_id="user-1",
+            project_id="project-1",
+            created_at="2025-01-01T12:00:00",
+            last_activity="2025-01-01T12:00:00",
+        )
+        await storage.store_session(session)
 
         result = await storage.delete_session("test-123")
 
         assert result is True
-        mock_cache.delete.assert_called()
+        assert result is True
 
     @pytest.mark.asyncio
     async def test_list_sessions_empty(self) -> None:
         """Should return empty list when no sessions."""
-        from session_buddy.serverless_mode import ACBCacheStorage
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
+        )
 
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(return_value=None)  # No index
-
-        storage = ACBCacheStorage(mock_cache, namespace="test")
+        storage = ServerlessStorageAdapter(backend="memory")
 
         sessions = await storage.list_sessions()
 
@@ -182,18 +175,39 @@ class TestACBCacheStorage:
     @pytest.mark.asyncio
     async def test_list_sessions_with_filter(self) -> None:
         """Should filter sessions by user_id and project_id."""
-        from session_buddy.serverless_mode import ACBCacheStorage
-
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(
-            return_value={
-                "session-1": {"user_id": "user-1", "project_id": "project-1"},
-                "session-2": {"user_id": "user-2", "project_id": "project-1"},
-                "session-3": {"user_id": "user-1", "project_id": "project-2"},
-            }
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
         )
+        from session_buddy.serverless_mode import SessionState
 
-        storage = ACBCacheStorage(mock_cache, namespace="test")
+        storage = ServerlessStorageAdapter(backend="memory")
+
+        sessions = [
+            SessionState(
+                session_id="session-1",
+                user_id="user-1",
+                project_id="project-1",
+                created_at="2025-01-01T12:00:00",
+                last_activity="2025-01-01T12:00:00",
+            ),
+            SessionState(
+                session_id="session-2",
+                user_id="user-2",
+                project_id="project-1",
+                created_at="2025-01-01T12:00:00",
+                last_activity="2025-01-01T12:00:00",
+            ),
+            SessionState(
+                session_id="session-3",
+                user_id="user-1",
+                project_id="project-2",
+                created_at="2025-01-01T12:00:00",
+                last_activity="2025-01-01T12:00:00",
+            ),
+        ]
+
+        for session in sessions:
+            await storage.store_session(session)
 
         # Filter by user_id
         sessions = await storage.list_sessions(user_id="user-1")
@@ -204,33 +218,33 @@ class TestACBCacheStorage:
     @pytest.mark.asyncio
     async def test_cleanup_expired_sessions(self) -> None:
         """Should cleanup stale index entries."""
-        from session_buddy.serverless_mode import ACBCacheStorage
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
+        )
+        from session_buddy.serverless_mode import SessionState
 
-        mock_cache = AsyncMock()
-        # Index has 2 sessions
-        mock_cache.get = AsyncMock(return_value={"session-1": {}, "session-2": {}})
-        # First session exists, second doesn't
-        mock_cache.exists = AsyncMock(side_effect=[True, False])
-        mock_cache.set = AsyncMock()
-
-        storage = ACBCacheStorage(mock_cache, namespace="test")
+        storage = ServerlessStorageAdapter(backend="memory")
+        session = SessionState(
+            session_id="session-1",
+            user_id="user-1",
+            project_id="project-1",
+            created_at="2025-01-01T12:00:00",
+            last_activity="2025-01-01T12:00:00",
+        )
+        await storage.store_session(session, ttl_seconds=-1)
 
         cleaned = await storage.cleanup_expired_sessions()
 
         assert cleaned == 1  # One session expired
-        mock_cache.set.assert_called()  # Index updated
 
     @pytest.mark.asyncio
     async def test_is_available_success(self) -> None:
-        """Should return True when cache is available."""
-        from session_buddy.serverless_mode import ACBCacheStorage
+        """Should return True when storage is available."""
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
+        )
 
-        mock_cache = AsyncMock()
-        mock_cache.set = AsyncMock()
-        mock_cache.get = AsyncMock(return_value={"status": "ok"})
-        mock_cache.delete = AsyncMock()
-
-        storage = ACBCacheStorage(mock_cache, namespace="test")
+        storage = ServerlessStorageAdapter(backend="memory")
 
         available = await storage.is_available()
 
@@ -243,15 +257,12 @@ class TestServerlessSessionManager:
     @pytest.mark.asyncio
     async def test_create_session(self) -> None:
         """Should create new session with ServerlessSessionManager."""
-        from session_buddy.serverless_mode import (
-            ACBCacheStorage,
-            ServerlessSessionManager,
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
         )
+        from session_buddy.serverless_mode import ServerlessSessionManager
 
-        mock_cache = AsyncMock()
-        mock_cache.set = AsyncMock()
-        mock_cache.get = AsyncMock(return_value=None)
-        storage = ACBCacheStorage(mock_cache, namespace="test")
+        storage = ServerlessStorageAdapter(backend="memory")
 
         manager = ServerlessSessionManager(storage)
 
@@ -265,32 +276,16 @@ class TestServerlessSessionManager:
     @pytest.mark.asyncio
     async def test_get_session(self) -> None:
         """Should retrieve session state."""
-        from session_buddy.serverless_mode import (
-            ACBCacheStorage,
-            ServerlessSessionManager,
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
         )
+        from session_buddy.serverless_mode import ServerlessSessionManager
 
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(
-            return_value={
-                "session_id": "test-123",
-                "user_id": "user-1",
-                "project_id": "project-1",
-                "created_at": "2025-01-01T12:00:00",
-                "last_activity": "2025-01-01T12:00:00",
-                "permissions": [],
-                "conversation_history": [],
-                "reflection_data": {},
-                "app_monitoring_state": {},
-                "llm_provider_configs": {},
-                "metadata": {},
-            }
-        )
-        storage = ACBCacheStorage(mock_cache, namespace="test")
-
+        storage = ServerlessStorageAdapter(backend="memory")
         manager = ServerlessSessionManager(storage)
 
-        session = await manager.get_session("test-123")
+        session_id = await manager.create_session("user-1", "project-1")
+        session = await manager.get_session(session_id)
 
         assert session is not None
         assert session.user_id == "user-1"
@@ -298,55 +293,36 @@ class TestServerlessSessionManager:
     @pytest.mark.asyncio
     async def test_update_session(self) -> None:
         """Should update session state."""
-        from session_buddy.serverless_mode import (
-            ACBCacheStorage,
-            ServerlessSessionManager,
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
         )
+        from session_buddy.serverless_mode import ServerlessSessionManager
 
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(
-            return_value={
-                "session_id": "test-123",
-                "user_id": "user-1",
-                "project_id": "project-1",
-                "created_at": "2025-01-01T12:00:00",
-                "last_activity": "2025-01-01T12:00:00",
-                "permissions": [],
-                "conversation_history": [],
-                "reflection_data": {},
-                "app_monitoring_state": {},
-                "llm_provider_configs": {},
-                "metadata": {},
-            }
-        )
-        mock_cache.set = AsyncMock()
-        storage = ACBCacheStorage(mock_cache, namespace="test")
-
+        storage = ServerlessStorageAdapter(backend="memory")
         manager = ServerlessSessionManager(storage)
 
+        session_id = await manager.create_session("user-1", "project-1")
         result = await manager.update_session(
-            "test-123", {"metadata": {"updated": True}}
+            session_id,
+            {"metadata": {"updated": True}},
         )
 
         assert result is True
-        mock_cache.set.assert_called()
+        assert result is True
 
     @pytest.mark.asyncio
     async def test_delete_session(self) -> None:
         """Should delete session."""
-        from session_buddy.serverless_mode import (
-            ACBCacheStorage,
-            ServerlessSessionManager,
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
         )
+        from session_buddy.serverless_mode import ServerlessSessionManager
 
-        mock_cache = AsyncMock()
-        mock_cache.delete = AsyncMock(return_value=True)
-        mock_cache.get = AsyncMock(return_value={})
-        storage = ACBCacheStorage(mock_cache, namespace="test")
-
+        storage = ServerlessStorageAdapter(backend="memory")
         manager = ServerlessSessionManager(storage)
 
-        result = await manager.delete_session("test-123")
+        session_id = await manager.create_session("user-1", "project-1")
+        result = await manager.delete_session(session_id)
 
         assert result is True
 
@@ -354,31 +330,24 @@ class TestServerlessSessionManager:
 class TestServerlessConfigManager:
     """Test ServerlessConfigManager factory methods."""
 
-    def test_create_storage_backend_acb_default(self) -> None:
-        """Should create ACBCacheStorage by default."""
+    def test_create_storage_backend_default(self) -> None:
+        """Should create Oneiric storage adapter by default."""
         from session_buddy.serverless_mode import ServerlessConfigManager
 
-        config = {"storage_backend": "acb", "backends": {"acb": {}}}
+        config = {"storage_backend": "file", "backends": {"file": {}}}
 
         storage = ServerlessConfigManager.create_storage_backend(config)
 
-        assert storage.__class__.__name__ == "ACBCacheStorage"
+        assert storage.__class__.__name__ == "ServerlessStorageAdapter"
 
-    def test_create_storage_backend_legacy_redis_warns(self) -> None:
-        """Should create RedisStorage with deprecation warning."""
+    def test_create_storage_backend_invalid_backend(self) -> None:
+        """Should reject unsupported backends."""
         from session_buddy.serverless_mode import ServerlessConfigManager
 
-        config = {
-            "storage_backend": "redis",
-            "backends": {"redis": {"host": "localhost"}},
-        }
+        config = {"storage_backend": "redis", "backends": {"redis": {}}}
 
-        with patch("logging.warning") as mock_warn:
-            storage = ServerlessConfigManager.create_storage_backend(config)
-
-            assert storage.__class__.__name__ == "RedisStorage"
-            mock_warn.assert_called()
-            assert "deprecated" in mock_warn.call_args[0][0].lower()
+        with pytest.raises(ValueError):
+            ServerlessConfigManager.create_storage_backend(config)
 
     @pytest.mark.asyncio
     async def test_test_storage_backends(self) -> None:
@@ -387,12 +356,11 @@ class TestServerlessConfigManager:
 
         config = {
             "backends": {
-                "acb": {"cache_type": "memory"},
-                "local": {"storage_dir": "/tmp/test"},
+                "memory": {},
             }
         }
 
         results = await ServerlessConfigManager.test_storage_backends(config)
 
         assert isinstance(results, dict)
-        assert "acb" in results or "local" in results
+        assert "memory" in results

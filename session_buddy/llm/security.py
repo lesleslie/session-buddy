@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import os
 
+from session_buddy.settings import get_llm_api_key, get_settings
+
 # Import mcp-common security utilities for API key validation (Phase 3 Security Hardening)
 try:
     from mcp_common.security import APIKeyValidator
@@ -27,6 +29,18 @@ def get_masked_api_key(provider: str = "openai") -> str:
         Masked API key string (e.g., "sk-...abc1") for safe display in logs
 
     """
+    settings = get_settings()
+    key_field_map = {
+        "openai": "openai_api_key",
+        "anthropic": "anthropic_api_key",
+        "gemini": "gemini_api_key",
+    }
+    key_field = key_field_map.get(provider)
+    if key_field:
+        configured = getattr(settings, key_field, None)
+        if isinstance(configured, str) and configured.strip():
+            return settings.get_masked_key(key_name=key_field, visible_chars=4)
+
     api_key = None
 
     if provider == "openai":
@@ -51,8 +65,13 @@ def get_masked_api_key(provider: str = "openai") -> str:
 
 def _get_provider_api_key_and_env(provider: str) -> tuple[str | None, str | None]:
     """Get API key and environment variable name for provider."""
+    configured_key = get_llm_api_key(provider)
+    if configured_key:
+        return configured_key, f"settings.{provider}_api_key"
     if provider == "openai":
         return os.getenv("OPENAI_API_KEY"), "OPENAI_API_KEY"
+    if provider == "anthropic":
+        return os.getenv("ANTHROPIC_API_KEY"), "ANTHROPIC_API_KEY"
     if provider == "gemini":
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         env_var_name = (
@@ -94,12 +113,20 @@ def _validate_provider_basic(provider: str, api_key: str) -> str:
 
 def _get_configured_providers() -> list[str]:
     """Get list of configured LLM providers."""
-    providers = []
+    providers: set[str] = set()
+    if get_llm_api_key("openai"):
+        providers.add("openai")
+    if get_llm_api_key("gemini"):
+        providers.add("gemini")
+    if get_llm_api_key("anthropic"):
+        providers.add("anthropic")
     if os.getenv("OPENAI_API_KEY"):
-        providers.append("openai")
+        providers.add("openai")
+    if os.getenv("ANTHROPIC_API_KEY"):
+        providers.add("anthropic")
     if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
-        providers.append("gemini")
-    return providers
+        providers.add("gemini")
+    return sorted(providers)
 
 
 def validate_llm_api_keys_at_startup() -> dict[str, str]:

@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from acb.depends import depends
-from bevy import get_container
+from session_buddy.di import get_sync_typed
+from session_buddy.di.container import depends
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -78,14 +78,11 @@ def _get_session_manager() -> SessionLifecycleManager:
     """Get or create SessionLifecycleManager instance.
 
     Note:
-        Checks bevy container directly instead of using depends.get_sync()
-        to avoid async event loop issues during module import.
+        Uses the Oneiric-backed service container for singleton resolution.
 
     """
-    # Check if already registered without triggering async machinery
-    container = get_container()
-    if SessionLifecycleManager in container.instances:
-        manager = container.instances[SessionLifecycleManager]
+    with suppress(Exception):
+        manager = get_sync_typed(SessionLifecycleManager)  # type: ignore[no-any-return]
         if isinstance(manager, SessionLifecycleManager):
             return manager
 

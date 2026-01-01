@@ -17,11 +17,12 @@ import inspect
 import os
 import sys
 import warnings
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    import logging
     from collections.abc import AsyncGenerator
 
 # Suppress transformers warnings about PyTorch/TensorFlow for cleaner CLI output
@@ -42,16 +43,12 @@ if _patch_file.exists():
         sys.modules["patch_hashable"] = patch_module
         spec.loader.exec_module(patch_module)
 
-from acb.adapters import import_adapter
-from acb.depends import depends
-from session_buddy.di import configure as configure_di
-
-# CRITICAL: Configure DI BEFORE importing anything that uses DI!
-configure_di()
-
 # Phase 2.5: Import core infrastructure from server_core
 from session_buddy.core.features import get_feature_flags
+from session_buddy.core.lifecycle.service_registry import get_service_registry
 from session_buddy.core.permissions import SessionPermissionsManager
+from session_buddy.di import get_sync_typed
+from session_buddy.di.container import depends
 from session_buddy.server_core import _load_mcp_config
 from session_buddy.server_core import (
     # Health & status functions
@@ -64,10 +61,14 @@ from session_buddy.server_core import (
     # Session lifecycle handler
     session_lifecycle as _session_lifecycle_impl,
 )
+from session_buddy.utils.runtime_snapshots import (
+    RuntimeSnapshotManager,
+    run_snapshot_loop,
+)
 
 
 # Get logger using standard logging (avoid DI type resolution conflicts)
-def _get_session_logger():
+def _get_session_logger() -> logging.Logger:
     """Get logger using standard logging module."""
     import logging
 
@@ -78,7 +79,7 @@ def _get_session_logger():
 session_logger: Any = None
 
 
-def _get_logger():
+def _get_logger() -> logging.Logger:  # type: ignore[return-value]
     """Get logger instance with lazy initialization."""
     global session_logger
     if session_logger is None:
@@ -182,17 +183,35 @@ multi_project_coordinator: Any = None
 advanced_search_engine: Any = None
 app_config: Any = None
 current_project: str | None = None
+permissions_manager: SessionPermissionsManager = None  # type: ignore[assignment]
 
-# Create global permissions manager instance
-try:
-    permissions_manager = depends.get_sync(SessionPermissionsManager)
-except Exception:
-    # Get SessionPaths from DI to find claude_root
+
+def _get_permissions_manager() -> SessionPermissionsManager:
+    global permissions_manager
+
+    with suppress(Exception):
+        manager = get_sync_typed(SessionPermissionsManager)
+        if isinstance(manager, SessionPermissionsManager):
+            permissions_manager = manager
+            return manager
+
     from session_buddy.di.config import SessionPaths
 
-    paths = depends.get_sync(SessionPaths)
-    permissions_manager = SessionPermissionsManager(paths.claude_dir)
-    depends.set(SessionPermissionsManager, permissions_manager)
+    with suppress(Exception):
+        paths = get_sync_typed(SessionPaths)
+        if isinstance(paths, SessionPaths):
+            manager = SessionPermissionsManager(paths.claude_dir)
+            depends.set(SessionPermissionsManager, manager)
+            permissions_manager = manager
+            return manager
+
+    paths = SessionPaths.from_home()
+    paths.ensure_directories()
+    manager = SessionPermissionsManager(paths.claude_dir)
+    depends.set(SessionPermissionsManager, manager)
+    permissions_manager = manager
+    return manager
+
 
 # Import required components for automatic lifecycle
 from session_buddy.core import SessionLifecycleManager
@@ -237,7 +256,7 @@ def _format_memory_optimization_results(results: dict[str, Any], dry_run: bool) 
     if isinstance(ratio, (int, float)):
         lines.append(f"{ratio * 100:.1f}% compression ratio")
 
-    summaries = results.get("consolidated_summaries") or []
+    summaries: list[Any] = results.get("consolidated_summaries") or []
     if summaries:
         first = summaries[0]
         if isinstance(first, dict) and "original_count" in first:
@@ -264,7 +283,9 @@ if TOKEN_OPTIMIZER_AVAILABLE:
             from session_buddy.memory_optimizer import MemoryOptimizer
 
             policy = _build_memory_optimization_policy(strategy, max_age_days)
-            optimizer = MemoryOptimizer(db)
+            # Type ignore: get_reflection_database returns ReflectionDatabaseAdapterOneiric
+            # which is compatible with MemoryOptimizer's expected type
+            optimizer = MemoryOptimizer(db)  # type: ignore[arg-type]
             results = await optimizer.compress_memory(policy=policy, dry_run=dry_run)
 
             if isinstance(results, dict) and "error" in results:
@@ -288,20 +309,46 @@ RATE_LIMITING_AVAILABLE = (
 
 # Phase 2.2: Import utility and formatting functions from server_helpers
 
-# Global session manager for lifespan handlers
-try:
-    lifecycle_manager = depends.get_sync(SessionLifecycleManager)
-except Exception:
-    lifecycle_manager = SessionLifecycleManager()
-    depends.set(SessionLifecycleManager, lifecycle_manager)
+
+def _get_lifecycle_manager() -> SessionLifecycleManager:
+    with suppress(Exception):
+        manager = get_sync_typed(SessionLifecycleManager)
+        if isinstance(manager, SessionLifecycleManager):
+            return manager
+    manager = SessionLifecycleManager()
+    depends.set(SessionLifecycleManager, manager)
+    return manager
 
 
 # Lifespan handler wrapper for FastMCP
 @asynccontextmanager
 async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     """Automatic session lifecycle for git repositories only (wrapper)."""
-    async with _session_lifecycle_impl(app, lifecycle_manager, _get_logger()):
-        yield
+    registry = get_service_registry()
+    await registry.init_all()
+    lifecycle_manager = _get_lifecycle_manager()
+    async with _session_lifecycle_impl(app, lifecycle_manager, _get_logger()):  # type: ignore[arg-type]
+        snapshot_manager = RuntimeSnapshotManager.for_server("session-buddy")
+        pid = os.getpid()
+        snapshot_manager.record("startup_events")
+        snapshot_manager.write_health_snapshot(pid=pid, watchers_running=True)
+        snapshot_manager.write_telemetry_snapshot(pid=pid)
+
+        interval_seconds = max(snapshot_manager.settings.health_ttl_seconds / 2, 5.0)
+        snapshot_task = asyncio.create_task(
+            run_snapshot_loop(snapshot_manager, pid, interval_seconds),
+        )
+
+        try:
+            yield
+        finally:
+            snapshot_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await snapshot_task
+            snapshot_manager.record("shutdown_events")
+            snapshot_manager.write_health_snapshot(pid=pid, watchers_running=False)
+            snapshot_manager.write_telemetry_snapshot(pid=pid)
+            await registry.cleanup_all()
 
 
 # Load configuration and initialize FastMCP 2.0 server with lifespan
@@ -378,16 +425,16 @@ register_team_tools(mcp)
 
 
 # Add helper method for programmatic tool calling used in tests
-async def _resolve_tool_registry(mcp_instance) -> dict[str, Any]:
+async def _resolve_tool_registry(mcp_instance: Any) -> dict[str, Any]:
     """Return the registered tool mapping for an MCP instance."""
     if hasattr(mcp_instance, "get_tools"):
-        return await mcp_instance.get_tools()
+        return await mcp_instance.get_tools()  # type: ignore[no-any-return]
     if hasattr(mcp_instance, "tools"):
-        return mcp_instance.tools
+        return mcp_instance.tools  # type: ignore[no-any-return]
     return getattr(mcp_instance, "_tools", {})
 
 
-def _resolve_tool_callable(tool_spec: Any, tool_name: str):
+def _resolve_tool_callable(tool_spec: Any, tool_name: str) -> Any:
     """Extract the callable implementation from a tool spec."""
     if hasattr(tool_spec, "function"):
         return tool_spec.function
@@ -396,10 +443,8 @@ def _resolve_tool_callable(tool_spec: Any, tool_name: str):
     if callable(tool_spec):
         return tool_spec
 
-    candidate = (
-        getattr(tool_spec, "implementation", None)
-        or getattr(tool_spec, "handler", None)
-        or getattr(tool_spec, "__call__", None)
+    candidate = getattr(tool_spec, "implementation", None) or getattr(
+        tool_spec, "handler", None
     )
     if candidate is None:
         msg = f"Could not extract callable function from tool {tool_name}"
@@ -422,8 +467,8 @@ def _build_tool_arguments(
 
 
 async def _call_registered_tool(
-    mcp_instance, tool_name: str, arguments: dict | None = None
-):
+    mcp_instance: Any, tool_name: str, arguments: dict[str, Any] | None = None
+) -> Any:
     """Programmatically call a tool by name with provided arguments."""
     provided_args = arguments or {}
     tools = await _resolve_tool_registry(mcp_instance)
@@ -441,7 +486,9 @@ async def _call_registered_tool(
 
 
 # Attach the method to the mcp instance as a bound method
-async def _call_tool_bound(tool_name: str, arguments: dict | None = None):
+async def _call_tool_bound(
+    tool_name: str, arguments: dict[str, Any] | None = None
+) -> Any:
     """Bound _call_tool method for the mcp instance."""
     return await _call_registered_tool(mcp, tool_name, arguments)
 
@@ -593,7 +640,7 @@ async def initialize_new_features() -> None:
         advanced_search_engine,
         app_config,
     ) = await _initialize_new_features_impl(
-        _get_logger(),
+        _get_logger(),  # type: ignore[arg-type]
         multi_project_coordinator,
         advanced_search_engine,
         app_config,
@@ -630,8 +677,8 @@ async def calculate_quality_score(project_dir: Path | None = None) -> dict[str, 
 async def health_check() -> dict[str, Any]:
     """Comprehensive health check for MCP server and toolkit availability (wrapper)."""
     return await _health_check_impl(
-        _get_logger(),
-        permissions_manager,
+        _get_logger(),  # type: ignore[arg-type]
+        _get_permissions_manager(),
         validate_claude_directory,
     )
 
@@ -809,7 +856,7 @@ def main(http_mode: bool = False, http_port: int | None = None) -> None:
         )
     else:
         _display_stdio_startup(features)
-        mcp.run(stateless_http=True, show_banner=False)
+        mcp.run(show_banner=False)
 
 
 def _ensure_default_recommendations(priority_actions: list[str]) -> list[str]:

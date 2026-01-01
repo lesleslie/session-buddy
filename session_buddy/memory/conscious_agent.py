@@ -99,7 +99,7 @@ class ConsciousAgent:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Conscious agent error: {e}", exc_info=True)
+                logger.exception(f"Conscious agent error: {e}")
                 # Continue running despite errors
                 await asyncio.sleep(300)  # Wait 5 minutes before retry
 
@@ -153,12 +153,12 @@ class ConsciousAgent:
         """
         # Query DuckDB for access patterns in v2 tables
         import duckdb  # Local import to avoid hard dep when unused
-        from session_buddy.settings import get_settings
+        from session_buddy.settings import get_database_path
 
         patterns: list[MemoryAccessPattern] = []
         try:
             conn = duckdb.connect(
-                get_settings().database_path,
+                get_database_path(),
                 config={"allow_unsigned_extensions": True},
             )
         except Exception:
@@ -359,12 +359,12 @@ class ConsciousAgent:
         promoted: list[str] = []
 
         import duckdb
-        from session_buddy.settings import get_settings
+        from session_buddy.settings import get_database_path
 
         for candidate in candidates:
             try:
                 conn = duckdb.connect(
-                    get_settings().database_path,
+                    get_database_path(),
                     config={"allow_unsigned_extensions": True},
                 )
                 conn.execute(
@@ -404,10 +404,10 @@ class ConsciousAgent:
         demoted: list[str] = []
 
         import duckdb
-        from session_buddy.settings import get_settings
+        from session_buddy.settings import get_database_path
 
         conn = duckdb.connect(
-            get_settings().database_path, config={"allow_unsigned_extensions": True}
+            str(get_database_path()), config={"allow_unsigned_extensions": True}
         )
         rows = conn.execute(
             """

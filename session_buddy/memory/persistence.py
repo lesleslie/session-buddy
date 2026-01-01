@@ -14,11 +14,11 @@ from session_buddy.memory.entity_extractor import (
     ExtractedEntity,
     ProcessedMemory,
 )
-from session_buddy.settings import get_settings
+from session_buddy.settings import get_database_path
 
 
 def _connect() -> duckdb.DuckDBPyConnection:
-    db_path = Path(get_settings().database_path)
+    db_path = get_database_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return duckdb.connect(str(db_path), config={"allow_unsigned_extensions": True})
 

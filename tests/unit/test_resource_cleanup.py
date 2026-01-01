@@ -60,7 +60,7 @@ class TestHTTPClientCleanup:
     async def test_cleanup_http_clients_handles_missing_adapter(self) -> None:
         """Should handle missing HTTP adapter gracefully."""
         # Mock DI to return None
-        with patch("acb.depends.depends") as mock_depends:
+        with patch("session_buddy.di.container.depends") as mock_depends:
             mock_depends.get_sync.side_effect = Exception("Not found")
             await cleanup_http_clients()
             # Should not raise
@@ -154,7 +154,7 @@ class TestSessionStateCleanup:
     async def test_cleanup_session_state_handles_missing_manager(self) -> None:
         """Should handle missing session manager gracefully."""
         # Mock DI to simulate missing manager
-        with patch("acb.depends.depends") as mock_depends:
+        with patch("session_buddy.di.container.depends") as mock_depends:
             mock_depends.get_sync.side_effect = Exception("Not found")
             await cleanup_session_state()
             # Should not raise

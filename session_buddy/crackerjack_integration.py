@@ -769,51 +769,9 @@ class CrackerjackIntegration:
         }
 
         try:
-            # Check crackerjack availability
-            process = await asyncio.create_subprocess_exec(
-                "crackerjack",
-                "--help",
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await process.communicate()
-            health["crackerjack_available"] = process.returncode == 0
-
-            if health["crackerjack_available"]:
-                health["recommendations"].append(
-                    "✅ Crackerjack is available and responding",
-                )
-            else:
-                health["recommendations"].append(
-                    "❌ Crackerjack not available - install with 'uv add crackerjack'",
-                )
-
-            # Check database accessibility
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("SELECT 1").fetchone()
-                health["database_accessible"] = True
-                health["recommendations"].append("✅ Database connection successful")
-
-                # Check if we have any data
-                cursor = conn.execute("SELECT COUNT(*) FROM crackerjack_results")
-                result_count = cursor.fetchone()[0]
-
-                if result_count > 0:
-                    health["recommendations"].append(
-                        f"📊 {result_count} execution records available",
-                    )
-                else:
-                    health["recommendations"].append(
-                        "📝 No execution history - run some crackerjack commands",
-                    )
-
-            # Overall status
-            if health["crackerjack_available"] and health["database_accessible"]:
-                health["status"] = "healthy"
-            elif health["database_accessible"]:
-                health["status"] = "partial"
-            else:
-                health["status"] = "unhealthy"
+            await self._check_crackerjack_availability(health)
+            await self._check_database_health(health)
+            health["status"] = self._determine_health_status(health)
 
         except sqlite3.Error as e:
             health["database_accessible"] = False
@@ -824,6 +782,53 @@ class CrackerjackIntegration:
 
         return health
 
+    async def _check_crackerjack_availability(self, health: dict[str, Any]) -> None:
+        """Check if crackerjack command is available."""
+        process = await asyncio.create_subprocess_exec(
+            "crackerjack",
+            "--help",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await process.communicate()
+        health["crackerjack_available"] = process.returncode == 0
+
+        if health["crackerjack_available"]:
+            health["recommendations"].append(
+                "✅ Crackerjack is available and responding",
+            )
+        else:
+            health["recommendations"].append(
+                "❌ Crackerjack not available - install with 'uv add crackerjack'",
+            )
+
+    async def _check_database_health(self, health: dict[str, Any]) -> None:
+        """Check database accessibility and data availability."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("SELECT 1").fetchone()
+            health["database_accessible"] = True
+            health["recommendations"].append("✅ Database connection successful")
+
+            cursor = conn.execute("SELECT COUNT(*) FROM crackerjack_results")
+            result_count = cursor.fetchone()[0]
+
+            if result_count > 0:
+                health["recommendations"].append(
+                    f"📊 {result_count} execution records available",
+                )
+            else:
+                health["recommendations"].append(
+                    "📝 No execution history - run some crackerjack commands",
+                )
+
+    def _determine_health_status(self, health: dict[str, Any]) -> str:
+        """Determine overall health status from component health."""
+        if health["crackerjack_available"] and health["database_accessible"]:
+            return "healthy"
+        if health["database_accessible"]:
+            return "partial"
+        return "unhealthy"
+
     def _calculate_quality_metrics(
         self,
         parsed_data: dict[str, Any],
@@ -833,7 +838,22 @@ class CrackerjackIntegration:
         """Calculate quality metrics from parsed data."""
         metrics = {}
 
-        # Test metrics
+        metrics.update(self._calculate_test_metrics(parsed_data))
+        metrics.update(self._calculate_coverage_metrics(parsed_data))
+        metrics.update(self._calculate_lint_metrics(parsed_data))
+        metrics.update(self._calculate_security_metrics(parsed_data))
+        metrics.update(self._calculate_complexity_metrics(parsed_data))
+
+        if stderr_content:
+            metrics.update(self._parse_stderr_metrics(stderr_content))
+
+        metrics["build_status"] = float(100 if exit_code == 0 else 0)
+
+        return metrics
+
+    def _calculate_test_metrics(self, parsed_data: dict[str, Any]) -> dict[str, float]:
+        """Calculate test pass rate metrics."""
+        metrics = {}
         test_results = parsed_data.get("test_results", [])
         if test_results:
             passed = sum(1 for t in test_results if t["status"] == "passed")
@@ -841,30 +861,47 @@ class CrackerjackIntegration:
             metrics["test_pass_rate"] = float(
                 (passed / total) * 100 if total > 0 else 0,
             )
+        return metrics
 
-        # Coverage metrics
+    def _calculate_coverage_metrics(
+        self, parsed_data: dict[str, Any]
+    ) -> dict[str, float]:
+        """Calculate code coverage metrics."""
+        metrics = {}
         coverage_summary = parsed_data.get("coverage_summary", {})
         if "total_coverage" in coverage_summary:
             metrics["code_coverage"] = float(coverage_summary["total_coverage"])
+        return metrics
 
-        # Lint metrics
+    def _calculate_lint_metrics(self, parsed_data: dict[str, Any]) -> dict[str, float]:
+        """Calculate lint score metrics (inverted so higher is better)."""
+        metrics = {}
         lint_summary = parsed_data.get("lint_summary", {})
         if "total_issues" in lint_summary:
-            # Invert to make higher scores better
             total_issues = lint_summary["total_issues"]
             metrics["lint_score"] = float(
                 max(0, 100 - total_issues) if total_issues < 100 else 0,
             )
+        return metrics
 
-        # Security metrics
+    def _calculate_security_metrics(
+        self, parsed_data: dict[str, Any]
+    ) -> dict[str, float]:
+        """Calculate security score metrics (inverted so higher is better)."""
+        metrics = {}
         security_summary = parsed_data.get("security_summary", {})
         if "total_issues" in security_summary:
             total_issues = security_summary["total_issues"]
             metrics["security_score"] = float(
                 max(0, 100 - (total_issues * 10)) if total_issues < 10 else 0,
             )
+        return metrics
 
-        # Complexity metrics
+    def _calculate_complexity_metrics(
+        self, parsed_data: dict[str, Any]
+    ) -> dict[str, float]:
+        """Calculate complexity score metrics (inverted so higher is better)."""
+        metrics = {}
         complexity_summary = parsed_data.get("complexity_summary", {})
         if complexity_summary:
             total_files = complexity_summary.get("total_files", 0)
@@ -872,15 +909,6 @@ class CrackerjackIntegration:
             if total_files > 0:
                 complexity_rate = (high_complexity / total_files) * 100
                 metrics["complexity_score"] = float(max(0, 100 - complexity_rate))
-
-        # Parse additional quality metrics from stderr structured logging if available
-        if stderr_content:
-            stderr_metrics = self._parse_stderr_metrics(stderr_content)
-            metrics.update(stderr_metrics)
-
-        # Overall build status
-        metrics["build_status"] = float(100 if exit_code == 0 else 0)
-
         return metrics
 
     def _parse_stderr_metrics(self, stderr_content: str) -> dict[str, float]:

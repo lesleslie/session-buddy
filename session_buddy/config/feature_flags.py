@@ -64,7 +64,7 @@ def get_feature_flags() -> FeatureFlags:
 
     Order of precedence:
     1) Environment variables (SESSION_MGMT_*)
-    2) YAML settings via SessionMgmtSettings
+    2) YAML settings via MCPBaseSettings
     3) Defaults (all False)
     """
     settings = get_settings()

@@ -201,19 +201,32 @@ async def session_welcome() -> str:
 
 
 # Import the real SessionPermissionsManager from core module
-from acb.depends import depends
 from session_buddy.core.permissions import SessionPermissionsManager
+from session_buddy.di.container import depends
 
-# Global permissions manager - Initialize with claude directory
-try:
-    permissions_manager = depends.get_sync(SessionPermissionsManager)
-except Exception:
-    # Get SessionPaths from DI to find claude_root
+
+def _get_permissions_manager() -> SessionPermissionsManager:
+    from contextlib import suppress
+
+    with suppress(Exception):
+        manager = depends.get_sync(SessionPermissionsManager)
+        if isinstance(manager, SessionPermissionsManager):
+            return manager
+
     from session_buddy.di.config import SessionPaths
 
-    paths = depends.get_sync(SessionPaths)
-    permissions_manager = SessionPermissionsManager(paths.claude_dir)
-    depends.set(SessionPermissionsManager, permissions_manager)
+    with suppress(Exception):
+        paths = depends.get_sync(SessionPaths)
+        if isinstance(paths, SessionPaths):
+            manager = SessionPermissionsManager(paths.claude_dir)
+            depends.set(SessionPermissionsManager, manager)
+            return manager
+
+    paths = SessionPaths.from_home()
+    paths.ensure_directories()
+    manager = SessionPermissionsManager(paths.claude_dir)
+    depends.set(SessionPermissionsManager, manager)
+    return manager
 
 
 @mcp.tool()
@@ -228,6 +241,7 @@ async def permissions(action: str = "status", operation: str | None = None) -> s
     output = []
     output.extend(("🔐 Session Permissions Management", "=" * 40))
 
+    permissions_manager = _get_permissions_manager()
     if action == "status":
         if permissions_manager.trusted_operations:
             output.append(

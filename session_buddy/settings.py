@@ -1,10 +1,10 @@
-"""ACB-based unified settings for Session Buddy MCP Server.
+"""MCPBaseSettings-based configuration for Session Buddy MCP Server.
 
 Configuration Loading:
-    Settings are loaded from YAML files with layered priority:
-    1. settings/local.yaml (highest - local overrides, gitignored)
-    2. settings/session-buddy.yaml (base configuration)
-    3. Environment variables SESSION_BUDDY_*
+    Settings are loaded with layered priority (highest to lowest):
+    1. Environment variables SESSION_BUDDY_*
+    2. settings/local.yaml (local overrides, gitignored)
+    3. settings/session-buddy.yaml (base configuration)
     4. Defaults from this class (lowest)
 
 Settings Directory Structure:
@@ -16,21 +16,51 @@ Settings Directory Structure:
 from __future__ import annotations
 
 import os
+import typing as t
+from pathlib import Path
 
-from acb.config import Settings
-from pydantic import Field, field_validator
+from mcp_common import MCPBaseSettings
+from pydantic import Field, field_validator, model_validator
 
 
-class SessionMgmtSettings(Settings):  # type: ignore[misc]
-    """Unified ACB Settings for session-buddy.
+class SessionMgmtSettings(MCPBaseSettings):
+    """Unified MCPBaseSettings for session-buddy.
 
     All configuration consolidated into a single flat structure
-    for ACB compatibility and simplicity.
+    for Oneiric/mcp-common compatibility and simplicity.
     """
 
+    # === Core MCP settings ===
+    server_name: str = Field(
+        default="Session Buddy MCP",
+        description="Display name for the MCP server",
+    )
+    server_description: str = Field(
+        default="Session management and tooling MCP server",
+        description="Brief description of server functionality",
+    )
+    log_level: t.Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO",
+        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
+    enable_debug_mode: bool = Field(
+        default=False,
+        description="Enable debug features (verbose logging, additional validation)",
+    )
+
+    # === Core Paths ===
+    data_dir: Path = Field(
+        default=Path("~/.claude/data"),
+        description="Base data directory",
+    )
+    log_dir: Path = Field(
+        default=Path("~/.claude/logs"),
+        description="Base log directory",
+    )
+
     # === Database Settings ===
-    database_path: str = Field(
-        default="~/.claude/data/reflection.duckdb",
+    database_path: Path = Field(
+        default=Path("~/.claude/data/reflection.duckdb"),
         description="Path to the DuckDB database file",
     )
     database_connection_timeout: int = Field(
@@ -255,8 +285,8 @@ class SessionMgmtSettings(Settings):  # type: ignore[misc]
         default=False,
         description="Automatically stage changes before commits",
     )
-    global_workspace_path: str = Field(
-        default="~/Projects/claude",
+    global_workspace_path: Path = Field(
+        default=Path("~/Projects/claude"),
         description="Path to global workspace directory",
     )
     enable_global_toolkits: bool = Field(
@@ -264,11 +294,21 @@ class SessionMgmtSettings(Settings):  # type: ignore[misc]
         description="Enable global toolkit discovery and usage",
     )
 
-    # === Logging Settings ===
-    log_level: str = Field(
-        default="INFO",
-        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    # === LLM API Keys (optional, overrides env vars) ===
+    openai_api_key: str | None = Field(
+        default=None,
+        description="OpenAI API key (overrides OPENAI_API_KEY)",
     )
+    anthropic_api_key: str | None = Field(
+        default=None,
+        description="Anthropic API key (overrides ANTHROPIC_API_KEY)",
+    )
+    gemini_api_key: str | None = Field(
+        default=None,
+        description="Gemini API key (overrides GEMINI_API_KEY/GOOGLE_API_KEY)",
+    )
+
+    # === Logging Settings ===
     log_format: str = Field(
         default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         min_length=10,
@@ -278,8 +318,8 @@ class SessionMgmtSettings(Settings):  # type: ignore[misc]
         default=True,
         description="Enable logging to file",
     )
-    log_file_path: str = Field(
-        default="~/.claude/logs/session-buddy.log",
+    log_file_path: Path = Field(
+        default=Path("~/.claude/logs/session-buddy.log"),
         description="Path to log file",
     )
     log_file_max_size: int = Field(
@@ -354,10 +394,6 @@ class SessionMgmtSettings(Settings):  # type: ignore[misc]
     )
 
     # === Development Settings ===
-    debug: bool = Field(
-        default=False,
-        description="Enable debug mode",
-    )
     enable_hot_reload: bool = Field(
         default=False,
         description="Enable hot reloading during development",
@@ -437,11 +473,30 @@ class SessionMgmtSettings(Settings):  # type: ignore[misc]
     )
 
     # === Field Validators ===
-    @field_validator("database_path", "log_file_path", "global_workspace_path")
+    @model_validator(mode="before")
     @classmethod
-    def expand_user_paths(cls, v: str) -> str:
+    def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
+        if (
+            isinstance(data, dict)
+            and "debug" in data
+            and "enable_debug_mode" not in data
+        ):
+            data = dict(data)
+            data["enable_debug_mode"] = bool(data["debug"])
+        return data
+
+    @field_validator(
+        "data_dir",
+        "log_dir",
+        "database_path",
+        "log_file_path",
+        "global_workspace_path",
+    )
+    @classmethod
+    def expand_user_paths(cls, v: Path | str) -> Path:
         """Expand user paths (~ to home directory)."""
-        return os.path.expanduser(v)
+        path = v if isinstance(v, Path) else Path(v)
+        return Path(os.path.expanduser(str(path)))
 
     @field_validator("commit_message_template")
     @classmethod
@@ -470,7 +525,7 @@ def get_settings(reload: bool = False) -> SessionMgmtSettings:
     global _settings
 
     if _settings is None or reload:
-        _settings = SessionMgmtSettings()
+        _settings = SessionMgmtSettings.load("session-buddy")
 
     return _settings
 
@@ -483,3 +538,47 @@ def reload_settings() -> SessionMgmtSettings:
 
     """
     return get_settings(reload=True)
+
+
+def get_database_path() -> Path:
+    settings = get_settings()
+    path = settings.database_path.expanduser()
+    if not path.is_absolute():
+        path = settings.data_dir.expanduser() / path
+    return path
+
+
+def get_log_file_path() -> Path:
+    settings = get_settings()
+    path = settings.log_file_path.expanduser()
+    if not path.is_absolute():
+        path = settings.log_dir.expanduser() / path
+    return path
+
+
+def get_llm_api_key(provider: str) -> str | None:
+    settings = get_settings()
+    field_map = {
+        "openai": "openai_api_key",
+        "anthropic": "anthropic_api_key",
+        "gemini": "gemini_api_key",
+    }
+    field = field_map.get(provider)
+    if field is None:
+        return None
+    raw = getattr(settings, field, None)
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    if provider in ("openai", "anthropic"):
+        return settings.get_api_key_secure(key_name=field, provider=provider)
+    return settings.get_api_key(key_name=field)
+
+
+__all__ = [
+    "SessionMgmtSettings",
+    "get_database_path",
+    "get_llm_api_key",
+    "get_log_file_path",
+    "get_settings",
+    "reload_settings",
+]

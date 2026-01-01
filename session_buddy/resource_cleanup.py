@@ -82,26 +82,36 @@ async def _close_underlying_client(requests: t.Any, logger: t.Any) -> bool:
 async def cleanup_http_clients() -> None:
     """Cleanup HTTP client connections.
 
-    Closes all HTTPClientAdapter instances and releases connection pools.
+    Closes HTTPClientAdapter instances and releases connection pools.
     Safe to call even if HTTP clients are not initialized.
     """
     logger = _get_logger()
     logger.info("Cleaning up HTTP client connections")
 
     try:
-        from acb.adapters import import_adapter
-        from acb.depends import depends
+        from mcp_common.adapters.http.client import HTTPClientAdapter
+        from session_buddy.di.container import depends
 
         try:
-            requests_class = import_adapter("requests")
-            with suppress(Exception):
-                requests = depends.get_sync(requests_class)
-                # Try adapter-level close first, then underlying client
-                if not await _close_adapter_method(requests, logger):
-                    await _close_underlying_client(requests, logger)
+            http_adapter = depends.get_sync(HTTPClientAdapter)
         except Exception:
-            logger.debug("Requests adapter not available; skipping HTTP cleanup")
+            logger.debug("HTTPClientAdapter not available; skipping HTTP cleanup")
+            return
 
+        cleanup = getattr(http_adapter, "_cleanup_resources", None)
+        if callable(cleanup):
+            maybe_await = cleanup()
+            if hasattr(maybe_await, "__await__"):
+                await maybe_await  # type: ignore[func-returns-value]
+            logger.debug("HTTP client adapter cleanup completed successfully")
+            return
+
+        if not await _close_adapter_method(http_adapter, logger):
+            await _close_underlying_client(http_adapter, logger)
+
+    except ModuleNotFoundError:
+        logger.debug("mcp_common.adapters module not available; skipping HTTP cleanup")
+        return
     except Exception:
         logger.exception("Error during HTTP client cleanup")
         raise
@@ -181,7 +191,7 @@ async def cleanup_session_state() -> None:
 
     try:
         # Try to save session state if session manager exists
-        from acb.depends import depends
+        from session_buddy.di.container import depends
 
         with suppress(Exception):
             from session_buddy.core import SessionLifecycleManager

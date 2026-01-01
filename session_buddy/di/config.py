@@ -1,7 +1,8 @@
 """Type-safe configuration for dependency injection.
 
-This module provides type-safe configuration classes for the ACB DI container,
-replacing string-based keys with proper type-based dependency resolution.
+This module provides type-safe configuration classes for the Oneiric-backed
+service container, replacing string-based keys with proper type-based
+dependency resolution.
 
 Phase: Week 7 Day 1 - ACB DI Refactoring
 """

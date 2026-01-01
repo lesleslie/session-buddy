@@ -96,6 +96,368 @@ class TestDataFactory:
         ]
 
     @staticmethod
+    def realistic_reflections(
+        count: int = 10,
+        project: str = "realistic-project",
+    ) -> list[dict[str, Any]]:
+        """Generate realistic reflection data with varied content and structure."""
+        realistic_contents = [
+            "Implemented the new authentication system with JWT tokens",
+            "Fixed memory leak in the database connection pool",
+            "Optimized query performance by adding proper indexes",
+            "Refactored the user service to use dependency injection",
+            "Added comprehensive error handling for API endpoints",
+            "Implemented caching layer using Redis for better performance",
+            "Fixed race condition in the concurrent file processing",
+            "Added unit tests for the payment processing module",
+            "Integrated third-party analytics service successfully",
+            "Migrated legacy code to use async/await pattern",
+            "Implemented proper logging and monitoring for production",
+            "Fixed security vulnerability in user input validation",
+            "Optimized database schema for better query performance",
+            "Added comprehensive API documentation using Swagger",
+            "Implemented proper error handling for network operations",
+        ]
+
+        realistic_tags = [
+            ["backend", "authentication", "security"],
+            ["performance", "memory", "bugfix"],
+            ["database", "optimization", "query"],
+            ["refactoring", "architecture", "clean-code"],
+            ["error-handling", "robustness", "api"],
+            ["caching", "performance", "redis"],
+            ["concurrency", "race-condition", "bugfix"],
+            ["testing", "unit-tests", "quality"],
+            ["integration", "third-party", "analytics"],
+            ["modernization", "async", "legacy"],
+            ["monitoring", "logging", "production"],
+            ["security", "vulnerability", "input-validation"],
+            ["database", "schema", "optimization"],
+            ["documentation", "api", "swagger"],
+            ["network", "error-handling", "robustness"],
+        ]
+
+        reflections = []
+        for i in range(count):
+            content = realistic_contents[i % len(realistic_contents)]
+            tags = realistic_tags[i % len(realistic_tags)]
+
+            # Add some variation to make content more realistic
+            if i < len(realistic_contents):
+                content = f"{content} - variation {i}"
+
+            reflections.append(
+                TestDataFactory.reflection(
+                    content=content,
+                    tags=[*tags, "realistic"],
+                )
+            )
+
+        return reflections
+
+    @staticmethod
+    def project_based_reflections(
+        projects: list[str],
+        reflections_per_project: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Generate reflections organized by projects."""
+        reflections = []
+
+        project_themes = {
+            "backend": ["API", "database", "authentication", "performance"],
+            "frontend": ["UI", "UX", "components", "responsive"],
+            "mobile": ["iOS", "Android", "cross-platform", "performance"],
+            "data-science": ["ML", "data-processing", "visualization", "statistics"],
+            "devops": ["CI/CD", "infrastructure", "monitoring", "scaling"],
+        }
+
+        for project in projects:
+            # Determine project type or use generic
+            project_type = "generic"
+            for theme, keywords in project_themes.items():
+                if any(keyword.lower() in project.lower() for keyword in keywords):
+                    project_type = theme
+                    break
+
+            for i in range(reflections_per_project):
+                if project_type == "backend":
+                    content = f"Backend work on {project}: implemented {i+1} API endpoints"
+                    tags = ["backend", "api", project.lower().replace(" ", "-")]
+                elif project_type == "frontend":
+                    content = f"Frontend work on {project}: created {i+1} new components"
+                    tags = ["frontend", "ui", project.lower().replace(" ", "-")]
+                elif project_type == "mobile":
+                    content = f"Mobile work on {project}: implemented {i+1} new screens"
+                    tags = ["mobile", "ui", project.lower().replace(" ", "-")]
+                elif project_type == "data-science":
+                    content = f"Data science work on {project}: processed {i+1} datasets"
+                    tags = ["data", "ml", project.lower().replace(" ", "-")]
+                elif project_type == "devops":
+                    content = f"DevOps work on {project}: configured {i+1} CI/CD pipelines"
+                    tags = ["devops", "ci-cd", project.lower().replace(" ", "-")]
+                else:
+                    content = f"Work on {project}: completed task {i+1}"
+                    tags = ["generic", project.lower().replace(" ", "-")]
+
+                reflections.append(
+                    TestDataFactory.reflection(
+                        content=content,
+                        tags=tags,
+                    )
+                )
+
+        return reflections
+
+    @staticmethod
+    def time_based_reflections(
+        count: int = 10,
+        project: str = "time-based-project",
+    ) -> list[dict[str, Any]]:
+        """Generate reflections with time-based content and timestamps."""
+        from datetime import datetime, timedelta
+
+        reflections = []
+        base_time = datetime.now()
+
+        for i in range(count):
+            # Generate time-based content
+            hours_ago = count - i
+            content = f"Completed task {i+1} - {hours_ago} hours ago"
+
+            # Create timestamp that decreases as we go back in time
+            timestamp = base_time - timedelta(hours=hours_ago)
+
+            reflections.append(
+                TestDataFactory.reflection(
+                    content=content,
+                    tags=["time-based", "task", f"priority-{i % 3 + 1}"],
+                    timestamp=timestamp,
+                )
+            )
+
+        return reflections
+
+    @staticmethod
+    def error_scenario_reflections(
+        count: int = 5,
+        project: str = "error-scenario-project",
+    ) -> list[dict[str, Any]]:
+        """Generate reflections representing various error scenarios."""
+        error_scenarios = [
+            "Encountered NullPointerException in user service",
+            "Database connection timeout during peak load",
+            "Memory overflow when processing large files",
+            "Race condition detected in concurrent operations",
+            "Invalid input data causing parsing errors",
+            "Network timeout when calling external API",
+            "Permission denied when accessing restricted resources",
+            "Configuration error in production environment",
+            "Deadlock situation in multi-threaded processing",
+            "Resource leak detected in file handling",
+        ]
+
+        error_tags = [
+            ["error", "null-pointer", "critical"],
+            ["error", "database", "timeout", "performance"],
+            ["error", "memory", "overflow", "critical"],
+            ["error", "concurrency", "race-condition", "bug"],
+            ["error", "input-validation", "data", "bug"],
+            ["error", "network", "timeout", "external"],
+            ["error", "security", "permission", "access"],
+            ["error", "configuration", "environment", "setup"],
+            ["error", "concurrency", "deadlock", "critical"],
+            ["error", "resource", "leak", "memory"],
+        ]
+
+        reflections = []
+        for i in range(count):
+            content = error_scenarios[i % len(error_scenarios)]
+            tags = error_tags[i % len(error_tags)] + ["error-scenario"]
+
+            reflections.append(
+                TestDataFactory.reflection(
+                    content=content,
+                    tags=tags,
+                )
+            )
+
+        return reflections
+
+    @staticmethod
+    def realistic_project_structure_with_content(base_path: Path) -> dict[str, Any]:
+        """Create a realistic project structure with actual content for testing."""
+        import json
+
+        # Create basic structure
+        project_files = TestDataFactory.realistic_project_structure(base_path)
+
+        # Add more realistic content to files
+        project_files["pyproject.toml"].write_text(
+            """[project]
+name = "advanced-test-project"
+version = "1.2.3"
+description = "A comprehensive test project for session management"
+authors = [
+    {name = "Test Developer", email = "test@example.com"}
+]
+dependencies = [
+    "pytest>=7.0",
+    "hypothesis>=6.0",
+    "duckdb>=0.10"
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = "test_*.py"
+"""
+        )
+
+        project_files["README.md"].write_text(
+            """# Advanced Test Project
+
+This is a comprehensive test project demonstrating various features and components.
+
+## Features
+
+- **Database Integration**: DuckDB for efficient data storage
+- **Testing Framework**: Pytest with Hypothesis for property-based testing
+- **Async Support**: Full async/await pattern implementation
+- **Error Handling**: Comprehensive error handling and validation
+
+## Installation
+
+```bash
+pip install advanced-test-project
+```
+
+## Usage
+
+```python
+from advanced_test_project import main
+main()
+```
+"""
+        )
+
+        # Create more realistic source files
+        (project_files["src"] / "database.py").write_text(
+            '''"""Database module for advanced test project."""
+
+import duckdb
+from typing import Optional, List, Dict, Any
+
+class Database:
+    """Database connection and operations."""
+
+    def __init__(self, path: str):
+        self.path = path
+        self.conn = None
+
+    def connect(self) -> None:
+        """Establish database connection."""
+        self.conn = duckdb.connect(self.path)
+
+    def disconnect(self) -> None:
+        """Close database connection."""
+        if self.conn:
+            self.conn.close()
+            self.conn = None
+
+    def execute_query(self, query: str, params: Optional[List] = None) -> List[Dict[str, Any]]:
+        """Execute SQL query and return results."""
+        if not self.conn:
+            raise RuntimeError("Database not connected")
+
+        if params:
+            result = self.conn.execute(query, params).fetchall()
+        else:
+            result = self.conn.execute(query).fetchall()
+
+        return [dict(row) for row in result]
+'''
+        )
+
+        # Create realistic test files
+        (project_files["tests"] / "test_database.py").write_text(
+            '''"""Tests for database module."""
+
+import tempfile
+from pathlib import Path
+import pytest
+from src.database import Database
+
+
+class TestDatabase:
+    """Test database operations."""
+
+    def test_connect_disconnect(self):
+        """Test database connection lifecycle."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test.db"
+            db = Database(str(db_path))
+
+            # Test connection
+            db.connect()
+            assert db.conn is not None
+
+            # Test disconnection
+            db.disconnect()
+            assert db.conn is None
+
+    def test_query_execution(self):
+        """Test query execution."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test.db"
+            db = Database(str(db_path))
+            db.connect()
+
+            try:
+                # Create table
+                db.execute_query("CREATE TABLE test (id INTEGER, name VARCHAR)")
+
+                # Insert data
+                db.execute_query("INSERT INTO test VALUES (1, 'test')")
+
+                # Query data
+                results = db.execute_query("SELECT * FROM test")
+                assert len(results) == 1
+                assert results[0]["name"] == "test"
+
+            finally:
+                db.disconnect()
+'''
+        )
+
+        # Create configuration file
+        (base_path / "config.json").write_text(
+            json.dumps({
+                "database": {
+                    "path": "./data/database.db",
+                    "timeout": 30,
+                    "max_connections": 10
+                },
+                "logging": {
+                    "level": "INFO",
+                    "file": "./logs/app.log",
+                    "max_size": "10MB",
+                    "backup_count": 5
+                },
+                "features": {
+                    "enable_caching": True,
+                    "cache_ttl": 3600,
+                    "enable_metrics": True,
+                    "metrics_port": 8080
+                }
+            }, indent=2)
+        )
+
+        return {
+            **project_files,
+            "config.json": base_path / "config.json",
+        }
+
+    @staticmethod
     def realistic_project_structure(base_path: Path) -> dict[str, Path]:
         """Create a realistic project structure for testing."""
         project_files = {
@@ -178,7 +540,6 @@ class DatabaseTestHelper:
     @asynccontextmanager
     async def temp_reflection_db() -> AsyncGenerator[ReflectionDatabase]:
         """Create temporary ReflectionDatabase for testing."""
-        # Use a temporary directory and create a proper path
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test.duckdb"
 

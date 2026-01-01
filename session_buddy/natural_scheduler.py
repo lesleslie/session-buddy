@@ -26,7 +26,7 @@ SCHEDULE_AVAILABLE = importlib.util.find_spec("schedule") is not None
 if DATEUTIL_AVAILABLE:
     from dateutil.relativedelta import relativedelta
 
-from .types import RecurrenceInterval
+from .session_types import RecurrenceInterval
 from .utils.scheduler import (
     NaturalLanguageParser,
     NaturalReminder,
@@ -59,19 +59,16 @@ class ReminderScheduler:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS reminders (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    description TEXT,
+                    reminder_id TEXT PRIMARY KEY,
                     reminder_type TEXT NOT NULL,
+                    expression TEXT,
+                    scheduled_time TIMESTAMP NOT NULL,
+                    action TEXT,
                     status TEXT NOT NULL,
                     created_at TIMESTAMP,
-                    scheduled_for TIMESTAMP,
                     executed_at TIMESTAMP,
-                    user_id TEXT NOT NULL,
-                    project_id TEXT,
-                    context_triggers TEXT,  -- JSON array
-                    recurrence_rule TEXT,
-                    notification_method TEXT,
+                    recurrence_pattern TEXT,
+                    failure_reason TEXT,
                     metadata TEXT  -- JSON object
                 )
             """)
@@ -119,54 +116,57 @@ class ReminderScheduler:
             return None
 
         # Check for recurrence
-        recurrence_rule = self.parser.parse_recurrence(time_expression)
+        recurrence_pattern = self.parser.parse_recurrence(time_expression)
         reminder_type = (
-            ReminderType.RECURRING if recurrence_rule else ReminderType.ONE_TIME
+            ReminderType.RECURRING if recurrence_pattern else ReminderType.TASK
         )
 
         # Generate reminder ID
         reminder_id = f"rem_{int(time.time() * 1000)}"
 
+        # Build metadata from additional fields
+        reminder_metadata: dict[str, Any] = {
+            "title": title,
+            "description": description,
+            "user_id": user_id,
+            "project_id": project_id,
+            "context_triggers": context_triggers or [],
+            "notification_method": notification_method,
+        }
+        if metadata:
+            reminder_metadata.update(metadata)
+
         reminder = NaturalReminder(
-            id=reminder_id,
-            title=title,
-            description=description,
+            reminder_id=reminder_id,
             reminder_type=reminder_type,
+            expression=time_expression,
+            scheduled_time=scheduled_time,
+            action=title or description,
             status=ReminderStatus.PENDING,
             created_at=datetime.now(),
-            scheduled_for=scheduled_time,
             executed_at=None,
-            user_id=user_id,
-            project_id=project_id,
-            context_triggers=context_triggers or [],
-            recurrence_rule=recurrence_rule,
-            notification_method=notification_method,
-            metadata=metadata or {},
+            recurrence_pattern=recurrence_pattern,
+            metadata=reminder_metadata,
         )
 
         # Store in database
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO reminders (id, title, description, reminder_type, status, created_at,
-                                     scheduled_for, executed_at, user_id, project_id, context_triggers,
-                                     recurrence_rule, notification_method, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO reminders (reminder_id, reminder_type, expression, scheduled_time, action,
+                                     status, created_at, executed_at, recurrence_pattern, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
-                    reminder.id,
-                    reminder.title,
-                    reminder.description,
+                    reminder.reminder_id,
                     reminder.reminder_type.value,
+                    reminder.expression,
+                    reminder.scheduled_time,
+                    reminder.action,
                     reminder.status.value,
                     reminder.created_at,
-                    reminder.scheduled_for,
                     reminder.executed_at,
-                    reminder.user_id,
-                    reminder.project_id,
-                    json.dumps(reminder.context_triggers),
-                    reminder.recurrence_rule,
-                    reminder.notification_method,
+                    reminder.recurrence_pattern,
                     json.dumps(reminder.metadata),
                 ),
             )
@@ -258,81 +258,26 @@ class ReminderScheduler:
         """Execute a due reminder."""
         try:
             # Get reminder details
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                row = conn.execute(
-                    "SELECT * FROM reminders WHERE id = ?",
-                    (reminder_id,),
-                ).fetchone()
-
-                if not row:
-                    return False
-
-                reminder_data = dict(row)
-                reminder_data["context_triggers"] = json.loads(
-                    reminder_data["context_triggers"] or "[]",
-                )
-                reminder_data["metadata"] = json.loads(
-                    reminder_data["metadata"] or "{}",
-                )
+            reminder_data = await self._get_reminder_by_id(reminder_id)
+            if not reminder_data:
+                return False
 
             # Execute callbacks
-            callbacks = self._callbacks.get(reminder_data["notification_method"], [])
-            for callback in callbacks:
-                try:
-                    await callback(reminder_data)
-                except Exception as e:
-                    logger.exception(f"Callback error for reminder {reminder_id}: {e}")
+            await self._execute_notification_callbacks(reminder_id, reminder_data)
 
-            # Update status
-            now = datetime.now()
-            new_status = ReminderStatus.COMPLETED
-
-            # Handle recurring reminders
-            if reminder_data["recurrence_rule"]:
-                # Schedule next occurrence
-                next_time = self._calculate_next_occurrence(
-                    reminder_data["scheduled_for"],
-                    reminder_data["recurrence_rule"],
-                )
-                if next_time:
-                    with sqlite3.connect(self.db_path) as conn:
-                        conn.execute(
-                            """
-                            UPDATE reminders
-                            SET scheduled_for = ?, status = 'pending', executed_at = NULL
-                            WHERE id = ?
-                        """,
-                            (next_time, reminder_id),
-                        )
-
-                    await self._log_reminder_action(
-                        reminder_id,
-                        "rescheduled",
-                        "success",
-                        {"next_occurrence": next_time.isoformat()},
-                    )
-                    return True
-
-            # Mark as completed
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute(
-                    """
-                    UPDATE reminders
-                    SET status = ?, executed_at = ?
-                    WHERE id = ?
-                """,
-                    (new_status.value, now, reminder_id),
-                )
-
-            await self._log_reminder_action(
-                reminder_id,
-                "executed",
-                "success",
-                {"executed_at": now.isoformat()},
+            # Handle recurring reminders or mark as executed
+            recurrence_pattern = (
+                reminder_data.get("recurrence_pattern")
+                or reminder_data.get("recurrence_rule")  # type: ignore[arg-type]
             )
-
-            return True
+            if recurrence_pattern:
+                return await self._handle_recurring_reminder(
+                    reminder_id,
+                    reminder_data,
+                    recurrence_pattern,
+                )
+            else:
+                return await self._mark_reminder_executed(reminder_id)
 
         except Exception as e:
             await self._log_reminder_action(
@@ -342,6 +287,96 @@ class ReminderScheduler:
                 {"error": str(e)},
             )
             return False
+
+    async def _get_reminder_by_id(self, reminder_id: str) -> dict[str, Any] | None:
+        """Fetch and parse reminder data from database."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT * FROM reminders WHERE id = ?",
+                (reminder_id,),
+            ).fetchone()
+
+            if not row:
+                return None
+
+            reminder_data = dict(row)
+            reminder_data["context_triggers"] = json.loads(
+                reminder_data.get("context_triggers") or "[]",
+            )
+            reminder_data["metadata"] = json.loads(
+                reminder_data.get("metadata") or "{}",
+            )
+            return reminder_data
+
+    async def _execute_notification_callbacks(
+        self,
+        reminder_id: str,
+        reminder_data: dict[str, Any],
+    ) -> None:
+        """Execute all registered callbacks for a reminder."""
+        callbacks = self._callbacks.get(reminder_data.get("notification_method", ""), [])
+        for callback in callbacks:
+            try:
+                await callback(reminder_data)
+            except Exception as e:
+                logger.exception(f"Callback error for reminder {reminder_id}: {e}")
+
+    async def _handle_recurring_reminder(
+        self,
+        reminder_id: str,
+        reminder_data: dict[str, Any],
+        recurrence_pattern: Any,
+    ) -> bool:
+        """Schedule next occurrence for recurring reminder."""
+        next_time = self._calculate_next_occurrence(
+            reminder_data.get("scheduled_time")
+            or reminder_data.get("scheduled_for"),  # type: ignore[arg-type]
+            recurrence_pattern,
+        )
+
+        if next_time:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    """
+                    UPDATE reminders
+                    SET scheduled_for = ?, status = 'pending', executed_at = NULL
+                    WHERE id = ?
+                """,
+                    (next_time, reminder_id),
+                )
+
+            await self._log_reminder_action(
+                reminder_id,
+                "rescheduled",
+                "success",
+                {"next_occurrence": next_time.isoformat()},
+            )
+            return True
+
+        # If no next occurrence, mark as executed
+        return await self._mark_reminder_executed(reminder_id)
+
+    async def _mark_reminder_executed(self, reminder_id: str) -> bool:
+        """Mark reminder as executed in database."""
+        now = datetime.now()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                UPDATE reminders
+                SET status = ?, executed_at = ?
+                WHERE id = ?
+            """,
+                (ReminderStatus.EXECUTED.value, now, reminder_id),
+            )
+
+        await self._log_reminder_action(
+            reminder_id,
+            "executed",
+            "success",
+            {"executed_at": now.isoformat()},
+        )
+        return True
 
     async def cancel_reminder(self, reminder_id: str) -> bool:
         """Cancel a pending reminder."""

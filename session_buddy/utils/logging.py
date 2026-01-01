@@ -11,8 +11,8 @@ from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 
-from acb.depends import depends
-from session_buddy.di.constants import LOGS_DIR_KEY
+from session_buddy.di import get_sync_typed
+from session_buddy.di.container import depends
 
 
 class SessionLogger:
@@ -88,15 +88,10 @@ class SessionLogger:
 
 def get_session_logger() -> SessionLogger:
     """Get the global session logger instance managed by the DI container."""
-    from bevy.injection_types import DependencyResolutionError
-
-    with suppress(
-        KeyError, AttributeError, RuntimeError, TypeError, DependencyResolutionError
-    ):
+    with suppress(KeyError, AttributeError, RuntimeError, TypeError):
         # RuntimeError: when adapter requires async
-        # TypeError: when bevy has DI confusion between string keys and classes
-        # DependencyResolutionError: when dependency not registered in DI container
-        logger = depends.get_sync(SessionLogger)
+        # TypeError: when DI has type confusion between string keys and classes
+        logger = get_sync_typed(SessionLogger)  # type: ignore[no-any-return]
         if isinstance(logger, SessionLogger):
             return logger
 
@@ -106,12 +101,8 @@ def get_session_logger() -> SessionLogger:
 
 
 def _resolve_logs_dir() -> Path:
-    from bevy.injection_types import DependencyResolutionError
-
     # Try to get SessionPaths from DI (modern ACB pattern)
-    with suppress(
-        KeyError, AttributeError, RuntimeError, TypeError, DependencyResolutionError
-    ):
+    with suppress(KeyError, AttributeError, RuntimeError, TypeError):
         from session_buddy.di.config import SessionPaths
 
         paths = depends.get_sync(SessionPaths)

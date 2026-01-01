@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document outlines the implementation of automatic session lifecycle management for the session-mgmt MCP server. The enhancement eliminates manual intervention for git-based projects while preserving manual control for non-git workflows.
+This document outlines the implementation of automatic session lifecycle management for the session-buddy MCP server. The enhancement eliminates manual intervention for git-based projects while preserving manual control for non-git workflows.
 
 ## Core Architecture Changes
 
@@ -19,7 +19,7 @@ This document outlines the implementation of automatic session lifecycle managem
 **Modify checkpoint to execute compaction automatically:**
 
 - When `should_suggest_compact()` returns true
-- Execute session-mgmt's internal compaction instead of recommending `/compact`
+- Execute session-buddy's internal compaction instead of recommending `/compact`
 - Remove confusing "/compact" recommendations
 
 ### 3. Command Alias Strategy
@@ -238,7 +238,7 @@ Keep SessionStart hook for MCP server startup only.
 
 - **Manual control preserved** - Use `/start` and `/end` as needed
 - **Optional session management** - Only when explicitly desired
-- **Full feature access** - All session-mgmt features available
+- **Full feature access** - All session-buddy features available
 
 ## Success Metrics
 

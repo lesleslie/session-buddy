@@ -292,10 +292,10 @@ async def initialize_new_features(
     from session_buddy.core.features import get_feature_flags
 
     _features = get_feature_flags()
-    ADVANCED_SEARCH_AVAILABLE = _features["ADVANCED_SEARCH_AVAILABLE"]
-    CONFIG_AVAILABLE = _features["CONFIG_AVAILABLE"]
-    MULTI_PROJECT_AVAILABLE = _features["MULTI_PROJECT_AVAILABLE"]
-    REFLECTION_TOOLS_AVAILABLE = _features["REFLECTION_TOOLS_AVAILABLE"]
+    advanced_search_available = _features["ADVANCED_SEARCH_AVAILABLE"]
+    config_available = _features["CONFIG_AVAILABLE"]
+    multi_project_available = _features["MULTI_PROJECT_AVAILABLE"]
+    reflection_tools_available = _features["REFLECTION_TOOLS_AVAILABLE"]
 
     # Auto-setup git working directory for enhanced DX
     await auto_setup_git_working_directory(session_logger)
@@ -306,13 +306,13 @@ async def initialize_new_features(
     app_config = app_config_ref
 
     # Load configuration
-    if CONFIG_AVAILABLE:
+    if config_available:
         from session_buddy.settings import get_settings
 
         app_config = get_settings()
 
     # Initialize reflection database for new features
-    if REFLECTION_TOOLS_AVAILABLE:
+    if reflection_tools_available:
         with suppress(
             ImportError,
             ModuleNotFoundError,
@@ -326,7 +326,7 @@ async def initialize_new_features(
             db = await get_reflection_database()
 
             # Initialize multi-project coordinator
-            if MULTI_PROJECT_AVAILABLE:
+            if multi_project_available:
                 from session_buddy.multi_project_coordinator import (
                     MultiProjectCoordinator,
                 )
@@ -334,10 +334,11 @@ async def initialize_new_features(
                 multi_project_coordinator = MultiProjectCoordinator(db)
 
             # Initialize advanced search engine
-            if ADVANCED_SEARCH_AVAILABLE:
+            if advanced_search_available:
                 from session_buddy.advanced_search import AdvancedSearchEngine
 
-                advanced_search_engine = AdvancedSearchEngine(db)
+                # Type ignore: db is ReflectionDatabaseAdapterOneiric which is compatible
+                advanced_search_engine = AdvancedSearchEngine(db)  # type: ignore[arg-type]
 
     return multi_project_coordinator, advanced_search_engine, app_config
 
@@ -372,8 +373,8 @@ async def health_check(
     from session_buddy.core.features import get_feature_flags
 
     _features = get_feature_flags()
-    CRACKERJACK_INTEGRATION_AVAILABLE = _features["CRACKERJACK_INTEGRATION_AVAILABLE"]
-    SESSION_MANAGEMENT_AVAILABLE = _features["SESSION_MANAGEMENT_AVAILABLE"]
+    crackerjack_integration_available = _features["CRACKERJACK_INTEGRATION_AVAILABLE"]
+    session_management_available = _features["SESSION_MANAGEMENT_AVAILABLE"]
 
     health_status: dict[str, Any] = {
         "overall_healthy": True,
@@ -393,9 +394,9 @@ async def health_check(
 
     # Session management toolkit health
     health_status["checks"]["session_toolkit"] = (
-        "✅ Available" if SESSION_MANAGEMENT_AVAILABLE else "⚠️ Limited"
+        "✅ Available" if session_management_available else "⚠️ Limited"
     )
-    if not SESSION_MANAGEMENT_AVAILABLE:
+    if not session_management_available:
         health_status["warnings"].append(
             "Session management toolkit not fully available",
         )
@@ -426,9 +427,9 @@ async def health_check(
 
     # Crackerjack integration health
     health_status["checks"]["crackerjack_integration"] = (
-        "✅ Available" if CRACKERJACK_INTEGRATION_AVAILABLE else "⚠️ Not Available"
+        "✅ Available" if crackerjack_integration_available else "⚠️ Not Available"
     )
-    if not CRACKERJACK_INTEGRATION_AVAILABLE:
+    if not crackerjack_integration_available:
         health_status["warnings"].append(
             "Crackerjack integration not available - quality monitoring disabled",
         )

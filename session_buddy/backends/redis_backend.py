@@ -1,13 +1,12 @@
 """Redis-based session storage backend.
 
 **DEPRECATED**: This module is deprecated and will be removed in v1.0.
-Use ACBCacheStorage (via serverless_mode) or ServerlessStorageAdapter instead,
-which provide better connection pooling, SSL/TLS support, and compression.
+Use ServerlessStorageAdapter instead, which provides Oneiric storage backends
+and standardized lifecycle handling.
 
 Migration:
     Old: RedisStorage(config)
     New: ServerlessStorageAdapter(config, backend="memory") for caching
-    Or: Use ACBCacheStorage for Redis caching with aiocache
 
 This module provides a Redis implementation of the SessionStorage interface
 for storing and retrieving session state in Redis with TTL support.
@@ -27,16 +26,14 @@ class RedisStorage(SessionStorage):
     """Redis-based session storage.
 
     .. deprecated:: 0.9.3
-        RedisStorage is deprecated. Use ``ACBCacheStorage`` for Redis caching
-        or ``ServerlessStorageAdapter`` for file/S3 storage with better features.
+        RedisStorage is deprecated. Use ``ServerlessStorageAdapter`` for Oneiric storage.
 
     """
 
     def __init__(self, config: dict[str, Any]) -> None:
         warnings.warn(
             "RedisStorage is deprecated and will be removed in v1.0. "
-            "Use ACBCacheStorage (with aiocache) or ServerlessStorageAdapter "
-            "for better connection pooling, SSL/TLS support, and compression.",
+            "Use ServerlessStorageAdapter for Oneiric storage instead.",
             DeprecationWarning,
             stacklevel=2,
         )

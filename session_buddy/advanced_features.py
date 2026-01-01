@@ -473,7 +473,9 @@ async def _get_multi_project_coordinator() -> t.Any:
         from session_buddy.multi_project_coordinator import MultiProjectCoordinator
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()
+        # Type ignore: get_reflection_database returns ReflectionDatabaseAdapter
+        # which is compatible with ReflectionDatabaseProtocol
+        db = await get_reflection_database()  # type: ignore[arg-type]
         return MultiProjectCoordinator(db)
     except Exception:
         return None
@@ -621,8 +623,10 @@ async def _get_advanced_search_engine() -> t.Any:
         from session_buddy.advanced_search import AdvancedSearchEngine
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()
-        return AdvancedSearchEngine(db)
+        # Type ignore: get_reflection_database returns ReflectionDatabaseAdapter
+        # which is compatible with AdvancedSearchEngine's expected type
+        db = await get_reflection_database()  # type: ignore[arg-type]
+        return AdvancedSearchEngine(db)  # type: ignore[arg-type]
     except Exception:
         return None
 
@@ -669,7 +673,7 @@ async def git_worktree_add(
     from .utils.logging import get_session_logger
     from .worktree_manager import WorktreeManager
 
-    # Get session logger from DI container (using helper to avoid bevy type conflicts)
+    # Get session logger from DI container (using helper to avoid type conflicts)
     session_logger = get_session_logger()
 
     working_dir = _resolve_worktree_working_dir(working_directory)
@@ -721,12 +725,10 @@ async def git_worktree_remove(
     force: bool = False,
 ) -> str:
     """Remove an existing git worktree."""
-    from acb import depends
-
     from .utils.logging import get_session_logger
     from .worktree_manager import WorktreeManager
 
-    # Get session logger from DI container (using helper to avoid bevy type conflicts)
+    # Get session logger from DI container (using helper to avoid type conflicts)
     session_logger = get_session_logger()
 
     working_dir = _resolve_worktree_working_dir(working_directory)
@@ -769,14 +771,50 @@ async def git_worktree_remove(
         return f"❌ Failed to remove worktree: {e}"
 
 
+def _format_worktree_switch_result(result: dict[str, t.Any]) -> str:
+    """Format worktree switch result into human-readable output."""
+    output = [
+        "**Worktree Context Switch Complete**\n",
+        f" From: {result['from_worktree']['branch']} ({result['from_worktree']['path']})",
+        f" To: {result['to_worktree']['branch']} ({result['to_worktree']['path']})",
+    ]
+
+    if result["context_preserved"]:
+        output.extend(_format_context_preserved(result))
+    else:
+        output.extend(_format_context_failed(result))
+
+    return "\n".join(output)
+
+
+def _format_context_preserved(result: dict[str, t.Any]) -> list[str]:
+    """Format preserved context information."""
+    messages = [" Session context preserved during switch"]
+
+    if result.get("session_state_saved"):
+        messages.append(" Current session state saved")
+    if result.get("session_state_restored"):
+        messages.append(" Session state restored for target worktree")
+
+    return messages
+
+
+def _format_context_failed(result: dict[str, t.Any]) -> list[str]:
+    """Format failed context information."""
+    messages = [" Session context preservation failed (basic switch performed)"]
+
+    if result.get("session_error"):
+        messages.append(f"   Error: {result['session_error']}")
+
+    return messages
+
+
 async def git_worktree_switch(from_path: str, to_path: str) -> str:
     """Switch context between git worktrees with session preservation."""
-    from acb import depends
-
     from .utils.logging import get_session_logger
     from .worktree_manager import WorktreeManager
 
-    # Get session logger from DI container (using helper to avoid bevy type conflicts)
+    # Get session logger from DI container (using helper to avoid type conflicts)
     session_logger = get_session_logger()
 
     manager = WorktreeManager(session_logger=session_logger)
@@ -787,26 +825,7 @@ async def git_worktree_switch(from_path: str, to_path: str) -> str:
         if not result["success"]:
             return f" {result['error']}"
 
-        output = [
-            "**Worktree Context Switch Complete**\n",
-            f" From: {result['from_worktree']['branch']} ({result['from_worktree']['path']})",
-            f" To: {result['to_worktree']['branch']} ({result['to_worktree']['path']})",
-        ]
-
-        if result["context_preserved"]:
-            output.append(" Session context preserved during switch")
-            if result.get("session_state_saved"):
-                output.append(" Current session state saved")
-            if result.get("session_state_restored"):
-                output.append(" Session state restored for target worktree")
-        else:
-            output.append(
-                " Session context preservation failed (basic switch performed)",
-            )
-            if result.get("session_error"):
-                output.append(f"   Error: {result['session_error']}")
-
-        return "\n".join(output)
+        return _format_worktree_switch_result(result)
 
     except Exception as e:
         session_logger.exception(f"git_worktree_switch failed: {e}")

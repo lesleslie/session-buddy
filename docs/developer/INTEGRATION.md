@@ -27,7 +27,7 @@ The Session Management MCP server integrates directly with Claude Code through t
    ```json
    {
      "mcpServers": {
-       "session-mgmt": {
+       "session-buddy": {
          "command": "python",
          "args": ["-m", "session_buddy.server"],
          "cwd": "/absolute/path/to/session-buddy",
@@ -53,10 +53,10 @@ Once configured, these slash commands become available in Claude Code:
 /session-buddy:status           # Current session status
 
 # Memory & Search
-/session-buddy:reflect_on_past   # Search conversation history
+/session-buddy:quick_search      # Fast overview search
+/session-buddy:search_summary    # Aggregated insights
 /session-buddy:store_reflection  # Save important insights
-/session-buddy:quick_search     # Fast overview search
-/session-buddy:search_by_file   # Find file-specific conversations
+/session-buddy:search_by_file    # Find file-specific conversations
 /session-buddy:search_by_concept # Search by development concepts
 ```
 
@@ -176,7 +176,7 @@ Add Crackerjack as an additional MCP server:
 ```json
 {
   "mcpServers": {
-    "session-mgmt": {
+    "session-buddy": {
       "command": "python",
       "args": ["-m", "session_buddy.server"],
       "cwd": "/path/to/session-buddy"
@@ -543,6 +543,8 @@ class RedisMemoryBackend:
 
 ## API Integration
 
+The MCP server does not expose an HTTP API. The sections below show how to build your own wrapper service if you need REST/GraphQL endpoints.
+
 ### REST API Wrapper
 
 Create a REST API wrapper for the MCP server:
@@ -571,13 +573,13 @@ class ReflectionRequest(BaseModel):
 async def search_conversations(request: SearchRequest):
     """Search conversations via REST API."""
     try:
-        from session_buddy.tools.memory_tools import reflect_on_past
+        from session_buddy.tools.memory_tools import quick_search
 
-        result = await reflect_on_past(
+        result = await quick_search(
             query=request.query,
-            limit=request.limit,
-            min_score=request.min_score,
             project=request.project,
+            min_score=request.min_score,
+            limit=request.limit,
         )
 
         return result
@@ -598,10 +600,7 @@ async def store_reflection(request: ReflectionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "service": "session-mgmt-api"}
+# Optional: add your own wrapper health endpoint if needed
 ```
 
 ### GraphQL API
@@ -612,33 +611,16 @@ from strawberry.asgi import GraphQL
 
 
 @strawberry.type
-class SearchResult:
-    content: str
-    project: str
-    timestamp: str
-    similarity_score: float
-
-
-@strawberry.type
 class Query:
     @strawberry.field
     async def search_conversations(
         self, query: str, limit: int = 10, min_score: float = 0.7
-    ) -> list[SearchResult]:
+    ) -> str:
         """Search conversations via GraphQL."""
-        from session_buddy.tools.memory_tools import reflect_on_past
+        from session_buddy.tools.memory_tools import quick_search
 
-        result = await reflect_on_past(query=query, limit=limit, min_score=min_score)
-
-        return [
-            SearchResult(
-                content=item["content"],
-                project=item["project"],
-                timestamp=item["timestamp"],
-                similarity_score=item["similarity_score"],
-            )
-            for item in result.get("results", [])
-        ]
+        result = await quick_search(query=query, limit=limit, min_score=min_score)
+        return result
 
 
 @strawberry.type
@@ -658,95 +640,40 @@ app = GraphQL(schema)
 
 ## Monitoring Integration
 
-### Prometheus Integration
-
-Export metrics for monitoring:
-
-```python
-from prometheus_client import Counter, Histogram, Gauge, start_http_server
-import time
-
-# Metrics
-REQUESTS_TOTAL = Counter("session_mgmt_requests_total", "Total requests", ["operation"])
-REQUEST_DURATION = Histogram(
-    "session_mgmt_request_duration_seconds", "Request duration"
-)
-ACTIVE_SESSIONS = Gauge("session_mgmt_active_sessions", "Active sessions")
-MEMORY_USAGE = Gauge("session_mgmt_memory_usage_mb", "Memory usage in MB")
-
-
-class MetricsCollector:
-    def __init__(self):
-        self.start_time = time.time()
-
-    def record_request(self, operation: str, duration: float):
-        """Record request metrics."""
-        REQUESTS_TOTAL.labels(operation=operation).inc()
-        REQUEST_DURATION.observe(duration)
-
-    def update_active_sessions(self, count: int):
-        """Update active session count."""
-        ACTIVE_SESSIONS.set(count)
-
-    def update_memory_usage(self, mb: float):
-        """Update memory usage."""
-        MEMORY_USAGE.set(mb)
-
-
-# Start metrics server
-start_http_server(9090)
-metrics = MetricsCollector()
-```
-
-### Grafana Dashboard
-
-```json
+If you build a wrapper API, integrate your preferred monitoring stack there (logs, traces, or metrics). The core MCP server does not expose HTTP metrics endpoints.
 {
-  "dashboard": {
-    "title": "Session Management MCP Server",
-    "panels": [
-      {
-        "title": "Request Rate",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(session_mgmt_requests_total[5m])",
-            "legendFormat": "{{operation}}"
-          }
-        ]
-      },
-      {
-        "title": "Response Time",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "session_mgmt_request_duration_seconds",
-            "legendFormat": "Response Time"
-          }
-        ]
-      },
-      {
-        "title": "Active Sessions",
-        "type": "singlestat",
-        "targets": [
-          {
-            "expr": "session_mgmt_active_sessions"
-          }
-        ]
-      },
-      {
-        "title": "Memory Usage",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "session_mgmt_memory_usage_mb"
-          }
-        ]
-      }
-    ]
-  }
+"title": "Response Time",
+"type": "graph",
+"targets": \[
+{
+"expr": "session_mgmt_request_duration_seconds",
+"legendFormat": "Response Time"
 }
-```
+\]
+},
+{
+"title": "Active Sessions",
+"type": "singlestat",
+"targets": \[
+{
+"expr": "session_mgmt_active_sessions"
+}
+\]
+},
+{
+"title": "Memory Usage",
+"type": "graph",
+"targets": \[
+{
+"expr": "session_mgmt_memory_usage_mb"
+}
+\]
+}
+\]
+}
+}
+
+````
 
 ## Notification Integration
 
@@ -804,7 +731,7 @@ class SlackNotifier:
                     }
                 ],
             )
-```
+````
 
 ### Discord Integration
 
@@ -935,7 +862,7 @@ class TestIntegration:
 
         # Search
         search_result = await mcp_server.call_tool(
-            "reflect_on_past", {"query": "integration testing"}
+            "quick_search", {"query": "integration testing"}
         )
         assert search_result["success"]
         assert len(search_result["results"]) > 0
@@ -1043,8 +970,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - SESSION_MGMT_DATA_DIR=/data
-      - SESSION_MGMT_LOG_LEVEL=INFO
+      - SESSION_BUDDY_DATA_DIR=/data
+      - SESSION_BUDDY_LOG_LEVEL=INFO
       - REDIS_URL=redis://redis:6379
       - POSTGRES_URL=postgresql://user:pass@postgres:5432/sessionmgmt
     volumes:
@@ -1103,78 +1030,17 @@ volumes:
 
 ### Kubernetes Integration
 
-```yaml
-# k8s/deployment.yml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: session-buddy
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: session-buddy
-  template:
-    metadata:
-      labels:
-        app: session-buddy
-    spec:
-      containers:
-      - name: session-mgmt
-        image: session-buddy:latest
-        ports:
-        - containerPort: 8000
-        env:
-        - name: SESSION_MGMT_DATA_DIR
-          value: "/data"
-        - name: REDIS_URL
-          valueFrom:
-            secretKeyRef:
-              name: session-mgmt-secrets
-              key: redis-url
-        volumeMounts:
-        - name: session-data
-          mountPath: /data
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 5
-      volumes:
-      - name: session-data
-        persistentVolumeClaim:
-          claimName: session-data-pvc
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: session-mgmt-service
-spec:
-  selector:
-    app: session-buddy
-  ports:
-  - port: 80
-    targetPort: 8000
-  type: LoadBalancer
-```
+If you deploy a wrapper HTTP API, expose that service in Kubernetes. The MCP server itself does not require container ports.
 
 ## Best Practices
 
 ### Integration Checklist
 
-- [ ] **Authentication**: Implement proper authentication for API endpoints
+- [ ] **Authentication**: Implement proper authentication for wrapper API endpoints
 - [ ] **Rate Limiting**: Add rate limiting to prevent abuse
 - [ ] **Error Handling**: Comprehensive error handling with meaningful messages
 - [ ] **Logging**: Structured logging for debugging and monitoring
-- [ ] **Health Checks**: Implement health check endpoints for monitoring
-- [ ] **Documentation**: Document all integration endpoints and parameters
+- [ ] **Documentation**: Document wrapper endpoints and parameters
 - [ ] **Testing**: Integration tests for all external integrations
 - [ ] **Security**: Input validation, SQL injection prevention, HTTPS
 - [ ] **Monitoring**: Metrics collection and alerting for production

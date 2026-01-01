@@ -6,11 +6,11 @@ Excludes Slack/Discord as per Phase 4 requirements.
 """
 
 import asyncio
-import contextlib
 import json
 import operator
 import sqlite3
 from collections import defaultdict
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -27,6 +27,25 @@ except ImportError:
     # Create stub for FileSystemEventHandler when watchdog is not available
     class FileSystemEventHandler:  # type: ignore[no-redef]
         pass
+
+    # Create stub for Observer when watchdog is not available
+    class Observer:  # type: ignore[no-redef]
+        def __init__(self) -> None:
+            pass
+
+        def schedule(
+            self, event_handler: Any, path: str, recursive: bool = True
+        ) -> None:
+            pass
+
+        def start(self) -> None:
+            pass
+
+        def stop(self) -> None:
+            pass
+
+        def join(self) -> None:
+            pass
 
 
 try:
@@ -110,21 +129,23 @@ class ProjectActivityMonitor:
         if not WATCHDOG_AVAILABLE:
             return False
 
-        for path in self.project_paths:
-            if Path(path).exists():
-                event_handler = IDEFileHandler(self)
-                observer = Observer()
-                observer.schedule(event_handler, path, recursive=True)
-                observer.start()
-                self.observers.append(observer)
+        if WATCHDOG_AVAILABLE:
+            for path in self.project_paths:
+                if Path(path).exists():
+                    event_handler = IDEFileHandler(self)
+                    observer = Observer()
+                    observer.schedule(event_handler, path, recursive=True)
+                    observer.start()
+                    self.observers.append(observer)
 
         return len(self.observers) > 0
 
     def stop_monitoring(self) -> None:
         """Stop file system monitoring."""
-        for observer in self.observers:
-            observer.stop()
-            observer.join()
+        if WATCHDOG_AVAILABLE:
+            for observer in self.observers:
+                observer.stop()
+                observer.join()
         self.observers.clear()
 
     def add_activity(self, event: ActivityEvent) -> None:
@@ -197,9 +218,7 @@ class IDEFileHandler(FileSystemEventHandler):
             "api": ["api", "endpoint", "route", "controller"],
             "security": ["security", "encrypt", "hash", "crypto"],
         }
-        self._recent_ttl_seconds = int(
-            self.monitor._settings.filesystem_dedupe_ttl_seconds
-        )
+        self._recent_ttl_seconds = self.monitor._settings.filesystem_dedupe_ttl_seconds
 
     def should_ignore(self, file_path: str) -> bool:
         """Check if file should be ignored."""
@@ -215,33 +234,45 @@ class IDEFileHandler(FileSystemEventHandler):
             return True
 
         # Ignore large or temporary files
-        max_size = int(self.monitor._settings.filesystem_max_file_size_bytes)
-        try:
+        max_size = self.monitor._settings.filesystem_max_file_size_bytes
+        with suppress(Exception):
             if path.exists() and path.is_file() and path.stat().st_size > max_size:
                 return True
-        except Exception:
-            pass
 
         return bool(path.name.startswith(".") or path.name.endswith("~"))
 
     def on_modified(self, event: Any) -> None:
+        """Handle file modification events."""
         if event.is_directory or self.should_ignore(event.src_path):
             return
 
-        # Determine project path
-        project_path = None
         src_path = Path(event.src_path)
+        project_path = self._determine_project_path(src_path)
+
+        activity_event = self._create_activity_event(src_path, project_path)
+        self.monitor.add_activity(activity_event)
+
+        self._try_entity_extraction(activity_event, src_path, project_path)
+
+    def _determine_project_path(self, src_path: Path) -> str | None:
+        """Determine which project this file belongs to."""
         for proj_path in self.monitor.project_paths:
             if src_path.is_relative_to(proj_path):
-                project_path = proj_path
-                break
+                return proj_path
+        return None
 
-        activity_event = ActivityEvent(
+    def _create_activity_event(
+        self,
+        src_path: Path,
+        project_path: str | None,
+    ) -> ActivityEvent:
+        """Create an activity event for file modification."""
+        return ActivityEvent(
             timestamp=datetime.now().isoformat(),
             event_type="file_change",
             application="ide",
             details={
-                "file_path": event.src_path,
+                "file_path": str(src_path),
                 "file_name": src_path.name,
                 "file_extension": src_path.suffix,
                 "change_type": "modified",
@@ -250,43 +281,55 @@ class IDEFileHandler(FileSystemEventHandler):
             relevance_score=self._estimate_relevance(src_path),
         )
 
-        self.monitor.add_activity(activity_event)
-
-        # Optionally trigger extraction based on feature flags and threshold
+    def _try_entity_extraction(
+        self,
+        activity_event: ActivityEvent,
+        src_path: Path,
+        project_path: str | None,
+    ) -> None:
+        """Try to extract entities if feature flags are enabled."""
         from session_buddy.config.feature_flags import get_feature_flags
 
         flags = get_feature_flags()
-        if flags.enable_filesystem_extraction and flags.enable_llm_entity_extraction:
-            # Defer import to avoid heavy deps if disabled
-            try:
-                import asyncio as _asyncio
+        if not (
+            flags.enable_filesystem_extraction and flags.enable_llm_entity_extraction
+        ):
+            return
 
-                from session_buddy.memory.file_context import build_file_context
-                from session_buddy.tools.entity_extraction_tools import (
-                    extract_and_store_memory as _extract,
+        if not self._passes_threshold(activity_event):
+            return
+
+        if self._recently_processed_persisted(str(src_path)):
+            return
+
+        self._fire_and_forget_extraction(activity_event, src_path, project_path)
+
+    def _fire_and_forget_extraction(
+        self,
+        activity_event: ActivityEvent,
+        src_path: Path,
+        project_path: str | None,
+    ) -> None:
+        """Fire-and-forget entity extraction task."""
+        with suppress(Exception):
+            import asyncio as _asyncio
+
+            from session_buddy.memory.file_context import build_file_context
+            from session_buddy.tools.entity_extraction_tools import (
+                extract_and_store_memory as _extract,
+            )
+
+            ctx = build_file_context(str(src_path))
+            snippet = ctx.get("snippet", "")
+
+            _asyncio.create_task(
+                _extract(
+                    user_input=f"Updated file: {src_path.name}\nContext: {ctx['metadata']}",
+                    ai_output=snippet,
+                    project=project_path,
+                    activity_score=activity_event.relevance_score,
                 )
-
-                # Simple heuristic: only process high relevance or critical files
-                if self._passes_threshold(activity_event):
-                    # Persistent de-duplication using activity DB
-                    if self._recently_processed_persisted(str(src_path)):
-                        return
-
-                    # Build file context and include snippet in extraction input
-                    ctx = build_file_context(event.src_path)
-                    snippet = ctx.get("snippet", "")
-                    # Fire-and-forget extraction; real integration would pass file context
-                    _asyncio.create_task(
-                        _extract(
-                            user_input=f"Updated file: {src_path.name}\nContext: {ctx['metadata']}",
-                            ai_output=snippet,
-                            project=project_path,
-                            activity_score=activity_event.relevance_score,
-                        )
-                    )
-            except Exception:
-                # Non-fatal in monitor
-                pass
+            )
 
     def _recently_processed_persisted(self, file_path: str) -> bool:
         """Check and update persistent recent-extractions cache.
@@ -329,7 +372,7 @@ class IDEFileHandler(FileSystemEventHandler):
 
     def _ensure_recent_table(self) -> None:
         """Ensure the persistent recent_extractions table exists."""
-        try:
+        with suppress(Exception):
             import sqlite3 as _sql
 
             with _sql.connect(self.monitor.db_path) as conn:
@@ -341,8 +384,6 @@ class IDEFileHandler(FileSystemEventHandler):
                     )
                     """
                 )
-        except Exception:
-            pass
 
     def _estimate_relevance(self, path: Path) -> float:
         name = path.name.lower()
@@ -754,7 +795,7 @@ class ApplicationMonitor:
 
         if self._monitoring_task:
             self._monitoring_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
+            with suppress(asyncio.CancelledError):
                 await self._monitoring_task
 
         self.ide_monitor.stop_monitoring()

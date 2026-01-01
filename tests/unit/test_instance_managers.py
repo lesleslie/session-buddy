@@ -8,9 +8,9 @@ import types
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from acb.depends import depends
 from session_buddy.di import configure
 from session_buddy.di import reset as reset_di
+from session_buddy.di.container import depends
 from session_buddy.utils import instance_managers
 
 if TYPE_CHECKING:

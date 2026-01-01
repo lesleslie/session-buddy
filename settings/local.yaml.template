@@ -5,12 +5,14 @@
 # === Example Local Overrides ===
 
 # Enable debug mode for development
-# debug: true
+# enable_debug_mode: true
 # log_level: "DEBUG"
 # enable_performance_logging: true
 
 # Custom database location
 # database_path: "~/custom/path/reflection.duckdb"
+# data_dir: "~/custom/data"
+# log_dir: "~/custom/logs"
 
 # Development server settings
 # server_port: 3001
@@ -23,5 +25,10 @@
 # Custom logging
 # log_file_path: "~/custom/logs/session-mgmt.log"
 # slow_query_threshold: 0.5
+
+# Optional LLM API keys (prefer environment variables)
+# openai_api_key: "sk-..."
+# anthropic_api_key: "sk-ant-..."
+# gemini_api_key: "..."
 
 # Add your custom settings below:

@@ -1,8 +1,10 @@
 # Migration: Health Check Implementation
 
+Note: This document describes a planned HTTP health/metrics layer. The current Session Buddy server does not expose HTTP endpoints; use exec/import checks or build a wrapper if needed.
+
 ## Overview
 
-Add production-ready health checks to your MCP server using mcp_common's health check system. Essential for monitoring, alerting, and production readiness.
+Add production-ready health checks to your MCP stack using mcp_common's health check system. This is an optional HTTP layer for wrappers or custom servers.
 
 **Priority**: ⚡ **HIGH** - Critical for production deployments
 
@@ -14,7 +16,7 @@ Add production-ready health checks to your MCP server using mcp_common's health 
 
 ## Benefits
 
-✅ **Production Monitoring**: Real-time health status of all components
+✅ **Production Monitoring**: Real-time health status of all components (when exposed via a wrapper)
 
 ✅ **Early Problem Detection**: Identify issues before they cause failures
 

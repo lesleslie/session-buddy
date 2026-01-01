@@ -48,7 +48,6 @@ async def _attach_tool_call_helpers(mcp: FastMCP) -> FastMCP:
                 getattr(tool_spec, "fn", None)
                 or getattr(tool_spec, "implementation", None)
                 or getattr(tool_spec, "handler", None)
-                or getattr(tool_spec, "__call__", None)
             )
             if tool_func is None:
                 msg = f"Could not extract callable function from tool {tool_name}"

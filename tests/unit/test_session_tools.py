@@ -126,10 +126,11 @@ class TestSessionManagerAccess:
         # Should be a SessionLifecycleManager or compatible type
 
     def test_session_manager_global_is_set(self) -> None:
-        """Should have global session_manager variable."""
-        from session_buddy.tools.session_tools import session_manager
+        """Should be able to get a session manager instance."""
+        from session_buddy.tools.session_tools import _get_session_manager
 
-        assert session_manager is not None
+        manager = _get_session_manager()
+        assert manager is not None
 
 
 class TestCreateSessionShortcuts:
@@ -232,21 +233,22 @@ class TestStartTool:
     @pytest.mark.asyncio
     async def test_start_impl_returns_formatted_output(self) -> None:
         """Should return formatted initialization output."""
-        from session_buddy.tools.session_tools import _start_impl
+        from session_buddy.tools.session_tools import _get_session_manager, _start_impl
 
-        with patch("session_buddy.tools.session_tools.session_manager") as mock_manager:
-            mock_manager.initialize_session = AsyncMock(
-                return_value={
-                    "success": True,
-                    "project": "test-project",
-                    "working_directory": "/test/dir",
-                    "claude_directory": "/home/.claude",
-                    "quality_score": 75,
-                    "quality_data": {"recommendations": []},
-                    "project_context": {"has_git": True},
-                }
-            )
+        mock_manager = AsyncMock()
+        mock_manager.initialize_session = AsyncMock(
+            return_value={
+                "success": True,
+                "project": "test-project",
+                "working_directory": "/test/dir",
+                "claude_directory": "/home/.claude",
+                "quality_score": 75,
+                "quality_data": {"recommendations": []},
+                "project_context": {"has_git": True},
+            }
+        )
 
+        with patch("session_buddy.tools.session_tools._get_session_manager", return_value=mock_manager):
             with patch(
                 "session_buddy.tools.session_tools._setup_uv_dependencies"
             ) as mock_uv:
@@ -273,20 +275,24 @@ class TestCheckpointTool:
     @pytest.mark.asyncio
     async def test_checkpoint_impl_performs_checkpoint(self) -> None:
         """Should perform checkpoint and return formatted output."""
-        from session_buddy.tools.session_tools import _checkpoint_impl
+        from session_buddy.tools.session_tools import (
+            _checkpoint_impl,
+            _get_session_manager,
+        )
 
-        with patch("session_buddy.tools.session_tools.session_manager") as mock_manager:
-            mock_manager.current_project = "test-project"
-            mock_manager.checkpoint_session = AsyncMock(
-                return_value={
-                    "success": True,
-                    "quality_output": ["Quality: 80/100"],
-                    "git_output": ["Git commit created"],
-                    "quality_score": 80,
-                    "timestamp": "2025-01-01 12:00:00",
-                }
-            )
+        mock_manager = AsyncMock()
+        mock_manager.current_project = "test-project"
+        mock_manager.checkpoint_session = AsyncMock(
+            return_value={
+                "success": True,
+                "quality_output": ["Quality: 80/100"],
+                "git_output": ["Git commit created"],
+                "quality_score": 80,
+                "timestamp": "2025-01-01 12:00:00",
+            }
+        )
 
+        with patch("session_buddy.tools.session_tools._get_session_manager", return_value=mock_manager):
             with patch(
                 "session_buddy.tools.session_tools._handle_auto_compaction"
             ) as mock_compact:
@@ -304,22 +310,23 @@ class TestEndTool:
     @pytest.mark.asyncio
     async def test_end_impl_ends_session(self) -> None:
         """Should end session and return formatted output."""
-        from session_buddy.tools.session_tools import _end_impl
+        from session_buddy.tools.session_tools import _end_impl, _get_session_manager
 
-        with patch("session_buddy.tools.session_tools.session_manager") as mock_manager:
-            mock_manager.end_session = AsyncMock(
-                return_value={
-                    "success": True,
-                    "summary": {
-                        "project": "test-project",
-                        "final_quality_score": 85,
-                        "session_end_time": "2025-01-01 13:00:00",
-                        "working_directory": "/test/dir",
-                        "recommendations": ["Use tests"],
-                    },
-                }
-            )
+        mock_manager = AsyncMock()
+        mock_manager.end_session = AsyncMock(
+            return_value={
+                "success": True,
+                "summary": {
+                    "project": "test-project",
+                    "final_quality_score": 85,
+                    "session_end_time": "2025-01-01 13:00:00",
+                    "working_directory": "/test/dir",
+                    "recommendations": ["Use tests"],
+                },
+            }
+        )
 
+        with patch("session_buddy.tools.session_tools._get_session_manager", return_value=mock_manager):
             result = await _end_impl("/test/dir")
 
             assert isinstance(result, str)
@@ -333,37 +340,38 @@ class TestStatusTool:
     @pytest.mark.asyncio
     async def test_status_impl_returns_status(self) -> None:
         """Should return comprehensive session status."""
-        from session_buddy.tools.session_tools import _status_impl
+        from session_buddy.tools.session_tools import _get_session_manager, _status_impl
 
-        with patch("session_buddy.tools.session_tools.session_manager") as mock_manager:
-            mock_manager.get_session_status = AsyncMock(
-                return_value={
-                    "success": True,
-                    "project": "test-project",
-                    "working_directory": "/test/dir",
-                    "quality_score": 75,
-                    "quality_breakdown": {
-                        "code_quality": 30.0,
-                        "project_health": 25.0,
-                        "dev_velocity": 15.0,
-                        "security": 5.0,
-                    },
-                    "system_health": {
-                        "uv_available": True,
-                        "git_repository": True,
-                        "claude_directory": True,
-                    },
-                    "project_context": {
-                        "has_pyproject_toml": True,
-                        "has_git_repo": True,
-                        "has_tests": True,
-                        "has_docs": False,
-                    },
-                    "recommendations": ["Add docs"],
-                    "timestamp": "2025-01-01 14:00:00",
-                }
-            )
+        mock_manager = AsyncMock()
+        mock_manager.get_session_status = AsyncMock(
+            return_value={
+                "success": True,
+                "project": "test-project",
+                "working_directory": "/test/dir",
+                "quality_score": 75,
+                "quality_breakdown": {
+                    "code_quality": 30.0,
+                    "project_health": 25.0,
+                    "dev_velocity": 15.0,
+                    "security": 5.0,
+                },
+                "system_health": {
+                    "uv_available": True,
+                    "git_repository": True,
+                    "claude_directory": True,
+                },
+                "project_context": {
+                    "has_pyproject_toml": True,
+                    "has_git_repo": True,
+                    "has_tests": True,
+                    "has_docs": False,
+                },
+                "recommendations": ["Add docs"],
+                "timestamp": "2025-01-01 14:00:00",
+            }
+        )
 
+        with patch("session_buddy.tools.session_tools._get_session_manager", return_value=mock_manager):
             result = await _status_impl("/test/dir")
 
             assert isinstance(result, str)

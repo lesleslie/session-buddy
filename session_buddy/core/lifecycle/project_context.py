@@ -6,6 +6,7 @@ frameworks, and gathering project health indicators.
 
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import TYPE_CHECKING
 
 from session_buddy.utils.git_operations import is_git_repository
@@ -90,13 +91,10 @@ def add_python_context_indicators(
     project_dir: Path, indicators: dict[str, bool]
 ) -> None:
     """Add Python-specific context indicators."""
-    try:
+    with suppress(Exception):
         python_files = list(project_dir.glob("**/*.py"))
         indicators["has_python_files"] = len(python_files) > 0
         detect_python_frameworks(python_files, indicators)
-    except Exception:
-        # Silently fail if we can't analyze Python files
-        pass
 
 
 async def analyze_project_context(project_dir: Path) -> dict[str, bool]:

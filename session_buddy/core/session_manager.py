@@ -7,6 +7,7 @@ and cleanup operations.
 
 import asyncio
 import importlib
+import logging
 import os
 import shutil
 import sys
@@ -14,63 +15,58 @@ import typing as t
 from datetime import datetime
 from pathlib import Path
 
-from acb.adapters import import_adapter
-from acb.depends import Inject, depends
 from session_buddy.utils.git_operations import (
     create_checkpoint_commit,
     is_git_repository,
 )
 
 
-def get_session_logger() -> t.Any:
+def get_session_logger() -> logging.Logger:
     """Get the session logger instance.
 
     This function is used in tests for mocking purposes.
     """
-    import logging
-
     return logging.getLogger(__name__)
 
 
 class SessionLifecycleManager:
     """Manages session lifecycle operations."""
 
-    def __init__(self, logger: Inject[t.Any] | None = None) -> None:
+    def __init__(self, logger: logging.Logger | None = None) -> None:
         """Initialize session lifecycle manager.
 
         Args:
-            logger: Logger instance (injected by DI container)
+            logger: Logger instance (injected by DI container or standard logger)
 
         """
         if logger is None:
-            # Fallback for manual instantiation - use standard logging
-            import logging
-
             logger = logging.getLogger(__name__)
 
         self.logger = logger
         self.current_project: str | None = None
         self._quality_history: dict[str, list[int]] = {}  # project -> [scores]
 
-        # Initialize templates adapter for handoff documentation
-        self.templates = None
+        # Initialize templates renderer for handoff documentation
+        self.templates: t.Any | None = None
         self._initialize_templates()
 
     def _initialize_templates(self) -> None:
-        """Initialize ACB templates adapter for handoff documentation."""
+        """Initialize Jinja2 environment for handoff documentation."""
         try:
-            from acb.adapters.templates import TemplatesAdapter
+            from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-            # Templates directory is in project root
             templates_dir = Path(__file__).parent.parent.parent / "templates"
-            self.templates = TemplatesAdapter(template_dir=templates_dir)
+            self.templates = Environment(
+                loader=FileSystemLoader(str(templates_dir)),
+                autoescape=select_autoescape(["html", "xml"]),
+            )
             self.logger.info(
-                "Templates adapter initialized, templates_dir=%s",
+                "Templates environment initialized, templates_dir=%s",
                 str(templates_dir),
             )
         except Exception as e:
             self.logger.warning(
-                "Templates adapter initialization failed, using fallback, error=%s",
+                "Templates environment initialization failed, using fallback, error=%s",
                 str(e),
             )
             self.templates = None

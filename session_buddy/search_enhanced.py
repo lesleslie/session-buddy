@@ -21,7 +21,7 @@ except ImportError:
 import operator
 
 from .reflection_tools import ReflectionDatabase
-from .types import TimeRange
+from .session_types import TimeRange
 from .utils.regex_patterns import SAFE_PATTERNS
 
 

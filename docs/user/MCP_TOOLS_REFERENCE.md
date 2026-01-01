@@ -121,49 +121,7 @@ ______________________________________________________________________
 
 ## 🧠 Memory & Search System
 
-### `/session-buddy:reflect_on_past` - Conversation Search
-
-**Purpose**: Semantic search through all stored conversations with intelligent ranking
-
-**Usage**:
-
-```
-/session-buddy:reflect_on_past [query] [--limit=10] [--project=current] [--similarity=0.7]
-```
-
-**Parameters**:
-
-- `query` (required): What you're looking for (e.g., "authentication implementation", "database migration patterns")
-- `limit` (optional): Number of results to return (default: 10, max: 50)
-- `project` (optional): Filter by specific project or "current" (default: all projects)
-- `similarity` (optional): Minimum similarity score (default: 0.7, range: 0.0-1.0)
-
-**Examples**:
-
-```
-/session-buddy:reflect_on_past how did I implement user authentication?
-
-/session-buddy:reflect_on_past Redis caching strategies --limit=5 --similarity=0.8
-
-/session-buddy:reflect_on_past API error handling --project=current
-```
-
-**What it does**:
-
-- 🔍 **Semantic Search**: Uses local AI embeddings (all-MiniLM-L6-v2) for meaning-based search
-- 📅 **Time Weighting**: Recent conversations get priority in results
-- 🎯 **Smart Ranking**: Combines semantic similarity with relevance and recency
-- 🏗️ **Cross-Project**: Searches across all your projects unless filtered
-- 🔒 **Privacy First**: All processing is local, no external API calls
-
-**Returns**:
-
-- Ranked list of relevant conversation excerpts
-- Similarity scores for each result
-- Project and timestamp context
-- Smart suggestions for refining search
-
-**💡 Best Practice**: Use before starting new implementations to leverage previous work
+Start with `/session-buddy:quick_search` or `/session-buddy:search_summary` to get fast signal, then pivot to more focused tools like `/session-buddy:search_by_concept` or `/session-buddy:search_by_file` for deeper retrieval.
 
 ______________________________________________________________________
 
@@ -575,15 +533,164 @@ Show current feature flags for schema_v2, extraction, providers, agent, and file
 
 Staged enablement plan with daily steps and rollback guidance.
 
+## 📎 Appendix: Registered Tools (Canonical)
+
+Alphabetical list of all tools currently registered by the server:
+
+Note: `*_validated` tools are internal validation wrappers used by the server and are not intended for direct user invocation.
+
+- `access_log_stats`
+
+- `add_observation`
+
+- `batch_create_entities`
+
+- `chat_with_llm`
+
+- `checkpoint`
+
+- `cleanup_serverless_sessions`
+
+- `configure_llm_provider`
+
+- `configure_serverless_storage`
+
+- `create_entity`
+
+- `create_relation`
+
+- `create_serverless_session`
+
+- `create_session_context`
+
+- `create_team`
+
+- `delete_serverless_session`
+
+- `end`
+
+- `extract_and_store_memory`
+
+- `extract_entities_from_context`
+
+- `feature_flags_status`
+
+- `find_path`
+
+- `force_conscious_analysis`
+
+- `generate_with_llm`
+
+- `get_active_files`
+
+- `get_activity_summary`
+
+- `get_context_insights`
+
+- `get_entity_relationships`
+
+- `get_interruption_history`
+
+- `get_knowledge_graph_stats`
+
+- `get_more_results`
+
+- `get_serverless_session`
+
+- `get_team_statistics`
+
+- `health_check`
+
+- `list_llm_providers`
+
+- `list_serverless_sessions`
+
+- `migration_status`
+
+- `ping`
+
+- `preserve_current_context`
+
+- `quick_search`
+
+- `quick_search_validated`
+
+- `reflection_stats`
+
+- `reset_reflection_database`
+
+- `restore_session_context`
+
+- `rollback_migration`
+
+- `rollout_plan`
+
+- `search_by_concept`
+
+- `search_by_concept_validated`
+
+- `search_by_file`
+
+- `search_by_file_validated`
+
+- `search_code`
+
+- `search_entities`
+
+- `search_errors`
+
+- `search_summary`
+
+- `search_team_knowledge`
+
+- `search_temporal`
+
+- `server_info`
+
+- `start`
+
+- `start_app_monitoring`
+
+- `start_conscious_agent`
+
+- `start_interruption_monitoring`
+
+- `status`
+
+- `stop_app_monitoring`
+
+- `stop_conscious_agent`
+
+- `stop_interruption_monitoring`
+
+- `store_reflection`
+
+- `store_reflection_validated`
+
+- `test_llm_providers`
+
+- `test_serverless_storage`
+
+- `trigger_migration`
+
+- `update_serverless_session`
+
+- `vote_on_reflection`
+
 - **[README.md](../../README.md)** - Project overview with complete tool inventory (70+ tools)
+
 - **[Quick Start Guide](QUICK_START.md)** - Get up and running in 5 minutes
+
 - **[MCP Schema Reference](../reference/MCP_SCHEMA_REFERENCE.md)** - Complete API reference
+
 - **[AI Integration Patterns](../features/AI_INTEGRATION.md)** - Advanced patterns
+
 - **[CLAUDE.md](../../CLAUDE.md)** - Development guide for contributors
+
 - **[Configuration Reference](CONFIGURATION.md)** - Advanced setup options
 
 ______________________________________________________________________
 
-*This reference covers all **70+ MCP tools** provided by session-mgmt. For implementation details, see the codebase.*
+*This reference lists all registered MCP tools provided by session-buddy. For implementation details, see the codebase.*
 
 **Need help?** Use `/session-buddy:status` to diagnose issues or check [GitHub Issues](https://github.com/lesleslie/session-buddy/issues) for support.

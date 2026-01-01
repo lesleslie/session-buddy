@@ -69,7 +69,7 @@ class KnowledgeGraphDatabase:
         """Context manager entry."""
         return self
 
-    def __exit__(self, *_exc_info) -> None:
+    def __exit__(self, *_exc_info: object) -> None:
         """Context manager exit with cleanup."""
         self.close()
 
@@ -78,7 +78,7 @@ class KnowledgeGraphDatabase:
         await self.initialize()
         return self
 
-    async def __aexit__(self, *_exc_info) -> None:
+    async def __aexit__(self, *_exc_info: object) -> None:
         """Async context manager exit with cleanup."""
         self.close()
 
@@ -117,6 +117,7 @@ class KnowledgeGraphDatabase:
 
         # Create connection
         self.conn = duckdb.connect(self.db_path)
+        assert self.conn is not None  # Type narrowing
 
         # Install and load DuckPGQ extension
         try:

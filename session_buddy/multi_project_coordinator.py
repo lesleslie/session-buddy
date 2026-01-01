@@ -9,11 +9,22 @@ import hashlib
 import json
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-from .reflection_tools import ReflectionDatabase
+
+class ReflectionDatabaseProtocol(Protocol):
+    """Protocol for reflection database implementations."""
+
+    async def search_conversations(
+        self,
+        query: str,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]: ...
+
+    @property
+    def conn(self) -> Any: ...
 
 
 class ProjectGroup(BaseModel):
@@ -160,7 +171,7 @@ class SessionLink(BaseModel):
 class MultiProjectCoordinator:
     """Coordinates sessions and knowledge across multiple projects."""
 
-    def __init__(self, reflection_db: ReflectionDatabase) -> None:
+    def __init__(self, reflection_db: ReflectionDatabaseProtocol) -> None:
         """Initialize multi-project coordinator with database connection."""
         self.reflection_db = reflection_db
         self._initialize_caches()

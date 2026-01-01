@@ -1,16 +1,17 @@
 """Serverless storage adapter bridge for session state persistence.
 
 This module provides a bridge between the old SessionStorage protocol (used by
-serverless_mode.py) and the new SessionStorageAdapter (ACB-based). This enables
-serverless deployments to use ACB storage adapters while maintaining API compatibility.
+serverless_mode.py) and the Oneiric SessionStorageAdapter. This enables
+serverless deployments to use Oneiric storage adapters while maintaining API
+compatibility.
 
 Architecture:
-    Old: serverless_mode.py → SessionStorage protocol → Redis/S3/Local backends
-    New: serverless_mode.py → ServerlessStorageAdapter → SessionStorageAdapter → ACB
+    Old: serverless_mode.py → SessionStorage protocol → legacy backends
+    New: serverless_mode.py → ServerlessStorageAdapter → SessionStorageAdapter → Oneiric storage
 
 Example:
     >>> from session_buddy.adapters import ServerlessStorageAdapter
-    >>> storage = ServerlessStorageAdapter(backend="s3")
+    >>> storage = ServerlessStorageAdapter(backend="file")
     >>> await storage.store_session(session_state, ttl_seconds=3600)
     True
 
@@ -35,10 +36,10 @@ class ServerlessStorageAdapter(SessionStorage):
     """Bridge adapter implementing SessionStorage protocol using SessionStorageAdapter.
 
     This adapter maintains backward compatibility with serverless_mode.py while
-    using the new ACB-based SessionStorageAdapter underneath.
+    using the Oneiric SessionStorageAdapter underneath.
 
     Attributes:
-        backend: Storage backend type (s3, file, azure, gcs, memory)
+        backend: Storage backend type (file, memory)
         _storage: Internal SessionStorageAdapter instance
         _session_metadata: Cache for session metadata (TTL tracking)
 
@@ -316,7 +317,7 @@ def create_serverless_storage(
     """Factory function to create serverless storage adapter.
 
     Args:
-        backend: Storage backend type (s3, file, azure, gcs, memory)
+        backend: Storage backend type (file, memory)
         config: Legacy config dict (for compatibility)
 
     Returns:

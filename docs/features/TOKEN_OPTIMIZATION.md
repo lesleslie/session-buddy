@@ -28,26 +28,7 @@ The main optimization engine that provides:
 
 ### 2. MCP Tool Integration
 
-Enhanced existing tools with token optimization:
-
-#### Enhanced `reflect_on_past` Tool
-
-New parameters:
-
-- `optimize_tokens: bool = True` - Enable/disable optimization
-- `max_tokens: int = 4000` - Maximum token limit for response
-
-Features:
-
-- Automatic optimization strategy selection
-- Token savings reporting (e.g., "⚡ Token optimization: 30% saved")
-- Usage tracking for analytics
-
-#### New MCP Tools
-
-1. **`get_cached_chunk`** - Retrieve paginated chunks from large result sets
-1. **`get_token_usage_stats`** - View token usage metrics and cost savings
-1. **`optimize_memory_usage`** - Consolidate old conversations to free memory
+Token optimization is implemented as an internal helper and is not currently exposed as a public MCP tool. It is used by internal workflows and can be accessed directly from Python via `session_buddy.token_optimizer`.
 
 ### 3. Status Reporting
 
@@ -68,11 +49,13 @@ The `status` tool now includes token optimization information:
 ### Basic Optimization
 
 ```python
-# Search with automatic optimization
-result = await reflect_on_past(
-    query="Python functions",
-    optimize_tokens=True,  # Enable optimization
-    max_tokens=2000,  # Token limit
+# Optimize a result set directly
+from session_buddy.token_optimizer import TokenOptimizer
+
+optimizer = TokenOptimizer()
+optimized_results, optimization_info = await optimizer.optimize_search_results(
+    results,
+    max_tokens=2000,
 )
 ```
 
@@ -82,30 +65,20 @@ When responses are large, they're automatically chunked:
 
 ```python
 # First request returns chunk 1 + cache_key
-result = await reflect_on_past(query="large dataset", max_tokens=500)
-
-# Retrieve additional chunks
-chunk2 = await get_cached_chunk("cache_key_123", 2)
-chunk3 = await get_cached_chunk("cache_key_123", 3)
+optimized_results, optimization_info = await optimizer.optimize_search_results(
+    results,
+    max_tokens=500,
+)
 ```
 
 ### Usage Analytics
 
 ```python
 # View token usage and savings
+from session_buddy.token_optimizer import get_token_usage_stats
+
 stats = await get_token_usage_stats(hours=24)
 # Shows: requests, tokens used, optimizations applied, estimated cost savings
-```
-
-### Memory Optimization
-
-```python
-# Consolidate old conversations
-result = await optimize_memory_usage(
-    strategy="aggressive",  # Options: auto, aggressive, conservative
-    max_age_days=30,  # Consolidate conversations older than 30 days
-    dry_run=True,  # Preview changes without applying
-)
 ```
 
 ## Token Savings Strategies
@@ -285,23 +258,22 @@ ______________________________________________________________________
    uv add tiktoken
    ```
 
-1. **Enable optimization in searches**:
+1. **Optimize a search result set**:
 
    ```python
-   result = await reflect_on_past("query", optimize_tokens=True)
+   from session_buddy.token_optimizer import TokenOptimizer
+
+   optimizer = TokenOptimizer()
+   optimized_results, optimization_info = await optimizer.optimize_search_results(
+       results,
+       max_tokens=2000,
+   )
    ```
 
 1. **Monitor usage**:
 
    ```python
    stats = await get_token_usage_stats()
-   ```
-
-1. **Optimize memory**:
-
-   ```python
-   await optimize_memory_usage(dry_run=True)  # Preview first
-   await optimize_memory_usage(dry_run=False)  # Apply changes
    ```
 
 The token optimization system is designed to be transparent, efficient, and cost-effective while preserving the quality and usefulness of conversation search and memory features.

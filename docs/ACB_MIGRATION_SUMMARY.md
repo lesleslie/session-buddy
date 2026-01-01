@@ -46,7 +46,7 @@ Successfully completed ACB (Asynchronous Component Base) integration for session
 - Created `storage_registry.py` (173 lines) - ACB adapter registration
 - Created `SessionStorageAdapter` (339 lines, 93.58% coverage) - Unified storage facade
 - Updated DI configuration for storage adapters
-- Added storage config to `settings/session-mgmt.yaml`
+- Added storage config to `settings/session-buddy.yaml`
 - **25 unit tests** - All passing ✅
 - **Result**: ACB storage adapters integrated and working
 
@@ -336,7 +336,7 @@ The `MIGRATION_GUIDE_ACB.md` provides:
 ### Files Modified (7)
 
 1. `session_buddy/di/__init__.py` (+46 lines - storage adapter registration)
-1. `settings/session-mgmt.yaml` (+storage configuration)
+1. `settings/session-buddy.yaml` (+storage configuration)
 1. `session_buddy/serverless_mode.py` (updated to use new adapters)
 1. `session_buddy/backends/{s3,redis,local}_backend.py` (+deprecation warnings)
 1. `session_buddy/adapters/__init__.py` (exports updated)

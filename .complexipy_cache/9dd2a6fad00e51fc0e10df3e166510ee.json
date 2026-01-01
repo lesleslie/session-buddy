@@ -9,37 +9,13 @@
     {
       "complexity": 0,
       "file_name": "acb_cache_adapter.py",
-      "function_name": "ACBChunkCache::__contains__",
-      "path": "session_buddy/acb_cache_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "acb_cache_adapter.py",
       "function_name": "ACBChunkCache::__delitem__",
       "path": "session_buddy/acb_cache_adapter.py"
     },
     {
       "complexity": 0,
       "file_name": "acb_cache_adapter.py",
-      "function_name": "ACBChunkCache::__init__",
-      "path": "session_buddy/acb_cache_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "acb_cache_adapter.py",
       "function_name": "ACBChunkCache::__setitem__",
-      "path": "session_buddy/acb_cache_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "acb_cache_adapter.py",
-      "function_name": "ACBChunkCache::clear",
-      "path": "session_buddy/acb_cache_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "acb_cache_adapter.py",
-      "function_name": "ACBChunkCache::delete",
       "path": "session_buddy/acb_cache_adapter.py"
     },
     {
@@ -57,12 +33,6 @@
     {
       "complexity": 0,
       "file_name": "acb_cache_adapter.py",
-      "function_name": "ACBHistoryCache::__init__",
-      "path": "session_buddy/acb_cache_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "acb_cache_adapter.py",
       "function_name": "ACBHistoryCache::_generate_key",
       "path": "session_buddy/acb_cache_adapter.py"
     },
@@ -70,12 +40,6 @@
       "complexity": 0,
       "file_name": "acb_cache_adapter.py",
       "function_name": "ACBHistoryCache::get_stats",
-      "path": "session_buddy/acb_cache_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "acb_cache_adapter.py",
-      "function_name": "ACBHistoryCache::set",
       "path": "session_buddy/acb_cache_adapter.py"
     },
     {
@@ -93,13 +57,31 @@
     {
       "complexity": 1,
       "file_name": "acb_cache_adapter.py",
+      "function_name": "ACBChunkCache::__contains__",
+      "path": "session_buddy/acb_cache_adapter.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "acb_cache_adapter.py",
       "function_name": "ACBChunkCache::__getitem__",
       "path": "session_buddy/acb_cache_adapter.py"
     },
     {
       "complexity": 1,
       "file_name": "acb_cache_adapter.py",
-      "function_name": "ACBChunkCache::set",
+      "function_name": "ACBChunkCache::clear",
+      "path": "session_buddy/acb_cache_adapter.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "acb_cache_adapter.py",
+      "function_name": "ACBChunkCache::delete",
+      "path": "session_buddy/acb_cache_adapter.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "acb_cache_adapter.py",
+      "function_name": "ACBHistoryCache::set",
       "path": "session_buddy/acb_cache_adapter.py"
     },
     {
@@ -109,33 +91,39 @@
       "path": "session_buddy/acb_cache_adapter.py"
     },
     {
-      "complexity": 1,
+      "complexity": 2,
+      "file_name": "acb_cache_adapter.py",
+      "function_name": "ACBChunkCache::__init__",
+      "path": "session_buddy/acb_cache_adapter.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "acb_cache_adapter.py",
+      "function_name": "ACBChunkCache::set",
+      "path": "session_buddy/acb_cache_adapter.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "acb_cache_adapter.py",
+      "function_name": "ACBHistoryCache::__init__",
+      "path": "session_buddy/acb_cache_adapter.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "acb_cache_adapter.py",
+      "function_name": "_resolve_cache_settings",
+      "path": "session_buddy/acb_cache_adapter.py"
+    },
+    {
+      "complexity": 2,
       "file_name": "acb_cache_adapter.py",
       "function_name": "get_chunk_cache",
       "path": "session_buddy/acb_cache_adapter.py"
     },
     {
-      "complexity": 1,
+      "complexity": 2,
       "file_name": "acb_cache_adapter.py",
       "function_name": "get_history_cache",
-      "path": "session_buddy/acb_cache_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "acb_cache_adapter.py",
-      "function_name": "ACBChunkCache::get",
-      "path": "session_buddy/acb_cache_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "acb_cache_adapter.py",
-      "function_name": "ACBHistoryCache::get",
-      "path": "session_buddy/acb_cache_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "acb_cache_adapter.py",
-      "function_name": "ACBHistoryCache::invalidate",
       "path": "session_buddy/acb_cache_adapter.py"
     },
     {
@@ -145,412 +133,394 @@
       "path": "session_buddy/acb_cache_adapter.py"
     },
     {
-      "complexity": 0,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__aenter__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__aexit__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__del__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__enter__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__exit__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__init__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::_create_schema",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::_get_conn",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::add_observation",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::close",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::_format_timestamp",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::create_relation",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::get_stats",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::initialize",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
+      "complexity": 3,
+      "file_name": "acb_cache_adapter.py",
+      "function_name": "ACBChunkCache::get",
+      "path": "session_buddy/acb_cache_adapter.py"
     },
     {
       "complexity": 3,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::search_entities",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
+      "file_name": "acb_cache_adapter.py",
+      "function_name": "ACBHistoryCache::get",
+      "path": "session_buddy/acb_cache_adapter.py"
     },
     {
       "complexity": 4,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::_get_db_path",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 4,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::create_entity",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 4,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::get_entity",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 4,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::get_relationships",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 6,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::_resolve_entity_id",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 6,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::find_entity_by_name",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
-    },
-    {
-      "complexity": 15,
-      "file_name": "knowledge_graph_adapter.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::find_path",
-      "path": "session_buddy/adapters/knowledge_graph_adapter.py"
+      "file_name": "acb_cache_adapter.py",
+      "function_name": "ACBHistoryCache::invalidate",
+      "path": "session_buddy/acb_cache_adapter.py"
     },
     {
       "complexity": 0,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__aenter__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::__aenter__",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 0,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__aexit__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::__aexit__",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 0,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__del__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::__del__",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 0,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__enter__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::__enter__",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 0,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__exit__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::get_stats",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::__exit__",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 1,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::__init__",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::_create_schema",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 1,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::_get_conn",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::_get_conn",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 1,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::close",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::_get_db_path",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::add_observation",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::close",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 2,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::_ensure_initialized",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::__init__",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 2,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::add_observation",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::_format_timestamp",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 2,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::create_relation",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::create_relation",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 2,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::find_entity_by_name",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::get_entity",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::initialize",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::search_entities",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::get_stats",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 3,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::create_entity",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::find_path",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::search_entities",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 4,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::_get_db_path",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::create_entity",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 4,
-      "file_name": "knowledge_graph_adapter_acb_investigation.py",
-      "function_name": "KnowledgeGraphDatabaseAdapter::get_relationships",
-      "path": "session_buddy/adapters/knowledge_graph_adapter_acb_investigation.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::__aenter__",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::__aexit__",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::__del__",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::__enter__",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::__exit__",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::__init__",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::_text_search_conversations",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::reset_database",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::similarity_search",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::_get_adapter",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::_try_adapter_query",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::_log_accesses",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::aclose",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::get_embedding",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::search_conversations",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::_try_direct_query",
-      "path": "session_buddy/adapters/reflection_adapter.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::get_reflection_by_id",
-      "path": "session_buddy/adapters/reflection_adapter.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::get_entity",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 4,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::close",
-      "path": "session_buddy/adapters/reflection_adapter.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::get_relationships",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 5,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::store_conversation",
-      "path": "session_buddy/adapters/reflection_adapter.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::initialize",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 6,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::_parse_metadata",
-      "path": "session_buddy/adapters/reflection_adapter.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::_resolve_entity_id",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
       "complexity": 6,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::store_reflection",
-      "path": "session_buddy/adapters/reflection_adapter.py"
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::find_entity_by_name",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
-      "complexity": 8,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::_semantic_search_conversations",
-      "path": "session_buddy/adapters/reflection_adapter.py"
+      "complexity": 15,
+      "file_name": "knowledge_graph_adapter_oneiric.py",
+      "function_name": "KnowledgeGraphDatabaseAdapterOneiric::find_path",
+      "path": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py"
     },
     {
-      "complexity": 9,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::get_stats",
-      "path": "session_buddy/adapters/reflection_adapter.py"
+      "complexity": 0,
+      "file_name": "lifecycle.py",
+      "function_name": "cleanup_cache_adapters",
+      "path": "session_buddy/adapters/lifecycle.py"
     },
     {
-      "complexity": 9,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::search_reflections",
-      "path": "session_buddy/adapters/reflection_adapter.py"
+      "complexity": 0,
+      "file_name": "lifecycle.py",
+      "function_name": "health_cache_adapters",
+      "path": "session_buddy/adapters/lifecycle.py"
     },
     {
-      "complexity": 12,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::_text_search_fallback",
-      "path": "session_buddy/adapters/reflection_adapter.py"
+      "complexity": 0,
+      "file_name": "lifecycle.py",
+      "function_name": "health_knowledge_graph_adapter",
+      "path": "session_buddy/adapters/lifecycle.py"
     },
     {
-      "complexity": 14,
-      "file_name": "reflection_adapter.py",
-      "function_name": "ReflectionDatabaseAdapter::initialize",
-      "path": "session_buddy/adapters/reflection_adapter.py"
+      "complexity": 0,
+      "file_name": "lifecycle.py",
+      "function_name": "health_reflection_adapter",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "lifecycle.py",
+      "function_name": "health_storage_adapters",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "lifecycle.py",
+      "function_name": "init_cache_adapters",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "lifecycle.py",
+      "function_name": "get_cache_settings",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "lifecycle.py",
+      "function_name": "get_knowledge_graph_settings",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "lifecycle.py",
+      "function_name": "get_reflection_settings",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "lifecycle.py",
+      "function_name": "get_storage_settings",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "lifecycle.py",
+      "function_name": "cleanup_knowledge_graph_adapter",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "lifecycle.py",
+      "function_name": "cleanup_storage_adapters",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "lifecycle.py",
+      "function_name": "init_knowledge_graph_adapter",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "lifecycle.py",
+      "function_name": "init_reflection_adapter",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "lifecycle.py",
+      "function_name": "init_storage_adapters",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "lifecycle.py",
+      "function_name": "_cleanup_adapter",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "lifecycle.py",
+      "function_name": "cleanup_reflection_adapter",
+      "path": "session_buddy/adapters/lifecycle.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::__aenter__",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::__aexit__",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::__enter__",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::__exit__",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::_create_tables",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::_generate_id",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::_text_search_reflections",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::aclose",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::get_stats",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::similarity_search",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::_init_embedding_model",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::_semantic_search_reflections",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::reset_database",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::__init__",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::health_check",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::search_reflections",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::initialize",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::get_reflection_by_id",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::store_conversation",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::close",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::store_reflection",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 7,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::_generate_embedding",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
+    },
+    {
+      "complexity": 13,
+      "file_name": "reflection_adapter_oneiric.py",
+      "function_name": "ReflectionDatabaseAdapterOneiric::search_conversations",
+      "path": "session_buddy/adapters/reflection_adapter_oneiric.py"
     },
     {
       "complexity": 0,
@@ -637,15 +607,15 @@
       "path": "session_buddy/adapters/session_storage_adapter.py"
     },
     {
-      "complexity": 2,
+      "complexity": 1,
       "file_name": "session_storage_adapter.py",
-      "function_name": "SessionStorageAdapter::_ensure_adapter",
+      "function_name": "get_default_storage_adapter",
       "path": "session_buddy/adapters/session_storage_adapter.py"
     },
     {
-      "complexity": 3,
+      "complexity": 2,
       "file_name": "session_storage_adapter.py",
-      "function_name": "get_default_storage_adapter",
+      "function_name": "SessionStorageAdapter::_ensure_adapter",
       "path": "session_buddy/adapters/session_storage_adapter.py"
     },
     {
@@ -661,40 +631,346 @@
       "path": "session_buddy/adapters/session_storage_adapter.py"
     },
     {
-      "complexity": 6,
+      "complexity": 7,
       "file_name": "session_storage_adapter.py",
       "function_name": "SessionStorageAdapter::load_session",
       "path": "session_buddy/adapters/session_storage_adapter.py"
     },
     {
       "complexity": 0,
-      "file_name": "storage_registry.py",
-      "function_name": "get_default_session_buckets",
-      "path": "session_buddy/adapters/storage_registry.py"
+      "file_name": "settings.py",
+      "function_name": "KnowledgeGraphAdapterSettings::from_settings",
+      "path": "session_buddy/adapters/settings.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "settings.py",
+      "function_name": "ReflectionAdapterSettings::from_settings",
+      "path": "session_buddy/adapters/settings.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "settings.py",
+      "function_name": "StorageAdapterSettings::from_settings",
+      "path": "session_buddy/adapters/settings.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "settings.py",
+      "function_name": "default_session_buckets",
+      "path": "session_buddy/adapters/settings.py"
     },
     {
       "complexity": 1,
-      "file_name": "storage_registry.py",
+      "file_name": "settings.py",
+      "function_name": "_resolve_data_dir",
+      "path": "session_buddy/adapters/settings.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "SessionStorageAdapter::__init__",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "SessionStorageAdapter::initialize",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::__init__",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_file_exists",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_file_upload",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_get_memory_key",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_memory_exists",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_memory_upload",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::aclose",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageProtocol::delete",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageProtocol::download",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageProtocol::exists",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageProtocol::init",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageProtocol::upload",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageRegistryOneiric::__init__",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageRegistryOneiric::_initialize_sync",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageRegistryOneiric::init",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
       "function_name": "configure_storage_buckets",
-      "path": "session_buddy/adapters/storage_registry.py"
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "get_default_session_buckets",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "get_default_storage_adapter",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "get_storage_adapter",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "get_storage_registry",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "init_storage_registry",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "storage_oneiric.py",
+      "function_name": "register_storage_adapter",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "FileStorageOneiric::__init__",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "MemoryStorageOneiric::__init__",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "SessionStorageAdapter::delete",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "SessionStorageAdapter::download",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "SessionStorageAdapter::exists",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "SessionStorageAdapter::upload",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_file_delete",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_file_download",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_file_stat",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_memory_delete",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_memory_download",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_memory_stat",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageRegistryOneiric::_create_adapter",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageRegistryOneiric::_validate_backend",
+      "path": "session_buddy/adapters/storage_oneiric.py"
     },
     {
       "complexity": 2,
-      "file_name": "storage_registry.py",
-      "function_name": "get_storage_adapter",
-      "path": "session_buddy/adapters/storage_registry.py"
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageRegistryOneiric::configure_storage_buckets",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_get_file_path",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::download",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::exists",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::stat",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageRegistryOneiric::register_storage_adapter",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::delete",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::upload",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageRegistryOneiric::get_storage_adapter",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageRegistryOneiric::_apply_config_overrides",
+      "path": "session_buddy/adapters/storage_oneiric.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageRegistryOneiric::_prepare_overrides",
+      "path": "session_buddy/adapters/storage_oneiric.py"
     },
     {
       "complexity": 8,
-      "file_name": "storage_registry.py",
-      "function_name": "_get_storage_class",
-      "path": "session_buddy/adapters/storage_registry.py"
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::_initialize_sync",
+      "path": "session_buddy/adapters/storage_oneiric.py"
     },
     {
       "complexity": 8,
-      "file_name": "storage_registry.py",
-      "function_name": "register_storage_adapter",
-      "path": "session_buddy/adapters/storage_registry.py"
+      "file_name": "storage_oneiric.py",
+      "function_name": "StorageBaseOneiric::init",
+      "path": "session_buddy/adapters/storage_oneiric.py"
     },
     {
       "complexity": 0,
@@ -729,6 +1005,12 @@
     {
       "complexity": 1,
       "file_name": "advanced_features.py",
+      "function_name": "_format_context_failed",
+      "path": "session_buddy/advanced_features.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "advanced_features.py",
       "function_name": "_get_advanced_search_engine",
       "path": "session_buddy/advanced_features.py"
     },
@@ -748,6 +1030,18 @@
       "complexity": 1,
       "file_name": "advanced_features.py",
       "function_name": "_has_statistics_data",
+      "path": "session_buddy/advanced_features.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_features.py",
+      "function_name": "_format_context_preserved",
+      "path": "session_buddy/advanced_features.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "advanced_features.py",
+      "function_name": "_format_worktree_switch_result",
       "path": "session_buddy/advanced_features.py"
     },
     {
@@ -790,6 +1084,12 @@
       "complexity": 3,
       "file_name": "advanced_features.py",
       "function_name": "create_project_group",
+      "path": "session_buddy/advanced_features.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "advanced_features.py",
+      "function_name": "git_worktree_switch",
       "path": "session_buddy/advanced_features.py"
     },
     {
@@ -874,12 +1174,6 @@
       "complexity": 12,
       "file_name": "advanced_features.py",
       "function_name": "session_welcome",
-      "path": "session_buddy/advanced_features.py"
-    },
-    {
-      "complexity": 15,
-      "file_name": "advanced_features.py",
-      "function_name": "git_worktree_switch",
       "path": "session_buddy/advanced_features.py"
     },
     {
@@ -1317,6 +1611,24 @@
     {
       "complexity": 0,
       "file_name": "app_monitor.py",
+      "function_name": "IDEFileHandler::_create_activity_event",
+      "path": "session_buddy/app_monitor.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "app_monitor.py",
+      "function_name": "IDEFileHandler::_ensure_recent_table",
+      "path": "session_buddy/app_monitor.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "app_monitor.py",
+      "function_name": "IDEFileHandler::_fire_and_forget_extraction",
+      "path": "session_buddy/app_monitor.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "app_monitor.py",
       "function_name": "ProjectActivityMonitor::_init_database",
       "path": "session_buddy/app_monitor.py"
     },
@@ -1395,12 +1707,6 @@
     {
       "complexity": 1,
       "file_name": "app_monitor.py",
-      "function_name": "IDEFileHandler::_ensure_recent_table",
-      "path": "session_buddy/app_monitor.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "app_monitor.py",
       "function_name": "ProjectActivityMonitor::__init__",
       "path": "session_buddy/app_monitor.py"
     },
@@ -1408,12 +1714,6 @@
       "complexity": 1,
       "file_name": "app_monitor.py",
       "function_name": "ProjectActivityMonitor::add_activity",
-      "path": "session_buddy/app_monitor.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "app_monitor.py",
-      "function_name": "ProjectActivityMonitor::stop_monitoring",
       "path": "session_buddy/app_monitor.py"
     },
     {
@@ -1426,6 +1726,12 @@
       "complexity": 2,
       "file_name": "app_monitor.py",
       "function_name": "IDEFileHandler::_passes_threshold",
+      "path": "session_buddy/app_monitor.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "app_monitor.py",
+      "function_name": "IDEFileHandler::on_modified",
       "path": "session_buddy/app_monitor.py"
     },
     {
@@ -1449,7 +1755,19 @@
     {
       "complexity": 3,
       "file_name": "app_monitor.py",
+      "function_name": "IDEFileHandler::_determine_project_path",
+      "path": "session_buddy/app_monitor.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "app_monitor.py",
       "function_name": "IDEFileHandler::_estimate_relevance",
+      "path": "session_buddy/app_monitor.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "app_monitor.py",
+      "function_name": "ProjectActivityMonitor::stop_monitoring",
       "path": "session_buddy/app_monitor.py"
     },
     {
@@ -1467,7 +1785,7 @@
     {
       "complexity": 4,
       "file_name": "app_monitor.py",
-      "function_name": "ProjectActivityMonitor::start_monitoring",
+      "function_name": "IDEFileHandler::_try_entity_extraction",
       "path": "session_buddy/app_monitor.py"
     },
     {
@@ -1513,82 +1831,22 @@
       "path": "session_buddy/app_monitor.py"
     },
     {
-      "complexity": 9,
+      "complexity": 7,
       "file_name": "app_monitor.py",
-      "function_name": "IDEFileHandler::_recently_processed_persisted",
+      "function_name": "ProjectActivityMonitor::start_monitoring",
       "path": "session_buddy/app_monitor.py"
     },
     {
-      "complexity": 9,
+      "complexity": 8,
       "file_name": "app_monitor.py",
       "function_name": "IDEFileHandler::should_ignore",
       "path": "session_buddy/app_monitor.py"
     },
     {
-      "complexity": 15,
+      "complexity": 9,
       "file_name": "app_monitor.py",
-      "function_name": "IDEFileHandler::on_modified",
+      "function_name": "IDEFileHandler::_recently_processed_persisted",
       "path": "session_buddy/app_monitor.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "acb_cache_backend.py",
-      "function_name": "ACBCacheStorage::__init__",
-      "path": "session_buddy/backends/acb_cache_backend.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "acb_cache_backend.py",
-      "function_name": "ACBCacheStorage::_get_key",
-      "path": "session_buddy/backends/acb_cache_backend.py"
-    },
-    {
-      "complexity": 1,
-      "file_name": "acb_cache_backend.py",
-      "function_name": "ACBCacheStorage::delete_session",
-      "path": "session_buddy/backends/acb_cache_backend.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "acb_cache_backend.py",
-      "function_name": "ACBCacheStorage::_add_to_index",
-      "path": "session_buddy/backends/acb_cache_backend.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "acb_cache_backend.py",
-      "function_name": "ACBCacheStorage::is_available",
-      "path": "session_buddy/backends/acb_cache_backend.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "acb_cache_backend.py",
-      "function_name": "ACBCacheStorage::retrieve_session",
-      "path": "session_buddy/backends/acb_cache_backend.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "acb_cache_backend.py",
-      "function_name": "ACBCacheStorage::store_session",
-      "path": "session_buddy/backends/acb_cache_backend.py"
-    },
-    {
-      "complexity": 4,
-      "file_name": "acb_cache_backend.py",
-      "function_name": "ACBCacheStorage::_remove_from_index",
-      "path": "session_buddy/backends/acb_cache_backend.py"
-    },
-    {
-      "complexity": 10,
-      "file_name": "acb_cache_backend.py",
-      "function_name": "ACBCacheStorage::cleanup_expired_sessions",
-      "path": "session_buddy/backends/acb_cache_backend.py"
-    },
-    {
-      "complexity": 13,
-      "file_name": "acb_cache_backend.py",
-      "function_name": "ACBCacheStorage::list_sessions",
-      "path": "session_buddy/backends/acb_cache_backend.py"
     },
     {
       "complexity": 0,
@@ -1881,61 +2139,31 @@
     {
       "complexity": 0,
       "file_name": "cli.py",
-      "function_name": "restart_mcp_server",
+      "function_name": "_run_health_probe",
       "path": "session_buddy/cli.py"
     },
     {
       "complexity": 0,
       "file_name": "cli.py",
-      "function_name": "show_version",
+      "function_name": "create_session_buddy_cli",
       "path": "session_buddy/cli.py"
     },
     {
-      "complexity": 2,
-      "file_name": "cli.py",
-      "function_name": "get_server_status",
-      "path": "session_buddy/cli.py"
-    },
-    {
-      "complexity": 4,
-      "file_name": "cli.py",
-      "function_name": "show_status",
-      "path": "session_buddy/cli.py"
-    },
-    {
-      "complexity": 5,
-      "file_name": "cli.py",
-      "function_name": "show_config",
-      "path": "session_buddy/cli.py"
-    },
-    {
-      "complexity": 6,
-      "file_name": "cli.py",
-      "function_name": "stop_mcp_server",
-      "path": "session_buddy/cli.py"
-    },
-    {
-      "complexity": 7,
+      "complexity": 0,
       "file_name": "cli.py",
       "function_name": "main",
       "path": "session_buddy/cli.py"
     },
     {
-      "complexity": 7,
+      "complexity": 0,
       "file_name": "cli.py",
-      "function_name": "show_logs",
+      "function_name": "start_server_handler",
       "path": "session_buddy/cli.py"
     },
     {
-      "complexity": 13,
+      "complexity": 2,
       "file_name": "cli.py",
-      "function_name": "find_server_processes",
-      "path": "session_buddy/cli.py"
-    },
-    {
-      "complexity": 14,
-      "file_name": "cli.py",
-      "function_name": "start_mcp_server",
+      "function_name": "_read_running_pid",
       "path": "session_buddy/cli.py"
     },
     {
@@ -2289,6 +2517,12 @@
     {
       "complexity": 0,
       "file_name": "project_context.py",
+      "function_name": "add_python_context_indicators",
+      "path": "session_buddy/core/lifecycle/project_context.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "project_context.py",
       "function_name": "analyze_project_context",
       "path": "session_buddy/core/lifecycle/project_context.py"
     },
@@ -2329,12 +2563,6 @@
       "path": "session_buddy/core/lifecycle/project_context.py"
     },
     {
-      "complexity": 1,
-      "file_name": "project_context.py",
-      "function_name": "add_python_context_indicators",
-      "path": "session_buddy/core/lifecycle/project_context.py"
-    },
-    {
       "complexity": 2,
       "file_name": "project_context.py",
       "function_name": "detect_python_frameworks",
@@ -2345,6 +2573,192 @@
       "file_name": "project_context.py",
       "function_name": "check_framework_imports",
       "path": "session_buddy/core/lifecycle/project_context.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "ServiceRegistry::__init__",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "ServiceRegistry::register",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_cleanup_cache_adapters",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_cleanup_knowledge_graph",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_cleanup_reflection_db",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_cleanup_storage_adapters",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_health_cache_adapters",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_health_di_config",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_health_knowledge_graph",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_health_lifecycle_manager",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_health_logging",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_health_permissions_manager",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_health_reflection_db",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_health_storage_adapters",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_health_tools_registry",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_init_cache_adapters",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_init_di_config",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_init_knowledge_graph",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_init_logging",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_init_reflection_db",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_init_storage_adapters",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_noop",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "service_registry.py",
+      "function_name": "_register_defaults",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "service_registry.py",
+      "function_name": "ServiceRegistry::cleanup_all",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "service_registry.py",
+      "function_name": "ServiceRegistry::health_all",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "service_registry.py",
+      "function_name": "ServiceRegistry::init_all",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "service_registry.py",
+      "function_name": "get_service_registry",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "service_registry.py",
+      "function_name": "_ensure_session_paths",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "service_registry.py",
+      "function_name": "_init_lifecycle_manager",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "service_registry.py",
+      "function_name": "_init_permissions_manager",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "service_registry.py",
+      "function_name": "_maybe_call",
+      "path": "session_buddy/core/lifecycle/service_registry.py"
     },
     {
       "complexity": 0,
@@ -2727,6 +3141,12 @@
     {
       "complexity": 1,
       "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::_calculate_coverage_metrics",
+      "path": "session_buddy/crackerjack_integration.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "crackerjack_integration.py",
       "function_name": "CrackerjackIntegration::_execute_process",
       "path": "session_buddy/crackerjack_integration.py"
     },
@@ -2745,6 +3165,12 @@
     {
       "complexity": 2,
       "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::_calculate_quality_metrics",
+      "path": "session_buddy/crackerjack_integration.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "crackerjack_integration.py",
       "function_name": "CrackerjackIntegration::_calculate_trend_direction",
       "path": "session_buddy/crackerjack_integration.py"
     },
@@ -2757,13 +3183,61 @@
     {
       "complexity": 2,
       "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::_check_crackerjack_availability",
+      "path": "session_buddy/crackerjack_integration.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "crackerjack_integration.py",
       "function_name": "CrackerjackIntegration::get_quality_metrics_history",
+      "path": "session_buddy/crackerjack_integration.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::health_check",
+      "path": "session_buddy/crackerjack_integration.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::_calculate_complexity_metrics",
+      "path": "session_buddy/crackerjack_integration.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::_calculate_lint_metrics",
       "path": "session_buddy/crackerjack_integration.py"
     },
     {
       "complexity": 3,
       "file_name": "crackerjack_integration.py",
       "function_name": "CrackerjackIntegration::_calculate_overall_assessment",
+      "path": "session_buddy/crackerjack_integration.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::_calculate_security_metrics",
+      "path": "session_buddy/crackerjack_integration.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::_calculate_test_metrics",
+      "path": "session_buddy/crackerjack_integration.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::_check_database_health",
+      "path": "session_buddy/crackerjack_integration.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "crackerjack_integration.py",
+      "function_name": "CrackerjackIntegration::_determine_health_status",
       "path": "session_buddy/crackerjack_integration.py"
     },
     {
@@ -2827,18 +3301,6 @@
       "path": "session_buddy/crackerjack_integration.py"
     },
     {
-      "complexity": 14,
-      "file_name": "crackerjack_integration.py",
-      "function_name": "CrackerjackIntegration::health_check",
-      "path": "session_buddy/crackerjack_integration.py"
-    },
-    {
-      "complexity": 15,
-      "file_name": "crackerjack_integration.py",
-      "function_name": "CrackerjackIntegration::_calculate_quality_metrics",
-      "path": "session_buddy/crackerjack_integration.py"
-    },
-    {
       "complexity": 0,
       "file_name": "__init__.py",
       "function_name": "_register_logger",
@@ -2847,13 +3309,13 @@
     {
       "complexity": 0,
       "file_name": "__init__.py",
-      "function_name": "reset",
+      "function_name": "get_sync_typed",
       "path": "session_buddy/di/__init__.py"
     },
     {
-      "complexity": 1,
+      "complexity": 0,
       "file_name": "__init__.py",
-      "function_name": "_register_storage_adapters",
+      "function_name": "reset",
       "path": "session_buddy/di/__init__.py"
     },
     {
@@ -2875,18 +3337,6 @@
       "path": "session_buddy/di/__init__.py"
     },
     {
-      "complexity": 4,
-      "file_name": "__init__.py",
-      "function_name": "_register_vector_adapter",
-      "path": "session_buddy/di/__init__.py"
-    },
-    {
-      "complexity": 5,
-      "file_name": "__init__.py",
-      "function_name": "_register_graph_adapter",
-      "path": "session_buddy/di/__init__.py"
-    },
-    {
       "complexity": 5,
       "file_name": "__init__.py",
       "function_name": "_register_session_logger",
@@ -2903,6 +3353,54 @@
       "file_name": "config.py",
       "function_name": "SessionPaths::from_home",
       "path": "session_buddy/di/config.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "container.py",
+      "function_name": "ServiceContainer::__init__",
+      "path": "session_buddy/di/container.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "container.py",
+      "function_name": "ServiceContainer::get",
+      "path": "session_buddy/di/container.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "container.py",
+      "function_name": "ServiceContainer::register_factory",
+      "path": "session_buddy/di/container.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "container.py",
+      "function_name": "ServiceContainer::reset",
+      "path": "session_buddy/di/container.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "container.py",
+      "function_name": "ServiceContainer::set",
+      "path": "session_buddy/di/container.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "container.py",
+      "function_name": "ServiceContainer::_key_name",
+      "path": "session_buddy/di/container.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "container.py",
+      "function_name": "ServiceContainer::get_async",
+      "path": "session_buddy/di/container.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "container.py",
+      "function_name": "ServiceContainer::get_sync",
+      "path": "session_buddy/di/container.py"
     },
     {
       "complexity": 4,
@@ -3429,6 +3927,12 @@
     {
       "complexity": 3,
       "file_name": "ollama_provider.py",
+      "function_name": "OllamaProvider::_make_api_request",
+      "path": "session_buddy/llm/providers/ollama_provider.py"
+    },
+    {
+      "complexity": 3,
+      "file_name": "ollama_provider.py",
       "function_name": "OllamaProvider::_stream_from_response_aiohttp",
       "path": "session_buddy/llm/providers/ollama_provider.py"
     },
@@ -3466,12 +3970,6 @@
       "complexity": 5,
       "file_name": "ollama_provider.py",
       "function_name": "OllamaProvider::stream_generate",
-      "path": "session_buddy/llm/providers/ollama_provider.py"
-    },
-    {
-      "complexity": 6,
-      "file_name": "ollama_provider.py",
-      "function_name": "OllamaProvider::_make_api_request",
       "path": "session_buddy/llm/providers/ollama_provider.py"
     },
     {
@@ -3535,27 +4033,27 @@
       "path": "session_buddy/llm/security.py"
     },
     {
-      "complexity": 3,
+      "complexity": 7,
       "file_name": "security.py",
       "function_name": "_get_configured_providers",
       "path": "session_buddy/llm/security.py"
     },
     {
-      "complexity": 5,
-      "file_name": "security.py",
-      "function_name": "_get_provider_api_key_and_env",
-      "path": "session_buddy/llm/security.py"
-    },
-    {
       "complexity": 7,
       "file_name": "security.py",
-      "function_name": "get_masked_api_key",
+      "function_name": "_get_provider_api_key_and_env",
       "path": "session_buddy/llm/security.py"
     },
     {
       "complexity": 8,
       "file_name": "security.py",
       "function_name": "validate_llm_api_keys_at_startup",
+      "path": "session_buddy/llm/security.py"
+    },
+    {
+      "complexity": 11,
+      "file_name": "security.py",
+      "function_name": "get_masked_api_key",
       "path": "session_buddy/llm/security.py"
     },
     {
@@ -3607,12 +4105,6 @@
       "path": "session_buddy/llm_providers.py"
     },
     {
-      "complexity": 3,
-      "file_name": "llm_providers.py",
-      "function_name": "_get_configured_providers",
-      "path": "session_buddy/llm_providers.py"
-    },
-    {
       "complexity": 4,
       "file_name": "llm_providers.py",
       "function_name": "LLMManager::_initialize_providers",
@@ -3649,12 +4141,6 @@
       "path": "session_buddy/llm_providers.py"
     },
     {
-      "complexity": 5,
-      "file_name": "llm_providers.py",
-      "function_name": "get_masked_api_key",
-      "path": "session_buddy/llm_providers.py"
-    },
-    {
       "complexity": 6,
       "file_name": "llm_providers.py",
       "function_name": "LLMManager::_try_provider_streaming",
@@ -3681,7 +4167,7 @@
     {
       "complexity": 7,
       "file_name": "llm_providers.py",
-      "function_name": "_get_provider_api_key_and_env",
+      "function_name": "_get_configured_providers",
       "path": "session_buddy/llm_providers.py"
     },
     {
@@ -3694,6 +4180,18 @@
       "complexity": 9,
       "file_name": "llm_providers.py",
       "function_name": "LLMManager::_try_fallback_providers_generate",
+      "path": "session_buddy/llm_providers.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "llm_providers.py",
+      "function_name": "_get_provider_api_key_and_env",
+      "path": "session_buddy/llm_providers.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "llm_providers.py",
+      "function_name": "get_masked_api_key",
       "path": "session_buddy/llm_providers.py"
     },
     {
@@ -4189,6 +4687,18 @@
       "path": "session_buddy/multi_project_coordinator.py"
     },
     {
+      "complexity": 0,
+      "file_name": "multi_project_coordinator.py",
+      "function_name": "ReflectionDatabaseProtocol::conn",
+      "path": "session_buddy/multi_project_coordinator.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "multi_project_coordinator.py",
+      "function_name": "ReflectionDatabaseProtocol::search_conversations",
+      "path": "session_buddy/multi_project_coordinator.py"
+    },
+    {
       "complexity": 1,
       "file_name": "multi_project_coordinator.py",
       "function_name": "MultiProjectCoordinator::_clear_dependency_cache",
@@ -4305,6 +4815,12 @@
     {
       "complexity": 0,
       "file_name": "natural_scheduler.py",
+      "function_name": "ReminderScheduler::_mark_reminder_executed",
+      "path": "session_buddy/natural_scheduler.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "natural_scheduler.py",
       "function_name": "cancel_user_reminder",
       "path": "session_buddy/natural_scheduler.py"
     },
@@ -4389,7 +4905,13 @@
     {
       "complexity": 2,
       "file_name": "natural_scheduler.py",
-      "function_name": "ReminderScheduler::create_reminder",
+      "function_name": "ReminderScheduler::_execute_notification_callbacks",
+      "path": "session_buddy/natural_scheduler.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "natural_scheduler.py",
+      "function_name": "ReminderScheduler::_handle_recurring_reminder",
       "path": "session_buddy/natural_scheduler.py"
     },
     {
@@ -4413,7 +4935,19 @@
     {
       "complexity": 4,
       "file_name": "natural_scheduler.py",
+      "function_name": "ReminderScheduler::_get_reminder_by_id",
+      "path": "session_buddy/natural_scheduler.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "natural_scheduler.py",
       "function_name": "ReminderScheduler::_parse_recurrence_interval",
+      "path": "session_buddy/natural_scheduler.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "natural_scheduler.py",
+      "function_name": "ReminderScheduler::create_reminder",
       "path": "session_buddy/natural_scheduler.py"
     },
     {
@@ -4441,15 +4975,15 @@
       "path": "session_buddy/natural_scheduler.py"
     },
     {
-      "complexity": 8,
+      "complexity": 7,
       "file_name": "natural_scheduler.py",
-      "function_name": "ReminderScheduler::get_pending_reminders",
+      "function_name": "ReminderScheduler::execute_reminder",
       "path": "session_buddy/natural_scheduler.py"
     },
     {
-      "complexity": 14,
+      "complexity": 8,
       "file_name": "natural_scheduler.py",
-      "function_name": "ReminderScheduler::execute_reminder",
+      "function_name": "ReminderScheduler::get_pending_reminders",
       "path": "session_buddy/natural_scheduler.py"
     },
     {
@@ -4935,12 +5469,6 @@
     {
       "complexity": 3,
       "file_name": "reflection_tools.py",
-      "function_name": "ReflectionDatabase::_execute_query",
-      "path": "session_buddy/reflection_tools.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "reflection_tools.py",
       "function_name": "ReflectionDatabase::close",
       "path": "session_buddy/reflection_tools.py"
     },
@@ -5073,12 +5601,6 @@
     {
       "complexity": 6,
       "file_name": "resource_cleanup.py",
-      "function_name": "cleanup_http_clients",
-      "path": "session_buddy/resource_cleanup.py"
-    },
-    {
-      "complexity": 6,
-      "file_name": "resource_cleanup.py",
       "function_name": "cleanup_session_state",
       "path": "session_buddy/resource_cleanup.py"
     },
@@ -5095,10 +5617,22 @@
       "path": "session_buddy/resource_cleanup.py"
     },
     {
+      "complexity": 10,
+      "file_name": "resource_cleanup.py",
+      "function_name": "cleanup_http_clients",
+      "path": "session_buddy/resource_cleanup.py"
+    },
+    {
       "complexity": 13,
       "file_name": "resource_cleanup.py",
       "function_name": "_cleanup_handler",
       "path": "session_buddy/resource_cleanup.py"
+    },
+    {
+      "complexity": 8,
+      "file_name": "test_runner.py",
+      "function_name": "main",
+      "path": "session_buddy/scripts/test_runner.py"
     },
     {
       "complexity": 0,
@@ -5319,6 +5853,12 @@
     {
       "complexity": 2,
       "file_name": "server.py",
+      "function_name": "_get_lifecycle_manager",
+      "path": "session_buddy/server.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "server.py",
       "function_name": "_resolve_tool_registry",
       "path": "session_buddy/server.py"
     },
@@ -5374,6 +5914,12 @@
       "complexity": 4,
       "file_name": "server.py",
       "function_name": "_format_reflection_output",
+      "path": "session_buddy/server.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "server.py",
+      "function_name": "_get_permissions_manager",
       "path": "session_buddy/server.py"
     },
     {
@@ -5541,6 +6087,12 @@
     {
       "complexity": 4,
       "file_name": "server_optimized.py",
+      "function_name": "_get_permissions_manager",
+      "path": "session_buddy/server_optimized.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "server_optimized.py",
       "function_name": "run_server",
       "path": "session_buddy/server_optimized.py"
     },
@@ -5631,7 +6183,19 @@
     {
       "complexity": 1,
       "file_name": "serverless_mode.py",
+      "function_name": "ServerlessConfigManager::create_storage_backend",
+      "path": "session_buddy/serverless_mode.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "serverless_mode.py",
       "function_name": "ServerlessSessionManager::create_session",
+      "path": "session_buddy/serverless_mode.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "serverless_mode.py",
+      "function_name": "ServerlessConfigManager::test_storage_backends",
       "path": "session_buddy/serverless_mode.py"
     },
     {
@@ -5647,28 +6211,10 @@
       "path": "session_buddy/serverless_mode.py"
     },
     {
-      "complexity": 3,
-      "file_name": "serverless_mode.py",
-      "function_name": "ServerlessConfigManager::test_storage_backends",
-      "path": "session_buddy/serverless_mode.py"
-    },
-    {
       "complexity": 6,
       "file_name": "serverless_mode.py",
       "function_name": "ServerlessSessionManager::update_session",
       "path": "session_buddy/serverless_mode.py"
-    },
-    {
-      "complexity": 11,
-      "file_name": "serverless_mode.py",
-      "function_name": "ServerlessConfigManager::create_storage_backend",
-      "path": "session_buddy/serverless_mode.py"
-    },
-    {
-      "complexity": 0,
-      "file_name": "settings.py",
-      "function_name": "SessionMgmtSettings::expand_user_paths",
-      "path": "session_buddy/settings.py"
     },
     {
       "complexity": 0,
@@ -5679,13 +6225,43 @@
     {
       "complexity": 1,
       "file_name": "settings.py",
+      "function_name": "SessionMgmtSettings::expand_user_paths",
+      "path": "session_buddy/settings.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "settings.py",
       "function_name": "SessionMgmtSettings::validate_commit_template",
+      "path": "session_buddy/settings.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "settings.py",
+      "function_name": "get_database_path",
+      "path": "session_buddy/settings.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "settings.py",
+      "function_name": "get_log_file_path",
+      "path": "session_buddy/settings.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "settings.py",
+      "function_name": "SessionMgmtSettings::map_legacy_debug_flag",
       "path": "session_buddy/settings.py"
     },
     {
       "complexity": 2,
       "file_name": "settings.py",
       "function_name": "get_settings",
+      "path": "session_buddy/settings.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "settings.py",
+      "function_name": "get_llm_api_key",
       "path": "session_buddy/settings.py"
     },
     {
@@ -8083,6 +8659,12 @@
       "path": "session_buddy/tools/session_tools.py"
     },
     {
+      "complexity": 2,
+      "file_name": "session_tools.py",
+      "function_name": "_get_session_manager",
+      "path": "session_buddy/tools/session_tools.py"
+    },
+    {
       "complexity": 3,
       "file_name": "session_tools.py",
       "function_name": "_add_environment_info_to_output",
@@ -8092,12 +8674,6 @@
       "complexity": 3,
       "file_name": "session_tools.py",
       "function_name": "_get_most_recent_client_repo",
-      "path": "session_buddy/tools/session_tools.py"
-    },
-    {
-      "complexity": 3,
-      "file_name": "session_tools.py",
-      "function_name": "_get_session_manager",
       "path": "session_buddy/tools/session_tools.py"
     },
     {
@@ -8301,6 +8877,30 @@
     {
       "complexity": 0,
       "file_name": "validated_memory_tools.py",
+      "function_name": "MigrationGuide::after_migration",
+      "path": "session_buddy/tools/validated_memory_tools.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "validated_memory_tools.py",
+      "function_name": "MigrationGuide::before_migration",
+      "path": "session_buddy/tools/validated_memory_tools.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "validated_memory_tools.py",
+      "function_name": "ValidationExamples::example_valid_calls",
+      "path": "session_buddy/tools/validated_memory_tools.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "validated_memory_tools.py",
+      "function_name": "ValidationExamples::example_validation_errors",
+      "path": "session_buddy/tools/validated_memory_tools.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "validated_memory_tools.py",
       "function_name": "_format_file_search_header",
       "path": "session_buddy/tools/validated_memory_tools.py"
     },
@@ -8313,7 +8913,13 @@
     {
       "complexity": 1,
       "file_name": "validated_memory_tools.py",
-      "function_name": "_get_reflection_database",
+      "function_name": "_execute_store_reflection",
+      "path": "session_buddy/tools/validated_memory_tools.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "validated_memory_tools.py",
+      "function_name": "_format_reflection_result",
       "path": "session_buddy/tools/validated_memory_tools.py"
     },
     {
@@ -8325,19 +8931,7 @@
     {
       "complexity": 2,
       "file_name": "validated_memory_tools.py",
-      "function_name": "_format_file_search_results",
-      "path": "session_buddy/tools/validated_memory_tools.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "validated_memory_tools.py",
       "function_name": "_format_search_results",
-      "path": "session_buddy/tools/validated_memory_tools.py"
-    },
-    {
-      "complexity": 2,
-      "file_name": "validated_memory_tools.py",
-      "function_name": "_get_reflection_database_async",
       "path": "session_buddy/tools/validated_memory_tools.py"
     },
     {
@@ -8365,6 +8959,24 @@
       "path": "session_buddy/tools/validated_memory_tools.py"
     },
     {
+      "complexity": 3,
+      "file_name": "validated_memory_tools.py",
+      "function_name": "_validate_reflection_params",
+      "path": "session_buddy/tools/validated_memory_tools.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "validated_memory_tools.py",
+      "function_name": "_get_reflection_database",
+      "path": "session_buddy/tools/validated_memory_tools.py"
+    },
+    {
+      "complexity": 5,
+      "file_name": "validated_memory_tools.py",
+      "function_name": "_format_file_search_results",
+      "path": "session_buddy/tools/validated_memory_tools.py"
+    },
+    {
       "complexity": 5,
       "file_name": "validated_memory_tools.py",
       "function_name": "_format_validated_concept_result",
@@ -8373,23 +8985,29 @@
     {
       "complexity": 5,
       "file_name": "validated_memory_tools.py",
+      "function_name": "_get_reflection_database_async",
+      "path": "session_buddy/tools/validated_memory_tools.py"
+    },
+    {
+      "complexity": 9,
+      "file_name": "validated_memory_tools.py",
       "function_name": "_search_by_concept_validated_impl",
       "path": "session_buddy/tools/validated_memory_tools.py"
     },
     {
-      "complexity": 5,
+      "complexity": 9,
       "file_name": "validated_memory_tools.py",
       "function_name": "_search_by_file_validated_impl",
       "path": "session_buddy/tools/validated_memory_tools.py"
     },
     {
-      "complexity": 7,
+      "complexity": 9,
       "file_name": "validated_memory_tools.py",
       "function_name": "_store_reflection_validated_impl",
       "path": "session_buddy/tools/validated_memory_tools.py"
     },
     {
-      "complexity": 8,
+      "complexity": 12,
       "file_name": "validated_memory_tools.py",
       "function_name": "_quick_search_validated_impl",
       "path": "session_buddy/tools/validated_memory_tools.py"
@@ -9121,7 +9739,7 @@
       "path": "session_buddy/utils/instance_managers.py"
     },
     {
-      "complexity": 1,
+      "complexity": 0,
       "file_name": "instance_managers.py",
       "function_name": "reset_instances",
       "path": "session_buddy/utils/instance_managers.py"
@@ -9133,7 +9751,7 @@
       "path": "session_buddy/utils/instance_managers.py"
     },
     {
-      "complexity": 4,
+      "complexity": 3,
       "file_name": "instance_managers.py",
       "function_name": "get_interruption_manager",
       "path": "session_buddy/utils/instance_managers.py"
@@ -9141,25 +9759,25 @@
     {
       "complexity": 4,
       "file_name": "instance_managers.py",
-      "function_name": "get_reflection_database",
-      "path": "session_buddy/utils/instance_managers.py"
-    },
-    {
-      "complexity": 5,
-      "file_name": "instance_managers.py",
       "function_name": "get_app_monitor",
       "path": "session_buddy/utils/instance_managers.py"
     },
     {
-      "complexity": 5,
+      "complexity": 4,
       "file_name": "instance_managers.py",
       "function_name": "get_llm_manager",
       "path": "session_buddy/utils/instance_managers.py"
     },
     {
-      "complexity": 5,
+      "complexity": 4,
       "file_name": "instance_managers.py",
       "function_name": "get_serverless_manager",
+      "path": "session_buddy/utils/instance_managers.py"
+    },
+    {
+      "complexity": 6,
+      "file_name": "instance_managers.py",
+      "function_name": "get_reflection_database",
       "path": "session_buddy/utils/instance_managers.py"
     },
     {
@@ -9767,6 +10385,72 @@
       "file_name": "reflection_utils.py",
       "function_name": "should_auto_store_checkpoint",
       "path": "session_buddy/utils/reflection_utils.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "RuntimeSnapshotManager::for_server",
+      "path": "session_buddy/utils/runtime_snapshots.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "RuntimeSnapshotManager::record",
+      "path": "session_buddy/utils/runtime_snapshots.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "RuntimeSnapshotManager::write_telemetry_snapshot",
+      "path": "session_buddy/utils/runtime_snapshots.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "RuntimeTelemetrySnapshot::as_dict",
+      "path": "session_buddy/utils/runtime_snapshots.py"
+    },
+    {
+      "complexity": 0,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "_sleep",
+      "path": "session_buddy/utils/runtime_snapshots.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "RuntimeSnapshotManager::write_health_snapshot",
+      "path": "session_buddy/utils/runtime_snapshots.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "run_snapshot_loop",
+      "path": "session_buddy/utils/runtime_snapshots.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "update_telemetry_counter",
+      "path": "session_buddy/utils/runtime_snapshots.py"
+    },
+    {
+      "complexity": 1,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "write_runtime_telemetry",
+      "path": "session_buddy/utils/runtime_snapshots.py"
+    },
+    {
+      "complexity": 2,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "_parse_iso_datetime",
+      "path": "session_buddy/utils/runtime_snapshots.py"
+    },
+    {
+      "complexity": 4,
+      "file_name": "runtime_snapshots.py",
+      "function_name": "load_runtime_telemetry",
+      "path": "session_buddy/utils/runtime_snapshots.py"
     },
     {
       "complexity": 0,

@@ -1,0 +1,16 @@
+{
+  "include": [
+    "session_buddy"
+  ],
+  "exclude": [
+    "tests"
+  ],
+  "ignore": [
+    "tests"
+  ],
+  "defineConstant": {
+    "DEBUG": true
+  },
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false
+}

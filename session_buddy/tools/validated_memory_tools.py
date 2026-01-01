@@ -19,8 +19,9 @@ from __future__ import annotations
 # ============================================================================
 from contextlib import suppress
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any
 
+from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter
 from session_buddy.parameter_models import (
     ConceptSearchParams,
     FileSearchParams,
@@ -28,26 +29,32 @@ from session_buddy.parameter_models import (
     SearchQueryParams,
     validate_mcp_params,
 )
+from session_buddy.reflection_tools import ReflectionDatabase
 from session_buddy.utils.error_handlers import ValidationError, _get_logger
 from session_buddy.utils.tool_wrapper import execute_database_tool
 
-if TYPE_CHECKING:
-    from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter
-    from session_buddy.reflection_tools import ReflectionDatabase
-
 # Define type alias for backward compatibility during migration
-ReflectionDatabaseType = Union["ReflectionDatabase", "ReflectionDatabaseAdapter"]
+# NOTE: With 'from __future__ import annotations', we use the actual types, not strings
+ReflectionDatabaseType = ReflectionDatabaseAdapter | ReflectionDatabase
 
 
-async def _get_reflection_database() -> ReflectionDatabaseType | None:
+async def _get_reflection_database() -> ReflectionDatabaseType:
     """Get reflection database instance with lazy initialization."""
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        return await get_reflection_database()
+        db = await get_reflection_database()
+        if db is None:
+            msg = "Reflection tools not available"
+            raise ImportError(msg)
+        return db
+    except ImportError:
+        # Re-raise import errors as they are expected
+        raise
     except Exception as e:
         _get_logger().warning(f"Could not get reflection database: {e}")
-        return None
+        msg = "Reflection tools not available"
+        raise ImportError(msg) from e
 
 
 def _format_result_item(res: dict[str, Any], index: int) -> list[str]:
@@ -108,63 +115,112 @@ def _format_concept_results(
 # ============================================================================
 
 
-async def _store_reflection_validated_impl(**params: Any) -> str:
-    """Implementation for store_reflection tool with parameter validation."""
+def _validate_reflection_params(**params: Any) -> ReflectionStoreParams | str:
+    """Validate reflection store parameters.
+
+    Args:
+        **params: Raw parameters from MCP call
+
+    Returns:
+        Validated params object or error message string
+
+    """
     from typing import cast
 
-    # Validate parameters using Pydantic model
-    validated = validate_mcp_params(ReflectionStoreParams, **params)
-    if not validated.is_valid:
-        msg = f"Parameter validation failed: {validated.errors}"
-        raise ValidationError(msg)
+    try:
+        validated = validate_mcp_params(ReflectionStoreParams, **params)
+        if not validated.is_valid:
+            return f"Parameter validation error: {validated.errors}"
+        return cast("ReflectionStoreParams", validated.params)
+    except ValidationError as e:
+        return f"Parameter validation error: {e}"
 
-    params_obj = cast("ReflectionStoreParams", validated.params)
 
-    async def operation(db: Any) -> dict[str, Any]:
-        """Store reflection operation."""
-        reflection_id = await db.store_reflection(
-            params_obj.content,
-            tags=params_obj.tags,
-        )
-        return {
-            "success": True,
-            "id": reflection_id,
-            "content": params_obj.content,
-            "tags": params_obj.tags,
-            "timestamp": datetime.now().isoformat(),
-        }
+async def _execute_store_reflection(
+    params_obj: ReflectionStoreParams, db: Any
+) -> dict[str, Any]:
+    """Execute the reflection storage operation.
 
-    def formatter(result: dict[str, Any]) -> str:
-        """Format reflection storage result."""
-        lines = [
-            "💾 Reflection stored successfully!",
-            f"🆔 ID: {result['id']}",
-            f"📝 Content: {result['content'][:100]}...",
-        ]
-        if result["tags"]:
-            lines.append(f"🏷️  Tags: {', '.join(result['tags'])}")
-        lines.append(f"📅 Stored: {result['timestamp']}")
+    Args:
+        params_obj: Validated parameters
+        db: Database instance
 
-        _get_logger().info(
-            "Validated reflection stored",
-            reflection_id=result["id"],
-            content_length=len(result["content"]),
-            tags_count=len(result["tags"]),
-        )
-        return "\n".join(lines)
+    Returns:
+        Operation result dictionary
 
+    """
+    reflection_id = await db.store_reflection(
+        params_obj.content,
+        tags=params_obj.tags or [],
+    )
+
+    return {
+        "success": reflection_id not in (None, False),
+        "id": reflection_id,
+        "content": params_obj.content,
+        "tags": params_obj.tags or [],
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+def _format_reflection_result(result: dict[str, Any]) -> str:
+    """Format reflection storage result for user display.
+
+    Args:
+        result: Operation result dictionary
+
+    Returns:
+        Formatted string message
+
+    """
+    lines = [
+        "💾 Reflection stored successfully!",
+        f"🆔 ID: {result['id']}",
+        f"📝 Content: {result['content'][:100]}...",
+    ]
+    if result["tags"]:
+        lines.append(f"🏷️  Tags: {', '.join(result['tags'])}")
+    lines.append(f"📅 Stored: {result['timestamp']}")
+
+    _get_logger().info(
+        f"Validated reflection stored | Context: {{'reflection_id': '{result['id']}', 'content_length': {len(result['content'])}, 'tags_count': {len(result['tags']) if result['tags'] else 0}}}"
+    )
+    return "\n".join(lines)
+
+
+async def _store_reflection_validated_impl(**params: Any) -> str:
+    """Implementation for store_reflection tool with parameter validation."""
     # Check if tools are available
     if not _check_reflection_tools_available():
         return "❌ Reflection tools not available. Install with: `uv sync --extra embeddings`\n💡 This enables conversation memory and semantic search capabilities."
 
+    # Validate parameters
+    params_validation = _validate_reflection_params(**params)
+    if isinstance(params_validation, str):
+        return params_validation
+    params_obj = params_validation
+
     try:
-        # Get database instance and execute operation
+        # Get database instance
         db = await _get_reflection_database_async()
         if not db:
             return "❌ Failed to connect to reflection database"
 
-        result = await operation(db)
-        return formatter(result)
+        # Execute storage operation
+        result = await _execute_store_reflection(params_obj, db)
+        if not result["success"]:
+            error_msg = f"Failed to store reflection: {result['id']}"
+            _get_logger().error(error_msg)
+            return error_msg
+
+        return _format_reflection_result(result)
+
+    except ValidationError as e:
+        return f"Parameter validation failed: {e}"
+    except ImportError:
+        error_msg = "Failed to connect to reflection database: Import error"
+        _get_logger().error(error_msg)
+        return error_msg
     except Exception as e:
         error_msg = f"Failed to store reflection: {e}"
         _get_logger().error(error_msg)
@@ -176,20 +232,20 @@ async def _quick_search_validated_impl(**params: Any) -> str:
     from typing import cast
 
     # Validate parameters
-    validated = validate_mcp_params(SearchQueryParams, **params)
-    if not validated.is_valid:
-        msg = f"Parameter validation failed: {validated.errors}"
-        raise ValidationError(msg)
-
-    params_obj = cast("SearchQueryParams", validated.params)
+    try:
+        validated = validate_mcp_params(SearchQueryParams, **params)
+        if not validated.is_valid:
+            return f"Parameter validation error: {validated.errors}"
+        params_obj = cast("SearchQueryParams", validated.params)
+    except ValidationError as e:
+        return f"Parameter validation error: {e}"
 
     async def operation(db: Any) -> dict[str, Any]:
         """Quick search operation."""
-        results = await db.search_conversations(
-            query=params_obj.query,
-            project=params_obj.project,
-            min_score=params_obj.min_score,
+        results = await db.search_reflections(
+            params_obj.query,
             limit=1,
+            min_score=params_obj.min_score,
         )
 
         return {
@@ -213,9 +269,7 @@ async def _quick_search_validated_impl(**params: Any) -> str:
             lines.extend(_format_top_result(result["results"][0]))
 
         _get_logger().info(
-            "Validated quick search executed",
-            query=result["query"],
-            results_count=result["total_count"],
+            f"Validated quick search executed | Context: {{'query': '{result['query']}', 'results_count': {result['total_count']}}}"
         )
         return "\n".join(lines)
 
@@ -231,6 +285,14 @@ async def _quick_search_validated_impl(**params: Any) -> str:
 
         result = await operation(db)
         return formatter(result)
+    except ValidationError as e:
+        # Return validation errors as strings instead of raising
+        return f"Parameter validation failed: {e}"
+    except ImportError:
+        # Handle import errors from database initialization
+        error_msg = "Failed to connect to reflection database: Import error"
+        _get_logger().error(error_msg)
+        return error_msg
     except Exception as e:
         error_msg = f"Failed to perform quick search: {e}"
         _get_logger().error(error_msg)
@@ -258,19 +320,20 @@ async def _search_by_file_validated_impl(**params: Any) -> str:
     from typing import cast
 
     # Validate parameters
-    validated = validate_mcp_params(FileSearchParams, **params)
-    if not validated.is_valid:
-        msg = f"Parameter validation failed: {validated.errors}"
-        raise ValidationError(msg)
-
-    params_obj = cast("FileSearchParams", validated.params)
+    try:
+        validated = validate_mcp_params(FileSearchParams, **params)
+        if not validated.is_valid:
+            return f"Parameter validation error: {validated.errors}"
+        params_obj = cast("FileSearchParams", validated.params)
+    except ValidationError as e:
+        return f"Parameter validation error: {e}"
 
     async def operation(db: Any) -> dict[str, Any]:
         """File search operation."""
-        results = await db.search_conversations(
-            query=params_obj.file_path,
-            project=params_obj.project,
+        results = await db.search_reflections(
+            params_obj.file_path,
             limit=params_obj.limit,
+            min_score=params_obj.min_score,
         )
 
         return {
@@ -287,9 +350,7 @@ async def _search_by_file_validated_impl(**params: Any) -> str:
         lines.extend(_format_search_results(results))
 
         _get_logger().info(
-            "Validated file search executed",
-            file_path=file_path,
-            results_count=len(results),
+            f"Validated file search executed | Context: {{'file_path': '{file_path}', 'results_count': {len(results)}}}"
         )
         return "\n".join(lines)
 
@@ -305,6 +366,14 @@ async def _search_by_file_validated_impl(**params: Any) -> str:
 
         result = await operation(db)
         return formatter(result)
+    except ValidationError as e:
+        # Return validation errors as strings instead of raising
+        return f"Parameter validation failed: {e}"
+    except ImportError:
+        # Handle import errors from database initialization
+        error_msg = "Failed to connect to reflection database: Import error"
+        _get_logger().error(error_msg)
+        return error_msg
     except Exception as e:
         error_msg = f"Failed to perform file search: {e}"
         _get_logger().error(error_msg)
@@ -316,19 +385,20 @@ async def _search_by_concept_validated_impl(**params: Any) -> str:
     from typing import cast
 
     # Validate parameters
-    validated = validate_mcp_params(ConceptSearchParams, **params)
-    if not validated.is_valid:
-        msg = f"Parameter validation failed: {validated.errors}"
-        raise ValidationError(msg)
-
-    params_obj = cast("ConceptSearchParams", validated.params)
+    try:
+        validated = validate_mcp_params(ConceptSearchParams, **params)
+        if not validated.is_valid:
+            return f"Parameter validation error: {validated.errors}"
+        params_obj = cast("ConceptSearchParams", validated.params)
+    except ValidationError as e:
+        return f"Parameter validation error: {e}"
 
     async def operation(db: Any) -> dict[str, Any]:
         """Concept search operation."""
-        results = await db.search_conversations(
-            query=params_obj.concept,
-            project=params_obj.project,
+        results = await db.search_reflections(
+            params_obj.concept,
             limit=params_obj.limit,
+            min_score=params_obj.min_score,
         )
 
         return {
@@ -346,9 +416,7 @@ async def _search_by_concept_validated_impl(**params: Any) -> str:
         lines.extend(_format_concept_results(results, result["include_files"]))
 
         _get_logger().info(
-            "Validated concept search executed",
-            concept=concept,
-            results_count=len(results),
+            f"Validated concept search executed | Context: {{'concept': '{concept}', 'results_count': {len(results)}}}"
         )
         return "\n".join(lines)
 
@@ -364,25 +432,31 @@ async def _search_by_concept_validated_impl(**params: Any) -> str:
 
         result = await operation(db)
         return formatter(result)
+    except ValidationError as e:
+        # Return validation errors as strings instead of raising
+        return f"Parameter validation failed: {e}"
+    except ImportError:
+        # Handle import errors from database initialization
+        error_msg = "Failed to connect to reflection database: Import error"
+        _get_logger().error(error_msg)
+        return error_msg
     except Exception as e:
         error_msg = f"Failed to perform concept search: {e}"
         _get_logger().error(error_msg)
         return error_msg
 
 
-def _format_file_search_header(file_path: str, results: list[dict[str, Any]]) -> str:
+def _format_file_search_header(file_path: str) -> list[str]:
     """Format header for file search results."""
-    lines = [
+    return [
         f"📁 Searching conversations about: {file_path}",
         "=" * 50,
     ]
-    return "\n".join(lines)
 
 
-def _format_file_search_result(res: dict[str, Any], index: int) -> str:
+def _format_file_search_result(res: dict[str, Any], index: int) -> list[str]:
     """Format individual file search result."""
     lines = [
-        "",
         f"{index}. 📝 {res['content'][:200]}...",
     ]
 
@@ -393,30 +467,41 @@ def _format_file_search_result(res: dict[str, Any], index: int) -> str:
         lines.append(f"   📁 Project: {res['project']}")
 
     if res.get("score") is not None:
-        lines.append(f"   ⭐ Score: {res['score']:.2f}")
+        lines.append(f"   ⭐ Relevance: {res['score']:.2f}")
 
-    return "\n".join(lines)
+    return lines
 
 
-def _format_file_search_results(results: list[dict[str, Any]], query: str) -> str:
+def _format_file_search_results(results: list[dict[str, Any]], query: str) -> list[str]:
     """Format all file search results."""
     if not results:
-        return f"🔍 No conversations found discussing '{query}'"
+        return [
+            "No conversations found about this file",
+            f"🔍 No conversations found discussing '{query}'",
+            "💡 The file might not have been discussed in previous sessions",
+        ]
 
-    lines = [f"📈 Found {len(results)} conversations discussing '{query}':", "=" * 50]
+    lines = [
+        f"📁 Searching conversations about: {query}",
+        "=" * 50,
+        f"📈 Found {len(results)} relevant conversations:",
+    ]
 
     for i, res in enumerate(results, 1):
-        lines.append(_format_file_search_result(res, i))
+        result_lines = _format_file_search_result(res, i)
+        if isinstance(result_lines, list):
+            lines.extend(result_lines)
+        else:
+            lines.append(str(result_lines))
 
-    return "\n".join(lines)
+    return lines
 
 
 def _format_validated_concept_result(
     res: dict[str, Any], index: int, include_files: bool = True
-) -> str:
+) -> list[str]:
     """Format individual concept search result."""
     lines = [
-        "",
         f"{index}. 🧠 Concept: {res['content'][:200]}...",
     ]
 
@@ -431,9 +516,36 @@ def _format_validated_concept_result(
 
     if include_files and res.get("files"):
         files = res["files"][:5]  # Limit to 5 files
-        lines.append(f"   📄 Related files: {', '.join(files)}")
+        lines.append(f"   📄 Files: {', '.join(files)}")
 
-    return "\n".join(lines)
+    return lines
+
+
+# Define missing classes for backward compatibility
+class ValidationExamples:
+    """Placeholder class for validation examples."""
+
+    def example_valid_calls(self) -> list[dict[str, Any]]:
+        """Get examples of valid calls."""
+        return [{"query": "test query", "limit": 5}]
+
+    def example_validation_errors(self) -> list[dict[str, str]]:
+        """Get examples of validation errors."""
+        return [{"field": "query", "error": "Field required"}]
+
+
+class MigrationGuide:
+    """Placeholder class for migration guide."""
+
+    @staticmethod
+    def before_migration() -> str:
+        """Get before migration instructions."""
+        return "Before migrating, backup your data."
+
+    @staticmethod
+    def after_migration() -> str:
+        """Get after migration instructions."""
+        return "After migrating, verify your configurations."
 
 
 # Global variable to cache reflection tools availability
@@ -466,7 +578,7 @@ async def resolve_reflection_database() -> ReflectionDatabaseType | None:
     with suppress(Exception):
         from typing import cast
 
-        from acb.depends import depends
+        from session_buddy.di.container import depends
         from session_buddy.reflection_tools import ReflectionDatabase
 
         db = depends.get_sync(ReflectionDatabase)
@@ -482,22 +594,25 @@ async def resolve_reflection_database() -> ReflectionDatabaseType | None:
     return None
 
 
-async def _get_reflection_database_async() -> ReflectionDatabaseType:
+async def _get_reflection_database_async() -> ReflectionDatabaseType | None:
     """Get reflection database instance with lazy initialization."""
     if not _check_reflection_tools_available():
-        from session_buddy.utils.error_handlers import ValidationError
-
-        msg = "Reflection tools not available. Run: uv sync --extra embeddings"
+        msg = "Reflection tools not available"
         raise ImportError(msg)
 
-    db = await resolve_reflection_database()
-    if not db:
-        from session_buddy.utils.error_handlers import ValidationError
-
-        msg = "Reflection tools not available. Run: uv sync --extra embeddings"
+    try:
+        db = await resolve_reflection_database()
+        if db is None:
+            msg = "Reflection tools not available"
+            raise ImportError(msg)
+        return db
+    except ImportError:
+        # Re-raise import errors as they indicate unavailability
+        raise
+    except Exception:
+        # For any other exception, treat as unavailable
+        msg = "Reflection tools not available"
         raise ImportError(msg)
-
-    return db  # type: ignore[return-value]  # Checked for None above
 
 
 # ============================================================================

@@ -30,20 +30,20 @@ ______________________________________________________________________
 
 ### Strategy
 
-**Native implementation** of Memori's superior patterns (Conscious Agent, LLM-powered entity extraction, memory categorization) within session-buddy, eliminating ALL overlap while preserving session-mgmt's unique strengths.
+**Native implementation** of Memori's superior patterns (Conscious Agent, LLM-powered entity extraction, memory categorization) within session-buddy, eliminating ALL overlap while preserving session-buddy's unique strengths.
 
 ### Component Integration Matrix
 
-| Feature | Current (session-mgmt) | After Integration | Source | Action |
+| Feature | Current (session-buddy) | After Integration | Source | Action |
 |---------|----------------------|-------------------|--------|--------|
 | **Entity Extraction** | Pattern-based regex | LLM-powered (OpenAI) | Memori | **REPLACE** |
 | **Memory Categorization** | Simple tags | Facts/Prefs/Skills/Rules | Memori | **REPLACE** |
 | **Background Intelligence** | None | Conscious Agent (6h cycle) | Memori | **ADD** |
 | **Memory Tiers** | Single tier | 3-tier (working/short/long) | Memori | **ADD** |
 | **Namespace Isolation** | Basic | Production multi-tenant | Memori | **ENHANCE** |
-| **Vector Search** | ONNX embeddings (384-dim) | - | session-mgmt | **KEEP** ✅ |
-| **Storage Backend** | DuckDB (OLAP) | - | session-mgmt | **KEEP** ✅ |
-| **Dev Workflow** | Git/Quality/Crackerjack | - | session-mgmt | **KEEP** ✅ |
+| **Vector Search** | ONNX embeddings (384-dim) | - | session-buddy | **KEEP** ✅ |
+| **Storage Backend** | DuckDB (OLAP) | - | session-buddy | **KEEP** ✅ |
+| **Dev Workflow** | Git/Quality/Crackerjack | - | session-buddy | **KEEP** ✅ |
 
 ### Architecture
 
@@ -66,7 +66,7 @@ ______________________________________________________________________
 │                          ▲                                 │
 │                          │ (enhances)                      │
 │  ┌──────────────────────┴────────────────────────────────┐ │
-│  │ Layer 2: Enhanced Vector Search (session-mgmt)       │ │
+│  │ Layer 2: Enhanced Vector Search (session-buddy)       │ │
 │  │     KEEP - Superior to Memori's full-text            │ │
 │  ├──────────────────────────────────────────────────────┤ │
 │  │  • ONNX all-MiniLM-L6-v2 (local, privacy-first)     │ │
@@ -78,7 +78,7 @@ ______________________________________________________________________
 │                          ▲                                 │
 │                          │ (used by)                       │
 │  ┌──────────────────────┴────────────────────────────────┐ │
-│  │ Layer 3: Dev Workflow Tools (session-mgmt)           │ │
+│  │ Layer 3: Dev Workflow Tools (session-buddy)           │ │
 │  │     KEEP - Unique, no overlap with Memori            │ │
 │  ├──────────────────────────────────────────────────────┤ │
 │  │  • Git integration (auto-commits, checkpoints)       │ │
@@ -354,7 +354,7 @@ ______________________________________________________________________
 
 ### Strategy
 
-**Use Memori as a storage backend** for session-buddy's memory system, leveraging Memori's battle-tested code while adding session-mgmt's unique dev workflow tools on top.
+**Use Memori as a storage backend** for session-buddy's memory system, leveraging Memori's battle-tested code while adding session-buddy's unique dev workflow tools on top.
 
 ### Architecture
 
@@ -364,7 +364,7 @@ ______________________________________________________________________
 ├────────────────────────────────────────────────────────────┤
 │                                                            │
 │  ┌────────────────────────────────────────────────────┐   │
-│  │ Dev Workflow Tools (session-mgmt - KEEP)           │   │
+│  │ Dev Workflow Tools (session-buddy - KEEP)           │   │
 │  ├────────────────────────────────────────────────────┤   │
 │  │  • Git integration (auto-commits)                  │   │
 │  │  • Quality scoring V2                              │   │
@@ -375,7 +375,7 @@ ______________________________________________________________________
 │                          ▲                                 │
 │                          │ (uses)                          │
 │  ┌────────────────────────────────────────────────────┐   │
-│  │ Adapter Layer (session-mgmt custom)                │   │
+│  │ Adapter Layer (session-buddy custom)                │   │
 │  ├────────────────────────────────────────────────────┤   │
 │  │  • MemoriAdapter (bridge to Memori API)            │   │
 │  │  • Vector search augmentation (ONNX on top)        │   │
@@ -455,7 +455,7 @@ class MemoriAdapter:
 
         # Optionally add ONNX vector search on top
         if config.memory_backend == MemoryBackend.HYBRID:
-            self.vector_search = ONNXVectorSearch()  # session-mgmt's superior search
+            self.vector_search = ONNXVectorSearch()  # session-buddy's superior search
 
     async def store_conversation(self, content: str, ...) -> str:
         """Store using Memori's API."""
@@ -610,7 +610,7 @@ ______________________________________________________________________
 | **Multi-project coordination** | session-buddy | Unique capability |
 | **Generic LLM memory** | Memori | Multi-provider support |
 | **Other LLM projects** | Memori | LLM-agnostic |
-| **Entity extraction** | Both | session-mgmt uses Memori's approach (optional) |
+| **Entity extraction** | Both | session-buddy uses Memori's approach (optional) |
 
 ### Implementation Plan
 
@@ -666,14 +666,14 @@ class MemoriSessionBridge:
         self.session_db = ReflectionDatabase()
 
     async def sync_tags_from_memori(self):
-        """Pull tags from Memori to enrich session-mgmt search."""
+        """Pull tags from Memori to enrich session-buddy search."""
         if not self.memori:
             return  # Memori not installed, skip
 
         # Get Memori's extracted entities
         entities = self.memori.get_entities(limit=100)
 
-        # Use as additional search tags in session-mgmt
+        # Use as additional search tags in session-buddy
         await self.session_db.add_search_tags(entities)
 
     async def export_session_summary(self):
@@ -683,7 +683,7 @@ class MemoriSessionBridge:
 
         summary = await self.session_db.get_session_summary()
         self.memori.add_memory(
-            summary, category="context", labels=["session-mgmt-export"]
+            summary, category="context", labels=["session-buddy-export"]
         )
 ```
 
@@ -902,7 +902,7 @@ ______________________________________________________________________
 - ✅ Eliminate duplicate entity extraction (use LLM-powered approach)
 - ✅ Add background intelligence (Conscious Agent)
 - ✅ Improve memory categorization (5 structured categories)
-- ✅ Keep session-mgmt's superior vector search (ONNX + DuckDB)
+- ✅ Keep session-buddy's superior vector search (ONNX + DuckDB)
 - ✅ Preserve unique dev workflow tools (git, quality, crackerjack)
 
 **Next Steps:**

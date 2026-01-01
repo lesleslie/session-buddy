@@ -16,7 +16,6 @@ from unittest.mock import AsyncMock, Mock, patch
 import duckdb
 import numpy as np
 import pytest
-from acb.depends import depends
 from fastmcp import FastMCP
 # Migration Phase 2.7: Use ReflectionDatabaseAdapter (ACB-based)
 from session_buddy.adapters.reflection_adapter import (
@@ -26,6 +25,7 @@ from session_buddy.adapters.reflection_adapter import (
 # Configure DI container BEFORE any other imports
 # This ensures SessionLogger and other dependencies are available
 from session_buddy.di import configure as configure_di
+from session_buddy.di.container import depends
 
 # Initialize DI container for tests - force registration to bypass async checks
 try:
@@ -214,9 +214,29 @@ def mock_logger_factory():
 
 
 @pytest.fixture
-async def fast_temp_db() -> AsyncGenerator[ReflectionDatabase]:
-    """Optimized in-memory database for faster tests."""
-    db = ReflectionDatabase(db_path=":memory:")
+async def fast_temp_db(tmp_path) -> AsyncGenerator[ReflectionDatabase]:
+    """Optimized temporary file database for faster tests."""
+    # For tests, we'll create a custom settings object with a temporary file
+    from pathlib import Path
+
+    from session_buddy.adapters.settings import ReflectionAdapterSettings
+
+    # Use a temporary file instead of in-memory for compatibility with the new adapter
+    temp_db_path = tmp_path / "test.duckdb"
+
+    # Create settings with temporary database path
+    settings = ReflectionAdapterSettings(
+        database_path=temp_db_path,
+        collection_name="default",
+        embedding_dim=384,
+        distance_metric="cosine",
+        enable_vss=False,  # Disable vector similarity search for tests
+        threads=1,
+        memory_limit="512MB",
+        enable_embeddings=False  # Disable embeddings for faster tests
+    )
+
+    db = ReflectionDatabase(settings=settings)
     await db.initialize()
     yield db
     with suppress(Exception):
@@ -515,7 +535,23 @@ async def shared_temp_db_path() -> AsyncGenerator[str]:
 @pytest.fixture
 async def reflection_db(temp_db_path: str) -> AsyncGenerator[ReflectionDatabase]:
     """Provide initialized ReflectionDatabase instance."""
-    db = ReflectionDatabase(db_path=temp_db_path)
+    from pathlib import Path
+
+    from session_buddy.adapters.settings import ReflectionAdapterSettings
+
+    # Create settings with database path
+    settings = ReflectionAdapterSettings(
+        database_path=Path(temp_db_path),
+        collection_name="default",
+        embedding_dim=384,
+        distance_metric="cosine",
+        enable_vss=False,  # Disable vector similarity search for tests
+        threads=1,
+        memory_limit="512MB",
+        enable_embeddings=False  # Disable embeddings for faster tests
+    )
+
+    db = ReflectionDatabase(settings=settings)
 
     try:
         await db.initialize()
@@ -580,10 +616,24 @@ async def shared_reflection_db() -> AsyncGenerator[ReflectionDatabase]:
     import tempfile
     from pathlib import Path
 
+    from session_buddy.adapters.settings import ReflectionAdapterSettings
+
     with tempfile.NamedTemporaryFile(suffix=".duckdb", delete=False) as tmp:
         db_path = tmp.name
 
-    db = ReflectionDatabase(db_path=db_path)
+    # Create settings with database path
+    settings = ReflectionAdapterSettings(
+        database_path=Path(db_path),
+        collection_name="default",
+        embedding_dim=384,
+        distance_metric="cosine",
+        enable_vss=False,  # Disable vector similarity search for tests
+        threads=1,
+        memory_limit="512MB",
+        enable_embeddings=False  # Disable embeddings for faster tests
+    )
+
+    db = ReflectionDatabase(settings=settings)
     await db.initialize()
 
     try:

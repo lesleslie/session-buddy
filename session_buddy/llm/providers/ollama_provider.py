@@ -1,7 +1,7 @@
 """Ollama local LLM provider implementation.
 
-This module provides the Ollama provider implementation using ACB Requests
-adapter for connection pooling and aiohttp fallback for HTTP communications.
+This module provides the Ollama provider implementation using the mcp-common
+HTTPClientAdapter for connection pooling and aiohttp fallback for HTTP communications.
 """
 
 from __future__ import annotations
@@ -16,20 +16,19 @@ from session_buddy.llm.models import LLMMessage, LLMResponse
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-# ACB Requests adapter (httpx/niquests based on config)
+# mcp-common HTTP client adapter (httpx based)
 try:
-    from acb.adapters import import_adapter
-    from acb.depends import depends
+    from mcp_common.adapters.http.client import HTTPClientAdapter
+    from session_buddy.di.container import depends
 
-    Requests = import_adapter("requests")
-    REQUESTS_AVAILABLE = True
+    HTTP_ADAPTER_AVAILABLE = True
 except Exception:
-    Requests = None  # type: ignore[assignment]
-    REQUESTS_AVAILABLE = False
+    HTTPClientAdapter = None  # type: ignore[assignment]
+    HTTP_ADAPTER_AVAILABLE = False
 
 
 class OllamaProvider(LLMProvider):
-    """Ollama local LLM provider using ACB Requests adapter for connection pooling."""
+    """Ollama local LLM provider using HTTPClientAdapter for connection pooling."""
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
@@ -37,13 +36,13 @@ class OllamaProvider(LLMProvider):
         self.default_model = config.get("default_model", "llama2")
         self._available_models: list[str] = []
 
-        # Initialize ACB Requests adapter if available
-        self._requests = None
-        if REQUESTS_AVAILABLE and Requests is not None:
+        # Initialize HTTP client adapter if available
+        self._http_adapter = None
+        if HTTP_ADAPTER_AVAILABLE and HTTPClientAdapter is not None:
             try:
-                self._requests = depends.get(Requests)
+                self._http_adapter = depends.get_sync(HTTPClientAdapter)
             except Exception:
-                self._requests = None
+                self._http_adapter = None
 
     async def _make_api_request(
         self,
@@ -53,17 +52,11 @@ class OllamaProvider(LLMProvider):
         """Make API request to Ollama service with connection pooling."""
         url = f"{self.base_url}/{endpoint}"
 
-        if self._requests is not None:
+        if self._http_adapter is not None:
             try:
-                # ACB Requests adapter returns Response object with .post() method
-                requests_obj = (
-                    self._requests
-                    if not callable(self._requests)
-                    else await self._requests()
-                )
-                resp = await requests_obj.post(url, json=data, timeout=300)  # type: ignore[attr-defined]
-                # Support both httpx and niquests response objects
-                return resp.json()  # type: ignore[no-any-return]
+                async with self._http_adapter as client:
+                    resp = await client.post(url, json=data, timeout=300)
+                    return resp.json()  # type: ignore[no-any-return]
             except Exception as e:
                 self.logger.exception(f"HTTP request failed: {e}")
                 raise
@@ -82,8 +75,8 @@ class OllamaProvider(LLMProvider):
                 return await response.json()  # type: ignore[no-any-return]
         except ImportError:
             msg = (
-                "aiohttp package not installed and ACB Requests adapter not available. "
-                "Install with: pip install aiohttp or configure acb.adapters.requests"
+                "aiohttp package not installed and HTTPClientAdapter not available. "
+                "Install with: pip install aiohttp or configure mcp-common HTTPClientAdapter"
             )
             raise ImportError(msg)  # type: ignore[no-any-return]
 

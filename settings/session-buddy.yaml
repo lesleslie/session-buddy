@@ -2,6 +2,13 @@
 # This file contains the default configuration settings.
 # Create settings/local.yaml for local overrides (gitignored).
 
+# === MCP Base Settings ===
+server_name: "Session Buddy MCP"
+server_description: "Session management and tooling MCP server"
+log_level: "INFO"
+data_dir: "~/.claude/data"
+log_dir: "~/.claude/logs"
+
 # === Database Settings ===
 database_path: "~/.claude/data/reflection.duckdb"
 database_connection_timeout: 30
@@ -111,7 +118,6 @@ global_workspace_path: "~/Projects/claude"
 enable_global_toolkits: true
 
 # === Logging Settings ===
-log_level: "INFO"
 log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 enable_file_logging: true
 log_file_path: "~/.claude/logs/session-buddy.log"
@@ -134,5 +140,5 @@ server_port: 3000
 enable_websockets: true
 
 # === Development Settings ===
-debug: false
+enable_debug_mode: false
 enable_hot_reload: false

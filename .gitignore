@@ -45,6 +45,9 @@ htmlcov/
 .envrc
 session_handoff_*.md
 
+# Archived documentation (excluded from quality checks)
+docs/archive/
+
 # Crackerjack
 .crackerjack/
 *.crackerjack.bak
@@ -54,3 +57,4 @@ crackerjack-debug-*.log
 docs (1)/
 settings/local.yaml
 *.backup
+/NOTES.md

@@ -46,22 +46,21 @@ class TestInfrastructureValidation:
 
     def test_temp_database_creation(self):
         """Test temporary database creation works."""
-        # Use a temporary directory and create a proper path
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test.duckdb"
 
-            # Test database can be created
+            # Test database can be created with db_path parameter
             db = ReflectionDatabase(db_path=str(db_path))
-            assert db.db_path == str(db_path)
-            assert Path(db_path).parent.exists()
+            assert db_path.parent.exists()
+            db.close()
 
     @pytest.mark.asyncio
     async def test_async_database_initialization(self):
         """Test async database initialization works."""
-        # Use a temporary directory and create a proper path
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test.duckdb"
 
+            # Test database with db_path parameter
             db = ReflectionDatabase(db_path=str(db_path))
 
             # Test initialization

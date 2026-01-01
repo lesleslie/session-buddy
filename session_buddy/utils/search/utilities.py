@@ -9,7 +9,7 @@ from __future__ import annotations
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 
-from session_buddy.types import TimeRange
+from session_buddy.session_types import TimeRange
 from session_buddy.utils.regex_patterns import SAFE_PATTERNS
 
 

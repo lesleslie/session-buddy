@@ -22,6 +22,7 @@ from session_buddy.llm import (
     StreamChunk,
     StreamGenerationOptions,
 )
+from session_buddy.settings import get_llm_api_key, get_settings
 
 # Security utilities for API key validation/masking
 try:
@@ -29,7 +30,7 @@ try:
 
     SECURITY_AVAILABLE = True
 except ImportError:
-    APIKeyValidator = None  # type: ignore[assignment]
+    APIKeyValidator = None  # type: ignore[no-redef]
     SECURITY_AVAILABLE = False
 
 # Re-export for backwards compatibility
@@ -48,8 +49,13 @@ def _get_provider_api_key_and_env(
     provider: str,
 ) -> tuple[str | None, str | None]:
     """Return the provider API key and its environment variable name."""
+    configured_key = get_llm_api_key(provider)
+    if configured_key:
+        return configured_key, f"settings.{provider}_api_key"
     if provider == "openai":
         return os.getenv("OPENAI_API_KEY"), "OPENAI_API_KEY"
+    if provider == "anthropic":
+        return os.getenv("ANTHROPIC_API_KEY"), "ANTHROPIC_API_KEY"
     if provider == "gemini":
         if os.getenv("GEMINI_API_KEY"):
             return os.getenv("GEMINI_API_KEY"), "GEMINI_API_KEY"
@@ -63,12 +69,20 @@ def _get_provider_api_key_and_env(
 
 def _get_configured_providers() -> list[str]:
     """Get list of configured providers based on environment variables."""
-    providers: list[str] = []
+    providers: set[str] = set()
+    if get_llm_api_key("openai"):
+        providers.add("openai")
+    if get_llm_api_key("gemini"):
+        providers.add("gemini")
+    if get_llm_api_key("anthropic"):
+        providers.add("anthropic")
     if os.getenv("OPENAI_API_KEY"):
-        providers.append("openai")
+        providers.add("openai")
+    if os.getenv("ANTHROPIC_API_KEY"):
+        providers.add("anthropic")
     if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
-        providers.append("gemini")
-    return providers
+        providers.add("gemini")
+    return sorted(providers)
 
 
 def _validate_provider_basic(provider: str, api_key: str) -> str:
@@ -128,6 +142,18 @@ def validate_llm_api_keys_at_startup() -> dict[str, str]:
 
 def get_masked_api_key(provider: str = "openai") -> str:
     """Return masked API key for safe logging."""
+    settings = get_settings()
+    key_field_map = {
+        "openai": "openai_api_key",
+        "anthropic": "anthropic_api_key",
+        "gemini": "gemini_api_key",
+    }
+    key_field = key_field_map.get(provider)
+    if key_field:
+        configured = getattr(settings, key_field, None)
+        if isinstance(configured, str) and configured.strip():
+            return settings.get_masked_key(key_name=key_field, visible_chars=4)
+
     api_key, _ = _get_provider_api_key_and_env(provider)
 
     if provider == "ollama":

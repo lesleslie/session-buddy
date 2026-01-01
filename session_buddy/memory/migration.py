@@ -20,7 +20,7 @@ from pathlib import Path
 
 import duckdb
 from session_buddy.memory.schema_v2 import MIGRATION_SQL, SCHEMA_V2_SQL
-from session_buddy.settings import get_settings
+from session_buddy.settings import get_database_path
 
 SCHEMA_META_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -99,7 +99,7 @@ def _get_schema_version(conn: duckdb.DuckDBPyConnection) -> str:
 
 
 def get_schema_version(db_path: Path | None = None) -> str:
-    path = Path(db_path) if db_path else Path(get_settings().database_path)
+    path = Path(db_path) if db_path else get_database_path()
     with _connect(path) as conn:
         return _get_schema_version(conn)
 
@@ -138,8 +138,7 @@ def count_v2_conversations(conn: duckdb.DuckDBPyConnection) -> int:
 
 def create_backup(backup_dir: Path | None = None) -> Path:
     """Create a timestamped DB backup and return path to the backup file."""
-    settings = get_settings()
-    db_path = Path(settings.database_path)
+    db_path = get_database_path()
     backup_root = backup_dir or db_path.parent
     backup_root.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -149,8 +148,7 @@ def create_backup(backup_dir: Path | None = None) -> Path:
 
 
 def restore_backup(backup_path: Path) -> None:
-    settings = get_settings()
-    db_path = Path(settings.database_path)
+    db_path = get_database_path()
     shutil.copy2(backup_path, db_path)
 
 
@@ -170,15 +168,14 @@ def migrate_v1_to_v2(
     - Updates schema_meta on success
     """
     start = datetime.now()
-    settings = get_settings()
-    path = Path(db_path) if db_path else Path(settings.database_path)
+    path = Path(db_path) if db_path else get_database_path()
 
     with _connect(path) as conn:
         _ensure_meta(conn)
         current = _get_schema_version(conn)
         if current == "v2":
             return MigrationResult(
-                True,
+                success=True,
                 stats={"skipped": True, "reason": "already_v2"},
                 duration_seconds=0.0,
             )
@@ -200,7 +197,7 @@ def _handle_dry_run(
     v1_count = count_v1_conversations(conn)
     stats = {"preview": True, "would_migrate": v1_count}
     return MigrationResult(
-        True,
+        success=True,
         stats=stats,
         duration_seconds=(datetime.now() - start).total_seconds(),
     )
@@ -252,7 +249,7 @@ def _handle_migration_success(
         [json.dumps(stats), mig_id],
     )
     return MigrationResult(
-        True,
+        success=True,
         stats=stats,
         duration_seconds=(datetime.now() - start).total_seconds(),
     )
@@ -272,7 +269,7 @@ def _handle_migration_failure(
         [err, mig_id],
     )
     return MigrationResult(
-        False,
+        success=False,
         error=err,
         stats={"v1": v1_count, "v2": v2_count},
         duration_seconds=(datetime.now() - start).total_seconds(),
@@ -289,14 +286,14 @@ def _handle_migration_exception(
             [str(exception), mig_id],
         )
     return MigrationResult(
-        False,
+        success=False,
         error=str(exception),
         duration_seconds=(datetime.now() - start).total_seconds(),
     )
 
 
 def get_migration_status(db_path: Path | None = None) -> dict[str, t.Any]:
-    path = Path(db_path) if db_path else Path(get_settings().database_path)
+    path = Path(db_path) if db_path else get_database_path()
     with _connect(path) as conn:
         _ensure_meta(conn)
         # Basic stats

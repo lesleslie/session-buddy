@@ -34,7 +34,7 @@ class TestStoreReflectionValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -105,7 +105,7 @@ class TestStoreReflectionValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -154,7 +154,7 @@ class TestStoreReflectionValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -183,7 +183,7 @@ class TestStoreReflectionValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -230,7 +230,7 @@ class TestQuickSearchValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -303,7 +303,7 @@ class TestQuickSearchValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -362,7 +362,7 @@ class TestQuickSearchValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -408,7 +408,7 @@ class TestSearchByFileValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -458,7 +458,7 @@ class TestSearchByFileValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -523,7 +523,7 @@ class TestSearchByConceptValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -575,7 +575,7 @@ class TestSearchByConceptValidated:
 
         with (
             patch(
-                "session_buddy.tools.validated_memory_tools._get_reflection_database",
+                "session_buddy.tools.validated_memory_tools._get_reflection_database_async",
                 return_value=mock_db,
             ),
             patch(
@@ -819,7 +819,7 @@ class TestAvailabilityChecking:
         mock_db = AsyncMock()
 
         with patch(
-            "session_buddy.tools.validated_memory_tools.resolve_reflection_database",
+            "session_buddy.reflection_tools.get_reflection_database",
             return_value=mock_db,
         ):
             result = await _get_reflection_database()
@@ -838,7 +838,7 @@ class TestAvailabilityChecking:
         module._reflection_tools_available = None
 
         with patch(
-            "session_buddy.tools.validated_memory_tools.resolve_reflection_database",
+            "session_buddy.reflection_tools.get_reflection_database",
             return_value=None,
         ):
             with pytest.raises(ImportError, match="Reflection tools not available"):

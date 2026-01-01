@@ -13,9 +13,8 @@ from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from acb.depends import depends
-from bevy import get_container
-from session_buddy.di import SessionPaths
+from session_buddy.di import SessionPaths, get_sync_typed
+from session_buddy.di.container import depends
 
 if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter import (
@@ -31,9 +30,7 @@ async def get_app_monitor() -> ApplicationMonitor | None:
     """Resolve application monitor via DI, creating it on demand.
 
     Note:
-        Does not call depends.get_sync() to avoid bevy's async event loop
-        limitation. Instead relies on depends.set() for singleton registration
-        and checks the bevy container directly.
+        Uses the Oneiric-backed service container for singleton resolution.
 
     """
     try:
@@ -41,10 +38,8 @@ async def get_app_monitor() -> ApplicationMonitor | None:
     except ImportError:
         return None
 
-    # Check if already registered without triggering async machinery
-    container = get_container()
-    if ApplicationMonitor in container.instances:
-        monitor = container.instances[ApplicationMonitor]
+    with suppress(Exception):
+        monitor = get_sync_typed(ApplicationMonitor)  # type: ignore[no-any-return]
         if isinstance(monitor, ApplicationMonitor):
             return monitor
 
@@ -61,9 +56,7 @@ async def get_llm_manager() -> LLMManager | None:
     """Resolve LLM manager via DI, creating it on demand.
 
     Note:
-        Does not call depends.get_sync() to avoid bevy's async event loop
-        limitation. Instead relies on depends.set() for singleton registration
-        and checks the bevy container directly.
+        Uses the Oneiric-backed service container for singleton resolution.
 
     """
     try:
@@ -71,10 +64,8 @@ async def get_llm_manager() -> LLMManager | None:
     except ImportError:
         return None
 
-    # Check if already registered without triggering async machinery
-    container = get_container()
-    if LLMManager in container.instances:
-        manager = container.instances[LLMManager]
+    with suppress(Exception):
+        manager = get_sync_typed(LLMManager)  # type: ignore[no-any-return]
         if isinstance(manager, LLMManager):
             return manager
 
@@ -88,9 +79,7 @@ async def get_serverless_manager() -> ServerlessSessionManager | None:
     """Resolve serverless session manager via DI, creating it on demand.
 
     Note:
-        Does not call depends.get_sync() to avoid bevy's async event loop
-        limitation. Instead relies on depends.set() for singleton registration
-        and checks the bevy container directly.
+        Uses the Oneiric-backed service container for singleton resolution.
 
     """
     try:
@@ -101,10 +90,8 @@ async def get_serverless_manager() -> ServerlessSessionManager | None:
     except ImportError:
         return None
 
-    # Check if already registered without triggering async machinery
-    container = get_container()
-    if ServerlessSessionManager in container.instances:
-        manager = container.instances[ServerlessSessionManager]
+    with suppress(Exception):
+        manager = get_sync_typed(ServerlessSessionManager)  # type: ignore[no-any-return]
         if isinstance(manager, ServerlessSessionManager):
             return manager
 
@@ -124,46 +111,42 @@ async def get_reflection_database() -> ReflectionDatabase | None:
 
     Note:
         Returns ReflectionDatabaseAdapter which maintains API compatibility
-        with the original ReflectionDatabase while using ACB vector adapter.
-
-        Migration Phase 2.7: Using ACB-based adapter instead of direct DuckDB.
+        with the original ReflectionDatabase while using Oneiric DuckDB.
 
     """
     try:
-        from session_buddy.adapters.reflection_adapter import (
-            ReflectionDatabaseAdapter,
+        from session_buddy.adapters.reflection_adapter_oneiric import (
+            ReflectionDatabaseAdapterOneiric as ReflectionDatabaseAdapter,
         )
     except ImportError:
-        return None
+        try:
+            from session_buddy.adapters.reflection_adapter import (
+                ReflectionDatabaseAdapter,
+            )
+        except ImportError:
+            return None
 
-    # Check if already registered without triggering async machinery
     # Note: We use ReflectionDatabaseAdapter as the key for the new implementation
-    container = get_container()
-    if ReflectionDatabaseAdapter in container.instances:
-        db = container.instances[ReflectionDatabaseAdapter]
+    with suppress(Exception):
+        db = depends.get_sync(ReflectionDatabaseAdapter)
         if isinstance(db, ReflectionDatabaseAdapter):
             return db
 
-    # Create new adapter instance (will be initialized via async context manager)
-    # Ensure DI is configured before creating adapter
-    from session_buddy.di import configure
+    from session_buddy.adapters.lifecycle import init_reflection_adapter
 
-    configure()  # Ensure ACB adapters are registered
-
-    db = ReflectionDatabaseAdapter()
-    await db.initialize()  # Initialize the adapter
-
-    depends.set(ReflectionDatabaseAdapter, db)
-    return db
+    await init_reflection_adapter()
+    with suppress(Exception):
+        db = depends.get_sync(ReflectionDatabaseAdapter)
+        if isinstance(db, ReflectionDatabaseAdapter):
+            return db
+    return None
 
 
 async def get_interruption_manager() -> InterruptionManager | None:
     """Resolve interruption manager via DI, creating it on demand.
 
     Note:
-        Does not call depends.get_sync() to avoid bevy's async event loop
-        limitation. Instead relies on depends.set() for singleton registration
-        and checks the bevy container directly.
+        Uses the Oneiric-backed service container for singleton resolution.
 
     """
     try:
@@ -171,10 +154,8 @@ async def get_interruption_manager() -> InterruptionManager | None:
     except ImportError:
         return None
 
-    # Check if already registered without triggering async machinery
-    container = get_container()
-    if InterruptionManager in container.instances:
-        manager = container.instances[InterruptionManager]
+    with suppress(Exception):
+        manager = get_sync_typed(InterruptionManager)  # type: ignore[no-any-return]
         if isinstance(manager, InterruptionManager):
             return manager
 
@@ -185,10 +166,7 @@ async def get_interruption_manager() -> InterruptionManager | None:
 
 def reset_instances() -> None:
     """Reset registered instances in the DI container."""
-    container = get_container()
-    for dependency in _iter_dependencies():
-        with suppress(KeyError):
-            container.instances.pop(dependency, None)
+    depends.reset()
 
 
 def _resolve_claude_dir() -> Path:
@@ -199,18 +177,12 @@ def _resolve_claude_dir() -> Path:
         or falling back to default home directory.
 
     Note:
-        Uses SessionPaths type for DI resolution instead of string keys,
-        eliminating bevy type confusion errors.
+        Uses SessionPaths type for DI resolution instead of string keys.
 
     """
-    from bevy.injection_types import DependencyResolutionError
-
-    with suppress(
-        KeyError, AttributeError, RuntimeError, TypeError, DependencyResolutionError
-    ):
+    with suppress(KeyError, AttributeError, RuntimeError, TypeError):
         # RuntimeError: when adapter requires async
-        # TypeError: when bevy has DI type confusion
-        # DependencyResolutionError: when dependency not registered in DI container
+        # TypeError: when DI has type confusion
         paths = depends.get_sync(SessionPaths)
         if isinstance(paths, SessionPaths):
             paths.claude_dir.mkdir(parents=True, exist_ok=True)

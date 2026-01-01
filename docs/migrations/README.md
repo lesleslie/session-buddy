@@ -8,6 +8,7 @@ Step-by-step guides for migrating between versions and adopting new patterns in 
 
 1. **[HTTP Client Adapter](http-client-adapter.md)** - Migrate from aiohttp to mcp_common HTTPClientAdapter (11x performance improvement)
 1. **[Health Check Implementation](health-check-implementation.md)** - Add production-ready health checks to your server
+1. **[Oneiric + mcp-common Migration Plan](ONEIRIC_MIGRATION_PLAN.md)** - Internal cutover checklist for Oneiric-only adoption
 
 ## Migration Strategy
 

@@ -6,7 +6,7 @@ This document provides the complete MCP tool schema for AI agents integrating wi
 
 ### 🚀 Session Management Tools
 
-#### `mcp__session-mgmt__start`
+#### `mcp__session-buddy__start`
 
 **Purpose**: Complete session initialization with workspace verification
 
@@ -35,7 +35,7 @@ interface StartResponse {
 
 ______________________________________________________________________
 
-#### `mcp__session-mgmt__checkpoint`
+#### `mcp__session-buddy__checkpoint`
 
 **Purpose**: Mid-session quality monitoring with workflow analysis
 
@@ -62,7 +62,7 @@ interface CheckpointResponse {
 
 ______________________________________________________________________
 
-#### `mcp__session-mgmt__end`
+#### `mcp__session-buddy__end`
 
 **Purpose**: Complete session cleanup with learning capture
 
@@ -89,7 +89,7 @@ interface EndResponse {
 
 ______________________________________________________________________
 
-#### `mcp__session-mgmt__status`
+#### `mcp__session-buddy__status`
 
 **Purpose**: Current session status with health checks
 
@@ -118,19 +118,9 @@ interface StatusResponse {
 
 ### 🧠 Memory & Search Tools
 
-#### `mcp__session-mgmt__reflect_on_past`
-
-**Purpose**: Semantic search through conversation history
+Use `quick_search` or `search_summary` for fast semantic retrieval, then expand with `get_more_results`, `search_by_concept`, or `search_by_file` for deeper exploration.
 
 ```typescript
-interface ReflectOnPastParameters {
-  query: string                    // REQUIRED: Search query
-  limit?: number                   // Default: 10, Max: 50
-  min_score?: number              // Default: 0.7 (similarity threshold)
-  project?: string | null         // Filter by project
-  include_related_projects?: boolean // Default: true
-}
-
 interface ConversationResult {
   content: string
   project: string
@@ -138,22 +128,11 @@ interface ConversationResult {
   similarity_score: number        // 0.0-1.0
   context: string                // Surrounding conversation context
 }
-
-interface ReflectResponse {
-  success: boolean
-  results: ConversationResult[]
-  total_found: number
-  search_strategy: "semantic" | "text_fallback"
-  suggestions?: string[]          // Alternative search terms
-}
 ```
-
-**When to use**: When you need context from previous conversations
-**AI Integration**: Essential for building on previous work and avoiding repetition
 
 ______________________________________________________________________
 
-#### `mcp__session-mgmt__store_reflection`
+#### `mcp__session-buddy__store_reflection`
 
 **Purpose**: Store important insights for future reference
 
@@ -177,7 +156,7 @@ interface StoreReflectionResponse {
 
 ______________________________________________________________________
 
-#### `mcp__session-mgmt__quick_search`
+#### `mcp__session-buddy__quick_search`
 
 **Purpose**: Fast search with count and top result only
 
@@ -202,7 +181,30 @@ interface QuickSearchResponse {
 
 ______________________________________________________________________
 
-#### `mcp__session-mgmt__get_more_results`
+#### `mcp__session-buddy__search_summary`
+
+**Purpose**: Aggregate insights without returning full result lists
+
+```typescript
+interface SearchSummaryParameters {
+  query: string                   // REQUIRED
+  project?: string | null
+  min_score?: number             // Default: 0.7
+}
+
+interface SearchSummaryResponse {
+  success: boolean
+  summary: string
+  total_count: number
+}
+```
+
+**When to use**: When you want a concise summary of relevant context
+**AI Integration**: Useful for scoping work before deeper retrieval
+
+______________________________________________________________________
+
+#### `mcp__session-buddy__get_more_results`
 
 **Purpose**: Pagination support after initial searches
 
@@ -227,7 +229,7 @@ interface GetMoreResultsResponse {
 
 ### 🔍 Advanced Search Tools
 
-#### `mcp__session-mgmt__search_by_file`
+#### `mcp__session-buddy__search_by_file`
 
 **Purpose**: Find conversations analyzing specific files
 
@@ -244,7 +246,7 @@ interface SearchByFileParameters {
 
 ______________________________________________________________________
 
-#### `mcp__session-mgmt__search_by_concept`
+#### `mcp__session-buddy__search_by_concept`
 
 **Purpose**: Search for conversations about development concepts
 
@@ -260,9 +262,60 @@ interface SearchByConceptParameters {
 **When to use**: When exploring how concepts were implemented across the project
 **AI Integration**: Ideal for learning patterns and architectural decisions
 
+______________________________________________________________________
+
+#### `mcp__session-buddy__search_code`
+
+**Purpose**: Search code-related conversations by pattern type
+
+```typescript
+interface SearchCodeParameters {
+  query: string                   // REQUIRED
+  pattern_type?: string | null
+  limit?: number                 // Default: 10
+  project?: string | null
+}
+```
+
+**When to use**: When you need prior code snippets or implementation notes
+
+______________________________________________________________________
+
+#### `mcp__session-buddy__search_errors`
+
+**Purpose**: Search error and failure-related conversations
+
+```typescript
+interface SearchErrorsParameters {
+  query: string                   // REQUIRED
+  error_type?: string | null
+  limit?: number                 // Default: 10
+  project?: string | null
+}
+```
+
+**When to use**: When debugging recurring issues
+
+______________________________________________________________________
+
+#### `mcp__session-buddy__search_temporal`
+
+**Purpose**: Search conversations using time expressions
+
+```typescript
+interface SearchTemporalParameters {
+  time_expression: string         // REQUIRED (e.g., "last week")
+  query?: string | null
+  limit?: number                 // Default: 10
+  project?: string | null
+}
+```
+
+**When to use**: When you want context within a time window
+
 ### 📊 Analytics & Insights Tools
 
-#### `mcp__session-mgmt__reflection_stats`
+#### `mcp__session-buddy__reflection_stats`
 
 **Purpose**: Get statistics about stored knowledge
 
@@ -281,6 +334,21 @@ interface ReflectionStatsResponse {
 
 **When to use**: To understand the scope of stored knowledge
 **AI Integration**: Helps gauge available context depth
+
+______________________________________________________________________
+
+#### `mcp__session-buddy__reset_reflection_database`
+
+**Purpose**: Reset the reflection database (use with caution)
+
+```typescript
+interface ResetReflectionDatabaseResponse {
+  success: boolean
+  message: string
+}
+```
+
+**When to use**: When you need to wipe local reflection data for a fresh start
 
 ## Response Patterns
 
@@ -323,28 +391,27 @@ interface ChunkedResponse {
 
 ```typescript
 // Always start sessions with start
-await mcp_tool("mcp__session-mgmt__start", {
+await mcp_tool("mcp__session-buddy__start", {
   working_directory: "/path/to/project"
 })
 
 // Regular checkpoints during development
-await mcp_tool("mcp__session-mgmt__checkpoint", {})
+await mcp_tool("mcp__session-buddy__checkpoint", {})
 
 // Always end sessions cleanly
-await mcp_tool("mcp__session-mgmt__end", {})
+await mcp_tool("mcp__session-buddy__end", {})
 ```
 
 ### 2. Context-Aware Development
 
 ```typescript
 // Before starting new work, search for related context
-const context = await mcp_tool("mcp__session-mgmt__reflect_on_past", {
+const context = await mcp_tool("mcp__session-buddy__quick_search", {
   query: "authentication implementation",
-  limit: 5,
   min_score: 0.75
 })
 
-if (context.success && context.results.length > 0) {
+if (context.success && context.top_result) {
   // Use context to inform current implementation
 }
 ```
@@ -353,7 +420,7 @@ if (context.success && context.results.length > 0) {
 
 ```typescript
 // After solving complex problems
-await mcp_tool("mcp__session-mgmt__store_reflection", {
+await mcp_tool("mcp__session-buddy__store_reflection", {
   content: "Implemented JWT refresh token rotation with Redis storage. Key insight: Use sliding window expiration to balance security and UX.",
   tags: ["authentication", "jwt", "redis", "security"]
 })
@@ -363,13 +430,13 @@ await mcp_tool("mcp__session-mgmt__store_reflection", {
 
 ```typescript
 // Start with quick search
-const quick = await mcp_tool("mcp__session-mgmt__quick_search", {
+const quick = await mcp_tool("mcp__session-buddy__quick_search", {
   query: "database migration patterns"
 })
 
 if (quick.has_more) {
   // Get more detailed results
-  const detailed = await mcp_tool("mcp__session-mgmt__get_more_results", {
+  const detailed = await mcp_tool("mcp__session-buddy__get_more_results", {
     query: "database migration patterns",
     limit: 10
   })
@@ -399,7 +466,7 @@ The MCP server is designed to degrade gracefully:
 async function robustSearch(query: string, retries = 2) {
   for (let i = 0; i <= retries; i++) {
     try {
-      const result = await mcp_tool("mcp__session-mgmt__reflect_on_past", { query })
+      const result = await mcp_tool("mcp__session-buddy__quick_search", { query })
       if (result.success) return result
     } catch (error) {
       if (i === retries) throw error

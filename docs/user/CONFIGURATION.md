@@ -14,19 +14,23 @@ The Session Management MCP server is designed to work with minimal configuration
 
 Location: Project root or `~/.config/claude/` directory
 
+#### `settings/session-buddy.yaml` - Base Settings
+
+Committed defaults live in `settings/session-buddy.yaml`. Create `settings/local.yaml` for machine-specific overrides (gitignored). Environment variables use the `SESSION_BUDDY_` prefix and map to fields in `session_buddy/settings.py`.
+
 ```json
 {
   "mcpServers": {
-    "session-mgmt": {
+    "session-buddy": {
       "command": "python",
       "args": ["-m", "session_buddy.server"],
       "cwd": "/absolute/path/to/session-buddy",
       "env": {
         "PYTHONPATH": "/absolute/path/to/session-buddy",
-        "SESSION_MGMT_LOG_LEVEL": "INFO",
-        "SESSION_MGMT_DATA_DIR": "/custom/data/path",
-        "EMBEDDING_MODEL": "all-MiniLM-L6-v2",
-        "MAX_MEMORY_MB": "1024"
+        "SESSION_BUDDY_LOG_LEVEL": "INFO",
+        "SESSION_BUDDY_DATA_DIR": "/custom/data/path",
+        "SESSION_BUDDY_EMBEDDING_MODEL": "all-MiniLM-L6-v2",
+        "SESSION_BUDDY_EMBEDDING_CACHE_SIZE": "1000"
       }
     }
   }
@@ -38,30 +42,15 @@ Location: Project root or `~/.config/claude/` directory
 ```json
 {
   "mcpServers": {
-    "session-mgmt": {
+    "session-buddy": {
       "command": "uvx",
       "args": ["session-buddy"],
       "env": {
-        "SESSION_MGMT_LOG_LEVEL": "DEBUG"
+        "SESSION_BUDDY_LOG_LEVEL": "DEBUG"
       }
     }
   }
 }
-```
-
-### Secondary Configuration
-
-#### `pyproject.toml` - Project Dependencies
-
-Controls which features are available:
-
-```toml
-[project.optional-dependencies]
-embeddings = [
-    "onnxruntime>=1.16.0",
-    "transformers>=4.35.0",
-    "numpy>=1.24.0"
-]
 ```
 
 ## Environment Variables
@@ -70,35 +59,38 @@ embeddings = [
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SESSION_MGMT_DATA_DIR` | `~/.claude/data/` | Directory for database storage |
-| `SESSION_MGMT_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `SESSION_MGMT_LOG_DIR` | `~/.claude/logs/` | Directory for log files |
+| `SESSION_BUDDY_DATA_DIR` | `~/.claude/data/` | Directory for database storage |
+| `SESSION_BUDDY_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
+| `SESSION_BUDDY_LOG_DIR` | `~/.claude/logs/` | Directory for log files |
 
 ### Memory System Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | ONNX model for embeddings |
-| `EMBEDDING_CACHE_SIZE` | `1000` | Number of cached embeddings |
-| `MAX_MEMORY_MB` | `512` | Maximum memory for embedding model |
-| `VECTOR_SIMILARITY_THRESHOLD` | `0.7` | Default similarity threshold |
+| `SESSION_BUDDY_ENABLE_SEMANTIC_SEARCH` | `true` | Toggle semantic search with embeddings |
+| `SESSION_BUDDY_EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | ONNX model for embeddings |
+| `SESSION_BUDDY_EMBEDDING_CACHE_SIZE` | `1000` | Number of cached embeddings |
 
 ### Performance Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MAX_WORKERS` | `4` | Thread pool size for embeddings |
-| `DB_CONNECTION_TIMEOUT` | `30` | Database connection timeout (seconds) |
-| `CHUNK_SIZE` | `4000` | Token limit before response chunking |
-| `MAX_SEARCH_RESULTS` | `50` | Maximum search results per query |
+| `SESSION_BUDDY_DATABASE_CONNECTION_TIMEOUT` | `30` | Database connection timeout (seconds) |
+| `SESSION_BUDDY_DATABASE_QUERY_TIMEOUT` | `120` | Database query timeout (seconds) |
+| `SESSION_BUDDY_MAX_SEARCH_RESULTS` | `100` | Maximum search results per query |
+| `SESSION_BUDDY_DEFAULT_MAX_TOKENS` | `4000` | Default max tokens for responses |
+| `SESSION_BUDDY_DEFAULT_CHUNK_SIZE` | `2000` | Chunk size for response splitting |
 
 ### Security Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TRUSTED_OPERATIONS` | `[]` | JSON array of auto-approved operations |
-| `PERMISSION_TIMEOUT` | `300` | Permission cache timeout (seconds) |
-| `RATE_LIMIT_REQUESTS` | `100` | Requests per minute limit |
+| `SESSION_BUDDY_ENABLE_PERMISSION_SYSTEM` | `true` | Toggle permission system |
+| `SESSION_BUDDY_DEFAULT_TRUSTED_OPERATIONS` | `["git_commit", "uv_sync", "file_operations"]` | JSON array of trusted operations |
+| `SESSION_BUDDY_ENABLE_RATE_LIMITING` | `true` | Toggle rate limiting |
+| `SESSION_BUDDY_MAX_REQUESTS_PER_MINUTE` | `100` | Requests per minute limit |
+| `SESSION_BUDDY_MAX_QUERY_LENGTH` | `10000` | Maximum search query length |
+| `SESSION_BUDDY_MAX_CONTENT_LENGTH` | `1000000` | Maximum content size in bytes |
 
 ## Advanced Configuration
 
@@ -106,53 +98,14 @@ embeddings = [
 
 ```bash
 # Custom data directory setup
-export SESSION_MGMT_DATA_DIR="/opt/session-mgmt/data"
-mkdir -p "$SESSION_MGMT_DATA_DIR"/{db,cache,temp}
-chmod 750 "$SESSION_MGMT_DATA_DIR"
+export SESSION_BUDDY_DATA_DIR="/opt/session-buddy/data"
+mkdir -p "$SESSION_BUDDY_DATA_DIR"/{db,cache,temp}
+chmod 750 "$SESSION_BUDDY_DATA_DIR"
 ```
 
 ### Embedding Model Configuration
 
-#### Using Different ONNX Models
-
-```bash
-# Download custom model
-wget https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/model.onnx
-export EMBEDDING_MODEL_PATH="/path/to/custom/model.onnx"
-```
-
-#### Fallback Configuration
-
-```json
-{
-  "env": {
-    "DISABLE_EMBEDDINGS": "true",
-    "FALLBACK_TO_TEXT_SEARCH": "true"
-  }
-}
-```
-
-### Database Configuration
-
-#### Custom DuckDB Settings
-
-```python
-# In custom configuration file
-DATABASE_CONFIG = {
-    "memory_limit": "2GB",
-    "threads": 8,
-    "checkpoint_threshold": "1GB",
-    "wal_autocheckpoint": 1000,
-}
-```
-
-#### Connection Pooling
-
-```bash
-export DB_POOL_SIZE=10
-export DB_POOL_MAX_OVERFLOW=20
-export DB_POOL_TIMEOUT=30
-```
+Use `SESSION_BUDDY_EMBEDDING_MODEL` to switch models and `SESSION_BUDDY_ENABLE_SEMANTIC_SEARCH` to disable embeddings entirely.
 
 ## Production Configuration
 
@@ -161,12 +114,12 @@ export DB_POOL_TIMEOUT=30
 ```dockerfile
 FROM python:3.13-slim
 
-ENV SESSION_MGMT_DATA_DIR=/data/session-mgmt
-ENV SESSION_MGMT_LOG_LEVEL=INFO
-ENV EMBEDDING_MODEL=all-MiniLM-L6-v2
-ENV MAX_WORKERS=8
+ENV SESSION_BUDDY_DATA_DIR=/data/session-buddy
+ENV SESSION_BUDDY_LOG_LEVEL=INFO
+ENV SESSION_BUDDY_EMBEDDING_MODEL=all-MiniLM-L6-v2
+ENV SESSION_BUDDY_EMBEDDING_CACHE_SIZE=1000
 
-VOLUME ["/data/session-mgmt"]
+VOLUME ["/data/session-buddy"]
 
 COPY . /app
 WORKDIR /app
@@ -181,12 +134,11 @@ ENTRYPOINT ["python", "-m", "session_buddy.server"]
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: session-mgmt-config
+  name: session-buddy-config
 data:
-  SESSION_MGMT_LOG_LEVEL: "INFO"
-  EMBEDDING_MODEL: "all-MiniLM-L6-v2"
-  MAX_WORKERS: "4"
-  VECTOR_SIMILARITY_THRESHOLD: "0.75"
+  SESSION_BUDDY_LOG_LEVEL: "INFO"
+  SESSION_BUDDY_EMBEDDING_MODEL: "all-MiniLM-L6-v2"
+  SESSION_BUDDY_EMBEDDING_CACHE_SIZE: "1000"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -200,14 +152,14 @@ spec:
   template:
     spec:
       containers:
-      - name: session-mgmt
+      - name: session-buddy
         image: session-buddy:latest
         envFrom:
         - configMapRef:
-            name: session-mgmt-config
+            name: session-buddy-config
         volumeMounts:
         - name: data-volume
-          mountPath: /data/session-mgmt
+          mountPath: /data/session-buddy
         resources:
           requests:
             memory: "512Mi"
@@ -220,7 +172,7 @@ spec:
 ### Load Balancing Configuration
 
 ```nginx
-upstream session_mgmt_backend {
+upstream session_buddy_backend {
     server localhost:8000;
     server localhost:8001;
     server localhost:8002;
@@ -228,10 +180,10 @@ upstream session_mgmt_backend {
 
 server {
     listen 80;
-    server_name session-mgmt.example.com;
+    server_name session-buddy.example.com;
 
     location / {
-        proxy_pass http://session_mgmt_backend;
+        proxy_pass http://session_buddy_backend;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }
@@ -244,140 +196,27 @@ server {
 
 ```bash
 # .env.development
-SESSION_MGMT_LOG_LEVEL=DEBUG
-EMBEDDING_CACHE_SIZE=100
-MAX_WORKERS=2
-DISABLE_RATE_LIMITING=true
+SESSION_BUDDY_LOG_LEVEL=DEBUG
+SESSION_BUDDY_EMBEDDING_CACHE_SIZE=100
+SESSION_BUDDY_ENABLE_RATE_LIMITING=false
 ```
 
 ### Staging Environment
 
 ```bash
 # .env.staging
-SESSION_MGMT_LOG_LEVEL=INFO
-EMBEDDING_CACHE_SIZE=500
-MAX_WORKERS=4
-TRUSTED_OPERATIONS='["uv_sync", "git_commit"]'
+SESSION_BUDDY_LOG_LEVEL=INFO
+SESSION_BUDDY_EMBEDDING_CACHE_SIZE=500
+SESSION_BUDDY_DEFAULT_TRUSTED_OPERATIONS='["uv_sync", "git_commit"]'
 ```
 
 ### Production Environment
 
 ```bash
 # .env.production
-SESSION_MGMT_LOG_LEVEL=WARNING
-EMBEDDING_CACHE_SIZE=2000
-MAX_WORKERS=8
-RATE_LIMIT_REQUESTS=50
-PERMISSION_TIMEOUT=600
-```
-
-## Monitoring Configuration
-
-### Health Check Endpoint
-
-```json
-{
-  "env": {
-    "ENABLE_HEALTH_CHECK": "true",
-    "HEALTH_CHECK_PORT": "8080"
-  }
-}
-```
-
-### Metrics Collection
-
-```bash
-# Prometheus metrics
-export ENABLE_METRICS=true
-export METRICS_PORT=9090
-export METRICS_PATH=/metrics
-```
-
-### Logging Configuration
-
-```json
-{
-  "logging": {
-    "version": 1,
-    "handlers": {
-      "file": {
-        "class": "logging.FileHandler",
-        "filename": "/var/log/session-mgmt/server.log",
-        "formatter": "detailed"
-      },
-      "syslog": {
-        "class": "logging.handlers.SysLogHandler",
-        "address": "/dev/log"
-      }
-    },
-    "formatters": {
-      "detailed": {
-        "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-      }
-    }
-  }
-}
-```
-
-## Security Configuration
-
-### Authentication Setup
-
-```bash
-# API key authentication
-export SESSION_MGMT_API_KEY="your-secure-api-key"
-export SESSION_MGMT_REQUIRE_AUTH=true
-```
-
-### TLS Configuration
-
-```json
-{
-  "env": {
-    "TLS_CERT_PATH": "/etc/ssl/certs/session-mgmt.crt",
-    "TLS_KEY_PATH": "/etc/ssl/private/session-mgmt.key",
-    "ENABLE_TLS": "true"
-  }
-}
-```
-
-### Access Control
-
-```bash
-# IP whitelist
-export ALLOWED_IPS='["127.0.0.1", "10.0.0.0/8", "192.168.0.0/16"]'
-
-# User permissions
-export USER_PERMISSIONS='{
-  "admin": ["*"],
-  "developer": ["search", "store", "checkpoint"],
-  "readonly": ["search", "status"]
-}'
-```
-
-## Backup Configuration
-
-### Database Backup
-
-```bash
-# Automated backup script
-#!/bin/bash
-BACKUP_DIR="/backup/session-mgmt/$(date +%Y%m%d)"
-mkdir -p "$BACKUP_DIR"
-
-# Copy database files
-cp -r "$SESSION_MGMT_DATA_DIR"/*.db "$BACKUP_DIR/"
-
-# Compress and encrypt
-tar -czf "$BACKUP_DIR.tar.gz" "$BACKUP_DIR"
-gpg --encrypt --recipient admin@company.com "$BACKUP_DIR.tar.gz"
-```
-
-### Automated Backup Schedule
-
-```bash
-# Crontab entry
-0 2 * * * /usr/local/bin/backup-session-mgmt.sh
+SESSION_BUDDY_LOG_LEVEL=WARNING
+SESSION_BUDDY_EMBEDDING_CACHE_SIZE=2000
+SESSION_BUDDY_MAX_REQUESTS_PER_MINUTE=50
 ```
 
 ## Troubleshooting Configuration
@@ -386,38 +225,9 @@ gpg --encrypt --recipient admin@company.com "$BACKUP_DIR.tar.gz"
 
 ```bash
 # Enable comprehensive debugging
-export SESSION_MGMT_LOG_LEVEL=DEBUG
-export PYTHONPATH="$PWD"
-export EMBEDDING_DEBUG=true
+export SESSION_BUDDY_LOG_LEVEL=DEBUG
+export SESSION_BUDDY_ENABLE_DEBUG_MODE=true
 python -m session_buddy.server --debug
-```
-
-### Performance Profiling
-
-```bash
-# Enable performance profiling
-export ENABLE_PROFILING=true
-export PROFILING_OUTPUT_DIR=/tmp/session-mgmt-profiles/
-```
-
-### Memory Debugging
-
-```bash
-# Memory leak detection
-export PYTHONMALLOC=debug
-export PYTHONFAULTHANDLER=1
-python -X dev -m session_buddy.server
-```
-
-## Migration Configuration
-
-### Version Migration
-
-```bash
-# Database schema migration
-export ENABLE_AUTO_MIGRATION=true
-export BACKUP_BEFORE_MIGRATION=true
-export MIGRATION_TIMEOUT=300
 ```
 
 ### Data Import/Export
@@ -450,7 +260,7 @@ def validate_config():
     """Validate all configuration settings."""
 
     # Check required paths
-    data_dir = Path(os.getenv("SESSION_MGMT_DATA_DIR", "~/.claude/data")).expanduser()
+    data_dir = Path(os.getenv("SESSION_BUDDY_DATA_DIR", "~/.claude/data")).expanduser()
     assert data_dir.exists(), f"Data directory missing: {data_dir}"
 
     # Check MCP configuration
@@ -459,8 +269,8 @@ def validate_config():
         with open(mcp_config_path) as f:
             config = json.load(f)
 
-        assert "session-mgmt" in config.get("mcpServers", {}), (
-            "session-mgmt server not configured"
+        assert "session-buddy" in config.get("mcpServers", {}), (
+            "session-buddy server not configured"
         )
 
     # Check embedding model availability

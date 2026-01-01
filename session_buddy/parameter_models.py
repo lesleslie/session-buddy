@@ -385,7 +385,7 @@ class SearchQueryParams(ProjectContextParams, SearchLimitParams, ScoreThresholdP
         return v
 
 
-class FileSearchParams(SearchLimitParams, ProjectContextParams):
+class FileSearchParams(SearchLimitParams, ProjectContextParams, ScoreThresholdParams):
     """Parameters for file-based search."""
 
     file_path: str = Field(
@@ -405,7 +405,9 @@ class FileSearchParams(SearchLimitParams, ProjectContextParams):
         return v
 
 
-class ConceptSearchParams(SearchLimitParams, ProjectContextParams):
+class ConceptSearchParams(
+    SearchLimitParams, ProjectContextParams, ScoreThresholdParams
+):
     """Parameters for concept-based search."""
 
     concept: str = Field(

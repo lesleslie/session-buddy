@@ -45,14 +45,15 @@ For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_
 - `checkpoint` - Mid-session quality assessment with workflow analysis
 - `end` - Complete session cleanup with learning capture
 - `status` - Current session overview with health checks
-- `permissions` - Manage trusted operations to reduce permission prompts
 
 **Memory & Conversation Search:**
 
-- `reflect_on_past` - Semantic search through past conversations using local AI embeddings
 - `store_reflection` - Store insights with tagging and embeddings
 - `quick_search` - Fast overview search with count and top results
+- `search_summary` - Aggregated insights without individual result details
 - `get_more_results` - Pagination support for large result sets
+- `search_by_file` - Find conversations tied to a specific file
+- `search_by_concept` - Semantic search by concept with optional file context
 
 **Knowledge Graph (DuckPGQ):**
 
@@ -64,7 +65,7 @@ All tools use **local processing** for privacy, with **DuckDB vector storage** (
 
 ## 🚀 Integration with Crackerjack
 
-Session-mgmt includes deep integration with [Crackerjack](https://github.com/lesleslie/crackerjack), the AI-driven Python development platform:
+Session Buddy includes deep integration with [Crackerjack](https://github.com/lesleslie/crackerjack), the AI-driven Python development platform:
 
 **Key Features:**
 
@@ -74,9 +75,9 @@ Session-mgmt includes deep integration with [Crackerjack](https://github.com/les
 
 **Example Workflow:**
 
-1. 🚀 **Session-mgmt `start`** - Sets up your session with accumulated context from previous work
+1. 🚀 **Session Buddy `start`** - Sets up your session with accumulated context from previous work
 1. 🔧 **Crackerjack runs** quality checks and applies AI agent fixes to resolve issues
-1. 💾 **Session-mgmt captures** successful patterns and error resolutions
+1. 💾 **Session Buddy captures** successful patterns and error resolutions
 1. 🧠 **Next session starts** with all accumulated knowledge
 
 For detailed information on Crackerjack integration, see [Crackerjack Integration Guide](docs/CRACKERJACK.md).
@@ -107,7 +108,7 @@ Add to your project's `.mcp.json` file:
 ```json
 {
   "mcpServers": {
-    "session-mgmt": {
+    "session-buddy": {
       "command": "python",
       "args": ["-m", "session_buddy.server"],
       "cwd": "/path/to/session-buddy",
@@ -126,7 +127,7 @@ If installed with pip/uv, you can use the script entry point:
 ```json
 {
   "mcpServers": {
-    "session-mgmt": {
+    "session-buddy": {
       "command": "session-buddy",
       "args": [],
       "env": {}
@@ -136,7 +137,34 @@ If installed with pip/uv, you can use the script entry point:
 ```
 
 **Dependencies:** Requires Python 3.13+. For a complete list of dependencies, see [pyproject.toml](pyproject.toml).
-Recent changes include pinning FastAPI to \<0.121.0 to prevent circular import bugs and removing sitecustomize.py for improved startup reliability.
+Recent changes include upgrading FastAPI to the 0.127+ series for improved compatibility and removing sitecustomize.py for faster startup reliability.
+
+### 🧠 Setting Up Semantic Search (Optional)
+
+Session Buddy includes semantic search capabilities using local AI embeddings with **no external API dependencies**.
+
+**Current Status:**
+- ✅ **Text Search**: Works out of the box (fast, keyword-based)
+- ✅ **Semantic Search**: Works with ONNX model (no PyTorch required!)
+
+**For Text Search (Default):**
+No additional setup needed! The system uses full-text search with FTS5 for fast, accurate results.
+
+**For Semantic Search (Optional):**
+
+The system uses pre-converted ONNX models for efficient semantic search without requiring PyTorch:
+
+```bash
+# Download the pre-converted ONNX model (one-time setup)
+python scripts/download_embedding_model.py
+```
+
+This downloads the **Xenova/all-MiniLM-L6-v2** model (~100MB) which includes:
+- Pre-converted ONNX model (no PyTorch needed!)
+- 384-dimensional embeddings for semantic similarity
+- Fast CPU inference with ONNX Runtime
+
+**Note**: Text search is highly effective and recommended for most use cases. Semantic search provides enhanced conceptual matching by understanding meaning beyond keywords.
 
 ## Usage
 
@@ -160,10 +188,16 @@ After running `/session-buddy:start` once, these shortcuts are automatically cre
 
 **Memory & Search Commands:**
 
-- `/session-buddy:reflect_on_past` - Search past conversations with semantic similarity
-- `/session-buddy:store_reflection` - Store important insights with tagging
 - `/session-buddy:quick_search` - Fast search with overview results
-- `/session-buddy:permissions` - Manage trusted operations
+- `/session-buddy:search_summary` - Aggregated insights without full result lists
+- `/session-buddy:get_more_results` - Paginate search results
+- `/session-buddy:search_by_file` - Find results tied to a specific file
+- `/session-buddy:search_by_concept` - Semantic search by concept
+- `/session-buddy:search_code` - Search code-related conversations
+- `/session-buddy:search_errors` - Search error and failure discussions
+- `/session-buddy:search_temporal` - Search using time expressions
+- `/session-buddy:store_reflection` - Store important insights with tagging
+- `/session-buddy:reflection_stats` - Stats about the reflection database
 
 For running the server directly in development mode:
 
@@ -200,7 +234,7 @@ This server manages its data locally in the user's home directory:
 
 1. **Initialize Session**: `/session-buddy:start` - Sets up project context, dependencies, and memory system
 1. **Monitor Progress**: `/session-buddy:checkpoint` (every 30-45 minutes) - Quality scoring and optimization
-1. **Search Past Work**: `/session-buddy:reflect_on_past` - Find relevant past conversations and solutions
+1. **Search Past Work**: `/session-buddy:quick_search` or `/session-buddy:search_summary` - Find relevant past conversations and solutions
 1. **Store Important Insights**: `/session-buddy:store_reflection` - Capture key learnings for future sessions
 1. **End Session**: `/session-buddy:end` - Final assessment, learning capture, and cleanup
 
@@ -241,7 +275,7 @@ Complete documentation is available in the [docs/](docs/) directory:
 
 - **Memory/embedding issues**: Ensure all dependencies are installed with `uv sync`
 - **Path errors**: Verify `cwd` and `PYTHONPATH` are set correctly in `.mcp.json`
-- **Permission issues**: Use `/session-buddy:permissions` to trust operations
+- **Permission issues**: Remove `~/.claude/sessions/trusted_permissions.json` to reset trusted operations
 
 **Debug Mode:**
 

@@ -1,14 +1,14 @@
-"""Tests for the ACB dependency injection configuration."""
+"""Tests for the Oneiric service container configuration."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from acb.depends import depends
 from session_buddy.core import SessionLifecycleManager
 from session_buddy.core.permissions import SessionPermissionsManager
 from session_buddy.di import SessionPaths, configure, reset
+from session_buddy.di.container import depends
 from session_buddy.utils.logging import SessionLogger
 
 if TYPE_CHECKING:

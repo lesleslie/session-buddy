@@ -1,23 +1,14 @@
 #!/usr/bin/env python3
-"""Tests for knowledge_graph_adapter with ACB dependency injection.
+"""Tests for knowledge_graph_adapter with Oneiric settings.
 
-Tests the KnowledgeGraphDatabaseAdapter which uses ACB for configuration
+Tests the KnowledgeGraphDatabaseAdapter which uses Oneiric settings for configuration
 and DuckDB PGQ extension for property graph queries.
-
-Phase 2: Core Coverage (0% → 60%) - Knowledge Graph Adapter Tests
-
-Testing Strategy:
-- Use unique temp database paths per test for isolation
-- Mock ACB Config.graph.database_path when needed
-- Test hybrid async/sync pattern (async API, sync DuckDB operations)
-- Cover both ACB config path and fallback path logic
 """
 
 from __future__ import annotations
 
 import json
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -130,34 +121,26 @@ class TestContextManagers:
 
 
 class TestDatabasePathResolution:
-    """Test _get_db_path method with ACB config integration.
+    """Test _get_db_path method with Oneiric settings."""
 
-    Phase 2: Core Coverage - knowledge_graph_adapter.py (0% → 60%)
-    """
-
-    def test_get_db_path_uses_acb_config(self, tmp_path: Path) -> None:
-        """Should use ACB config path when available."""
+    def test_get_db_path_uses_settings_path(self, tmp_path: Path) -> None:
+        """Should use settings path when no instance path provided."""
         from session_buddy.adapters.knowledge_graph_adapter import (
             KnowledgeGraphDatabaseAdapter,
         )
+        from session_buddy.adapters.settings import KnowledgeGraphAdapterSettings
 
-        # Mock ACB config
-        mock_config = Mock()
-        mock_config.graph = Mock()
-        mock_config.graph.database_path = tmp_path / "acb_config.duckdb"
+        settings = KnowledgeGraphAdapterSettings(
+            database_path=tmp_path / "settings.duckdb",
+        )
+        adapter = KnowledgeGraphDatabaseAdapter(settings=settings)
 
-        adapter = KnowledgeGraphDatabaseAdapter()
+        result = adapter._get_db_path()
 
-        with patch(
-            "session_buddy.adapters.knowledge_graph_adapter.depends.get_sync",
-            return_value=mock_config,
-        ):
-            result = adapter._get_db_path()
+        assert result == str(settings.database_path)
 
-        assert result == str(mock_config.graph.database_path)
-
-    def test_get_db_path_falls_back_to_instance_path(self, tmp_path: Path) -> None:
-        """Should fall back to instance path when ACB config unavailable."""
+    def test_get_db_path_uses_instance_path(self, tmp_path: Path) -> None:
+        """Should prefer instance path when provided."""
         from session_buddy.adapters.knowledge_graph_adapter import (
             KnowledgeGraphDatabaseAdapter,
         )
@@ -165,40 +148,9 @@ class TestDatabasePathResolution:
         db_path = tmp_path / "instance.duckdb"
         adapter = KnowledgeGraphDatabaseAdapter(db_path)
 
-        # Mock depends.get_sync to raise exception (ACB config unavailable)
-        with patch(
-            "session_buddy.adapters.knowledge_graph_adapter.depends.get_sync",
-            side_effect=Exception("ACB not configured"),
-        ):
-            result = adapter._get_db_path()
+        result = adapter._get_db_path()
 
         assert result == str(db_path)
-
-    def test_get_db_path_uses_default_when_no_path(self, tmp_path: Path) -> None:
-        """Should use default path when no instance path or ACB config."""
-        from session_buddy.adapters.knowledge_graph_adapter import (
-            KnowledgeGraphDatabaseAdapter,
-        )
-
-        adapter = KnowledgeGraphDatabaseAdapter()  # No path
-
-        # Mock depends.get_sync to raise exception and Path.home()
-        with (
-            patch(
-                "session_buddy.adapters.knowledge_graph_adapter.depends.get_sync",
-                side_effect=Exception("ACB not configured"),
-            ),
-            patch(
-                "pathlib.Path.home",
-                return_value=tmp_path,
-            ),
-        ):
-            result = adapter._get_db_path()
-
-        expected = tmp_path / ".claude" / "data" / "knowledge_graph.duckdb"
-        assert result == str(expected)
-        # Should create parent directory
-        assert expected.parent.exists()
 
 
 class TestInitialization:

@@ -13,11 +13,10 @@ import typing as t
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from acb.adapters import import_adapter
-from acb.depends import depends
 from session_buddy.utils.instance_managers import (
     get_reflection_database as resolve_reflection_database,
 )
+from session_buddy.utils.logging import get_session_logger
 
 logger = logging.getLogger(__name__)
 
@@ -266,10 +265,9 @@ async def quality_monitor() -> str:
 
 
 def _get_logger() -> t.Any:
-    """Lazy logger resolution using ACB's logger adapter from DI container."""
+    """Lazy logger resolution using the session logger."""
     try:
-        logger_class = import_adapter("logger")
-        return depends.get_sync(logger_class)
+        return get_session_logger()
     except Exception:
         return logger
 
