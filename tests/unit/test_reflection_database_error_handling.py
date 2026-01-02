@@ -131,7 +131,9 @@ class TestReflectionDatabaseErrorHandling:
 
             try:
                 # Test with None tags
-                reflection_id = await db.store_reflection("Test content", None, "test-project")
+                reflection_id = await db.store_reflection(
+                    "Test content", None, "test-project"
+                )
                 retrieved = await db.get_reflection(reflection_id)
                 assert retrieved["tags"] == [] or retrieved["tags"] is None
 
@@ -207,7 +209,9 @@ class TestReflectionDatabaseErrorHandling:
 
             try:
                 # Test with None tags
-                results = await db.search_reflections("test", 10, "test-project", tags=None)
+                results = await db.search_reflections(
+                    "test", 10, "test-project", tags=None
+                )
                 assert isinstance(results, list)
 
             finally:
@@ -223,7 +227,9 @@ class TestReflectionDatabaseErrorHandling:
 
             try:
                 # Store a reflection
-                reflection_id = await db.store_reflection("Original content", ["test"], "test-project")
+                reflection_id = await db.store_reflection(
+                    "Original content", ["test"], "test-project"
+                )
 
                 # Try to update with None content
                 with pytest.raises((TypeError, ValueError)):
@@ -242,7 +248,9 @@ class TestReflectionDatabaseErrorHandling:
 
             try:
                 # Store a reflection
-                reflection_id = await db.store_reflection("Original content", ["test"], "test-project")
+                reflection_id = await db.store_reflection(
+                    "Original content", ["test"], "test-project"
+                )
 
                 # Update with None tags
                 await db.update_reflection(reflection_id, "Updated content", None)
@@ -301,15 +309,22 @@ class TestReflectionDatabaseErrorHandling:
             await db.initialize()
 
             try:
+
                 async def conflicting_operations():
                     # Store initial reflection
-                    reflection_id = await db.store_reflection("Original", ["test"], "test-project")
+                    reflection_id = await db.store_reflection(
+                        "Original", ["test"], "test-project"
+                    )
 
                     # Try to update and delete simultaneously
-                    update_task = db.update_reflection(reflection_id, "Updated", ["updated"])
+                    update_task = db.update_reflection(
+                        reflection_id, "Updated", ["updated"]
+                    )
                     delete_task = db.delete_reflection(reflection_id)
 
-                    await asyncio.gather(update_task, delete_task, return_exceptions=True)
+                    await asyncio.gather(
+                        update_task, delete_task, return_exceptions=True
+                    )
 
                 # This should not crash, even if operations conflict
                 await conflicting_operations()
@@ -388,7 +403,9 @@ class TestReflectionDatabaseErrorHandling:
             try:
                 # Test SQL injection attempts in content
                 malicious_content = "'; DROP TABLE reflections; --"
-                reflection_id = await db.store_reflection(malicious_content, ["test"], "test-project")
+                reflection_id = await db.store_reflection(
+                    malicious_content, ["test"], "test-project"
+                )
 
                 # Should store the content safely (escaped)
                 retrieved = await db.get_reflection(reflection_id)
@@ -411,8 +428,12 @@ class TestReflectionDatabaseErrorHandling:
 
             try:
                 # Test with various unicode characters
-                unicode_content = "Test with unicode: 你好世界 🌍 café naïve \ud83d\udcbb"
-                reflection_id = await db.store_reflection(unicode_content, ["unicode"], "test-project")
+                unicode_content = (
+                    "Test with unicode: 你好世界 🌍 café naïve \ud83d\udcbb"
+                )
+                reflection_id = await db.store_reflection(
+                    unicode_content, ["unicode"], "test-project"
+                )
 
                 retrieved = await db.get_reflection(reflection_id)
                 assert retrieved["content"] == unicode_content
@@ -455,7 +476,9 @@ class TestReflectionDatabaseErrorHandling:
 
             try:
                 # Store some data
-                reflection_id = await db.store_reflection("Test content", ["test"], "test-project")
+                reflection_id = await db.store_reflection(
+                    "Test content", ["test"], "test-project"
+                )
 
                 # Verify it exists
                 retrieved = await db.get_reflection(reflection_id)
@@ -469,7 +492,9 @@ class TestReflectionDatabaseErrorHandling:
                 assert deleted is None
 
                 # Should still be able to perform other operations
-                new_id = await db.store_reflection("New content", ["recovery"], "test-project")
+                new_id = await db.store_reflection(
+                    "New content", ["recovery"], "test-project"
+                )
                 new_retrieved = await db.get_reflection(new_id)
                 assert new_retrieved is not None
 
@@ -496,7 +521,9 @@ class TestReflectionDatabaseErrorHandling:
                 assert result is None
 
                 # Should still work normally after invalid operations
-                valid_id = await db.store_reflection("Valid content", ["test"], "test-project")
+                valid_id = await db.store_reflection(
+                    "Valid content", ["test"], "test-project"
+                )
                 valid_result = await db.get_reflection(valid_id)
                 assert valid_result is not None
 
@@ -514,10 +541,13 @@ class TestReflectionDatabaseErrorHandling:
             await db.initialize()
 
             try:
+
                 async def concurrent_writes():
                     tasks = []
                     for i in range(10):
-                        task = db.store_reflection(f"Concurrent {i}", ["test"], "test-project")
+                        task = db.store_reflection(
+                            f"Concurrent {i}", ["test"], "test-project"
+                        )
                         tasks.append(task)
 
                     # Should handle concurrent writes without deadlocks
@@ -548,7 +578,10 @@ class TestReflectionDatabaseErrorHandling:
                     error_msg = str(e)
                     # Error message should be informative
                     assert len(error_msg) > 10
-                    assert any(word in error_msg.lower() for word in ["content", "null", "invalid", "required"])
+                    assert any(
+                        word in error_msg.lower()
+                        for word in ["content", "null", "invalid", "required"]
+                    )
 
             finally:
                 db.close()

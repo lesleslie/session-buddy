@@ -525,8 +525,12 @@ def get_settings(reload: bool = False) -> SessionMgmtSettings:
     global _settings
 
     if _settings is None or reload:
-        _settings = SessionMgmtSettings.load("session-buddy")
+        _settings = t.cast(
+            SessionMgmtSettings, SessionMgmtSettings.load("session-buddy")
+        )
 
+    # _settings is guaranteed non-None here
+    assert _settings is not None
     return _settings
 
 
@@ -542,9 +546,16 @@ def reload_settings() -> SessionMgmtSettings:
 
 def get_database_path() -> Path:
     settings = get_settings()
-    path = settings.database_path.expanduser()
+    raw = settings.database_path
+    path = raw.expanduser() if isinstance(raw, Path) else Path(str(raw)).expanduser()
     if not path.is_absolute():
-        path = settings.data_dir.expanduser() / path
+        data_dir_raw = settings.data_dir
+        data_dir = (
+            data_dir_raw.expanduser()
+            if isinstance(data_dir_raw, Path)
+            else Path(str(data_dir_raw)).expanduser()
+        )
+        path = data_dir / path
     return path
 
 

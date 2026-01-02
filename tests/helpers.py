@@ -181,22 +181,32 @@ class TestDataFactory:
 
             for i in range(reflections_per_project):
                 if project_type == "backend":
-                    content = f"Backend work on {project}: implemented {i+1} API endpoints"
+                    content = (
+                        f"Backend work on {project}: implemented {i + 1} API endpoints"
+                    )
                     tags = ["backend", "api", project.lower().replace(" ", "-")]
                 elif project_type == "frontend":
-                    content = f"Frontend work on {project}: created {i+1} new components"
+                    content = (
+                        f"Frontend work on {project}: created {i + 1} new components"
+                    )
                     tags = ["frontend", "ui", project.lower().replace(" ", "-")]
                 elif project_type == "mobile":
-                    content = f"Mobile work on {project}: implemented {i+1} new screens"
+                    content = (
+                        f"Mobile work on {project}: implemented {i + 1} new screens"
+                    )
                     tags = ["mobile", "ui", project.lower().replace(" ", "-")]
                 elif project_type == "data-science":
-                    content = f"Data science work on {project}: processed {i+1} datasets"
+                    content = (
+                        f"Data science work on {project}: processed {i + 1} datasets"
+                    )
                     tags = ["data", "ml", project.lower().replace(" ", "-")]
                 elif project_type == "devops":
-                    content = f"DevOps work on {project}: configured {i+1} CI/CD pipelines"
+                    content = (
+                        f"DevOps work on {project}: configured {i + 1} CI/CD pipelines"
+                    )
                     tags = ["devops", "ci-cd", project.lower().replace(" ", "-")]
                 else:
-                    content = f"Work on {project}: completed task {i+1}"
+                    content = f"Work on {project}: completed task {i + 1}"
                     tags = ["generic", project.lower().replace(" ", "-")]
 
                 reflections.append(
@@ -222,7 +232,7 @@ class TestDataFactory:
         for i in range(count):
             # Generate time-based content
             hours_ago = count - i
-            content = f"Completed task {i+1} - {hours_ago} hours ago"
+            content = f"Completed task {i + 1} - {hours_ago} hours ago"
 
             # Create timestamp that decreases as we go back in time
             timestamp = base_time - timedelta(hours=hours_ago)
@@ -431,25 +441,28 @@ class TestDatabase:
 
         # Create configuration file
         (base_path / "config.json").write_text(
-            json.dumps({
-                "database": {
-                    "path": "./data/database.db",
-                    "timeout": 30,
-                    "max_connections": 10
+            json.dumps(
+                {
+                    "database": {
+                        "path": "./data/database.db",
+                        "timeout": 30,
+                        "max_connections": 10,
+                    },
+                    "logging": {
+                        "level": "INFO",
+                        "file": "./logs/app.log",
+                        "max_size": "10MB",
+                        "backup_count": 5,
+                    },
+                    "features": {
+                        "enable_caching": True,
+                        "cache_ttl": 3600,
+                        "enable_metrics": True,
+                        "metrics_port": 8080,
+                    },
                 },
-                "logging": {
-                    "level": "INFO",
-                    "file": "./logs/app.log",
-                    "max_size": "10MB",
-                    "backup_count": 5
-                },
-                "features": {
-                    "enable_caching": True,
-                    "cache_ttl": 3600,
-                    "enable_metrics": True,
-                    "metrics_port": 8080
-                }
-            }, indent=2)
+                indent=2,
+            )
         )
 
         return {

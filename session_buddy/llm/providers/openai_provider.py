@@ -6,7 +6,6 @@ OpenAI Python SDK for chat completions and streaming.
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -22,10 +21,10 @@ class OpenAIProvider(LLMProvider):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
+        self.api_key = config.get("api_key")
         self.base_url = config.get("base_url", "https://api.openai.com/v1")
         self.default_model = config.get("default_model", "gpt-4")
-        self._client = None
+        self._client: Any = None
 
     async def _get_client(self) -> Any:
         """Get or create OpenAI client."""

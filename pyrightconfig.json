@@ -1,16 +1,16 @@
 {
-  "include": [
-    "session_buddy"
-  ],
+  "defineConstant": {
+    "DEBUG": true
+  },
   "exclude": [
     "tests"
   ],
   "ignore": [
     "tests"
   ],
-  "defineConstant": {
-    "DEBUG": true
-  },
+  "include": [
+    "session_buddy"
+  ],
   "reportMissingImports": false,
   "reportMissingTypeStubs": false
 }

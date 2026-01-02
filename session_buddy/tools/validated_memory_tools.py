@@ -39,22 +39,12 @@ ReflectionDatabaseType = ReflectionDatabaseAdapter | ReflectionDatabase
 
 
 async def _get_reflection_database() -> ReflectionDatabaseType:
-    """Get reflection database instance with lazy initialization."""
-    try:
-        from session_buddy.reflection_tools import get_reflection_database
-
-        db = await get_reflection_database()
-        if db is None:
-            msg = "Reflection tools not available"
-            raise ImportError(msg)
-        return db
-    except ImportError:
-        # Re-raise import errors as they are expected
-        raise
-    except Exception as e:
-        _get_logger().warning(f"Could not get reflection database: {e}")
+    """Get reflection database instance with cached availability semantics."""
+    db = await _get_reflection_database_async()
+    if db is None:
         msg = "Reflection tools not available"
-        raise ImportError(msg) from e
+        raise ImportError(msg)
+    return db
 
 
 def _format_result_item(res: dict[str, Any], index: int) -> list[str]:

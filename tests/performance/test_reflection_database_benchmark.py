@@ -32,7 +32,9 @@ class TestReflectionDatabasePerformance:
                 def store_reflections():
                     for i in range(100):
                         content = f"Performance test reflection {i}"
-                        db.store_reflection(content, ["performance"], "benchmark-project")
+                        db.store_reflection(
+                            content, ["performance"], "benchmark-project"
+                        )
 
                 benchmark(store_reflections)
 
@@ -106,7 +108,7 @@ class TestReflectionDatabasePerformance:
                         "performance",
                         20,
                         "benchmark-project",
-                        tags=["performance", "tag_5"]
+                        tags=["performance", "tag_5"],
                     )
 
                 benchmark(complex_search)
@@ -150,18 +152,12 @@ class TestReflectionDatabasePerformance:
             try:
                 # Store a reflection to update
                 reflection_id = await db.store_reflection(
-                    "Original content",
-                    ["original"],
-                    "benchmark-project"
+                    "Original content", ["original"], "benchmark-project"
                 )
 
                 # Benchmark update operation
                 def update_reflection():
-                    db.update_reflection(
-                        reflection_id,
-                        "Updated content",
-                        ["updated"]
-                    )
+                    db.update_reflection(reflection_id, "Updated content", ["updated"])
 
                 benchmark(update_reflection)
 
@@ -180,9 +176,7 @@ class TestReflectionDatabasePerformance:
             try:
                 # Store a reflection to delete
                 reflection_id = await db.store_reflection(
-                    "Content to delete",
-                    ["delete"],
-                    "benchmark-project"
+                    "Content to delete", ["delete"], "benchmark-project"
                 )
 
                 # Benchmark delete operation
@@ -206,9 +200,12 @@ class TestReflectionDatabasePerformance:
             await db.initialize()
 
             try:
+
                 async def store_reflection(i):
                     content = f"Concurrent performance test reflection {i}"
-                    await db.store_reflection(content, ["concurrent"], "benchmark-project")
+                    await db.store_reflection(
+                        content, ["concurrent"], "benchmark-project"
+                    )
 
                 # Benchmark concurrent operations
                 async def concurrent_store():
@@ -346,7 +343,9 @@ class TestReflectionDatabasePerformance:
                 reflection_ids = []
                 for i in range(100):
                     content = f"Retrieval performance test reflection {i}"
-                    reflection_id = await db.store_reflection(content, ["retrieval"], "benchmark-project")
+                    reflection_id = await db.store_reflection(
+                        content, ["retrieval"], "benchmark-project"
+                    )
                     reflection_ids.append(reflection_id)
 
                 # Benchmark retrieval operations
@@ -381,7 +380,7 @@ class TestReflectionDatabasePerformance:
                         "performance",
                         20,
                         "benchmark-project",
-                        tags=["tag_5", "performance"]
+                        tags=["tag_5", "performance"],
                     )
 
                 benchmark(tag_filter_search)

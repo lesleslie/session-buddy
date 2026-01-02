@@ -111,7 +111,7 @@ async def fast_temp_db(temp_test_dir: Path) -> AsyncGenerator[ReflectionDatabase
         enable_vss=False,  # Disable vector similarity search for tests
         threads=1,
         memory_limit="512MB",
-        enable_embeddings=False  # Disable embeddings for faster tests
+        enable_embeddings=False,  # Disable embeddings for faster tests
     )
 
     db = ReflectionDatabase(settings=settings)

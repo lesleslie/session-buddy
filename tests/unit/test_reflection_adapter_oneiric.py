@@ -27,7 +27,9 @@ async def test_text_search_handles_quotes(tmp_path: Path) -> None:
     assert results
 
 
-async def test_store_reflection_writes_vector(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_store_reflection_writes_vector(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     pytest.importorskip("duckdb")
 
     settings = ReflectionAdapterSettings(

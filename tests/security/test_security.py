@@ -17,6 +17,7 @@ class TestSecurity:
     async def test_path_traversal_protection(self):
         """Test that file operations are protected against path traversal."""
         from tests.test_helpers import create_test_reflection_database
+
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test_security.duckdb"
             db = create_test_reflection_database(db_path)
@@ -42,6 +43,7 @@ class TestSecurity:
     async def test_sql_injection_in_search(self):
         """Test that search operations are protected against SQL injection."""
         from tests.test_helpers import create_test_reflection_database
+
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test_sql_injection.duckdb"
             db = create_test_reflection_database(db_path)
@@ -74,6 +76,7 @@ class TestSecurity:
     async def test_executable_content_storage(self):
         """Test storage of potentially executable content."""
         from tests.test_helpers import create_test_reflection_database
+
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test_executable.duckdb"
             db = create_test_reflection_database(db_path)
@@ -108,6 +111,7 @@ def dangerous_function():
     async def test_large_content_handling(self):
         """Test handling of extremely large content to prevent resource exhaustion."""
         from tests.test_helpers import create_test_reflection_database
+
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test_large_content.duckdb"
             db = create_test_reflection_database(db_path)
@@ -136,6 +140,7 @@ def dangerous_function():
     async def test_special_characters_in_content(self):
         """Test storage and retrieval of content with special characters."""
         from tests.test_helpers import create_test_reflection_database
+
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test_special_chars.duckdb"
             db = create_test_reflection_database(db_path)
@@ -167,6 +172,7 @@ Unicode: ñáéíóú 中文 🚀
     async def test_reflection_id_manipulation(self):
         """Test that reflection IDs are properly handled and can't be manipulated."""
         from tests.test_helpers import create_test_reflection_database
+
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test_id_manipulation.duckdb"
             db = create_test_reflection_database(db_path)
@@ -256,6 +262,7 @@ Unicode: ñáéíóú 中文 🚀
     async def test_database_file_path_security(self):
         """Test that database file paths are handled securely."""
         from tests.test_helpers import create_test_reflection_database
+
         with tempfile.TemporaryDirectory() as temp_dir:
             base_dir = Path(temp_dir)
 

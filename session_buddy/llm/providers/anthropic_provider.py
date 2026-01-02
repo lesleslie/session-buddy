@@ -6,7 +6,6 @@ API key is unavailable, the provider reports as unavailable.
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -22,9 +21,9 @@ class AnthropicProvider(LLMProvider):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.api_key = config.get("api_key") or os.getenv("ANTHROPIC_API_KEY")
+        self.api_key = config.get("api_key")
         self.default_model = config.get("default_model", "claude-3-5-haiku-20241022")
-        self._client = None
+        self._client: Any = None
 
     async def _get_client(self) -> Any:
         if self._client is None:
@@ -37,18 +36,35 @@ class AnthropicProvider(LLMProvider):
                 raise ImportError(msg)
         return self._client
 
+    def _strip_thinking_blocks(self, content: str) -> str:
+        """Remove thinking blocks from content before sending to API.
+
+        Anthropic API does not accept thinking blocks in request messages.
+        They can only appear in responses from the API.
+        """
+        import re
+
+        # Remove all <thinking>...</thinking> blocks (with any attributes)
+        pattern = r'<thinking[^>]*>.*?</thinking>'
+        cleaned = re.sub(pattern, '', content, flags=re.DOTALL | re.IGNORECASE)
+        return cleaned.strip()
+
     def _convert_messages(self, messages: list[LLMMessage]) -> list[dict[str, Any]]:
         """Convert to Anthropic messages format.
 
         - Maps 'system' into top-level system field (handled in generate)
         - Converts user/assistant into human/assistant messages
+        - Strips thinking blocks from assistant messages (not allowed in API requests)
         """
         converted: list[dict[str, Any]] = []
         for msg in messages:
             if msg.role == "user":
                 converted.append({"role": "user", "content": msg.content})
             elif msg.role == "assistant":
-                converted.append({"role": "assistant", "content": msg.content})
+                # Remove thinking blocks - they cannot be in API requests
+                cleaned_content = self._strip_thinking_blocks(msg.content)
+                if cleaned_content:  # Only add if there's content left after stripping
+                    converted.append({"role": "assistant", "content": cleaned_content})
             # 'system' is handled separately
         return converted
 

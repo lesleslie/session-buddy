@@ -38,16 +38,19 @@ pip install session-buddy
 Session Buddy includes two search modes for finding past conversations:
 
 **Text Search (Default ✅)**
+
 - Fast keyword-based search using DuckDB FTS5
 - Works out of the box with no additional setup
 - Highly effective for most use cases
 
 **Semantic Search (Optional ✅)**
+
 - Concept-based search using AI embeddings
 - **No PyTorch required** - uses pre-converted ONNX models
 - Enhanced for finding conceptually similar content
 
 **Setup for Semantic Search:**
+
 ```bash
 python scripts/download_embedding_model.py
 ```

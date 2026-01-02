@@ -40,12 +40,12 @@ def register_extraction_tools(mcp: FastMCP) -> None:
         # Try to compute embedding using ReflectionDatabaseAdapter (optional)
         embedding = None
         try:
-            from session_buddy.adapters.reflection_adapter import (
-                ReflectionDatabaseAdapter,
+            from session_buddy.adapters.reflection_adapter_oneiric import (
+                ReflectionDatabaseAdapterOneiric,
             )
 
-            async with ReflectionDatabaseAdapter() as db:
-                embedding = await db.get_embedding(content)
+            async with ReflectionDatabaseAdapterOneiric() as db:
+                embedding = await db._generate_embedding(content)
         except Exception:
             # Optional dependency or model not available; persist without embedding
             embedding = None

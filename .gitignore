@@ -58,3 +58,7 @@ docs (1)/
 settings/local.yaml
 *.backup
 /NOTES.md
+/.cache/
+/.oneiric_cache/
+/.jbeval/
+/.complexipy_cache/

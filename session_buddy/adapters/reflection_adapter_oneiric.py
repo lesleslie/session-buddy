@@ -266,7 +266,9 @@ class ReflectionDatabaseAdapterOneiric:
             from huggingface_hub import snapshot_download
 
             # Get the actual cache directory for this model
-            cache_dir = snapshot_download(repo_id=model_name, allow_patterns=["onnx/model.onnx"])
+            cache_dir = snapshot_download(
+                repo_id=model_name, allow_patterns=["onnx/model.onnx"]
+            )
             onnx_path = str(Path(cache_dir) / "onnx" / "model.onnx")
 
             self.onnx_session = ort.InferenceSession(
@@ -312,11 +314,17 @@ class ReflectionDatabaseAdapterOneiric:
 
             # Apply mean pooling to get sentence embedding
             # Expand attention_mask to match embedding dimensions
-            input_mask_expanded = np.expand_dims(attention_mask, axis=-1)  # [1, seq_len, 1]
-            input_mask_expanded = np.broadcast_to(input_mask_expanded, last_hidden_state.shape)
+            input_mask_expanded = np.expand_dims(
+                attention_mask, axis=-1
+            )  # [1, seq_len, 1]
+            input_mask_expanded = np.broadcast_to(
+                input_mask_expanded, last_hidden_state.shape
+            )
 
             # Weighted sum of embeddings (masked tokens have 0 weight)
-            sum_embeddings = np.sum(last_hidden_state * input_mask_expanded, axis=1)  # [1, 384]
+            sum_embeddings = np.sum(
+                last_hidden_state * input_mask_expanded, axis=1
+            )  # [1, 384]
 
             # Sum of mask (number of real tokens, not padding)
             sum_mask = np.maximum(np.sum(input_mask_expanded, axis=1), 1e-9)  # [1, 384]
@@ -325,9 +333,13 @@ class ReflectionDatabaseAdapterOneiric:
             mean_pooled = sum_embeddings / sum_mask  # [1, 384]
 
             # Normalize to unit length
-            embeddings = mean_pooled / np.linalg.norm(mean_pooled, axis=1, keepdims=True)
+            embeddings = mean_pooled / np.linalg.norm(
+                mean_pooled, axis=1, keepdims=True
+            )
 
-            return embeddings[0].tolist()  # Return [384] as list
+            # Return [384] as list
+            result = embeddings[0].tolist()
+            return t.cast(list[float], result)
         except Exception as e:
             logger.warning(f"Failed to generate embedding: {e}")
             return None

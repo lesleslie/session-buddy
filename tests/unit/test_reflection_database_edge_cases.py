@@ -51,7 +51,9 @@ class TestReflectionDatabaseEdgeCases:
             try:
                 # Test very long content (10KB)
                 long_content = "A" * 10000
-                reflection_id = await db.store_reflection(long_content, [], "test-project")
+                reflection_id = await db.store_reflection(
+                    long_content, [], "test-project"
+                )
                 retrieved = await db.get_reflection(reflection_id)
                 assert retrieved["content"] == long_content
                 assert len(retrieved["content"]) == 10000
@@ -69,8 +71,12 @@ class TestReflectionDatabaseEdgeCases:
 
             try:
                 # Test content with special characters
-                special_content = 'Test with "quotes", \'apostrophes\', and \n newlines\t tabs'
-                reflection_id = await db.store_reflection(special_content, [], "test-project")
+                special_content = (
+                    "Test with \"quotes\", 'apostrophes', and \n newlines\t tabs"
+                )
+                reflection_id = await db.store_reflection(
+                    special_content, [], "test-project"
+                )
                 retrieved = await db.get_reflection(reflection_id)
                 assert retrieved["content"] == special_content
 
@@ -88,7 +94,9 @@ class TestReflectionDatabaseEdgeCases:
             try:
                 # Test unicode content
                 unicode_content = "Test with unicode: 你好世界 🌍 café naïve"
-                reflection_id = await db.store_reflection(unicode_content, [], "test-project")
+                reflection_id = await db.store_reflection(
+                    unicode_content, [], "test-project"
+                )
                 retrieved = await db.get_reflection(reflection_id)
                 assert retrieved["content"] == unicode_content
 
@@ -123,7 +131,9 @@ class TestReflectionDatabaseEdgeCases:
             try:
                 # Test very long project name
                 long_project = "A" * 200
-                reflection_id = await db.store_reflection("Test content", [], long_project)
+                reflection_id = await db.store_reflection(
+                    "Test content", [], long_project
+                )
                 retrieved = await db.get_reflection(reflection_id)
                 assert retrieved["project"] == long_project
 
@@ -140,7 +150,9 @@ class TestReflectionDatabaseEdgeCases:
 
             try:
                 # Test empty tags list
-                reflection_id = await db.store_reflection("Test content", [], "test-project")
+                reflection_id = await db.store_reflection(
+                    "Test content", [], "test-project"
+                )
                 retrieved = await db.get_reflection(reflection_id)
                 assert retrieved["tags"] == []
 
@@ -158,7 +170,9 @@ class TestReflectionDatabaseEdgeCases:
             try:
                 # Test many tags
                 many_tags = [f"tag_{i}" for i in range(50)]
-                reflection_id = await db.store_reflection("Test content", many_tags, "test-project")
+                reflection_id = await db.store_reflection(
+                    "Test content", many_tags, "test-project"
+                )
                 retrieved = await db.get_reflection(reflection_id)
                 assert len(retrieved["tags"]) == 50
                 assert set(retrieved["tags"]) == set(many_tags)
@@ -177,7 +191,9 @@ class TestReflectionDatabaseEdgeCases:
             try:
                 # Test duplicate tags
                 duplicate_tags = ["tag1", "tag2", "tag1", "tag3", "tag2"]
-                reflection_id = await db.store_reflection("Test content", duplicate_tags, "test-project")
+                reflection_id = await db.store_reflection(
+                    "Test content", duplicate_tags, "test-project"
+                )
                 retrieved = await db.get_reflection(reflection_id)
                 # Should preserve duplicates as they were provided
                 assert len(retrieved["tags"]) == 5
@@ -237,7 +253,9 @@ class TestReflectionDatabaseEdgeCases:
 
             try:
                 # Store test data
-                await db.store_reflection("Test content with special chars: !@#$%^&*()", [], "test-project")
+                await db.store_reflection(
+                    "Test content with special chars: !@#$%^&*()", [], "test-project"
+                )
 
                 # Search with special characters
                 results = await db.search_reflections("!@#$%^&*()", 10, "test-project")
@@ -355,9 +373,12 @@ class TestReflectionDatabaseEdgeCases:
             await db.initialize()
 
             try:
+
                 async def store_reflection(i):
                     content = f"Concurrent test content {i}"
-                    return await db.store_reflection(content, ["concurrent"], "test-project")
+                    return await db.store_reflection(
+                        content, ["concurrent"], "test-project"
+                    )
 
                 # Run multiple operations concurrently
                 tasks = [store_reflection(i) for i in range(10)]
@@ -387,7 +408,9 @@ class TestReflectionDatabaseEdgeCases:
             try:
                 # Store some data
                 for i in range(5):
-                    await db1.store_reflection(f"Test content {i}", ["test"], "test-project")
+                    await db1.store_reflection(
+                        f"Test content {i}", ["test"], "test-project"
+                    )
 
                 # Close database (simulate crash)
                 db1.close()
@@ -402,7 +425,9 @@ class TestReflectionDatabaseEdgeCases:
                     assert stats["total_reflections"] >= 5
 
                     # Verify reflections can be retrieved
-                    results = await db2.search_reflections("content", 10, "test-project")
+                    results = await db2.search_reflections(
+                        "content", 10, "test-project"
+                    )
                     assert len(results) >= 5
 
                 finally:

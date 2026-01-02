@@ -13,7 +13,7 @@ from fastmcp import FastMCP
 from session_buddy.tools.crackerjack_tools import register_crackerjack_tools
 
 
-async def _attach_tool_call_helpers(mcp: FastMCP) -> FastMCP:
+async def _attach_tool_call_helpers(mcp: FastMCP) -> FastMCP:  # noqa: C901
     """Attach helper methods for programmatic tool calling used in tests."""
 
     async def _call_tool_internal(tool_name: str, arguments: dict | None = None):

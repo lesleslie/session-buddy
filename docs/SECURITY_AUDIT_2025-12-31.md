@@ -13,7 +13,7 @@
 - **Severity**: Medium (platform-specific)
 - **Action Required**: Accept risk with documentation (no fix available)
 
----
+______________________________________________________________________
 
 ## Vulnerability Details
 
@@ -39,11 +39,11 @@ When a user runs `jupyter nbconvert --to pdf` on a notebook containing SVG outpu
 ### Attack Vector
 
 1. Attacker creates a malicious `inkscape.bat` file in a directory
-2. Attacker creates or places a `.ipynb` file with SVG content in the same directory
-3. Victim runs `jupyter nbconvert --to pdf notebook.ipynb` from that directory on Windows
-4. The malicious `inkscape.bat` is executed instead of the legitimate inkscape binary
+1. Attacker creates or places a `.ipynb` file with SVG content in the same directory
+1. Victim runs `jupyter nbconvert --to pdf notebook.ipynb` from that directory on Windows
+1. The malicious `inkscape.bat` is executed instead of the legitimate inkscape binary
 
----
+______________________________________________________________________
 
 ## Risk Assessment for session-buddy
 
@@ -53,41 +53,43 @@ When a user runs `jupyter nbconvert --to pdf` on a notebook containing SVG outpu
 
 1. **Platform Exclusion**: The vulnerability is **Windows-specific only**. Session-buddy is developed on macOS (`darwin` platform confirmed).
 
-2. **No Direct Usage**: The vulnerable package (`nbconvert`) is not used directly by session-buddy. It is a transitive dependency:
+1. **No Direct Usage**: The vulnerable package (`nbconvert`) is not used directly by session-buddy. It is a transitive dependency:
+
    ```
    session-buddy -> crackerjack -> creosote -> nbconvert
    ```
 
-3. **No nbconvert Usage**: session-buddy does not:
+1. **No nbconvert Usage**: session-buddy does not:
+
    - Convert Jupyter notebooks
    - Use the `--to pdf` flag
    - Process SVG content through nbconvert
    - Accept user-provided notebook files
 
-4. **Development Dependency**: The vulnerable package is only used via `crackerjack`, which is a development dependency for code quality checking.
+1. **Development Dependency**: The vulnerable package is only used via `crackerjack`, which is a development dependency for code quality checking.
 
-5. **No Fix Available**: The latest version of nbconvert (7.16.6) has no available fix. Removing the dependency would require removing crackerjack, which is a core development tool.
+1. **No Fix Available**: The latest version of nbconvert (7.16.6) has no available fix. Removing the dependency would require removing crackerjack, which is a core development tool.
 
----
+______________________________________________________________________
 
 ## Mitigation Strategies
 
 ### Current Mitigation (In Place)
 
 1. **Platform Protection**: Development occurs on macOS, not Windows
-2. **No User Input**: Session-buddy does not accept or process notebooks from users
-3. **Development-Only**: The vulnerable code path is only accessible during development
+1. **No User Input**: Session-buddy does not accept or process notebooks from users
+1. **Development-Only**: The vulnerable code path is only accessible during development
 
 ### Additional Mitigations (If Needed)
 
 If Windows development is required in the future:
 
 1. **Disable nbconvert**: Add to `.gitignore` or explicitly exclude from requirements
-2. **Use Container**: Run crackerjack in a Docker container with isolated file system
-3. **Monitor Updates**: Watch for nbconvert security updates
-4. **Alternative Linters**: Consider alternatives to creosote/crackerjack that don't use nbconvert
+1. **Use Container**: Run crackerjack in a Docker container with isolated file system
+1. **Monitor Updates**: Watch for nbconvert security updates
+1. **Alternative Linters**: Consider alternatives to creosote/crackerjack that don't use nbconvert
 
----
+______________________________________________________________________
 
 ## Dependency Tree Analysis
 
@@ -112,7 +114,7 @@ session-buddy
         - traitlets
 ```
 
----
+______________________________________________________________________
 
 ## Other Packages Audited
 
@@ -127,16 +129,16 @@ All other packages (250+ total) were audited with **0 vulnerabilities found**:
 | cryptography | 46.0.3 | No known vulnerabilities |
 | All other packages | - | No known vulnerabilities |
 
----
+______________________________________________________________________
 
 ## Recommendations
 
 1. **Continue Monitoring**: Run `pip-audit` monthly to check for nbconvert updates
-2. **Document Decision**: Record this risk acceptance in project documentation
-3. **No Immediate Action**: No package removal or changes needed at this time
-4. **Windows Awareness**: If adding Windows developers, ensure they understand the limitation
+1. **Document Decision**: Record this risk acceptance in project documentation
+1. **No Immediate Action**: No package removal or changes needed at this time
+1. **Windows Awareness**: If adding Windows developers, ensure they understand the limitation
 
----
+______________________________________________________________________
 
 ## Command Reference
 
@@ -154,7 +156,7 @@ uv pip show nbconvert
 uv pip list
 ```
 
----
+______________________________________________________________________
 
 ## Audit Sign-Off
 

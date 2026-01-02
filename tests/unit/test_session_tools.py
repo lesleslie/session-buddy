@@ -248,7 +248,10 @@ class TestStartTool:
             }
         )
 
-        with patch("session_buddy.tools.session_tools._get_session_manager", return_value=mock_manager):
+        with patch(
+            "session_buddy.tools.session_tools._get_session_manager",
+            return_value=mock_manager,
+        ):
             with patch(
                 "session_buddy.tools.session_tools._setup_uv_dependencies"
             ) as mock_uv:
@@ -292,7 +295,10 @@ class TestCheckpointTool:
             }
         )
 
-        with patch("session_buddy.tools.session_tools._get_session_manager", return_value=mock_manager):
+        with patch(
+            "session_buddy.tools.session_tools._get_session_manager",
+            return_value=mock_manager,
+        ):
             with patch(
                 "session_buddy.tools.session_tools._handle_auto_compaction"
             ) as mock_compact:
@@ -326,7 +332,10 @@ class TestEndTool:
             }
         )
 
-        with patch("session_buddy.tools.session_tools._get_session_manager", return_value=mock_manager):
+        with patch(
+            "session_buddy.tools.session_tools._get_session_manager",
+            return_value=mock_manager,
+        ):
             result = await _end_impl("/test/dir")
 
             assert isinstance(result, str)
@@ -371,7 +380,10 @@ class TestStatusTool:
             }
         )
 
-        with patch("session_buddy.tools.session_tools._get_session_manager", return_value=mock_manager):
+        with patch(
+            "session_buddy.tools.session_tools._get_session_manager",
+            return_value=mock_manager,
+        ):
             result = await _status_impl("/test/dir")
 
             assert isinstance(result, str)

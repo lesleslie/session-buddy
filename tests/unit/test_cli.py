@@ -37,7 +37,11 @@ class TestCliCommands:
         result = cli_runner.invoke(app, ["--help"])
         assert result.exit_code == 0
         # Check that help output contains expected elements
-        assert "start" in result.output or "status" in result.output or "stop" in result.output
+        assert (
+            "start" in result.output
+            or "status" in result.output
+            or "stop" in result.output
+        )
 
 
 class TestServerManagement:
@@ -54,7 +58,12 @@ class TestServerManagement:
             # The command may fail due to missing dependencies or other runtime issues,
             # but it should not fail due to missing function definitions
             # Accept a wider range of exit codes since the command might encounter runtime issues
-            assert result.exit_code in [0, 1, 2, 8]  # 8 is the SystemExit code we're seeing
+            assert result.exit_code in [
+                0,
+                1,
+                2,
+                8,
+            ]  # 8 is the SystemExit code we're seeing
 
     def test_status_command(self, cli_runner: CliRunner) -> None:
         """Test status command."""

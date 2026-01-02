@@ -95,8 +95,10 @@ class TestServerlessStorageAdapter:
         result = await storage.store_session(session, ttl_seconds=60)
 
         assert result is True
-        # Should call cache.set for session data
-        assert mock_cache.set.call_count >= 1
+        # Verify it can be retrieved back
+        retrieved = await storage.retrieve_session("test-123")
+        assert retrieved is not None
+        assert retrieved.session_id == "test-123"
 
     @pytest.mark.asyncio
     async def test_retrieve_session_success(self) -> None:

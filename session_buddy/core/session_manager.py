@@ -460,36 +460,49 @@ class SessionLifecycleManager:
         # Ensure current_dir is a Path object
         current_dir = Path(current_dir)
 
+        def _safe_any_glob(pattern: str) -> bool:
+            try:
+                return any(current_dir.glob(pattern))
+            except (OSError, PermissionError):
+                return False
+
         # This is a basic implementation; could be expanded based on requirements
         has_git_repo = is_git_repository(
             current_dir
         )  # Use the function from git_operations
-        has_readme = any(current_dir.glob("README*"))
+        has_readme = _safe_any_glob("README*")
         has_pyproject_toml = (current_dir / "pyproject.toml").is_file()
         has_setup_py = (current_dir / "setup.py").is_file()
         has_requirements_txt = (current_dir / "requirements.txt").is_file()
         has_src_structure = (current_dir / "src").is_dir()
-        has_tests = any(current_dir.glob("test*")) or any(current_dir.glob("**/test*"))
-        has_docs = any(current_dir.glob("docs/**")) or any(current_dir.glob("**/*.md"))
+        has_tests = _safe_any_glob("test*") or _safe_any_glob("**/test*")
+        has_docs = _safe_any_glob("docs/**") or _safe_any_glob("**/*.md")
         has_ci_cd = (
             (current_dir / ".github").exists()
             or (current_dir / ".gitlab").exists()
             or (current_dir / ".circleci").exists()
         )
         has_venv = (current_dir / ".venv").exists() or (current_dir / "venv").exists()
-        has_python_files = any(current_dir.glob("**/*.py"))
+        has_python_files = _safe_any_glob("**/*.py")
 
         # Detect commonly used Python web frameworks and libraries
         requirements_content = ""
-        if (current_dir / "requirements.txt").is_file():
-            requirements_content += (current_dir / "requirements.txt").read_text()
-        if (current_dir / "pyproject.toml").is_file():
-            requirements_content += (current_dir / "pyproject.toml").read_text()
+        try:
+            if (current_dir / "requirements.txt").is_file():
+                requirements_content += (current_dir / "requirements.txt").read_text()
+        except (OSError, PermissionError):
+            pass
+        try:
+            if (current_dir / "pyproject.toml").is_file():
+                requirements_content += (current_dir / "pyproject.toml").read_text()
+        except (OSError, PermissionError):
+            pass
 
         # Scan Python files for framework imports (first 10 files as suggested by test)
-        python_files = list(current_dir.glob("**/*.py"))[
-            :10
-        ]  # Limit to first 10 Python files
+        try:
+            python_files = list(current_dir.glob("**/*.py"))[:10]
+        except (OSError, PermissionError):
+            python_files = []
         for py_file in python_files:
             try:
                 content = py_file.read_text()
@@ -564,11 +577,12 @@ class SessionLifecycleManager:
         from datetime import datetime
 
         try:
-            # Ensure the directory exists
-            current_dir.mkdir(parents=True, exist_ok=True)
+            # Save to .claude/handoff/ directory instead of project root
+            handoff_dir = current_dir / ".claude" / "handoff"
+            handoff_dir.mkdir(parents=True, exist_ok=True)
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            handoff_file = current_dir / f"session_handoff_{timestamp}.md"
+            handoff_file = handoff_dir / f"session_handoff_{timestamp}.md"
             handoff_file.write_text(content)
             return handoff_file
         except Exception:

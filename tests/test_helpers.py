@@ -11,8 +11,9 @@ if TYPE_CHECKING:
         ReflectionDatabaseAdapterOneiric,
     )
 
+
 def create_test_reflection_database(
-    db_path: str | Path | None = None
+    db_path: str | Path | None = None,
 ) -> ReflectionDatabaseAdapterOneiric:
     """Create a ReflectionDatabase instance for testing.
 
@@ -40,7 +41,7 @@ def create_test_reflection_database(
         enable_vss=False,  # Disable vector similarity search for tests
         threads=1,
         memory_limit="512MB",
-        enable_embeddings=False  # Disable embeddings for faster tests
+        enable_embeddings=False,  # Disable embeddings for faster tests
     )
 
     return ReflectionDatabase(settings=settings)
@@ -68,7 +69,7 @@ def create_test_reflection_database_with_path(db_path: str | Path):
         enable_vss=False,  # Disable vector similarity search for tests
         threads=1,
         memory_limit="512MB",
-        enable_embeddings=False  # Disable embeddings for faster tests
+        enable_embeddings=False,  # Disable embeddings for faster tests
     )
 
     return ReflectionDatabase(settings=settings)

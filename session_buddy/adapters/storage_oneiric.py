@@ -428,6 +428,8 @@ class StorageRegistryOneiric:
             msg = f"Unsupported backend: {backend}"
             raise ValueError(msg)
 
+        # Concrete adapters accept StorageAdapterSettings | None
+        # type: ignore[arg-type] - Base class signature differs from concrete classes
         return adapter_class(self._settings)
 
     def _apply_config_overrides(

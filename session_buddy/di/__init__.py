@@ -24,10 +24,11 @@ from .constants import CLAUDE_DIR_KEY, COMMANDS_DIR_KEY, LOGS_DIR_KEY
 _configured = False
 
 
-T = t.TypeVar("T")
+# Type variable for use with t.cast() in legacy type contexts
+_T = t.TypeVar("_T")
 
 
-def get_sync_typed[T](key: type[T]) -> T:
+def get_sync_typed[_T](key: type[_T]) -> _T:
     """Type-safe wrapper for depends.get_sync.
 
     This helper provides proper type information for the dependency injection
@@ -46,7 +47,7 @@ def get_sync_typed[T](key: type[T]) -> T:
     """
     result = depends.get_sync(key)
     # Trust the DI container - type checker will verify usage
-    return t.cast("T", result)  # type: ignore[no-any-return]
+    return t.cast(_T, result)  # type: ignore[no-any-return]
 
 
 def configure(*, force: bool = False) -> None:

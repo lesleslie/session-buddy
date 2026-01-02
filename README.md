@@ -144,6 +144,7 @@ Recent changes include upgrading FastAPI to the 0.127+ series for improved compa
 Session Buddy includes semantic search capabilities using local AI embeddings with **no external API dependencies**.
 
 **Current Status:**
+
 - ✅ **Text Search**: Works out of the box (fast, keyword-based)
 - ✅ **Semantic Search**: Works with ONNX model (no PyTorch required!)
 
@@ -160,6 +161,7 @@ python scripts/download_embedding_model.py
 ```
 
 This downloads the **Xenova/all-MiniLM-L6-v2** model (~100MB) which includes:
+
 - Pre-converted ONNX model (no PyTorch needed!)
 - 384-dimensional embeddings for semantic similarity
 - Fast CPU inference with ONNX Runtime

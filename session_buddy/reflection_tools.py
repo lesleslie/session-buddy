@@ -21,6 +21,7 @@ DEPRECATION NOTICE (Phase 2.7 - January 2025):
 """
 
 import asyncio
+import base64
 import hashlib
 import json
 import os
@@ -58,6 +59,27 @@ import numpy as np
 # Import the new adapter for replacement
 from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter
 
+_DB_PATH_UNSET = object()
+
+
+_SURROGATE_PREFIX = "__SB64__"
+
+
+def _encode_text_for_db(text: str) -> str:
+    try:
+        text.encode("utf-8")
+        return text
+    except UnicodeEncodeError:
+        data = text.encode("utf-8", "surrogatepass")
+        return _SURROGATE_PREFIX + base64.b64encode(data).decode("ascii")
+
+
+def _decode_text_from_db(text: str) -> str:
+    if text.startswith(_SURROGATE_PREFIX):
+        data = base64.b64decode(text[len(_SURROGATE_PREFIX) :])
+        return data.decode("utf-8", "surrogatepass")
+    return text
+
 
 class ReflectionDatabase:
     """Manages DuckDB database for conversation memory and reflection.
@@ -73,7 +95,7 @@ class ReflectionDatabase:
     This class will be removed in a future release.
     """
 
-    def __init__(self, db_path: str | None = None) -> None:
+    def __init__(self, db_path: str | None | object = _DB_PATH_UNSET) -> None:
         # Issue deprecation warning
         warnings.warn(
             "ReflectionDatabase is deprecated and will be removed in a future release. "
@@ -82,17 +104,21 @@ class ReflectionDatabase:
             stacklevel=2,
         )
 
-        # For in-memory databases during testing, use memory
-        if db_path == ":memory:" or "pytest" in os.environ.get(
-            "PYTEST_CURRENT_TEST", ""
-        ):
+        if db_path is None:
+            msg = "db_path cannot be None"
+            raise TypeError(msg)
+
+        if db_path is _DB_PATH_UNSET:
+            resolved_path: str = os.path.expanduser("~/.claude/data/reflection.duckdb")
+        else:
+            resolved_path = os.path.expanduser(str(db_path))
+
+        # Special-case empty path: treat as in-memory to avoid filesystem issues
+        if resolved_path in {"", ":memory:"}:
             self.db_path = ":memory:"
             self.is_temp_db = True
         else:
-            self.db_path = db_path or os.path.expanduser(
-                "~/.claude/data/reflection.duckdb"
-            )
-            Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+            self.db_path = resolved_path
             self.is_temp_db = False
 
         # Use thread-local storage for connections to avoid threading issues
@@ -180,12 +206,20 @@ class ReflectionDatabase:
             self.onnx_session = None
             self.tokenizer = None
 
+        if not self.is_temp_db:
+            with suppress(Exception):
+                Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+
         # Create tables if they don't exist (this will initialize a connection in the main thread)
         # During initialization, we need to create a direct connection without going through _get_conn
         # since _get_conn checks for initialization state
-        temp_conn = duckdb.connect(
-            self.db_path, config={"allow_unsigned_extensions": True}
-        )
+        try:
+            temp_conn = duckdb.connect(
+                self.db_path, config={"allow_unsigned_extensions": True}
+            )
+        except Exception as e:
+            msg = f"Database connection error (directory/permission): {e}"
+            raise RuntimeError(msg) from e
         try:
             # Create conversations table
             temp_conn.execute("""
@@ -217,8 +251,7 @@ class ReflectionDatabase:
                 CREATE TABLE IF NOT EXISTS reflection_tags (
                     reflection_id VARCHAR,
                     tag VARCHAR,
-                    PRIMARY KEY (reflection_id, tag),
-                    FOREIGN KEY (reflection_id) REFERENCES reflections(id)
+                    PRIMARY KEY (reflection_id, tag)
                 )
             """)
 
@@ -253,6 +286,8 @@ class ReflectionDatabase:
                 )
                 # Create tables in the shared connection for in-memory DB
                 self._initialize_shared_tables()
+                # Backward-compat: expose connection via thread-local conn property
+                self.local.conn = self._shared_conn
         else:
             # For non-temporary DBs, create a connection in the local storage
             self.local.conn = duckdb.connect(
@@ -274,6 +309,7 @@ class ReflectionDatabase:
                     )
                     # Create tables in the shared connection for in-memory DB
                     self._initialize_shared_tables()
+                self.local.conn = self._shared_conn
             return self._shared_conn
 
         # For normal environments, use thread-local storage
@@ -308,9 +344,19 @@ class ReflectionDatabase:
                 id VARCHAR PRIMARY KEY,
                 content TEXT NOT NULL,
                 embedding FLOAT[384],
+                project VARCHAR,
                 tags VARCHAR[],
                 timestamp TIMESTAMP,
                 metadata JSON
+            )
+        """)
+
+        # Create reflection_tags table for tag-based search (no FK: DuckDB has limitations on updates)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS reflection_tags (
+                reflection_id VARCHAR,
+                tag VARCHAR,
+                PRIMARY KEY (reflection_id, tag)
             )
         """)
 
@@ -546,9 +592,11 @@ class ReflectionDatabase:
     async def store_conversation(self, content: str, metadata: dict[str, Any]) -> str:
         """Store conversation with optional embedding."""
         conversation_id = hashlib.md5(
-            f"{content}_{time.time()}".encode(),
+            f"{content}_{time.time()}".encode("utf-8", "surrogatepass"),
             usedforsecurity=False,
         ).hexdigest()
+
+        db_content = _encode_text_for_db(content)
 
         embedding: list[float] | None = None
 
@@ -571,7 +619,7 @@ class ReflectionDatabase:
                     """,
                     [
                         conversation_id,
-                        content,
+                        db_content,
                         embedding,
                         metadata.get("project"),
                         datetime.now(UTC),
@@ -589,7 +637,7 @@ class ReflectionDatabase:
                     """,
                     [
                         conversation_id,
-                        content,
+                        db_content,
                         embedding,
                         metadata.get("project"),
                         datetime.now(UTC),
@@ -607,12 +655,21 @@ class ReflectionDatabase:
         self,
         content: str,
         tags: list[str] | None = None,
+        project: str | None = None,
     ) -> str:
         """Store reflection/insight with optional embedding."""
+        if content is None:
+            msg = "content cannot be None"
+            raise TypeError(msg)
+
         reflection_id = hashlib.md5(
-            f"reflection_{content}_{time.time()}".encode(),
+            f"reflection_{content}_{time.time()}".encode("utf-8", "surrogatepass"),
             usedforsecurity=False,
         ).hexdigest()
+
+        db_content = _encode_text_for_db(content)
+
+        tags_list = tags or []
 
         embedding: list[float] | None = None
 
@@ -624,48 +681,177 @@ class ReflectionDatabase:
         else:
             embedding = None  # Store without embedding
 
+        def _store() -> None:
+            conn = self._get_conn()
+            conn.execute(
+                """
+                INSERT INTO reflections (id, content, embedding, project, tags, timestamp, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    reflection_id,
+                    db_content,
+                    embedding,
+                    project,
+                    tags_list,
+                    datetime.now(UTC),
+                    json.dumps({"type": "reflection", "project": project}),
+                ],
+            )
+            conn.execute(
+                "DELETE FROM reflection_tags WHERE reflection_id = ?",
+                [reflection_id],
+            )
+            tags_unique = list(dict.fromkeys(tags_list))
+            for tag in tags_unique:
+                conn.execute(
+                    "INSERT INTO reflection_tags (reflection_id, tag) VALUES (?, ?)",
+                    [reflection_id, tag],
+                )
+
         # For synchronized database access in test environments using in-memory DB
         if self.is_temp_db:
-            # Use lock to protect database operations for in-memory DB
             with self.lock:
-                self._get_conn().execute(
-                    """
-                    INSERT INTO reflections (id, content, embedding, tags, timestamp, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        reflection_id,
-                        content,
-                        embedding,
-                        tags or [],
-                        datetime.now(UTC),
-                        json.dumps({"type": "reflection"}),
-                    ],
-                )
+                _store()
         else:
-            # For normal file-based DB, run in executor for thread safety
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self._get_conn().execute(
-                    """
-                    INSERT INTO reflections (id, content, embedding, tags, timestamp, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    [
-                        reflection_id,
-                        content,
-                        embedding,
-                        tags or [],
-                        datetime.now(UTC),
-                        json.dumps({"type": "reflection"}),
-                    ],
-                ),
-            )
+            await asyncio.get_event_loop().run_in_executor(None, _store)
 
         # DuckDB is ACID-compliant by default, explicit commit is not required for individual operations
         # However, if needed, we can call commit on the thread-local connection
         # self._get_conn().commit()
         return reflection_id
+
+    async def get_reflection(self, reflection_id: str | None) -> dict[str, Any] | None:
+        """Get a reflection by ID."""
+        if not reflection_id or not isinstance(reflection_id, str):
+            return None
+        if len(reflection_id) < 5 or len(reflection_id) > 128:
+            return None
+
+        rows = await self._execute_query(
+            "SELECT id, content, project, tags, timestamp, metadata FROM reflections WHERE id = ?",
+            [reflection_id],
+        )
+        if not rows:
+            return None
+
+        row = rows[0]
+        return {
+            "id": row[0],
+            "content": _decode_text_from_db(row[1]),
+            "project": row[2],
+            "tags": list(row[3]) if row[3] else [],
+            "timestamp": row[4],
+            "metadata": json.loads(row[5]) if row[5] else {},
+        }
+
+    async def update_reflection(
+        self,
+        reflection_id: str | None,
+        content: str | None,
+        tags: list[str] | None = None,
+        project: str | None = None,
+    ) -> None:
+        """Update an existing reflection.
+
+        This is best-effort: updating a non-existent reflection is a no-op.
+        """
+        if (
+            reflection_id is None
+            or not isinstance(reflection_id, str)
+            or not reflection_id
+        ):
+            return
+        if content is None:
+            msg = "content cannot be None"
+            raise TypeError(msg)
+
+        tags_list = tags or []
+
+        db_content = _encode_text_for_db(content)
+
+        embedding: list[float] | None = None
+        if ONNX_AVAILABLE and self.onnx_session:
+            with suppress(Exception):
+                embedding = await self.get_embedding(content)
+
+        def _update() -> None:
+            conn = self._get_conn()
+
+            result = conn.execute(
+                "SELECT COUNT(*) FROM reflections WHERE id = ?",
+                [reflection_id],
+            ).fetchone()
+            exists = result[0] if result else 0
+            if exists <= 0:
+                return
+
+            conn.execute(
+                """
+                UPDATE reflections
+                SET content = ?,
+                    embedding = ?,
+                    tags = ?,
+                    project = COALESCE(?, project),
+                    timestamp = ?,
+                    metadata = ?
+                WHERE id = ?
+                """,
+                [
+                    db_content,
+                    embedding,
+                    tags_list,
+                    project,
+                    datetime.now(UTC),
+                    json.dumps({"type": "reflection", "project": project}),
+                    reflection_id,
+                ],
+            )
+            conn.execute(
+                "DELETE FROM reflection_tags WHERE reflection_id = ?",
+                [reflection_id],
+            )
+            tags_unique = list(dict.fromkeys(tags_list))
+            for tag in tags_unique:
+                conn.execute(
+                    "INSERT INTO reflection_tags (reflection_id, tag) VALUES (?, ?)",
+                    [reflection_id, tag],
+                )
+
+        if self.is_temp_db:
+            with self.lock:
+                _update()
+        else:
+            await asyncio.get_event_loop().run_in_executor(None, _update)
+
+    async def delete_reflection(self, reflection_id: str | None) -> None:
+        """Delete a reflection by ID.
+
+        Deleting a non-existent reflection is a no-op.
+        """
+        if reflection_id is None:
+            msg = "reflection_id cannot be None"
+            raise TypeError(msg)
+        if not isinstance(reflection_id, str) or not reflection_id:
+            msg = "reflection_id must be a non-empty string"
+            raise ValueError(msg)
+
+        def _delete() -> None:
+            conn = self._get_conn()
+            conn.execute(
+                "DELETE FROM reflection_tags WHERE reflection_id = ?",
+                [reflection_id],
+            )
+            conn.execute(
+                "DELETE FROM reflections WHERE id = ?",
+                [reflection_id],
+            )
+
+        if self.is_temp_db:
+            with self.lock:
+                _delete()
+        else:
+            await asyncio.get_event_loop().run_in_executor(None, _delete)
 
     async def search_conversations(
         self,
@@ -725,7 +911,7 @@ class ReflectionDatabase:
 
             return [
                 {
-                    "content": row[1],
+                    "content": _decode_text_from_db(row[1]),
                     "score": float(row[6]),
                     "timestamp": row[4],
                     "project": row[3],
@@ -772,7 +958,8 @@ class ReflectionDatabase:
         matches = []
         matched_ids: list[str] = []
         for row in results:
-            content_lower = row[1].lower()
+            content = _decode_text_from_db(row[1])
+            content_lower = content.lower()
             score = sum(1 for term in search_terms if term in content_lower) / len(
                 search_terms,
             )
@@ -780,7 +967,7 @@ class ReflectionDatabase:
             if score > 0:  # At least one term matches
                 matches.append(
                     {
-                        "content": row[1],
+                        "content": content,
                         "score": score,
                         "timestamp": row[3],
                         "project": row[2],
@@ -812,20 +999,37 @@ class ReflectionDatabase:
         self,
         query: str,
         limit: int = 5,
+        project: str | None = None,
+        *,
+        tags: list[str] | None = None,
         min_score: float = 0.7,
     ) -> list[dict[str, Any]]:
         """Search stored reflections by semantic similarity with text fallback."""
-        results = await self._semantic_reflection_search(query, limit, min_score)
+        if query is None:
+            msg = "query cannot be None"
+            raise TypeError(msg)
+        if limit <= 0:
+            return []
+
+        results = await self._semantic_reflection_search(
+            query,
+            limit,
+            min_score,
+            project,
+            tags,
+        )
         if results is not None:
             return results
 
-        return await self._text_reflection_search(query, limit)
+        return await self._text_reflection_search(query, limit, project, tags)
 
     async def _semantic_reflection_search(
         self,
         query: str,
         limit: int,
         min_score: float,
+        project: str | None,
+        tags: list[str] | None,
     ) -> list[dict[str, Any]] | None:
         """Run semantic reflection search if ONNX embeddings available."""
         if not (ONNX_AVAILABLE and self.onnx_session):
@@ -835,20 +1039,36 @@ class ReflectionDatabase:
             query_embedding = await self.get_embedding(query)
             sql = """
                 SELECT
-                    id, content, embedding, tags, timestamp, metadata,
+                    id, content, project, tags, timestamp, metadata,
                     array_cosine_similarity(embedding, CAST(? AS FLOAT[384])) as score
                 FROM reflections
                 WHERE embedding IS NOT NULL
+            """
+
+            params: list[Any] = [query_embedding]
+            if project is not None:
+                sql += " AND project = ?"
+                params.append(project)
+
+            if tags:
+                tag_clauses = " OR ".join(["list_contains(tags, ?)"] * len(tags))
+                sql += f" AND ({tag_clauses})"
+                params.extend(tags)
+
+            sql += """
                 ORDER BY score DESC
                 LIMIT ?
             """
 
-            results = await self._execute_query(sql, [query_embedding, limit])
+            params.append(limit)
+            results = await self._execute_query(sql, params)
             semantic_results = [
                 {
-                    "content": row[1],
+                    "id": row[0],
+                    "content": _decode_text_from_db(row[1]),
                     "score": float(row[6]),
-                    "tags": row[3] or [],
+                    "project": row[2],
+                    "tags": list(row[3]) if row[3] else [],
                     "timestamp": row[4],
                     "metadata": json.loads(row[5]) if row[5] else {},
                 }
@@ -864,15 +1084,34 @@ class ReflectionDatabase:
         self,
         query: str,
         limit: int,
+        project: str | None,
+        tags: list[str] | None,
     ) -> list[dict[str, Any]]:
         """Fallback text search for reflections."""
-        sql = "SELECT id, content, tags, timestamp, metadata FROM reflections ORDER BY timestamp DESC"
-        results = await self._execute_query(sql)
+        sql = "SELECT id, content, project, tags, timestamp, metadata FROM reflections"
+        params: list[Any] = []
+
+        where_clauses = []
+        if project is not None:
+            where_clauses.append("project = ?")
+            params.append(project)
+
+        if tags:
+            tag_clauses = " OR ".join(["list_contains(tags, ?)"] * len(tags))
+            where_clauses.append(f"({tag_clauses})")
+            params.extend(tags)
+
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
+
+        sql += " ORDER BY timestamp DESC"
+        results = await self._execute_query(sql, params if params else None)
 
         search_terms = query.lower().split()
         matches = []
         for row in results:
-            combined_text = f"{row[1].lower()} {' '.join(row[2] or []).lower()}"
+            content = _decode_text_from_db(row[1])
+            combined_text = f"{content.lower()} {' '.join(list(row[3] or [])).lower()}"
             score = (
                 sum(1 for term in search_terms if term in combined_text)
                 / len(search_terms)
@@ -883,11 +1122,13 @@ class ReflectionDatabase:
             if score > 0:
                 matches.append(
                     {
-                        "content": row[1],
+                        "id": row[0],
+                        "content": content,
                         "score": score,
-                        "tags": row[2] or [],
-                        "timestamp": row[3],
-                        "metadata": json.loads(row[4]) if row[4] else {},
+                        "project": row[2],
+                        "tags": list(row[3]) if row[3] else [],
+                        "timestamp": row[4],
+                        "metadata": json.loads(row[5]) if row[5] else {},
                     },
                 )
 
@@ -949,7 +1190,7 @@ class ReflectionDatabase:
         for row in results:
             output.append(
                 {
-                    "content": row[1],
+                    "content": _decode_text_from_db(row[1]),
                     "project": row[2],
                     "timestamp": row[3],
                     "metadata": json.loads(row[4]) if row[4] else {},
@@ -971,6 +1212,11 @@ class ReflectionDatabase:
             conv_count = await self._get_conversation_count()
             refl_count = await self._get_reflection_count()
 
+            projects_rows = await self._execute_query(
+                "SELECT DISTINCT project FROM reflections WHERE project IS NOT NULL",
+            )
+            projects = [row[0] for row in projects_rows if row and row[0] is not None]
+
             provider = (
                 "onnx-runtime"
                 if (self.onnx_session and ONNX_AVAILABLE)
@@ -979,6 +1225,10 @@ class ReflectionDatabase:
             return {
                 "conversations_count": conv_count,
                 "reflections_count": refl_count,
+                "total_conversations": conv_count,
+                "total_reflections": refl_count,
+                "projects": projects,
+                "total_projects": len(projects),
                 "embedding_provider": provider,
                 "embedding_dimension": self.embedding_dim,
                 "database_path": self.db_path,

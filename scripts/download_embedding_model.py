@@ -12,8 +12,8 @@ import logging
 from pathlib import Path
 
 try:
-    from transformers import AutoTokenizer
     from huggingface_hub import snapshot_download
+    from transformers import AutoTokenizer
 except ImportError as e:
     print(f"❌ Missing required dependency: {e}")
     print("\nInstall with:")
@@ -59,7 +59,9 @@ def download_onnx_model() -> None:
             for onnx_file in onnx_files:
                 logger.info(f"  • {onnx_file.name}")
         else:
-            logger.warning("⚠️  No ONNX files found - model may still work with tokenizers")
+            logger.warning(
+                "⚠️  No ONNX files found - model may still work with tokenizers"
+            )
 
         logger.info("")
         logger.info("=" * 70)
@@ -68,10 +70,10 @@ def download_onnx_model() -> None:
         logger.info("")
         logger.info("Model Details:")
         logger.info(f"  • Model: {model_name}")
-        logger.info(f"  • Type: Pre-converted ONNX (no PyTorch needed)")
+        logger.info("  • Type: Pre-converted ONNX (no PyTorch needed)")
         logger.info(f"  • Cache: {cache_dir}")
-        logger.info(f"  • Dimensions: 384")
-        logger.info(f"  • Max tokens: 256 (recommended: 128)")
+        logger.info("  • Dimensions: 384")
+        logger.info("  • Max tokens: 256 (recommended: 128)")
         logger.info("")
         logger.info("Next steps:")
         logger.info("  1. Update reflection adapter to use this model")
@@ -80,7 +82,7 @@ def download_onnx_model() -> None:
         logger.info("")
 
     except Exception as e:
-        logger.error(f"❌ Failed to download model: {e}")
+        logger.exception(f"❌ Failed to download model: {e}")
         logger.info("\nTroubleshooting:")
         logger.info("  • Check internet connection")
         logger.info("  • Verify HuggingFace Hub is accessible")

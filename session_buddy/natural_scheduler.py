@@ -276,8 +276,7 @@ class ReminderScheduler:
                     reminder_data,
                     recurrence_pattern,
                 )
-            else:
-                return await self._mark_reminder_executed(reminder_id)
+            return await self._mark_reminder_executed(reminder_id)
 
         except Exception as e:
             await self._log_reminder_action(
@@ -315,7 +314,9 @@ class ReminderScheduler:
         reminder_data: dict[str, Any],
     ) -> None:
         """Execute all registered callbacks for a reminder."""
-        callbacks = self._callbacks.get(reminder_data.get("notification_method", ""), [])
+        callbacks = self._callbacks.get(
+            reminder_data.get("notification_method", ""), []
+        )
         for callback in callbacks:
             try:
                 await callback(reminder_data)
@@ -330,8 +331,7 @@ class ReminderScheduler:
     ) -> bool:
         """Schedule next occurrence for recurring reminder."""
         next_time = self._calculate_next_occurrence(
-            reminder_data.get("scheduled_time")
-            or reminder_data.get("scheduled_for"),  # type: ignore[arg-type]
+            reminder_data.get("scheduled_time") or reminder_data.get("scheduled_for"),  # type: ignore[arg-type]
             recurrence_pattern,
         )
 

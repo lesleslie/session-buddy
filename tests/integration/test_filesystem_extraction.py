@@ -37,7 +37,7 @@ async def test_file_change_extraction_persists_with_activity_weight(
     # Monkeypatch settings for DB path
     from session_buddy import settings as settings_mod
 
-    fake_settings = SimpleNamespace(
+    SimpleNamespace(
         database_path=str(db_path),
         llm_extraction_timeout=5,
         llm_extraction_retries=0,

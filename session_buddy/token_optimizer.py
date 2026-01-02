@@ -90,11 +90,13 @@ class TokenOptimizer:
         else:
             optimized_results, optimization_info = results, {"strategy": "none"}
 
-        # Track optimization metrics (convert to str for dict[str, str] type)
-        optimization_info["original_count"] = str(len(results))  # type: ignore[assignment]
-        optimization_info["optimized_count"] = str(len(optimized_results))  # type: ignore[assignment]
-        token_savings = self._calculate_token_savings(results, optimized_results)
-        optimization_info["token_savings"] = f"{token_savings:.2f}"  # type: ignore[assignment]
+        # Track optimization metrics
+        optimization_info["original_count"] = len(results)
+        optimization_info["optimized_count"] = len(optimized_results)
+        optimization_info["token_savings"] = self._calculate_token_savings(
+            results,
+            optimized_results,
+        )
 
         return optimized_results, optimization_info
 

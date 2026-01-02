@@ -6,7 +6,6 @@ Generative AI SDK for chat completions and streaming.
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -22,11 +21,7 @@ class GeminiProvider(LLMProvider):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__(config)
-        self.api_key = (
-            config.get("api_key")
-            or os.getenv("GEMINI_API_KEY")
-            or os.getenv("GOOGLE_API_KEY")
-        )
+        self.api_key = config.get("api_key")
         self.default_model = config.get("default_model", "gemini-pro")
         self._client = None
 

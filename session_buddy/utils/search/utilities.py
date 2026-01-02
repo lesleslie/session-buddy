@@ -101,9 +101,9 @@ def parse_timeframe(timeframe: str) -> TimeRange:
     # Relative timeframe: '7d', '2w', etc.
     if timeframe[-1] in "dhwm":
         end = datetime.now(UTC)
-        start = parse_timeframe_single(timeframe)
-        if start:
-            return TimeRange(start=start, end=end)
+        relative_start: datetime | None = parse_timeframe_single(timeframe)
+        if relative_start:
+            return TimeRange(start=relative_start, end=end)
 
     # Year only: '2024'
     if len(timeframe) == 4 and timeframe.isdigit():

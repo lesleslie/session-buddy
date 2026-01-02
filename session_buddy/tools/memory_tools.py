@@ -591,8 +591,21 @@ async def _reset_reflection_database_impl() -> str:
     global _reflection_db
     try:
         if _reflection_db:
-            # Use the adapter's close method instead of accessing conn directly
-            await _reflection_db.aclose()
+            # Best-effort close for both legacy and adapter-style DB objects
+            conn = getattr(_reflection_db, "conn", None)
+            close_conn = getattr(conn, "close", None)
+            if callable(close_conn):
+                res = close_conn()
+                if asyncio.iscoroutine(res):
+                    await res
+
+            close_async = getattr(_reflection_db, "aclose", None)
+            if callable(close_async):
+                await close_async()
+            else:
+                close_sync = getattr(_reflection_db, "close", None)
+                if callable(close_sync):
+                    close_sync()
         _reflection_db = None
         await _get_reflection_database()
 

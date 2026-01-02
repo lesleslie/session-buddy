@@ -84,6 +84,8 @@ def _get_logger() -> logging.Logger:  # type: ignore[return-value]
     global session_logger
     if session_logger is None:
         session_logger = _get_session_logger()
+    # session_logger is guaranteed to be Logger here
+    assert session_logger is not None
     return session_logger
 
 

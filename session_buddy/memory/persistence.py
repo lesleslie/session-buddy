@@ -14,11 +14,19 @@ from session_buddy.memory.entity_extractor import (
     ExtractedEntity,
     ProcessedMemory,
 )
-from session_buddy.settings import get_database_path
+from session_buddy.settings import get_settings as _get_settings
+
+
+def get_settings() -> t.Any:
+    """Local indirection for tests to monkeypatch."""
+    return _get_settings()
 
 
 def _connect() -> duckdb.DuckDBPyConnection:
-    db_path = get_database_path()
+    settings = get_settings()
+    db_path = Path(
+        str(getattr(settings, "database_path", "~/.claude/data/reflection.duckdb"))
+    ).expanduser()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return duckdb.connect(str(db_path), config={"allow_unsigned_extensions": True})
 

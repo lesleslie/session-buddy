@@ -678,6 +678,11 @@ class TestSessionLifecycleManagerHandoffDocumentation:
             assert result.name.startswith("session_handoff_")
             assert result.suffix == ".md"
 
+            # Verify file is saved to .claude/handoff/ directory (not project root)
+            assert ".claude/handoff" in str(result)
+            assert result.parent.name == "handoff"
+            assert result.parent.parent.name == ".claude"
+
             # Verify content was written
             with open(result) as f:
                 saved_content = f.read()

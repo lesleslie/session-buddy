@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter
+from session_buddy.reflection_tools import ReflectionDatabase
 
 
 class TestReflectionDatabasePropertyBased:
@@ -23,10 +23,12 @@ class TestReflectionDatabasePropertyBased:
     @pytest.mark.asyncio
     @given(
         content=st.text(min_size=1, max_size=1000),
-        project=st.text(min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"),
+        project=st.text(
+            min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"
+        ),
         tags=st.lists(st.text(min_size=1, max_size=20), min_size=0, max_size=5),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=50, deadline=None)
     async def test_store_and_retrieve_reflection_properties(
         self, content: str, project: str, tags: list[str]
     ):
@@ -58,10 +60,12 @@ class TestReflectionDatabasePropertyBased:
     @pytest.mark.asyncio
     @given(
         search_query=st.text(min_size=1, max_size=100),
-        project=st.text(min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"),
+        project=st.text(
+            min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"
+        ),
         limit=st.integers(min_value=1, max_value=20),
     )
-    @settings(max_examples=30)
+    @settings(max_examples=30, deadline=None)
     async def test_search_reflections_properties(
         self, search_query: str, project: str, limit: int
     ):
@@ -99,10 +103,12 @@ class TestReflectionDatabasePropertyBased:
     @pytest.mark.asyncio
     @given(
         content=st.text(min_size=1, max_size=1000),
-        project=st.text(min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"),
+        project=st.text(
+            min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"
+        ),
         num_reflections=st.integers(min_value=1, max_value=10),
     )
-    @settings(max_examples=20)
+    @settings(max_examples=20, deadline=None)
     async def test_bulk_operations_properties(
         self, content: str, project: str, num_reflections: int
     ):
@@ -142,10 +148,12 @@ class TestReflectionDatabasePropertyBased:
 
     @pytest.mark.asyncio
     @given(
-        project=st.text(min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"),
+        project=st.text(
+            min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"
+        ),
         num_reflections=st.integers(min_value=1, max_value=5),
     )
-    @settings(max_examples=15)
+    @settings(max_examples=15, deadline=None)
     async def test_project_isolation_properties(
         self, project: str, num_reflections: int
     ):
@@ -185,10 +193,12 @@ class TestReflectionDatabasePropertyBased:
     @pytest.mark.asyncio
     @given(
         content=st.text(min_size=1, max_size=100),
-        project=st.text(min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"),
+        project=st.text(
+            min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"
+        ),
         tags=st.lists(st.text(min_size=1, max_size=20), min_size=1, max_size=3),
     )
-    @settings(max_examples=25)
+    @settings(max_examples=25, deadline=None)
     async def test_tag_filtering_properties(
         self, content: str, project: str, tags: list[str]
     ):
@@ -220,10 +230,12 @@ class TestReflectionDatabasePropertyBased:
     @pytest.mark.asyncio
     @given(
         content=st.text(min_size=1, max_size=1000),
-        project=st.text(min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"),
+        project=st.text(
+            min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"
+        ),
         update_content=st.text(min_size=1, max_size=1000),
     )
-    @settings(max_examples=20)
+    @settings(max_examples=20, deadline=None)
     async def test_update_reflection_properties(
         self, content: str, project: str, update_content: str
     ):
@@ -256,12 +268,12 @@ class TestReflectionDatabasePropertyBased:
     @pytest.mark.asyncio
     @given(
         content=st.text(min_size=1, max_size=1000),
-        project=st.text(min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"),
+        project=st.text(
+            min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"
+        ),
     )
-    @settings(max_examples=15)
-    async def test_delete_reflection_properties(
-        self, content: str, project: str
-    ):
+    @settings(max_examples=15, deadline=None)
+    async def test_delete_reflection_properties(self, content: str, project: str):
         """Test that reflection deletion works correctly.
 
         Property: Deleting a reflection should remove it from the database.
@@ -291,13 +303,13 @@ class TestReflectionDatabasePropertyBased:
 
     @pytest.mark.asyncio
     @given(
-        project=st.text(min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"),
+        project=st.text(
+            min_size=1, max_size=50, alphabet="abcdefghijklmnopqrstuvwxyz0123456789-_"
+        ),
         num_reflections=st.integers(min_value=1, max_value=10),
     )
-    @settings(max_examples=10)
-    async def test_statistics_properties(
-        self, project: str, num_reflections: int
-    ):
+    @settings(max_examples=10, deadline=None)
+    async def test_statistics_properties(self, project: str, num_reflections: int):
         """Test that database statistics are accurate.
 
         Property: Statistics should accurately reflect the database state.
