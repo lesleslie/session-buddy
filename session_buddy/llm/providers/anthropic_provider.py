@@ -45,8 +45,8 @@ class AnthropicProvider(LLMProvider):
         import re
 
         # Remove all <thinking>...</thinking> blocks (with any attributes)
-        pattern = r'<thinking[^>]*>.*?</thinking>'
-        cleaned = re.sub(pattern, '', content, flags=re.DOTALL | re.IGNORECASE)
+        pattern = r"<thinking[^>]*>.*?</thinking>"
+        cleaned = re.sub(pattern, "", content, flags=re.DOTALL | re.IGNORECASE)
         return cleaned.strip()
 
     def _convert_messages(self, messages: list[LLMMessage]) -> list[dict[str, Any]]:

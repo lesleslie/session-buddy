@@ -584,28 +584,57 @@ async def _reflection_stats_impl() -> str:
 # ============================================================================
 
 
+async def _close_db_connection(conn: t.Any) -> None:
+    """Close database connection, handling both async and sync cases."""
+    close_method = getattr(conn, "close", None)
+    if not callable(close_method):
+        return
+
+    result = close_method()
+    if asyncio.iscoroutine(result):
+        await result
+
+
+async def _close_db_object(db_obj: t.Any) -> None:
+    """Close database object using async or sync close method."""
+    # Try async close first
+    aclose_method = getattr(db_obj, "aclose", None)
+    if callable(aclose_method):
+        result = aclose_method()
+        if asyncio.iscoroutine(result):
+            await result
+        return
+
+    # Fallback to sync close
+    close_method = getattr(db_obj, "close", None)
+    if callable(close_method):
+        close_method()
+
+
+async def _close_reflection_db_safely(db_obj: t.Any) -> None:
+    """Safely close reflection database and its connection.
+
+    Handles both legacy and adapter-style DB objects.
+    """
+    # Close connection if it exists (legacy style)
+    conn = getattr(db_obj, "conn", None)
+    if conn:
+        await _close_db_connection(conn)
+
+    # Close the database object itself
+    await _close_db_object(db_obj)
+
+
 async def _reset_reflection_database_impl() -> str:
     """Implementation for reset_reflection_database tool."""
     if not _check_reflection_tools_available():
         return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
+
     global _reflection_db
     try:
         if _reflection_db:
-            # Best-effort close for both legacy and adapter-style DB objects
-            conn = getattr(_reflection_db, "conn", None)
-            close_conn = getattr(conn, "close", None)
-            if callable(close_conn):
-                res = close_conn()
-                if asyncio.iscoroutine(res):
-                    await res
+            await _close_reflection_db_safely(_reflection_db)
 
-            close_async = getattr(_reflection_db, "aclose", None)
-            if callable(close_async):
-                await close_async()
-            else:
-                close_sync = getattr(_reflection_db, "close", None)
-                if callable(close_sync):
-                    close_sync()
         _reflection_db = None
         await _get_reflection_database()
 

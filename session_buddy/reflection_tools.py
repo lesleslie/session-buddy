@@ -1105,7 +1105,7 @@ class ReflectionDatabase:
             sql += " WHERE " + " AND ".join(where_clauses)
 
         sql += " ORDER BY timestamp DESC"
-        results = await self._execute_query(sql, params if params else None)
+        results = await self._execute_query(sql, params or None)
 
         search_terms = query.lower().split()
         matches = []

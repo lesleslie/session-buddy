@@ -12,6 +12,7 @@ import os
 import shutil
 import sys
 import typing as t
+from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 
@@ -487,16 +488,12 @@ class SessionLifecycleManager:
 
         # Detect commonly used Python web frameworks and libraries
         requirements_content = ""
-        try:
+        with suppress(OSError, PermissionError):
             if (current_dir / "requirements.txt").is_file():
                 requirements_content += (current_dir / "requirements.txt").read_text()
-        except (OSError, PermissionError):
-            pass
-        try:
+        with suppress(OSError, PermissionError):
             if (current_dir / "pyproject.toml").is_file():
                 requirements_content += (current_dir / "pyproject.toml").read_text()
-        except (OSError, PermissionError):
-            pass
 
         # Scan Python files for framework imports (first 10 files as suggested by test)
         try:
