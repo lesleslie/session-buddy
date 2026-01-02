@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
+    from mcp_common.ui import ServerPanels
     from session_buddy.core.permissions import SessionPermissionsManager
     from session_buddy.utils.logging import SessionLogger
 

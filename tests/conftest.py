@@ -48,11 +48,13 @@ class MockFastMCP:
     Extracted from server.py Phase 2.6 to consolidate test infrastructure.
     """
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, lifespan: Any = None, **kwargs: Any) -> None:
         """Initialize mock FastMCP server."""
         self.name = name
         self.tools: dict[str, Any] = {}
         self.prompts: dict[str, Any] = {}
+        self.lifespan = lifespan
+        self.http_app = None  # Mock http_app attribute
 
     def tool(
         self, *args: Any, **kwargs: Any

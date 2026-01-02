@@ -26,10 +26,11 @@ except ImportError:
     if "pytest" in sys.modules or "test" in sys.argv[0].lower():
         # Create a minimal mock FastMCP for testing
         class MockFastMCP:
-            def __init__(self, name: str) -> None:
+            def __init__(self, name: str, lifespan: Any = None, **kwargs: Any) -> None:
                 self.name = name
                 self.tools: dict[str, Any] = {}
                 self.prompts: dict[str, Any] = {}
+                self.lifespan = lifespan
 
             def tool(
                 self,
@@ -280,7 +281,7 @@ async def permissions(action: str = "status", operation: str | None = None) -> s
                 )
             )
         else:
-            permissions_manager.add_trusted_operation(operation)
+            permissions_manager.trust_operation(operation)
             output.extend(
                 (
                     f"✅ Operation '{operation}' has been added to trusted operations",

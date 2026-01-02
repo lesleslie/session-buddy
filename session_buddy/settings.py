@@ -526,7 +526,7 @@ def get_settings(reload: bool = False) -> SessionMgmtSettings:
 
     if _settings is None or reload:
         _settings = t.cast(
-            SessionMgmtSettings, SessionMgmtSettings.load("session-buddy")
+            "SessionMgmtSettings", SessionMgmtSettings.load("session-buddy")
         )
 
     # _settings is guaranteed non-None here

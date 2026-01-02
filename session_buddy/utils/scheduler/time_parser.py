@@ -10,7 +10,11 @@ import contextlib
 import re
 from datetime import datetime, timedelta
 from re import Match
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from dateutil import parser as date_parser
+    from dateutil.relativedelta import relativedelta
 
 # Try to import dateutil for better date handling
 try:
@@ -20,8 +24,6 @@ try:
     DATEUTIL_AVAILABLE = True
 except ImportError:
     DATEUTIL_AVAILABLE = False
-    relativedelta = None  # type: ignore[misc,assignment]
-    date_parser = None  # type: ignore[misc,assignment]
 
 
 class NaturalLanguageParser:

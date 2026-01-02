@@ -22,6 +22,9 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from pathlib import Path
+    from session_buddy.crackerjack_integration import (
+        get_quality_metrics_history,
+    )
 
 # Crackerjack integration for quality metrics
 try:

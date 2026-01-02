@@ -7,7 +7,11 @@ Provides multi-modal search including code snippets, error patterns, and time-ba
 import ast
 import contextlib
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from dateutil.parser import parse as parse_date
+    from dateutil.relativedelta import relativedelta
 
 try:
     from dateutil.parser import parse as parse_date

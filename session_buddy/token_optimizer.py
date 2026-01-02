@@ -82,13 +82,16 @@ class TokenOptimizer:
         """Optimize search results to reduce token usage."""
         max_tokens = max_tokens or self.max_tokens
 
+        optimization_info: dict[str, Any] = {}
         if strategy in self.strategies:
-            optimized_results, optimization_info = await self.strategies[strategy](
+            optimized_results, info = await self.strategies[strategy](
                 results,
                 max_tokens,
             )
+            optimization_info = info
         else:
-            optimized_results, optimization_info = results, {"strategy": "none"}
+            optimized_results = results  # type: ignore[assignment]
+            optimization_info["strategy"] = "none"
 
         # Track optimization metrics
         optimization_info["original_count"] = len(results)

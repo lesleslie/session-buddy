@@ -169,9 +169,7 @@ class CrackerjackIntegration:
         import subprocess  # nosec B404
 
         try:
-            # Set ACB_LIBRARY_MODE for synchronous Settings initialization
             env = kwargs.get("env", os.environ.copy())
-            env["ACB_LIBRARY_MODE"] = "true"
 
             # Execute the command directly using subprocess
             result = subprocess.run(
@@ -320,9 +318,7 @@ class CrackerjackIntegration:
 
         start_time = time.time()
 
-        # Set ACB_LIBRARY_MODE for synchronous Settings initialization
         env = os.environ.copy()
-        env["ACB_LIBRARY_MODE"] = "true"
 
         process = await asyncio.create_subprocess_exec(
             *full_command,

@@ -12,11 +12,18 @@ import importlib.util
 import sys
 import time
 import typing as t
+from typing import TYPE_CHECKING
 
 # Health status types (mcp_common.health doesn't exist in 2.0.0)
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
+
+if TYPE_CHECKING:
+    from session_buddy.reflection_tools import (
+        get_initialized_reflection_database,
+        get_reflection_database,
+    )
 
 
 class HealthStatus(StrEnum):

@@ -32,7 +32,12 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
+
+if TYPE_CHECKING:
+    import duckdb
+    import onnxruntime as ort
+    from transformers import AutoTokenizer
 
 # Database and embedding imports
 try:

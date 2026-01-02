@@ -218,12 +218,12 @@ class SessionLifecycleManager:
         if total_score > 0:
             output.append(f"\n🔐 Trust score: {total_score:.0f}/100 (separate metric)")
             # Handle both dict and object-based trust score
-            if hasattr(trust, "details"):
-                details = trust.details if isinstance(trust.details, dict) else {}
-            elif isinstance(trust, dict) and "details" in trust:
-                details = trust["details"]
+            if isinstance(trust, dict):
+                details = trust.get("details", {})
             else:
-                details = {}
+                details = getattr(trust, "details", {})
+                if not isinstance(details, dict):
+                    details = {}
 
             # Only show breakdown if available
             if details:

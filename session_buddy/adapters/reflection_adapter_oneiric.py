@@ -339,7 +339,7 @@ class ReflectionDatabaseAdapterOneiric:
 
             # Return [384] as list
             result = embeddings[0].tolist()
-            return t.cast(list[float], result)
+            return t.cast("list[float]", result)
         except Exception as e:
             logger.warning(f"Failed to generate embedding: {e}")
             return None

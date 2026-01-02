@@ -8,6 +8,7 @@ This module provides intelligent interruption handling including:
 """
 
 import asyncio
+import gzip
 import json
 import logging
 import os
@@ -19,7 +20,12 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import psutil
+    from watchdog.events import FileSystemEventHandler
+    from watchdog.observers import Observer
 
 try:
     import psutil
@@ -37,12 +43,8 @@ except ImportError:
     WATCHDOG_AVAILABLE = False
     Observer = object  # type: ignore[assignment]
 
-try:
-    import gzip
-
-    COMPRESSION_AVAILABLE = True
-except ImportError:
-    COMPRESSION_AVAILABLE = False
+# gzip is always available in Python stdlib
+COMPRESSION_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
 

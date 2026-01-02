@@ -14,7 +14,12 @@ from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import psutil
+    from watchdog.events import FileSystemEventHandler
+    from watchdog.observers import Observer
 
 try:
     from watchdog.events import FileSystemEventHandler
