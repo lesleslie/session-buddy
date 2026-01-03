@@ -743,9 +743,9 @@ async def check_api_connectivity() -> ComponentHealth:
 
 ## Additional Resources
 
-- [ComponentHealth API Reference](../reference/API_REFERENCE.md#componenthealth)
-- [ARCHITECTURE.md - Health Check Architecture](../developer/ARCHITECTURE.md#health-check-architecture)
-- [HTTPClientAdapter Health Checks](../reference/API_REFERENCE.md#check_http_client_health)
+- [ComponentHealth API Reference](../reference/API_REFERENCE.md)
+- [ARCHITECTURE.md - Health Check Architecture](../developer/ARCHITECTURE.md)
+- [HTTPClientAdapter Health Checks](../reference/API_REFERENCE.md)
 - [Prometheus Integration Guide](https://prometheus.io/docs/guides/go-application/)
 
 ______________________________________________________________________

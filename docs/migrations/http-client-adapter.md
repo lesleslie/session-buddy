@@ -582,8 +582,8 @@ shutdown_mgr.register_cleanup("http_clients", cleanup_http_clients, priority=100
 
 ## Additional Resources
 
-- [HTTPClientAdapter API Reference](../reference/API_REFERENCE.md#httpclientadapter)
-- [ARCHITECTURE.md - ACB Adapters](../developer/ARCHITECTURE.md#acb-adapters)
+- [HTTPClientAdapter API Reference](../reference/API_REFERENCE.md)
+- [ARCHITECTURE.md - ACB Adapters](../developer/ARCHITECTURE.md)
 - [Health Check Integration](health-check-implementation.md)
 - [httpx Documentation](https://www.python-httpx.org/)
 
