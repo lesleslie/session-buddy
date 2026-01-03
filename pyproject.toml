@@ -6,7 +6,7 @@ requires = [
 
 [project]
 name = "session-buddy"
-version = "0.10.6"
+version = "0.10.7"
 description = "MCP server for Claude session management and conversation memory"
 readme = "README.md"
 keywords = [
@@ -51,7 +51,6 @@ dependencies = [
     "transformers>=4.57.3",
     "typer>=0.21.0",
     "crackerjack>=0.46.4",
-    "bevy>=3.1.0b12",
     "logly>=0.1.6",
     "fastapi>=0.127.1",
     "oneiric>=0.3.3",
