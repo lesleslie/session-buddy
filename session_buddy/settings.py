@@ -474,8 +474,7 @@ class SessionMgmtSettings(MCPBaseSettings):
 
     # === Field Validators ===
     @model_validator(mode="before")
-    @classmethod
-    def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
+    def map_legacy_debug_flag(self, data: t.Any) -> t.Any:
         if (
             isinstance(data, dict)
             and "debug" in data

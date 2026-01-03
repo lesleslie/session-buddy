@@ -19,7 +19,10 @@ import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
+
+if TYPE_CHECKING:
+    import duckdb
 
 try:
     import duckdb

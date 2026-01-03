@@ -308,6 +308,9 @@ class EntityExtractionEngine:
 
         for provider in providers:
             try:
+                resp: Any | None = (
+                    None  # Initialize to prevent "possibly unbound" error
+                )
                 for attempt in range(max(1, self.retries + 1)):
                     try:
                         resp = await asyncio.wait_for(
@@ -321,6 +324,7 @@ class EntityExtractionEngine:
                         if attempt >= self.retries:
                             raise
                         continue
+                assert resp is not None  # Type narrowing for pyright
                 pm = ProcessedMemory.model_validate_json(resp.content)
                 extraction_time = (datetime.now() - start_time).total_seconds() * 1000
                 return EntityExtractionResult(

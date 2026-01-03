@@ -7,8 +7,12 @@ API keys during server startup (Phase 3 Security Hardening).
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 from session_buddy.settings import get_llm_api_key, get_settings
+
+if TYPE_CHECKING:
+    from mcp_common.security import APIKeyValidator
 
 # Import mcp-common security utilities for API key validation (Phase 3 Security Hardening)
 try:

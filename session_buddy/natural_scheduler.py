@@ -438,6 +438,7 @@ class ReminderScheduler:
     def _scheduler_loop(self) -> None:
         """Background scheduler loop."""
         while self._running:
+            loop = None  # Initialize to prevent "possibly unbound" error
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)

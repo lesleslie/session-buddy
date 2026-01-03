@@ -554,6 +554,7 @@ class ReflectionDatabase:
 
             def _get_embedding() -> list[float]:
                 # Tokenize text
+                assert self.tokenizer is not None  # For type checker
                 encoded = self.tokenizer(
                     text,
                     truncation=True,
@@ -562,6 +563,7 @@ class ReflectionDatabase:
                 )
 
                 # Run inference
+                assert self.onnx_session is not None  # For type checker
                 outputs = self.onnx_session.run(
                     None,
                     {

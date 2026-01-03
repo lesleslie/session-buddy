@@ -25,6 +25,8 @@ if TYPE_CHECKING:
     import logging
     from collections.abc import AsyncGenerator
 
+    from mcp_common.exceptions import DependencyMissingError
+
 # Suppress transformers warnings about PyTorch/TensorFlow for cleaner CLI output
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 warnings.filterwarnings("ignore", message=".*PyTorch.*TensorFlow.*Flax.*")
@@ -76,10 +78,10 @@ def _get_session_logger() -> logging.Logger:
 
 
 # Initialize global session_logger as None to prevent undefined variable
-session_logger: Any = None
+session_logger: logging.Logger | None = None
 
 
-def _get_logger() -> logging.Logger:  # type: ignore[return-value]
+def _get_logger() -> logging.Logger:
     """Get logger instance with lazy initialization."""
     global session_logger
     if session_logger is None:

@@ -22,6 +22,8 @@ from pydantic import BaseModel, Field, field_validator
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from pydantic import ValidationError
+
 
 class ValidationResponse(NamedTuple):
     """Response from parameter validation containing status and data."""
@@ -681,9 +683,12 @@ def validate_mcp_params(
         )
     except Exception as e:
         # Convert Pydantic validation errors to more user-friendly messages
-        if hasattr(e, "errors"):
+        # Import ValidationError for runtime type checking
+        from pydantic import ValidationError
+
+        if isinstance(e, ValidationError):
             error_messages = []
-            for error in e.errors():
+            for error in e.errors():  # type: ignore[attr-defined]
                 field = error.get("loc", ["unknown"])[-1]
                 msg = error.get("msg", "validation error")
                 error_messages.append(f"{field}: {msg}")

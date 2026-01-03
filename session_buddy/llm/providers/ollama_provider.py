@@ -16,6 +16,8 @@ from session_buddy.llm.models import LLMMessage, LLMResponse
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
+    from session_buddy.di.container import depends
+
 # mcp-common HTTP client adapter (httpx based)
 try:
     from mcp_common.adapters.http.client import HTTPClientAdapter

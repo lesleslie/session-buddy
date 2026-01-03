@@ -25,7 +25,6 @@ _configured = False
 
 
 # Type variable for use with t.cast() in legacy type contexts
-_T = t.TypeVar("_T")
 
 
 def get_sync_typed[T](key: type[T]) -> T:
@@ -47,7 +46,7 @@ def get_sync_typed[T](key: type[T]) -> T:
     """
     result = depends.get_sync(key)
     # Trust the DI container - type checker will verify usage
-    return t.cast(T, result)  # type: ignore[no-any-return]
+    return t.cast("T", result)  # Use T directly from type parameter
 
 
 def configure(*, force: bool = False) -> None:

@@ -207,10 +207,14 @@ from session_buddy.di.container import depends
 
 
 def _get_permissions_manager() -> SessionPermissionsManager:
+    import typing as t
     from contextlib import suppress
 
     with suppress(Exception):
-        manager = depends.get_sync(SessionPermissionsManager)
+        manager = t.cast(
+            "SessionPermissionsManager | None",
+            depends.get_sync(SessionPermissionsManager),
+        )
         if isinstance(manager, SessionPermissionsManager):
             return manager
 
@@ -547,7 +551,7 @@ def run_server() -> None:
             logger.warning("Running in mock mode - FastMCP not available")
 
     except Exception as e:
-        logger.exception("Server startup failed: %s", str(e))
+        logger.exception(f"Server startup failed: {e}")
         sys.exit(1)
 
 

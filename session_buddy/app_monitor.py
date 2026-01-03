@@ -18,8 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import psutil
-    from watchdog.events import FileSystemEventHandler
-    from watchdog.observers import Observer
+    # FileSystemEventHandler and Observer imported at runtime below
 
 try:
     from watchdog.events import FileSystemEventHandler
@@ -31,7 +30,10 @@ except ImportError:
 
     # Create stub for FileSystemEventHandler when watchdog is not available
     class FileSystemEventHandler:  # type: ignore[no-redef]
-        pass
+        """Stub base class when watchdog is not available."""
+
+        def __init__(self) -> None:  # type: ignore[no-redef]
+            super().__init__()  # type: ignore[misc]
 
     # Create stub for Observer when watchdog is not available
     class Observer:  # type: ignore[no-redef]
@@ -206,7 +208,7 @@ class ProjectActivityMonitor:
         )
 
 
-class IDEFileHandler(FileSystemEventHandler):
+class IDEFileHandler(FileSystemEventHandler):  # type: ignore[misc]
     """Handles file system events for IDE monitoring."""
 
     def __init__(self, monitor: ProjectActivityMonitor) -> None:
