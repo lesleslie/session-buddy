@@ -135,15 +135,15 @@ The tests cover:
 
 ## Command Mapping Tests
 
-The tests verify correct command mappings:
+The tests verify correct command mappings (NEW CLI structure v0.47+):
 
-- `lint` → `crackerjack --fast`
-- `check` → `crackerjack --comp`
-- `test` → `crackerjack --test`
-- `format` → `crackerjack --fast`
-- `typecheck` → `crackerjack --comp`
-- `clean` → `crackerjack --clean`
-- `all` → `crackerjack --all`
+- `lint` → `crackerjack run --fast`
+- `check` → `crackerjack run --comp`
+- `test` → `crackerjack run --run-tests`
+- `format` → `crackerjack run --fast`
+- `typecheck` → `crackerjack run --comp`
+- `clean` → `crackerjack run --clean`
+- `all` → `crackerjack run --all`
 
 ## CI Integration
 

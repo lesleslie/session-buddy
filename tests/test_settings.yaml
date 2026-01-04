@@ -1,0 +1,8 @@
+# Test-specific settings to avoid configuration loading issues
+server_name: "Test Session Buddy MCP"
+server_description: "Test configuration for Session Buddy MCP server"
+log_level: "INFO"
+enable_debug_mode: false
+data_dir: "/tmp/test-session-buddy-data"
+log_dir: "/tmp/test-session-buddy-logs"
+database_path: "/tmp/test-session-buddy-data/reflection.duckdb"

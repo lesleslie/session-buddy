@@ -550,7 +550,7 @@ ______________________________________________________________________
 
 - [ ] **Task 15.2**: Quality checks
 
-  - Run `python -m crackerjack -t`
+  - Run `python -m crackerjack run --run-tests`
   - Ensure all hooks passing
   - Verify type checking passes
   - Check code complexity ≤15

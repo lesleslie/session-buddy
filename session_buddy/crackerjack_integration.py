@@ -286,23 +286,43 @@ class CrackerjackIntegration:
             )
 
     def _build_command_flags(self, command: str, ai_agent_mode: bool) -> list[str]:
-        """Build appropriate command flags for the given command."""
+        """Build appropriate command flags for the given command.
+
+        Crackerjack CLI structure (v0.47+):
+        - Uses 'run' subcommand followed by flags
+        - Example: python -m crackerjack run --fast --quick
+        - Example: python -m crackerjack run --comp --run-tests
+        - Example: python -m crackerjack run --all patch (release workflow)
+
+        IMPORTANT: --all requires an argument (patch|minor|major|auto|interactive)
+        For general quality checks, use 'run' with no flags or --fast/--comp
+        """
         command_mappings = {
-            "lint": ["--fast"],
-            "check": ["--comp"],
-            "test": ["--test"],
-            "format": ["--fast"],
-            "typecheck": ["--comp"],
-            "security": ["--security"],
-            "complexity": ["--complexity"],
-            "analyze": ["--analyze"],
-            "build": ["--build"],
-            "clean": ["--clean"],
-            "all": ["--all"],
-            "run": ["--run"],
+            # Fast hooks only (formatters and basic checks)
+            "lint": ["run", "--fast"],
+            "format": ["run", "--fast"],
+            # Comprehensive hooks (type checking, security, complexity)
+            "check": ["run", "--comp"],
+            "typecheck": ["run", "--comp"],
+            "security": ["run", "--comp"],  # Security is part of comprehensive hooks
+            "complexity": [
+                "run",
+                "--comp",
+            ],  # Complexity is part of comprehensive hooks
+            "analyze": ["run", "--comp"],  # Comprehensive analysis
+            # Test execution
+            "test": ["run", "--run-tests"],
+            # Build and maintenance (default run with no special flags)
+            "build": ["run"],
+            "clean": ["run"],  # Clean happens automatically in current version
+            # All quality checks (use default run, NOT --all which is for release)
+            "all": ["run"],  # Just run with no special flags
+            "run": ["run"],
+            # Standalone commands (no 'run' prefix)
+            "run-tests": ["run-tests"],
         }
 
-        flags = command_mappings.get(command.lower(), [])
+        flags = command_mappings.get(command.lower(), ["run"])
         if ai_agent_mode:
             flags.append("--ai-fix")
         return flags

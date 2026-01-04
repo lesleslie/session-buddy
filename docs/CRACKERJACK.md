@@ -212,6 +212,74 @@ Store Session Memory
 Return to User
 ```
 
+### CLI Structure Transformation
+
+The integration handles the transformation from semantic commands to the **new Crackerjack CLI structure (v0.47+)**:
+
+**OLD CLI (v0.46 and earlier):**
+
+```text
+python -m crackerjack --fast
+python -m crackerjack --test
+python -m crackerjack --comp
+```
+
+**NEW CLI (v0.47+):**
+
+```text
+python -m crackerjack run --fast
+python -m crackerjack run --run-tests
+python -m crackerjack run --comp
+```
+
+**Command Mapping:**
+
+| Semantic Command | CLI Flags | Description |
+|-----------------|-----------|-------------|
+| `lint` | `run --fast --quick` | Fast linting hooks |
+| `check` | `run --comp --quick` | Comprehensive checks |
+| `test` | `run --run-tests --quick` | Test execution |
+| `format` | `run --fast --quick` | Code formatting |
+| `typecheck` | `run --comp --quick` | Type checking |
+| `security` | `run --comp` | Security scanning (in comp) |
+| `complexity` | `run --comp` | Complexity analysis (in comp) |
+| `analyze` | `run --comp` | Comprehensive analysis |
+| `build` | `run` | Build operations |
+| `clean` | `run` | Cleanup operations |
+| `all` | `run` | All quality checks (NOT `--all` which requires version arg) |
+
+**Implementation:**
+
+The `_build_command_flags()` method in `crackerjack_integration.py` performs this transformation:
+
+```python
+def _build_command_flags(self, command: str, ai_agent_mode: bool) -> list[str]:
+    """Build appropriate command flags for the given command.
+
+    NEW Crackerjack CLI structure (v0.47+):
+    - Uses 'run' subcommand followed by flags
+    - Example: python -m crackerjack run --fast --quick
+    """
+    command_mappings = {
+        "lint": ["run", "--fast"],
+        "check": ["run", "--comp"],
+        "test": ["run", "--run-tests"],
+        # ... (see full implementation)
+    }
+
+    flags = command_mappings.get(command.lower(), ["run"])
+    if ai_agent_mode:
+        flags.append("--ai-fix")
+    return flags
+```
+
+This abstraction layer means:
+
+- ✅ Users work with simple semantic commands (`lint`, `test`, `check`)
+- ✅ Integration handles CLI complexity automatically
+- ✅ Easy to adapt to future CLI changes
+- ✅ Consistent interface across Crackerjack versions
+
 ______________________________________________________________________
 
 ## Hook Output Parsing

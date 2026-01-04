@@ -184,23 +184,24 @@ class TestExecuteCrackerjackCommandMethod:
     """Test the async execute_crackerjack_command method."""
 
     def test_command_mapping(self):
-        """Test that command mappings are correct."""
+        """Test that command mappings are correct (NEW CLI v0.47+)."""
         integration = CrackerjackIntegration()
 
         # Test the command mappings directly via _build_command_flags
         test_cases = [
-            ("lint", ["--fast"]),
-            ("check", ["--comp"]),
-            ("test", ["--test"]),
-            ("format", ["--fast"]),
-            ("typecheck", ["--comp"]),
-            ("security", ["--security"]),
-            ("complexity", ["--complexity"]),
-            ("analyze", ["--analyze"]),
-            ("clean", ["--clean"]),
-            ("build", ["--build"]),
-            ("all", ["--all"]),
-            ("run", ["--run"]),
+            ("lint", ["run", "--fast"]),
+            ("check", ["run", "--comp"]),
+            ("test", ["run", "--run-tests"]),
+            ("format", ["run", "--fast"]),
+            ("typecheck", ["run", "--comp"]),
+            ("security", ["run", "--comp"]),  # Security in comprehensive hooks
+            ("complexity", ["run", "--comp"]),  # Complexity in comprehensive hooks
+            ("analyze", ["run", "--comp"]),  # Comprehensive analysis
+            ("clean", ["run"]),  # Clean happens automatically in current version
+            ("build", ["run"]),
+            ("all", ["run"]),  # General quality checks (NOT --all which is for release)
+            ("run", ["run"]),
+            ("run-tests", ["run-tests"]),  # Standalone command
         ]
 
         # Test the _build_command_flags method
@@ -228,14 +229,15 @@ class TestExecuteCrackerjackCommandMethod:
         mock_create_subprocess.assert_called_once()
         call_args = mock_create_subprocess.call_args
 
-        # Should be called with python -m crackerjack + flags
+        # Should be called with python -m crackerjack run + flags (NEW CLI v0.47+)
         expected_cmd = [
             "python",
             "-m",
             "crackerjack",
+            "run",
             "--fast",
             "--quick",
-        ]  # lint maps to --fast --quick
+        ]  # lint maps to run --fast --quick
         assert call_args[0] == tuple(expected_cmd)
 
         # Verify result type and content
@@ -257,13 +259,14 @@ class TestExecuteCrackerjackCommandMethod:
         # Execute with additional args
         await integration.execute_crackerjack_command("test", ["--verbose"], "/tmp")
 
-        # Verify command construction
+        # Verify command construction (NEW CLI v0.47+)
         call_args = mock_create_subprocess.call_args
         expected_cmd = [
             "python",
             "-m",
             "crackerjack",
-            "--test",
+            "run",
+            "--run-tests",
             "--quick",
             "--verbose",
         ]
@@ -289,9 +292,9 @@ class TestExecuteCrackerjackCommandMethod:
             "check", [], ".", ai_agent_mode=True
         )
 
-        # Verify AI agent flag is included
+        # Verify AI agent flag is included (NEW CLI structure)
         call_args = mock_create_subprocess.call_args
-        expected_cmd = ["python", "-m", "crackerjack", "--comp", "--quick", "--ai-fix"]
+        expected_cmd = ["python", "-m", "crackerjack", "run", "--comp", "--quick", "--ai-fix"]
         assert call_args[0] == tuple(expected_cmd)
 
     @patch("asyncio.create_subprocess_exec")
@@ -328,13 +331,14 @@ class TestExecuteCrackerjackCommandMethod:
             # Execute with invalid command
             await integration.execute_crackerjack_command("invalid_command", [], ".")
 
-            # Should call with python -m crackerjack (no flags for unknown commands)
+            # Should call with python -m crackerjack run (no flags for unknown commands, NEW CLI v0.47+)
             call_args = mock_create.call_args
             expected_cmd = [
                 "python",
                 "-m",
                 "crackerjack",
-            ]  # No flags for unknown command
+                "run",
+            ]  # No flags for unknown command (uses 'run' subcommand)
             assert call_args[0] == tuple(expected_cmd)
 
 
@@ -496,8 +500,8 @@ class TestRegressionTests:
             call_args = mock_create.call_args
             cmd = call_args[0]
 
-            # Should be ['python', '-m', 'crackerjack', '--fast', '--quick'], NOT ['crackerjack', 'lint']
-            assert cmd == ("python", "-m", "crackerjack", "--fast", "--quick")
+            # Should be ['python', '-m', 'crackerjack', 'run', '--fast', '--quick'], NOT ['crackerjack', 'lint']
+            assert cmd == ("python", "-m", "crackerjack", "run", "--fast", "--quick")
             assert "lint" not in cmd, (
                 "Command should not contain 'lint' as separate argument"
             )

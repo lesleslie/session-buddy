@@ -437,8 +437,8 @@ class TestRealIntegration:
         mock_create_subprocess.assert_called_once()
         call_args = mock_create_subprocess.call_args
 
-        # Should call with python -m crackerjack --fast --quick
-        expected_cmd = ["python", "-m", "crackerjack", "--fast", "--quick"]
+        # Should call with python -m crackerjack run --fast --quick
+        expected_cmd = ["python", "-m", "crackerjack", "run", "--fast", "--quick"]
         assert call_args[0] == tuple(expected_cmd), (
             f"Expected {expected_cmd}, got {call_args[0]}"
         )
@@ -460,19 +460,19 @@ class TestRealIntegration:
         mock_process.returncode = 0
         mock_create_subprocess.return_value = mock_process
 
-        # Test command mappings
+        # Test command mappings (NEW CLI structure with 'run' subcommand)
         test_cases = [
-            ("lint", ["python", "-m", "crackerjack", "--fast", "--quick"]),
-            ("check", ["python", "-m", "crackerjack", "--comp", "--quick"]),
-            ("test", ["python", "-m", "crackerjack", "--test", "--quick"]),
-            ("format", ["python", "-m", "crackerjack", "--fast", "--quick"]),
-            ("typecheck", ["python", "-m", "crackerjack", "--comp", "--quick"]),
-            ("security", ["python", "-m", "crackerjack", "--security"]),
-            ("complexity", ["python", "-m", "crackerjack", "--complexity"]),
-            ("analyze", ["python", "-m", "crackerjack", "--analyze"]),
-            ("build", ["python", "-m", "crackerjack", "--build"]),
-            ("clean", ["python", "-m", "crackerjack", "--clean"]),
-            ("all", ["python", "-m", "crackerjack", "--all"]),
+            ("lint", ["python", "-m", "crackerjack", "run", "--fast", "--quick"]),
+            ("check", ["python", "-m", "crackerjack", "run", "--comp", "--quick"]),
+            ("test", ["python", "-m", "crackerjack", "run", "--run-tests", "--quick"]),
+            ("format", ["python", "-m", "crackerjack", "run", "--fast", "--quick"]),
+            ("typecheck", ["python", "-m", "crackerjack", "run", "--comp", "--quick"]),
+            ("security", ["python", "-m", "crackerjack", "run", "--comp"]),  # Security in comp hooks
+            ("complexity", ["python", "-m", "crackerjack", "run", "--comp"]),  # Complexity in comp hooks
+            ("analyze", ["python", "-m", "crackerjack", "run", "--comp"]),  # Comprehensive analysis
+            ("build", ["python", "-m", "crackerjack", "run"]),
+            ("clean", ["python", "-m", "crackerjack", "run"]),  # Clean happens automatically
+            ("all", ["python", "-m", "crackerjack", "run"]),  # General quality (NOT --all which is for release)
         ]
 
         for command, expected_cmd in test_cases:

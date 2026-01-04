@@ -151,7 +151,7 @@ Update integration section:
 **Example Workflow:**
 ```bash
 # Just start working - session auto-initializes!
-python -m crackerjack --ai-fix -t
+python -m crackerjack run --ai-fix --run-tests
 
 # Checkpoint periodically (auto-compacts if needed)
 /checkpoint
