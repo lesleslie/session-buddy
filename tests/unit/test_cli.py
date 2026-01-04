@@ -62,8 +62,9 @@ class TestServerManagement:
                 0,
                 1,
                 2,
+                3,
                 8,
-            ]  # 8 is the SystemExit code we're seeing
+            ]  # Allow already-running (3) or stale PID (8) exits
 
     def test_status_command(self, cli_runner: CliRunner) -> None:
         """Test status command."""

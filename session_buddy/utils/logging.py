@@ -44,8 +44,11 @@ class SessionLogger:
         # Ensure file handler for this log directory exists
         file_handler = _get_file_handler(self.logger, self.log_file)
         if file_handler is None:
-            file_handler = logging.FileHandler(self.log_file)
-            self.logger.addHandler(file_handler)
+            _replace_file_handlers(self.logger, self.log_file)
+            file_handler = _get_file_handler(self.logger, self.log_file)
+            if file_handler is None:
+                file_handler = logging.FileHandler(self.log_file)
+                self.logger.addHandler(file_handler)
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)
 
@@ -140,6 +143,17 @@ def _get_file_handler(
             except Exception:
                 continue
     return None
+
+
+def _replace_file_handlers(logger: logging.Logger, log_file: Path) -> None:
+    """Replace any existing file handlers with a single handler for log_file."""
+    existing = [handler for handler in logger.handlers if isinstance(handler, logging.FileHandler)]
+    for handler in existing:
+        try:
+            handler.close()
+        finally:
+            logger.removeHandler(handler)
+
 
 
 def _safe_json_serialize(obj: t.Any) -> str:
