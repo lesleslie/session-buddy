@@ -672,7 +672,12 @@ async def calculate_quality_score(project_dir: Path | None = None) -> dict[str, 
 
     """
     if project_dir is None:
-        project_dir = Path(os.environ.get("PWD", Path.cwd()))
+        # Handle pytest-xdist parallel execution where cwd may not exist
+        try:
+            project_dir = Path(os.environ.get("PWD", Path.cwd()))
+        except FileNotFoundError:
+            # Fallback to HOME directory if cwd doesn't exist
+            project_dir = Path.home()
 
     return await _calculate_quality_score_impl(project_dir=project_dir)
 

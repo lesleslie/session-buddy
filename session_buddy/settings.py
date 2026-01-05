@@ -474,12 +474,20 @@ class SessionMgmtSettings(MCPBaseSettings):
 
     # === Field Validators ===
     @model_validator(mode="before")
-    def map_legacy_debug_flag(self, data: t.Any) -> t.Any:
-        if (
-            isinstance(data, dict)
-            and "debug" in data
-            and "enable_debug_mode" not in data
-        ):
+    @classmethod
+    def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
+        """
+        Map legacy 'debug' flag to 'enable_debug_mode'.
+
+        Must be a classmethod for Pydantic v2.12.5 compatibility.
+        """
+        # Handle Pydantic ValidationInfo (Protocol) objects
+        # This can happen when mcp-common's MCPBaseSettings.load() method
+        # processes the data through validators
+        if not isinstance(data, dict):
+            return data
+
+        if "debug" in data and "enable_debug_mode" not in data:
             data = dict(data)
             data["enable_debug_mode"] = bool(data["debug"])
         return data

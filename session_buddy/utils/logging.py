@@ -147,13 +147,16 @@ def _get_file_handler(
 
 def _replace_file_handlers(logger: logging.Logger, log_file: Path) -> None:
     """Replace any existing file handlers with a single handler for log_file."""
-    existing = [handler for handler in logger.handlers if isinstance(handler, logging.FileHandler)]
+    existing = [
+        handler
+        for handler in logger.handlers
+        if isinstance(handler, logging.FileHandler)
+    ]
     for handler in existing:
         try:
             handler.close()
         finally:
             logger.removeHandler(handler)
-
 
 
 def _safe_json_serialize(obj: t.Any) -> str:

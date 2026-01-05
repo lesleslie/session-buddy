@@ -8,6 +8,7 @@ with proper async patterns and error handling.
 from __future__ import annotations
 
 import asyncio
+import logging
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -52,9 +53,19 @@ class TestServerInitialization:
     async def test_session_logger_available(self):
         """Test that session logger is properly configured."""
         try:
-            from session_buddy.server import session_logger
+            from session_buddy.server import _get_logger
 
-            assert session_logger is not None
+            # Test that _get_logger function exists and is callable
+            assert callable(_get_logger)
+
+            # Test that calling _get_logger returns a valid logger
+            logger = _get_logger()
+            assert logger is not None
+            assert isinstance(logger, logging.Logger)
+
+            # Test that calling _get_logger multiple times returns the same logger (singleton)
+            logger2 = _get_logger()
+            assert logger is logger2
         except ImportError:
             pytest.skip("Session logger not available")
 

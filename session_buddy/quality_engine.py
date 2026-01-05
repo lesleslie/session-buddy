@@ -213,7 +213,12 @@ async def _store_context_summary(conversation_summary: dict[str, Any]) -> None:
 async def perform_strategic_compaction() -> list[str]:
     """Perform strategic compaction and optimization tasks."""
     results = []
-    current_dir = Path(os.environ.get("PWD", Path.cwd()))
+    # Handle pytest-xdist parallel execution where cwd may not exist
+    try:
+        current_dir = Path(os.environ.get("PWD", Path.cwd()))
+    except FileNotFoundError:
+        # Fallback to HOME directory if cwd doesn't exist
+        current_dir = Path.home()
 
     # Database optimization
     results.append(await _optimize_reflection_database())
@@ -311,7 +316,12 @@ async def _add_project_context_insights(insights: list[str]) -> None:
     """Add project context analysis to insights."""
     from session_buddy.utils.project_analysis import analyze_project_context
 
-    current_dir = Path(os.environ.get("PWD", Path.cwd()))
+    # Handle pytest-xdist parallel execution where cwd may not exist
+    try:
+        current_dir = Path(os.environ.get("PWD", Path.cwd()))
+    except FileNotFoundError:
+        # Fallback to HOME directory if cwd doesn't exist
+        current_dir = Path.home()
     project_context = await analyze_project_context(current_dir)
     context_items = [k for k, v in project_context.items() if v]
     if context_items:
@@ -881,7 +891,12 @@ async def analyze_context_usage() -> list[str]:
 
 async def _analyze_project_workflow_recommendations(results: list[str]) -> None:
     """Analyze project workflow patterns and add recommendations."""
-    current_dir = Path(os.environ.get("PWD", Path.cwd()))
+    # Handle pytest-xdist parallel execution where cwd may not exist
+    try:
+        current_dir = Path(os.environ.get("PWD", Path.cwd()))
+    except FileNotFoundError:
+        # Fallback to HOME directory if cwd doesn't exist
+        current_dir = Path.home()
     project_insights = await analyze_project_workflow_patterns(current_dir)
 
     if project_insights["workflow_recommendations"]:
@@ -958,7 +973,12 @@ async def calculate_quality_score(project_dir: Path | None = None) -> dict[str, 
 
     """
     if project_dir is None:
-        project_dir = Path(os.environ.get("PWD", Path.cwd()))
+        # Handle pytest-xdist parallel execution where cwd may not exist
+        try:
+            project_dir = Path(os.environ.get("PWD", Path.cwd()))
+        except FileNotFoundError:
+            # Fallback to HOME directory if cwd doesn't exist
+            project_dir = Path.home()
 
     quality_result = await calculate_quality_score_v2(project_dir=project_dir)
 

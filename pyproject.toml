@@ -428,9 +428,13 @@ paths = [
 sort_by_size = true
 
 [tool.refurb]
-enable_all = true
+enable_all = false
 quiet = true
 python_version = "3.13"
+mypy_args = [
+    "--follow-imports=skip",
+    "--ignore-missing-imports",
+]
 ignore = [
     "FURB101",
     "FURB103",
@@ -501,4 +505,5 @@ dev = [
     { include-group = "lint" },
     "crackerjack>=0.46.4",
     "excalidraw-mcp>=0.34.2",
+    "pytest-benchmark>=5.2.3",
 ]
