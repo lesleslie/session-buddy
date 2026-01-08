@@ -24,9 +24,6 @@ from .constants import CLAUDE_DIR_KEY, COMMANDS_DIR_KEY, LOGS_DIR_KEY
 _configured = False
 
 
-# Type variable for use with t.cast() in legacy type contexts
-
-
 def get_sync_typed[T](key: type[T]) -> T:
     """Type-safe wrapper for depends.get_sync.
 
@@ -44,9 +41,9 @@ def get_sync_typed[T](key: type[T]) -> T:
         >>> manager = get_sync_typed(SessionLifecycleManager)  # Properly typed
 
     """
-    result = depends.get_sync(key)
-    # Trust the DI container - type checker will verify usage
-    return t.cast("T", result)  # Use T directly from type parameter
+    result: t.Any = depends.get_sync(key)
+    # Type assertion: we trust the DI container to return the correct type
+    return t.cast(T, result)  # Use PEP 695 type param, not string literal
 
 
 def configure(*, force: bool = False) -> None:

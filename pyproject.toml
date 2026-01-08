@@ -253,6 +253,8 @@ addopts = [
     "--tb=short",
     "--strict-markers",
     "--durations=20",
+    "-p",
+    "no:xdist",
 ]
 testpaths = [
     "tests",
@@ -303,12 +305,10 @@ filterwarnings = [
 timeout = "300"
 timeout_method = "thread"
 
-[tool.pytest.benchmark]
-disable_gc = true
-warmup = false
-warmup_iterations = 0
-min_rounds = 1
-max_time = 5.0
+# Note: pytest-benchmark configuration removed due to incompatibility with pytest-xdist
+# When running benchmarks with -m benchmark, use command-line options instead:
+# python -m pytest -m benchmark --benchmark-disable-gc --benchmark-warmup=off
+# See: https://pytest-benchmark.readthedocs.io/en/stable/usage.html#disabling-benchmark-gc
 
 [tool.coverage.run]
 source = [

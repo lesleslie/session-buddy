@@ -554,7 +554,7 @@ wheels = [
 
 [[package]]
 name = "crackerjack"
-version = "0.47.14"
+version = "0.47.15"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
@@ -613,9 +613,9 @@ dependencies = [
     { name = "websockets" },
     { name = "zuban" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3e/ff/ac4043c5ae77839848fa40a43430717c99e0e2e8bef2915cba31e9b1bb10/crackerjack-0.47.14.tar.gz", hash = "sha256:236d3624c4aff8ea4f54bf16d569667f6f56706e9c6055fe27e144a61f511ef3", size = 1965075, upload-time = "2026-01-05T17:25:07.037Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/31/20/2adc9809c2833573575e1ee3fef7bd22ea4cb14612e6d622e48b151d32fb/crackerjack-0.47.15.tar.gz", hash = "sha256:a2c08fae13fb445ea77bce960b0972fadcb4102bfd684c47b45ac8d79983dd71", size = 1965247, upload-time = "2026-01-05T17:29:49.371Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/35/29/e29194b2ea9f0dd108161471f834290f36d074fa4daa2a1c3bee046e5f7b/crackerjack-0.47.14-py3-none-any.whl", hash = "sha256:1bb98081fd9db899157225494bd8c55840ca5b9893a35bbbedf2352e8917414b", size = 1112381, upload-time = "2026-01-05T17:25:02.386Z" },
+    { url = "https://files.pythonhosted.org/packages/98/f3/d2241584127fa6a598ac8b911261536961e1cc8084a7ba90b8ccb2019018/crackerjack-0.47.15-py3-none-any.whl", hash = "sha256:858c543c366cc1478c1ad95d7613b9e6fe0b17ea0e9d65c470779747823609e0", size = 1112383, upload-time = "2026-01-05T17:29:44.874Z" },
 ]
 
 [[package]]
@@ -833,7 +833,7 @@ wheels = [
 
 [[package]]
 name = "excalidraw-mcp"
-version = "0.35.0"
+version = "0.35.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -847,9 +847,9 @@ dependencies = [
     { name = "rich" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/6a/534bfae09c536c10f6d310b146adf6db8b453a7e0b70ae819de60bf12cb9/excalidraw_mcp-0.35.0.tar.gz", hash = "sha256:467d42d0268f5be104be801efc5a348e94a4da25dfb6694c6d34f44f13224bc8", size = 1236826, upload-time = "2026-01-04T16:41:20.444Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/bc/ac967d201c39999c34d6f404f4233449371ede29956230d00aade21a9a42/excalidraw_mcp-0.35.1.tar.gz", hash = "sha256:63541f67eb890b32a43fc07f1564a673e48c4e3263acc17d19dd469fd9f88be1", size = 1237266, upload-time = "2026-01-05T17:38:56.052Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/96/de53a5f2baffa4f97cf7cbc4112d9cdded763f1367b147cc34e808c67072/excalidraw_mcp-0.35.0-py3-none-any.whl", hash = "sha256:7875da458813b2cf350654d5c7a2fb7b1a8da3c38fea5e83ad2122b7b443df51", size = 52387, upload-time = "2026-01-04T16:41:22.002Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/f2/c1ce9faa95b43754ce7a76e5368d18ede5ac09171474dea2e67af56cd4f3/excalidraw_mcp-0.35.1-py3-none-any.whl", hash = "sha256:2bad42e9f962ff203f236936a098ec2eab3a93285d42a302802c053afadb99d6", size = 52391, upload-time = "2026-01-05T17:38:57.454Z" },
 ]
 
 [[package]]
@@ -2005,7 +2005,7 @@ wheels = [
 
 [[package]]
 name = "mcp-common"
-version = "0.4.7"
+version = "0.4.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "oneiric" },
@@ -2015,9 +2015,9 @@ dependencies = [
     { name = "rich" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/95/94d347863529a57e681f89262bf3a92ca4306833812105a2a4e68675dda5/mcp_common-0.4.7.tar.gz", hash = "sha256:2716a1e36fff0882ba53e313371a184ef970b9c6b2c4459a3128b647f218b47a", size = 341166, upload-time = "2026-01-05T16:26:00.65Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/08/1c/4fa3870dcd41637a93b86042300cd6479447c726aad5cdf3fb8b557bab27/mcp_common-0.4.8.tar.gz", hash = "sha256:4647ad70b2ac41629aa8b8924ede65a56788dbdce4a8dd0a5e4f7503911f7fb2", size = 341161, upload-time = "2026-01-05T17:35:28.568Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/f5/8a93c2e312708edebe4b472798e9e69843a50679bd380b93579060f64a5b/mcp_common-0.4.7-py3-none-any.whl", hash = "sha256:86c2897bf5f7bb2445c4c1e097d80367a4539b04210aa55acb3f1bf31feb14e7", size = 54665, upload-time = "2026-01-05T16:26:02.287Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/1f/b61d894e3a5b5d1108c5069f33be6d84500db9da732d84e26d52ddf07bb0/mcp_common-0.4.8-py3-none-any.whl", hash = "sha256:c9ccddd561ec704fe150758824b8080bbb46fa21cbc9d1d754e729f7198b9e9f", size = 54664, upload-time = "2026-01-05T17:35:26.634Z" },
 ]
 
 [[package]]
@@ -2416,7 +2416,7 @@ wheels = [
 
 [[package]]
 name = "oneiric"
-version = "0.3.10"
+version = "0.3.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobreaker" },
@@ -2436,9 +2436,9 @@ dependencies = [
     { name = "typer" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ca/17/7b95bc9cd7fa34a51458059207df53fb01e8d56c5f8e03fd8379f2b5ea0e/oneiric-0.3.10.tar.gz", hash = "sha256:546f390a06f8ed9d95c4a2130cd63c25ba41991fcd46b06b345031969d235d39", size = 232921, upload-time = "2026-01-05T15:52:59.817Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4a/fc/531f0876630267efe15f68cf3ea5d16e97dfb46070de88d7d806339dd721/oneiric-0.3.11.tar.gz", hash = "sha256:140e4cd99010b0ca62d013b8e778cb76dc8e07c71fcf24a7bbcd68689b317989", size = 232930, upload-time = "2026-01-05T17:34:15.351Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5e/f2/77870b2cd6fa7ff81964a7dab468bf0e273496ca0a7fba223db0d160f2f9/oneiric-0.3.10-py3-none-any.whl", hash = "sha256:87243690629879b984313cfce235bea399e4cede3c6be4d99bfd8226d8f71083", size = 317505, upload-time = "2026-01-05T15:52:57.905Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/d9/7ebee383dd5c014a191ea0b45d36cd027a70ebea905b8ba8891a284951f3/oneiric-0.3.11-py3-none-any.whl", hash = "sha256:394df5647ddf637f49e0b53ecfc5492e2890fe582aa0438a48289dd10e93368c", size = 317505, upload-time = "2026-01-05T17:34:13.365Z" },
 ]
 
 [[package]]
@@ -3784,7 +3784,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.10.10"
+version = "0.10.11"
 source = { editable = "." }
 dependencies = [
     { name = "aiocache" },

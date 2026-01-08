@@ -474,12 +474,11 @@ class SessionMgmtSettings(MCPBaseSettings):
 
     # === Field Validators ===
     @model_validator(mode="before")
-    @classmethod
-    def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
+    def map_legacy_debug_flag(self, data: t.Any) -> t.Any:
         """
         Map legacy 'debug' flag to 'enable_debug_mode'.
 
-        Must be a classmethod for Pydantic v2.12.5 compatibility.
+        In Pydantic v2, model validators with mode='before' are implicitly classmethods.
         """
         # Handle Pydantic ValidationInfo (Protocol) objects
         # This can happen when mcp-common's MCPBaseSettings.load() method

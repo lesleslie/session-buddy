@@ -4,7 +4,7 @@
 **Session**: session-buddy MCP server debugging
 **Status**: **PAUSED** - User patching mcp-common library
 
----
+______________________________________________________________________
 
 ## Executive Summary
 
@@ -12,11 +12,12 @@ During session checkpoint operations, the session-buddy MCP server encounters a 
 
 **Current Status**: User is actively patching the mcp-common library to resolve this issue.
 
----
+______________________________________________________________________
 
 ## Problem Description
 
 ### Error Message
+
 ```
 ❌ Checkpoint failed: 1 validation error for SessionMgmtSettings
   Input should be a valid dictionary or instance of SessionMgmtSettings
@@ -24,23 +25,26 @@ During session checkpoint operations, the session-buddy MCP server encounters a 
 ```
 
 ### Context
+
 - **Trigger**: Running `/checkpoint` command in session-buddy MCP server
 - **Location**: `SessionMgmtSettings.load('session-buddy')` in mcp-common
 - **Pydantic Version**: v2.12.5
 - **mcp-common Version**: v0.4.6 (installed as editable)
 
----
+______________________________________________________________________
 
 ## Root Cause Analysis
 
 ### 1. Pydantic ValidationInfo Protocol Object
 
 **What is ValidationInfo?**
+
 - Pydantic v2 internal Protocol object used during validation
 - Contains `config`, `field_name`, and `data` attributes
 - Should be **transparent to validators** - not passed as the data argument
 
 **Expected Behavior**:
+
 ```python
 @model_validator(mode="before")
 def map_legacy_debug_flag(self, data: dict) -> dict:
@@ -51,6 +55,7 @@ def map_legacy_debug_flag(self, data: dict) -> dict:
 ```
 
 **Actual Behavior**:
+
 ```python
 # data is ValidationInfo(config=..., field_name=None, data=None)
 # This is NOT a dict - it's a Protocol object
@@ -67,11 +72,12 @@ SessionMgmtSettings.load('session-buddy')
 ```
 
 **Location of Error**:
+
 - **File**: `/Users/les/Projects/mcp-common/mcp_common/config/base.py`
 - **Line**: 355-356 (after attempted fix)
 - **Method**: `MCPBaseSettings.load()`
 
----
+______________________________________________________________________
 
 ## Failed Fix Attempts
 
@@ -80,6 +86,7 @@ SessionMgmtSettings.load('session-buddy')
 **File**: `/Users/les/Projects/session-buddy/session_buddy/settings.py:476-487`
 
 **Change**:
+
 ```python
 @model_validator(mode="before")
 def map_legacy_debug_flag(self, data: t.Any) -> t.Any:
@@ -94,41 +101,47 @@ def map_legacy_debug_flag(self, data: t.Any) -> t.Any:
 ```
 
 **Result**: ❌ **FAILED**
+
 - Error persisted because Pydantic rejects the return value
 - ValidationInfo passed through, but Pydantic validation chain failed later
 
----
+______________________________________________________________________
 
 ### Attempt 2: Use model_validate() in mcp-common
 
 **File**: `/Users/les/Projects/mcp-common/mcp_common/config/base.py:355-356`
 
 **Original Code**:
+
 ```python
 return cls(**data)  # ← Direct instantiation
 ```
 
 **Modified Code**:
+
 ```python
 return cls.model_validate(data)  # ← Use Pydantic's validation API
 ```
 
 **Rationale**:
+
 - `model_validate()` is Pydantic v2's recommended validation method
 - Should properly handle validators and type conversion
 - Avoids direct `**data` unpacking
 
 **Result**: ❌ **FAILED**
+
 - Same ValidationInfo error occurred
 - Confirms issue is deeper in Pydantic's validation chain
 
----
+______________________________________________________________________
 
 ## Technical Investigation
 
 ### Environment Details
 
 **Installed Packages**:
+
 ```
 pydantic==2.12.5
 mcp-common==0.4.6 (editable install from /Users/les/Projects/mcp-common)
@@ -136,6 +149,7 @@ session-buddy (editable)
 ```
 
 **mcp-common Installation**:
+
 ```bash
 # Editable install from local path
 pip install -e /Users/les/Projects/mcp-common
@@ -145,15 +159,17 @@ pip install -e /Users/les/Projects/mcp-common
 ```
 
 **File Location**:
+
 - **Source**: `/Users/les/Projects/mcp-common/mcp_common/config/base.py`
 - **Installed**: Symlinked from site-packages (editable install)
 - **Active Version**: Source files take precedence
 
----
+______________________________________________________________________
 
 ### Testing Results
 
 #### Test 1: Basic Pydantic Model
+
 ```python
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -170,6 +186,7 @@ class SimpleSettings(BaseModel):
 ```
 
 #### Test 2: MCPBaseSettings Direct Instantiation
+
 ```python
 from mcp_common import MCPBaseSettings
 
@@ -182,6 +199,7 @@ settings = MCPBaseSettings(
 ```
 
 #### Test 3: MCPBaseSettings.load() Method
+
 ```python
 from mcp_common import MCPBaseSettings
 
@@ -192,28 +210,31 @@ settings = MCPBaseSettings.load("session-buddy")
 
 **Conclusion**: The issue is **specific to the `load()` classmethod pattern**, not general Pydantic validation.
 
----
+______________________________________________________________________
 
 ## Secondary Issues Identified
 
 ### Issue 1: Crackerjack pytest-benchmark Error
 
 **Error Message**:
+
 ```
 ERROR: Unknown config option: benchmark
 ```
 
 **Root Cause**:
+
 - **File**: `/Users/les/Projects/crackerjack/crackerjack/managers/test_executor.py:126`
 - **Bug**: `cwd=self.pkg_path` (crackerjack's directory instead of target project)
 - **Impact**: pytest reads crackerjack's pyproject.toml instead of session-buddy's
 - **Result**: pytest-benchmark config not found in crackerjack's pyproject.toml
 
 **Status**: **This is a crackerjack bug** - not session-buddy's issue
+
 - User noted: "crackerjack has been updated"
 - Fix pending in crackerjack repository
 
----
+______________________________________________________________________
 
 ### Issue 2: Session-buddy Server Transport Mode
 
@@ -221,17 +242,19 @@ ERROR: Unknown config option: benchmark
 **Actual**: STDIO mode (when started via crackerjack)
 
 **Root Cause**:
+
 - **File**: `/Users/les/Projects/crackerjack/settings/crackerjack.yaml:78`
 - **Config**: `mcp_http_enabled: false`
 
 **Workaround**:
+
 ```bash
 python -m session_buddy.server --http
 ```
 
 **Status**: ✅ **RESOLVED** - Server running in HTTP mode on port 8678
 
----
+______________________________________________________________________
 
 ## Configuration Files
 
@@ -264,7 +287,7 @@ database_path: ~/.claude/data/reflection.duckdb
 # ... (extensive configuration)
 ```
 
----
+______________________________________________________________________
 
 ## Relevant Code Sections
 
@@ -332,7 +355,7 @@ def load(
     return cls.model_validate(data)  # ← Line 355 - Modified, still failing
 ```
 
----
+______________________________________________________________________
 
 ## Hypotheses & Next Steps
 
@@ -341,52 +364,59 @@ def load(
 **Theory**: Pydantic v2.12.5 changed how ValidationInfo is handled in model validators.
 
 **Evidence**:
+
 - Pydantic v2.12.5 is very recent (December 2024)
 - ValidationInfo Protocol is an internal implementation detail
 - Should not be exposed to user validators
 
 **Testing Needed**:
+
 - Test with Pydantic v2.12.4 (previous version)
 - Check Pydantic v2.12.5 changelog for breaking changes
 
----
+______________________________________________________________________
 
 ### Hypothesis 2: mcp-common Inheritance Pattern Issue
 
 **Theory**: The `MCPBaseSettings.load()` pattern conflicts with Pydantic v2.12.5's validator chain.
 
 **Evidence**:
+
 - `load()` is a classmethod that builds data dict externally
 - Then calls `cls.model_validate(data)` to trigger validation
 - Validators run in the context of the parent class (MCPBaseSettings)
 - Child class validators (SessionMgmtSettings) may receive wrong context
 
 **Testing Needed**:
+
 - Try instantiating SessionMgmtSettings directly without `.load()`
 - Try removing `@model_validator` from SessionMgmtSettings temporarily
 - Test if the issue occurs with all child classes of MCPBaseSettings
 
----
+______________________________________________________________________
 
 ### Hypothesis 3: YAML Loading + Pydantic Validation Conflict
 
 **Theory**: YAML loading combined with environment variable merging creates a data structure that Pydantic v2.12.5 wraps in ValidationInfo.
 
 **Evidence**:
+
 - `load()` method merges 4 layers: defaults, server YAML, local YAML, env vars
 - Each layer uses `yaml.safe_load()` and `dict.update()`
 - Final `data` dict is passed to `model_validate()`
 
 **Testing Needed**:
+
 - Test `load()` with no YAML files (defaults only)
 - Test `load()` with empty YAML files
 - Test if environment variable loading triggers the issue
 
----
+______________________________________________________________________
 
 ## ✅ SOLUTION FOUND AND IMPLEMENTED (January 5, 2026)
 
 ### Root Cause (Discovered)
+
 **Pydantic v2.12.5 Breaking Change**: `@model_validator(mode="before")` must be a **classmethod**, not an instance method.
 
 When using an instance method with `@model_validator(mode="before")`, Pydantic v2.12.5's validation chain incorrectly passes a `ValidationInfo` Protocol object instead of the expected data dictionary.
@@ -396,6 +426,7 @@ When using an instance method with `@model_validator(mode="before")`, Pydantic v
 **File**: `/Users/les/Projects/session-buddy/session_buddy/settings.py:476-493`
 
 **Changed**:
+
 ```python
 @model_validator(mode="before")
 def map_legacy_debug_flag(self, data: t.Any) -> t.Any:  # ❌ Instance method - BROKEN in Pydantic v2.12.5
@@ -405,6 +436,7 @@ def map_legacy_debug_flag(self, data: t.Any) -> t.Any:  # ❌ Instance method - 
 ```
 
 **To**:
+
 ```python
 @model_validator(mode="before")
 @classmethod  # ✅ REQUIRED for Pydantic v2.12.5
@@ -422,6 +454,7 @@ def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
 ### Verification Results
 
 **Test 1: Settings Loading**
+
 ```
 ✅ SUCCESS: Settings loaded without ValidationInfo error
    Server name: session-buddy
@@ -431,6 +464,7 @@ def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
 ```
 
 **Test 2: Legacy Flag Mapping**
+
 ```
 ✅ SUCCESS: Legacy debug flag correctly mapped to enable_debug_mode
    enable_debug_mode: True
@@ -438,6 +472,7 @@ def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
 ```
 
 **Test 3: MCP Checkpoint Tool**
+
 ```
 ✅ CHECKPOINT SUCCESSFUL!
 Session quality: GOOD (Score: 64/100)
@@ -448,12 +483,14 @@ Session quality: GOOD (Score: 64/100)
 ### Why This Works
 
 **Pydantic v2.12.5 Validator Behavior**:
+
 - `@model_validator(mode="before")` runs **before** model instantiation
 - At this point, **no instance exists yet** - only the class
 - Using `self` (instance method) causes Pydantic to pass a ValidationInfo wrapper
 - Using `cls` (classmethod) allows Pydantic to pass the raw data dict correctly
 
 **Breaking Change Impact**:
+
 - This is a stricter enforcement in Pydantic v2.12.5's type system
 - Code that worked in Pydantic v2.12.4 and earlier will break in v2.12.5
 - Any `@model_validator(mode="before")` using `self` must be converted to `cls`
@@ -461,51 +498,58 @@ Session quality: GOOD (Score: 64/100)
 ### Related Issues That Did NOT Help
 
 **Attempted Fixes (Unnecessary)**:
+
 1. ❌ Adding type check to handle non-dict objects in session_buddy/settings.py
-2. ❌ Changing `cls(**data)` to `cls.model_validate(data)` in mcp-common
+1. ❌ Changing `cls(**data)` to `cls.model_validate(data)` in mcp-common
 
 **The Real Issue**:
+
 - The validator method signature was wrong (instance method instead of classmethod)
 - Once fixed, both `cls(**data)` and `cls.model_validate(data)` work fine
 
 **mcp-common v0.4.7 Note**:
+
 - The mcp-common update was not necessary for this fix
 - The issue was entirely in session-buddy's validator implementation
 - mcp-common v0.4.7 was installed but did not resolve the issue
 - The actual fix was changing the validator from instance method to classmethod
 
----
+______________________________________________________________________
 
 ## Current Status (UPDATED)
 
 ### ✅ All Issues Resolved
+
 1. ✅ **ValidationInfo error FIXED** - changed `@model_validator` from instance method to classmethod
-2. ✅ SessionMgmtSettings.load() working correctly
-3. ✅ Legacy debug flag mapping working correctly
-4. ✅ MCP checkpoint tool working successfully
-5. ✅ Session-buddy MCP server running in HTTP mode on port 8678
-6. ✅ pytest-benchmark error understood (crackerjack bug, not session-buddy)
+1. ✅ SessionMgmtSettings.load() working correctly
+1. ✅ Legacy debug flag mapping working correctly
+1. ✅ MCP checkpoint tool working successfully
+1. ✅ Session-buddy MCP server running in HTTP mode on port 8678
+1. ✅ pytest-benchmark error understood (crackerjack bug, not session-buddy)
 
 ### 📋 No Pending Tasks
+
 All issues resolved. Session-buddy is fully operational.
 
 ### 🔮 Future Items
+
 - (Future) Verify crackerjack test execution when crackerjack's working directory bug is fixed
 
----
+______________________________________________________________________
 
 ## Contact & Context (ORIGINAL - Preserved for Historical Reference)
 
 **User Statement** (Original): "we are patching mcp-common right now and will let you know when it's updated. Your task is to create a detailed summary"
 
 **What Actually Happened**:
+
 - User updated mcp-common to v0.4.7
 - Issue persisted after mcp-common update
 - Root cause was discovered in session-buddy's validator (not mcp-common)
 - Fixed by changing validator from instance method to classmethod
 - mcp-common update was not necessary for the fix
 
----
+______________________________________________________________________
 
 **Session Summary Generated**: 2025-01-05
 **Total Investigation Time**: ~3 hours
