@@ -21,6 +21,7 @@
 ### 2. ⚠️ WORKAROUND: pytest-xdist and DuckDB Database Locking
 
 **Problem**: Running tests with pytest-xdist (`-n auto`) causes DuckDB database lock contention errors:
+
 - "Could not set lock on file: Conflicting lock file"
 - Tests fail with `HealthStatus.UNHEALTHY` instead of expected `HEALTHY`
 - 4 test failures in health check tests
@@ -53,6 +54,7 @@ __main__.py: error: unrecognized arguments: -n --dist=loadfile
 ```
 
 **Workaround**: Run tests directly with pytest instead of crackerjack:
+
 ```bash
 python -m pytest tests/ --tb=no -q
 ```
@@ -60,28 +62,31 @@ python -m pytest tests/ --tb=no -q
 **Status**: Tests pass successfully (1,625 passed, 83 skipped) when run directly.
 
 **Next Steps**: One of the following:
+
 1. Remove `-p no:xdist` and accept DuckDB lock issues (re-enable xdist)
-2. Fix crackerjack to respect `-p no:xdist` configuration
-3. Improve test isolation to use truly unique temporary databases per test
+1. Fix crackerjack to respect `-p no:xdist` configuration
+1. Improve test isolation to use truly unique temporary databases per test
 
 ## Test Results
 
 ### With pytest (no xdist)
+
 - ✅ 1,625 tests passed
 - ⏭ 83 tests skipped (performance tests requiring `-m benchmark`)
 - ⏱ Duration: ~5 minutes
 - 💥 0 errors
 
 ### With crackerjack (current state)
+
 - ❌ Error: "unrecognized arguments: -n --dist=loadfile"
 - Tests cannot complete due to configuration conflict
 
 ## Recommendations
 
 1. **Keep `-p no:xdist` in pytest addopts** - Tests are reliable and fast enough without parallel execution
-2. **Use pytest directly** for now: `python -m pytest tests/`
-3. **For CI/CD**: Use `python -m pytest -m "not slow"` for faster feedback during development
-4. **For benchmarks**: Run separately with `python -m pytest -m benchmark --benchmark-disable-gc`
+1. **Use pytest directly** for now: `python -m pytest tests/`
+1. **For CI/CD**: Use `python -m pytest -m "not slow"` for faster feedback during development
+1. **For benchmarks**: Run separately with `python -m pytest -m benchmark --benchmark-disable-gc`
 
 ## Performance Test Execution
 
@@ -98,6 +103,7 @@ python -m pytest tests/performance/test_benchmarks.py::TestPerformanceBenchmarks
 ## Test Coverage
 
 Current test coverage: **1,625 passing tests** across:
+
 - Unit tests: Core functionality, database operations, quality scoring
 - Integration tests: MCP tool registration, session workflows, health checks
 - Functional tests: End-to-end session lifecycle

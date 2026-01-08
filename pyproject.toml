@@ -208,6 +208,10 @@ fixable = [
 unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
+"session_buddy/di/__init__.py" = [
+    "TC006",     # PEP 695 type params should be used directly in t.cast(), not as strings
+]
+
 "tests/*" = [
     "ANN001",
     "ANN201",
