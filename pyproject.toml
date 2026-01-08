@@ -6,7 +6,7 @@ requires = [
 
 [project]
 name = "session-buddy"
-version = "0.10.11"
+version = "0.10.12"
 description = "MCP server for Claude session management and conversation memory"
 readme = "README.md"
 keywords = [
