@@ -123,26 +123,23 @@ print('Server debug check complete')
 - **Updated FastAPI to >=0.124.2** - Removed upper bound constraint; FastAPI 0.121.x bugs resolved in 0.124.2+
 - **Documentation Reorganization** - Archived 80 historical docs to `docs/archive/` (91% reduction in top-level clutter)
 
-**ACB Adapter Migration - COMPLETE** (**Phases 2 & 3** - January 11, 2025)
+**Oneiric Adapter Migration - COMPLETE** (**Phases 2-5** - January 2025)
 
-Both database layers have been successfully migrated to ACB (Asynchronous Component Base) adapters:
+Both database layers have been successfully migrated to native DuckDB adapters (Oneiric):
 
-**✅ Phase 2: Vector Adapter** (Conversations/Reflections)
+**✅ Phase 2-3: Initial Migration** (Conversations/Reflections + Knowledge Graph)
 
-- Full ACB integration with async operations
-- Created `ReflectionDatabaseAdapter` using ACB Vector adapter (566 lines)
-- Fixed critical ACB framework bug (vector search returning score=0.0)
-- Migration script: `scripts/migrate_vector_database.py` (365 lines)
-- 100% API compatibility maintained
-
-**✅ Phase 3: Graph Adapter** (Knowledge Graph) - **Hybrid Pattern Discovery**
-
+- Created `ReflectionDatabaseAdapter` using native DuckDB vector operations (566 lines)
 - Implemented `KnowledgeGraphDatabaseAdapter` with hybrid sync/async pattern (700 lines)
-- **Breakthrough**: Discovered DuckDB operations are fast enough (\<1ms) to safely use sync code in async contexts
-- **No async driver required**: Eliminated need for `duckdb-engine` or async SQLAlchemy
+- Migration scripts: `scripts/migrate_vector_database.py`, `scripts/migrate_graph_database.py`
+- 100% API compatibility maintained throughout
+
+**✅ Phase 5: Oneiric Conversion** (Native DuckDB Implementation)
+
+- **Replaced external framework dependency** with direct DuckDB operations
+- **No async driver required**: DuckDB operations are fast enough (\<1ms) to safely use sync code in async contexts
 - Async method signatures for API consistency, sync DuckDB operations internally
-- Migration script: `scripts/migrate_graph_database.py` (345 lines)
-- Same pattern ACB's Vector adapter uses successfully
+- Maintained 100% backward compatibility while simplifying the stack
 
 **Hybrid Pattern Key Insight**:
 
@@ -158,18 +155,19 @@ This pattern can be applied to other fast local databases (SQLite, in-memory cac
 
 **Complete Migration Benefits**:
 
-- ✅ Both Vector and Graph databases use ACB patterns
+- ✅ Both Vector and Graph databases use native DuckDB with Oneiric adapters
+- ✅ Removed external framework dependency (simplified stack)
 - ✅ Improved connection pooling and resource management
 - ✅ Better testability through dependency injection
 - ✅ Zero new dependencies (no `duckdb-engine` needed)
 - ✅ 100% API compatibility for both adapters
 - ✅ Zero breaking changes for users
 
-**Full migration details**: `docs/ACB_MIGRATION_COMPLETE.md`
+**Full migration details**: `docs/migrations/ONEIRIC_MIGRATION_PLAN.md`
 
 **Dependency Injection Migration** (**Phase 2.7 Days 1-4 completed**)
 
-- Migrated from manual singleton management to ACB dependency injection
+- Migrated from manual singleton management to dependency injection
 - Centralized DI configuration in `session_buddy/di/` module with `configure()` function
 - Provides container-based access via `depends.get_sync(ClassName)` for testable, modular code
 - Benefits: Improved testability, reduced coupling, simplified lifecycle management
@@ -279,11 +277,10 @@ This pattern can be applied to other fast local databases (SQLite, in-memory cac
 
 1. **serverless_mode.py**: External storage integration
 
-   - **ACB Storage Adapters** (v0.9.4+): File, S3, Azure, GCS, Memory backends
-   - **Legacy Backends** (deprecated): Redis, old S3, old local (removed in v1.0)
+   - **Oneiric Storage Adapters**: File, S3, Azure, GCS, Memory backends using native DuckDB
    - **Session Serialization**: Stateless operation with external persistence
    - **Multi-Instance**: Support for distributed Claude Code deployments
-   - **See**: `docs/MIGRATION_GUIDE_ACB.md` for storage adapter migration
+   - **See**: `docs/migrations/ONEIRIC_MIGRATION_PLAN.md` for migration details
 
 1. **app_monitor.py**: IDE activity and browser documentation monitoring
 
@@ -507,9 +504,9 @@ The server uses the ~/.claude directory for data storage:
 
 - `PWD`: Used to detect current working directory
 
-### ACB Storage Adapters (v0.9.4+)
+### Oneiric Storage Adapters
 
-**New**: Session-mgmt-mcp now uses ACB (Asynchronous Component Base) storage adapters for improved reliability and multi-cloud support.
+Session Buddy uses Oneiric adapters with native DuckDB for improved reliability and multi-cloud support.
 
 **Recommended Backends**:
 
@@ -539,15 +536,12 @@ storage:
 
 - ✅ Multiple cloud providers (S3, Azure, GCS)
 - ✅ Environment variable support
+- ✅ Native DuckDB operations (no external framework)
 - ✅ Better connection pooling & error handling
 - ✅ 91% code reduction in storage layer
 - ✅ 100% backward compatibility
 
-**Migration**: See `docs/MIGRATION_GUIDE_ACB.md` for detailed migration instructions.
-
-**Legacy Backends** (deprecated, removed in v1.0):
-
-- `redis`, `local`, old `s3`, `acb` cache
+**Migration**: See `docs/migrations/ONEIRIC_MIGRATION_PLAN.md` for detailed migration instructions.
 
 ## Development Notes
 

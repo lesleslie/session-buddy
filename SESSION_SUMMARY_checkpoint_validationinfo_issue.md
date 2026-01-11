@@ -173,6 +173,7 @@ ______________________________________________________________________
 ```python
 from pydantic import BaseModel, field_validator, model_validator
 
+
 class SimpleSettings(BaseModel):
     name: str
 
@@ -182,6 +183,7 @@ class SimpleSettings(BaseModel):
         assert isinstance(data, dict), f"Expected dict, got {type(data)}"
         return data
 
+
 # Result: ✅ PASSED - data is correctly a dict
 ```
 
@@ -190,10 +192,7 @@ class SimpleSettings(BaseModel):
 ```python
 from mcp_common import MCPBaseSettings
 
-settings = MCPBaseSettings(
-    server_name="test",
-    log_level="INFO"
-)
+settings = MCPBaseSettings(server_name="test", log_level="INFO")
 
 # Result: ✅ PASSED - No ValidationInfo error
 ```
@@ -429,7 +428,9 @@ When using an instance method with `@model_validator(mode="before")`, Pydantic v
 
 ```python
 @model_validator(mode="before")
-def map_legacy_debug_flag(self, data: t.Any) -> t.Any:  # ❌ Instance method - BROKEN in Pydantic v2.12.5
+def map_legacy_debug_flag(
+    self, data: t.Any
+) -> t.Any:  # ❌ Instance method - BROKEN in Pydantic v2.12.5
     if not isinstance(data, dict):
         return data
     # ...

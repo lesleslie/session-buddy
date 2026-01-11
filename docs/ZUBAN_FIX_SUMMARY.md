@@ -30,6 +30,7 @@ Successfully eliminated all zuban type checker errors in the main session-buddy 
 # KEPT runtime import:
 try:
     from mcp_common.adapters.http.client import HTTPClientAdapter
+
     HTTP_ADAPTER_AVAILABLE = True
 except Exception:
     HTTPClientAdapter = None
@@ -78,11 +79,7 @@ ______________________________________________________________________
 # === Field Validators ===
 @model_validator(mode="before")
 def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
-    if (
-        isinstance(data, dict)
-        and "debug" in data
-        and "enable_debug_mode" not in data
-    ):
+    if isinstance(data, dict) and "debug" in data and "enable_debug_mode" not in data:
         data = dict(data)
         data["enable_debug_mode"] = bool(data["debug"])
     return data
@@ -149,6 +146,7 @@ ______________________________________________________________________
 # BEFORE:
 session_logger: Any = None
 
+
 def _get_logger() -> logging.Logger:
     global session_logger
     if session_logger is None:
@@ -156,8 +154,10 @@ def _get_logger() -> logging.Logger:
     assert session_logger is not None
     return session_logger  # type: ignore[return-value]
 
+
 # AFTER:
 session_logger: logging.Logger | None = None
+
 
 def _get_logger() -> logging.Logger:
     global session_logger

@@ -994,8 +994,8 @@ async def temp_working_dir():
 @pytest.fixture(autouse=True)
 def mock_settings():
     """Mock settings to avoid loading actual configuration."""
-    from unittest.mock import Mock, patch
     from pathlib import Path
+    from unittest.mock import Mock, patch
 
     with patch("session_buddy.settings.SessionMgmtSettings") as mock_settings_class:
         mock_settings_instance = Mock()

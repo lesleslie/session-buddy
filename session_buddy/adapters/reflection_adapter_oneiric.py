@@ -49,6 +49,7 @@ except ImportError:
 
 from session_buddy.adapters.settings import ReflectionAdapterSettings
 from session_buddy.di.container import depends
+from session_buddy.insights.models import validate_collection_name
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +104,13 @@ class ReflectionDatabaseAdapterOneiric:
         """
         self.settings = settings or ReflectionAdapterSettings.from_settings()
         if collection_name == "default":
-            self.collection_name = self.settings.collection_name
+            # Validate collection name to prevent SQL injection
+            self.collection_name = validate_collection_name(
+                self.settings.collection_name
+            )
         else:
-            self.collection_name = collection_name
+            # Validate collection name to prevent SQL injection
+            self.collection_name = validate_collection_name(collection_name)
         self.db_path = str(self.settings.database_path)
         self.conn: t.Any = None  # DuckDB connection (sync)
         self.onnx_session: InferenceSession | None = None
@@ -222,7 +227,7 @@ class ReflectionDatabaseAdapterOneiric:
             """
         )
 
-        # Create reflections table
+        # Create reflections table with insight support
         self.conn.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {self.collection_name}_reflections (
@@ -234,6 +239,13 @@ class ReflectionDatabaseAdapterOneiric:
                 created_at TIMESTAMP NOT NULL,
                 updated_at TIMESTAMP NOT NULL,
                 embedding FLOAT[{self.embedding_dim}],
+
+                -- Insight-specific fields
+                insight_type VARCHAR DEFAULT 'general',
+                usage_count INTEGER DEFAULT 0,
+                last_used_at TIMESTAMP,
+                confidence_score REAL DEFAULT 0.5,
+
                 FOREIGN KEY (conversation_id) REFERENCES {self.collection_name}_conversations(id)
             )
             """
@@ -245,6 +257,49 @@ class ReflectionDatabaseAdapterOneiric:
         )
         self.conn.execute(
             f"CREATE INDEX IF NOT EXISTS idx_{self.collection_name}_refl_created ON {self.collection_name}_reflections(created_at)"
+        )
+
+        # ========================================================================
+        # MIGRATION: Add insight columns to existing reflections tables
+        # ========================================================================
+        # This migration ensures existing databases get the new insight columns
+        # We use ALTER TABLE IF NOT EXISTS pattern (DuckDB-safe)
+
+        # Add insight_type column if it doesn't exist
+        with suppress(Exception):
+            self.conn.execute(
+                f"ALTER TABLE {self.collection_name}_reflections ADD COLUMN IF NOT EXISTS insight_type VARCHAR DEFAULT 'general'"
+            )
+
+        # Add usage_count column if it doesn't exist
+        with suppress(Exception):
+            self.conn.execute(
+                f"ALTER TABLE {self.collection_name}_reflections ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0"
+            )
+
+        # Add last_used_at column if it doesn't exist
+        with suppress(Exception):
+            self.conn.execute(
+                f"ALTER TABLE {self.collection_name}_reflections ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP"
+            )
+
+        # Add confidence_score column if it doesn't exist
+        with suppress(Exception):
+            self.conn.execute(
+                f"ALTER TABLE {self.collection_name}_reflections ADD COLUMN IF NOT EXISTS confidence_score REAL DEFAULT 0.5"
+            )
+
+        # Create insight-specific indexes for performance
+        # Note: DuckDB doesn't support partial indexes (WHERE clauses), so we create full indexes
+        # and filter at query time instead. Also can't index array types (VARCHAR[])
+        self.conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{self.collection_name}_refl_insight_type ON {self.collection_name}_reflections(insight_type)"
+        )
+        self.conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{self.collection_name}_refl_usage_count ON {self.collection_name}_reflections(usage_count)"
+        )
+        self.conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{self.collection_name}_refl_last_used ON {self.collection_name}_reflections(last_used_at)"
         )
 
     async def _init_embedding_model(self) -> None:
@@ -562,13 +617,13 @@ class ReflectionDatabaseAdapterOneiric:
             except Exception:
                 embedding = None
 
-        # Store reflection
+        # Store reflection (explicitly set insight_type to NULL to distinguish from insights)
         if embedding:
             self.conn.execute(
                 f"""
                 INSERT INTO {self.collection_name}_reflections
-                (id, content, tags, embedding, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (id, content, tags, embedding, created_at, updated_at, insight_type)
+                VALUES (?, ?, ?, ?, ?, ?, NULL)
                 """,
                 (
                     reflection_id,
@@ -583,8 +638,8 @@ class ReflectionDatabaseAdapterOneiric:
             self.conn.execute(
                 f"""
                 INSERT INTO {self.collection_name}_reflections
-                (id, content, tags, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                (id, content, tags, created_at, updated_at, insight_type)
+                VALUES (?, ?, ?, ?, ?, NULL)
                 """,
                 (
                     reflection_id,
@@ -621,7 +676,10 @@ class ReflectionDatabaseAdapterOneiric:
     async def _semantic_search_reflections(
         self, query: str, limit: int = 10
     ) -> list[dict[str, t.Any]]:
-        """Perform semantic search on reflections using embeddings."""
+        """Perform semantic search on reflections using embeddings.
+
+        Filters for insight_type IS NULL to only return reflections, not insights.
+        """
         if not self._initialized:
             await self.initialize()
 
@@ -634,9 +692,10 @@ class ReflectionDatabaseAdapterOneiric:
         results = self.conn.execute(
             f"""
             SELECT id, content, tags, created_at, updated_at,
-                   vector_cosine_similarity(embedding, ?) as similarity
+                   array_cosine_similarity(embedding::FLOAT[384], ?::FLOAT[384]) as similarity
             FROM {self.collection_name}_reflections
             WHERE embedding IS NOT NULL
+                AND insight_type IS NULL
             ORDER BY similarity DESC
             LIMIT ?
             """,
@@ -658,7 +717,10 @@ class ReflectionDatabaseAdapterOneiric:
     async def _text_search_reflections(
         self, query: str, limit: int = 10
     ) -> list[dict[str, t.Any]]:
-        """Perform text search on reflections."""
+        """Perform text search on reflections.
+
+        Filters for insight_type IS NULL to only return reflections, not insights.
+        """
         if not self._initialized:
             await self.initialize()
 
@@ -666,7 +728,8 @@ class ReflectionDatabaseAdapterOneiric:
             f"""
             SELECT id, content, tags, created_at, updated_at
             FROM {self.collection_name}_reflections
-            WHERE content LIKE ? OR list_contains(tags, ?)
+            WHERE insight_type IS NULL
+                AND (content LIKE ? OR list_contains(tags, ?))
             ORDER BY created_at DESC
             LIMIT ?
             """,
@@ -788,6 +851,410 @@ class ReflectionDatabaseAdapterOneiric:
             return True
         except Exception:
             return False
+
+    # ========================================================================
+    # INSIGHT-SPECIFIC METHODS
+    # ========================================================================
+
+    async def store_insight(
+        self,
+        content: str,
+        insight_type: str = "general",
+        topics: list[str] | None = None,
+        projects: list[str] | None = None,
+        source_conversation_id: str | None = None,
+        source_reflection_id: str | None = None,
+        confidence_score: float = 0.5,
+        quality_score: float = 0.5,
+    ) -> str:
+        """Store an insight with embedding for semantic search.
+
+        Args:
+            content: Insight content text
+            insight_type: Type of insight (general, pattern, architecture, etc.)
+            topics: Optional topic tags for categorization
+            projects: Optional list of project names this insight relates to
+            source_conversation_id: Optional ID of conversation that generated this insight
+            source_reflection_id: Optional ID of reflection that generated this insight
+            confidence_score: Confidence in extraction accuracy (0.0 to 1.0)
+            quality_score: Quality score of the insight (0.0 to 1.0)
+
+        Returns:
+            Unique insight ID
+
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        insight_id = str(uuid.uuid4())
+        now = datetime.now(tz=UTC)
+
+        # Validate insight_type
+        from session_buddy.insights.models import validate_collection_name
+
+        try:
+            validate_collection_name(insight_type)
+        except ValueError:
+            # Default to 'general' if validation fails
+            insight_type = "general"
+
+        # Sanitize project names
+        from session_buddy.insights.models import sanitize_project_name
+
+        if projects:
+            projects = [sanitize_project_name(p) for p in projects]
+
+        # Generate embedding if available
+        embedding: list[float] | None = None
+        if ONNX_AVAILABLE and self.onnx_session:
+            try:
+                embedding = await self._generate_embedding(content)
+            except Exception:
+                embedding = None
+
+        # Build metadata
+        metadata = {
+            "quality_score": quality_score,
+            "source_conversation_id": source_conversation_id,
+            "source_reflection_id": source_reflection_id,
+        }
+
+        # Store insight with or without embedding
+        if embedding:
+            self.conn.execute(
+                f"""
+                INSERT INTO {self.collection_name}_reflections
+                (id, content, tags, metadata, embedding, created_at, updated_at,
+                 insight_type, usage_count, confidence_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    insight_id,
+                    content,
+                    topics or [],
+                    json.dumps(metadata),
+                    embedding,
+                    now,
+                    now,
+                    insight_type,
+                    0,  # usage_count starts at 0
+                    confidence_score,
+                ),
+            )
+        else:
+            self.conn.execute(
+                f"""
+                INSERT INTO {self.collection_name}_reflections
+                (id, content, tags, metadata, created_at, updated_at,
+                 insight_type, usage_count, confidence_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    insight_id,
+                    content,
+                    topics or [],
+                    json.dumps(metadata),
+                    now,
+                    now,
+                    insight_type,
+                    0,  # usage_count starts at 0
+                    confidence_score,
+                ),
+            )
+
+        return insight_id
+
+    async def search_insights(
+        self,
+        query: str,
+        limit: int = 10,
+        min_quality_score: float = 0.0,
+        min_similarity: float = 0.0,
+        use_embeddings: bool = True,
+    ) -> list[dict[str, t.Any]]:
+        """Search insights with pre-filtering by quality and similarity.
+
+        Args:
+            query: Search query text
+            limit: Maximum number of results to return
+            min_quality_score: Minimum quality score threshold (0.0 to 1.0)
+            min_similarity: Minimum semantic similarity threshold (0.0 to 1.0)
+            use_embeddings: Whether to use semantic search if available
+
+        Returns:
+            List of matching insights with metadata
+
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        # Use semantic search if embeddings available
+        if use_embeddings and ONNX_AVAILABLE and self.onnx_session:
+            return await self._semantic_search_insights(
+                query, limit, min_quality_score, min_similarity
+            )
+
+        # Fall back to text search
+        return await self._text_search_insights(query, limit, min_quality_score)
+
+    async def _semantic_search_insights(
+        self,
+        query: str,
+        limit: int,
+        min_quality_score: float,
+        min_similarity: float,
+    ) -> list[dict[str, t.Any]]:
+        """Perform semantic search on insights using embeddings.
+
+        Filters for insight_type IS NOT NULL to only return insights, not reflections.
+        Special handling: '*' and '' fall back to text search to return all insights.
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        # Wildcard search - fall back to text search which handles '*' properly
+        if query in {"*", ""}:
+            return await self._text_search_insights(query, limit, min_quality_score)
+
+        # Generate query embedding
+        query_embedding = await self._generate_embedding(query)
+        if not query_embedding:
+            return await self._text_search_insights(query, limit, min_quality_score)
+
+        # Perform vector similarity search with quality filter
+        # Cast embedding to match query_embedding type for array_cosine_similarity
+        results = self.conn.execute(
+            f"""
+            SELECT
+                id, content, tags, metadata, created_at, updated_at,
+                insight_type, usage_count, last_used_at, confidence_score,
+                array_cosine_similarity(embedding::FLOAT[384], ?::FLOAT[384]) as similarity
+            FROM {self.collection_name}_reflections
+            WHERE
+                embedding IS NOT NULL
+                AND insight_type IS NOT NULL
+                AND json_extract(metadata, '$.quality_score') >= ?
+            ORDER BY similarity DESC, created_at DESC
+            LIMIT ?
+            """,
+            (query_embedding, min_quality_score, limit * 2),  # Get extra for filtering
+        ).fetchall()
+
+        # Filter by similarity and format results
+        formatted_results = []
+        for row in results:
+            similarity = row[10] or 0.0
+            if similarity < min_similarity:
+                continue
+
+            # Parse metadata
+            metadata = {}
+            with suppress(Exception):
+                if row[3]:
+                    metadata = json.loads(row[3])
+
+            formatted_results.append(
+                {
+                    "id": row[0],
+                    "content": row[1],
+                    "tags": list(row[2]) if row[2] else [],
+                    "metadata": metadata,
+                    "created_at": row[4].isoformat() if row[4] else None,
+                    "updated_at": row[5].isoformat() if row[5] else None,
+                    "insight_type": row[6],
+                    "usage_count": row[7] or 0,
+                    "last_used_at": row[8].isoformat() if row[8] else None,
+                    "confidence_score": row[9] or 0.5,
+                    "similarity": similarity,
+                }
+            )
+
+        # Limit results after filtering
+        return formatted_results[:limit]
+
+    async def _text_search_insights(
+        self,
+        query: str,
+        limit: int,
+        min_quality_score: float,
+    ) -> list[dict[str, t.Any]]:
+        """Perform text search on insights (fallback when embeddings unavailable).
+
+        Filters for insight_type IS NOT NULL to only return insights, not reflections.
+        Special handling: '*' matches all insights (wildcard search).
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        # Special handling for wildcard - return all insights
+        if query in {"*", ""}:
+            results = self.conn.execute(
+                f"""
+                SELECT
+                    id, content, tags, metadata, created_at, updated_at,
+                    insight_type, usage_count, last_used_at, confidence_score
+                FROM {self.collection_name}_reflections
+                WHERE
+                    insight_type IS NOT NULL
+                    AND json_extract(metadata, '$.quality_score') >= ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (min_quality_score, limit),
+            ).fetchall()
+        else:
+            results = self.conn.execute(
+                f"""
+                SELECT
+                    id, content, tags, metadata, created_at, updated_at,
+                    insight_type, usage_count, last_used_at, confidence_score
+                FROM {self.collection_name}_reflections
+                WHERE
+                    insight_type IS NOT NULL
+                    AND (content LIKE ? OR list_contains(tags, ?))
+                    AND json_extract(metadata, '$.quality_score') >= ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (f"%{query}%", query, min_quality_score, limit),
+            ).fetchall()
+
+        formatted_results = []
+        for row in results:
+            # Parse metadata
+            metadata = {}
+            with suppress(Exception):
+                if row[3]:
+                    metadata = json.loads(row[3])
+
+            formatted_results.append(
+                {
+                    "id": row[0],
+                    "content": row[1],
+                    "tags": list(row[2]) if row[2] else [],
+                    "metadata": metadata,
+                    "created_at": row[4].isoformat() if row[4] else None,
+                    "updated_at": row[5].isoformat() if row[5] else None,
+                    "insight_type": row[6],
+                    "usage_count": row[7] or 0,
+                    "last_used_at": row[8].isoformat() if row[8] else None,
+                    "confidence_score": row[9] or 0.5,
+                    "similarity": None,  # No similarity score in text search
+                }
+            )
+
+        return formatted_results
+
+    async def update_insight_usage(self, insight_id: str) -> bool:
+        """Atomically increment the usage count for an insight.
+
+        This fixes the race condition vulnerability identified in security review.
+        Uses atomic UPDATE to prevent concurrent updates from losing data.
+
+        Args:
+            insight_id: ID of the insight to update
+
+        Returns:
+            True if update succeeded, False otherwise
+
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            # Check if insight exists first
+            check_result = self.conn.execute(
+                f"""
+                SELECT COUNT(*) FROM {self.collection_name}_reflections
+                WHERE id = ? AND insight_type IS NOT NULL
+                """,
+                (insight_id,),
+            ).fetchone()
+
+            if not check_result or check_result[0] == 0:
+                return False
+
+            # Atomic increment prevents race condition
+            self.conn.execute(
+                f"""
+                UPDATE {self.collection_name}_reflections
+                SET
+                    usage_count = usage_count + 1,
+                    last_used_at = ?,
+                    updated_at = ?
+                WHERE id = ? AND insight_type IS NOT NULL
+                """,
+                (datetime.now(tz=UTC), datetime.now(tz=UTC), insight_id),
+            )
+            return True
+        except Exception:
+            return False
+
+    async def get_insights_statistics(self) -> dict[str, t.Any]:
+        """Get aggregate statistics about stored insights.
+
+        Returns:
+            Dictionary with insight statistics:
+            - total: Total number of insights
+            - avg_quality: Average quality score
+            - avg_usage: Average usage count
+            - by_type: Count of insights by type
+            - top_projects: Most common project associations
+
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        # Total insights count
+        total_result = self.conn.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM {self.collection_name}_reflections
+            WHERE insight_type IS NOT NULL
+            """
+        ).fetchone()
+        total = total_result[0] if total_result else 0
+
+        # Average quality score
+        quality_result = self.conn.execute(
+            f"""
+            SELECT AVG(CAST(json_extract(metadata, '$.quality_score') AS REAL))
+            FROM {self.collection_name}_reflections
+            WHERE
+                insight_type IS NOT NULL
+                AND json_extract(metadata, '$.quality_score') IS NOT NULL
+            """
+        ).fetchone()
+        avg_quality = quality_result[0] if quality_result and quality_result[0] else 0.0
+
+        # Average usage count
+        usage_result = self.conn.execute(
+            f"""
+            SELECT AVG(usage_count)
+            FROM {self.collection_name}_reflections
+            WHERE insight_type IS NOT NULL
+            """
+        ).fetchone()
+        avg_usage = usage_result[0] if usage_result and usage_result[0] else 0.0
+
+        # Count by insight type
+        type_results = self.conn.execute(
+            f"""
+            SELECT insight_type, COUNT(*) as count
+            FROM {self.collection_name}_reflections
+            WHERE insight_type IS NOT NULL
+            GROUP BY insight_type
+            ORDER BY count DESC
+            """
+        ).fetchall()
+        by_type = {row[0]: row[1] for row in type_results}
+
+        return {
+            "total": total,
+            "avg_quality": round(avg_quality, 3),
+            "avg_usage": round(avg_usage, 2),
+            "by_type": by_type,
+        }
 
 
 # Alias for backward compatibility

@@ -1,7 +1,13 @@
 """Tests for team_knowledge module."""
 
 import pytest
-from session_buddy.team_knowledge import UserRole, AccessLevel, TeamUser, TeamReflection, Team
+from session_buddy.team_knowledge import (
+    AccessLevel,
+    Team,
+    TeamReflection,
+    TeamUser,
+    UserRole,
+)
 
 
 def test_user_role_enum():

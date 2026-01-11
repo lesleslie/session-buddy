@@ -18,4 +18,4 @@ def test_legacy_debug_maps_to_enable_debug_mode() -> None:
     # Since we're mocking the settings, we need to test the functionality differently
     # The model_validator is tested in integration tests
     settings = get_settings()
-    assert hasattr(settings, 'enable_debug_mode')
+    assert hasattr(settings, "enable_debug_mode")

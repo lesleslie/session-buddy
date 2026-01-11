@@ -1,7 +1,7 @@
 """Tests for file_context module."""
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 from session_buddy.memory.file_context import build_file_context
 

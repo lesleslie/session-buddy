@@ -267,6 +267,46 @@ class SessionMgmtSettings(MCPBaseSettings):
         description="Always store reflections at session end",
     )
 
+    # === Insights Capture Settings ===
+    enable_insight_extraction: bool = Field(
+        default=True,
+        description="Enable automatic insight extraction from checkpoints",
+    )
+    insight_extraction_confidence_threshold: float = Field(
+        default=0.3,
+        ge=0.1,
+        le=0.8,
+        description="Minimum confidence score for extracted insights (0.1-0.8)",
+    )
+    insight_extraction_max_per_checkpoint: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        description="Maximum insights to extract per checkpoint",
+    )
+    insight_auto_prune_enabled: bool = Field(
+        default=True,
+        description="Enable automatic pruning of low-quality insights",
+    )
+    insight_prune_age_days: int = Field(
+        default=90,
+        ge=30,
+        le=365,
+        description="Days before pruning unused insights (90+ days recommended)",
+    )
+    insight_prune_min_quality: float = Field(
+        default=0.4,
+        ge=0.1,
+        le=0.8,
+        description="Minimum quality score to avoid pruning (0.1-0.8)",
+    )
+    insight_prune_min_usage: int = Field(
+        default=0,
+        ge=0,
+        le=10,
+        description="Minimum usage count to avoid pruning (0-10 uses)",
+    )
+
     # === Integration Settings ===
     enable_crackerjack: bool = Field(
         default=True,
@@ -474,11 +514,12 @@ class SessionMgmtSettings(MCPBaseSettings):
 
     # === Field Validators ===
     @model_validator(mode="before")
-    def map_legacy_debug_flag(self, data: t.Any) -> t.Any:
+    @classmethod
+    def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
         """
         Map legacy 'debug' flag to 'enable_debug_mode'.
 
-        In Pydantic v2, model validators with mode='before' are implicitly classmethods.
+        Must be a classmethod for Pydantic v2.12.5+ compatibility.
         """
         # Handle Pydantic ValidationInfo (Protocol) objects
         # This can happen when mcp-common's MCPBaseSettings.load() method

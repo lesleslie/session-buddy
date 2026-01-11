@@ -1,18 +1,18 @@
 """Tests for llm_providers module."""
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
 
-from session_buddy.llm_providers import LLMManager
+import pytest
 from session_buddy.llm import LLMMessage
+from session_buddy.llm_providers import LLMManager
 
 
 @pytest.fixture
 def llm_manager():
     """Create an LLMManager instance for testing."""
-    with patch('session_buddy.llm_providers.OpenAIProvider') as mock_openai, \
-         patch('session_buddy.llm_providers.GeminiProvider') as mock_gemini, \
-         patch('session_buddy.llm_providers.OllamaProvider') as mock_ollama:
+    with patch("session_buddy.llm_providers.OpenAIProvider") as mock_openai, \
+         patch("session_buddy.llm_providers.GeminiProvider") as mock_gemini, \
+         patch("session_buddy.llm_providers.OllamaProvider") as mock_ollama:
 
         # Mock the provider instances
         mock_openai_instance = AsyncMock()
@@ -34,9 +34,9 @@ def llm_manager():
 @pytest.mark.asyncio
 async def test_llm_manager_initialization():
     """Test LLMManager initialization."""
-    with patch('session_buddy.llm_providers.OpenAIProvider') as mock_openai, \
-         patch('session_buddy.llm_providers.GeminiProvider') as mock_gemini, \
-         patch('session_buddy.llm_providers.OllamaProvider') as mock_ollama:
+    with patch("session_buddy.llm_providers.OpenAIProvider") as mock_openai, \
+         patch("session_buddy.llm_providers.GeminiProvider") as mock_gemini, \
+         patch("session_buddy.llm_providers.OllamaProvider") as mock_ollama:
 
         # Mock the provider instances
         mock_openai_instance = AsyncMock()
@@ -62,9 +62,9 @@ async def test_llm_manager_initialization():
 @pytest.mark.asyncio
 async def test_get_available_providers():
     """Test getting available providers."""
-    with patch('session_buddy.llm_providers.OpenAIProvider') as mock_openai, \
-         patch('session_buddy.llm_providers.GeminiProvider') as mock_gemini, \
-         patch('session_buddy.llm_providers.OllamaProvider') as mock_ollama:
+    with patch("session_buddy.llm_providers.OpenAIProvider") as mock_openai, \
+         patch("session_buddy.llm_providers.GeminiProvider") as mock_gemini, \
+         patch("session_buddy.llm_providers.OllamaProvider") as mock_ollama:
 
         # Mock the provider instances
         mock_openai_instance = AsyncMock()
@@ -91,9 +91,9 @@ async def test_get_available_providers():
 @pytest.mark.asyncio
 async def test_is_valid_provider():
     """Test checking if a provider is valid."""
-    with patch('session_buddy.llm_providers.OpenAIProvider') as mock_openai, \
-         patch('session_buddy.llm_providers.GeminiProvider') as mock_gemini, \
-         patch('session_buddy.llm_providers.OllamaProvider') as mock_ollama:
+    with patch("session_buddy.llm_providers.OpenAIProvider") as mock_openai, \
+         patch("session_buddy.llm_providers.GeminiProvider") as mock_gemini, \
+         patch("session_buddy.llm_providers.OllamaProvider") as mock_ollama:
 
         # Mock the provider instances
         mock_openai_instance = AsyncMock()
