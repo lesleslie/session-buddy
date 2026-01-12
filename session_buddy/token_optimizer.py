@@ -12,7 +12,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-import tiktoken
+try:
+    import tiktoken
+except ImportError:
+    tiktoken = None  # type: ignore[assignment]
+
 from session_buddy.acb_cache_adapter import ACBChunkCache, get_chunk_cache
 
 
@@ -60,6 +64,8 @@ class TokenOptimizer:
 
     def _get_encoding(self) -> Any:
         """Get tiktoken encoding for token counting."""
+        if tiktoken is None:
+            return None
         try:
             return tiktoken.get_encoding("cl100k_base")  # GPT-4 encoding
         except Exception:

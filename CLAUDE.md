@@ -987,15 +987,9 @@ When working with this codebase, remember these architectural patterns:
 
 <!-- CRACKERJACK INTEGRATION START -->
 
-## Crackerjack Integration for session-buddy
-
 This project uses crackerjack for Python project management and quality assurance.
 
-## Recommended Claude Code Agents
-
-For optimal development experience with this crackerjack-enabled project, use these specialized agents:
-
-### **Primary Agents (Use for all Python development)**
+For optimal development experience with this crackerjack - enabled project, use these specialized agents:
 
 - **🏗️ crackerjack-architect**: Expert in crackerjack's modular architecture and Python project management patterns. **Use PROACTIVELY** for all feature development, architectural decisions, and ensuring code follows crackerjack standards from the start.
 
@@ -1003,68 +997,61 @@ For optimal development experience with this crackerjack-enabled project, use th
 
 - **🧪 pytest-hypothesis-specialist**: Advanced testing patterns, property-based testing, and test optimization
 
-### **Task-Specific Agents**
-
 - **🧪 crackerjack-test-specialist**: Advanced testing specialist for complex testing scenarios and coverage optimization
+
 - **🏗️ backend-architect**: System design, API architecture, and service integration patterns
+
 - **🔒 security-auditor**: Security analysis, vulnerability detection, and secure coding practices
 
-### **Agent Usage Patterns**
-
 ```bash
-# Start development with crackerjack-compliant architecture
-Task tool with subagent_type="crackerjack-architect" for feature planning
 
-# Implement with modern Python best practices
-Task tool with subagent_type="python-pro" for code implementation
+Task tool with subagent_type ="crackerjack-architect" for feature planning
 
-# Add comprehensive testing
-Task tool with subagent_type="pytest-hypothesis-specialist" for test development
 
-# Security review before completion
-Task tool with subagent_type="security-auditor" for security analysis
+Task tool with subagent_type ="python-pro" for code implementation
+
+
+Task tool with subagent_type ="pytest-hypothesis-specialist" for test development
+
+
+Task tool with subagent_type ="security-auditor" for security analysis
 ```
 
 **💡 Pro Tip**: The crackerjack-architect agent automatically ensures code follows crackerjack patterns from the start, eliminating the need for retrofitting and quality fixes.
 
-## Crackerjack Quality Standards
-
 This project follows crackerjack's clean code philosophy:
 
-### **Core Principles**
-
 - **EVERY LINE OF CODE IS A LIABILITY**: The best code is no code
+
 - **DRY (Don't Repeat Yourself)**: If you write it twice, you're doing it wrong
+
 - **YAGNI (You Ain't Gonna Need It)**: Build only what's needed NOW
+
 - **KISS (Keep It Simple, Stupid)**: Complexity is the enemy of maintainability
 
-### **Quality Rules**
+- \*\*Cognitive complexity ≤15 \*\*per function (automatically enforced)
 
-- **Cognitive complexity ≤15** per function (automatically enforced)
-- **Coverage maintenance**: Never decrease coverage, always improve incrementally
+- **Coverage ratchet system**: Never decrease coverage, always improve toward 100%
+
 - **Type annotations required**: All functions must have return type hints
+
 - **Security patterns**: No hardcoded paths, proper temp file handling
+
 - **Python 3.13+ modern patterns**: Use `|` unions, pathlib over os.path
 
-## Development Workflow
-
-### **Quality Commands**
-
 ```bash
-# Quality checks (fast feedback during development)
+
 python -m crackerjack
 
-# With comprehensive testing
-python -m crackerjack -t
 
-# AI agent mode with autonomous fixing
-python -m crackerjack --ai-fix -t
+python -m crackerjack - t
 
-# Full release workflow
-python -m crackerjack -a patch
+
+python -m crackerjack - - ai - agent - t
+
+
+python -m crackerjack - a patch
 ```
-
-### **Recommended Workflow**
 
 1. **Plan with crackerjack-architect**: Ensure proper architecture from the start
 1. **Implement with python-pro**: Follow modern Python patterns
@@ -1072,15 +1059,13 @@ python -m crackerjack -a patch
 1. **Run quality checks**: `python -m crackerjack -t` before committing
 1. **Security review**: Use security-auditor for final validation
 
-## Important Instructions
-
 - **Use crackerjack-architect agent proactively** for all significant code changes
-- **Maintain code quality standards** - complexity ≤15, comprehensive types
+- **Never reduce test coverage** - the ratchet system only allows improvements
 - **Follow crackerjack patterns** - the tools will enforce quality automatically
-- **Leverage AI agent auto-fixing** - `python -m crackerjack --ai-fix -t` for autonomous quality fixes
+- **Leverage AI agent auto-fixing** - `python -m crackerjack --ai-agent -t` for autonomous quality fixes
 
 ______________________________________________________________________
 
-*This project is enhanced by crackerjack's intelligent Python project management.*
+- This project is enhanced by crackerjack's intelligent Python project management.\*
 
 <!-- CRACKERJACK INTEGRATION END -->

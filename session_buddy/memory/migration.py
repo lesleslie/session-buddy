@@ -18,7 +18,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-import duckdb
+try:
+    import duckdb
+except ImportError:
+    duckdb = None  # type: ignore[assignment]
+
 from session_buddy.memory.schema_v2 import MIGRATION_SQL, SCHEMA_V2_SQL
 from session_buddy.settings import get_database_path
 

@@ -4,7 +4,7 @@
 
 **Time to get started**: 5 minutes
 
----
+______________________________________________________________________
 
 ## 1. 💡 Automatic Insights Capture
 
@@ -78,9 +78,9 @@ Session Buddy automatically extracts insights at two points:
 Session Buddy captures insights when:
 
 1. **You run `/checkpoint`**: Extracts insights from conversation so far
-2. **You end session**: Extracts any new insights (duplicates are filtered out)
-3. **Quality threshold**: Only captures insights with confidence ≥0.5 (configurable)
-4. **Rate limiting**: Max 10 insights per checkpoint (configurable)
+1. **You end session**: Extracts any new insights (duplicates are filtered out)
+1. **Quality threshold**: Only captures insights with confidence ≥0.5 (configurable)
+1. **Rate limiting**: Max 10 insights per checkpoint (configurable)
 
 ### Configuration
 
@@ -92,7 +92,7 @@ insight_extraction_confidence_threshold: 0.5  # Minimum confidence
 insight_extraction_max_per_checkpoint: 10  # Rate limiting
 ```
 
----
+______________________________________________________________________
 
 ## 2. 🌐 Cross-Project Intelligence
 
@@ -160,6 +160,7 @@ deps = [
 **Scenario**: You have 5 microservices that share authentication patterns.
 
 **Setup**:
+
 ```python
 # Create group
 microservices = ProjectGroup(
@@ -184,6 +185,7 @@ deps = [
 **Scenario**: You have a monorepo with frontend, backend, shared packages.
 
 **Setup**:
+
 ```python
 monorepo = ProjectGroup(
     name="web-app",
@@ -198,6 +200,7 @@ monorepo = ProjectGroup(
 **Scenario**: Separate repos for client, server, and shared contracts.
 
 **Setup**:
+
 ```python
 distributed = ProjectGroup(
     name="distributed-system",
@@ -214,7 +217,7 @@ distributed = ProjectGroup(
 - **`references`**: Loose coupling (documentation, patterns)
 - **`shares_code`**: Code sharing (common libraries, utilities)
 
----
+______________________________________________________________________
 
 ## 3. 👥 Team Collaboration
 
@@ -270,7 +273,7 @@ When team members store reflections with `team_id`, they become searchable:
 
 **Benefit**: High-quality reflections float to the top through community voting.
 
----
+______________________________________________________________________
 
 ## 4. 🔍 Advanced Search Techniques
 
@@ -317,7 +320,7 @@ Get aggregated insights without full result lists:
 # - No full result list (faster)
 ```
 
----
+______________________________________________________________________
 
 ## 5. 📊 Analytics & Statistics
 
@@ -330,6 +333,7 @@ View what's been captured:
 ```
 
 Returns:
+
 - Total insights captured
 - Breakdown by type (pattern, architecture, best_practice, gotcha)
 - Top topics
@@ -343,6 +347,7 @@ Returns:
 ```
 
 Returns:
+
 - Total reflections stored
 - Projects with most reflections
 - Search trends
@@ -357,12 +362,13 @@ Returns:
 ```
 
 Returns:
+
 - Team member contributions
 - Most voted reflections
 - Activity trends
 - Knowledge coverage
 
----
+______________________________________________________________________
 
 ## 6. ⚙️ Configuration
 
@@ -394,13 +400,14 @@ export SESSION_BUDDY_DATABASE_PATH="/custom/path/reflection.duckdb"
 export SESSION_BUDDY_INSIGHT_CONFIDENCE="0.7"
 ```
 
----
+______________________________________________________________________
 
 ## 7. 🎯 Best Practices
 
 ### Writing Better Insights
 
 **DO** ✅:
+
 - Be specific and actionable
 - Include context and rationale
 - Use concrete examples
@@ -413,6 +420,7 @@ Always validate user input at the API boundary, not just in business logic. This
 ```
 
 **DON'T** ❌:
+
 - Mark every statement as an insight
 - Capture trivial information
 - Be vague or overly general
@@ -433,12 +441,14 @@ Write good code.
 ### Organizing Projects
 
 **DO** ✅:
+
 - Group related projects meaningfully
 - Define accurate dependencies
 - Use descriptive project names
 - Document relationships
 
 **DON'T** ❌:
+
 - Group unrelated projects together
 - Create circular dependencies
 - Use cryptic abbreviations
@@ -447,18 +457,20 @@ Write good code.
 ### Team Collaboration
 
 **DO** ✅:
+
 - Vote on high-quality reflections
 - Tag with relevant topics
 - Share across teams appropriately
 - Document team-specific knowledge
 
 **DON'T** ❌:
+
 - Spam with low-quality reflections
 - Over-tag everything
 - Share sensitive information publicly
 - Duplicate existing team knowledge
 
----
+______________________________________________________________________
 
 ## 8. 🐛 Troubleshooting
 
@@ -469,19 +481,23 @@ Write good code.
 **Checks**:
 
 1. **Verify feature is enabled**:
+
    ```bash
    grep enable_insight_extraction ~/.claude/settings/session-mgmt.yaml
    ```
 
-2. **Check conversation has insights**:
+1. **Check conversation has insights**:
+
    - Look for `★ Insight ─────` delimiters
    - Ensure proper formatting (exact delimiters required)
 
-3. **Check confidence threshold**:
+1. **Check confidence threshold**:
+
    - Insights below threshold (default: 0.5) are filtered out
    - Lower threshold temporarily: `export SESSION_BUDDY_INSIGHT_CONFIDENCE="0.3"`
 
-4. **Check logs**:
+1. **Check logs**:
+
    ```bash
    tail -f ~/.claude/logs/session-buddy.log | grep -i insight
    ```
@@ -493,6 +509,7 @@ Write good code.
 **Checks**:
 
 1. **Verify project group exists**:
+
    ```python
    # Check in Python
    from session_buddy.multi_project_coordinator import MultiProjectCoordinator
@@ -500,14 +517,16 @@ Write good code.
    groups = await coordinator.list_project_groups()
    ```
 
-2. **Check dependencies are defined**:
+1. **Check dependencies are defined**:
+
    ```python
    deps = await coordinator.list_dependencies(
        source_project="user-service"
    )
    ```
 
-3. **Verify projects share knowledge**:
+1. **Verify projects share knowledge**:
+
    - Ensure reflections are tagged with project names
    - Check `search_insights` with `project="*"` (search all)
 
@@ -518,17 +537,21 @@ Write good code.
 **Checks**:
 
 1. **Wildcard search**:
+
    ```bash
    /session-buddy:search_insights "*"
    ```
+
    If this returns results, your data is there, just not matching your query.
 
-2. **Lower threshold**:
+1. **Lower threshold**:
+
    ```bash
    /session-buddy:search_insights "your query" min_similarity=0.5
    ```
 
-3. **Check database**:
+1. **Check database**:
+
    ```python
    import duckdb
    conn = duckdb.connect("~/.claude/data/reflection.duckdb")
@@ -536,7 +559,7 @@ Write good code.
    print(result.fetchone())  # Should be > 0
    ```
 
----
+______________________________________________________________________
 
 ## 9. 📚 Further Reading
 
@@ -545,7 +568,7 @@ Write good code.
 - **[Claude Flow V2 Integration](../../CLAUDE_FLOW_INTEGRATION_PLAN_V2.md)** - Future roadmap
 - **[Architecture Overview](../developer/ARCHITECTURE.md)** - System design
 
----
+______________________________________________________________________
 
 ## 10. 🚀 Quick Reference
 
@@ -575,24 +598,27 @@ Write good code.
 ### Common Workflows
 
 **New Feature Development**:
+
 ```bash
 /start → Work with ★ Insight delimiters → /checkpoint →
 Continue → /end → /search_insights "new feature"
 ```
 
 **Bug Investigation**:
+
 ```bash
 /search_errors "error message" → Review solutions →
 /store_reflection "fix approach" → Vote on quality
 ```
 
 **Multi-Project Coordination**:
+
 ```bash
 /create_project_group → /add_project_dependency →
 /search_across_projects "pattern" "group"
 ```
 
----
+______________________________________________________________________
 
 **Last Updated**: January 10, 2026
 **Status**: Production Ready ✅

@@ -90,6 +90,7 @@ async def cleanup_http_clients() -> None:
 
     try:
         from mcp_common.adapters.http.client import HTTPClientAdapter
+
         from session_buddy.di.container import depends
 
         try:

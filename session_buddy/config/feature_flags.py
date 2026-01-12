@@ -15,7 +15,6 @@ Usage:
 from __future__ import annotations
 
 import os
-import typing as t
 from dataclasses import dataclass
 
 from session_buddy.settings import get_settings

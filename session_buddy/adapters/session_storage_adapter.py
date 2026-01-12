@@ -22,7 +22,6 @@ import json
 import typing as t
 from contextlib import suppress
 from datetime import datetime
-from pathlib import Path
 
 if t.TYPE_CHECKING:
     from session_buddy.adapters.storage_oneiric import StorageBaseOneiric

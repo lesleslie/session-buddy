@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import time
 import typing as t
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
-import duckdb
+try:
+    import duckdb
+except ImportError:
+    duckdb = None  # type: ignore[assignment]
+
 from session_buddy.memory.entity_extractor import (
     EntityRelationship,
     ExtractedEntity,
@@ -22,7 +24,10 @@ def get_settings() -> t.Any:
     return _get_settings()
 
 
-def _connect() -> duckdb.DuckDBPyConnection:
+def _connect() -> duckdb.DuckDBPyConnection | None:
+    if duckdb is None:
+        msg = "duckdb module is not available"
+        raise ImportError(msg)
     settings = get_settings()
     db_path = Path(
         str(getattr(settings, "database_path", "~/.claude/data/reflection.duckdb"))

@@ -651,4 +651,3 @@ class TestFilterDuplicateInsights:
         assert len(unique_insights) == 1
         assert isinstance(seen_hashes, set)
         assert len(seen_hashes) == 1
-

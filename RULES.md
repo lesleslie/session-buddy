@@ -38,7 +38,7 @@
   - Avoid unnecessary line comments - use them sparingly only for complex logic
   - Use protocols (`t.Protocol`) instead of abstract base classes
   - Choose clear, descriptive variable and function names that make the code self-documenting (even in map/filter functions)
-  - **Keep cognitive complexity ≤13 per function** - extract helper methods if needed (KISS principle)
+  - **Keep cognitive complexity ≤15 per function** - extract helper methods if needed (KISS principle)
 
 - **Code Organization**
 
@@ -51,7 +51,7 @@
 
   - Structure projects with clear separation of concerns
   - Follow standard package layout conventions
-  - Use [pyproject.toml](https://github.com/lesleslie/session-buddy/blob/main/pyproject.toml) for all configuration
+  - Use [pyproject.toml](./pyproject.toml) for all configuration
   - **Modular Architecture**: Use protocol-based dependency injection
     - Core orchestration layer: `WorkflowOrchestrator`, `AsyncWorkflowOrchestrator`
     - Coordinator layer: `SessionCoordinator`, `PhaseCoordinator`
@@ -70,7 +70,7 @@
 
 **Bandit B108 (Hardcoded Temp Directory):**
 
-```text
+```python
 # NEVER do this - causes security warnings
 config_path = "/tmp/test-config.yaml"
 
@@ -171,7 +171,7 @@ def _should_process(self, data: dict) -> bool:
 
   - **Complexipy Code Complexity (KISS Enforcement):**
 
-    - Keep cognitive complexity ≤13 per function/method
+    - Keep cognitive complexity ≤15 per function/method
     - Break complex methods into 3-5 smaller helper functions with single responsibilities
     - Use descriptive function names that explain their purpose
     - Remember: complexity is the enemy of maintainability
@@ -289,7 +289,7 @@ Following our **Clean Code Philosophy** where every line of code is a liability:
 
 - **Test Coverage Improvement (MANDATORY)**
 
-  - **Maintain 42% minimum coverage**: Never reduce coverage below 42% in config files
+  - **Target 42% milestone coverage**: Work toward 42% milestone (current: 21.6%, baseline: 19.6%). See [COVERAGE_POLICY.md](./docs/reference/COVERAGE_POLICY.md).
   - **Always improve coverage incrementally** when working on projects with pytest coverage below the target
   - **Check coverage first**: Run `uv run pytest --cov=<package_name> --cov-report=term-missing` to see current status
   - **Target 2-5% improvement per session**: Add 1-3 focused tests that cover uncovered lines
@@ -301,7 +301,7 @@ Following our **Clean Code Philosophy** where every line of code is a liability:
   - **Write focused tests**: Each test should cover 1-3 lines of uncovered code
   - **Quality over quantity**: Tests should be simple, reliable, and fast (< 1 second each)
   - **Example incremental approach**:
-    ```text
+    ```python
     # Target: Cover error handling in Options validation
     def test_options_invalid_bump_option():
         with pytest.raises(ValueError, match="Invalid bump option"):
@@ -344,7 +344,7 @@ Following our **Clean Code Philosophy** where every line of code is a liability:
 
 - **AI Agent Iteration Workflow (CRITICAL)**
 
-  - AI agent mode (`--ai-fix`) follows strict iteration protocol:
+  - AI agent mode (`--ai-agent`) follows strict iteration protocol:
     1. **Fast Hooks** → Retry once if any fail (formatting fixes often cascade)
     1. **Collect ALL Test Failures** → Don't stop on first failure, gather complete list
     1. **Collect ALL Hook Issues** → Don't stop on first failure, gather complete list

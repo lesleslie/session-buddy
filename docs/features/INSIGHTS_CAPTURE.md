@@ -4,7 +4,7 @@
 **Implementation Date**: January 10, 2026
 **Test Coverage**: 62/62 tests passing (unit + integration + e2e)
 
----
+______________________________________________________________________
 
 ## Overview
 
@@ -18,7 +18,7 @@ This document tracks the implementation of an automated knowledge capture system
 - **Content-based deduplication** - SHA-256 hashing prevents near-duplicates across capture points
 - **Session-level tracking** - Maintain hash set across extraction calls for efficient deduplication
 
----
+______________________________________________________________________
 
 ## Implementation Phases
 
@@ -27,6 +27,7 @@ This document tracks the implementation of an automated knowledge capture system
 **Status**: All critical security vulnerabilities fixed and tested
 
 **Completed Tasks**:
+
 - [x] 1.1 Created Pydantic-based `Insight` model in `insights/models.py` (277 lines)
 - [x] 1.2 Implemented `validate_collection_name()` to prevent SQL injection
 - [x] 1.3 Implemented `sanitize_project_name()` to prevent information disclosure
@@ -35,36 +36,41 @@ This document tracks the implementation of an automated knowledge capture system
 - [x] 1.6 Verified all security tests pass
 
 **Security Tests**:
+
 ```bash
 pytest tests/unit/test_insights_security.py -v
 # Result: 29/29 tests passing (1 test skipped for expected behavior)
 ```
 
 **Key Files**:
+
 - `session_buddy/insights/models.py` - Pydantic models with validation
 - `session_buddy/insights/console.py` - Colored console output utilities
 - `tests/unit/test_insights_security.py` - Security test suite (398 lines)
 
 **Architecture Decision**: Refactored from dataclass to Pydantic BaseModel
+
 - **Reason**: Consistency with session-buddy, automatic type coercion, better error messages
 - **Result**: 100% test coverage maintained, improved validation
 
----
+______________________________________________________________________
 
 ### ✅ Phase 2: Database Extension (COMPLETE)
 
 **Status**: Reflections table extended with insight support, backward compatible
 
 **Completed Tasks**:
+
 - [x] 2.1 Added insight columns to reflections table schema
 - [x] 2.2 Created performance indexes for insight queries
 - [x] 2.3 Implemented `store_insight()` async method
 - [x] 2.4 Implemented `search_insights()` with wildcard support
 - [x] 2.5 Added migration logic for existing databases
-- [x] 2.6 Implemented wildcard search handling ('*' matches all)
+- [x] 2.6 Implemented wildcard search handling ('\*' matches all)
 - [x] 2.7 Wrote unit tests for database operations (27/27 tests passing)
 
 **Database Schema**:
+
 ```sql
 -- Extended reflections table with insight support
 CREATE TABLE default_reflections (
@@ -89,11 +95,13 @@ ON default_reflections(insight_type) WHERE insight_type IS NOT NULL;
 ```
 
 **Migration Logic**:
+
 - Added `ALTER TABLE ADD COLUMN IF NOT EXISTS` for backward compatibility
 - Existing databases automatically get new columns on next startup
 - No manual migration required
 
 **Wildcard Search Support**:
+
 ```python
 # Special handling for wildcard - return all insights
 if query == "*" or query == "":
@@ -113,16 +121,18 @@ if query == "*" or query == "":
 ```
 
 **Key Files**:
+
 - `session_buddy/adapters/reflection_adapter_oneiric.py` - Extended with insight support
 - `tests/unit/test_insights_database.py` - Database operation tests (27 tests)
 
----
+______________________________________________________________________
 
 ### ✅ Phase 3: Extraction Integration (COMPLETE)
 
 **Status**: Multi-point capture with session-level deduplication working
 
 **Completed Tasks**:
+
 - [x] 3.1 Created `ExtractedInsight` dataclass with validation
 - [x] 3.2 Implemented rule-based extraction in `extractor.py` (591 lines)
 - [x] 3.3 Added topic extraction with keyword matching (12 topics)
@@ -137,6 +147,7 @@ if query == "*" or query == "":
 - [x] 3.12 Wrote end-to-end test validating multi-point capture workflow
 
 **Extraction Logic**:
+
 ```python
 # Rule-based extraction from conversation context
 def extract_insights_from_context(
@@ -171,6 +182,7 @@ def extract_insights_from_context(
 ```
 
 **Multi-Point Capture Strategy**:
+
 ```python
 # In SessionLifecycleManager
 async def _extract_and_store_insights(
@@ -235,6 +247,7 @@ async def _extract_and_store_insights(
 ```
 
 **Deduplication Logic**:
+
 ```python
 def filter_duplicate_insights(
     insights: list[ExtractedInsight],
@@ -273,6 +286,7 @@ def filter_duplicate_insights(
 ```
 
 **Key Files**:
+
 - `session_buddy/insights/__init__.py` - Package initialization
 - `session_buddy/insights/extractor.py` - Rule-based extraction engine (591 lines)
 - `session_buddy/insights/models.py` - Pydantic models (277 lines)
@@ -280,31 +294,35 @@ def filter_duplicate_insights(
 - `tests/unit/test_insights_extractor.py` - Extraction tests (655 lines, 37 tests)
 - `test_e2e_insights_capture.py` - End-to-end workflow test (226 lines)
 
----
+______________________________________________________________________
 
 ## Test Coverage
 
 ### Unit Tests (62/62 passing)
 
 **Security Tests** (29 tests):
+
 ```bash
 pytest tests/unit/test_insights_security.py -v
 # Covers: SQL injection, ReDoS, information disclosure, validation
 ```
 
 **Database Tests** (27 tests):
+
 ```bash
 pytest tests/unit/test_insights_database.py -v
 # Covers: store_insight, search_insights, wildcard handling
 ```
 
 **Extractor Tests** (37 tests):
+
 ```bash
 pytest tests/unit/test_insights_extractor.py -v
 # Covers: extraction, deduplication, hashing, topic detection
 ```
 
 **Console Tests** (16 tests):
+
 ```bash
 pytest tests/unit/test_insights_console.py -v
 # Covers: colored output, formatting
@@ -313,17 +331,20 @@ pytest tests/unit/test_insights_console.py -v
 ### End-to-End Test
 
 **Multi-Point Capture Workflow** (all passing):
+
 ```bash
 python test_e2e_insights_capture.py
 ```
 
 **Test Scenarios**:
+
 1. ✅ **Checkpoint captures insights correctly** - 2 insights extracted
-2. ✅ **Session end deduplicates previously captured insights** - 0 new (all duplicates)
-3. ✅ **Session end captures new insights** - 2 new insights (4 total unique)
-4. ✅ **Database stores all unique insights without duplicates** - 4 unique insights verified
+1. ✅ **Session end deduplicates previously captured insights** - 0 new (all duplicates)
+1. ✅ **Session end captures new insights** - 2 new insights (4 total unique)
+1. ✅ **Database stores all unique insights without duplicates** - 4 unique insights verified
 
 **Test Output**:
+
 ```
 ✅ All end-to-end tests passed!
 
@@ -335,13 +356,14 @@ python test_e2e_insights_capture.py
    ✓ Multi-point capture with deduplication working correctly
 ```
 
----
+______________________________________________________________________
 
 ## Configuration
 
 ### Feature Flags
 
 **In `session_buddy/settings.py`**:
+
 ```python
 @dataclass
 class SessionMgmtSettings(MCPBaseSettings):
@@ -361,7 +383,7 @@ export SESSION_BUDDY_DATABASE_PATH="/custom/path/reflection.duckdb"
 export SESSION_BUDDY_ENABLE_INSIGHT_EXTRACTION="false"
 ```
 
----
+______________________________________________________________________
 
 ## Usage Examples
 
@@ -415,26 +437,29 @@ async def search_example():
 asyncio.run(search_example())
 ```
 
----
+______________________________________________________________________
 
 ## Performance Characteristics
 
 **Extraction Performance**:
-- Rule-based extraction: **<50ms** for typical conversation
-- Deduplication hashing: **<1ms** per insight (SHA-256)
-- Database insertion: **<10ms** per insight (with embedding)
+
+- Rule-based extraction: **\<50ms** for typical conversation
+- Deduplication hashing: **\<1ms** per insight (SHA-256)
+- Database insertion: **\<10ms** per insight (with embedding)
 
 **Search Performance**:
-- Semantic search with embeddings: **<20ms** for 100 results
-- Text search fallback: **<5ms** for 100 results
-- Wildcard search ('*'): **<5ms** for all insights
+
+- Semantic search with embeddings: **\<20ms** for 100 results
+- Text search fallback: **\<5ms** for 100 results
+- Wildcard search ('\*'): **\<5ms** for all insights
 
 **Database Size**:
+
 - Typical insight: 500-1000 characters
 - With embedding (384 floats): ~1.5KB per insight
 - 1000 insights ≈ 1.5MB database size
 
----
+______________________________________________________________________
 
 ## Design Decisions
 
@@ -443,6 +468,7 @@ asyncio.run(search_example())
 **Decision**: Rule-based extraction with deterministic patterns
 
 **Rationale**:
+
 - ✅ **Testable** - Can write unit tests for specific patterns
 - ✅ **Fast** - No external API calls, local processing only
 - ✅ **Controllable** - Can adjust thresholds and patterns
@@ -454,6 +480,7 @@ asyncio.run(search_example())
 **Decision**: Capture at both checkpoint and session_end
 
 **Rationale**:
+
 - ✅ **Comprehensive coverage** - Multiple capture points ensure nothing is missed
 - ✅ **Graceful degradation** - If one capture point fails, others succeed
 - ✅ **Deduplication** - Session-level hash tracking prevents duplicates
@@ -464,6 +491,7 @@ asyncio.run(search_example())
 **Decision**: SHA-256 hashing with normalization
 
 **Rationale**:
+
 - ✅ **Near-duplicate detection** - Catches formatting variations
 - ✅ **Fast** - Hashing is O(1) lookup
 - ✅ **Reliable** - Cryptographic hash guarantees no false positives
@@ -474,6 +502,7 @@ asyncio.run(search_example())
 **Decision**: Maintain `_captured_insight_hashes` set in SessionManager
 
 **Rationale**:
+
 - ✅ **Efficient** - O(1) duplicate detection vs O(n) database queries
 - ✅ **Cross-call tracking** - Works across checkpoint and session_end
 - ✅ **Session-scoped** - Automatically reset between sessions
@@ -481,39 +510,43 @@ asyncio.run(search_example())
 
 ### 5. Wildcard Search Support
 
-**Decision**: Treat '*' and '' as "match all" wildcards
+**Decision**: Treat '\*' and '' as "match all" wildcards
 
 **Rationale**:
-- ✅ **User-friendly** - '*' is conventional for "match everything"
+
+- ✅ **User-friendly** - '\*' is conventional for "match everything"
 - ✅ **Backward compatible** - Specific searches still work
 - ✅ **Efficient** - Optimized query path for wildcards
 - ❌ Strict string matching would be confusing for users
 
----
+______________________________________________________________________
 
 ## Future Enhancements
 
 ### Not Yet Implemented
 
 **Phase 4: Injection Tools** (Planned, not started):
+
 - [ ] MCP tool for insight injection
 - [ ] MCP tool for manual insight capture
 - [ ] MCP tool for insights statistics
 - [ ] Token budget respect using `token_optimizer.py`
 
 **Phase 5: Advanced Features** (Planned, not started):
+
 - [ ] Usage tracking and statistics
 - [ ] Quality scoring based on user feedback
 - [ ] Auto-pruning of low-quality insights
 - [ ] Cross-project insight sharing
 
 **Phase 6: Documentation** (Planned, not started):
+
 - [ ] Update README.md with insights feature
 - [ ] Create usage examples and tutorials
 - [ ] Add API documentation
 - [ ] Roll out to test users
 
----
+______________________________________________________________________
 
 ## Troubleshooting
 
@@ -522,49 +555,55 @@ asyncio.run(search_example())
 **Symptoms**: No insights appear in database after checkpoint/session_end
 
 **Checks**:
+
 1. Verify feature flag is enabled: `enable_insight_extraction = True`
-2. Check conversation history has `★ Insight` delimiters
-3. Ensure insights meet confidence threshold (default: 0.5)
-4. Check logs for extraction errors: `grep "Insight extraction" ~/.claude/logs/session-buddy.log`
+1. Check conversation history has `★ Insight` delimiters
+1. Ensure insights meet confidence threshold (default: 0.5)
+1. Check logs for extraction errors: `grep "Insight extraction" ~/.claude/logs/session-buddy.log`
 
 ### Duplicates Appearing in Database
 
 **Symptoms**: Same insight appears multiple times
 
 **Checks**:
+
 1. Verify session-level hash tracking is working: Check `_captured_insight_hashes` set
-2. Ensure `filter_duplicate_insights()` is being called
-3. Check hash normalization is working: `normalize_insight_content()`
+1. Ensure `filter_duplicate_insights()` is being called
+1. Check hash normalization is working: `normalize_insight_content()`
 
 ### Search Returns No Results
 
 **Symptoms**: `search_insights("*")` returns empty list
 
 **Checks**:
-1. Verify insights exist in database: Direct SQL query
-2. Check `insight_type IS NOT NULL` filter is not too restrictive
-3. Ensure `quality_score` in metadata is set correctly
-4. Verify wildcard handling: Look for special case in `_text_search_insights()`
 
----
+1. Verify insights exist in database: Direct SQL query
+1. Check `insight_type IS NOT NULL` filter is not too restrictive
+1. Ensure `quality_score` in metadata is set correctly
+1. Verify wildcard handling: Look for special case in `_text_search_insights()`
+
+______________________________________________________________________
 
 ## References
 
 **Related Documentation**:
+
 - `docs/features/AUTO_LIFECYCLE.md` - Automatic session management
 - `docs/features/TOKEN_OPTIMIZATION.md` - Context window management
 - `docs/features/SELECTIVE_AUTO_STORE.md` - Reflection storage policy
 
 **Implementation Plan**:
+
 - Original plan: `/Users/les/.claude/plans/streamed-petting-sloth.md`
 
 **Test Files**:
+
 - `test_e2e_insights_capture.py` - End-to-end validation
 - `tests/unit/test_insights_extractor.py` - Unit tests (37 tests)
 - `tests/unit/test_insights_security.py` - Security tests (29 tests)
 - `tests/unit/test_insights_database.py` - Database tests (27 tests)
 
----
+______________________________________________________________________
 
 **Last Updated**: January 10, 2026
 **Implementation Status**: ✅ Phases 1-3 COMPLETE (Multi-point capture with deduplication)

@@ -62,3 +62,66 @@ settings/local.yaml
 /.oneiric_cache/
 /.jbeval/
 /.complexipy_cache/
+
+# Crackerjack patterns
+
+
+
+
+# Build/Distribution
+# Caches
+# Coverage
+# Crackerjack specific
+# Development
+*$py.class
+*.backup
+*.crackerjack.bak
+*.egg
+*.egg-info/
+*.py[cod]
+*.pyc
+*.so
+*.swo
+*.swp
+*~
+.DS_STORE
+.benchmarks/
+.claude/
+.coverage
+.coverage*
+.coverage.*
+.crackerjack-*
+.crackerjack/
+.envrc
+.hypothesis/
+.idea/
+.mcp.json
+.mypy_cache/
+.pytest_cache/
+.pytype/
+.ruff_cache/
+.tox/
+.venv/
+.vscode/
+/.cache/
+/.complexipy_cache/
+/.jbeval/
+/.oneiric_cache/
+/NOTES.md
+/build/
+/dist/
+ENV/
+__pycache__/
+build/
+coverage.json
+coverage.xml
+crackerjack-ai-debug-*.log
+crackerjack-debug-*.log
+dist/
+docs (1)/
+docs/archive/
+env/
+htmlcov/
+session_handoff_*.md
+settings/local.yaml
+venv/

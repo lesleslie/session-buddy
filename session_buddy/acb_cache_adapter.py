@@ -13,6 +13,7 @@ from dataclasses import dataclass
 if t.TYPE_CHECKING:
     from aiocache import SimpleMemoryCache
     from aiocache.serializers import PickleSerializer
+
     from session_buddy.adapters.settings import CacheAdapterSettings
 
 try:

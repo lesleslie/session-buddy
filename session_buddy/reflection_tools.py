@@ -47,7 +47,6 @@ try:
 except ImportError:
     DUCKDB_AVAILABLE = False
 
-import tempfile
 
 try:
     import onnxruntime as ort
@@ -135,7 +134,7 @@ class ReflectionDatabase:
         self._initialized = False  # Track initialization state
 
     @property
-    def conn(self) -> duckdb.DuckDBPyConnection | None:
+    def conn(self) -> "duckdb.DuckDBPyConnection | None":
         """Get the connection for the current thread (for backward compatibility)."""
         return getattr(self.local, "conn", None)
 
@@ -299,7 +298,7 @@ class ReflectionDatabase:
                 self.db_path, config={"allow_unsigned_extensions": True}
             )
 
-    def _get_conn(self) -> duckdb.DuckDBPyConnection:
+    def _get_conn(self) -> "duckdb.DuckDBPyConnection":
         """Get database connection for the current thread, initializing if needed."""
         if not self._initialized:
             msg = "Database connection not initialized. Call initialize() first"

@@ -24,6 +24,7 @@ def register_access_log_tools(mcp: FastMCP) -> None:
         """
         try:
             import duckdb
+
             from session_buddy.settings import get_database_path
 
             db_path = get_database_path()

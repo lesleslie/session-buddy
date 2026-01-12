@@ -19,7 +19,7 @@ from __future__ import annotations
 # ============================================================================
 from contextlib import suppress
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter
 from session_buddy.parameter_models import (
@@ -31,7 +31,6 @@ from session_buddy.parameter_models import (
 )
 from session_buddy.reflection_tools import ReflectionDatabase
 from session_buddy.utils.error_handlers import ValidationError, _get_logger
-from session_buddy.utils.tool_wrapper import execute_database_tool
 
 # Define type alias for backward compatibility during migration
 # NOTE: With 'from __future__ import annotations', we use the actual types, not strings

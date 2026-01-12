@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import typing as t
 import uuid
-from contextlib import suppress
 from datetime import UTC, datetime
 
 from session_buddy.adapters.settings import KnowledgeGraphAdapterSettings

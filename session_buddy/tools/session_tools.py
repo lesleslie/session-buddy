@@ -20,7 +20,6 @@ from session_buddy.di import get_sync_typed
 from session_buddy.di.container import depends
 
 if TYPE_CHECKING:
-    import psutil
     from fastmcp import FastMCP
 
 from session_buddy.core import SessionLifecycleManager

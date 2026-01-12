@@ -146,7 +146,7 @@ ______________________________________________________________________
   - Skill library abstraction (learned patterns become reusable skills)
   - Causal chain reasoning (failure→fix pattern tracking)
   - Conversation + edit history analysis
-  - Invokable skills for Claude Code
+  - Invocable skills for Claude Code
 
 **2. Benchmarking → Comprehensive Health Monitoring** ⭐ ENHANCEMENT
 
@@ -1417,7 +1417,7 @@ A comprehensive intelligence system that learns from successful patterns, extrac
 
 - Phase 0 provides the **foundation**: Rule-based extraction captures insights with `★ Insight ─────` delimiters
 - Phase 4 adds the **intelligence layer**: Pattern consolidation turns insights into reusable skills
-- **Evolution path**: Individual insights → Pattern instances (3+) → Learned skills → Invokable skills
+- **Evolution path**: Individual insights → Pattern instances (3+) → Learned skills → Invocable skills
 - **Database continuity**: Both use `reflections` table (insight_type → skill_type, pattern_instances table)
 - **See**: [`docs/features/INSIGHTS_CAPTURE.md`](docs/features/INSIGHTS_CAPTURE.md) for Phase 0 implementation
 
@@ -1427,7 +1427,7 @@ A comprehensive intelligence system that learns from successful patterns, extrac
 - **Skill library abstraction** ⭐ (NEW from Perplexity)
 - **Causal chain reasoning** ⭐ (elevated from hooks)
 - **Conversation + edit history analysis** ⭐ (NEW from Perplexity)
-- **Invokable skills for Claude Code** ⭐ (NEW from Perplexity)
+- **Invocable skills for Claude Code** ⭐ (NEW from Perplexity)
 
 #### Architecture
 
@@ -3045,7 +3045,7 @@ ______________________________________________________________________
 1. **Intelligence System (Phase 3)**
 
    - Current: Individual insights captured via rule-based extraction
-   - Target: Pattern instances (3+) → learned skills → invokable skills
+   - Target: Pattern instances (3+) → learned skills → invocable skills
    - Path: Extend extraction → consolidate patterns → skill library
 
 1. **Causal Chains (Phase 1)**

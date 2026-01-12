@@ -24,7 +24,7 @@ from pathlib import Path
 from session_buddy.adapters.settings import StorageAdapterSettings
 
 if t.TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    pass
 
 
 class StorageProtocol(t.Protocol):

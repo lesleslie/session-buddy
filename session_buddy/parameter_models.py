@@ -22,8 +22,6 @@ from pydantic import BaseModel, Field, field_validator
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from pydantic import ValidationError
-
 
 class ValidationResponse(NamedTuple):
     """Response from parameter validation containing status and data."""

@@ -23,20 +23,12 @@ CONFIG_AVAILABLE = False
 CRACKERJACK_INTEGRATION_AVAILABLE = False
 
 with suppress(ImportError):
-    from session_buddy.token_optimizer import TokenOptimizer
-
     TOKEN_OPTIMIZER_AVAILABLE = True
 
 with suppress(ImportError):
-    from session_buddy.di.config import SessionPaths
-
     CONFIG_AVAILABLE = True
 
 with suppress(ImportError):
-    from session_buddy.crackerjack_integration import (
-        CrackerjackIntegration,
-    )
-
     CRACKERJACK_INTEGRATION_AVAILABLE = True
 
 # ============================================================================

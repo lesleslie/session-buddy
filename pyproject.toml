@@ -1,391 +1,151 @@
-[build-system]
-build-backend = "hatchling.build"
-requires = [
-    "hatchling",
-]
-
-[project]
-name = "session-buddy"
-version = "0.10.12"
-description = "MCP server for Claude session management and conversation memory"
-readme = "README.md"
-keywords = [
-    "ai-tools",
-    "anthropic",
-    "claude",
-    "conversation-memory",
-    "mcp",
-    "reflection",
-    "session-management",
-]
-authors = [
-    { name = "Les Leslie", email = "les@wedgwoodwebworks.com" },
-]
-requires-python = ">=3.13"
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: BSD License",
-    "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: System :: System Shells",
-    "Topic :: Utilities",
-]
-dependencies = [
-    "aiocache>=0.12.3",
-    "duckdb>=1.4.3",
-    "jinja2>=3.1.6",
-    "jinja2-async-environment>=0.18.6",
-    "mcp-common>=0.3.6",
-    "numpy>=2.4.0",
-    "onnxruntime>=1.23.2,<1.24.0.dev",
-    "httpx>=0.28.1,<1.0.0",
-    "psutil>=7.2.0",
-    "pydantic>=2.12.5",
-    "pydantic-settings>=2.12.0",
-    "rich>=14.2.0",
-    "structlog>=25.5.0",
-    "tiktoken>=0.12.0",
-    "tomli>=2.3.0",
-    "transformers>=4.57.3",
-    "typer>=0.21.0",
-    "crackerjack>=0.46.4",
-    "logly>=0.1.6",
-    "fastapi>=0.127.1",
-    "oneiric>=0.3.3",
-]
-
-[project.license]
-file = "LICENSE"
-
-[project.urls]
-Homepage = "https://github.com/lesleslie/session-buddy"
-Issues = "https://github.com/lesleslie/session-buddy/issues"
-Repository = "https://github.com/lesleslie/session-buddy"
-
-[project.scripts]
-session-buddy = "session_buddy.server:main"
-run-quality-checks = "session_buddy.scripts.quality:run_checks"
-run-tests = "session_buddy.scripts.test_runner:main"
-
-[tool.session-buddy]
-mcp_http_port = 8678
-mcp_http_host = "127.0.0.1"
-websocket_monitor_port = 8677
-http_enabled = true
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
 [tool.ruff]
 target-version = "py313"
 line-length = 88
-fix = true
-unsafe-fixes = true
-show-fixes = true
-output-format = "full"
 exclude = [
-    "tests_old_backup/",
-    ".cache",
-    "**/.cache/**",
+    "tests/",
+    "test_*.py",
+    "*_test.py",
 ]
-
-[tool.ruff.format]
-docstring-code-format = true
 
 [tool.ruff.lint]
-select = [
-    "ALL",
-]
 extend-select = [
+    "C901",
     "F",
     "I",
     "UP",
 ]
 ignore = [
-    "ANN001",
-    "ANN002",
-    "ANN003",
-    "ANN201",
-    "ANN202",
-    "ANN204",
-    "ANN205",
-    "ANN401",
-    "ARG001",
-    "ARG002",
-    "ARG004",
-    "ARG005",
-    "ASYNC109",
-    "ASYNC221",
-    "ASYNC230",
-    "B007",
-    "B008",
-    "B023",
-    "B904",
-    "BLE001",
-    "COM812",
-    "CPY001",  # Missing copyright notice rule
-    "D100",
-    "D101",
-    "D102",
-    "D103",
-    "D104",
-    "D105",
-    "D106",
-    "D107",
-    "D203",  # Docstring should not have blank line before class
-    "D205",  # Blank line after summary
-    "D211",  # No blank line before class
-    "D212",  # Multi-line docstring summary should start at the first line
-    "D213",  # Multi-line docstring summary should start at the second line
-    "D401",  # First line should be in imperative mood
-    "D402",  # First person in docstring
-    "DTZ001",
-    "DTZ003",
-    "DTZ005",
-    "DTZ006",
     "E402",
-    "E501",
-    "ERA001",
-    "EXE001",
-    "F401",  # Unused imports (sometimes triggered by imports for __all__)
     "F821",
-    "FBT001",
-    "FBT002",
-    "FIX002",
-    "G004",
-    "PERF401",
-    "PLC0415",
-    "PLE1205",
-    "PLR0911",
-    "PLR0912",
-    "PLR0913",
-    "PLR0915",
-    "PLR2004",
-    "PLW0603",
-    "PLW2901",
-    "PT017",
-    "PTH109",
-    "PTH110",
-    "PTH111",
-    "PTH123",
-    "RUF001",
-    "RUF006",
-    "S101",
-    "S104",
-    "S105",
-    "S108",
-    "S110",
-    "S112",
-    "S301",
-    "S306",
-    "S311",
-    "S314",
-    "S324",
-    "S603",
-    "S607",
-    "S608",
-    "SIM102",
-    "SIM115",
-    "SIM117",
-    "SLF001",
-    "T201",
-    "T203",
-    "TD002",
-    "TD003",
-    "TRY002",
-    "TRY300",
-    "TRY301",
-    "TRY401",
-    "UP007",
-    "DOC201",  # Return not documented in docstring
-    "DOC501",  # Raised exception missing from docstring
 ]
 fixable = [
     "ALL",
-]
-unfixable = []
-
-[tool.ruff.lint.per-file-ignores]
-"session_buddy/di/__init__.py" = [
-    "TC006",     # PEP 695 type params should be used directly in t.cast(), not as strings
-]
-
-"tests/*" = [
-    "ANN001",
-    "ANN201",
-    "ASYNC251",  # time.sleep in async (intentional for test timing)
-    "B017",      # pytest.raises blind exception (intentional for testing)
-    "D103",
-    "E722",      # Bare except (intentional for test cleanup)
-    "F811",      # Redefinition (pytest fixtures pattern)
-    "FBT003",
-    "PGH003",    # type: ignore without code (test compatibility)
-    "PLR2004",
-    "PT011",     # pytest.raises too broad (intentional for testing)
-    "PT012",     # pytest.raises multiple statements (test pattern)
-    "PTH107",    # os.remove vs Path.unlink (test compatibility)
-    "PTH118",    # os.path.join vs Path (test compatibility)
-    "PYI024",    # namedtuple vs NamedTuple (test compatibility)
-    "RUF003",    # Ambiguous quotes in comments
-    "S101",
-    "SIM105",    # contextlib.suppress (intentional try/except patterns in tests)
-]
-
-[tool.ruff.lint.flake8-quotes]
-docstring-quotes = "double"
-inline-quotes = "double"
-multiline-quotes = "double"
-
-[tool.ruff.lint.isort]
-no-lines-before = [
-    "first-party",
 ]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15
 
-[tool.codespell]
-skip = "*/data/*,tests/*,test_*.py,*_test.py"
-quiet-level = 3
-ignore-words-list = "crate,uptodate,nd,nin"
-
-[tool.pytest]
-minversion = "7.0"
-addopts = [
-    "--tb=short",
-    "--strict-markers",
-    "--durations=20",
-    "-p",
-    "no:xdist",
-]
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+timeout = 600
 testpaths = [
     "tests",
-    "session_buddy",
 ]
-python_files = [
-    "test_*.py",
+addopts = [
+    "--cov=session-buddy",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html:htmlcov",
+    "--cov-report=json",
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+    "--tb=short",
 ]
-python_classes = [
-    "Test*",
-]
-python_functions = [
-    "test_*",
-]
-asyncio_default_fixture_loop_scope = "function"
-asyncio_mode = "auto"
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-    "functional: marks tests as functional tests",
-    "performance: marks tests as performance tests",
-    "security: marks tests as security tests",
-    "mcp: marks tests as MCP server tests",
-    "property: marks tests as property-based tests",
-    "benchmark: mark test as a benchmark",
-    "e2e: marks test as end-to-end test",
-    "smoke: marks test as smoke test",
-    "regression: marks test as regression test",
-    "api: marks test as API test",
-    "database: marks test as database test",
-    "external: marks test requiring external services",
-    "no_leaks: detect asyncio task leaks",
-    "mutation: marks test as mutation testing",
-    "chaos: marks test as chaos engineering test",
-    "ai_generated: marks test as AI-generated test",
-    "breakthrough: marks test as breakthrough frontier test",
-    "parallel_safe: mark test as safe for parallel execution",
-    "requires_isolation: mark test as requiring isolated execution",
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "e2e: End-to-end tests",
+    "security: Security-focused tests",
+    "performance: Performance and load tests",
+    "slow: Slow tests (>2s)",
+    "benchmark: Benchmark tests (deferred)",
+    "smoke: Quick smoke tests",
+    "regression: Regression tests",
+    "api: API endpoint tests",
 ]
-filterwarnings = [
-    "error",
-    "ignore::UserWarning",
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning",
-    "ignore::pytest.PytestUnknownMarkWarning:pytest_benchmark.*",
-]
-timeout = "300"
-timeout_method = "thread"
-
-# Note: pytest-benchmark configuration removed due to incompatibility with pytest-xdist
-# When running benchmarks with -m benchmark, use command-line options instead:
-# python -m pytest -m benchmark --benchmark-disable-gc --benchmark-warmup=off
-# See: https://pytest-benchmark.readthedocs.io/en/stable/usage.html#disabling-benchmark-gc
 
 [tool.coverage.run]
-source = [
-    "session_buddy",
-]
-omit = [
-    "session_buddy/__main__.py",
-    "tests/*",
-    "*/test_*.py",
-    "*_test.py",
-    ".venv/*",
-    "build/*",
-    "dist/*",
-    ".venv/lib/python*/site-packages/mcp_common/*",
-]
 branch = true
+parallel = true
+concurrency = [
+    "multiprocessing",
+]
+source = [
+    "session-buddy",
+]
 data_file = ".coverage"
-parallel = false
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/__init__.py",
+    "*/_version.py",
+    "*/conftest.py",
+]
 
 [tool.coverage.report]
-fail_under = 0
-show_missing = true
-skip_covered = false
-precision = 2
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "if settings.DEBUG",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if 0:",
-    "if __name__ == .__main__.:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod",
-    "TYPE_CHECKING",
-]
 exclude_also = [
     "pragma: no cover",
     "def __repr__",
+    "def __str__",
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
+    "@abstractmethod",
     "pass",
     "raise ImportError",
     "except ImportError",
-    "def __str__",
-    "@abstractmethod",
 ]
-ignore_errors = false
-
-[tool.coverage.html]
-directory = "htmlcov"
-
-[tool.coverage.xml]
-output = "coverage.xml"
 
 [tool.pyright]
 include = [
-    "session_buddy",
+    "session-buddy",
 ]
 exclude = [
-    "tests",
-    "**/__pycache__",
-    "build",
+    "tests/*",
+    "scratch",
     ".venv",
-    ".git",
+    "build",
     "dist",
-    "**/node_modules",
 ]
-ignore = [
-    "**/tests",
+typeCheckingMode = "strict"
+pythonVersion = "3.13"
+
+[tool.bandit]
+target = [
+    "session-buddy",
+]
+skips = [
+    "B101",
+    "B110",
+    "B112",
+    "B404",
+    "B603",
+    "B607",
+]
+exclude_dirs = [
+    "tests/",
 ]
 
+[tool.codespell]
+quiet-level = 3
+ignore-words-list = "crate,uptodate,nd,nin"
+
+[tool.creosote]
+paths = [
+    "session-buddy",
+]
+deps-file = "pyproject.toml"
+exclude-deps = [
+    "hatchling",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-xdist",
+    "pytest-timeout",
+    "pytest-benchmark",
+    "ruff",
+    "pyright",
+    "bandit",
+    "creosote",
+    "codespell",
+    "refurb",
+    "complexipy",
+]
+
+[tool.refurb]
+enable_all = false
+quiet = true
+python_version = "3.13"
 
 [tool.complexipy]
 default_pattern = "**/*.py"
@@ -394,120 +154,3 @@ exclude_patterns = [
     "**/test_*.py",
 ]
 max_complexity = 15
-
-
-[tool.bandit]
-exclude_dirs = [
-    "tests",
-    ".venv",
-    "build",
-    "dist",
-]
-skips = [
-    "B101",
-    "B603",
-    "B607",
-]
-target = [
-    "tests",
-    "session_buddy",
-]
-
-[tool.vulture]
-exclude = [
-    "tests/",
-    ".venv/",
-    "build/",
-    "dist/",
-]
-ignore_names = [
-    "_*",
-    "test_*",
-]
-make_whitelist = true
-min_confidence = 80
-paths = [
-    "session_buddy",
-]
-sort_by_size = true
-
-[tool.refurb]
-enable_all = false
-quiet = true
-python_version = "3.13"
-mypy_args = [
-    "--follow-imports=skip",
-    "--ignore-missing-imports",
-]
-ignore = [
-    "FURB101",
-    "FURB103",
-    "FURB105",
-    "FURB106",
-    "FURB113",
-    "FURB118",
-    "FURB120",
-    "FURB140",
-    "FURB184",
-]
-
-[tool.creosote]
-sections = [
-    "dependencies",
-]
-paths = [
-    "session_buddy",
-]
-deps-file = "pyproject.toml"
-exclude-deps = [
-    "pytest",
-    "pytest-asyncio",
-    "autotyping",
-    "keyring",
-    "pre-commit",
-    "pydantic-settings",
-    "pyleak",
-    "hatchling",
-    "inflection",
-    "uv",
-    "pytest-mock",
-    "tomli-w",
-    "pytest-benchmark",
-    "pyyaml",
-    "pytest-timeout",
-    "pyfiglet",
-    "google-crc32c",
-    "pytest-xdist",
-    "pytest-cov",
-    "crackerjack",
-    "duckdb",
-]
-
-[tool.uv]
-keyring-provider = "subprocess"
-publish-url = "https://upload.pypi.org/legacy/"
-check-url = "https://pypi.org/simple/"
-
-[dependency-groups]
-test = [
-    "pytest>=9.0.2",
-    "pytest-asyncio>=1.3.0",
-    "pytest-benchmark>=5.2.3",
-    "pytest-cov>=7.0.0",
-    "pytest-mock>=3.15.1",
-    "pytest-timeout>=2.4.0",
-    "pytest-xdist>=3.8.0",
-    "coverage>=7.13.0",
-    "hypothesis>=6.148.8",
-    "factory-boy>=3.3.3",
-]
-lint = [
-    "pyright>=1.1.407",
-]
-dev = [
-    { include-group = "test" },
-    { include-group = "lint" },
-    "crackerjack>=0.46.4",
-    "excalidraw-mcp>=0.34.2",
-    "pytest-benchmark>=5.2.3",
-]

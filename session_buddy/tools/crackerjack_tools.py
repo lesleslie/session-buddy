@@ -310,7 +310,7 @@ def _format_execution_status(result: CrackerjackResult) -> str:
 
 def _parse_crackerjack_output(output: str) -> tuple[list[str], list[str]]:
     """Parse crackerjack output to extract passed and failed hooks."""
-    from .hook_parser import ParseError, parse_hook_output
+    from .hook_parser import ParseError
 
     try:
         return _parse_with_structured_results(output)

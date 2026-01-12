@@ -3,10 +3,9 @@ from __future__ import annotations
 import inspect
 import typing as t
 from contextlib import suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 if t.TYPE_CHECKING:
-    from session_buddy.di import get_sync_typed
     from session_buddy.di.config import SessionPaths
 
 ServiceHook = t.Callable[[], t.Awaitable[t.Any] | t.Any]
@@ -164,7 +163,6 @@ def _health_di_config() -> bool:
 
 def _init_permissions_manager() -> None:
     from session_buddy.core.permissions import SessionPermissionsManager
-    from session_buddy.di.config import SessionPaths
     from session_buddy.di.container import depends
 
     with suppress(Exception):
@@ -295,8 +293,6 @@ async def _cleanup_cache_adapters() -> None:
 
 def _health_tools_registry() -> bool:
     with suppress(Exception):
-        import session_buddy.tools
-
         return True
     return False
 

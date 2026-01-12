@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 # mcp-common HTTP client adapter (httpx based)
 try:
     from mcp_common.adapters.http.client import HTTPClientAdapter
+
     from session_buddy.di.container import depends
 
     HTTP_ADAPTER_AVAILABLE = True

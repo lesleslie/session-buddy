@@ -12,8 +12,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import os
-import time
 import typing as t
 import uuid
 from contextlib import suppress
@@ -48,7 +46,6 @@ except ImportError:
     AutoTokenizer = None  # type: ignore[no-redef]
 
 from session_buddy.adapters.settings import ReflectionAdapterSettings
-from session_buddy.di.container import depends
 from session_buddy.insights.models import validate_collection_name
 
 logger = logging.getLogger(__name__)

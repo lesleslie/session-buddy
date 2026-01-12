@@ -153,6 +153,7 @@ class ConsciousAgent:
         """
         # Query DuckDB for access patterns in v2 tables
         import duckdb  # Local import to avoid hard dep when unused
+
         from session_buddy.settings import get_database_path
 
         patterns: list[MemoryAccessPattern] = []
@@ -359,6 +360,7 @@ class ConsciousAgent:
         promoted: list[str] = []
 
         import duckdb
+
         from session_buddy.settings import get_database_path
 
         for candidate in candidates:
@@ -404,6 +406,7 @@ class ConsciousAgent:
         demoted: list[str] = []
 
         import duckdb
+
         from session_buddy.settings import get_database_path
 
         conn = duckdb.connect(

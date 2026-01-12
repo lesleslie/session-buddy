@@ -474,7 +474,7 @@ class CausalChainTracker:
 
 - Reflexion learning exists but not formalized as "skills"
 - No explicit skill library abstraction
-- Pattern learning is implicit, not invokable
+- Pattern learning is implicit, not invocable
 
 **Why This Matters:**
 ✅ Makes learned patterns actionable
