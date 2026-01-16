@@ -52,6 +52,14 @@ markers = [
     "smoke: Quick smoke tests",
     "regression: Regression tests",
     "api: API endpoint tests",
+    "database: marks test as database test",
+    "external: marks test requiring external services",
+    "no_leaks: detect asyncio task leaks",
+    "property: marks test as property-based test",
+    "mutation: marks test as mutation testing",
+    "chaos: marks test as chaos engineering test",
+    "ai_generated: marks test as AI-generated test",
+    "breakthrough: marks test as breakthrough frontier test",
 ]
 
 [tool.coverage.run]
@@ -118,6 +126,7 @@ exclude_dirs = [
 [tool.codespell]
 quiet-level = 3
 ignore-words-list = "crate,uptodate,nd,nin"
+ignore-words = ".codespell-ignore"
 
 [tool.creosote]
 paths = [
@@ -146,6 +155,10 @@ exclude-deps = [
 enable_all = false
 quiet = true
 python_version = "3.13"
+ignore = [
+    "FURB184",
+    "FURB120",
+]
 
 [tool.complexipy]
 default_pattern = "**/*.py"
@@ -154,3 +167,8 @@ exclude_patterns = [
     "**/test_*.py",
 ]
 max_complexity = 15
+
+[dependency-groups]
+dev = [
+    "crackerjack",
+]
