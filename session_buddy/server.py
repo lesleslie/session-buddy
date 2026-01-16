@@ -412,20 +412,21 @@ from .utils import (
 )
 
 # Register all extracted tool modules
-register_access_log_tools(mcp)
-register_conscious_agent_tools(mcp)
-register_crackerjack_tools(mcp)
-register_extraction_tools(mcp)
-register_feature_flags_tools(mcp)
-register_knowledge_graph_tools(mcp)  # DuckPGQ knowledge graph tools
-register_llm_tools(mcp)
-register_migration_tools(mcp)
-register_monitoring_tools(mcp)
-register_prompt_tools(mcp)
-register_search_tools(mcp)
-register_serverless_tools(mcp)
-register_session_tools(mcp)
-register_team_tools(mcp)
+# Type ignore: mcp is MockFastMCP|FastMCP union in tests, both have compatible interface
+register_access_log_tools(mcp)  # type: ignore[argument-type]
+register_conscious_agent_tools(mcp)  # type: ignore[argument-type]
+register_crackerjack_tools(mcp)  # type: ignore[argument-type]
+register_extraction_tools(mcp)  # type: ignore[argument-type]
+register_feature_flags_tools(mcp)  # type: ignore[argument-type]
+register_knowledge_graph_tools(mcp)  # type: ignore[argument-type]
+register_llm_tools(mcp)  # type: ignore[argument-type]
+register_migration_tools(mcp)  # type: ignore[argument-type]
+register_monitoring_tools(mcp)  # type: ignore[argument-type]
+register_prompt_tools(mcp)  # type: ignore[argument-type]
+register_search_tools(mcp)  # type: ignore[argument-type]
+register_serverless_tools(mcp)  # type: ignore[argument-type]
+register_session_tools(mcp)  # type: ignore[argument-type]
+register_team_tools(mcp)  # type: ignore[argument-type]
 
 
 # Add helper method for programmatic tool calling used in tests

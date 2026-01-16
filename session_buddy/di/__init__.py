@@ -7,17 +7,6 @@ from pathlib import Path
 
 from session_buddy.di.container import depends
 
-if t.TYPE_CHECKING:
-    from session_buddy.core import (
-        SessionLifecycleManager as SessionLifecycleManagerT,
-    )
-    from session_buddy.core.permissions import (
-        SessionPermissionsManager as SessionPermissionsManagerT,
-    )
-    from session_buddy.utils.logging import (  # type: ignore[attr-defined]
-        SessionLogger as SessionLoggerT,
-    )
-
 from .config import SessionPaths
 from .constants import CLAUDE_DIR_KEY, COMMANDS_DIR_KEY, LOGS_DIR_KEY
 

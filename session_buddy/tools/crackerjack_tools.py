@@ -30,7 +30,7 @@ async def execute_crackerjack_command(
     args: str = "",
     working_directory: str = ".",
     timeout: int = 300,
-    ai_agent_mode: bool = False,
+    ai_agent_mode: bool = True,
 ) -> str:
     """Execute a Crackerjack command with enhanced AI integration.
 
@@ -39,12 +39,13 @@ async def execute_crackerjack_command(
         args: Additional arguments (NOT including --ai-fix)
         working_directory: Working directory
         timeout: Timeout in seconds
-        ai_agent_mode: Enable AI-powered auto-fix (replaces --ai-fix flag)
+        ai_agent_mode: Enable AI-powered auto-fix (replaces --ai-fix flag). Defaults to True.
 
     Examples:
         # ✅ Correct usage
-        execute_crackerjack_command(command="test", ai_agent_mode=True)
-        execute_crackerjack_command(command="check", args="--verbose", ai_agent_mode=True)
+        execute_crackerjack_command(command="test")  # ai_agent_mode defaults to True
+        execute_crackerjack_command(command="check", args="--verbose")
+        execute_crackerjack_command(command="test", ai_agent_mode=False)  # Disable AI auto-fix
 
         # ❌ Wrong usage
         execute_crackerjack_command(command="--ai-fix -t")  # Will raise error!
@@ -118,7 +119,7 @@ async def crackerjack_run(
     args: str = "",
     working_directory: str = ".",
     timeout: int = 300,
-    ai_agent_mode: bool = False,
+    ai_agent_mode: bool = True,
 ) -> str:
     """Run crackerjack with enhanced analytics.
 
@@ -127,12 +128,13 @@ async def crackerjack_run(
         args: Additional arguments (NOT including --ai-fix)
         working_directory: Working directory
         timeout: Timeout in seconds
-        ai_agent_mode: Enable AI-powered auto-fix (replaces --ai-fix flag)
+        ai_agent_mode: Enable AI-powered auto-fix (replaces --ai-fix flag). Defaults to True.
 
     Examples:
         # ✅ Correct usage
-        crackerjack_run(command="test", ai_agent_mode=True)
-        crackerjack_run(command="check", args="--verbose", ai_agent_mode=True)
+        crackerjack_run(command="test")  # ai_agent_mode defaults to True
+        crackerjack_run(command="check", args="--verbose")
+        crackerjack_run(command="test", ai_agent_mode=False)  # Disable AI auto-fix
 
         # ❌ Wrong usage
         crackerjack_run(command="--ai-fix -t")  # Will raise error!
@@ -747,7 +749,7 @@ async def _crackerjack_run_impl(
     args: str = "",
     working_directory: str = ".",
     timeout: int = 300,
-    ai_agent_mode: bool = False,
+    ai_agent_mode: bool = True,
 ) -> str:
     """Run crackerjack with enhanced analytics (replaces /crackerjack:run)."""
     try:
@@ -1354,12 +1356,17 @@ async def _crackerjack_health_check_impl() -> str:
         output += f"❌ **Crackerjack Installation**: Error - {e!s}\n"
 
     # Check integration components
+    crackerjack_integration_available = False
     try:
         # CrackerjackIntegration will be imported when needed
-        import session_buddy.crackerjack_integration
+        import importlib.util
+        crackerjack_integration_available = importlib.util.find_spec("session_buddy.crackerjack_integration") is not None
+    except (ImportError, AttributeError):
+        crackerjack_integration_available = False
 
+    if crackerjack_integration_available:
         output += "✅ **Integration Module**: Available\n"
-    except ImportError:
+    else:
         output += "❌ **Integration Module**: Not available\n"
 
     # Check reflection database for history

@@ -135,10 +135,11 @@ mcp = FastMCP("session-buddy", lifespan=session_lifecycle)
 from session_buddy.tools import register_memory_tools, register_session_tools
 
 # Core session management tools
-register_session_tools(mcp)
+# Type ignore: mcp is MockFastMCP|FastMCP union in tests, both have compatible interface
+register_session_tools(mcp)  # type: ignore[argument-type]
 
 # Memory and reflection tools
-register_memory_tools(mcp)
+register_memory_tools(mcp)  # type: ignore[argument-type]
 
 
 @mcp.tool()

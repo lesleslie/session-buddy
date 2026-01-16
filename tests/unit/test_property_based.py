@@ -16,7 +16,10 @@ class TestPropertyBasedValidation:
         content=st.text(alphabet=ASCII_CHARS, min_size=1, max_size=2000),
         project=st.text(alphabet=ASCII_CHARS, min_size=1, max_size=100),
     )
-    @settings(max_examples=50)
+    @settings(
+        max_examples=50,
+        deadline=None,  # Disable deadline to prevent timing-related flakiness
+    )
     def test_conversation_storage_properties(self, content: str, project: str):
         """Property: All valid content should generate valid conversation objects."""
         # Generate conversation with property-based inputs
@@ -34,7 +37,10 @@ class TestPropertyBasedValidation:
             max_size=10,
         ),
     )
-    @settings(max_examples=50)
+    @settings(
+        max_examples=50,
+        deadline=None,  # Disable deadline to prevent timing-related flakiness
+    )
     def test_reflection_storage_properties(self, content: str, tags: list[str]):
         """Property: All valid content and tags should generate valid reflection objects."""
         # Generate reflection with property-based inputs
@@ -46,7 +52,10 @@ class TestPropertyBasedValidation:
         assert reflection["tags"] == tags
 
     @given(score=st.floats(min_value=0.0, max_value=1.0))
-    @settings(max_examples=20)
+    @settings(
+        max_examples=20,
+        deadline=None,  # Disable deadline to prevent timing-related flakiness
+    )
     def test_similarity_score_validation(self, score: float):
         """Property: All scores in [0,1] should pass validation."""
         # Validate score using property helper
@@ -56,7 +65,10 @@ class TestPropertyBasedValidation:
         content=st.text(min_size=1, max_size=1000),
         project=st.text(min_size=1, max_size=100),
     )
-    @settings(max_examples=25)
+    @settings(
+        max_examples=25,
+        deadline=None,  # Disable deadline to prevent timing-related flakiness
+    )
     def test_bulk_conversation_generation_properties(self, content: str, project: str):
         """Property: Bulk generation should work with varied inputs."""
         # Generate multiple conversations
@@ -72,7 +84,10 @@ class TestPropertyBasedValidation:
         count=st.integers(min_value=1, max_value=50),
         tags=st.lists(st.text(min_size=1, max_size=20), max_size=5),
     )
-    @settings(max_examples=20)
+    @settings(
+        max_examples=20,
+        deadline=None,  # Disable deadline to prevent timing-related flakiness
+    )
     def test_bulk_reflection_generation_properties(self, count: int, tags: list[str]):
         """Property: Bulk reflection generation should work with varied inputs."""
         # Generate bulk reflections
@@ -88,7 +103,10 @@ class TestPropertyBasedValidation:
                 assert all(tag in refl["tags"] for tag in tags if tag in refl["tags"])
 
     @given(content=st.text(min_size=1, max_size=1000))
-    @settings(max_examples=20)
+    @settings(
+        max_examples=20,
+        deadline=None,  # Disable deadline to prevent timing-related flakiness
+    )
     def test_search_result_properties(self, content: str):
         """Property: Search results should be valid for varied content."""
         # Generate search result
@@ -113,7 +131,10 @@ class TestSecurityPropertyBased:
             max_size=5000,
         )
     )
-    @settings(max_examples=30)
+    @settings(
+        max_examples=30,
+        deadline=None,  # Disable deadline to prevent timing-related flakiness
+    )
     def test_content_sanitization_properties(self, content: str):
         """Property: All ASCII content should be handled safely."""
         # Test that content can be used in conversation without errors

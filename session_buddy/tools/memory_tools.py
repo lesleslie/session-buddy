@@ -38,10 +38,9 @@ def _check_reflection_tools_available() -> bool:
     if _reflection_tools_available is not None:
         return _reflection_tools_available
     try:
-        import duckdb
-
-        _reflection_tools_available = True
-    except ImportError:
+        import importlib.util
+        _reflection_tools_available = importlib.util.find_spec("duckdb") is not None
+    except (ImportError, AttributeError):
         _reflection_tools_available = False
     return _reflection_tools_available
 

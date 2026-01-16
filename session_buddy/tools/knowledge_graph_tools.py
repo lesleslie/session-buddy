@@ -31,10 +31,9 @@ if TYPE_CHECKING:
 def _check_knowledge_graph_available() -> bool:
     """Check if knowledge graph dependencies are available."""
     try:
-        import duckdb
-
-        return True
-    except ImportError:
+        import importlib.util
+        return importlib.util.find_spec("duckdb") is not None
+    except (ImportError, AttributeError):
         return False
 
 
