@@ -664,8 +664,33 @@ class SessionLifecycleManager:
 
         """
         try:
+            from session_buddy.core.hooks import HookContext, HookType
+            from session_buddy.di import get_sync_typed
+
             current_dir = Path(working_directory) if working_directory else Path.cwd()
             self.current_project = current_dir.name
+
+            # Generate session ID for this checkpoint
+            session_id = f"{self.current_project}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+            # Execute PRE_CHECKPOINT hooks (quality validation, etc.)
+            pre_hooks_results = []
+            try:
+                hooks_manager = get_sync_typed(HooksManager)
+                pre_context = HookContext(
+                    hook_type=HookType.PRE_CHECKPOINT,
+                    session_id=session_id,
+                    timestamp=datetime.now(),
+                    metadata={
+                        "working_directory": str(current_dir),
+                        "is_manual": is_manual,
+                    },
+                )
+                pre_hooks_results = await hooks_manager.execute_hooks(
+                    HookType.PRE_CHECKPOINT, pre_context
+                )
+            except Exception as e:
+                self.logger.warning("PRE_CHECKPOINT hooks failed: %s", str(e))
 
             # Quality assessment
             quality_score, quality_data = await self.perform_quality_assessment(
@@ -699,6 +724,31 @@ class SessionLifecycleManager:
             # Git checkpoint
             git_output = await self.perform_git_checkpoint(current_dir, quality_score)
 
+            # Execute POST_CHECKPOINT hooks (pattern learning, etc.)
+            post_hooks_results = []
+            try:
+                post_context = HookContext(
+                    hook_type=HookType.POST_CHECKPOINT,
+                    session_id=session_id,
+                    timestamp=datetime.now(),
+                    metadata={
+                        "quality_score": quality_score,
+                        "previous_score": previous_score,
+                        "auto_store_decision": auto_store_decision.should_store,
+                        "insights_extracted": insights_extracted,
+                    },
+                    checkpoint_data={
+                        "quality_score": quality_score,
+                        "quality_data": quality_data,
+                        "auto_store_decision": auto_store_decision,
+                    },
+                )
+                post_hooks_results = await hooks_manager.execute_hooks(
+                    HookType.POST_CHECKPOINT, post_context
+                )
+            except Exception as e:
+                self.logger.warning("POST_CHECKPOINT hooks failed: %s", str(e))
+
             # Format results
             quality_output = self.format_quality_results(quality_score, quality_data)
 
@@ -719,6 +769,8 @@ class SessionLifecycleManager:
                 "auto_store_decision": auto_store_decision,
                 "auto_store_summary": format_auto_store_summary(auto_store_decision),
                 "insights_extracted": insights_extracted,
+                "pre_hooks_results": pre_hooks_results,
+                "post_hooks_results": post_hooks_results,
             }
 
         except Exception as e:
@@ -827,8 +879,32 @@ class SessionLifecycleManager:
     ) -> dict[str, t.Any]:
         """End the current session with cleanup and summary."""
         try:
+            from session_buddy.core.hooks import HookContext, HookType
+            from session_buddy.di import get_sync_typed
+
             current_dir = Path(working_directory) if working_directory else Path.cwd()
             self.current_project = current_dir.name
+
+            # Generate session ID for this session end
+            session_id = f"{self.current_project}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+            # Execute PRE_SESSION_END hooks (cleanup preparation, etc.)
+            pre_hooks_results = []
+            try:
+                hooks_manager = get_sync_typed(HooksManager)
+                pre_context = HookContext(
+                    hook_type=HookType.PRE_SESSION_END,
+                    session_id=session_id,
+                    timestamp=datetime.now(),
+                    metadata={
+                        "working_directory": str(current_dir),
+                    },
+                )
+                pre_hooks_results = await hooks_manager.execute_hooks(
+                    HookType.PRE_SESSION_END, pre_context
+                )
+            except Exception as e:
+                self.logger.warning("PRE_SESSION_END hooks failed: %s", str(e))
 
             # Final quality assessment
             quality_score, quality_data = await self.perform_quality_assessment(
@@ -862,6 +938,30 @@ class SessionLifecycleManager:
                 current_dir,
             )
 
+            # Execute SESSION_END hooks (final cleanup, notifications, etc.)
+            post_hooks_results = []
+            try:
+                post_context = HookContext(
+                    hook_type=HookType.SESSION_END,
+                    session_id=session_id,
+                    timestamp=datetime.now(),
+                    metadata={
+                        "quality_score": quality_score,
+                        "insights_extracted": insights_extracted,
+                        "handoff_path": str(handoff_path) if handoff_path else None,
+                    },
+                    checkpoint_data={
+                        "quality_score": quality_score,
+                        "quality_data": quality_data,
+                        "handoff_content": handoff_content,
+                    },
+                )
+                post_hooks_results = await hooks_manager.execute_hooks(
+                    HookType.SESSION_END, post_context
+                )
+            except Exception as e:
+                self.logger.warning("SESSION_END hooks failed: %s", str(e))
+
             self.logger.info(
                 "Session ended, project=%s, final_quality_score=%d, insights_extracted=%d",
                 self.current_project,
@@ -874,7 +974,12 @@ class SessionLifecycleManager:
             )
             summary["insights_extracted"] = insights_extracted
 
-            return {"success": True, "summary": summary}
+            return {
+                "success": True,
+                "summary": summary,
+                "pre_hooks_results": pre_hooks_results,
+                "post_hooks_results": post_hooks_results,
+            }
 
         except Exception as e:
             self.logger.exception("Session end failed, error=%s", str(e))

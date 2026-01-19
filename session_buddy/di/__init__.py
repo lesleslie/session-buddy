@@ -66,6 +66,7 @@ def configure(*, force: bool = False) -> None:
     _register_session_logger(paths.logs_dir, force)  # Register SessionLogger
     _register_permissions_manager(paths.claude_dir, force)
     _register_lifecycle_manager(force)
+    _register_hooks_manager(force)  # Register HooksManager for automation
 
     _configured = True
 
@@ -169,6 +170,30 @@ def _register_lifecycle_manager(force: bool) -> None:
     # Create and register lifecycle manager instance
     lifecycle_manager = SessionLifecycleManager()
     depends.set(SessionLifecycleManager, lifecycle_manager)
+
+
+def _register_hooks_manager(force: bool) -> None:
+    """Register HooksManager with the DI container.
+
+    Args:
+        force: If True, re-registers even if already registered
+
+    Note:
+        The HooksManager provides automation capabilities through priority-based
+        async hook execution with error handling and causal chain tracking.
+
+    """
+    from session_buddy.core.hooks import HooksManager
+
+    if not force:
+        with suppress(Exception):  # Catch all DI resolution errors
+            existing = depends.get_sync(HooksManager)
+            if isinstance(existing, HooksManager):
+                return
+
+    # Create and register hooks manager instance
+    hooks_manager = HooksManager()
+    depends.set(HooksManager, hooks_manager)
 
 
 __all__ = [

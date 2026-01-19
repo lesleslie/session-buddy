@@ -31,6 +31,11 @@ class ReflectionAdapterSettings:
     threads: int = 4
     memory_limit: str = "2GB"
     enable_embeddings: bool = True
+    # HNSW indexing settings
+    enable_hnsw_index: bool = True
+    hnsw_m: int = 16  # HNSW M parameter (number of bi-directional links)
+    hnsw_ef_construction: int = 200  # HNSW ef_construction parameter (index building quality)
+    hnsw_ef_search: int = 64  # HNSW ef_search parameter (search quality vs speed)
 
     @classmethod
     def from_settings(cls) -> ReflectionAdapterSettings:

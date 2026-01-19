@@ -299,6 +299,79 @@ class ReflectionDatabaseAdapterOneiric:
             f"CREATE INDEX IF NOT EXISTS idx_{self.collection_name}_refl_last_used ON {self.collection_name}_reflections(last_used_at)"
         )
 
+        # Create HNSW indexes for fast vector similarity search (requires VSS extension)
+        self._create_hnsw_indexes()
+
+    def _create_hnsw_indexes(self) -> None:
+        """Create HNSW indexes for fast vector similarity search.
+
+        HNSW (Hierarchical Navigable Small World) indexes provide O(log n) search
+        performance compared to O(n) for linear scan with array_cosine_similarity.
+        Requires DuckDB VSS extension to be installed and loaded.
+
+        Falls back gracefully if VSS extension is not available.
+        """
+        if not self.settings.enable_hnsw_index:
+            logger.debug("HNSW indexing disabled in settings")
+            return
+
+        try:
+            # Try to install and load VSS extension
+            self.conn.execute("INSTALL 'vss';")
+            self.conn.execute("LOAD 'vss';")
+            logger.info("VSS extension loaded successfully")
+        except Exception as e:
+            logger.warning(
+                f"VSS extension not available, HNSW indexing disabled: {e}. "
+                "Vector search will use array_cosine_similarity (slower)."
+            )
+            return
+
+        try:
+            # Enable experimental persistence for HNSW indexes on disk databases
+            # HNSW indexes require this flag to work with persistent (disk-based) databases
+            self.conn.execute("SET hnsw_enable_experimental_persistence=true")
+            logger.debug("Enabled HNSW experimental persistence for disk-based database")
+
+            # Create HNSW index for conversations table
+            self.conn.execute(
+                f"""
+                CREATE INDEX IF NOT EXISTS idx_{self.collection_name}_conv_embeddings_hnsw
+                ON {self.collection_name}_conversations
+                USING HNSW (embedding)
+                WITH (
+                    metric = '{self.settings.distance_metric}',
+                    M = {self.settings.hnsw_m},
+                    ef_construction = {self.settings.hnsw_ef_construction}
+                )
+                """
+            )
+            logger.info(
+                f"Created HNSW index for {self.collection_name}_conversations embeddings "
+                f"(M={self.settings.hnsw_m}, ef_construction={self.settings.hnsw_ef_construction})"
+            )
+
+            # Create HNSW index for reflections table
+            self.conn.execute(
+                f"""
+                CREATE INDEX IF NOT EXISTS idx_{self.collection_name}_refl_embeddings_hnsw
+                ON {self.collection_name}_reflections
+                USING HNSW (embedding)
+                WITH (
+                    metric = '{self.settings.distance_metric}',
+                    M = {self.settings.hnsw_m},
+                    ef_construction = {self.settings.hnsw_ef_construction}
+                )
+                """
+            )
+            logger.info(
+                f"Created HNSW index for {self.collection_name}_reflections embeddings "
+                f"(M={self.settings.hnsw_m}, ef_construction={self.settings.hnsw_ef_construction})"
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to create HNSW indexes: {e}. Falling back to array_cosine_similarity.")
+
     async def _init_embedding_model(self) -> None:
         """Initialize ONNX embedding model."""
         if not ONNX_AVAILABLE:
@@ -501,7 +574,15 @@ class ReflectionDatabaseAdapterOneiric:
 
         if query_embedding and self.settings.enable_vss:
             # Vector similarity search using DuckDB's array_cosine_similarity
+            # Note: HNSW index (if available) will be used automatically by query optimizer
+            # We can control search quality/speed trade-off with hnsw_ef_search parameter
             vector_query = f"[{', '.join(map(str, query_embedding))}]"
+
+            # Set ef_search parameter if HNSW indexes exist (higher = better quality, slower)
+            # This parameter affects HNSW index search quality vs speed trade-off
+            if self.settings.enable_hnsw_index:
+                self.conn.execute(f"SET hnsw_ef_search = {self.settings.hnsw_ef_search}")
+
             result = self.conn.execute(
                 f"""
                 SELECT
