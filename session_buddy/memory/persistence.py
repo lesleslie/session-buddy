@@ -24,7 +24,15 @@ def get_settings() -> t.Any:
     return _get_settings()
 
 
-def _connect() -> duckdb.DuckDBPyConnection | None:
+def _connect() -> duckdb.DuckDBPyConnection:
+    """Create a new DuckDB connection.
+
+    Returns:
+        Active DuckDB connection
+
+    Raises:
+        ImportError: If duckdb module is not available
+    """
     if duckdb is None:
         msg = "duckdb module is not available"
         raise ImportError(msg)

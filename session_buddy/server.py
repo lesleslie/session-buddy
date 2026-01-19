@@ -245,12 +245,14 @@ def _format_memory_optimization_results(results: dict[str, Any], dry_run: bool) 
         header += " (DRY RUN)"
 
     lines = [header]
-    lines.append(f"Total Conversations: {results.get('total_conversations', 0)}")
-    lines.append(f"Conversations to Keep: {results.get('conversations_to_keep', 0)}")
-    lines.append(
-        f"Conversations to Consolidate: {results.get('conversations_to_consolidate', 0)}"
+    lines.extend(
+        (
+            f"Total Conversations: {results.get('total_conversations', 0)}",
+            f"Conversations to Keep: {results.get('conversations_to_keep', 0)}",
+            f"Conversations to Consolidate: {results.get('conversations_to_consolidate', 0)}",
+            f"Clusters Created: {results.get('clusters_created', 0)}",
+        )
     )
-    lines.append(f"Clusters Created: {results.get('clusters_created', 0)}")
 
     saved = results.get("space_saved_estimate")
     if isinstance(saved, (int, float)):

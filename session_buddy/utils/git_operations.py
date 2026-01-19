@@ -485,9 +485,11 @@ def create_checkpoint_commit(
 
         # Only untracked files remain
         if untracked_files:
-            output.append("ℹ️ No staged changes to commit")
-            output.append(
-                "   💡 Add untracked files with 'git add' if you want to include them",
+            output.extend(
+                (
+                    "ℹ️ No staged changes to commit",
+                    "   💡 Add untracked files with 'git add' if you want to include them",
+                )
             )
             return False, "No staged changes", output
 

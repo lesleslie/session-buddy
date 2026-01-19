@@ -9,6 +9,7 @@ Refactored to use utility modules for reduced code duplication.
 
 from __future__ import annotations
 
+import json
 import operator
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -708,6 +709,46 @@ async def _search_temporal_impl(
 # ============================================================================
 
 
+def _parse_tags_parameter(tags: list[str] | str | None) -> list[str] | None:
+    """Parse and validate tags parameter from MCP protocol.
+
+    Handles JSON string deserialization from MCP protocol where complex types
+    are serialized to JSON strings during transport.
+
+    Args:
+        tags: Tags parameter (list, JSON string, or None)
+
+    Returns:
+        Parsed tags as list[str] or None
+
+    Examples:
+        >>> _parse_tags_parameter('["tag1", "tag2"]')
+        ['tag1', 'tag2']
+        >>> _parse_tags_parameter('single-tag')
+        ['single-tag']
+        >>> _parse_tags_parameter(['already', 'list'])
+        ['already', 'list']
+        >>> _parse_tags_parameter(None)
+        None
+    """
+    if not isinstance(tags, str):
+        return tags
+
+    # Handle JSON string deserialization
+    try:
+        decoded = json.loads(tags)
+        if isinstance(decoded, list):
+            return [str(tag) for tag in decoded]
+        elif decoded is None:
+            return None
+        else:
+            # Single non-list value, wrap it
+            return [str(decoded)]
+    except json.JSONDecodeError:
+        # Not valid JSON, treat as single tag
+        return [tags]
+
+
 def register_search_tools(mcp: Any) -> None:
     """Register all search-related MCP tools.
 
@@ -728,8 +769,12 @@ def register_search_tools(mcp: Any) -> None:
         )
 
     @mcp.tool()  # type: ignore[misc]
-    async def store_reflection(content: str, tags: list[str] | None = None) -> str:
-        return await _store_reflection_impl(content, tags)
+    async def store_reflection(
+        content: str, tags: list[str] | str | None = None
+    ) -> str:
+        """Store an important insight or reflection for future reference."""
+        parsed_tags = _parse_tags_parameter(tags)
+        return await _store_reflection_impl(content, parsed_tags)
 
     @mcp.tool()  # type: ignore[misc]
     async def quick_search(

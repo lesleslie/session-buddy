@@ -274,8 +274,7 @@ def _format_batch_results(
             lines.append(f"  • and {remaining} more")
 
     if failed:
-        lines.append("")
-        lines.append(f"Failed: {len(failed)}")
+        lines.extend(("", f"Failed: {len(failed)}"))
         max_failed = 5
         for name, error in failed[:max_failed]:
             lines.append(f"  • {name}: {error}")

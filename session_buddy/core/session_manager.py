@@ -543,19 +543,19 @@ class SessionLifecycleManager:
 
         # Format as markdown document
         markdown_content = []
-        markdown_content.append(
-            f"# Session Handoff Report - {summary.get('project', 'unknown')}"
+        markdown_content.extend(
+            (
+                f"# Session Handoff Report - {summary.get('project', 'unknown')}",
+                f"\n**Session ended:** {summary.get('session_end_time', datetime.now().isoformat())}",
+            )
         )
-        markdown_content.append(
-            f"\n**Session ended:** {summary.get('session_end_time', datetime.now().isoformat())}"
+        markdown_content.extend(
+            (
+                f"**Final quality score:** {summary.get('final_quality_score', 0)}/100",
+                f"**Working directory:** {summary.get('working_directory', 'N/A')}",
+                "",
+            )
         )
-        markdown_content.append(
-            f"**Final quality score:** {summary.get('final_quality_score', 0)}/100"
-        )
-        markdown_content.append(
-            f"**Working directory:** {summary.get('working_directory', 'N/A')}"
-        )
-        markdown_content.append("")
 
         if summary.get("recommendations"):
             markdown_content.append("## Recommendations")

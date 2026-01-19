@@ -220,14 +220,14 @@ async def perform_strategic_compaction() -> list[str]:
         # Fallback to HOME directory if cwd doesn't exist
         current_dir = Path.home()
 
-    # Database optimization
-    results.append(await _optimize_reflection_database())
-
-    # Log cleanup
-    results.append(_cleanup_session_logs())
-
-    # Temp file cleanup
-    results.append(_cleanup_temp_files(current_dir))
+    # Database optimization, log cleanup, and temp file cleanup
+    results.extend(
+        (
+            await _optimize_reflection_database(),
+            _cleanup_session_logs(),
+            _cleanup_temp_files(current_dir),
+        )
+    )
 
     # Git optimization
     results.extend(_optimize_git_repository(current_dir))
@@ -931,14 +931,17 @@ async def _analyze_quality_monitoring_recommendations(results: list[str]) -> Non
 
 async def _add_fallback_recommendations(results: list[str], error: Exception) -> None:
     """Add fallback recommendations when analysis fails."""
-    results.append(f"❌ Advanced context analysis failed: {str(error)[:60]}...")
-    results.append("💡 Falling back to basic context management recommendations")
-
-    # Fallback to basic recommendations
-    results.append("🎯 Basic context actions:")
-    results.append("   • Use /compact for conversation summarization")
-    results.append("   • Use /clear for fresh context on new topics")
-    results.append("   • Use search tools to retrieve relevant discussions")
+    results.extend(
+        (
+            f"❌ Advanced context analysis failed: {str(error)[:60]}...",
+            "💡 Falling back to basic context management recommendations",
+            "",  # Blank line for readability
+            "🎯 Basic context actions:",
+            "   • Use /compact for conversation summarization",
+            "   • Use /clear for fresh context on new topics",
+            "   • Use search tools to retrieve relevant discussions",
+        )
+    )
 
 
 # ======================

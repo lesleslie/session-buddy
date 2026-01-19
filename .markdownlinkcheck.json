@@ -11,6 +11,6 @@
     "htmlcov/**",
     "*.egg-info/**"
   ],
-  "timeout": "5s",
-  "retryCount": 3
+  "retryCount": 3,
+  "timeout": "5s"
 }

@@ -854,13 +854,16 @@ async def session_welcome() -> str:
         return "ℹ️ Session information not available (may not be a git repository)"
 
     output = []
-    output.append("🚀 Session Management Connected!")
-    output.append("=" * 40)
+    output.extend(("🚀 Session Management Connected!", "=" * 40))
 
     # Current session info
-    output.append(f"📁 Project: {_connection_info['project']}")
-    output.append(f"📊 Current quality score: {_connection_info['quality_score']}/100")
-    output.append(f"🔗 Connection status: {_connection_info['connected_at']}")
+    output.extend(
+        (
+            f"📁 Project: {_connection_info['project']}",
+            f"📊 Current quality score: {_connection_info['quality_score']}/100",
+            f"🔗 Connection status: {_connection_info['connected_at']}",
+        )
+    )
 
     # Previous session info
     previous = _connection_info.get("previous_session")

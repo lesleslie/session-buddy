@@ -194,6 +194,18 @@ exclude-deps = [
     "codespell",
     "refurb",
     "complexipy",
+    # Optional dependencies used conditionally or in TYPE_CHECKING
+    "aiofiles",
+    "aiohttp",
+    "duckdb",
+    "fastmcp",
+    "onnxruntime",
+    "psutil",
+    "rich",
+    "structlog",
+    "tiktoken",
+    "transformers",
+    "typer",
 ]
 
 [tool.refurb]
