@@ -1360,7 +1360,11 @@ async def _crackerjack_health_check_impl() -> str:
     try:
         # CrackerjackIntegration will be imported when needed
         import importlib.util
-        crackerjack_integration_available = importlib.util.find_spec("session_buddy.crackerjack_integration") is not None
+
+        crackerjack_integration_available = (
+            importlib.util.find_spec("session_buddy.crackerjack_integration")
+            is not None
+        )
     except (ImportError, AttributeError):
         crackerjack_integration_available = False
 

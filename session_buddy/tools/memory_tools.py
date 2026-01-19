@@ -39,6 +39,7 @@ def _check_reflection_tools_available() -> bool:
         return _reflection_tools_available
     try:
         import importlib.util
+
         _reflection_tools_available = importlib.util.find_spec("duckdb") is not None
     except (ImportError, AttributeError):
         _reflection_tools_available = False

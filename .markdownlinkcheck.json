@@ -1,0 +1,16 @@
+{
+  "ignorePatterns": [
+    ".venv/**",
+    "node_modules/**",
+    "build/**",
+    "dist/**",
+    ".git/**",
+    "docs/ZUBAN_FIX_SUMMARY.md",
+    ".claude/commands/**",
+    "coverage_report/**",
+    "htmlcov/**",
+    "*.egg-info/**"
+  ],
+  "timeout": "5s",
+  "retryCount": 3
+}
