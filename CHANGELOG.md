@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-01-18
+
+### Changed
+
+- Session-buddy (quality: 68/100) - 2026-01-11 15:59:11
+- Session-buddy (quality: 68/100) - 2026-01-12 02:32:02
+- Session-buddy (quality: 73/100) - 2026-01-15 20:30:12
+- Session-buddy (quality: 73/100) - 2026-01-16 09:04:50
+- Session-buddy (quality: 73/100) - 2026-01-18 17:09:44
+- Session-buddy (quality: 73/100) - 2026-01-18 21:09:16
+
+### Internal
+
+- Organize and clean up working documentation
+- Organize root directory scripts and tests
+
 ## [0.10.12] - 2026-01-08
 
 ### Changed
