@@ -37,6 +37,11 @@ class ReflectionAdapterSettings:
     hnsw_ef_construction: int = 200  # HNSW ef_construction parameter (index building quality)
     hnsw_ef_search: int = 64  # HNSW ef_search parameter (search quality vs speed)
 
+    # Quantization settings (optional - for memory savings)
+    enable_quantization: bool = False
+    quantization_method: str = "scalar"  # Currently supports: "scalar" (4x compression), "binary" (future)
+    quantization_accuracy_threshold: float = 0.95  # Minimum accuracy to maintain (95%)
+
     @classmethod
     def from_settings(cls) -> ReflectionAdapterSettings:
         data_dir = _resolve_data_dir()

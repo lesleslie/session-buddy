@@ -19,6 +19,7 @@ Architecture:
 from __future__ import annotations
 
 import json
+import logging
 import typing as t
 import uuid
 from dataclasses import dataclass, field
@@ -28,6 +29,55 @@ from session_buddy.adapters.reflection_adapter_oneiric import (
     ReflectionDatabaseAdapterOneiric,
 )
 from session_buddy.di import depends
+
+
+logger = logging.getLogger(__name__)
+
+
+def safe_json_parse(value: t.Any, expected_type: type) -> t.Any:
+    """Safely parse JSON with type checking and error handling.
+
+    Args:
+        value: The value to parse (can be dict, list, or JSON string)
+        expected_type: The expected type (dict or list)
+
+    Returns:
+        Parsed value or empty default if parsing fails
+    """
+    # Already the right type
+    if isinstance(value, expected_type):
+        return value
+
+    # Not a string - can't parse
+    if not isinstance(value, str):
+        logger.warning(f"Unexpected type for JSON parsing: {type(value)}")
+        return expected_type() if expected_type in (dict, list) else None
+
+    # Size check to prevent DoS
+    if len(value) > 1_000_000:  # 1MB limit
+        logger.warning("JSON data exceeds size limit")
+        return expected_type() if expected_type in (dict, list) else None
+
+    try:
+        result = json.loads(value)
+        # Validate type
+        if not isinstance(result, expected_type):
+            logger.warning(f"JSON parsed but type mismatch: expected {expected_type}, got {type(result)}")
+            return expected_type() if expected_type in (dict, list) else None
+
+        # Validate structure size
+        if isinstance(result, dict) and len(result) > 1000:
+            logger.warning("JSON data has too many keys")
+            return {}
+
+        if isinstance(result, list) and len(result) > 1000:
+            logger.warning("JSON data has too many items")
+            return []
+
+        return result
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
+        logger.error(f"JSON decode error: {e}")
+        return expected_type() if expected_type in (dict, list) else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,13 +295,13 @@ class IntelligenceEngine:
             # DuckDB may auto-deserialize JSON columns to Python objects
             # Check if already deserialized before calling json.loads
             pattern_value = row[5]
-            pattern_data = pattern_value if isinstance(pattern_value, dict) else json.loads(pattern_value)
+            pattern_data = safe_json_parse(pattern_value, dict)
 
             learned_from_value = row[6]
-            learned_from_data = learned_from_value if isinstance(learned_from_value, list) else json.loads(learned_from_value)
+            learned_from_data = safe_json_parse(learned_from_value, list)
 
             tags_value = row[9]
-            tags_data = tags_value if isinstance(tags_value, list) else json.loads(tags_value)
+            tags_data = safe_json_parse(tags_value, list)
 
             skill = LearnedSkill(
                 id=row[0],
@@ -1098,14 +1148,15 @@ class IntelligenceEngine:
         query += " ORDER BY outcome_score DESC, application_count DESC"
 
         if limit:
-            query += f" LIMIT {limit}"
+            query += " LIMIT ?"
+            params.append(limit)
 
         results = self.db.conn.execute(query, params).fetchall()
 
         # Calculate similarity for each pattern
         similar_patterns = []
         for row in results:
-            pattern_context = json.loads(row[3])  # context_snapshot
+            pattern_context = safe_json_parse(row[3], dict)
             similarity = self._calculate_context_similarity(current_context, pattern_context)
 
             if similarity >= threshold:
@@ -1114,11 +1165,11 @@ class IntelligenceEngine:
                         "id": row[0],
                         "pattern_type": row[1],
                         "project_id": row[2],
-                        "context": json.loads(row[3]),
-                        "solution": json.loads(row[4]),
+                        "context": safe_json_parse(row[3], dict),
+                        "solution": safe_json_parse(row[4], dict),
                         "outcome_score": row[5],
                         "application_count": row[6],
-                        "tags": json.loads(row[7]),
+                        "tags": safe_json_parse(row[7], list),
                         "similarity": similarity,
                     }
                 )

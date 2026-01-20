@@ -32,7 +32,7 @@ class TestHooksManagerInitialization:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker_instance = AsyncMock()
             MockTracker.return_value = mock_tracker_instance
@@ -50,7 +50,7 @@ class TestHooksManagerInitialization:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker_instance = AsyncMock()
             MockTracker.return_value = mock_tracker_instance
@@ -88,7 +88,7 @@ class TestCausalChainIntegration:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             mock_tracker.record_error_event.return_value = "err-12345678"
@@ -128,7 +128,7 @@ class TestCausalChainIntegration:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             mock_tracker.record_error_event.return_value = "err-abcd1234"
@@ -164,7 +164,7 @@ class TestCausalChainIntegration:
 
         # Initialize without mocking (tracker will fail to initialize)
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             mock_tracker.record_error_event.side_effect = Exception(
@@ -199,7 +199,7 @@ class TestWorkflowMetricsIntegration:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             MockTracker.return_value = mock_tracker
@@ -208,7 +208,7 @@ class TestWorkflowMetricsIntegration:
 
             # Mock workflow metrics engine
             with patch(
-                "session_buddy.core.hooks.get_workflow_metrics_engine"
+                "session_buddy.core.workflow_metrics.get_workflow_metrics_engine"
             ) as mock_get_engine:
                 mock_engine = AsyncMock()
                 mock_get_engine.return_value = mock_engine
@@ -247,7 +247,7 @@ class TestWorkflowMetricsIntegration:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             MockTracker.return_value = mock_tracker
@@ -255,7 +255,7 @@ class TestWorkflowMetricsIntegration:
             await manager.initialize()
 
             with patch(
-                "session_buddy.core.hooks.get_workflow_metrics_engine"
+                "session_buddy.core.workflow_metrics.get_workflow_metrics_engine"
             ) as mock_get_engine:
                 mock_engine = AsyncMock()
                 mock_engine.collect_session_metrics.side_effect = Exception(
@@ -295,7 +295,7 @@ class TestQualityValidationIntegration:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             MockTracker.return_value = mock_tracker
@@ -327,7 +327,7 @@ class TestQualityValidationIntegration:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             MockTracker.return_value = mock_tracker
@@ -365,19 +365,28 @@ class TestPatternLearningIntegration:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             MockTracker.return_value = mock_tracker
 
-            await manager.initialize()
-
-            # Mock workflow metrics to avoid side effects
+            # Mock IntelligenceEngine
             with patch(
-                "session_buddy.core.hooks.get_workflow_metrics_engine"
-            ) as mock_get_engine:
+                "session_buddy.core.intelligence.IntelligenceEngine"
+            ) as MockEngine:
                 mock_engine = AsyncMock()
-                mock_get_engine.return_value = mock_engine
+                mock_engine.initialize = AsyncMock()
+                mock_engine.learn_from_checkpoint.return_value = []
+                MockEngine.return_value = mock_engine
+
+                await manager.initialize()
+
+                # Mock workflow metrics to avoid side effects
+                with patch(
+                    "session_buddy.core.workflow_metrics.get_workflow_metrics_engine"
+                ) as mock_get_engine:
+                    mock_engine_metrics = AsyncMock()
+                    mock_get_engine.return_value = mock_engine_metrics
 
                 high_quality_context = HookContext(
                     hook_type=HookType.POST_CHECKPOINT,
@@ -397,6 +406,172 @@ class TestPatternLearningIntegration:
                 # Pattern learning hook should succeed
                 learning_results = [r for r in results if r.success]
                 assert len(learning_results) >= 1
+
+                # Verify IntelligenceEngine was called
+                mock_engine.learn_from_checkpoint.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_intelligence_engine_integration(self) -> None:
+        """IntelligenceEngine.learn_from_checkpoint should be called for high quality."""
+        manager = HooksManager()
+
+        with patch(
+            "session_buddy.core.causal_chains.CausalChainTracker"
+        ) as MockTracker:
+            mock_tracker = AsyncMock()
+            MockTracker.return_value = mock_tracker
+
+            # Mock IntelligenceEngine
+            with patch(
+                "session_buddy.core.intelligence.IntelligenceEngine"
+            ) as MockEngine:
+                mock_engine = AsyncMock()
+                mock_engine.initialize = AsyncMock()
+                mock_engine.learn_from_checkpoint.return_value = ["pattern-1", "pattern-2"]
+                MockEngine.return_value = mock_engine
+
+                await manager.initialize()
+
+                # Verify IntelligenceEngine was initialized
+                mock_engine.initialize.assert_called_once()
+                assert manager._intelligence_engine is mock_engine
+
+                # Mock workflow metrics to avoid side effects
+                with patch(
+                    "session_buddy.core.workflow_metrics.get_workflow_metrics_engine"
+                ) as mock_get_engine:
+                    mock_engine_metrics = AsyncMock()
+                    mock_get_engine.return_value = mock_engine_metrics
+
+                    # Create high-quality checkpoint context
+                    checkpoint_context = HookContext(
+                        hook_type=HookType.POST_CHECKPOINT,
+                        session_id="session-intelligence-test",
+                        timestamp=datetime.now(UTC),
+                        checkpoint_data={
+                            "quality_score": 90,
+                            "working_directory": "/test/project",
+                            "files_modified": ["main.py", "test.py"],
+                        },
+                    )
+
+                    # Execute POST_CHECKPOINT hooks
+                    results = await manager.execute_hooks(
+                        HookType.POST_CHECKPOINT, checkpoint_context
+                    )
+
+                    # Verify learn_from_checkpoint was called
+                    mock_engine.learn_from_checkpoint.assert_called_once()
+                    call_args = mock_engine.learn_from_checkpoint.call_args
+                    assert call_args.kwargs["checkpoint"]["quality_score"] == 90
+                    assert call_args.kwargs["checkpoint"]["working_directory"] == "/test/project"
+
+                    # Verify hook succeeded
+                    assert all(r.success for r in results)
+
+    @pytest.mark.asyncio
+    async def test_intelligence_engine_skips_low_quality_checkpoints(self) -> None:
+        """IntelligenceEngine should NOT be called for quality <= 85."""
+        manager = HooksManager()
+
+        with patch(
+            "session_buddy.core.causal_chains.CausalChainTracker"
+        ) as MockTracker:
+            mock_tracker = AsyncMock()
+            MockTracker.return_value = mock_tracker
+
+            # Mock IntelligenceEngine
+            with patch(
+                "session_buddy.core.intelligence.IntelligenceEngine"
+            ) as MockEngine:
+                mock_engine = AsyncMock()
+                mock_engine.initialize = AsyncMock()
+                mock_engine.learn_from_checkpoint.return_value = []
+                MockEngine.return_value = mock_engine
+
+                await manager.initialize()
+
+                # Mock workflow metrics to avoid side effects
+                with patch(
+                    "session_buddy.core.workflow_metrics.get_workflow_metrics_engine"
+                ) as mock_get_engine:
+                    mock_engine_metrics = AsyncMock()
+                    mock_get_engine.return_value = mock_engine_metrics
+
+                    # Create low-quality checkpoint context
+                    low_quality_context = HookContext(
+                        hook_type=HookType.POST_CHECKPOINT,
+                        session_id="session-low-quality",
+                        timestamp=datetime.now(UTC),
+                        checkpoint_data={
+                            "quality_score": 75,  # Below threshold
+                            "working_directory": "/test/project",
+                        },
+                    )
+
+                    # Execute POST_CHECKPOINT hooks
+                    results = await manager.execute_hooks(
+                        HookType.POST_CHECKPOINT, low_quality_context
+                    )
+
+                    # Verify learn_from_checkpoint was NOT called
+                    mock_engine.learn_from_checkpoint.assert_not_called()
+
+                    # Hooks should still succeed (pattern learning just skipped)
+                    assert all(r.success for r in results)
+
+    @pytest.mark.asyncio
+    async def test_intelligence_failure_does_not_fail_checkpoint(self) -> None:
+        """IntelligenceEngine failure should not fail the checkpoint."""
+        manager = HooksManager()
+
+        with patch(
+            "session_buddy.core.causal_chains.CausalChainTracker"
+        ) as MockTracker:
+            mock_tracker = AsyncMock()
+            MockTracker.return_value = mock_tracker
+
+            # Mock IntelligenceEngine that raises exception
+            with patch(
+                "session_buddy.core.intelligence.IntelligenceEngine"
+            ) as MockEngine:
+                mock_engine = AsyncMock()
+                mock_engine.initialize = AsyncMock()
+                mock_engine.learn_from_checkpoint.side_effect = Exception(
+                    "Intelligence engine failure"
+                )
+                MockEngine.return_value = mock_engine
+
+                await manager.initialize()
+
+                # Mock workflow metrics to avoid side effects
+                with patch(
+                    "session_buddy.core.workflow_metrics.get_workflow_metrics_engine"
+                ) as mock_get_engine:
+                    mock_engine_metrics = AsyncMock()
+                    mock_get_engine.return_value = mock_engine_metrics
+
+                    # Create high-quality checkpoint context
+                    checkpoint_context = HookContext(
+                        hook_type=HookType.POST_CHECKPOINT,
+                        session_id="session-failure-test",
+                        timestamp=datetime.now(UTC),
+                        checkpoint_data={
+                            "quality_score": 92,
+                            "working_directory": "/test/project",
+                        },
+                    )
+
+                    # Execute POST_CHECKPOINT hooks - should not raise
+                    results = await manager.execute_hooks(
+                        HookType.POST_CHECKPOINT, checkpoint_context
+                    )
+
+                    # Hooks should still succeed (pattern learning handles error gracefully)
+                    assert all(r.success for r in results)
+
+                    # Verify intelligence engine was called despite failure
+                    mock_engine.learn_from_checkpoint.assert_called_once()
 
 
 class TestHookPriorityExecution:
@@ -629,7 +804,7 @@ class TestEndToEndIntegration:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             mock_tracker.record_error_event.return_value = "err-workflow123"
@@ -671,7 +846,7 @@ class TestEndToEndIntegration:
         manager = HooksManager()
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             MockTracker.return_value = mock_tracker
@@ -679,7 +854,7 @@ class TestEndToEndIntegration:
             await manager.initialize()
 
             with patch(
-                "session_buddy.core.hooks.get_workflow_metrics_engine"
+                "session_buddy.core.workflow_metrics.get_workflow_metrics_engine"
             ) as mock_get_engine:
                 mock_engine = AsyncMock()
                 mock_get_engine.return_value = mock_engine
@@ -720,7 +895,7 @@ class TestEndToEndIntegration:
             return handler
 
         with patch(
-            "session_buddy.core.hooks.CausalChainTracker"
+            "session_buddy.core.causal_chains.CausalChainTracker"
         ) as MockTracker:
             mock_tracker = AsyncMock()
             MockTracker.return_value = mock_tracker
@@ -760,7 +935,7 @@ class TestEndToEndIntegration:
 
             # 2. Pre-checkpoint validation
             with patch(
-                "session_buddy.core.hooks.get_workflow_metrics_engine"
+                "session_buddy.core.workflow_metrics.get_workflow_metrics_engine"
             ) as mock_get_engine:
                 mock_engine = AsyncMock()
                 mock_get_engine.return_value = mock_engine

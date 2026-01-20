@@ -7,6 +7,7 @@ from .crackerjack_tools import register_crackerjack_tools
 from .entity_extraction_tools import register_extraction_tools
 from .feature_flags_tools import register_feature_flags_tools
 from .hooks_tools import register_hooks_tools
+from .intent_tools_registration import register_intent_detection_tools
 from .knowledge_graph_tools import register_knowledge_graph_tools
 from .llm_tools import register_llm_tools
 from .memory_health_tools import register_memory_health_tools
@@ -29,6 +30,7 @@ __all__ = [
     "register_extraction_tools",
     "register_feature_flags_tools",
     "register_hooks_tools",
+    "register_intent_detection_tools",
     "register_knowledge_graph_tools",
     "register_llm_tools",
     "register_memory_health_tools",

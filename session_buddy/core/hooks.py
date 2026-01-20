@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Callable, Awaitable, Optional
 
 if TYPE_CHECKING:
     from session_buddy.core.causal_chains import CausalChainTracker
+    from session_buddy.core.intelligence import IntelligenceEngine
 
 
 class HookType(str, Enum):
@@ -160,27 +161,43 @@ class HooksManager:
         self.logger = logger or logging.getLogger(__name__)
         self._hooks: dict[HookType, list[Hook]] = {}
         self._causal_tracker: CausalChainTracker | None = None
+        self._intelligence_engine: IntelligenceEngine | None = None
 
     async def initialize(self) -> None:
-        """Initialize hook system with causal tracking.
+        """Initialize hook system with causal tracking and intelligence.
 
         This sets up:
             - Causal chain tracker integration
+            - Intelligence engine for pattern learning
             - Default built-in hooks
             - Hook storage initialization
         """
         # Import here to avoid circular dependency
         from session_buddy.core.causal_chains import CausalChainTracker
+        from session_buddy.core.intelligence import IntelligenceEngine
 
+        # Initialize causal tracker
         self._causal_tracker = CausalChainTracker(logger=self.logger)
         await self._causal_tracker.initialize()
+
+        # Initialize intelligence engine (optional - graceful degradation)
+        try:
+            self._intelligence_engine = IntelligenceEngine()
+            await self._intelligence_engine.initialize()
+        except Exception as e:
+            self.logger.warning(
+                "Intelligence engine initialization failed: %s. Pattern learning will be disabled.",
+                e,
+            )
+            self._intelligence_engine = None
 
         # Register default built-in hooks
         await self._register_default_hooks()
 
         self.logger.info(
-            "HooksManager initialized with causal_chain_tracker=%s",
+            "HooksManager initialized with causal_chain_tracker=%s, intelligence_engine=%s",
             self._causal_tracker is not None,
+            self._intelligence_engine is not None,
         )
 
     async def register_hook(self, hook: Hook) -> None:
@@ -453,7 +470,7 @@ class HooksManager:
         """Learn from successful checkpoints.
 
         Extracts patterns from high-quality checkpoints (>85 score)
-        for future skill library integration.
+        and consolidates them into reusable skills.
 
         Args:
             context: Hook context with checkpoint_data
@@ -464,14 +481,34 @@ class HooksManager:
         checkpoint = context.checkpoint_data or {}
 
         # Only learn from high-quality checkpoints
-        if checkpoint.get("quality_score", 0) > 85:
-            # Pattern extraction will be implemented in Phase 4
-            # (Intelligence System)
-            self.logger.info(
-                "High-quality checkpoint detected (score=%s), "
-                "pattern learning scheduled for Phase 4",
-                checkpoint.get("quality_score"),
-            )
+        quality_score = checkpoint.get("quality_score", 0)
+        if quality_score > 85 and self._intelligence_engine:
+            try:
+                # Extract patterns from this checkpoint
+                pattern_ids = await self._intelligence_engine.learn_from_checkpoint(
+                    checkpoint=checkpoint,
+                )
+
+                if pattern_ids:
+                    self.logger.info(
+                        "Extracted %d pattern(s) from checkpoint (quality=%s)",
+                        len(pattern_ids),
+                        quality_score,
+                    )
+                else:
+                    self.logger.debug(
+                        "No patterns extracted from checkpoint (quality=%s)",
+                        quality_score,
+                    )
+
+            except Exception as e:
+                # Don't fail the checkpoint if learning fails
+                self.logger.warning(
+                    "Pattern learning failed (quality=%s): %s",
+                    quality_score,
+                    e,
+                    exc_info=True,
+                )
 
         return HookResult(success=True)
 

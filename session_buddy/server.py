@@ -398,6 +398,7 @@ from .tools import (
     register_extraction_tools,
     register_feature_flags_tools,
     register_hooks_tools,
+    register_intent_detection_tools,
     register_knowledge_graph_tools,
     register_llm_tools,
     register_memory_health_tools,
@@ -427,6 +428,7 @@ register_crackerjack_tools(mcp)  # type: ignore[argument-type]
 register_extraction_tools(mcp)  # type: ignore[argument-type]
 register_feature_flags_tools(mcp)  # type: ignore[argument-type]
 register_hooks_tools(mcp)  # type: ignore[argument-type]
+register_intent_detection_tools(mcp)  # type: ignore[argument-type]
 register_knowledge_graph_tools(mcp)  # type: ignore[argument-type]
 register_llm_tools(mcp)  # type: ignore[argument-type]
 register_migration_tools(mcp)  # type: ignore[argument-type]

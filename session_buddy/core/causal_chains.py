@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter_oneiric import (
-        ReflectionDatabaseAdapter,
+        ReflectionDatabaseAdapterOneiric,
     )
 
 
@@ -124,7 +124,7 @@ class CausalChainTracker:
             logger: Optional logger instance
         """
         self.logger = logger or logging.getLogger(__name__)
-        self.db: ReflectionDatabaseAdapter | None = None
+        self.db: ReflectionDatabaseAdapterOneiric | None = None
         self._embedding_cache: dict[str, list[float]] = {}
 
     async def initialize(self) -> None:
@@ -135,10 +135,10 @@ class CausalChainTracker:
         # Import here to avoid circular dependency
         from session_buddy.di import depends
         from session_buddy.adapters.reflection_adapter_oneiric import (
-            ReflectionDatabaseAdapter,
+            ReflectionDatabaseAdapterOneiric,
         )
 
-        self.db = depends.get_sync(ReflectionDatabaseAdapter)
+        self.db = depends.get_sync(ReflectionDatabaseAdapterOneiric)
         await self._ensure_tables()
 
         self.logger.info("CausalChainTracker initialized")
@@ -391,12 +391,15 @@ class CausalChainTracker:
 
         Args:
             current_error: Current error message
-            limit: Maximum number of similar failures to return
+            limit: Maximum number of similar failures to return (1-100)
 
         Returns:
-            List of similar errors with their successful fixes, sorted by
-            similarity (descending) and resolution time (ascending)
+            List of similar failure chains with context
         """
+        # Validate limit to prevent DoS
+        if not isinstance(limit, int) or not 1 <= limit <= 100:
+            raise ValueError("limit must be an integer between 1 and 100")
+
         if not self.db or not self.db.conn:
             self.logger.warning("No database connection for similarity search")
             return []

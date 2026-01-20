@@ -1,0 +1,342 @@
+# Intent Patterns for Natural Language Tool Detection
+# This file contains training data for the IntentDetector system
+# Each tool has keyword patterns for fast matching and semantic examples for embedding-based matching
+
+# Core Session Management Tools
+checkpoint:
+  patterns:
+    - "save my progress"
+    - "create a checkpoint"
+    - "checkpoint this"
+    - "save current state"
+    - "I want to save"
+    - "let me save"
+    - "checkpoint now"
+    - "time to checkpoint"
+  semantic_examples:
+    - "I've made good progress, let me save"
+    - "Time to checkpoint before the next feature"
+    - "Let me save what I have so far"
+    - "Need to create a checkpoint before switching branches"
+    - "I should checkpoint my work"
+  argument_extraction:
+    message:
+      patterns:
+      - "with message [\"']?(.*?)[\"']?"
+      - "message: (.*?)(?:\\.|$)"
+      - "called [\"']?(.*?)[\"']?"
+
+start:
+  patterns:
+    - "start a session"
+    - "initialize session"
+    - "begin session"
+    - "new session"
+  semantic_examples:
+      - "Let's start a fresh session"
+      - "Initialize session for this project"
+      - "I want to start working on this"
+
+end:
+  patterns:
+    - "end my session"
+    - "finish session"
+    - "complete session"
+    - "wrap up session"
+  semantic_examples:
+      - "I'm done for today"
+      - "Let's end this session"
+      - "Time to finish up"
+
+status:
+  patterns:
+    - "session status"
+    - "how is the session"
+    - "current session state"
+  semantic_examples:
+      - "What's the current session status?"
+      - "Show me the session state"
+      - "Where are we at?"
+
+# Memory and Search Tools
+search_reflections:
+  patterns:
+    - "what did I learn about"
+    - "find insights on"
+    - "search for"
+    - "recall work about"
+    - "find past work on"
+    - "what do I know about"
+    - "any insights on"
+  semantic_examples:
+      - "What did I learn about error handling last week?"
+      - "Find my insights on authentication patterns"
+      - "Search for work I did on the API"
+      - "What do I know about database optimization?"
+      - "Any past work on async patterns?"
+  argument_extraction:
+    query:
+      patterns:
+        - 'learn about (.*?)(?:\?|$)'
+        - 'insights on (.*?)(?:\?|$)'
+        - 'search for (.*?)(?:\?|$)'
+        - 'work on (.*?)(?:\?|$)'
+        - 'about (.*?)(?:\?|$)'
+
+quick_search:
+  patterns:
+    - "quick search for"
+    - "find anything on"
+    - "quick overview of"
+  semantic_examples:
+      - "Give me a quick overview of authentication work"
+      - "Quick search for database patterns"
+
+search_by_file:
+  patterns:
+    - "what did I do to"
+    - "changes to file"
+    - "work in"
+  semantic_examples:
+      - "What did I do to auth.py?"
+      - "Show me changes to models.py"
+      - "What work did I do in user_service?"
+
+search_by_concept:
+  patterns:
+    - "find code related to"
+    - "show me concept"
+    - "anything about"
+  semantic_examples:
+      - "Find code related to dependency injection"
+      - "Show me the JWT implementation"
+      - "Anything about error handling?"
+
+search_code:
+  patterns:
+    - "search code for"
+    - "find function"
+    - "where is the"
+  semantic_examples:
+      - "Search code for authentication logic"
+      - "Find the validate_token function"
+      - "Where is the user lookup code?"
+
+search_errors:
+  patterns:
+    - "find errors with"
+    - "what went wrong with"
+    - "errors related to"
+  semantic_examples:
+      - "Find TypeError issues"
+      - "What ImportError did we see?"
+
+search_temporal:
+  patterns:
+    - "what did I do"
+    - "work from"
+    - "activity on"
+  semantic_examples:
+      - "What did I do yesterday?"
+      - "Show me work from last Tuesday"
+      - "Activity from last week"
+
+# Reflection and Learning Tools
+store_reflection:
+  patterns:
+    - "remember that"
+    - "save as insight"
+    - "create a reflection"
+    - "note this"
+    - "store this"
+  semantic_examples:
+      - "Remember that we fixed this by using retries"
+      - "Save this as a learning for later"
+      - "Create a reflection about this pattern"
+
+list_learned_skills:
+  patterns:
+    - "what skills have I learned"
+    - "show my skills"
+    - "learned patterns"
+  semantic_examples:
+      - "What skills have I learned from past sessions?"
+      - "Show me all my learned patterns"
+
+suggest_workflow_improvements:
+  patterns:
+    - "how can I improve"
+    - "workflow suggestions"
+    - "what should I do differently"
+  semantic_examples:
+      - "How can I improve my workflow?"
+      - "Give me suggestions for my current work"
+      - "What should I do differently?"
+
+# Quality and Monitoring Tools
+quality_monitor:
+  patterns:
+    - "how's the code quality"
+    - "check quality"
+    - "analyze project health"
+    - "quality score"
+    - "is the code good"
+    - "project health"
+    - "quality of my work"
+    - "check the quality"
+    - "check code"
+  semantic_examples:
+    - "How is the code quality looking?"
+    - "What's the current project health?"
+    - "Check the quality of my recent work"
+    - "Give me a quality assessment"
+    - "How's the project doing?"
+
+crackerjack_health_check:
+  patterns:
+    - "check crackerjack"
+    - "crackerjack status"
+    - "is crackerjack working"
+  semantic_examples:
+      - "Is crackerjack working properly?"
+      - "Check if crackerjack is configured"
+
+# Causal Chain and Debugging Tools
+query_similar_errors:
+  patterns:
+    - "have i seen"
+    - "how did i fix"
+    - "similar"
+    - "seen this"
+    - "encountered this"
+  semantic_examples:
+    - "Have I encountered this TypeError before?"
+    - "How did I fix the authentication timeout last time?"
+    - "Find similar import errors from the past"
+    - "I've seen this error before"
+  argument_extraction:
+    error_message:
+      patterns:
+        - '[Hh]ave (?:I|i|we) seen this (\w+)(?:\s+error)?'  # "TypeError" from "have I seen this TypeError"
+        - '[Hh]ave (?:I|i|we) encountered this (\w+)(?:\s+error)?'  # "timeout" from "have I encountered this timeout"
+        - 'similar\s+(.+?)(?:\??)?$'  # "import errors" from "similar import errors"
+        - '[Hh]ow did (?:I|i|we) fix (?:the\s+)?(\w+)(?:\s+error)?'  # "timeout" from "how did I fix the timeout"
+
+# Analytics and Monitoring
+analyze_session_performance:
+  patterns:
+    - "analyze my session"
+    - "session performance"
+    - "how did I do"
+  semantic_examples:
+      - "Analyze my recent development session"
+      - "How did I perform in this session?"
+
+analyze_memory_health:
+  patterns:
+    - "memory health"
+    - "database status"
+    - "reflection database"
+  semantic_examples:
+      - "Check the health of my memory database"
+      - "Is my reflection database healthy?"
+
+detect_workflow_bottlenecks:
+  patterns:
+    - "workflow bottlenecks"
+    - "what's slowing me down"
+
+    - "efficiency issues"
+  semantic_examples:
+      - "Identify bottlenecks in my workflow"
+      - "What's causing delays in my development?"
+
+# Advanced Features
+get_active_files:
+  patterns:
+    - "what files am I editing"
+    - "active files"
+
+    - "recently edited"
+  semantic_examples:
+      - "What files have I been working on?"
+      - "Show me my active files"
+
+get_activity_summary:
+  patterns:
+    - "activity summary"
+    - "what have I been doing"
+
+  semantic_examples:
+      - "Give me a summary of my recent activity"
+
+get_context_insights:
+  patterns:
+    - "context insights"
+    - "what's the context"
+
+  semantic_examples:
+      - "What insights does my context provide?"
+
+# Multi-Project Coordination
+search_across_projects:
+  patterns:
+    - "search across projects"
+    - "find in other repos"
+    - "all projects"
+  semantic_examples:
+      - "Search for authentication patterns across all projects"
+      - "Find work on this topic in other repositories"
+
+get_project_insights:
+  patterns:
+    - "project insights"
+    - "cross-project analysis"
+
+  semantic_examples:
+      - "Give me insights across my related projects"
+
+# Utility Commands
+auto_compact:
+  patterns:
+    - "compact context"
+    - "reduce token usage"
+
+    - "too many tokens"
+  semantic_examples:
+      - "Compact my context window"
+      - "I'm running out of tokens"
+
+reflection_stats:
+  patterns:
+    - "memory stats"
+    - "how many reflections"
+
+    - "database size"
+  semantic_examples:
+      - "Show me my memory statistics"
+      - "How many insights do I have stored?"
+
+# Team Collaboration (if applicable)
+create_team:
+  patterns:
+    - "create a team"
+    - "setup collaboration"
+  semantic_examples:
+      - "Create a team for this project"
+
+search_team_knowledge:
+  patterns:
+    - "team knowledge"
+    - "what does the team know"
+
+  semantic_examples:
+      - "Search team knowledge for patterns"
+
+get_team_statistics:
+  patterns:
+    - "team stats"
+    - "team activity"
+
+  semantic_examples:
+      - "Show me team activity statistics"
