@@ -84,7 +84,7 @@ Session Buddy captures insights when:
 
 ### Configuration
 
-Edit `~/.claude/settings/session-mgmt.yaml`:
+Edit `~/.claude/settings/session-buddy.yaml`:
 
 ```yaml
 enable_insight_extraction: true  # Enable/disable
@@ -374,7 +374,7 @@ ______________________________________________________________________
 
 ### Feature Flags
 
-Edit `~/.claude/settings/session-mgmt.yaml`:
+Edit `~/.claude/settings/session-buddy.yaml`:
 
 ```yaml
 # Insights capture
@@ -483,7 +483,7 @@ ______________________________________________________________________
 1. **Verify feature is enabled**:
 
    ```bash
-   grep enable_insight_extraction ~/.claude/settings/session-mgmt.yaml
+   grep enable_insight_extraction ~/.claude/settings/session-buddy.yaml
    ```
 
 1. **Check conversation has insights**:

@@ -64,12 +64,12 @@ session-buddy/
 
 ### MCP Configuration
 
-Add to your project's `.mcp.json` file:
+Add to your global `~/.claude/.mcp.json` file (recommended):
 
 ```json
 {
   "mcpServers": {
-    "session-mgmt": {
+    "session-buddy": {
       "command": "python",
       "args": ["-m", "session_buddy.server"],
       "cwd": "/path/to/session-buddy",
@@ -86,7 +86,7 @@ Alternative using script entry point (if installed with pip/uv):
 ```json
 {
   "mcpServers": {
-    "session-mgmt": {
+    "session-buddy": {
       "command": "session-buddy",
       "args": [],
       "env": {}

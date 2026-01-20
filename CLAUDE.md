@@ -476,12 +476,16 @@ CREATE TABLE reflections (
 
 ## Configuration & Integration
 
-### MCP Configuration (.mcp.json)
+### MCP Configuration
+
+**Note:** This project uses the global MCP configuration in `~/.claude/.mcp.json` (recommended). The project-level `.mcp.json` has been removed as redundant.
+
+Example configuration for `~/.claude/.mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "session-mgmt": {
+    "session-buddy": {
       "command": "python",
       "args": ["-m", "session_buddy.server"],
       "cwd": "/path/to/session-buddy",
@@ -516,7 +520,7 @@ Session Buddy uses Oneiric adapters with native DuckDB for improved reliability 
 - `gcs` - Google Cloud Storage (GCP deployments)
 - `memory` - In-memory storage (testing only)
 
-**Configuration** (`settings/session-mgmt.yaml`):
+**Configuration** (`settings/session-buddy.yaml`):
 
 ```yaml
 storage:
@@ -527,7 +531,7 @@ storage:
     auto_mkdir: true
 
   s3:
-    bucket_name: "${S3_BUCKET:session-mgmt}"
+    bucket_name: "${S3_BUCKET:session-buddy}"
     endpoint_url: "${S3_ENDPOINT:}"
     region: "${S3_REGION:us-east-1}"
 ```
@@ -738,11 +742,10 @@ The project uses modern Python tooling with strict quality settings:
 
 ### MCP Server Configuration
 
-The `.mcp.json` shows integration with multiple MCP servers:
+The global `~/.claude/.mcp.json` includes integration with multiple MCP servers:
 
-- **session-mgmt**: This server (local development mode)
+- **session-buddy**: This server (local development mode)
 - **crackerjack**: Code quality tools and workflow automation
-- **ast-grep**: Code analysis and pattern matching
 - Plus additional servers for GitHub, GitLab, memory, etc.
 
 ### Testing Configuration (conftest.py)
