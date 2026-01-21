@@ -265,6 +265,7 @@ Hooks execute in priority order (lower number = earlier execution):
 - **300-999**: Optional and user-defined hooks
 
 Example:
+
 ```python
 # High priority (executes first)
 high_priority_hook = Hook(name="validator", priority=10, ...)
@@ -494,6 +495,7 @@ pytest tests/unit/test_hooks_system.py --cov=session_buddy.core.hooks --cov=sess
 ```
 
 Test coverage includes:
+
 - Hook registration and execution
 - Priority ordering
 - Enabled/disabled state
@@ -549,32 +551,35 @@ post_hooks_results = await hooks_manager.execute_hooks(
 Potential future improvements:
 
 1. **Hook Dependencies**: Allow hooks to depend on other hooks
-2. **Conditional Execution**: More sophisticated hook enabling conditions
-3. **Hook Composition**: Combine multiple hooks into composite hooks
-4. **Distributed Tracking**: Share causal chains across projects
-5. **ML-Based Suggestions**: Use ML to predict successful fixes
-6. **Hook Templates**: Pre-built hook templates for common tasks
+1. **Conditional Execution**: More sophisticated hook enabling conditions
+1. **Hook Composition**: Combine multiple hooks into composite hooks
+1. **Distributed Tracking**: Share causal chains across projects
+1. **ML-Based Suggestions**: Use ML to predict successful fixes
+1. **Hook Templates**: Pre-built hook templates for common tasks
 
 ## Troubleshooting
 
 ### Hooks Not Executing
 
 Check that:
+
 1. Hooks are registered: `await manager.register_hook(hook)`
-2. Hooks are enabled: `hook.enabled = True`
-3. Correct hook type is used
-4. No exceptions in hook handler
+1. Hooks are enabled: `hook.enabled = True`
+1. Correct hook type is used
+1. No exceptions in hook handler
 
 ### Causal Chain Tracking Not Working
 
 Check that:
+
 1. CausalChainTracker is initialized: `await tracker.initialize()`
-2. Database adapter is available in DI container
-3. Embeddings are being generated (check ONNX runtime)
+1. Database adapter is available in DI container
+1. Embeddings are being generated (check ONNX runtime)
 
 ### Priority Order Issues
 
 Remember:
+
 - Lower priority numbers execute FIRST (priority 10 before priority 100)
 - Same priority hooks execute in registration order
 - Use priority ranges consistently (10, 20, 30 not 10, 11, 12)

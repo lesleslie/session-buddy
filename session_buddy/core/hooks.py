@@ -13,10 +13,11 @@ Architecture:
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Awaitable, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from session_buddy.core.causal_chains import CausalChainTracker
@@ -29,6 +30,7 @@ class HookType(str, Enum):
     Pre-operation hooks:
         - Execute before an operation occurs
         - Can validate, modify, or cancel operations
+        - PRE_SEARCH_QUERY: Rewrite ambiguous queries before search execution
 
     Post-operation hooks:
         - Execute after an operation completes
@@ -44,6 +46,7 @@ class HookType(str, Enum):
     PRE_TOOL_EXECUTION = "pre_tool_execution"
     PRE_REFLECTION_STORE = "pre_reflection_store"
     PRE_SESSION_END = "pre_session_end"
+    PRE_SEARCH_QUERY = "pre_search_query"
 
     # Post-operation hooks
     POST_CHECKPOINT = "post_checkpoint"
@@ -76,11 +79,11 @@ class HookContext:
     timestamp: datetime
     metadata: dict[str, Any] = field(default_factory=dict)
     # For error hooks
-    error_info: Optional[dict[str, Any]] = None
+    error_info: dict[str, Any] | None = None
     # For file edit hooks
-    file_path: Optional[str] = None
+    file_path: str | None = None
     # For checkpoint hooks
-    checkpoint_data: Optional[dict[str, Any]] = None
+    checkpoint_data: dict[str, Any] | None = None
 
 
 @dataclass
@@ -96,11 +99,11 @@ class HookResult:
     """
 
     success: bool
-    modified_context: Optional[dict[str, Any]] = None
-    error: Optional[str] = None
+    modified_context: dict[str, Any] | None = None
+    error: str | None = None
     execution_time_ms: float = 0.0
     # For causal chain tracking
-    causal_chain_id: Optional[str] = None
+    causal_chain_id: str | None = None
 
 
 @dataclass
@@ -131,7 +134,7 @@ class Hook:
     hook_type: HookType
     priority: int  # Lower = earlier execution
     handler: Callable[[HookContext], Awaitable[HookResult]]
-    error_handler: Optional[Callable[[Exception], Awaitable[None]]] = None
+    error_handler: Callable[[Exception], Awaitable[None]] | None = None
     enabled: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -152,7 +155,7 @@ class HooksManager:
         >>> results = await manager.execute_hooks(HookType.POST_CHECKPOINT, context)
     """
 
-    def __init__(self, logger: Optional[logging.Logger] = None) -> None:
+    def __init__(self, logger: logging.Logger | None = None) -> None:
         """Initialize hooks manager.
 
         Args:
@@ -280,9 +283,7 @@ class HooksManager:
             try:
                 start_time = datetime.now()
                 result = await hook.handler(context)
-                execution_time = (
-                    datetime.now() - start_time
-                ).total_seconds() * 1000
+                execution_time = (datetime.now() - start_time).total_seconds() * 1000
 
                 result.execution_time_ms = execution_time
                 results.append(result)
@@ -323,9 +324,7 @@ class HooksManager:
                             exc_info=True,
                         )
 
-                results.append(
-                    HookResult(success=False, error=str(e))
-                )
+                results.append(HookResult(success=False, error=str(e)))
 
         self.logger.info(
             "Executed %d/%d hooks for type=%s: %d succeeded",
@@ -420,9 +419,7 @@ class HooksManager:
             # Import here to avoid circular dependency
             from session_buddy.server import run_crackerjack_command
 
-            await run_crackerjack_command(
-                ["lint", "--fix", str(file_path)], timeout=30
-            )
+            await run_crackerjack_command(["lint", "--fix", str(file_path)], timeout=30)
             return HookResult(success=True)
         except Exception as e:
             self.logger.warning(
@@ -432,9 +429,7 @@ class HooksManager:
             )
             return HookResult(success=False, error=str(e))
 
-    async def _quality_validation_handler(
-        self, context: HookContext
-    ) -> HookResult:
+    async def _quality_validation_handler(self, context: HookContext) -> HookResult:
         """Validate quality before checkpoint.
 
         Ensures minimum quality threshold is met before allowing
@@ -464,9 +459,7 @@ class HooksManager:
             modified_context={"validated_quality": quality_score},
         )
 
-    async def _pattern_learning_handler(
-        self, context: HookContext
-    ) -> HookResult:
+    async def _pattern_learning_handler(self, context: HookContext) -> HookResult:
         """Learn from successful checkpoints.
 
         Extracts patterns from high-quality checkpoints (>85 score)
@@ -537,9 +530,7 @@ class HooksManager:
                 session_id=context.session_id,
             )
 
-            return HookResult(
-                success=True, causal_chain_id=chain_id
-            )
+            return HookResult(success=True, causal_chain_id=chain_id)
         except Exception as e:
             self.logger.error(
                 "Causal chain tracking failed: %s",
@@ -548,9 +539,7 @@ class HooksManager:
             )
             return HookResult(success=False, error=str(e))
 
-    async def _workflow_metrics_handler(
-        self, context: HookContext
-    ) -> HookResult:
+    async def _workflow_metrics_handler(self, context: HookContext) -> HookResult:
         """Collect workflow metrics from checkpoints.
 
         Tracks session velocity, quality trends, and working patterns
@@ -602,7 +591,7 @@ class HooksManager:
             return HookResult(success=True)
 
     def list_hooks(
-        self, hook_type: Optional[HookType] = None
+        self, hook_type: HookType | None = None
     ) -> dict[HookType, list[dict[str, Any]]]:
         """List registered hooks for inspection.
 

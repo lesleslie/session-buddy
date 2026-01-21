@@ -121,7 +121,9 @@ class SessionStreaks:
         return {
             "longest_streak_days": self.longest_streak_days,
             "current_streak_days": self.current_streak_days,
-            "avg_gap_between_sessions_hours": round(self.avg_gap_between_sessions_hours, 1),
+            "avg_gap_between_sessions_hours": round(
+                self.avg_gap_between_sessions_hours, 1
+            ),
             "longest_gap_hours": round(self.longest_gap_hours, 1),
             "consistent_daily_sessions": self.consistent_daily_sessions,
             "most_consistent_week": self.most_consistent_week,
@@ -256,11 +258,7 @@ class SessionAnalytics:
 
         # Calculate median
         sorted_durations = sorted(durations)
-        median = (
-            sorted_durations[total // 2]
-            if total > 0
-            else 0
-        )
+        median = sorted_durations[total // 2] if total > 0 else 0
 
         return SessionLengthDistribution(
             short_sessions=short,
@@ -331,7 +329,15 @@ class SessionAnalytics:
             params,
         ).fetchall()
 
-        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        day_names = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
         day_of_week_dist = {day_names[int(row[0])]: row[1] for row in dow_result}
 
         # Find peak productivity hour (hour with most commits/checkpoints)
@@ -379,7 +385,9 @@ class SessionAnalytics:
         avg_sessions_per_day = total_sessions / days_back if days_back > 0 else 0
 
         # Determine session frequency trend
-        frequency_trend = await self._calculate_frequency_trend(where_sql, params, days_back)
+        frequency_trend = await self._calculate_frequency_trend(
+            where_sql, params, days_back
+        )
 
         return TemporalPatterns(
             time_of_day_distribution=time_of_day_dist,
@@ -423,7 +431,9 @@ class SessionAnalytics:
         # Simple trend detection
         if len(counts) >= 3:
             recent_avg = sum(counts[-3:]) / 3
-            earlier_avg = sum(counts[:-3]) / len(counts[:-3]) if len(counts) > 3 else counts[0]
+            earlier_avg = (
+                sum(counts[:-3]) / len(counts[:-3]) if len(counts) > 3 else counts[0]
+            )
 
             if recent_avg > earlier_avg * 1.2:
                 return "increasing"
@@ -602,7 +612,6 @@ class SessionAnalytics:
         # Calculate longest streak
         longest_streak = 0
         current_streak = 0
-        streak_end = None
 
         today = datetime.now(UTC).date()
         for i, date in enumerate(reversed(session_dates)):
@@ -677,7 +686,9 @@ class SessionAnalytics:
             Actionable productivity insights
         """
         # Get all analytics data
-        length_dist = await self.get_session_length_distribution(project_path, days_back)
+        length_dist = await self.get_session_length_distribution(
+            project_path, days_back
+        )
         temporal = await self.get_temporal_patterns(project_path, days_back)
         correlations = await self.get_activity_correlations(project_path, days_back)
 
@@ -725,9 +736,13 @@ class SessionAnalytics:
         suggestions = []
 
         if length_dist.short_percentage > 60:
-            suggestions.append("Consider extending sessions to 60-90 minutes for deeper work")
+            suggestions.append(
+                "Consider extending sessions to 60-90 minutes for deeper work"
+            )
         elif length_dist.long_percentage > 40:
-            suggestions.append("Try breaking long sessions into focused 90-minute blocks")
+            suggestions.append(
+                "Try breaking long sessions into focused 90-minute blocks"
+            )
 
         if temporal.avg_sessions_per_day < 1:
             suggestions.append("Aim for at least one focused session per day")

@@ -15,9 +15,9 @@ Quality Data    Learned Patterns    Consolidated   Proactive Tips
 ### Core Components
 
 1. **IntelligenceEngine**: Main orchestrator for learning and suggestions
-2. **LearnedSkill**: Consolidated pattern with metadata
-3. **PatternInstance**: Individual pattern occurrence
-4. **SkillLibrary**: Storage and retrieval of learned skills
+1. **LearnedSkill**: Consolidated pattern with metadata
+1. **PatternInstance**: Individual pattern occurrence
+1. **SkillLibrary**: Storage and retrieval of learned skills
 
 ## Key Features
 
@@ -405,9 +405,9 @@ CREATE TABLE intelligence_cross_project_patterns (
 ## Performance Considerations
 
 1. **Skill Library Caching**: Skills are cached in memory after loading
-2. **Semantic Search**: Uses embeddings for pattern matching
-3. **Incremental Learning**: Patterns extracted per checkpoint
-4. **Lazy Consolidation**: Skills consolidated when needed, not eagerly
+1. **Semantic Search**: Uses embeddings for pattern matching
+1. **Incremental Learning**: Patterns extracted per checkpoint
+1. **Lazy Consolidation**: Skills consolidated when needed, not eagerly
 
 ## Troubleshooting
 
@@ -521,4 +521,4 @@ class IntelligenceEngine:
 
 - [Hooks System](hooks_system.md) - Pattern extraction via POST_CHECKPOINT hook
 - [Causal Chains](causal_chains.md) - Error pattern learning
-- [Workflow Metrics](workflow_metrics.md) - Success rate tracking
+<!-- - [Workflow Metrics](workflow_metrics.md) - Success rate tracking (archived) -->

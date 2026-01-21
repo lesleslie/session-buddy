@@ -22,14 +22,13 @@ import json
 import logging
 import typing as t
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from session_buddy.adapters.reflection_adapter_oneiric import (
     ReflectionDatabaseAdapterOneiric,
 )
 from session_buddy.di import depends
-
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +61,9 @@ def safe_json_parse(value: t.Any, expected_type: type) -> t.Any:
         result = json.loads(value)
         # Validate type
         if not isinstance(result, expected_type):
-            logger.warning(f"JSON parsed but type mismatch: expected {expected_type}, got {type(result)}")
+            logger.warning(
+                f"JSON parsed but type mismatch: expected {expected_type}, got {type(result)}"
+            )
             return expected_type() if expected_type in (dict, list) else None
 
         # Validate structure size
@@ -170,7 +171,9 @@ class IntelligenceEngine:
     async def _ensure_tables(self) -> None:
         """Create intelligence system tables."""
         if not self.db:
-            raise RuntimeError("IntelligenceEngine not initialized - call initialize() first")
+            raise RuntimeError(
+                "IntelligenceEngine not initialized - call initialize() first"
+            )
 
         # Learned skills table - consolidated reusable patterns
         self.db.conn.execute(
@@ -545,7 +548,11 @@ class IntelligenceEngine:
                 "context": {"pattern": "checkpoint_analyze_improve"},
                 "outcome": {"pattern": "continuous_improvement"},
                 "tags": ["quality", "iteration"],
-                "actions": ["create_checkpoint", "analyze_quality", "implement_improvements"],
+                "actions": [
+                    "create_checkpoint",
+                    "analyze_quality",
+                    "implement_improvements",
+                ],
             }
 
         return None
@@ -1004,9 +1011,7 @@ class IntelligenceEngine:
 
         return has_test and has_refactor
 
-    def _detect_extraction_pattern(
-        self, edit_history: list[dict[str, t.Any]]
-    ) -> bool:
+    def _detect_extraction_pattern(self, edit_history: list[dict[str, t.Any]]) -> bool:
         """Detect pattern: extracted function to simplify logic."""
         for edit in edit_history:
             content = edit.get("content", "").lower()
@@ -1031,7 +1036,9 @@ class IntelligenceEngine:
 
         return has_lint and has_test
 
-    def _detect_reflection_guided_pattern(self, tool_usage: list[dict[str, t.Any]]) -> bool:
+    def _detect_reflection_guided_pattern(
+        self, tool_usage: list[dict[str, t.Any]]
+    ) -> bool:
         """Detect pattern: search reflections → apply solution."""
         has_search = False
         has_implementation = False
@@ -1042,8 +1049,7 @@ class IntelligenceEngine:
                 has_search = True
             # After search, look for implementation tools
             if has_search and any(
-                word in tool_name
-                for word in ["edit", "write", "create", "implement"]
+                word in tool_name for word in ["edit", "write", "create", "implement"]
             ):
                 has_implementation = True
 
@@ -1157,7 +1163,9 @@ class IntelligenceEngine:
         similar_patterns = []
         for row in results:
             pattern_context = safe_json_parse(row[3], dict)
-            similarity = self._calculate_context_similarity(current_context, pattern_context)
+            similarity = self._calculate_context_similarity(
+                current_context, pattern_context
+            )
 
             if similarity >= threshold:
                 similar_patterns.append(
@@ -1362,20 +1370,118 @@ class IntelligenceEngine:
 
         # Common stop words to filter out
         stop_words = {
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
-            "for", "of", "with", "by", "from", "as", "is", "was", "are",
-            "been", "be", "have", "has", "had", "do", "does", "did", "will",
-            "would", "could", "should", "may", "might", "must", "shall",
-            "can", "need", "this", "that", "these", "those", "i", "you",
-            "he", "she", "it", "we", "they", "what", "which", "who", "when",
-            "where", "why", "how", "all", "each", "every", "both", "few",
-            "more", "most", "other", "some", "such", "no", "not", "only",
-            "own", "same", "so", "than", "too", "very", "just", "also",
-            "now", "here", "there", "then", "once", "about", "into",
-            "through", "during", "before", "after", "above", "below", "up",
-            "down", "out", "off", "over", "under", "again", "further",
-            "their", "your", "our", "its", "him", "her", "us", "them",
-            "his", "hers", "ours", "yours", "mine", "yours", "hers",
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "but",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "with",
+            "by",
+            "from",
+            "as",
+            "is",
+            "was",
+            "are",
+            "been",
+            "be",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "must",
+            "shall",
+            "can",
+            "need",
+            "this",
+            "that",
+            "these",
+            "those",
+            "i",
+            "you",
+            "he",
+            "she",
+            "it",
+            "we",
+            "they",
+            "what",
+            "which",
+            "who",
+            "when",
+            "where",
+            "why",
+            "how",
+            "all",
+            "each",
+            "every",
+            "both",
+            "few",
+            "more",
+            "most",
+            "other",
+            "some",
+            "such",
+            "no",
+            "not",
+            "only",
+            "own",
+            "same",
+            "so",
+            "than",
+            "too",
+            "very",
+            "just",
+            "also",
+            "now",
+            "here",
+            "there",
+            "then",
+            "once",
+            "about",
+            "into",
+            "through",
+            "during",
+            "before",
+            "after",
+            "above",
+            "below",
+            "up",
+            "down",
+            "out",
+            "off",
+            "over",
+            "under",
+            "again",
+            "further",
+            "their",
+            "your",
+            "our",
+            "its",
+            "him",
+            "her",
+            "us",
+            "them",
+            "his",
+            "hers",
+            "ours",
+            "yours",
+            "mine",
+            "yours",
+            "hers",
         }
 
         # Extract keywords from dict values only (not keys)

@@ -19,6 +19,7 @@ await db.store_reflection(content, tags)  # Always inserts
 ```
 
 This leads to:
+
 - Database bloat from repeated/similar content
 - Search results polluted with near-duplicates
 - Wasted embedding computation on duplicate content
@@ -48,7 +49,8 @@ Inspired by Engram's `NgramHashMapping`, but adapted for content deduplication:
 Simple content hashing (hash entire text) only catches **exact** duplicates.
 
 MinHash catches **near-duplicates** with configurable similarity threshold:
-- "How do I fix this bug?" vs "How do I fix this bug"  (trailing punctuation)
+
+- "How do I fix this bug?" vs "How do I fix this bug" (trailing punctuation)
 - Same content with different whitespace
 - Minor typo corrections
 - Content with timestamps or IDs that change
@@ -343,40 +345,46 @@ def get_deduplication_stats(self) -> dict[str, Any]:
 ## Implementation Steps
 
 ### Phase 1: Core Fingerprinting Module (2-3 hours)
+
 1. [ ] Create `session_buddy/utils/fingerprint.py` with:
    - `normalize_for_fingerprint()` function
    - `extract_ngrams()` function
    - `MinHashSignature` dataclass
-2. [ ] Add fingerprint settings to `ReflectionAdapterSettings`
-3. [ ] Add unit tests for fingerprinting functions
+1. [ ] Add fingerprint settings to `ReflectionAdapterSettings`
+1. [ ] Add unit tests for fingerprinting functions
 
 ### Phase 2: Database Schema (1 hour)
+
 1. [ ] Add `fingerprint` column to `conversations` table
-2. [ ] Add `fingerprint` column to `reflections` table
-3. [ ] Create `content_fingerprints` index table
-4. [ ] Add migration script for existing databases
+1. [ ] Add `fingerprint` column to `reflections` table
+1. [ ] Create `content_fingerprints` index table
+1. [ ] Add migration script for existing databases
 
 ### Phase 3: Integration (2-3 hours)
+
 1. [ ] Add `check_duplicate()` method to adapter
-2. [ ] Modify `store_conversation()` to use deduplication
-3. [ ] Modify `store_reflection()` to use deduplication
-4. [ ] Implement `merge_conversation()` for near-duplicates
-5. [ ] Add `_store_fingerprint()` helper method
+1. [ ] Modify `store_conversation()` to use deduplication
+1. [ ] Modify `store_reflection()` to use deduplication
+1. [ ] Implement `merge_conversation()` for near-duplicates
+1. [ ] Add `_store_fingerprint()` helper method
 
 ### Phase 4: Testing (2-3 hours)
+
 1. [ ] Unit tests for MinHash accuracy (known Jaccard values)
-2. [ ] Integration tests for duplicate detection
-3. [ ] Edge case tests (empty content, very short content, unicode)
-4. [ ] Performance benchmarks for fingerprint generation
+1. [ ] Integration tests for duplicate detection
+1. [ ] Edge case tests (empty content, very short content, unicode)
+1. [ ] Performance benchmarks for fingerprint generation
 
 ### Phase 5: MCP Tool Exposure (1 hour)
+
 1. [ ] Add `deduplication_stats` tool to expose metrics
-2. [ ] Add `find_duplicates` tool to scan for existing duplicates
-3. [ ] Update `reflection_stats` to include dedup stats
+1. [ ] Add `find_duplicates` tool to scan for existing duplicates
+1. [ ] Update `reflection_stats` to include dedup stats
 
 ## Dependencies
 
 **Optional dependency** (same as Feature 1):
+
 ```toml
 [project.optional-dependencies]
 performance = ["xxhash>=3.0"]
@@ -389,7 +397,7 @@ performance = ["xxhash>=3.0"]
 | Metric | Before | After (Estimated) |
 |--------|--------|-------------------|
 | Database size growth | Unbounded | 15-30% reduction |
-| Duplicate entries | Common | <5% slip-through |
+| Duplicate entries | Common | \<5% slip-through |
 | Search result quality | Diluted by duplicates | Cleaner results |
 | Embedding compute | Every store | Skip for duplicates |
 | Store latency | ~10ms | ~12-15ms (fingerprint overhead) |
@@ -416,16 +424,16 @@ performance = ["xxhash>=3.0"]
 ## Future Enhancements (Not in Scope)
 
 1. **Locality-Sensitive Hashing (LSH)**: For O(1) approximate nearest neighbor lookup instead of scanning
-2. **Hierarchical fingerprints**: Different n-gram sizes for coarse-to-fine matching
-3. **Semantic deduplication**: Combine fingerprints with embedding similarity
-4. **Cross-project deduplication**: Dedupe across all projects (currently per-project)
+1. **Hierarchical fingerprints**: Different n-gram sizes for coarse-to-fine matching
+1. **Semantic deduplication**: Combine fingerprints with embedding similarity
+1. **Cross-project deduplication**: Dedupe across all projects (currently per-project)
 
 ## Success Criteria
 
 - [ ] >90% of exact duplicates detected
 - [ ] >70% of near-duplicates (>85% similar) detected
-- [ ] <1% false positive rate (distinct content incorrectly merged)
-- [ ] Store latency increase <50% (target <15ms)
+- [ ] \<1% false positive rate (distinct content incorrectly merged)
+- [ ] Store latency increase \<50% (target \<15ms)
 - [ ] All existing tests pass
 - [ ] New dedup tests achieve >90% coverage
 

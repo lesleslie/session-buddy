@@ -146,23 +146,25 @@ def register_workflow_metrics_tools(server) -> None:
 
             sessions = []
             for row in result:
-                sessions.append({
-                    "session_id": row[0],
-                    "project_path": row[1],
-                    "started_at": row[2].isoformat() if row[2] else None,
-                    "ended_at": row[3].isoformat() if row[3] else None,
-                    "duration_minutes": row[4],
-                    "checkpoint_count": row[5],
-                    "commit_count": row[6],
-                    "quality_start": row[7],
-                    "quality_end": row[8],
-                    "quality_delta": row[9],
-                    "avg_quality": row[10],
-                    "files_modified": row[11],
-                    "tools_used": list(row[12]) if row[12] else [],
-                    "primary_language": row[13],
-                    "time_of_day": row[14],
-                })
+                sessions.append(
+                    {
+                        "session_id": row[0],
+                        "project_path": row[1],
+                        "started_at": row[2].isoformat() if row[2] else None,
+                        "ended_at": row[3].isoformat() if row[3] else None,
+                        "duration_minutes": row[4],
+                        "checkpoint_count": row[5],
+                        "commit_count": row[6],
+                        "quality_start": row[7],
+                        "quality_end": row[8],
+                        "quality_delta": row[9],
+                        "avg_quality": row[10],
+                        "files_modified": row[11],
+                        "tools_used": list(row[12]) if row[12] else [],
+                        "primary_language": row[13],
+                        "time_of_day": row[14],
+                    }
+                )
 
             # Get total count
             total_result = conn.execute(
@@ -349,9 +351,7 @@ def _generate_workflow_insights(metrics) -> list[str]:
     # Tool usage insights
     if metrics.most_used_tools:
         top_tool = metrics.most_used_tools[0]
-        insights.append(
-            f"🔧 Most used tool: {top_tool[0]} ({top_tool[1]} times)"
-        )
+        insights.append(f"🔧 Most used tool: {top_tool[0]} ({top_tool[1]} times)")
 
     return insights
 
@@ -395,7 +395,9 @@ def _generate_session_insights(sessions: list[dict[str, t.Any]]) -> list[str]:
     if zero_commits:
         insights.append(f"📝 {len(zero_commits)} sessions with no commits")
     if high_commits:
-        insights.append(f"🔥 {len(high_commits)} high-commitment sessions (≥10 commits)")
+        insights.append(
+            f"🔥 {len(high_commits)} high-commitment sessions (≥10 commits)"
+        )
 
     # Language diversity
     languages = {}
@@ -406,6 +408,8 @@ def _generate_session_insights(sessions: list[dict[str, t.Any]]) -> list[str]:
 
     if languages:
         top_lang = max(languages, key=languages.get)  # type: ignore[arg-type]
-        insights.append(f"💻 Primary language: {top_lang} ({languages[top_lang]} sessions)")
+        insights.append(
+            f"💻 Primary language: {top_lang} ({languages[top_lang]} sessions)"
+        )
 
     return insights

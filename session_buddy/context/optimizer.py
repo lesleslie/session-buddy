@@ -7,7 +7,6 @@ of each token while staying within context window limits.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -205,12 +204,16 @@ class ContextOptimizer:
         project_ctx = self._format_project_context(project_context)
         project_tokens = self.estimate_tokens(project_ctx)
 
-        if project_tokens <= available_tokens * 0.3:  # Use up to 30% for project context
+        if (
+            project_tokens <= available_tokens * 0.3
+        ):  # Use up to 30% for project context
             context_parts.append(project_ctx)
             tokens_used += project_tokens
         else:
             # Truncate project context
-            project_ctx = self._truncate_context(project_ctx, int(available_tokens * 0.3))
+            project_ctx = self._truncate_context(
+                project_ctx, int(available_tokens * 0.3)
+            )
             context_parts.append(project_ctx)
             tokens_used += int(available_tokens * 0.3)
 
@@ -219,7 +222,9 @@ class ContextOptimizer:
             patterns_ctx = self._format_patterns(relevant_patterns)
             patterns_tokens = self.estimate_tokens(patterns_ctx)
 
-            if tokens_used + patterns_tokens <= available_tokens * 0.5:  # Use up to 50% total
+            if (
+                tokens_used + patterns_tokens <= available_tokens * 0.5
+            ):  # Use up to 50% total
                 context_parts.append(patterns_ctx)
                 tokens_used += patterns_tokens
             else:
@@ -255,12 +260,12 @@ class ContextOptimizer:
         parts = [f"Project Type: {project_context['project_type']}"]
 
         if project_context.get("patterns"):
-            parts.append(f"Patterns to Look For: {', '.join(project_context['patterns'])}")
+            parts.append(
+                f"Patterns to Look For: {', '.join(project_context['patterns'])}"
+            )
 
         if project_context.get("anti_patterns"):
-            parts.append(
-                f"Avoid: {', '.join(project_context['anti_patterns'])}"
-            )
+            parts.append(f"Avoid: {', '.join(project_context['anti_patterns'])}")
 
         structure = project_context.get("structure", {})
         if structure.get("key_directories"):

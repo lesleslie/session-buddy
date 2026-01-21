@@ -25,7 +25,7 @@ import duckdb
 from session_buddy.di import depends
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -302,14 +302,18 @@ class WorkflowMetricsStore:
 
         # Calculate velocity (commits per hour)
         avg_velocity = (
-            (avg_commits / (avg_duration / 60)) if avg_duration and avg_duration > 0 else 0.0
+            (avg_commits / (avg_duration / 60))
+            if avg_duration and avg_duration > 0
+            else 0.0
         )
 
         # Determine quality trend
         quality_trend = await self._calculate_quality_trend(where_sql, params)
 
         # Find most productive time of day
-        most_productive_time = await self._find_most_productive_time_of_day(where_sql, params)
+        most_productive_time = await self._find_most_productive_time_of_day(
+            where_sql, params
+        )
 
         # Get most used tools
         most_used_tools = await self._get_most_used_tools(where_sql, params, limit=5)
@@ -333,9 +337,7 @@ class WorkflowMetricsStore:
             period_end=period_end,
         )
 
-    async def _calculate_quality_trend(
-        self, where_sql: str, params: list[Any]
-    ) -> str:
+    async def _calculate_quality_trend(self, where_sql: str, params: list[Any]) -> str:
         """Calculate quality trend direction.
 
         Returns:

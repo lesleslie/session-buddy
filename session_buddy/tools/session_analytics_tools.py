@@ -534,7 +534,8 @@ def _generate_length_distribution_insights(distribution) -> list[str]:
     if distribution.median_duration_minutes > 0:
         diff_pct = (
             (distribution.avg_duration_minutes - distribution.median_duration_minutes)
-            / distribution.median_duration_minutes * 100
+            / distribution.median_duration_minutes
+            * 100
         )
         if abs(diff_pct) > 30:
             insights.append(
@@ -557,9 +558,7 @@ def _generate_temporal_patterns_insights(patterns) -> list[str]:
 
     # Peak productivity
     if patterns.most_productive_time_slot:
-        insights.append(
-            f"⭐ Peak productivity: {patterns.most_productive_time_slot}"
-        )
+        insights.append(f"⭐ Peak productivity: {patterns.most_productive_time_slot}")
 
     # Session frequency
     avg_sessions = patterns.avg_sessions_per_day
@@ -621,9 +620,13 @@ def _generate_correlation_insights(correlations) -> list[str]:
     if total > 0:
         high_pct = correlations.high_quality_sessions / total * 100
         if high_pct > 70:
-            insights.append(f"🌟 High quality rate: {high_pct:.0f}% sessions >= 80 quality")
+            insights.append(
+                f"🌟 High quality rate: {high_pct:.0f}% sessions >= 80 quality"
+            )
         elif high_pct < 40:
-            insights.append(f"⚠️ Quality challenges: {high_pct:.0f}% sessions >= 80 quality")
+            insights.append(
+                f"⚠️ Quality challenges: {high_pct:.0f}% sessions >= 80 quality"
+            )
 
     # Long + high quality sessions
     if correlations.long_high_quality_sessions > 0:
@@ -669,9 +672,7 @@ def _generate_streak_insights(streaks) -> list[str]:
     # Session gaps
     avg_gap_hours = streaks.avg_gap_between_sessions_hours
     if avg_gap_hours > 48:
-        insights.append(
-            f"⚠️ Large gaps: {avg_gap_hours:.0f} hours between sessions avg"
-        )
+        insights.append(f"⚠️ Large gaps: {avg_gap_hours:.0f} hours between sessions avg")
     elif avg_gap_hours < 24:
         insights.append(
             f"✅ Frequent engagement: {avg_gap_hours:.0f} hours between sessions"
@@ -690,9 +691,7 @@ def _generate_productivity_insights(insights) -> list[str]:
 
     # Best performance window
     if insights.best_performance_window:
-        all_insights.append(
-            f"⭐ Optimal time: {insights.best_performance_window}"
-        )
+        all_insights.append(f"⭐ Optimal time: {insights.best_performance_window}")
 
     # Session length recommendation
     if insights.recommended_session_length:
@@ -717,6 +716,8 @@ def _generate_productivity_insights(insights) -> list[str]:
 
     # Improvement suggestions
     if insights.improvement_suggestions:
-        all_insights.extend([f"✨ {suggestion}" for suggestion in insights.improvement_suggestions])
+        all_insights.extend(
+            [f"✨ {suggestion}" for suggestion in insights.improvement_suggestions]
+        )
 
     return all_insights

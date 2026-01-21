@@ -248,15 +248,15 @@ css = [
 
 [[package]]
 name = "blessed"
-version = "1.25.0"
+version = "1.27.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jinxed", marker = "sys_platform == 'win32'" },
     { name = "wcwidth" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/33/cd/eed8b82f1fabcb817d84b24d0780b86600b5c3df7ec4f890bcbb2371b0ad/blessed-1.25.0.tar.gz", hash = "sha256:606aebfea69f85915c7ca6a96eb028e0031d30feccc5688e13fd5cec8277b28d", size = 6746381, upload-time = "2025-11-18T18:43:52.71Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/3c/783f2a400e5dac56ad073997aa6aa47150c3b06a5ce8ad2f537f3691eaaa/blessed-1.27.0.tar.gz", hash = "sha256:e3064559388bd532ab6460d9b6c7d6dd699c4e0cf54d28ed6e2cab12feda13bb", size = 6761573, upload-time = "2026-01-20T04:16:56.233Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/2c/e9b6dd824fb6e76dbd39a308fc6f497320afd455373aac8518ca3eba7948/blessed-1.25.0-py3-none-any.whl", hash = "sha256:e52b9f778b9e10c30b3f17f6b5f5d2208d1e9b53b270f1d94fc61a243fc4708f", size = 95646, upload-time = "2025-11-18T18:43:50.924Z" },
+    { url = "https://files.pythonhosted.org/packages/30/d9/11d745a88e9000729fc4d9e813789a95327beda325e04ec311e9ae23a30e/blessed-1.27.0-py3-none-any.whl", hash = "sha256:1c599969acc993bb5842bf3f638b0691e335277a9d9058cd079463a346988714", size = 101305, upload-time = "2026-01-20T04:16:54.095Z" },
 ]
 
 [[package]]
@@ -2970,14 +2970,14 @@ crypto = [
 
 [[package]]
 name = "pyleak"
-version = "0.1.14"
+version = "0.1.15"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "exceptiongroup" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/98/fd/49af96e55001fe611abd891b7c482cf1324fb6997e3430c87a7ec0f7c887/pyleak-0.1.14.tar.gz", hash = "sha256:51be2741542fdaa6024c31a1b8212e59485e2a91e7fdc34c151d488e9a6fb3c4", size = 105644, upload-time = "2025-07-03T09:28:54.965Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/99/50d6185729946c296fda5e4a02a7bb25840322eb8355028597dc8accde0c/pyleak-0.1.15.tar.gz", hash = "sha256:3abec927e3ab03a8c8bd026b8af59e8d6ac9494a9f1fac89a71f47189a2cdfd1", size = 321772, upload-time = "2026-01-19T14:45:54.985Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/67/75/55c968828bf81a73d9c484f7be4e6f7d04d07da3d1d78cc5705461802b24/pyleak-0.1.14-py3-none-any.whl", hash = "sha256:98d6cf19f3eeed172effef42415bf9f01a3d46cbde59780b85924f9dcd57003a", size = 24813, upload-time = "2025-07-03T09:28:53.79Z" },
+    { url = "https://files.pythonhosted.org/packages/92/d0/bbd15640d011c490a87b7685c9c21d6968ac87f7ce9538c450b1d2fcbb76/pyleak-0.1.15-py3-none-any.whl", hash = "sha256:295b6015f7e7090a803e3661653c86f4b6517d458652ad832ee0ecebcd9929fc", size = 25180, upload-time = "2026-01-19T14:45:55.932Z" },
 ]
 
 [[package]]
@@ -3768,7 +3768,7 @@ wheels = [
 
 [[package]]
 name = "skylos"
-version = "3.0.3"
+version = "3.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anthropic" },
@@ -3784,9 +3784,9 @@ dependencies = [
     { name = "tree-sitter" },
     { name = "tree-sitter-typescript" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e0/2b/65f6a5a5382022a9eaec4b6f453a450f3bac88ffe95d1504425e49bd302a/skylos-3.0.3.tar.gz", hash = "sha256:f66a00e0685a28bfc1baf282e69558c51cbeee7015f18926ca0eb3a5ed84a69d", size = 158008, upload-time = "2026-01-10T01:20:09.492Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/3f/a7f15ae9261a2fe23208a514a278cd0edd285ca1e795b651833fa1625e00/skylos-3.1.1.tar.gz", hash = "sha256:5684110da9cb9bc6b017725230d2377fe7a103b047dae4add70c232afb33b452", size = 190823, upload-time = "2026-01-20T07:30:49.024Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1c/dc/ef04ade262401445670fcd772aca0660f3f73bf6d901324778b47a76dee2/skylos-3.0.3-py3-none-any.whl", hash = "sha256:6249a24265e26c514530256beaf57763530465b32e5dcbdea4c1dcef27e3ab09", size = 93474, upload-time = "2026-01-10T01:20:07.689Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/0d/5c28e1a18a146e609fd5030e501eb5fdac2df99c80802aaae904bb58e32a/skylos-3.1.1-py3-none-any.whl", hash = "sha256:be5c3c64b528f3ce520b9396eaffa81594d08ca129a0153c686e46b7fd8b4f64", size = 129848, upload-time = "2026-01-20T07:30:43.617Z" },
 ]
 
 [[package]]
@@ -3809,11 +3809,11 @@ wheels = [
 
 [[package]]
 name = "soupsieve"
-version = "2.8.2"
+version = "2.8.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/93/f2/21d6ca70c3cf35d01ae9e01be534bf6b6b103c157a728082a5028350c310/soupsieve-2.8.2.tar.gz", hash = "sha256:78a66b0fdee2ab40b7199dc3e747ee6c6e231899feeaae0b9b98a353afd48fd8", size = 118601, upload-time = "2026-01-18T16:21:31.09Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/ae/2d9c981590ed9999a0d91755b47fc74f74de286b0f5cee14c9269041e6c4/soupsieve-2.8.3.tar.gz", hash = "sha256:3267f1eeea4251fb42728b6dfb746edc9acaffc4a45b27e19450b676586e8349", size = 118627, upload-time = "2026-01-20T04:27:02.457Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/9a/b4450ccce353e2430621b3bb571899ffe1033d5cd72c9e065110f95b1a63/soupsieve-2.8.2-py3-none-any.whl", hash = "sha256:0f4c2f6b5a5fb97a641cf69c0bd163670a0e45e6d6c01a2107f93a6a6f93c51a", size = 37016, upload-time = "2026-01-18T16:21:29.7Z" },
+    { url = "https://files.pythonhosted.org/packages/46/2c/1462b1d0a634697ae9e55b3cecdcb64788e8b7d63f54d923fcd0bb140aed/soupsieve-2.8.3-py3-none-any.whl", hash = "sha256:ed64f2ba4eebeab06cc4962affce381647455978ffc1e36bb79a545b91f45a95", size = 37016, upload-time = "2026-01-20T04:27:01.012Z" },
 ]
 
 [[package]]

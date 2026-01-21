@@ -671,7 +671,9 @@ class SessionLifecycleManager:
             self.current_project = current_dir.name
 
             # Generate session ID for this checkpoint
-            session_id = f"{self.current_project}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            session_id = (
+                f"{self.current_project}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            )
 
             # Execute PRE_CHECKPOINT hooks (quality validation, etc.)
             pre_hooks_results = []
@@ -886,7 +888,9 @@ class SessionLifecycleManager:
             self.current_project = current_dir.name
 
             # Generate session ID for this session end
-            session_id = f"{self.current_project}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            session_id = (
+                f"{self.current_project}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            )
 
             # Execute PRE_SESSION_END hooks (cleanup preparation, etc.)
             pre_hooks_results = []

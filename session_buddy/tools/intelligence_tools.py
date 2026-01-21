@@ -10,7 +10,6 @@ This module provides MCP tools for:
 from __future__ import annotations
 
 import typing as t
-from datetime import UTC, datetime
 
 from session_buddy.core.intelligence import IntelligenceEngine
 from session_buddy.server import mcp
@@ -132,7 +131,7 @@ async def invoke_skill(
 
 @mcp.tool()
 async def suggest_improvements(
-    current_session: dict[str, t.Any] | None = None
+    current_session: dict[str, t.Any] | None = None,
 ) -> dict[str, t.Any]:
     """Get proactive workflow improvement suggestions based on learned skills.
 
@@ -184,9 +183,7 @@ async def suggest_improvements(
 
 
 @mcp.tool()
-async def trigger_learning(
-    checkpoint_data: dict[str, t.Any]
-) -> dict[str, t.Any]:
+async def trigger_learning(checkpoint_data: dict[str, t.Any]) -> dict[str, t.Any]:
     """Manually trigger learning from a checkpoint.
 
     This is typically called automatically by the POST_CHECKPOINT hook,
@@ -264,9 +261,10 @@ async def get_intelligence_stats() -> dict[str, t.Any]:
         }
 
     # Calculate average success rate
-    avg_success_rate = sum(
-        skill.success_rate for skill in engine.skill_library.values()
-    ) / total_skills
+    avg_success_rate = (
+        sum(skill.success_rate for skill in engine.skill_library.values())
+        / total_skills
+    )
 
     # Find most invoked skills
     most_invoked = sorted(
@@ -284,7 +282,9 @@ async def get_intelligence_stats() -> dict[str, t.Any]:
                 "name": skill.name,
                 "invocations": skill.invocations,
                 "success_rate": skill.success_rate,
-                "last_used": skill.last_used.isoformat() if skill.last_used else "Never",
+                "last_used": skill.last_used.isoformat()
+                if skill.last_used
+                else "Never",
             }
             for skill in most_invoked
         ],

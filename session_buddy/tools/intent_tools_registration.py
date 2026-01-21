@@ -6,7 +6,7 @@ tools with the MCP server.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from session_buddy.server import SessionBuddyServer
@@ -20,7 +20,7 @@ async def initialize_intent_detector() -> None:
     print("✅ Natural language intent detection system initialized")
 
 
-def register_intent_detection_tools(server: "SessionBuddyServer") -> None:
+def register_intent_detection_tools(server: SessionBuddyServer) -> None:
     """Register intent detection tools with the MCP server.
 
     Args:
@@ -201,7 +201,9 @@ def register_intent_detection_tools(server: "SessionBuddyServer") -> None:
                 tools_info[tool_name] = {
                     "patterns": detector.patterns.get(tool_name, []),
                     "semantic_examples": detector.semantic_examples.get(tool_name, []),
-                    "has_argument_extraction": (tool_name in detector.argument_extraction),
+                    "has_argument_extraction": (
+                        tool_name in detector.argument_extraction
+                    ),
                 }
 
             return {

@@ -13,16 +13,17 @@ HookType (enum) → Hook → HookContext → HookResult → HooksManager
 ### Core Components
 
 1. **HookType**: Enumeration of hook points (PRE_CHECKPOINT, POST_ERROR, etc.)
-2. **Hook**: Callable with metadata (name, priority, enabled status)
-3. **HookContext**: Data passed to hooks (session_id, timestamp, file_path, etc.)
-4. **HookResult**: Return value with success status, causal_chain_id, and modifications
-5. **HooksManager**: Central registry and executor for all hooks
+1. **Hook**: Callable with metadata (name, priority, enabled status)
+1. **HookContext**: Data passed to hooks (session_id, timestamp, file_path, etc.)
+1. **HookResult**: Return value with success status, causal_chain_id, and modifications
+1. **HooksManager**: Central registry and executor for all hooks
 
 ## Hook Types
 
 ### Pre-Operation Hooks
 
 Execute **before** an operation occurs:
+
 - `PRE_CHECKPOINT` - Before quality checkpoint
 - `PRE_TOOL_EXECUTION` - Before MCP tool execution
 - `PRE_REFLECTION_STORE` - Before storing a reflection
@@ -33,6 +34,7 @@ Execute **before** an operation occurs:
 ### Post-Operation Hooks
 
 Execute **after** an operation completes:
+
 - `POST_CHECKPOINT` - After quality checkpoint
 - `POST_TOOL_EXECUTION` - After MCP tool execution
 - `POST_FILE_EDIT` - After file modification
@@ -44,6 +46,7 @@ Execute **after** an operation completes:
 ### Session Boundary Hooks
 
 Execute at session start/end:
+
 - `SESSION_START` - When session initializes
 - `SESSION_END` - When session terminates
 
@@ -331,9 +334,9 @@ async def test_custom_hook():
 ## Performance Considerations
 
 1. **Keep hooks fast** - They execute synchronously in the workflow
-2. **Use async I/O** - Database calls, HTTP requests should be async
-3. **Avoid heavy computation** - Move to background tasks if needed
-4. **Set appropriate priorities** - Critical validation should execute first
+1. **Use async I/O** - Database calls, HTTP requests should be async
+1. **Avoid heavy computation** - Move to background tasks if needed
+1. **Set appropriate priorities** - Critical validation should execute first
 
 ## Troubleshooting
 
@@ -452,5 +455,5 @@ class HookResult:
 ## See Also
 
 - [Causal Chains Tracking](causal_chains.md) - Error tracking with hooks
-- [Intelligence Engine](intelligence.md) - Pattern learning from hooks
-- [Workflow Metrics](workflow_metrics.md) - Metrics collection via hooks
+<!-- - [Intelligence Engine](intelligence.md) - Pattern learning from hooks (archived) -->
+<!-- - [Workflow Metrics](workflow_metrics.md) - Metrics collection via hooks (archived) -->

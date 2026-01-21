@@ -20,13 +20,15 @@ Scalar quantization has been successfully implemented and tested, achieving all 
 The quantization system was implemented in `session_buddy/adapters/reflection_adapter_oneiric.py`:
 
 1. **Settings Configuration** (session_buddy/adapters/settings.py lines 40-43):
+
    ```python
    enable_quantization: bool = False
    quantization_method: str = "scalar"  # 4x compression
    quantization_accuracy_threshold: float = 0.95  # 95% minimum accuracy
    ```
 
-2. **Quantization Method** (reflection_adapter_oneiric.py lines 500-540):
+1. **Quantization Method** (reflection_adapter_oneiric.py lines 500-540):
+
    ```python
    def _quantize_embedding(embedding: list[float]) -> list[int] | None:
        """Convert float32 embedding to uint8 using global calibration data."""
@@ -43,7 +45,8 @@ The quantization system was implemented in `session_buddy/adapters/reflection_ad
        return quantized.tolist()
    ```
 
-3. **Dequantization Method** (reflection_adapter_oneiric.py lines 542-570):
+1. **Dequantization Method** (reflection_adapter_oneiric.py lines 542-570):
+
    ```python
    def _dequantize_embedding(quantized: list[int]) -> list[float] | None:
        """Convert uint8 back to float32 using global calibration data."""
@@ -57,7 +60,8 @@ The quantization system was implemented in `session_buddy/adapters/reflection_ad
        return dequantized.tolist()
    ```
 
-4. **Global Calibration Data** (reflection_adapter_oneiric.py lines 572-615):
+1. **Global Calibration Data** (reflection_adapter_oneiric.py lines 572-615):
+
    - **Fixed calibration**: min=-0.15, max=0.15 for all-MiniLM-L6-v2
    - **Per-dimension calibration**: 384 separate min/max values (one per dimension)
    - **Rationale**: Ensures consistent quantization across all embeddings in database
@@ -102,10 +106,11 @@ Std deviation:     <1%
 Quantization works seamlessly with the embedding cache (Task A):
 
 1. **Cache stores**: Original float32 embeddings (full precision)
-2. **Quantization applied**: When embedding is retrieved from cache
-3. **Benefit**: Cache maintains accuracy while enabling memory savings
+1. **Quantization applied**: When embedding is retrieved from cache
+1. **Benefit**: Cache maintains accuracy while enabling memory savings
 
 **Workflow**:
+
 ```python
 # First query: Generate and cache (float32)
 embedding = await db._generate_embedding(query)  # Cached as float32
@@ -120,6 +125,7 @@ quantized = db._quantize_embedding(cached)  # uint8 for storage/search
 ### Why Scalar Quantization?
 
 **Advantages**:
+
 - ✅ Simple implementation (linear scaling)
 - ✅ Predictable performance (O(1) per embedding)
 - ✅ Maintains high accuracy (>95%)
@@ -127,17 +133,20 @@ quantized = db._quantize_embedding(cached)  # uint8 for storage/search
 - ✅ Reversible (can dequantize back to float32)
 
 **Trade-offs**:
+
 - ⚠️ Fixed calibration data required
 - ⚠️ Less aggressive than binary quantization (32x vs 4x)
 
 ### Calibration Data Strategy
 
 **Chosen Approach**: Global fixed calibration data
+
 - **Min values**: -0.15 for all 384 dimensions
 - **Max values**: +0.15 for all 384 dimensions
 - **Rationale**: all-MiniLM-L6-v2 embeddings are L2-normalized with typical range [-0.15, 0.15]
 
 **Alternative Approaches** (not implemented):
+
 - **Per-database calibration**: Compute min/max from all embeddings in database
   - Pros: Adapted to specific dataset
   - Cons: Requires database scan, slower initialization
@@ -148,9 +157,9 @@ quantized = db._quantize_embedding(cached)  # uint8 for storage/search
 ### Why This Works So Well
 
 1. **L2-Normalization**: Real embeddings are unit vectors (cosine similarity is the metric)
-2. **Narrow Distribution**: Most dimensions are small (±0.15), making quantization precise
-3. **Global Calibration**: Shared range ensures consistent quantization across dataset
-4. **Linear Scaling**: Simple formula with predictable behavior
+1. **Narrow Distribution**: Most dimensions are small (±0.15), making quantization precise
+1. **Global Calibration**: Shared range ensures consistent quantization across dataset
+1. **Linear Scaling**: Simple formula with predictable behavior
 
 ## Performance Impact
 
@@ -158,24 +167,25 @@ quantized = db._quantize_embedding(cached)  # uint8 for storage/search
 
 | Operation | Time | Notes |
 |-----------|------|-------|
-| Quantize (384-dim) | <0.01ms | NumPy vectorized operations |
-| Dequantize (384-dim) | <0.01ms | NumPy vectorized operations |
-| Total overhead | <0.02ms | Negligible compared to embedding generation (4.79ms) |
+| Quantize (384-dim) | \<0.01ms | NumPy vectorized operations |
+| Dequantize (384-dim) | \<0.01ms | NumPy vectorized operations |
+| Total overhead | \<0.02ms | Negligible compared to embedding generation (4.79ms) |
 
 ### End-to-End Performance
 
 With quantization enabled, the semantic search pipeline becomes:
 
 1. **Generate embedding** (uncached): 4.79ms
-2. **Quantize**: <0.01ms
-3. **HNSW search**: <1ms
-4. **Total**: **~5.8ms** for uncached queries
+1. **Quantize**: \<0.01ms
+1. **HNSW search**: \<1ms
+1. **Total**: **~5.8ms** for uncached queries
 
 For **cached queries**:
+
 1. **Retrieve from cache**: 0.003ms
-2. **Quantize**: <0.01ms
-3. **HNSW search**: <1ms
-4. **Total**: **~1ms** for cached queries
+1. **Quantize**: \<0.01ms
+1. **HNSW search**: \<1ms
+1. **Total**: **~1ms** for cached queries
 
 **Conclusion**: Quantization overhead is negligible compared to embedding generation.
 
@@ -231,18 +241,20 @@ print(f"Accuracy: {similarity:.2%}")  # Should be >95%
 ### Why Scalar Quantization First?
 
 1. **Balanced trade-off**: 4x compression with >95% accuracy
-2. **Production-ready**: Simple, reliable, well-tested
-3. **Future-proof**: Can add binary quantization later for specific use cases
+1. **Production-ready**: Simple, reliable, well-tested
+1. **Future-proof**: Can add binary quantization later for specific use cases
 
 ## Next Steps
 
 ✅ **Task B COMPLETE** - Scalar quantization implemented and tested
 
 **Phase 2 Complete**: All performance optimizations implemented
+
 - ✅ Task A: Embedding cache (0.003ms for cached queries)
 - ✅ Task B: Scalar quantization (4x memory compression, >95% accuracy)
 
 ⏭️ **Recommended**: Move to **Phase 3 - Intelligence Engine** (P1 PRIORITY)
+
 - Intelligent retrieval and ranking
 - Query understanding and expansion
 - Context-aware result ranking
@@ -256,13 +268,14 @@ Scalar quantization has been successfully implemented as part of Phase 2 (Perfor
 - ✅ All 8 tests passing
 - ✅ Zero breaking changes (backward compatible, disabled by default)
 - ✅ Seamless integration with embedding cache
-- ✅ Negligible performance overhead (<0.02ms)
+- ✅ Negligible performance overhead (\<0.02ms)
 
 **Recommendation**: Proceed to Phase 3 (Intelligence Engine) to build on this excellent performance foundation with intelligent retrieval and ranking capabilities.
 
----
+______________________________________________________________________
 
 **Implementation Files**:
+
 - `session_buddy/adapters/settings.py` (lines 40-43)
 - `session_buddy/adapters/reflection_adapter_oneiric.py` (lines 500-615)
 - `tests/unit/test_embedding_quantization.py` (240 lines, 8 tests)

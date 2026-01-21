@@ -34,12 +34,16 @@ class ReflectionAdapterSettings:
     # HNSW indexing settings
     enable_hnsw_index: bool = True
     hnsw_m: int = 16  # HNSW M parameter (number of bi-directional links)
-    hnsw_ef_construction: int = 200  # HNSW ef_construction parameter (index building quality)
+    hnsw_ef_construction: int = (
+        200  # HNSW ef_construction parameter (index building quality)
+    )
     hnsw_ef_search: int = 64  # HNSW ef_search parameter (search quality vs speed)
 
     # Quantization settings (optional - for memory savings)
     enable_quantization: bool = False
-    quantization_method: str = "scalar"  # Currently supports: "scalar" (4x compression), "binary" (future)
+    quantization_method: str = (
+        "scalar"  # Currently supports: "scalar" (4x compression), "binary" (future)
+    )
     quantization_accuracy_threshold: float = 0.95  # Minimum accuracy to maintain (95%)
 
     @classmethod

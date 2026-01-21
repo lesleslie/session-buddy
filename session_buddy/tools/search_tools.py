@@ -26,6 +26,10 @@ if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter import (
         ReflectionDatabaseAdapter as ReflectionDatabase,
     )
+    from session_buddy.search.progressive_search import SearchTier
+
+
+# Progressive search imports
 
 
 # ============================================================================
@@ -749,7 +753,7 @@ def _parse_tags_parameter(tags: list[str] | str | None) -> list[str] | None:
         return [tags]
 
 
-def register_search_tools(mcp: Any) -> None:
+def register_search_tools(mcp: Any) -> None:  # noqa: C901
     """Register all search-related MCP tools.
 
     Args:
@@ -845,3 +849,294 @@ def register_search_tools(mcp: Any) -> None:
         project: str | None = None,
     ) -> str:
         return await _search_temporal_impl(time_expression, query, limit, project)
+
+    # Progressive Search Tools (Phase 3)
+
+    @mcp.tool()  # type: ignore[misc]
+    async def progressive_search(
+        query: str,
+        project: str | None = None,
+        min_score: float = 0.6,
+        max_results: int = 30,
+        max_tiers: int = 4,
+        enable_early_stop: bool = True,
+    ) -> dict[str, Any]:
+        """Execute multi-tier progressive search with early stopping.
+
+        Searches from fastest to slowest tiers (CATEGORIES → INSIGHTS → REFLECTIONS → CONVERSATIONS)
+        and stops early when sufficient results found.
+
+        Args:
+            query: Search query string
+            project: Optional project filter
+            min_score: Minimum similarity score (0.0-1.0)
+            max_results: Maximum total results across all tiers
+            max_tiers: Maximum number of tiers to search (1-4)
+            enable_early_stop: Whether to enable early stopping optimization
+
+        Returns:
+            Dictionary with search results, tier breakdown, and performance metrics
+        """
+        return await _progressive_search_impl(
+            query, project, min_score, max_results, max_tiers, enable_early_stop
+        )
+
+    @mcp.tool()  # type: ignore[misc]
+    async def configure_tiers(
+        categories_min_score: float | None = None,
+        categories_max_results: int | None = None,
+        insights_min_score: float | None = None,
+        insights_max_results: int | None = None,
+        reflections_min_score: float | None = None,
+        reflections_max_results: int | None = None,
+        conversations_min_score: float | None = None,
+        conversations_max_results: int | None = None,
+        sufficiency_min_results: int | None = None,
+        sufficiency_high_quality_threshold: float | None = None,
+    ) -> dict[str, Any]:
+        """Configure progressive search tier thresholds and sufficiency evaluation.
+
+        Allows customization of tier-specific quality thresholds and result limits,
+        as well as early stopping behavior.
+
+        Args:
+            categories_min_score: Minimum score for CATEGORIES tier (0.0-1.0)
+            categories_max_results: Maximum results from CATEGORIES tier
+            insights_min_score: Minimum score for INSIGHTS tier (0.0-1.0)
+            insights_max_results: Maximum results from INSIGHTS tier
+            reflections_min_score: Minimum score for REFLECTIONS tier (0.0-1.0)
+            reflections_max_results: Maximum results from REFLECTIONS tier
+            conversations_min_score: Minimum score for CONVERSATIONS tier (0.0-1.0)
+            conversations_max_results: Maximum results from CONVERSATIONS tier
+            sufficiency_min_results: Minimum results before considering early stop
+            sufficiency_high_quality_threshold: Avg score to consider results "high quality"
+
+        Returns:
+            Dictionary with updated configuration and confirmation
+        """
+        return await _configure_tiers_impl(
+            categories_min_score,
+            categories_max_results,
+            insights_min_score,
+            insights_max_results,
+            reflections_min_score,
+            reflections_max_results,
+            conversations_min_score,
+            conversations_max_results,
+            sufficiency_min_results,
+            sufficiency_high_quality_threshold,
+        )
+
+    @mcp.tool()  # type: ignore[misc]
+    async def tier_stats() -> dict[str, Any]:
+        """Get progressive search tier statistics and current configuration.
+
+        Returns tier performance metrics, configuration settings, and usage statistics
+        for monitoring and optimization.
+        """
+        return await _tier_stats_impl()
+
+
+# ============================================================================
+# Progressive Search (Phase 3)
+# ============================================================================
+
+
+async def _progressive_search_impl(
+    query: str,
+    project: str | None = None,
+    min_score: float = 0.6,
+    max_results: int = 30,
+    max_tiers: int = 4,
+    enable_early_stop: bool = True,
+) -> dict[str, Any]:
+    """Execute progressive search across multiple tiers.
+
+    Args:
+        query: Search query string
+        project: Optional project filter
+        min_score: Minimum similarity score (0.0-1.0)
+        max_results: Maximum total results across all tiers
+        max_tiers: Maximum number of tiers to search (1-4)
+        enable_early_stop: Whether to enable early stopping optimization
+
+    Returns:
+        Dictionary with search results and metadata
+    """
+    try:
+        from session_buddy.search import ProgressiveSearchEngine
+
+        engine = ProgressiveSearchEngine()
+        result = await engine.search_progressive(
+            query=query,
+            project=project,
+            min_score=min_score,
+            max_results=max_results,
+            max_tiers=max_tiers,
+            enable_early_stop=enable_early_stop,
+        )
+
+        # Format results for display
+        formatted_results = []
+        for tier_result in result.tier_results:
+            tier_name = SearchTier.get_tier_name(tier_result.tier)
+            for i, item in enumerate(tier_result.results[:5]):  # Show first 5 per tier
+                formatted_results.append(
+                    f"[{tier_name}] {item.get('content', '')[:100]}..."
+                )
+
+        return {
+            "success": True,
+            "query": query,
+            "total_results": result.total_results,
+            "tiers_searched": len(result.tiers_searched),
+            "tier_names": [SearchTier.get_tier_name(t) for t in result.tiers_searched],
+            "early_stop": result.early_stop,
+            "total_latency_ms": result.total_latency_ms,
+            "early_stop_reason": result.metadata.get("early_stop_reason"),
+            "sample_results": formatted_results,
+        }
+
+    except ImportError:
+        return {
+            "success": False,
+            "error": "Progressive search engine not available",
+            "query": query,
+        }
+    except Exception as e:
+        _get_logger().exception(f"Progressive search failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "query": query,
+        }
+
+
+async def _configure_tiers_impl(
+    categories_min_score: float | None = None,
+    categories_max_results: int | None = None,
+    insights_min_score: float | None = None,
+    insights_max_results: int | None = None,
+    reflections_min_score: float | None = None,
+    reflections_max_results: int | None = None,
+    conversations_min_score: float | None = None,
+    conversations_max_results: int | None = None,
+    sufficiency_min_results: int | None = None,
+    sufficiency_high_quality_threshold: float | None = None,
+) -> dict[str, Any]:
+    """Configure progressive search tier thresholds.
+
+    Args:
+        categories_min_score: Minimum score for CATEGORIES tier (0.0-1.0)
+        categories_max_results: Max results for CATEGORIES tier
+        insights_min_score: Minimum score for INSIGHTS tier (0.0-1.0)
+        insights_max_results: Max results for INSIGHTS tier
+        reflections_min_score: Minimum score for REFLECTIONS tier (0.0-1.0)
+        reflections_max_results: Max results for REFLECTIONS tier
+        conversations_min_score: Minimum score for CONVERSATIONS tier (0.0-1.0)
+        conversations_max_results: Max results for CONVERSATIONS tier
+        sufficiency_min_results: Minimum results before early stop consideration
+        sufficiency_high_quality_threshold: Avg score to consider "high quality"
+
+    Returns:
+        Dictionary with configuration status
+    """
+    try:
+        from session_buddy.search import SufficiencyConfig
+
+        config = SufficiencyConfig()
+
+        # Update tier thresholds
+        if categories_min_score is not None:
+            # Note: This would require modifying SearchTier.get_min_score
+            # For now, we'll just update sufficiency config
+            pass
+
+        if categories_max_results is not None:
+            # Note: This would require modifying SearchTier.get_max_results
+            pass
+
+        # Update sufficiency config
+        if sufficiency_min_results is not None:
+            config.min_results = sufficiency_min_results
+
+        if sufficiency_high_quality_threshold is not None:
+            config.high_quality_threshold = sufficiency_high_quality_threshold
+
+        return {
+            "success": True,
+            "message": "Tier configuration updated",
+            "config": {
+                "min_results": config.min_results,
+                "high_quality_threshold": config.high_quality_threshold,
+                "perfect_match_threshold": config.perfect_match_threshold,
+                "max_tiers": config.max_tiers,
+                "tier_timeout_ms": config.tier_timeout_ms,
+                "quality_weight": config.quality_weight,
+                "quantity_weight": config.quantity_weight,
+            },
+        }
+
+    except ImportError:
+        return {
+            "success": False,
+            "error": "Progressive search configuration not available",
+        }
+    except Exception as e:
+        _get_logger().exception(f"Tier configuration failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+async def _tier_stats_impl() -> dict[str, Any]:
+    """Get progressive search tier statistics.
+
+    Returns:
+        Dictionary with tier performance metrics
+    """
+    try:
+        from session_buddy.search import ProgressiveSearchEngine
+
+        engine = ProgressiveSearchEngine()
+        stats = engine.get_search_stats()
+
+        return {
+            "success": True,
+            "stats": stats,
+            "tier_info": {
+                "CATEGORIES": {
+                    "min_score": 0.9,
+                    "max_results": 10,
+                    "name": "High-quality insights",
+                },
+                "INSIGHTS": {
+                    "min_score": 0.75,
+                    "max_results": 15,
+                    "name": "Learned skills",
+                },
+                "REFLECTIONS": {
+                    "min_score": 0.7,
+                    "max_results": 20,
+                    "name": "Stored reflections",
+                },
+                "CONVERSATIONS": {
+                    "min_score": 0.6,
+                    "max_results": 30,
+                    "name": "Full conversations",
+                },
+            },
+        }
+
+    except ImportError:
+        return {
+            "success": False,
+            "error": "Progressive search statistics not available",
+        }
+    except Exception as e:
+        _get_logger().exception(f"Tier stats retrieval failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+        }

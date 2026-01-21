@@ -393,6 +393,7 @@ from .llm.security import validate_llm_api_keys_at_startup
 from .tools import (
     register_access_log_tools,
     register_bottleneck_tools,
+    register_cache_tools,
     register_conscious_agent_tools,
     register_crackerjack_tools,
     register_extraction_tools,
@@ -423,6 +424,7 @@ from .utils import (
 # Type ignore: mcp is MockFastMCP|FastMCP union in tests, both have compatible interface
 register_access_log_tools(mcp)  # type: ignore[argument-type]
 register_bottleneck_tools(mcp)  # type: ignore[argument-type]
+register_cache_tools(mcp)  # type: ignore[argument-type]
 register_conscious_agent_tools(mcp)  # type: ignore[argument-type]
 register_crackerjack_tools(mcp)  # type: ignore[argument-type]
 register_extraction_tools(mcp)  # type: ignore[argument-type]

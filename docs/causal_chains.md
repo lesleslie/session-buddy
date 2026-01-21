@@ -15,10 +15,10 @@ Record Error  Record Fix    Mark Resolved  Learn Pattern
 ### Core Components
 
 1. **CausalChainTracker**: Main orchestrator for error tracking
-2. **ErrorEvent**: Initial error occurrence record
-3. **FixAttempt**: Actions taken to resolve the error
-4. **CausalChain**: Complete timeline from error to resolution
-5. **Semantic Search**: Find similar past errors with embeddings
+1. **ErrorEvent**: Initial error occurrence record
+1. **FixAttempt**: Actions taken to resolve the error
+1. **CausalChain**: Complete timeline from error to resolution
+1. **Semantic Search**: Find similar past errors with embeddings
 
 ## Key Features
 
@@ -127,9 +127,9 @@ for result in similar:
 ### How It Works
 
 1. **Embedding Generation**: Error messages are converted to 384-dimensional vectors
-2. **Cosine Similarity**: Compare current error with historical errors
-3. **Ranking**: Sort by similarity and resolution time
-4. **Return**: Top N most similar successful fixes
+1. **Cosine Similarity**: Compare current error with historical errors
+1. **Ranking**: Sort by similarity and resolution time
+1. **Return**: Top N most similar successful fixes
 
 ## Integration with Hooks
 
@@ -345,9 +345,9 @@ await tracker.mark_resolved(
 ## Performance Considerations
 
 1. **Embedding Cache**: Error embeddings are cached to avoid regenerating
-2. **Async Operations**: All database operations are async
-3. **Limit Query Results**: Always use reasonable `limit` values (1-100)
-4. **Batch Operations**: Record multiple events in sequence when needed
+1. **Async Operations**: All database operations are async
+1. **Limit Query Results**: Always use reasonable `limit` values (1-100)
+1. **Batch Operations**: Record multiple events in sequence when needed
 
 ## Troubleshooting
 
@@ -448,5 +448,5 @@ class CausalChainTracker:
 ## See Also
 
 - [Hooks System](hooks_system.md) - Error tracking via POST_ERROR hook
-- [Intelligence Engine](intelligence.md) - Pattern learning from errors
-- [Workflow Metrics](workflow_metrics.md) - Error rate tracking
+<!-- - [Intelligence Engine](intelligence.md) - Pattern learning from errors (archived) -->
+<!-- - [Workflow Metrics](workflow_metrics.md) - Error rate tracking (archived) -->

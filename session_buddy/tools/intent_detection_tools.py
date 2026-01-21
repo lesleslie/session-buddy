@@ -7,7 +7,7 @@ natural language instead of exact slash commands.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from fastmcp import FastMCP
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Global intent detector instance
-_intent_detector: Optional[IntentDetector] = None
+_intent_detector: IntentDetector | None = None
 
 
 async def get_intent_detector() -> IntentDetector:
@@ -101,10 +101,7 @@ def register_intent_tools(mcp: FastMCP) -> None:
 
                 if suggestions:
                     suggestions_str = ", ".join(
-                        [
-                            f"{s['tool']} ({s['confidence']:.0%})"
-                            for s in suggestions
-                        ]
+                        [f"{s['tool']} ({s['confidence']:.0%})" for s in suggestions]
                     )
                     return {
                         "detected": False,
@@ -222,9 +219,7 @@ def register_intent_tools(mcp: FastMCP) -> None:
             for tool_name in detector.patterns.keys():
                 tools_info[tool_name] = {
                     "patterns": detector.patterns.get(tool_name, []),
-                    "semantic_examples": detector.semantic_examples.get(
-                        tool_name, []
-                    ),
+                    "semantic_examples": detector.semantic_examples.get(tool_name, []),
                     "has_argument_extraction": (
                         tool_name in detector.argument_extraction
                     ),
@@ -252,7 +247,7 @@ def register_intent_tools(mcp: FastMCP) -> None:
 # Convenience function for integration with session management
 async def process_natural_language_input(
     user_message: str, confidence_threshold: float = 0.7
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Process natural language input and return tool execution suggestion.
 
     This is the main entry point for integrating intent detection

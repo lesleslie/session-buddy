@@ -9,25 +9,24 @@ This module provides Model Context Protocol tools for:
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from session_buddy.server import SessionBuddyServer
 
 
-def register_hooks_tools(server: "SessionBuddyServer") -> None:
+def register_hooks_tools(server: SessionBuddyServer) -> None:
     """Register hooks and causal chain MCP tools.
 
     Args:
         server: SessionBuddyServer instance to register tools on
     """
-    from session_buddy.core.hooks import HookType
     from session_buddy.core.causal_chains import CausalChainTracker
+    from session_buddy.core.hooks import HookType
 
     @server.tool()
     async def list_hooks(
-        hook_type: Optional[str] = None,
+        hook_type: str | None = None,
     ) -> dict[str, Any]:
         """List all registered hooks.
 
@@ -158,7 +157,7 @@ def register_hooks_tools(server: "SessionBuddyServer") -> None:
     async def record_fix_success(
         error_message: str,
         action_taken: str,
-        code_changes: Optional[str] = None,
+        code_changes: str | None = None,
         error_type: str = "unknown",
     ) -> dict[str, Any]:
         """Record a successful fix for learning.
@@ -290,9 +289,7 @@ def register_hooks_tools(server: "SessionBuddyServer") -> None:
         }
 
     @server.tool()
-    async def enable_hook(
-        hook_name: str, hook_type: str
-    ) -> dict[str, Any]:
+    async def enable_hook(hook_name: str, hook_type: str) -> dict[str, Any]:
         """Enable a specific hook.
 
         Args:
@@ -311,9 +308,7 @@ def register_hooks_tools(server: "SessionBuddyServer") -> None:
         }
 
     @server.tool()
-    async def disable_hook(
-        hook_name: str, hook_type: str
-    ) -> dict[str, Any]:
+    async def disable_hook(hook_name: str, hook_type: str) -> dict[str, Any]:
         """Disable a specific hook.
 
         Args:

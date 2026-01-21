@@ -132,7 +132,12 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
 mcp = FastMCP("session-buddy", lifespan=session_lifecycle)
 
 # Register modularized tools
-from session_buddy.tools import register_memory_tools, register_session_tools
+from session_buddy.tools import (
+    register_category_tools,
+    register_fingerprint_tools,
+    register_memory_tools,
+    register_session_tools,
+)
 
 # Core session management tools
 # Type ignore: mcp is MockFastMCP|FastMCP union in tests, both have compatible interface
@@ -140,6 +145,12 @@ register_session_tools(mcp)  # type: ignore[argument-type]
 
 # Memory and reflection tools
 register_memory_tools(mcp)  # type: ignore[argument-type]
+
+# Fingerprint tools (Phase 4: N-gram Fingerprinting)
+register_fingerprint_tools(mcp)  # type: ignore[argument-type]
+
+# Category evolution tools (Phase 5: Category Evolution)
+register_category_tools(mcp)  # type: ignore[argument-type]
 
 
 @mcp.tool()

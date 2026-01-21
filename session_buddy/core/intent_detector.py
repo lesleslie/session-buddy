@@ -13,13 +13,13 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
-import yaml
 import numpy as np
+import yaml
 
 if TYPE_CHECKING:
-    from numpy.typing import NDArray
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -85,9 +85,7 @@ class IntentDetector:
             for tool, data in config.items():
                 self.patterns[tool] = data.get("patterns", [])
                 self.semantic_examples[tool] = data.get("semantic_examples", [])
-                self.argument_extraction[tool] = data.get(
-                    "argument_extraction", {}
-                )
+                self.argument_extraction[tool] = data.get("argument_extraction", {})
 
             logger.info(
                 f"Loaded intent patterns for {len(self.patterns)} tools: "
@@ -101,7 +99,11 @@ class IntentDetector:
     def _load_default_patterns(self) -> None:
         """Load fallback patterns when YAML file unavailable."""
         self.patterns = {
-            "checkpoint": ["save my progress", "create a checkpoint", "checkpoint this"],
+            "checkpoint": [
+                "save my progress",
+                "create a checkpoint",
+                "checkpoint this",
+            ],
             "search_reflections": [
                 "what did I learn about",
                 "find insights on",
@@ -133,7 +135,7 @@ class IntentDetector:
         self,
         user_message: str,
         confidence_threshold: float = 0.7,
-    ) -> Optional[ToolMatch]:
+    ) -> ToolMatch | None:
         """Match user message to tool intent.
 
         Args:
@@ -165,7 +167,7 @@ class IntentDetector:
 
         return None
 
-    async def _semantic_match(self, user_message: str) -> Optional[ToolMatch]:
+    async def _semantic_match(self, user_message: str) -> ToolMatch | None:
         """Match using embeddings.
 
         Compares user message embedding against semantic examples
@@ -184,7 +186,7 @@ class IntentDetector:
             # Generate embedding for user message
             query_embedding = await generate_embedding(user_message)
 
-            best_tool: Optional[str] = None
+            best_tool: str | None = None
             best_score = 0.0
 
             # Compare against semantic examples for each tool
@@ -221,7 +223,7 @@ class IntentDetector:
 
         return None
 
-    def _pattern_match(self, user_message: str) -> Optional[ToolMatch]:
+    def _pattern_match(self, user_message: str) -> ToolMatch | None:
         """Match using keyword patterns.
 
         Fast keyword-based matching for common phrases.
@@ -238,17 +240,15 @@ class IntentDetector:
             for pattern in patterns:
                 if pattern.lower() in message_lower:
                     # Fixed confidence for pattern match
-                    return ToolMatch(
-                        tool_name=tool, confidence=0.8, extracted_args={}
-                    )
+                    return ToolMatch(tool_name=tool, confidence=0.8, extracted_args={})
 
         return None
 
     def _combine_matches(
         self,
-        semantic: Optional[ToolMatch],
-        pattern: Optional[ToolMatch],
-    ) -> Optional[ToolMatch]:
+        semantic: ToolMatch | None,
+        pattern: ToolMatch | None,
+    ) -> ToolMatch | None:
         """Combine semantic and pattern matching results.
 
         Args:
@@ -262,11 +262,7 @@ class IntentDetector:
             return None
 
         # Both agree - high confidence
-        if (
-            semantic
-            and pattern
-            and semantic.tool_name == pattern.tool_name
-        ):
+        if semantic and pattern and semantic.tool_name == pattern.tool_name:
             return ToolMatch(
                 tool_name=semantic.tool_name,
                 confidence=min(0.95, semantic.confidence + 0.2),

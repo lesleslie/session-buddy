@@ -45,21 +45,23 @@ User Message (Natural Language)
 ### Key Features
 
 1. **Hybrid Detection**: Combines pattern matching (fast) with semantic matching (robust)
-2. **Argument Extraction**: Automatically extracts parameters from natural language
-3. **High Accuracy**: >90% accuracy on common use cases (17/17 tests passing)
-4. **Fallback Suggestions**: Provides tool suggestions for ambiguous inputs
-5. **Confidence Thresholding**: Filters low-confidence matches to avoid errors
+1. **Argument Extraction**: Automatically extracts parameters from natural language
+1. **High Accuracy**: >90% accuracy on common use cases (17/17 tests passing)
+1. **Fallback Suggestions**: Provides tool suggestions for ambiguous inputs
+1. **Confidence Thresholding**: Filters low-confidence matches to avoid errors
 
 ## Usage Examples
 
 ### Session Management
 
 Instead of:
+
 ```bash
 /session_buddy/checkpoint
 ```
 
 You can now say:
+
 ```bash
 "save my progress"
 "checkpoint this"
@@ -70,11 +72,13 @@ You can now say:
 ### Memory Search
 
 Instead of:
+
 ```bash
 /session_buddy/search_reflections query="async patterns"
 ```
 
 You can now say:
+
 ```bash
 "what did I learn about async?"
 "find insights on authentication"
@@ -85,11 +89,13 @@ You can now say:
 ### Quality Monitoring
 
 Instead of:
+
 ```bash
 /session_buddy/quality_monitor
 ```
 
 You can now say:
+
 ```bash
 "how's the code quality"
 "check quality"
@@ -100,11 +106,13 @@ You can now say:
 ### Error Investigation
 
 Instead of:
+
 ```bash
 /session_buddy/query_similar_errors error_message="TypeError"
 ```
 
 You can now say:
+
 ```bash
 "have I seen this TypeError before?"
 "how did I fix the authentication timeout?"
@@ -114,11 +122,13 @@ You can now say:
 ### Store Reflections
 
 Instead of:
+
 ```bash
 /session_buddy/store_reflection content="Remember that we fixed this using retries"
 ```
 
 You can now say:
+
 ```bash
 "remember that we fixed this by using retries"
 "save as a learning: this pattern works well"
@@ -202,6 +212,7 @@ The system automatically extracts arguments from your natural language input:
 ### Examples
 
 **Search Reflections:**
+
 ```bash
 "what did I learn about async?"
 # → Extracted: query="async"
@@ -211,6 +222,7 @@ The system automatically extracts arguments from your natural language input:
 ```
 
 **Query Similar Errors:**
+
 ```bash
 "have I seen this TypeError before?"
 # → Extracted: error_message="TypeError"
@@ -220,6 +232,7 @@ The system automatically extracts arguments from your natural language input:
 ```
 
 **Checkpoint:**
+
 ```bash
 "checkpoint with message: adding user auth"
 # → Extracted: message="adding user auth"
@@ -286,6 +299,7 @@ checkpoint:
 To add support for a new tool:
 
 1. Add tool entry to `intent_patterns.yaml`:
+
    ```yaml
    your_tool:
      patterns:
@@ -300,7 +314,8 @@ To add support for a new tool:
            - 'regex pattern'
    ```
 
-2. Re-run tests to verify accuracy >90%:
+1. Re-run tests to verify accuracy >90%:
+
    ```bash
    pytest tests/integration/test_intent_detection_accuracy.py
    ```
@@ -353,9 +368,9 @@ pytest tests/integration/test_intent_detection_accuracy.py --cov=session_buddy.c
 ### Available MCP Tools
 
 1. **`detect_intent`** - Main intent detection tool
-2. **`get_intent_suggestions`** - Get suggestions for ambiguous input
-3. **`list_intent_patterns`** - List all configured intent patterns
-4. **`refresh_intent_detector`** - Reload patterns from YAML file
+1. **`get_intent_suggestions`** - Get suggestions for ambiguous input
+1. **`list_intent_patterns`** - List all configured intent patterns
+1. **`refresh_intent_detector`** - Reload patterns from YAML file
 
 ### Usage in Claude Code
 
@@ -435,25 +450,28 @@ Claude: [Automatically invokes /session_buddy/checkpoint]
 **Issue:** "Intent not detected"
 
 **Solutions:**
+
 1. Try rephrasing your message more clearly
-2. Use explicit keywords from the command list above
-3. Lower the confidence threshold if needed
-4. Check if the tool is registered in the MCP server
+1. Use explicit keywords from the command list above
+1. Lower the confidence threshold if needed
+1. Check if the tool is registered in the MCP server
 
 **Issue:** "Wrong tool detected"
 
 **Solutions:**
+
 1. Be more specific in your wording
-2. Use the exact tool name if detection is unreliable
-3. Use `get_intent_suggestions` to see available options
-4. Report false positives to improve the system
+1. Use the exact tool name if detection is unreliable
+1. Use `get_intent_suggestions` to see available options
+1. Report false positives to improve the system
 
 **Issue:** "Arguments not extracted"
 
 **Solutions:**
+
 1. Use clearer phrasing around the argument value
-2. Follow the pattern shown in examples above
-3. Try the tool directly with explicit arguments if extraction fails
+1. Follow the pattern shown in examples above
+1. Try the tool directly with explicit arguments if extraction fails
 
 ## Summary
 
@@ -463,7 +481,7 @@ Natural language intent detection is **fully operational** with:
 - ✅ 25+ tools supported with natural language
 - ✅ Automatic argument extraction
 - ✅ Fallback suggestions for ambiguous input
-- ✅ <15ms latency per detection
+- ✅ \<15ms latency per detection
 - ✅ Graceful degradation when embeddings unavailable
 
 **Key Achievement:** You can now talk to Session Buddy naturally instead of memorizing tool names, making the system more intuitive and accessible for daily development workflows.

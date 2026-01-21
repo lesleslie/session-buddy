@@ -18,7 +18,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter_oneiric import (
@@ -117,7 +117,7 @@ class CausalChainTracker:
         ... )
     """
 
-    def __init__(self, logger: Optional[logging.Logger] = None) -> None:
+    def __init__(self, logger: logging.Logger | None = None) -> None:
         """Initialize causal chain tracker.
 
         Args:
@@ -133,10 +133,10 @@ class CausalChainTracker:
         Creates necessary database tables if they don't exist.
         """
         # Import here to avoid circular dependency
-        from session_buddy.di import depends
         from session_buddy.adapters.reflection_adapter_oneiric import (
             ReflectionDatabaseAdapterOneiric,
         )
+        from session_buddy.di import depends
 
         self.db = depends.get_sync(ReflectionDatabaseAdapterOneiric)
         await self._ensure_tables()
@@ -319,9 +319,7 @@ class CausalChainTracker:
 
         return attempt_id
 
-    async def _create_causal_chain(
-        self, error_id: str, successful_fix_id: str
-    ) -> str:
+    async def _create_causal_chain(self, error_id: str, successful_fix_id: str) -> str:
         """Create completed causal chain.
 
         Calculates resolution time from error to successful fix.

@@ -565,7 +565,7 @@ ______________________________________________________________________
 
 - **[Insights Capture & Deduplication](INSIGHTS_CAPTURE.md)** - Complete technical details
 - **[MCP Tools Reference](../user/MCP_TOOLS_REFERENCE.md)** - All intelligence tools
-- **[Claude Flow V2 Integration](../archive/implementation-plans/CLAUDE_FLOW_INTEGRATION_PLAN_V2.md)** - Future roadmap (archived)
+<!-- - **[Claude Flow V2 Integration](../archive/implementation-plans/CLAUDE_FLOW_INTEGRATION_PLAN_V2.md)** - Future roadmap (file not found) -->
 - **[Architecture Overview](../developer/ARCHITECTURE.md)** - System design
 
 ______________________________________________________________________

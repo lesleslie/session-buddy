@@ -278,7 +278,11 @@ class BottleneckDetector:
             params,
         ).fetchone()
 
-        avg_recovery_time = float(recovery_times_result[0]) if recovery_times_result and recovery_times_result[0] else 0
+        avg_recovery_time = (
+            float(recovery_times_result[0])
+            if recovery_times_result and recovery_times_result[0]
+            else 0
+        )
 
         # Most common quality drop cause (inferred from tool usage)
         cause_result = conn.execute(
@@ -486,7 +490,11 @@ class BottleneckDetector:
             params + [self.FRAGMENTED_SESSION_THRESHOLD],
         ).fetchone()
 
-        fragmented_sessions = int(fragmented_result[0]) if fragmented_result and fragmented_result[0] else 0
+        fragmented_sessions = (
+            int(fragmented_result[0])
+            if fragmented_result and fragmented_result[0]
+            else 0
+        )
 
         # Infrequent checkpoint sessions (long sessions with few checkpoints)
         infrequent_checkpoint_result = conn.execute(
@@ -499,7 +507,9 @@ class BottleneckDetector:
             """,
             params + [self.CHECKPOINT_FREQUENCY_THRESHOLD],
         ).fetchone()
-        infrequent_checkpoints = infrequent_checkpoint_result[0] if infrequent_checkpoint_result else 0
+        infrequent_checkpoints = (
+            infrequent_checkpoint_result[0] if infrequent_checkpoint_result else 0
+        )
 
         # Excessive session gaps (avg hours between consecutive sessions)
         gaps_result = conn.execute(
@@ -548,7 +558,9 @@ class BottleneckDetector:
             params,
         ).fetchone()
 
-        inconsistency_score = float(inconsistency_result[0]) if inconsistency_result else 0
+        inconsistency_score = (
+            float(inconsistency_result[0]) if inconsistency_result else 0
+        )
 
         return SessionPatternBottleneck(
             marathon_sessions=marathon_sessions,

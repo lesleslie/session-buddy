@@ -22,9 +22,7 @@ def register_memory_health_tools(server) -> None:
     """
 
     @server.tool()
-    async def get_reflection_health(
-        stale_threshold_days: int = 90
-    ) -> dict[str, t.Any]:
+    async def get_reflection_health(stale_threshold_days: int = 90) -> dict[str, t.Any]:
         """Get reflection database health metrics.
 
         Analyzes the reflection database for staleness, storage usage,
@@ -338,9 +336,7 @@ def _generate_reflection_health_insights(metrics) -> list[str]:
 
     # Staleness insights
     if metrics.total_reflections > 0:
-        stale_pct = (
-            metrics.stale_reflections / metrics.total_reflections * 100
-        )
+        stale_pct = metrics.stale_reflections / metrics.total_reflections * 100
         if stale_pct > 20:
             insights.append(
                 f"⚠️ High staleness: {stale_pct:.1f}% of reflections are "
@@ -363,13 +359,9 @@ def _generate_reflection_health_insights(metrics) -> list[str]:
             f"💾 Large database: {storage_mb:.1f}MB - consider archiving old reflections"
         )
     elif storage_mb > 50:
-        insights.append(
-            f"📦 Moderate storage: {storage_mb:.1f}MB used"
-        )
+        insights.append(f"📦 Moderate storage: {storage_mb:.1f}MB used")
     else:
-        insights.append(
-            f"✅ Efficient storage: {storage_mb:.1f}MB"
-        )
+        insights.append(f"✅ Efficient storage: {storage_mb:.1f}MB")
 
     # Age distribution insights
     if metrics.avg_reflection_age_days > 60:
@@ -387,9 +379,7 @@ def _generate_reflection_health_insights(metrics) -> list[str]:
     if metrics.tags_distribution:
         top_tag = max(metrics.tags_distribution, key=metrics.tags_distribution.get)  # type: ignore[arg-type]
         top_count = metrics.tags_distribution[top_tag]
-        insights.append(
-            f"🏷️ Most common tag: '{top_tag}' ({top_count} reflections)"
-        )
+        insights.append(f"🏷️ Most common tag: '{top_tag}' ({top_count} reflections)")
 
     return insights
 

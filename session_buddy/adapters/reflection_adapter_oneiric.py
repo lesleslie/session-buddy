@@ -46,7 +46,10 @@ except ImportError:
     AutoTokenizer = None  # type: ignore[no-redef]
 
 from session_buddy.adapters.settings import ReflectionAdapterSettings
+from session_buddy.cache.query_cache import QueryCacheManager
 from session_buddy.insights.models import validate_collection_name
+from session_buddy.memory.category_evolution import CategoryEvolutionEngine
+from session_buddy.utils.fingerprint import MinHashSignature
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +120,14 @@ class ReflectionDatabaseAdapterOneiric:
 
         # Embedding cache for performance optimization
         self._embedding_cache: dict[str, list[float]] = {}
+
+        # Category evolution engine (Phase 5)
+        self._category_engine: CategoryEvolutionEngine | None = None
         self._cache_hits: int = 0
         self._cache_misses: int = 0
+
+        # Query cache for performance optimization (Phase 1: Query Cache)
+        self._query_cache: QueryCacheManager | None = None
 
     def __enter__(self) -> t.Self:
         """Sync context manager entry (not recommended - use async)."""
@@ -177,6 +186,15 @@ class ReflectionDatabaseAdapterOneiric:
 
     async def aclose(self) -> None:
         """Close adapter connections (async)."""
+        # Close query cache properly BEFORE closing connection (Phase 1: Query Cache - Phase 6 fix)
+        # This prevents race conditions by clearing cache while connection is still alive
+        if self._query_cache:
+            with suppress(Exception):
+                self._query_cache.invalidate()  # Clear cache
+                await asyncio.sleep(0.1)  # Phase 6: Wait for pending operations
+            self._query_cache = None
+
+        # Now close the connection
         if self.conn:
             with suppress(Exception):
                 self.conn.close()
@@ -213,9 +231,23 @@ class ReflectionDatabaseAdapterOneiric:
         # Create tables if they don't exist
         self._create_tables()
 
+        # Initialize query cache (Phase 1: Query Cache)
+        self._query_cache = QueryCacheManager(
+            l1_max_size=1000,
+            l2_ttl_days=7,
+        )
+        await self._query_cache.initialize(conn=self.conn)
+
         # Initialize ONNX embedding model if embeddings are enabled
         if self.settings.enable_embeddings and ONNX_AVAILABLE:
             await self._init_embedding_model()
+
+        # Initialize category evolution engine (Phase 5)
+        self._category_engine = CategoryEvolutionEngine(
+            db_adapter=self,
+            enable_fingerprint_prefilter=True,
+        )
+        await self._category_engine.initialize()
 
         self._initialized = True
 
@@ -310,6 +342,212 @@ class ReflectionDatabaseAdapterOneiric:
             f"CREATE INDEX IF NOT EXISTS idx_{self.collection_name}_refl_last_used ON {self.collection_name}_reflections(last_used_at)"
         )
 
+        # ========================================================================
+        # QUERY CACHE L2 TABLE (Phase 1: Query Cache)
+        # ========================================================================
+        # Creates a persistent cache for query results to eliminate redundant vector searches
+
+        # Create query cache L2 table
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS query_cache_l2 (
+                cache_key TEXT PRIMARY KEY,
+                normalized_query TEXT NOT NULL,
+                project TEXT,
+                result_ids TEXT[],
+                hit_count INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ttl_seconds INTEGER DEFAULT 604800
+            )
+            """
+        )
+
+        # Create indexes for query cache
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_query_cache_l2_accessed ON query_cache_l2(last_accessed)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_query_cache_l2_project ON query_cache_l2(project)"
+        )
+
+        # REWRITTEN QUERIES TABLE (Phase 2: Query Rewriting)
+        # ========================================================================
+        # Tracks query rewrites for performance analysis and cache optimization
+
+        # Create rewritten queries table
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rewritten_queries (
+                id TEXT PRIMARY KEY,
+                original_query TEXT NOT NULL,
+                rewritten_query TEXT NOT NULL,
+                llm_provider TEXT,
+                confidence_score FLOAT,
+                context_snapshot TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                used_count INTEGER DEFAULT 1,
+                effective BOOLEAN DEFAULT TRUE
+            )
+            """
+        )
+
+        # Create indexes for rewritten queries
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rewritten_queries_created ON rewritten_queries(created_at)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rewritten_queries_original ON rewritten_queries(original_query)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rewritten_queries_effective ON rewritten_queries(effective)"
+        )
+
+        # ========================================================================
+        # N-GRAM FINGERPRINTING (Phase 4: Duplicate Detection)
+        # ========================================================================
+        # Adds MinHash fingerprint columns to enable duplicate and near-duplicate detection
+
+        # Add fingerprint column to conversations table
+        with suppress(Exception):
+            self.conn.execute(
+                f"ALTER TABLE {self.collection_name}_conversations ADD COLUMN IF NOT EXISTS fingerprint BLOB"
+            )
+
+        # Add fingerprint column to reflections table
+        with suppress(Exception):
+            self.conn.execute(
+                f"ALTER TABLE {self.collection_name}_reflections ADD COLUMN IF NOT EXISTS fingerprint BLOB"
+            )
+
+        # Create fingerprint index table for efficient duplicate detection
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS content_fingerprints (
+                id TEXT PRIMARY KEY,
+                content_type TEXT NOT NULL,
+                fingerprint BLOB NOT NULL,
+                content_id TEXT NOT NULL,
+                collection_name TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(content_type, content_id, collection_name)
+            )
+            """
+        )
+
+        # Create indexes for fingerprint operations
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_fingerprints_type ON content_fingerprints(content_type)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_fingerprints_collection ON content_fingerprints(collection_name)"
+        )
+
+        # ========================================================================
+        # CATEGORY EVOLUTION (Phase 5: Intelligent Subcategory Organization)
+        # ========================================================================
+        # Persistent storage for evolved subcategories with clustering metadata
+
+        # Create subcategories table
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS memory_subcategories (
+                id TEXT PRIMARY KEY,
+                parent_category TEXT NOT NULL,
+                name TEXT NOT NULL,
+                keywords TEXT[],
+                centroid FLOAT[384],
+                centroid_fingerprint BLOB,
+                memory_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(parent_category, name)
+            )
+            """
+        )
+
+        # Add subcategory column to existing tables (if not exists)
+        try:
+            self.conn.execute(
+                f"ALTER TABLE {self.collection_name}_conversations ADD COLUMN subcategory TEXT"
+            )
+        except Exception:
+            pass  # Column already exists
+
+        try:
+            self.conn.execute(
+                f"ALTER TABLE {self.collection_name}_reflections ADD COLUMN subcategory TEXT"
+            )
+        except Exception:
+            pass  # Column already exists
+
+        # Create indexes for category operations
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_subcategories_parent ON memory_subcategories(parent_category)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_subcategories_count ON memory_subcategories(memory_count)"
+        )
+        self.conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_conversations_subcategory ON {self.collection_name}_conversations(subcategory)"
+        )
+        self.conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_reflections_subcategory ON {self.collection_name}_reflections(subcategory)"
+        )
+
+        # ========================================================================
+        # USAGE ANALYTICS (Phase 5: Adaptive Results)
+        # ========================================================================
+        # Tracks user interactions for personalized ranking and adaptive thresholds
+
+        # Create result interactions table
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS result_interactions (
+                id TEXT PRIMARY KEY,
+                query TEXT NOT NULL,
+                result_id TEXT NOT NULL,
+                result_type TEXT NOT NULL,
+                position INTEGER NOT NULL,
+                similarity_score REAL NOT NULL,
+                clicked BOOLEAN NOT NULL,
+                dwell_time_ms INTEGER,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                session_id TEXT
+            )
+            """
+        )
+
+        # Create indexes for analytics queries
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_interactions_query ON result_interactions(query)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_interactions_result_id ON result_interactions(result_id)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_interactions_timestamp ON result_interactions(timestamp)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_interactions_clicked ON result_interactions(clicked)"
+        )
+
+        # Create aggregated usage metrics table (materialized view cache)
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS usage_metrics_summary (
+                id TEXT PRIMARY KEY,
+                total_interactions INTEGER DEFAULT 0,
+                click_through_rate REAL DEFAULT 0.0,
+                avg_dwell_time_ms REAL DEFAULT 0.0,
+                avg_position_clicked REAL DEFAULT 0.0,
+                type_preference JSON,
+                success_threshold REAL DEFAULT 0.7,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
         # Create HNSW indexes for fast vector similarity search (requires VSS extension)
         self._create_hnsw_indexes()
 
@@ -342,7 +580,9 @@ class ReflectionDatabaseAdapterOneiric:
             # Enable experimental persistence for HNSW indexes on disk databases
             # HNSW indexes require this flag to work with persistent (disk-based) databases
             self.conn.execute("SET hnsw_enable_experimental_persistence=true")
-            logger.debug("Enabled HNSW experimental persistence for disk-based database")
+            logger.debug(
+                "Enabled HNSW experimental persistence for disk-based database"
+            )
 
             # Create HNSW index for conversations table
             self.conn.execute(
@@ -381,7 +621,9 @@ class ReflectionDatabaseAdapterOneiric:
             )
 
         except Exception as e:
-            logger.warning(f"Failed to create HNSW indexes: {e}. Falling back to array_cosine_similarity.")
+            logger.warning(
+                f"Failed to create HNSW indexes: {e}. Falling back to array_cosine_similarity."
+            )
 
     async def _init_embedding_model(self) -> None:
         """Initialize ONNX embedding model."""
@@ -497,9 +739,7 @@ class ReflectionDatabaseAdapterOneiric:
             logger.warning(f"Failed to generate embedding: {e}")
             return None
 
-    def _quantize_embedding(
-        self, embedding: list[float]
-    ) -> list[int] | None:
+    def _quantize_embedding(self, embedding: list[float]) -> list[int] | None:
         """Quantize embedding from float32 to uint8 for 4x memory compression.
 
         Uses global calibration data (min/max across all embeddings)
@@ -530,15 +770,13 @@ class ReflectionDatabaseAdapterOneiric:
         range_vals = np.where(range_vals == 0, 1.0, range_vals)  # Prevent div/0
 
         # Scale to [0, 255] and convert to uint8
-        quantized = np.clip(
-            ((arr - min_vals) / range_vals) * 255, 0, 255
-        ).astype(np.uint8)
+        quantized = np.clip(((arr - min_vals) / range_vals) * 255, 0, 255).astype(
+            np.uint8
+        )
 
         return quantized.tolist()  # [384] uint8 values
 
-    def _dequantize_embedding(
-        self, quantized: list[int]
-    ) -> list[float] | None:
+    def _dequantize_embedding(self, quantized: list[int]) -> list[float] | None:
         """Dequantize embedding from uint8 back to float32.
 
         Args:
@@ -592,9 +830,7 @@ class ReflectionDatabaseAdapterOneiric:
 
         return self._calibration_min, self._calibration_max
 
-    def _update_calibration_data(
-        self, all_embeddings: list[list[float]]
-    ) -> None:
+    def _update_calibration_data(self, all_embeddings: list[list[float]]) -> None:
         """Update calibration data from all embeddings in the database.
 
         Args:
@@ -610,9 +846,7 @@ class ReflectionDatabaseAdapterOneiric:
         self._calibration_min = np.min(stacked, axis=0)  # Shape: [384]
         self._calibration_max = np.max(stacked, axis=0)  # Shape: [384]
 
-        logger.debug(
-            f"Updated calibration data from {len(all_embeddings)} embeddings"
-        )
+        logger.debug(f"Updated calibration data from {len(all_embeddings)} embeddings")
 
     def _generate_id(self, content: str) -> str:
         """Generate deterministic ID from content."""
@@ -620,21 +854,107 @@ class ReflectionDatabaseAdapterOneiric:
         hash_obj = hashlib.sha256(content_bytes)
         return hash_obj.hexdigest()[:16]
 
+    def _check_for_duplicates(
+        self,
+        fingerprint: MinHashSignature,
+        content_type: t.Literal["conversation", "reflection"],
+        threshold: float = 0.85,
+    ) -> list[dict[str, t.Any]]:
+        """Check for duplicate or near-duplicate content using MinHash similarity.
+
+        Args:
+            fingerprint: MinHash signature to compare against
+            content_type: Either "conversation" or "reflection"
+            threshold: Minimum Jaccard similarity to consider a duplicate (default 0.85)
+
+        Returns:
+            List of duplicate records with similarity scores
+
+        """
+        table_name = f"{self.collection_name}_{content_type}s"
+
+        # Get all fingerprints from the table
+        result = self.conn.execute(
+            f"""
+            SELECT id, content, fingerprint FROM {table_name}
+            WHERE fingerprint IS NOT NULL
+            """
+        ).fetchall()
+
+        duplicates = []
+
+        for row in result:
+            existing_id = row[0]
+            existing_content = row[1]
+            existing_fingerprint_bytes = row[2]
+
+            if not existing_fingerprint_bytes:
+                continue
+
+            try:
+                # Reconstruct MinHash signature from bytes
+                existing_fingerprint = MinHashSignature.from_bytes(
+                    existing_fingerprint_bytes
+                )
+
+                # Estimate Jaccard similarity
+                similarity = fingerprint.estimate_jaccard_similarity(
+                    existing_fingerprint
+                )
+
+                if similarity >= threshold:
+                    duplicates.append(
+                        {
+                            "id": existing_id,
+                            "content": existing_content,
+                            "similarity": similarity,
+                            "content_type": content_type,
+                        }
+                    )
+            except Exception as e:
+                logger.warning(f"Error comparing fingerprints: {e}")
+                continue
+
+        # Sort by similarity (highest first)
+        duplicates.sort(key=lambda d: d["similarity"], reverse=True)
+        return duplicates
+
     async def store_conversation(
-        self, content: str, metadata: dict[str, t.Any] | None = None
+        self,
+        content: str,
+        metadata: dict[str, t.Any] | None = None,
+        deduplicate: bool = False,
+        dedup_threshold: float = 0.85,
     ) -> str:
         """Store a conversation in the database.
 
         Args:
             content: Conversation content
             metadata: Optional metadata
+            deduplicate: If True, check for duplicates before storing (Phase 4)
+            dedup_threshold: Minimum Jaccard similarity to consider a duplicate (0.0 to 1.0)
 
         Returns:
-            Conversation ID
+            Conversation ID (existing ID if duplicate found and deduplicate=True)
 
         """
         if not self._initialized:
             await self.initialize()
+
+        # Generate MinHash fingerprint for duplicate detection (Phase 4)
+        fingerprint = MinHashSignature.from_text(content)
+
+        # Check for duplicates if deduplication is enabled
+        if deduplicate:
+            duplicates = self._check_for_duplicates(
+                fingerprint, "conversation", threshold=dedup_threshold
+            )
+            if duplicates:
+                logger.info(
+                    f"Found {len(duplicates)} duplicate(s) with similarity >= {dedup_threshold:.2f}. "
+                    f"Returning existing ID: {duplicates[0]['id']}"
+                )
+                return duplicates[0]["id"]  # Return ID of most similar duplicate
 
         conv_id = self._generate_id(content)
         now = datetime.now(UTC)
@@ -645,18 +965,22 @@ class ReflectionDatabaseAdapterOneiric:
         if self.settings.enable_embeddings:
             embedding = await self._generate_embedding(content)
 
+        # Convert MinHash fingerprint to bytes for storage
+        fingerprint_bytes = fingerprint.to_bytes()
+
         # Store conversation
         if embedding:
             self.conn.execute(
                 f"""
                 INSERT INTO {self.collection_name}_conversations
-                (id, content, metadata, created_at, updated_at, embedding)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (id, content, metadata, created_at, updated_at, embedding, fingerprint)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     content = excluded.content,
                     metadata = excluded.metadata,
                     updated_at = excluded.updated_at,
-                    embedding = excluded.embedding
+                    embedding = excluded.embedding,
+                    fingerprint = excluded.fingerprint
                 """,
                 [
                     conv_id,
@@ -665,20 +989,22 @@ class ReflectionDatabaseAdapterOneiric:
                     now,
                     now,
                     embedding,
+                    fingerprint_bytes,
                 ],
             )
         else:
             self.conn.execute(
                 f"""
                 INSERT INTO {self.collection_name}_conversations
-                (id, content, metadata, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                (id, content, metadata, created_at, updated_at, fingerprint)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     content = excluded.content,
                     metadata = excluded.metadata,
-                    updated_at = excluded.updated_at
+                    updated_at = excluded.updated_at,
+                    fingerprint = excluded.fingerprint
                 """,
-                [conv_id, content, metadata_json, now, now],
+                [conv_id, content, metadata_json, now, now, fingerprint_bytes],
             )
 
         return conv_id
@@ -690,6 +1016,7 @@ class ReflectionDatabaseAdapterOneiric:
         threshold: float = 0.7,
         project: str | None = None,
         min_score: float | None = None,
+        use_cache: bool = True,
     ) -> list[dict[str, t.Any]]:
         """Search conversations using vector similarity.
 
@@ -699,6 +1026,7 @@ class ReflectionDatabaseAdapterOneiric:
             threshold: Minimum similarity score (0.0 to 1.0)
             project: Optional project filter (not yet implemented)
             min_score: Alias for threshold (for backward compatibility)
+            use_cache: Whether to use query cache (Phase 1: Query Cache)
 
         Returns:
             List of matching conversations with scores
@@ -709,6 +1037,46 @@ class ReflectionDatabaseAdapterOneiric:
             threshold = min_score
         if not self._initialized:
             await self.initialize()
+
+        # Check cache first (Phase 1: Query Cache)
+        if use_cache and self._query_cache:
+            cache_key = QueryCacheManager.compute_cache_key(
+                query=query,
+                project=project,
+                limit=limit,
+            )
+            cached_result_ids = self._query_cache.get(cache_key)
+            if cached_result_ids is not None:
+                # Cache hit - fetch full results by IDs
+                if not cached_result_ids:
+                    return []
+
+                # Fetch cached results by IDs
+                id_list = "', '".join(cached_result_ids)
+                result = self.conn.execute(
+                    f"""
+                    SELECT id, content, metadata, created_at, updated_at
+                    FROM {self.collection_name}_conversations
+                    WHERE id IN ('{id_list}')
+                    ORDER BY updated_at DESC
+                    """
+                ).fetchall()
+
+                # Reconstruct cached results
+                results = []
+                for row in result:
+                    results.append(
+                        {
+                            "id": row[0],
+                            "content": row[1],
+                            "metadata": json.loads(row[2]) if row[2] else {},
+                            "created_at": row[3],
+                            "updated_at": row[4],
+                            "score": 1.0,  # Cached results don't have original scores
+                            "_cached": True,  # Mark as cached result
+                        }
+                    )
+                return results
 
         results = []
 
@@ -726,7 +1094,9 @@ class ReflectionDatabaseAdapterOneiric:
             # Set ef_search parameter if HNSW indexes exist (higher = better quality, slower)
             # This parameter affects HNSW index search quality vs speed trade-off
             if self.settings.enable_hnsw_index:
-                self.conn.execute(f"SET hnsw_ef_search = {self.settings.hnsw_ef_search}")
+                self.conn.execute(
+                    f"SET hnsw_ef_search = {self.settings.hnsw_ef_search}"
+                )
 
             result = self.conn.execute(
                 f"""
@@ -778,6 +1148,23 @@ class ReflectionDatabaseAdapterOneiric:
                     }
                 )
 
+        # Populate cache for future searches (Phase 1: Query Cache)
+        if use_cache and self._query_cache and results:
+            cache_key = QueryCacheManager.compute_cache_key(
+                query=query,
+                project=project,
+                limit=limit,
+            )
+            # Store result IDs in cache
+            result_ids = [r["id"] for r in results]
+            normalized_query = QueryCacheManager.normalize_query(query)
+            self._query_cache.put(
+                cache_key=cache_key,
+                result_ids=result_ids,
+                normalized_query=normalized_query,
+                project=project,
+            )
+
         return results
 
     async def get_stats(self) -> dict[str, t.Any]:
@@ -827,20 +1214,41 @@ class ReflectionDatabaseAdapterOneiric:
         }
 
     async def store_reflection(
-        self, content: str, tags: list[str] | None = None
+        self,
+        content: str,
+        tags: list[str] | None = None,
+        deduplicate: bool = False,
+        dedup_threshold: float = 0.85,
     ) -> str:
         """Store a reflection with optional tags.
 
         Args:
             content: Reflection text content
             tags: Optional list of tags for categorization
+            deduplicate: If True, check for duplicates before storing (Phase 4)
+            dedup_threshold: Minimum Jaccard similarity to consider a duplicate (0.0 to 1.0)
 
         Returns:
-            Unique reflection ID
+            Unique reflection ID (existing ID if duplicate found and deduplicate=True)
 
         """
         if not self._initialized:
             await self.initialize()
+
+        # Generate MinHash fingerprint for duplicate detection (Phase 4)
+        fingerprint = MinHashSignature.from_text(content)
+
+        # Check for duplicates if deduplication is enabled
+        if deduplicate:
+            duplicates = self._check_for_duplicates(
+                fingerprint, "reflection", threshold=dedup_threshold
+            )
+            if duplicates:
+                logger.info(
+                    f"Found {len(duplicates)} duplicate(s) with similarity >= {dedup_threshold:.2f}. "
+                    f"Returning existing ID: {duplicates[0]['id']}"
+                )
+                return duplicates[0]["id"]  # Return ID of most similar duplicate
 
         reflection_id = str(uuid.uuid4())
         now = datetime.now(tz=UTC)
@@ -853,13 +1261,16 @@ class ReflectionDatabaseAdapterOneiric:
             except Exception:
                 embedding = None
 
+        # Convert MinHash fingerprint to bytes for storage
+        fingerprint_bytes = fingerprint.to_bytes()
+
         # Store reflection (explicitly set insight_type to NULL to distinguish from insights)
         if embedding:
             self.conn.execute(
                 f"""
                 INSERT INTO {self.collection_name}_reflections
-                (id, content, tags, embedding, created_at, updated_at, insight_type)
-                VALUES (?, ?, ?, ?, ?, ?, NULL)
+                (id, content, tags, embedding, created_at, updated_at, insight_type, fingerprint)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
                 """,
                 (
                     reflection_id,
@@ -868,14 +1279,15 @@ class ReflectionDatabaseAdapterOneiric:
                     embedding,
                     now,
                     now,
+                    fingerprint_bytes,
                 ),
             )
         else:
             self.conn.execute(
                 f"""
                 INSERT INTO {self.collection_name}_reflections
-                (id, content, tags, created_at, updated_at, insight_type)
-                VALUES (?, ?, ?, ?, ?, NULL)
+                (id, content, tags, created_at, updated_at, insight_type, fingerprint)
+                VALUES (?, ?, ?, ?, ?, NULL, ?)
                 """,
                 (
                     reflection_id,
@@ -883,13 +1295,43 @@ class ReflectionDatabaseAdapterOneiric:
                     tags or [],
                     now,
                     now,
+                    fingerprint_bytes,
                 ),
             )
+
+        # Auto-assign subcategory if category evolution engine is available (Phase 5)
+        subcategory: str | None = None
+        if self._category_engine and embedding:
+            memory_dict = {
+                "id": reflection_id,
+                "content": content,
+                "embedding": embedding,
+                "fingerprint": fingerprint_bytes,
+            }
+            assignment = await self._category_engine.assign_subcategory(memory_dict)
+            if assignment.subcategory:
+                subcategory = assignment.subcategory
+                # Store subcategory with reflection
+                self.conn.execute(
+                    f"""
+                    UPDATE {self.collection_name}_reflections
+                    SET subcategory = ?
+                    WHERE id = ?
+                    """,
+                    [subcategory, reflection_id],
+                )
+                logger.info(
+                    f"Assigned subcategory: {subcategory} (confidence: {assignment.confidence:.2f})"
+                )
 
         return reflection_id
 
     async def search_reflections(
-        self, query: str, limit: int = 10, use_embeddings: bool = True
+        self,
+        query: str,
+        limit: int = 10,
+        use_embeddings: bool = True,
+        use_cache: bool = True,
     ) -> list[dict[str, t.Any]]:
         """Search reflections by content or tags.
 
@@ -897,6 +1339,7 @@ class ReflectionDatabaseAdapterOneiric:
             query: Search query
             limit: Maximum number of results
             use_embeddings: Whether to use semantic search if embeddings available
+            use_cache: Whether to use query cache (Phase 1: Query Cache)
 
         Returns:
             List of matching reflections
@@ -905,9 +1348,71 @@ class ReflectionDatabaseAdapterOneiric:
         if not self._initialized:
             await self.initialize()
 
+        # Check cache first (Phase 1: Query Cache)
+        if use_cache and self._query_cache:
+            cache_key = QueryCacheManager.compute_cache_key(
+                query=query,
+                project=None,  # reflections don't have project filter
+                limit=limit,
+            )
+            cached_result_ids = self._query_cache.get(cache_key)
+            if cached_result_ids is not None:
+                # Cache hit - fetch full results by IDs
+                if not cached_result_ids:
+                    return []
+
+                # Fetch cached results by IDs
+                id_list = "', '".join(cached_result_ids)
+                result = self.conn.execute(
+                    f"""
+                    SELECT id, content, tags, created_at, updated_at
+                    FROM {self.collection_name}_reflections
+                    WHERE id IN ('{id_list}')
+                        AND insight_type IS NULL
+                    ORDER BY created_at DESC
+                    """
+                ).fetchall()
+
+                # Reconstruct cached results
+                cached_results = []
+                for row in result:
+                    cached_results.append(
+                        {
+                            "id": row[0],
+                            "content": row[1],
+                            "tags": list(row[2]) if row[2] else [],
+                            "created_at": row[3].isoformat() if row[3] else None,
+                            "updated_at": row[4].isoformat() if row[4] else None,
+                            "similarity": 1.0,  # Cached results don't have original scores
+                            "_cached": True,  # Mark as cached result
+                        }
+                    )
+                return cached_results
+
+        # Perform search (cache miss or cache disabled)
         if use_embeddings and ONNX_AVAILABLE and self.onnx_session:
-            return await self._semantic_search_reflections(query, limit)
-        return await self._text_search_reflections(query, limit)
+            results = await self._semantic_search_reflections(query, limit)
+        else:
+            results = await self._text_search_reflections(query, limit)
+
+        # Populate cache for future searches (Phase 1: Query Cache)
+        if use_cache and self._query_cache and results:
+            cache_key = QueryCacheManager.compute_cache_key(
+                query=query,
+                project=None,
+                limit=limit,
+            )
+            # Store result IDs in cache
+            result_ids = [r["id"] for r in results]
+            normalized_query = QueryCacheManager.normalize_query(query)
+            self._query_cache.put(
+                cache_key=cache_key,
+                result_ids=result_ids,
+                normalized_query=normalized_query,
+                project=None,
+            )
+
+        return results
 
     async def _semantic_search_reflections(
         self, query: str, limit: int = 10

@@ -98,16 +98,12 @@ class ErrorHotSpotMetrics:
                 {"error_type": error_type, "count": count}
                 for error_type, count in self.most_common_error_types
             ],
-            "avg_resolution_time_minutes": round(
-                self.avg_resolution_time_minutes, 2
-            ),
-            "fastest_resolution_minutes": round(
-                self.fastest_resolution_minutes, 2
-            ) if self.fastest_resolution_minutes
+            "avg_resolution_time_minutes": round(self.avg_resolution_time_minutes, 2),
+            "fastest_resolution_minutes": round(self.fastest_resolution_minutes, 2)
+            if self.fastest_resolution_minutes
             else None,
-            "slowest_resolution_minutes": round(
-                self.slowest_resolution_minutes, 2
-            ) if self.slowest_resolution_minutes
+            "slowest_resolution_minutes": round(self.slowest_resolution_minutes, 2)
+            if self.slowest_resolution_minutes
             else None,
             "unresolved_errors": self.unresolved_errors,
             "recent_error_rate": round(self.recent_error_rate, 2),
@@ -195,9 +191,7 @@ class MemoryHealthAnalyzer:
             )
 
         # Total reflections
-        total_result = conn.execute(
-            "SELECT COUNT(*) FROM reflections"
-        ).fetchone()
+        total_result = conn.execute("SELECT COUNT(*) FROM reflections").fetchone()
         total_reflections = total_result[0] if total_result else 0
 
         if total_reflections == 0:
@@ -238,7 +232,9 @@ class MemoryHealthAnalyzer:
             FROM reflections
         """
         ).fetchone()
-        avg_age = float(avg_age_result[0]) if avg_age_result and avg_age_result[0] else 0.0
+        avg_age = (
+            float(avg_age_result[0]) if avg_age_result and avg_age_result[0] else 0.0
+        )
 
         # Tag distribution
         tags_result = conn.execute(
@@ -328,9 +324,7 @@ class MemoryHealthAnalyzer:
         """
         ).fetchall()
 
-        most_common_error_types = [
-            (row[0], row[1]) for row in error_types_result
-        ]
+        most_common_error_types = [(row[0], row[1]) for row in error_types_result]
 
         # Resolution time statistics
         resolution_stats = conn.execute(
@@ -395,73 +389,84 @@ class MemoryHealthAnalyzer:
         if reflection_health.stale_reflections > 0:
             stale_pct = (
                 reflection_health.stale_reflections
-                / reflection_health.total_reflections * 100
+                / reflection_health.total_reflections
+                * 100
                 if reflection_health.total_reflections > 0
                 else 0
             )
-            recommendations.append({
-                "action": "clean_stale_reflections",
-                "priority": "medium" if stale_pct < 20 else "high",
-                "category": "maintenance",
-                "details": (
-                    f"Remove {reflection_health.stale_reflections} stale reflections "
-                    f"({stale_pct:.1f}% of total) older than "
-                    f"{reflection_health.stale_threshold_days} days"
-                ),
-                "estimated_impact": f"Reduces database size by unknown amount",
-            })
+            recommendations.append(
+                {
+                    "action": "clean_stale_reflections",
+                    "priority": "medium" if stale_pct < 20 else "high",
+                    "category": "maintenance",
+                    "details": (
+                        f"Remove {reflection_health.stale_reflections} stale reflections "
+                        f"({stale_pct:.1f}% of total) older than "
+                        f"{reflection_health.stale_threshold_days} days"
+                    ),
+                    "estimated_impact": "Reduces database size by unknown amount",
+                }
+            )
 
         # Large storage size
         storage_mb = reflection_health.storage_size_bytes / 1024 / 1024
         if storage_mb > 100:  # 100MB threshold
-            recommendations.append({
-                "action": "optimize_storage",
-                "priority": "low" if storage_mb < 500 else "medium",
-                "category": "optimization",
-                "details": f"Database size is {storage_mb:.1f}MB - consider archiving old reflections",
-                "estimated_impact": "Reduces storage requirements",
-            })
+            recommendations.append(
+                {
+                    "action": "optimize_storage",
+                    "priority": "low" if storage_mb < 500 else "medium",
+                    "category": "optimization",
+                    "details": f"Database size is {storage_mb:.1f}MB - consider archiving old reflections",
+                    "estimated_impact": "Reduces storage requirements",
+                }
+            )
 
         # High error rate
         if error_hotspots.recent_error_rate > 2.0:
-            recommendations.append({
-                "action": "investigate_error_pattern",
-                "priority": "high",
-                "category": "quality",
-                "details": (
-                    f"High error rate: {error_hotspots.recent_error_rate:.1f} errors/day "
-                    f"over last 30 days"
-                ),
-                "estimated_impact": "Improves code quality and development velocity",
-            })
+            recommendations.append(
+                {
+                    "action": "investigate_error_pattern",
+                    "priority": "high",
+                    "category": "quality",
+                    "details": (
+                        f"High error rate: {error_hotspots.recent_error_rate:.1f} errors/day "
+                        f"over last 30 days"
+                    ),
+                    "estimated_impact": "Improves code quality and development velocity",
+                }
+            )
 
         # Unresolved errors
         if error_hotspots.unresolved_errors > 5:
-            recommendations.append({
-                "action": "review_unresolved_errors",
-                "priority": "medium",
-                "category": "debugging",
-                "details": (
-                    f"{error_hotspots.unresolved_errors} errors have no recorded fix - "
-                    "review and document solutions"
-                ),
-                "estimated_impact": "Builds debugging intelligence knowledge base",
-            })
+            recommendations.append(
+                {
+                    "action": "review_unresolved_errors",
+                    "priority": "medium",
+                    "category": "debugging",
+                    "details": (
+                        f"{error_hotspots.unresolved_errors} errors have no recorded fix - "
+                        "review and document solutions"
+                    ),
+                    "estimated_impact": "Builds debugging intelligence knowledge base",
+                }
+            )
 
         # Common error types
         if error_hotspots.most_common_error_types:
             top_error_type, top_count = error_hotspots.most_common_error_types[0]
             if top_count >= 3:
-                recommendations.append({
-                    "action": "address_recurring_error",
-                    "priority": "high" if top_count >= 5 else "medium",
-                    "category": "quality",
-                    "details": (
-                        f"'{top_error_type}' occurs {top_count} times - "
-                        "consider systemic fix or improved documentation"
-                    ),
-                    "estimated_impact": "Reduces recurring debugging time",
-                })
+                recommendations.append(
+                    {
+                        "action": "address_recurring_error",
+                        "priority": "high" if top_count >= 5 else "medium",
+                        "category": "quality",
+                        "details": (
+                            f"'{top_error_type}' occurs {top_count} times - "
+                            "consider systemic fix or improved documentation"
+                        ),
+                        "estimated_impact": "Reduces recurring debugging time",
+                    }
+                )
 
         return recommendations
 

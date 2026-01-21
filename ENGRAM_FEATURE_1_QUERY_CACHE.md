@@ -19,6 +19,7 @@ results = SELECT ... array_cosine_similarity(embedding, $1) ...
 ```
 
 This is wasteful when:
+
 - The same query is asked multiple times in a session
 - Near-identical queries differ only in whitespace/punctuation
 - Common patterns like "how do I..." or "what is the..." appear frequently
@@ -86,12 +87,14 @@ def compute_cache_key(normalized_query: str, project: str | None = None) -> str:
 #### 3. Two-Level Cache Structure
 
 **L1: In-Memory LRU Cache**
+
 - Fast dict with LRU eviction
 - Configurable max size (default: 1000 entries)
 - Cleared on adapter close
 - TTL: session duration
 
 **L2: Persistent DuckDB Table**
+
 - Survives restarts
 - Configurable TTL (default: 7 days)
 - Automatic cleanup of stale entries
@@ -191,9 +194,9 @@ class ReflectionAdapterSettings(BaseSettings):
 ### Cache Invalidation Strategy
 
 1. **Time-based**: L2 entries expire after TTL
-2. **Event-based**: Invalidate when new conversations are stored in same project
-3. **Manual**: Expose `clear_query_cache()` method
-4. **Size-based**: LRU eviction for L1 when max size exceeded
+1. **Event-based**: Invalidate when new conversations are stored in same project
+1. **Manual**: Expose `clear_query_cache()` method
+1. **Size-based**: LRU eviction for L1 when max size exceeded
 
 ```python
 async def _invalidate_project_cache(self, project: str | None) -> None:
@@ -235,38 +238,44 @@ def get_cache_stats(self) -> dict[str, Any]:
 ## Implementation Steps
 
 ### Phase 1: Core Cache Infrastructure (2-3 hours)
+
 1. [ ] Add `QueryCacheEntry` dataclass to `session_buddy/adapters/models.py`
-2. [ ] Add `normalize_query()` and `compute_cache_key()` to new `session_buddy/utils/query_cache.py`
-3. [ ] Add cache settings to `ReflectionAdapterSettings`
-4. [ ] Create L2 cache table in `_ensure_tables()`
+1. [ ] Add `normalize_query()` and `compute_cache_key()` to new `session_buddy/utils/query_cache.py`
+1. [ ] Add cache settings to `ReflectionAdapterSettings`
+1. [ ] Create L2 cache table in `_ensure_tables()`
 
 ### Phase 2: Integration (2-3 hours)
+
 1. [ ] Add L1 cache dict to `ReflectionDatabaseAdapterOneiric.__init__()`
-2. [ ] Implement `_check_query_cache()` method (L1 → L2 lookup)
-3. [ ] Implement `_populate_query_cache()` method
-4. [ ] Modify `search_conversations()` to use cache
-5. [ ] Add cache invalidation to `store_conversation()` and `store_reflection()`
+1. [ ] Implement `_check_query_cache()` method (L1 → L2 lookup)
+1. [ ] Implement `_populate_query_cache()` method
+1. [ ] Modify `search_conversations()` to use cache
+1. [ ] Add cache invalidation to `store_conversation()` and `store_reflection()`
 
 ### Phase 3: Cleanup & Metrics (1-2 hours)
+
 1. [ ] Implement `clear_query_cache()` method
-2. [ ] Add `get_cache_stats()` method
-3. [ ] Add periodic L2 cleanup (delete expired entries)
-4. [ ] Clear L1 cache in `aclose()`
+1. [ ] Add `get_cache_stats()` method
+1. [ ] Add periodic L2 cleanup (delete expired entries)
+1. [ ] Clear L1 cache in `aclose()`
 
 ### Phase 4: Testing (2-3 hours)
+
 1. [ ] Unit tests for normalization functions
-2. [ ] Unit tests for cache key generation
-3. [ ] Integration tests for cache hit/miss scenarios
-4. [ ] Performance benchmarks comparing cached vs uncached search
+1. [ ] Unit tests for cache key generation
+1. [ ] Integration tests for cache hit/miss scenarios
+1. [ ] Performance benchmarks comparing cached vs uncached search
 
 ### Phase 5: MCP Tool Exposure (1 hour)
+
 1. [ ] Add `query_cache_stats` tool to expose metrics
-2. [ ] Add `clear_query_cache` tool for manual invalidation
-3. [ ] Update `reflection_stats` to include cache stats
+1. [ ] Add `clear_query_cache` tool for manual invalidation
+1. [ ] Update `reflection_stats` to include cache stats
 
 ## Dependencies
 
 **New dependency** (optional but recommended for speed):
+
 ```toml
 [project.optional-dependencies]
 performance = ["xxhash>=3.0"]  # Fast non-cryptographic hashing
@@ -278,8 +287,8 @@ performance = ["xxhash>=3.0"]  # Fast non-cryptographic hashing
 
 | Scenario | Current | With Cache |
 |----------|---------|------------|
-| Repeated exact query | ~50-100ms | <1ms |
-| Similar query (normalized match) | ~50-100ms | <1ms |
+| Repeated exact query | ~50-100ms | \<1ms |
+| Similar query (normalized match) | ~50-100ms | \<1ms |
 | New unique query | ~50-100ms | ~50-100ms + cache write |
 | Cache hit rate (estimated) | 0% | 30-50% for active sessions |
 
@@ -296,7 +305,7 @@ performance = ["xxhash>=3.0"]  # Fast non-cryptographic hashing
 
 - [ ] Cache hit rate >30% for typical session workflows
 - [ ] No regression in search result quality
-- [ ] <1ms latency for cache hits
+- [ ] \<1ms latency for cache hits
 - [ ] Zero memory leaks (L1 properly cleared on close)
 - [ ] All existing tests pass
 - [ ] New cache tests achieve >90% coverage
