@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "session-buddy"
-version = "0.11.0"
+version = "0.11.1"
 description = "A Session Management MCP Server for Claude Code"
 readme = "README.md"
 authors = [{name = "Les Leslie", email = "les@wedgwoodwebworks.com"}]

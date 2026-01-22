@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-01-21
+
+### Changed
+
+- Phase 5 Category Evolution complete + Fast Hook Fixes
+- Session-buddy (quality: 73/100)
+- Session-buddy (quality: 73/100)
+- Session-buddy (quality: 73/100) - 2026-01-19 13:32:16
+- Session-buddy (quality: 73/100) - 2026-01-20 00:41:33
+- Update config, core, deps, docs, tests
+
+### Documentation
+
+- Update references from session-mgmt to session-buddy
+
 ## [0.11.0] - 2026-01-18
 
 ### Changed
