@@ -59,6 +59,153 @@ graph TB
     SM --> UV
 ```
 
+### Enhanced System Architecture with Data Flow
+
+```mermaid
+graph TB
+    subgraph Clients["Client Layer"]
+        Claude[Claude Code]
+        CLI[Command Line]
+    end
+
+    subgraph MCP["MCP Protocol Layer"]
+        FastMCP[FastMCP Server]
+        Registry[Tool Registry]
+        Hooks[Hooks Manager]
+    end
+
+    subgraph SessionCore["Session Core"]
+        SessMgr[Session Manager]
+        Perms[Permission Manager]
+        Quality[Quality Monitor]
+        Health[Health Checks]
+    end
+
+    subgraph Intelligence["Intelligence Layer"]
+        Insight[Insights Capture]
+        IntelEngine[Intelligence Engine]
+        CausalChains[Causal Chains]
+        CrossProj[Cross-Project]
+    end
+
+    subgraph Memory["Memory & Storage"]
+        ReflectDB[Reflection DB]
+        KnowledgeGraph[Knowledge Graph]
+        EmbedSvc[Embedding Service]
+        VectorSearch[Vector Search]
+        DuckDB[(DuckDB)]
+        Cache[Query Cache]
+    end
+
+    subgraph Integration["External Integrations"]
+        GitOps[Git Operations]
+        Crackerjack[Crackerjack]
+        UV[UV Sync]
+        Oneiric[Oneiric Runtime]
+    end
+
+    %% Client to MCP
+    Claude --> FastMCP
+    CLI --> FastMCP
+
+    %% MCP Internal
+    FastMCP --> Registry
+    Registry --> Hooks
+    Hooks --> SessMgr
+    Hooks --> Insight
+    Hooks --> CausalChains
+
+    %% Session Core
+    SessMgr --> Perms
+    SessMgr --> Quality
+    Quality --> Health
+    Perms --> Cache
+
+    %% Intelligence Flow
+    Insight --> ReflectDB
+    CausalChains --> ReflectDB
+    IntelEngine --> ReflectDB
+    IntelEngine --> KnowledgeGraph
+    CrossProj --> KnowledgeGraph
+
+    %% Memory Operations
+    ReflectDB --> EmbedSvc
+    ReflectDB --> VectorSearch
+    VectorSearch --> DuckDB
+    KnowledgeGraph --> DuckDB
+    ReflectDB --> Cache
+
+    %% External Integration
+    SessMgr --> GitOps
+    Quality --> Crackerjack
+    SessMgr --> UV
+    Health --> Oneiric
+
+    %% Styling
+    style Claude fill:#e1f5ff
+    style FastMCP fill:#fff9c4
+    style SessMgr fill:#c8e6c9
+    style Insight fill:#ffccbc
+    style IntelEngine fill:#f8bbd9
+    style ReflectDB fill:#b2dfdb
+    style DuckDB fill:#bbdefb
+```
+
+### Component Interaction Layers
+
+```mermaid
+graph LR
+    subgraph Layer1["Presentation Layer"]
+        MCP[MCP Tools & Prompts]
+    end
+
+    subgraph Layer2["Application Layer"]
+        Session[Session Management]
+        Hooks[Hooks System]
+        Intel[Intelligence Features]
+    end
+
+    subgraph Layer3["Domain Layer"]
+        Memory[Memory System]
+        Quality[Quality Monitoring]
+        Permissions[Permission System]
+    end
+
+    subgraph Layer4["Infrastructure Layer"]
+        Storage[DuckDB Storage]
+        Cache[Query Cache]
+        Search[Vector Search]
+    end
+
+    subgraph Layer5["External Layer"]
+        Git[Git Integration]
+        CJ[Crackerjack]
+        Oneiric[Oneiric Runtime]
+    end
+
+    MCP --> Session
+    MCP --> Hooks
+    MCP --> Intel
+
+    Session --> Memory
+    Hooks --> Quality
+    Intel --> Permissions
+
+    Memory --> Storage
+    Quality --> Cache
+    Permissions --> Search
+
+    Storage --> Git
+    Cache --> CJ
+    Search --> Oneiric
+
+    style Layer1 fill:#e3f2fd
+    style Layer2 fill:#fff9c4
+    style Layer3 fill:#c8e6c9
+    style Layer4 fill:#b2dfdb
+    style Layer5 fill:#ffccbc
+```
+
 ## Core Architecture Components
 
 ### 1. MCP Server Layer
@@ -186,6 +333,86 @@ CREATE TABLE project_dependencies (
     description TEXT,
     created_at TIMESTAMP NOT NULL
 );
+```
+
+**Entity Relationship Diagram:**
+
+```mermaid
+erDiagram
+    conversations ||--o{ reflections : contains
+    conversations ||--o{ project_dependencies : related
+    conversations ||--o{ knowledge_graph_entities : references
+    reflections ||--o{ reflections_tags : has
+    reflections ||--o{ team_reflections : shared
+    project_dependencies ||--o{ project_groups : part_of
+    knowledge_graph_entities ||--o{ knowledge_graph_relationships : connected
+
+    conversations {
+        text id PK
+        text content
+        float[384] embedding
+        text project
+        timestamp timestamp
+        text user_id
+        text session_id
+        json metadata
+    }
+
+    reflections {
+        text id PK
+        text content
+        float[384] embedding
+        text[] tags
+        text project
+        timestamp created_at
+        text author
+        text insight_type
+    }
+
+    project_dependencies {
+        text id PK
+        text source_project FK
+        text target_project FK
+        text dependency_type
+        text description
+        timestamp created_at
+    }
+
+    project_groups {
+        text id PK
+        text name
+        text[] projects
+        text description
+    }
+
+    knowledge_graph_entities {
+        text id PK
+        text name
+        text entity_type
+        json properties
+        timestamp created_at
+    }
+
+    knowledge_graph_relationships {
+        text id PK
+        text source_entity_id FK
+        text target_entity_id FK
+        text relationship_type
+        float weight
+    }
+
+    team_reflections {
+        text id PK
+        text reflection_id FK
+        text team_id
+        text author_id
+        int vote_score
+    }
+
+    reflections_tags {
+        text reflection_id FK
+        text tag
+    }
 ```
 
 #### Embedding Service

@@ -261,7 +261,7 @@ class HooksManager:
         Returns:
             List of hook execution results in execution order
         """
-        results = []
+        results: list[HookResult] = []
 
         if hook_type not in self._hooks:
             self.logger.debug("No hooks registered for type: %s", hook_type)

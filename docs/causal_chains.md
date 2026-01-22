@@ -6,10 +6,69 @@ The Causal Chains system provides intelligent error tracking and resolution patt
 
 ## Architecture
 
+### Error Tracking Pipeline
+
+```mermaid
+graph LR
+    A[Error Event] --> B[Record Error]
+    B --> C[Fix Attempts]
+    C --> D[Record Fix]
+    D --> E{Success?}
+    E -->|Yes| F[Mark Resolved]
+    E -->|No| C
+    F --> G[Pattern Learning]
+    G --> H[Learned Patterns]
+
+    style A fill:#ffcdd2
+    style B fill:#f8bbd9
+    style C fill:#e1bee7
+    style D fill:#d1c4e9
+    style E fill:#c5cae9
+    style F fill:#bbdefb
+    style G fill:#b3e5fc
+    style H fill:#b2ebf2
 ```
-Error Event → Fix Attempts → Resolution → Pattern Learning
-     ↓              ↓              ↓              ↓
-Record Error  Record Fix    Mark Resolved  Learn Pattern
+
+### Error Resolution Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> ErrorEvent: Error Occurs
+
+    ErrorEvent --> FixAttempt1: Record Error<br/>Generate Embedding
+    FixAttempt1 --> FixAttempt1: Try Strategy 1
+    FixAttempt1 --> FixAttempt2: Strategy 1 Failed
+    FixAttempt1 --> Resolved: Strategy 1 Success
+
+    FixAttempt2 --> FixAttempt2: Try Strategy 2
+    FixAttempt2 --> FixAttempt3: Strategy 2 Failed
+    FixAttempt2 --> Resolved: Strategy 2 Success
+
+    FixAttempt3 --> FixAttempt3: Try Strategy 3
+    FixAttempt3 --> Failed: All Strategies Failed
+    FixAttempt3 --> Resolved: Strategy 3 Success
+
+    Resolved --> PatternLearning: Record Resolution Time
+    PatternLearning --> SemanticIndexing: Update Embeddings
+    SemanticIndexing --> [*]: Available for Search
+
+    Failed --> ManualReview: Requires Human Intervention
+    ManualReview --> [*]
+
+    note right of ErrorEvent
+        Context Captured:
+        - Error message
+        - File & line number
+        - Code snippet
+        - Stack trace
+    end note
+
+    note right of Resolved
+        Success Metrics:
+        - Resolution time
+        - Fix applied
+        - Pattern learned
+    end note
 ```
 
 ### Core Components
@@ -448,5 +507,3 @@ class CausalChainTracker:
 ## See Also
 
 - [Hooks System](hooks_system.md) - Error tracking via POST_ERROR hook
-<!-- - [Intelligence Engine](intelligence.md) - Pattern learning from errors (archived) -->
-<!-- - [Workflow Metrics](workflow_metrics.md) - Error rate tracking (archived) -->

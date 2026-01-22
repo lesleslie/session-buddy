@@ -14,14 +14,14 @@ import typing as t
 from session_buddy.core.memory_health import get_memory_health_analyzer
 
 
-def register_memory_health_tools(server) -> None:
+def register_memory_health_tools(server: t.Any) -> None:
     """Register memory health MCP tools.
 
     Args:
         server: SessionBuddyServer instance to register tools on
     """
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_reflection_health(stale_threshold_days: int = 90) -> dict[str, t.Any]:
         """Get reflection database health metrics.
 
@@ -73,7 +73,7 @@ def register_memory_health_tools(server) -> None:
                 "message": "Failed to retrieve reflection health metrics",
             }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_error_hotspots() -> dict[str, t.Any]:
         """Get error pattern and hot-spot metrics.
 
@@ -119,7 +119,7 @@ def register_memory_health_tools(server) -> None:
                 "message": "Failed to retrieve error hot-spot metrics",
             }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_cleanup_recommendations() -> dict[str, t.Any]:
         """Get cleanup and optimization recommendations.
 
@@ -180,7 +180,7 @@ def register_memory_health_tools(server) -> None:
                 "message": "Failed to generate cleanup recommendations",
             }
 
-    @server.prompt()
+    @server.prompt()  # type: ignore[misc]
     def memory_health_help() -> str:
         """Get help for memory health monitoring and maintenance."""
         return """# Memory Health Monitoring - Maintenance Guide
@@ -323,7 +323,7 @@ for rec in result['by_priority']['high']:
 """
 
 
-def _generate_reflection_health_insights(metrics) -> list[str]:
+def _generate_reflection_health_insights(metrics: t.Any) -> list[str]:
     """Generate human-readable insights from reflection health metrics.
 
     Args:
@@ -384,7 +384,7 @@ def _generate_reflection_health_insights(metrics) -> list[str]:
     return insights
 
 
-def _generate_error_hotspot_insights(metrics) -> list[str]:
+def _generate_error_hotspot_insights(metrics: t.Any) -> list[str]:
     """Generate insights from error hot-spot metrics.
 
     Args:

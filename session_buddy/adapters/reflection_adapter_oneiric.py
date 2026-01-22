@@ -16,6 +16,7 @@ import typing as t
 import uuid
 from contextlib import suppress
 from datetime import UTC, datetime
+from operator import itemgetter
 from pathlib import Path
 
 if t.TYPE_CHECKING:
@@ -111,7 +112,14 @@ class ReflectionDatabaseAdapterOneiric:
         else:
             # Validate collection name to prevent SQL injection
             self.collection_name = validate_collection_name(collection_name)
-        self.db_path = str(self.settings.database_path)
+        # Use unique database file per collection to avoid DuckDB locking conflicts
+        db_path = self.settings.database_path
+        # Add collection name suffix if not already present (for test isolation)
+        if self.collection_name != "default" and not str(db_path).endswith(
+            f"{self.collection_name}.duckdb"
+        ):
+            db_path = db_path.parent / f"{db_path.stem}_{self.collection_name}.duckdb"
+        self.db_path = str(db_path)
         self.conn: t.Any = None  # DuckDB connection (sync)
         self.onnx_session: InferenceSession | None = None
         self.tokenizer: t.Any = None
@@ -467,19 +475,15 @@ class ReflectionDatabaseAdapterOneiric:
         )
 
         # Add subcategory column to existing tables (if not exists)
-        try:
+        with suppress(Exception):
             self.conn.execute(
                 f"ALTER TABLE {self.collection_name}_conversations ADD COLUMN subcategory TEXT"
             )
-        except Exception:
-            pass  # Column already exists
 
-        try:
+        with suppress(Exception):
             self.conn.execute(
                 f"ALTER TABLE {self.collection_name}_reflections ADD COLUMN subcategory TEXT"
             )
-        except Exception:
-            pass  # Column already exists
 
         # Create indexes for category operations
         self.conn.execute(
@@ -774,7 +778,8 @@ class ReflectionDatabaseAdapterOneiric:
             np.uint8
         )
 
-        return quantized.tolist()  # [384] uint8 values
+        result: list[int] = quantized.tolist()
+        return result  # [384] uint8 values
 
     def _dequantize_embedding(self, quantized: list[int]) -> list[float] | None:
         """Dequantize embedding from uint8 back to float32.
@@ -808,7 +813,8 @@ class ReflectionDatabaseAdapterOneiric:
             quantized_arr.astype(np.float32) / 255.0 * range_vals + min_vals_arr
         )
 
-        return dequantized.tolist()
+        result: list[float] = dequantized.tolist()
+        return result
 
     def _get_calibration_data(
         self,
@@ -916,7 +922,7 @@ class ReflectionDatabaseAdapterOneiric:
                 continue
 
         # Sort by similarity (highest first)
-        duplicates.sort(key=lambda d: d["similarity"], reverse=True)
+        duplicates.sort(key=itemgetter("similarity"), reverse=True)
         return duplicates
 
     async def store_conversation(
@@ -954,7 +960,8 @@ class ReflectionDatabaseAdapterOneiric:
                     f"Found {len(duplicates)} duplicate(s) with similarity >= {dedup_threshold:.2f}. "
                     f"Returning existing ID: {duplicates[0]['id']}"
                 )
-                return duplicates[0]["id"]  # Return ID of most similar duplicate
+                existing_id: str = duplicates[0]["id"]
+                return existing_id  # Return ID of most similar duplicate
 
         conv_id = self._generate_id(content)
         now = datetime.now(UTC)
@@ -1035,137 +1042,254 @@ class ReflectionDatabaseAdapterOneiric:
         # Use min_score as threshold if provided (backward compatibility)
         if min_score is not None:
             threshold = min_score
+
         if not self._initialized:
             await self.initialize()
 
         # Check cache first (Phase 1: Query Cache)
-        if use_cache and self._query_cache:
-            cache_key = QueryCacheManager.compute_cache_key(
-                query=query,
-                project=project,
-                limit=limit,
-            )
-            cached_result_ids = self._query_cache.get(cache_key)
-            if cached_result_ids is not None:
-                # Cache hit - fetch full results by IDs
-                if not cached_result_ids:
-                    return []
+        cached_results = self._get_cached_conversations(
+            query=query,
+            project=project,
+            limit=limit,
+            use_cache=use_cache,
+        )
+        if cached_results is not None:
+            return cached_results
 
-                # Fetch cached results by IDs
-                id_list = "', '".join(cached_result_ids)
-                result = self.conn.execute(
-                    f"""
-                    SELECT id, content, metadata, created_at, updated_at
-                    FROM {self.collection_name}_conversations
-                    WHERE id IN ('{id_list}')
-                    ORDER BY updated_at DESC
-                    """
-                ).fetchall()
+        # Perform search (vector or text fallback)
+        results = await self._search_conversations_db(
+            query=query,
+            limit=limit,
+            threshold=threshold,
+        )
 
-                # Reconstruct cached results
-                results = []
-                for row in result:
-                    results.append(
-                        {
-                            "id": row[0],
-                            "content": row[1],
-                            "metadata": json.loads(row[2]) if row[2] else {},
-                            "created_at": row[3],
-                            "updated_at": row[4],
-                            "score": 1.0,  # Cached results don't have original scores
-                            "_cached": True,  # Mark as cached result
-                        }
-                    )
-                return results
+        # Populate cache for future searches (Phase 1: Query Cache)
+        self._cache_conversation_results(
+            query=query,
+            project=project,
+            limit=limit,
+            results=results,
+            use_cache=use_cache,
+        )
 
-        results = []
+        return results
 
+    def _get_cached_conversations(
+        self,
+        query: str,
+        project: str | None,
+        limit: int,
+        use_cache: bool,
+    ) -> list[dict[str, t.Any]] | None:
+        """Retrieve cached conversation search results if available.
+
+        Args:
+            query: Search query
+            project: Optional project filter
+            limit: Maximum number of results
+            use_cache: Whether to check cache
+
+        Returns:
+            Cached results or None if cache miss
+
+        """
+        if not (use_cache and self._query_cache):
+            return None
+
+        cache_key = QueryCacheManager.compute_cache_key(
+            query=query,
+            project=project,
+            limit=limit,
+        )
+        cached_result_ids = self._query_cache.get(cache_key)
+
+        if cached_result_ids is None:
+            return None
+
+        # Cache hit - fetch full results by IDs
+        if not cached_result_ids:
+            return []
+
+        # Fetch cached results by IDs
+        id_list = "', '".join(cached_result_ids)
+        result = self.conn.execute(
+            f"""
+            SELECT id, content, metadata, created_at, updated_at
+            FROM {self.collection_name}_conversations
+            WHERE id IN ('{id_list}')
+            ORDER BY updated_at DESC
+            """
+        ).fetchall()
+
+        # Reconstruct cached results
+        return [
+            {
+                "id": row[0],
+                "content": row[1],
+                "metadata": json.loads(row[2]) if row[2] else {},
+                "created_at": row[3],
+                "updated_at": row[4],
+                "score": 1.0,  # Cached results don't have original scores
+                "_cached": True,  # Mark as cached result
+            }
+            for row in result
+        ]
+
+    async def _search_conversations_db(
+        self,
+        query: str,
+        limit: int,
+        threshold: float,
+    ) -> list[dict[str, t.Any]]:
+        """Search conversations using vector similarity or text fallback.
+
+        Args:
+            query: Search query
+            limit: Maximum number of results
+            threshold: Minimum similarity score for vector search
+
+        Returns:
+            List of matching conversations with scores
+
+        """
         # Generate query embedding
         query_embedding = None
         if self.settings.enable_embeddings:
             query_embedding = await self._generate_embedding(query)
 
         if query_embedding and self.settings.enable_vss:
-            # Vector similarity search using DuckDB's array_cosine_similarity
-            # Note: HNSW index (if available) will be used automatically by query optimizer
-            # We can control search quality/speed trade-off with hnsw_ef_search parameter
-            vector_query = f"[{', '.join(map(str, query_embedding))}]"
-
-            # Set ef_search parameter if HNSW indexes exist (higher = better quality, slower)
-            # This parameter affects HNSW index search quality vs speed trade-off
-            if self.settings.enable_hnsw_index:
-                self.conn.execute(
-                    f"SET hnsw_ef_search = {self.settings.hnsw_ef_search}"
-                )
-
-            result = self.conn.execute(
-                f"""
-                SELECT
-                    id, content, metadata, created_at, updated_at,
-                    array_cosine_similarity(embedding, '{vector_query}'::FLOAT[{self.embedding_dim}]) as score
-                FROM {self.collection_name}_conversations
-                WHERE embedding IS NOT NULL
-                ORDER BY score DESC
-                LIMIT ?
-                """,
-                [limit],
-            ).fetchall()
-
-            for row in result:
-                if row[5] >= threshold:  # score column
-                    results.append(
-                        {
-                            "id": row[0],
-                            "content": row[1],
-                            "metadata": json.loads(row[2]) if row[2] else {},
-                            "created_at": row[3],
-                            "updated_at": row[4],
-                            "score": float(row[5]),
-                        }
-                    )
-        else:
-            # Fallback to text search
-            result = self.conn.execute(
-                f"""
-                SELECT id, content, metadata, created_at, updated_at
-                FROM {self.collection_name}_conversations
-                WHERE content LIKE ?
-                ORDER BY updated_at DESC
-                LIMIT ?
-                """,
-                [f"%{query}%", limit],
-            ).fetchall()
-
-            for row in result:
-                results.append(
-                    {
-                        "id": row[0],
-                        "content": row[1],
-                        "metadata": json.loads(row[2]) if row[2] else {},
-                        "created_at": row[3],
-                        "updated_at": row[4],
-                        "score": 1.0,  # Text search gets maximum score
-                    }
-                )
-
-        # Populate cache for future searches (Phase 1: Query Cache)
-        if use_cache and self._query_cache and results:
-            cache_key = QueryCacheManager.compute_cache_key(
-                query=query,
-                project=project,
+            return self._vector_search_conversations(
+                query_embedding=query_embedding,
                 limit=limit,
+                threshold=threshold,
             )
-            # Store result IDs in cache
-            result_ids = [r["id"] for r in results]
-            normalized_query = QueryCacheManager.normalize_query(query)
-            self._query_cache.put(
-                cache_key=cache_key,
-                result_ids=result_ids,
-                normalized_query=normalized_query,
-                project=project,
-            )
+        return self._text_search_conversations(
+            query=query,
+            limit=limit,
+        )
 
-        return results
+    def _vector_search_conversations(
+        self,
+        query_embedding: list[float],
+        limit: int,
+        threshold: float,
+    ) -> list[dict[str, t.Any]]:
+        """Perform vector similarity search on conversations.
+
+        Args:
+            query_embedding: Query vector embedding
+            limit: Maximum number of results
+            threshold: Minimum similarity score
+
+        Returns:
+            List of matching conversations with scores
+
+        """
+        # Set HNSW ef_search parameter if indexes exist
+        if self.settings.enable_hnsw_index:
+            self.conn.execute(f"SET hnsw_ef_search = {self.settings.hnsw_ef_search}")
+
+        vector_query = f"[{', '.join(map(str, query_embedding))}]"
+        result = self.conn.execute(
+            f"""
+            SELECT
+                id, content, metadata, created_at, updated_at,
+                array_cosine_similarity(embedding, '{vector_query}'::FLOAT[{self.embedding_dim}]) as score
+            FROM {self.collection_name}_conversations
+            WHERE embedding IS NOT NULL
+            ORDER BY score DESC
+            LIMIT ?
+            """,
+            [limit],
+        ).fetchall()
+
+        # Filter by threshold and build results
+        return [
+            {
+                "id": row[0],
+                "content": row[1],
+                "metadata": json.loads(row[2]) if row[2] else {},
+                "created_at": row[3],
+                "updated_at": row[4],
+                "score": float(row[5]),
+            }
+            for row in result
+            if row[5] >= threshold
+        ]
+
+    def _text_search_conversations(
+        self,
+        query: str,
+        limit: int,
+    ) -> list[dict[str, t.Any]]:
+        """Perform text-based search on conversations.
+
+        Args:
+            query: Search query string
+            limit: Maximum number of results
+
+        Returns:
+            List of matching conversations with scores
+
+        """
+        result = self.conn.execute(
+            f"""
+            SELECT id, content, metadata, created_at, updated_at
+            FROM {self.collection_name}_conversations
+            WHERE content LIKE ?
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            [f"%{query}%", limit],
+        ).fetchall()
+
+        return [
+            {
+                "id": row[0],
+                "content": row[1],
+                "metadata": json.loads(row[2]) if row[2] else {},
+                "created_at": row[3],
+                "updated_at": row[4],
+                "score": 1.0,  # Text search gets maximum score
+            }
+            for row in result
+        ]
+
+    def _cache_conversation_results(
+        self,
+        query: str,
+        project: str | None,
+        limit: int,
+        results: list[dict[str, t.Any]],
+        use_cache: bool,
+    ) -> None:
+        """Cache conversation search results for future queries.
+
+        Args:
+            query: Search query
+            project: Optional project filter
+            limit: Maximum number of results
+            results: Search results to cache
+            use_cache: Whether to populate cache
+
+        """
+        if not (use_cache and self._query_cache and results):
+            return
+
+        cache_key = QueryCacheManager.compute_cache_key(
+            query=query,
+            project=project,
+            limit=limit,
+        )
+        result_ids = [r["id"] for r in results]
+        normalized_query = QueryCacheManager.normalize_query(query)
+
+        self._query_cache.put(
+            cache_key=cache_key,
+            result_ids=result_ids,
+            normalized_query=normalized_query,
+            project=project,
+        )
 
     async def get_stats(self) -> dict[str, t.Any]:
         """Get database statistics.
@@ -1248,7 +1372,8 @@ class ReflectionDatabaseAdapterOneiric:
                     f"Found {len(duplicates)} duplicate(s) with similarity >= {dedup_threshold:.2f}. "
                     f"Returning existing ID: {duplicates[0]['id']}"
                 )
-                return duplicates[0]["id"]  # Return ID of most similar duplicate
+                existing_id: str = duplicates[0]["id"]
+                return existing_id  # Return ID of most similar duplicate
 
         reflection_id = str(uuid.uuid4())
         now = datetime.now(tz=UTC)
@@ -1349,70 +1474,145 @@ class ReflectionDatabaseAdapterOneiric:
             await self.initialize()
 
         # Check cache first (Phase 1: Query Cache)
-        if use_cache and self._query_cache:
-            cache_key = QueryCacheManager.compute_cache_key(
-                query=query,
-                project=None,  # reflections don't have project filter
-                limit=limit,
-            )
-            cached_result_ids = self._query_cache.get(cache_key)
-            if cached_result_ids is not None:
-                # Cache hit - fetch full results by IDs
-                if not cached_result_ids:
-                    return []
-
-                # Fetch cached results by IDs
-                id_list = "', '".join(cached_result_ids)
-                result = self.conn.execute(
-                    f"""
-                    SELECT id, content, tags, created_at, updated_at
-                    FROM {self.collection_name}_reflections
-                    WHERE id IN ('{id_list}')
-                        AND insight_type IS NULL
-                    ORDER BY created_at DESC
-                    """
-                ).fetchall()
-
-                # Reconstruct cached results
-                cached_results = []
-                for row in result:
-                    cached_results.append(
-                        {
-                            "id": row[0],
-                            "content": row[1],
-                            "tags": list(row[2]) if row[2] else [],
-                            "created_at": row[3].isoformat() if row[3] else None,
-                            "updated_at": row[4].isoformat() if row[4] else None,
-                            "similarity": 1.0,  # Cached results don't have original scores
-                            "_cached": True,  # Mark as cached result
-                        }
-                    )
-                return cached_results
+        cached_results = self._get_cached_reflections(
+            query=query,
+            limit=limit,
+            use_cache=use_cache,
+        )
+        if cached_results is not None:
+            return cached_results
 
         # Perform search (cache miss or cache disabled)
-        if use_embeddings and ONNX_AVAILABLE and self.onnx_session:
-            results = await self._semantic_search_reflections(query, limit)
-        else:
-            results = await self._text_search_reflections(query, limit)
+        results = await self._search_reflections_db(
+            query=query,
+            limit=limit,
+            use_embeddings=use_embeddings,
+        )
 
         # Populate cache for future searches (Phase 1: Query Cache)
-        if use_cache and self._query_cache and results:
-            cache_key = QueryCacheManager.compute_cache_key(
-                query=query,
-                project=None,
-                limit=limit,
-            )
-            # Store result IDs in cache
-            result_ids = [r["id"] for r in results]
-            normalized_query = QueryCacheManager.normalize_query(query)
-            self._query_cache.put(
-                cache_key=cache_key,
-                result_ids=result_ids,
-                normalized_query=normalized_query,
-                project=None,
-            )
+        self._cache_reflection_results(
+            query=query,
+            limit=limit,
+            results=results,
+            use_cache=use_cache,
+        )
 
         return results
+
+    def _get_cached_reflections(
+        self,
+        query: str,
+        limit: int,
+        use_cache: bool,
+    ) -> list[dict[str, t.Any]] | None:
+        """Retrieve cached reflection search results if available.
+
+        Args:
+            query: Search query
+            limit: Maximum number of results
+            use_cache: Whether to check cache
+
+        Returns:
+            Cached results or None if cache miss
+
+        """
+        if not (use_cache and self._query_cache):
+            return None
+
+        cache_key = QueryCacheManager.compute_cache_key(
+            query=query,
+            project=None,  # reflections don't have project filter
+            limit=limit,
+        )
+        cached_result_ids = self._query_cache.get(cache_key)
+
+        if cached_result_ids is None:
+            return None
+
+        # Cache hit - fetch full results by IDs
+        if not cached_result_ids:
+            return []
+
+        # Fetch cached results by IDs
+        id_list = "', '".join(cached_result_ids)
+        result = self.conn.execute(
+            f"""
+            SELECT id, content, tags, created_at, updated_at
+            FROM {self.collection_name}_reflections
+            WHERE id IN ('{id_list}')
+                AND insight_type IS NULL
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+
+        # Reconstruct cached results
+        return [
+            {
+                "id": row[0],
+                "content": row[1],
+                "tags": list(row[2]) if row[2] else [],
+                "created_at": row[3].isoformat() if row[3] else None,
+                "updated_at": row[4].isoformat() if row[4] else None,
+                "similarity": 1.0,  # Cached results don't have original scores
+                "_cached": True,  # Mark as cached result
+            }
+            for row in result
+        ]
+
+    async def _search_reflections_db(
+        self,
+        query: str,
+        limit: int,
+        use_embeddings: bool,
+    ) -> list[dict[str, t.Any]]:
+        """Search reflections using semantic or text search.
+
+        Args:
+            query: Search query
+            limit: Maximum number of results
+            use_embeddings: Whether to use semantic search if available
+
+        Returns:
+            List of matching reflections
+
+        """
+        if use_embeddings and ONNX_AVAILABLE and self.onnx_session:
+            return await self._semantic_search_reflections(query, limit)
+        return await self._text_search_reflections(query, limit)
+
+    def _cache_reflection_results(
+        self,
+        query: str,
+        limit: int,
+        results: list[dict[str, t.Any]],
+        use_cache: bool,
+    ) -> None:
+        """Cache reflection search results for future queries.
+
+        Args:
+            query: Search query
+            limit: Maximum number of results
+            results: Search results to cache
+            use_cache: Whether to populate cache
+
+        """
+        if not (use_cache and self._query_cache and results):
+            return
+
+        cache_key = QueryCacheManager.compute_cache_key(
+            query=query,
+            project=None,
+            limit=limit,
+        )
+        result_ids = [r["id"] for r in results]
+        normalized_query = QueryCacheManager.normalize_query(query)
+
+        self._query_cache.put(
+            cache_key=cache_key,
+            result_ids=result_ids,
+            normalized_query=normalized_query,
+            project=None,
+        )
 
     async def _semantic_search_reflections(
         self, query: str, limit: int = 10

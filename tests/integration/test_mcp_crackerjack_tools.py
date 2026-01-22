@@ -184,7 +184,7 @@ class TestMCPToolExecution:
             None,  # args split to None when empty
             ".",  # working_directory
             300,  # default timeout
-            False,  # default ai_agent_mode
+            True,  # default ai_agent_mode (changed to True for auto-fix)
         )
 
         # Verify result format (should be formatted string)
@@ -437,8 +437,8 @@ class TestRealIntegration:
         mock_create_subprocess.assert_called_once()
         call_args = mock_create_subprocess.call_args
 
-        # Should call with python -m crackerjack run --fast --quick
-        expected_cmd = ["python", "-m", "crackerjack", "run", "--fast", "--quick"]
+        # Should call with python -m crackerjack run --fast --quick --ai-fix (ai_agent_mode defaults to True)
+        expected_cmd = ["python", "-m", "crackerjack", "run", "--fast", "--quick", "--ai-fix"]
         assert call_args[0] == tuple(expected_cmd), (
             f"Expected {expected_cmd}, got {call_args[0]}"
         )
@@ -461,18 +461,19 @@ class TestRealIntegration:
         mock_create_subprocess.return_value = mock_process
 
         # Test command mappings (NEW CLI structure with 'run' subcommand)
+        # Note: All commands now include --ai-fix since ai_agent_mode defaults to True
         test_cases = [
-            ("lint", ["python", "-m", "crackerjack", "run", "--fast", "--quick"]),
-            ("check", ["python", "-m", "crackerjack", "run", "--comp", "--quick"]),
-            ("test", ["python", "-m", "crackerjack", "run", "--run-tests", "--quick"]),
-            ("format", ["python", "-m", "crackerjack", "run", "--fast", "--quick"]),
-            ("typecheck", ["python", "-m", "crackerjack", "run", "--comp", "--quick"]),
-            ("security", ["python", "-m", "crackerjack", "run", "--comp"]),  # Security in comp hooks
-            ("complexity", ["python", "-m", "crackerjack", "run", "--comp"]),  # Complexity in comp hooks
-            ("analyze", ["python", "-m", "crackerjack", "run", "--comp"]),  # Comprehensive analysis
-            ("build", ["python", "-m", "crackerjack", "run"]),
-            ("clean", ["python", "-m", "crackerjack", "run"]),  # Clean happens automatically
-            ("all", ["python", "-m", "crackerjack", "run"]),  # General quality (NOT --all which is for release)
+            ("lint", ["python", "-m", "crackerjack", "run", "--fast", "--quick", "--ai-fix"]),
+            ("check", ["python", "-m", "crackerjack", "run", "--comp", "--quick", "--ai-fix"]),
+            ("test", ["python", "-m", "crackerjack", "run", "--run-tests", "--quick", "--ai-fix"]),
+            ("format", ["python", "-m", "crackerjack", "run", "--fast", "--quick", "--ai-fix"]),
+            ("typecheck", ["python", "-m", "crackerjack", "run", "--comp", "--quick", "--ai-fix"]),
+            ("security", ["python", "-m", "crackerjack", "run", "--comp", "--ai-fix"]),  # Security in comp hooks
+            ("complexity", ["python", "-m", "crackerjack", "run", "--comp", "--ai-fix"]),  # Complexity in comp hooks
+            ("analyze", ["python", "-m", "crackerjack", "run", "--comp", "--ai-fix"]),  # Comprehensive analysis
+            ("build", ["python", "-m", "crackerjack", "run", "--ai-fix"]),
+            ("clean", ["python", "-m", "crackerjack", "run", "--ai-fix"]),  # Clean happens automatically
+            ("all", ["python", "-m", "crackerjack", "run", "--ai-fix"]),  # General quality (NOT --all which is for release)
         ]
 
         for command, expected_cmd in test_cases:

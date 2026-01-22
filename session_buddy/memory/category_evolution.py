@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+import operator
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -53,7 +54,7 @@ class TopLevelCategory(str, Enum):
     CONTEXT = "context"  # Contextual information, project details, state
 
     def __str__(self) -> str:
-        return self.value
+        return str(self.value)
 
 
 @dataclass
@@ -81,6 +82,9 @@ class Subcategory:
     memory_count: int = 0
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    def __str__(self) -> str:
+        return f"{self.parent_category.value}/{self.name}"
 
     def __repr__(self) -> str:
         return f"Subcategory({self.parent_category.value}/{self.name}, {self.memory_count} memories)"
@@ -316,7 +320,9 @@ class KeywordExtractor:
                     if len(match) >= self.min_keyword_length:
                         word_freq[match] = word_freq.get(match, 0) + 2
 
-        sorted_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
+        sorted_words = sorted(
+            word_freq.items(), key=operator.itemgetter(1), reverse=True
+        )
         keywords = [word for word, _ in sorted_words[: self.max_keywords]]
 
         return keywords
@@ -364,7 +370,7 @@ class SubcategoryClusterer:
         unassigned_indices = [i for i, e in enumerate(embeddings_list) if e is not None]
 
         # Assign to existing subcategories
-        for idx in unassigned_indices[:]:
+        for idx in unassigned_indices.copy():
             memory = memories[idx]
             embedding = valid_embeddings[idx]
 
@@ -441,7 +447,7 @@ class SubcategoryClusterer:
                     matches.append((subcat, similarity))
 
         if matches:
-            best_subcat, _ = max(matches, key=lambda x: x[1])
+            best_subcat, _ = max(matches, key=operator.itemgetter(1))
             return best_subcat
 
         return None
@@ -451,7 +457,7 @@ class SubcategoryClusterer:
         norm1 = np.linalg.norm(vec1)
         norm2 = np.linalg.norm(vec2)
 
-        if norm1 == 0 or norm2 == 0:
+        if 0 in (norm1, norm2):
             return 0.0
 
         return float(np.dot(vec1, vec2) / (norm1 * norm2))
@@ -493,7 +499,9 @@ class SubcategoryClusterer:
             for keyword in keywords:
                 all_keywords[keyword] = all_keywords.get(keyword, 0) + 1
 
-        top_keywords = sorted(all_keywords.items(), key=lambda x: x[1], reverse=True)
+        top_keywords = sorted(
+            all_keywords.items(), key=operator.itemgetter(1), reverse=True
+        )
         subcat_name = "-".join([kw for kw, _ in top_keywords[:3]])
 
         counter = 1
@@ -536,18 +544,35 @@ class SubcategoryClusterer:
         if not small_subcats:
             return subcategories
 
-        merged = list(subcategories)
+        merged = subcategories.copy()
         for small_cat in small_subcats:
-            best_match = None
-            best_similarity = 0.0
+            best_match = self._find_best_merge_target(small_cat, merged)
 
-            for other_cat in merged:
-                if (
-                    other_cat is not small_cat
-                    and other_cat.memory_count >= self.min_cluster_size
-                    and small_cat.centroid is not None
-                    and other_cat.centroid is not None
-                ):
+            if best_match:
+                self._merge_categories(best_match, small_cat)
+                merged.remove(small_cat)
+                logger.info(f"Merged '{small_cat.name}' into '{best_match.name}'")
+
+        return merged
+
+    def _find_best_merge_target(
+        self, small_cat: Subcategory, subcategories: list[Subcategory]
+    ) -> Subcategory | None:
+        """Find the best subcategory to merge a small category into.
+
+        Args:
+            small_cat: Small subcategory to merge
+            subcategories: List of all subcategories
+
+        Returns:
+            Best matching subcategory or None
+        """
+        best_match = None
+        best_similarity = 0.0
+
+        for other_cat in subcategories:
+            if self._is_valid_merge_target(small_cat, other_cat):
+                if small_cat.centroid is not None and other_cat.centroid is not None:
                     similarity = self._cosine_similarity(
                         small_cat.centroid, other_cat.centroid
                     )
@@ -555,20 +580,46 @@ class SubcategoryClusterer:
                         best_similarity = similarity
                         best_match = other_cat
 
-            if best_match and best_similarity >= self.similarity_threshold:
-                if best_match.centroid is not None and small_cat.centroid is not None:
-                    total_count = small_cat.memory_count + best_match.memory_count
-                    best_match.centroid = (
-                        best_match.centroid * best_match.memory_count
-                        + small_cat.centroid * small_cat.memory_count
-                    ) / total_count
-                best_match.memory_count += small_cat.memory_count
-                best_match.updated_at = datetime.now(UTC)
+        if best_match and best_similarity >= self.similarity_threshold:
+            return best_match
 
-                merged.remove(small_cat)
-                logger.info(f"Merged '{small_cat.name}' into '{best_match.name}'")
+        return None
 
-        return merged
+    def _is_valid_merge_target(
+        self, small_cat: Subcategory, other_cat: Subcategory
+    ) -> bool:
+        """Check if a subcategory is a valid merge target.
+
+        Args:
+            small_cat: Small subcategory to merge
+            other_cat: Potential target subcategory
+
+        Returns:
+            True if valid merge target
+        """
+        return (
+            other_cat is not small_cat
+            and other_cat.memory_count >= self.min_cluster_size
+            and small_cat.centroid is not None
+            and other_cat.centroid is not None
+        )
+
+    def _merge_categories(self, target: Subcategory, source: Subcategory) -> None:
+        """Merge source subcategory into target subcategory.
+
+        Args:
+            target: Target subcategory (will be modified)
+            source: Source subcategory (will be removed)
+        """
+        if target.centroid is not None and source.centroid is not None:
+            total_count = source.memory_count + target.memory_count
+            target.centroid = (
+                target.centroid * target.memory_count
+                + source.centroid * source.memory_count
+            ) / total_count
+
+        target.memory_count += source.memory_count
+        target.updated_at = datetime.now(UTC)
 
 
 # ============================================================================
@@ -704,16 +755,16 @@ class CategoryEvolutionEngine:
         """Auto-detect top-level category from memory content."""
         content = memory.get("content", "").lower()
 
-        if any(word in content for word in ["prefer", "config", "setting", "option"]):
+        if any(word in content for word in ("prefer", "config", "setting", "option")):
             return TopLevelCategory.PREFERENCES
-        if any(word in content for word in ["learn", "skill", "technique", "how to"]):
+        if any(word in content for word in ("learn", "skill", "technique", "how to")):
             return TopLevelCategory.SKILLS
         if any(
-            word in content for word in ["rule", "principle", "should", "best practice"]
+            word in content for word in ("rule", "principle", "should", "best practice")
         ):
             return TopLevelCategory.RULES
         if any(
-            word in content for word in ["fact", "definition", "means", "refers to"]
+            word in content for word in ("fact", "definition", "means", "refers to")
         ):
             return TopLevelCategory.FACTS
 
@@ -740,7 +791,7 @@ class CategoryEvolutionEngine:
                     matches.append((subcat, similarity))
 
         if matches:
-            best_subcat, best_sim = max(matches, key=lambda x: x[1])
+            best_subcat, best_sim = max(matches, key=operator.itemgetter(1))
             return SubcategoryMatch(subcategory=best_subcat, similarity=best_sim)
 
         return None
@@ -767,7 +818,7 @@ class CategoryEvolutionEngine:
                     matches.append((subcat, similarity))
 
         if matches:
-            best_subcat, best_sim = max(matches, key=lambda x: x[1])
+            best_subcat, best_sim = max(matches, key=operator.itemgetter(1))
             return SubcategoryMatch(subcategory=best_subcat, similarity=best_sim)
 
         return None

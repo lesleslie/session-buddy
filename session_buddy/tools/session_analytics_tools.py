@@ -15,14 +15,14 @@ import typing as t
 from session_buddy.core.session_analytics import get_session_analytics
 
 
-def register_session_analytics_tools(server) -> None:
+def register_session_analytics_tools(server: t.Any) -> None:
     """Register session analytics MCP tools.
 
     Args:
         server: SessionBuddyServer instance to register tools on
     """
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_session_length_distribution(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -77,7 +77,7 @@ def register_session_analytics_tools(server) -> None:
                 "message": "Failed to retrieve session length distribution",
             }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_temporal_patterns(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -130,7 +130,7 @@ def register_session_analytics_tools(server) -> None:
                 "message": "Failed to retrieve temporal patterns",
             }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_activity_correlations(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -184,7 +184,7 @@ def register_session_analytics_tools(server) -> None:
                 "message": "Failed to retrieve activity correlations",
             }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_session_streaks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -237,7 +237,7 @@ def register_session_analytics_tools(server) -> None:
                 "message": "Failed to retrieve session streaks",
             }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_productivity_insights(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -291,7 +291,7 @@ def register_session_analytics_tools(server) -> None:
                 "message": "Failed to generate productivity insights",
             }
 
-    @server.prompt()
+    @server.prompt()  # type: ignore[misc]
     def session_analytics_help() -> str:
         """Get help for session analytics and pattern detection."""
         return """# Session Analytics - Comprehensive Guide
@@ -499,7 +499,7 @@ for suggestion in result['improvement_suggestions']:
 """
 
 
-def _generate_length_distribution_insights(distribution) -> list[str]:
+def _generate_length_distribution_insights(distribution: t.Any) -> list[str]:
     """Generate insights from session length distribution."""
     insights = []
 
@@ -546,7 +546,7 @@ def _generate_length_distribution_insights(distribution) -> list[str]:
     return insights
 
 
-def _generate_temporal_patterns_insights(patterns) -> list[str]:
+def _generate_temporal_patterns_insights(patterns: t.Any) -> list[str]:
     """Generate insights from temporal patterns."""
     insights = []
 
@@ -583,7 +583,7 @@ def _generate_temporal_patterns_insights(patterns) -> list[str]:
     return insights
 
 
-def _generate_correlation_insights(correlations) -> list[str]:
+def _generate_correlation_insights(correlations: t.Any) -> list[str]:
     """Generate insights from activity correlations."""
     insights = []
 
@@ -638,7 +638,7 @@ def _generate_correlation_insights(correlations) -> list[str]:
     return insights
 
 
-def _generate_streak_insights(streaks) -> list[str]:
+def _generate_streak_insights(streaks: t.Any) -> list[str]:
     """Generate insights from session streaks."""
     insights = []
 
@@ -685,7 +685,7 @@ def _generate_streak_insights(streaks) -> list[str]:
     return insights
 
 
-def _generate_productivity_insights(insights) -> list[str]:
+def _generate_productivity_insights(insights: t.Any) -> list[str]:
     """Generate comprehensive productivity insights."""
     all_insights = []
 

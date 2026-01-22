@@ -167,7 +167,7 @@ async def _optimize_reflection_database() -> str:
 
 async def _analyze_context_compaction() -> list[str]:
     """Analyze and recommend context compaction."""
-    results = []
+    results: list[str] = []
 
     try:
         should_compact, reason = should_suggest_compact()
@@ -212,7 +212,7 @@ async def _store_context_summary(conversation_summary: dict[str, Any]) -> None:
 
 async def perform_strategic_compaction() -> list[str]:
     """Perform strategic compaction and optimization tasks."""
-    results = []
+    results: list[str] = []
     # Handle pytest-xdist parallel execution where cwd may not exist
     try:
         current_dir = Path(os.environ.get("PWD", Path.cwd()))
@@ -253,7 +253,7 @@ async def perform_strategic_compaction() -> list[str]:
 async def monitor_proactive_quality() -> dict[str, Any]:
     """Phase 3: Proactive Quality Monitoring with Early Warning System."""
     try:
-        quality_alerts = []
+        quality_alerts: list[str] = []
         quality_trend = "stable"
         recommend_checkpoint = False
 

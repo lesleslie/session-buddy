@@ -121,7 +121,7 @@ def _format_detached_head_warning(worktree_info: Any) -> list[str]:
 
 def _format_no_reminders_message(user_id: str, project_id: str | None) -> list[str]:
     """Format message when no reminders are found."""
-    output = []
+    output: list[str] = []
     output.extend(("📋 No pending reminders found", f"👤 User: {user_id}"))
     if project_id:
         output.append(f"📁 Project: {project_id}")
@@ -137,7 +137,7 @@ def _format_reminders_header(
     project_id: str | None,
 ) -> list[str]:
     """Format header for reminders list."""
-    output = []
+    output: list[str] = []
     output.extend(
         (
             f"⏰ Found {len(reminders)} pending reminders",
@@ -152,7 +152,7 @@ def _format_reminders_header(
 
 def _format_single_reminder(reminder: dict[str, Any], index: int) -> list[str]:
     """Format a single reminder for display."""
-    output = []
+    output: list[str] = []
     output.extend(
         (
             f"\n#{index}",

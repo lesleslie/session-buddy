@@ -22,7 +22,7 @@ def create_empty_summary() -> dict[str, Any]:
 
 def extract_topics_from_content(content: str) -> set[str]:
     """Extract topics from reflection content."""
-    topics = set()
+    topics: set[str] = set()
     if "project context:" in content:
         context_part = content.split("project context:")[1].split(".")[0]
         topics.update(word.strip() for word in context_part.split(","))

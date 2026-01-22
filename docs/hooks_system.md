@@ -6,8 +6,49 @@ The Hooks System provides a comprehensive event-driven architecture for session 
 
 ## Architecture
 
+### Component Flow
+
+```mermaid
+graph LR
+    A[HookType<br/>enum] --> B[Hook<br/>callable]
+    B --> C[HookContext<br/>data]
+    C --> D[HookResult<br/>return]
+    D --> E[HooksManager<br/>registry]
+
+    style A fill:#e1f5ff
+    style B fill:#fff4e1
+    style C fill:#e8f5e9
+    style D fill:#f3e5f5
+    style E fill:#fce4ec
 ```
-HookType (enum) → Hook → HookContext → HookResult → HooksManager
+
+### Hook Execution Sequence
+
+```mermaid
+sequenceDiagram
+    participant User as User/Operation
+    participant Manager as HooksManager
+    participant PreHook as PRE_CHECKPOINT<br/>(Priority 100)
+    participant PostHook as POST_CHECKPOINT<br/>(Priority 50)
+    participant Analytics as Metrics Collector<br/>(Priority 40)
+
+    User->>Manager: Trigger Operation
+    Manager->>Manager: Sort Hooks by Priority
+
+    Note over Manager: Execute PRE hooks (high to low)
+    Manager->>PreHook: Validate Quality
+    PreHook-->>Manager: HookResult(success=True)
+
+    Note over Manager: Execute Operation
+    Manager->>Manager: Perform Action
+
+    Note over Manager: Execute POST hooks (high to low)
+    Manager->>PostHook: Extract Patterns
+    PostHook-->>Manager: HookResult(data=patterns)
+    Manager->>Analytics: Collect Metrics
+    Analytics-->>Manager: HookResult(success=True)
+
+    Manager-->>User: Final Result
 ```
 
 ### Core Components
@@ -455,5 +496,3 @@ class HookResult:
 ## See Also
 
 - [Causal Chains Tracking](causal_chains.md) - Error tracking with hooks
-<!-- - [Intelligence Engine](intelligence.md) - Pattern learning from hooks (archived) -->
-<!-- - [Workflow Metrics](workflow_metrics.md) - Metrics collection via hooks (archived) -->

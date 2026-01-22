@@ -24,6 +24,40 @@ tools = 20 if uv_available else 10  # 20% - Tool presence, not usage
 
 ## New Algorithm Design (V2)
 
+### V1 vs V2 Scoring Comparison
+
+```mermaid
+graph TB
+    subgraph V1["V1 Scoring (Flawed)"]
+        V1Health[Project Health<br/>40%]
+        V1Perms[Permissions<br/>20%]
+        V1Sess[Session Mgmt<br/>20%]
+        V1Tools[Tools<br/>20%]
+    end
+
+    subgraph V2["V2 Scoring (Improved)"]
+        V2Code[Code Quality<br/>40%]
+        V2Health[Project Health<br/>30%]
+        V2Velocity[Dev Velocity<br/>20%]
+        V2Security[Security<br/>10%]
+    end
+
+    V1Health -.Gameable.-> Problem[❌ Measures Wrong Things]
+    V1Perms -.Not Quality.-> Problem
+    V1Sess -.Infra.-> Problem
+    V1Tools -.Presence.-> Problem
+
+    V2Code -.Test+Lint+Types.-> Solution[✅ Actual Quality]
+    V2Health -.Structure+Docs.-> Solution
+    V2Velocity -.Productivity.-> Solution
+    V2Security -.Vulnerabilities.-> Solution
+
+    style Problem fill:#ffcdd2
+    style Solution fill:#c8e6c9
+    style V1Health fill:#ffccbc
+    style V2Code fill:#b2dfdb
+```
+
 ### Core Principle
 
 **Measure what matters: actual code quality, not file existence or tool availability.**
@@ -136,6 +170,91 @@ tool_ecosystem       = 30 pts  # Available MCP tools and integrations
 
 # This measures "how much the system trusts your environment"
 # NOT "how good your code is"
+```
+
+### Quality Scoring Calculation Flow
+
+```mermaid
+flowchart TD
+    Start([Start Quality Check]) --> Analyze[Analyze Project]
+
+    Analyze --> CodeQuality[Code Quality Analysis<br/>40 points]
+    Analyze --> ProjHealth[Project Health Analysis<br/>30 points]
+    Analyze --> DevVelocity[Development Velocity Analysis<br/>20 points]
+    Analyze --> Security[Security Analysis<br/>10 points]
+
+    %% Code Quality Branch
+    CodeQuality --> Tests[Test Coverage<br/>15 pts]
+    CodeQuality --> Lint[Lint Score<br/>10 pts]
+    CodeQuality --> Types[Type Coverage<br/>10 pts]
+    CodeQuality --> Complexity[Complexity Check<br/>5 pts]
+
+    Tests --> Calc1[Calculate: coverage_pct / 100 * 15]
+    Lint --> Calc2[Calculate: lint_score / 100 * 10]
+    Types --> Calc3[Calculate: type_coverage / 100 * 10]
+    Complexity --> Calc4[Calculate: 1 - avg_complexity / 15 * 5]
+
+    Calc1 --> CodeSum[Code Quality Score]
+    Calc2 --> CodeSum
+    Calc3 --> CodeSum
+    Calc4 --> CodeSum
+
+    %% Project Health Branch
+    ProjHealth --> Tooling[Modern Tooling<br/>15 pts]
+    ProjHealth --> Maturity[Project Maturity<br/>15 pts]
+
+    Tooling --> Calc5[Tooling: pkg + vcs + deps]
+    Maturity --> Calc6[Maturity: tests + docs + CI]
+
+    Calc5 --> HealthSum[Project Health Score]
+    Calc6 --> HealthSum
+
+    %% Dev Velocity Branch
+    DevVelocity --> Git[Git Activity<br/>10 pts]
+    DevVelocity --> Patterns[Dev Patterns<br/>10 pts]
+
+    Git --> Calc7[Git: commits + quality]
+    Patterns --> Calc8[Patterns: issues + branches]
+
+    Calc7 --> VelocitySum[Velocity Score]
+    Calc8 --> VelocitySum
+
+    %% Security Branch
+    Security --> SecTools[Security Tooling<br/>5 pts]
+    Security --> SecHygiene[Security Hygiene<br/>5 pts]
+
+    SecTools --> Calc9[Security: scans + secrets]
+    SecHygiene --> Calc10[Hygiene: CVEs + patterns]
+
+    Calc9 --> SecuritySum[Security Score]
+    Calc10 --> SecuritySum
+
+    %% Final Calculation
+    CodeSum --> Final[Final Quality Score]
+    HealthSum --> Final
+    VelocitySum --> Final
+    SecuritySum --> Final
+
+    Final --> Display[Display Score + Recommendations]
+    Display --> End([Return to User])
+
+    style Start fill:#e1f5ff
+    style CodeSum fill:#c8e6c9
+    style HealthSum fill:#b2dfdb
+    style VelocitySum fill:#fff9c4
+    style SecuritySum fill:#ffccbc
+    style Final fill:#f8bbd9
+    style End fill:#e1f5ff
+```
+
+### Scoring Category Breakdown
+
+```mermaid
+pie title Quality Scoring Distribution
+    "Code Quality (Tests + Lint + Types)" : 40
+    "Project Health (Structure + Docs)" : 30
+    "Development Velocity (Git + Productivity)" : 20
+    "Security (Vulnerabilities + Scanning)" : 10
 ```
 
 ## Implementation Strategy

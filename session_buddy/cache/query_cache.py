@@ -18,13 +18,16 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     import duckdb
@@ -312,7 +315,7 @@ class QueryCacheManager:
         return None
 
     def _get_from_l2(self, cache_key: str) -> QueryCacheEntry | None:
-        """Get entry from L2 cache (async version).
+        """Get entry from L2 cache.
 
         Args:
             cache_key: Cache key to lookup
@@ -323,7 +326,7 @@ class QueryCacheManager:
         if not self._conn:
             return None
 
-        # Query L2 table
+        # Query L2 table (DuckDB operation is fast, <1ms, no need for threading)
         query_sql = """
         SELECT cache_key, normalized_query, project, result_ids,
                hit_count, created_at, last_accessed, ttl_seconds
@@ -331,40 +334,27 @@ class QueryCacheManager:
         WHERE cache_key = ?
         """
 
-        def _query() -> tuple | None:
-            if self._conn:
-                return self._conn.execute(query_sql, [cache_key]).fetchone()
-            return None
-
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        row = loop.run_in_executor(None, _query).result()
+        row = self._conn.execute(query_sql, [cache_key]).fetchone()
 
         if not row:
             return None
 
-        # Parse row
-        (
-            cache_key,
-            normalized_query,
-            project,
-            result_ids,
-            hit_count,
-            created_at,
-            last_accessed,
-            ttl_seconds,
-        ) = row
+        # Type cast for zuban: DuckDB returns variadic tuple, but we know it's 8 elements
+        cache_row = cast(
+            tuple[str, str, str | None, list[str] | None, int, Any, Any, int | None],
+            row,
+        )
 
+        # Parse row
         entry = QueryCacheEntry(
-            cache_key=cache_key,
-            normalized_query=normalized_query,
-            project=project,
-            result_ids=list(result_ids) if result_ids else [],
-            hit_count=hit_count,
-            created_at=created_at.timestamp(),
-            last_accessed=last_accessed.timestamp(),
-            ttl_seconds=ttl_seconds,
+            cache_key=cache_row[0],
+            normalized_query=cache_row[1],
+            project=cache_row[2],
+            result_ids=list(cache_row[3]) if cache_row[3] else [],
+            hit_count=cache_row[4],
+            created_at=cache_row[5].timestamp(),
+            last_accessed=cache_row[6].timestamp(),
+            ttl_seconds=cache_row[7] or 604800,  # Default 7 days if None
         )
 
         # Check expiration
@@ -457,23 +447,18 @@ class QueryCacheManager:
             hit_count = query_cache_l2.hit_count + 1
         """
 
-        def _upsert() -> None:
-            if self._conn:
-                self._conn.execute(
-                    upsert_sql,
-                    [
-                        entry.cache_key,
-                        entry.normalized_query,
-                        entry.project,
-                        entry.result_ids,
-                        entry.ttl_seconds,
-                    ],
-                )
-
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, _upsert).result()
+        # Execute upsert directly (DuckDB operation is fast, <1ms)
+        if self._conn:
+            self._conn.execute(
+                upsert_sql,
+                [
+                    entry.cache_key,
+                    entry.normalized_query,
+                    entry.project,
+                    entry.result_ids,
+                    entry.ttl_seconds,
+                ],
+            )
 
     def _delete_from_l2(self, cache_key: str) -> None:
         """Delete entry from L2 cache.
@@ -486,14 +471,9 @@ class QueryCacheManager:
 
         delete_sql = "DELETE FROM query_cache_l2 WHERE cache_key = ?"
 
-        def _delete() -> None:
-            if self._conn:
-                self._conn.execute(delete_sql, [cache_key])
-
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, _delete).result()
+        # Execute delete directly (DuckDB operation is fast, <1ms)
+        if self._conn:
+            self._conn.execute(delete_sql, [cache_key])
 
     def _evict_l1_if_needed(self) -> None:
         """Evict oldest entry from L1 cache if max_size exceeded.
@@ -622,7 +602,7 @@ class QueryCacheManager:
             if self._pending_operations == 0:
                 self._shutdown_event.set()
 
-    def _execute_in_executor(self, func, *args):
+    def _execute_in_executor(self, func: Callable[..., Any], *args: Any) -> Any:
         """Execute function in executor with proper tracking.
 
         This wrapper prevents race conditions during cleanup by tracking
@@ -637,7 +617,7 @@ class QueryCacheManager:
         """
         self._track_operation(func.__name__)
 
-        def _wrapper():
+        def _wrapper() -> Any:
             try:
                 return func(*args)
             finally:

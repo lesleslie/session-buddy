@@ -14,14 +14,14 @@ import typing as t
 from session_buddy.core.bottleneck_detector import get_bottleneck_detector
 
 
-def register_bottleneck_tools(server) -> None:
+def register_bottleneck_tools(server: t.Any) -> None:
     """Register bottleneck detection MCP tools.
 
     Args:
         server: SessionBuddyServer instance to register tools on
     """
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def detect_quality_bottlenecks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -76,7 +76,7 @@ def register_bottleneck_tools(server) -> None:
                 "message": "Failed to detect quality bottlenecks",
             }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def detect_velocity_bottlenecks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -131,7 +131,7 @@ def register_bottleneck_tools(server) -> None:
                 "message": "Failed to detect velocity bottlenecks",
             }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def detect_session_pattern_bottlenecks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -186,7 +186,7 @@ def register_bottleneck_tools(server) -> None:
                 "message": "Failed to detect session pattern bottlenecks",
             }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_bottleneck_insights(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -238,7 +238,7 @@ def register_bottleneck_tools(server) -> None:
                 "message": "Failed to generate bottleneck insights",
             }
 
-    @server.prompt()
+    @server.prompt()  # type: ignore[misc]
     def bottleneck_help() -> str:
         """Get help for bottleneck detection and analysis.""" ""
         return """# Bottleneck Detection - Workflow Optimization Guide
@@ -464,7 +464,7 @@ if patterns['marathon_sessions'] > 0:
 """
 
 
-def _generate_quality_bottleneck_insights(bottlenecks) -> list[str]:
+def _generate_quality_bottleneck_insights(bottlenecks: t.Any) -> list[str]:
     """Generate insights from quality bottlenecks."""
     insights = []
 
@@ -515,7 +515,7 @@ def _generate_quality_bottleneck_insights(bottlenecks) -> list[str]:
     return insights
 
 
-def _generate_velocity_bottleneck_insights(bottlenecks) -> list[str]:
+def _generate_velocity_bottleneck_insights(bottlenecks: t.Any) -> list[str]:
     """Generate insights from velocity bottlenecks."""
     insights = []
 
@@ -570,7 +570,7 @@ def _generate_velocity_bottleneck_insights(bottlenecks) -> list[str]:
     return insights
 
 
-def _generate_pattern_bottleneck_insights(bottlenecks) -> list[str]:
+def _generate_pattern_bottleneck_insights(bottlenecks: t.Any) -> list[str]:
     """Generate insights from session pattern bottlenecks."""
     insights = []
 
@@ -635,7 +635,7 @@ def _generate_pattern_bottleneck_insights(bottlenecks) -> list[str]:
     return insights
 
 
-def _synthesize_bottleneck_insights(insights) -> list[str]:
+def _synthesize_bottleneck_insights(insights: t.Any) -> list[str]:
     """Synthesize comprehensive bottleneck insights."""
     synthesized = []
 

@@ -261,11 +261,11 @@ class SufficiencyEvaluator:
         result_count = len(results)
 
         # Extract scores
-        scores = [
-            r.get("score", r.get("similarity", 0.0))
-            for r in results
-            if "score" in r or "similarity" in r
-        ]
+        scores = []
+        for r in results:
+            if "score" in r or "similarity" in r:
+                score_val = r.get("score", r.get("similarity", 0.0))
+                scores.append(score_val)
 
         if not scores:
             # Text search without scores - base on quantity only
@@ -286,7 +286,7 @@ class SufficiencyEvaluator:
             + quantity_score * self.config.quantity_weight
         )
 
-        return min(sufficiency_score, 1.0)
+        return min(sufficiency_score, 1.0)  # type: ignore[no-any-return]
 
 
 class ProgressiveSearchEngine:
@@ -435,7 +435,7 @@ class ProgressiveSearchEngine:
             is_sufficient, reason = self.evaluator.is_sufficient(
                 all_results, tiers_searched[-1]
             )
-            metadata["early_stop_reason"] = reason
+            metadata["early_stop_reason"] = reason  # type: ignore[assignment]
 
         # Build final result
         result = ProgressiveSearchResult(

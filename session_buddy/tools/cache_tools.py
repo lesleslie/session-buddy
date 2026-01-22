@@ -94,7 +94,7 @@ async def query_cache_stats(
         return json.dumps(
             {
                 "success": False,
-                "error": f"Failed to retrieve cache stats: {str(e)}",
+                "error": f"Failed to retrieve cache stats: {e}",
             },
             indent=2,
         )
@@ -167,7 +167,7 @@ async def clear_query_cache(
         return json.dumps(
             {
                 "success": False,
-                "error": f"Failed to clear cache: {str(e)}",
+                "error": f"Failed to clear cache: {e}",
             },
             indent=2,
         )
@@ -260,7 +260,7 @@ async def warm_cache(
         return json.dumps(
             {
                 "success": False,
-                "error": f"Failed to warm cache: {str(e)}",
+                "error": f"Failed to warm cache: {e}",
             },
             indent=2,
         )
@@ -320,7 +320,7 @@ async def invalidate_cache(
         return json.dumps(
             {
                 "success": False,
-                "error": f"Failed to invalidate cache entry: {str(e)}",
+                "error": f"Failed to invalidate cache entry: {e}",
             },
             indent=2,
         )
@@ -393,7 +393,7 @@ async def optimize_cache(
         return json.dumps(
             {
                 "success": False,
-                "error": f"Failed to optimize cache: {str(e)}",
+                "error": f"Failed to optimize cache: {e}",
             },
             indent=2,
         )

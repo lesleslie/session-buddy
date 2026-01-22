@@ -110,7 +110,9 @@ class UsageMetrics:
         clicked_with_dwell = [i for i in clicked if i.dwell_time_ms is not None]
         if clicked_with_dwell:
             self.avg_dwell_time_ms = sum(
-                i.dwell_time_ms for i in clicked_with_dwell
+                i.dwell_time_ms
+                for i in clicked_with_dwell
+                if i.dwell_time_ms is not None
             ) / len(clicked_with_dwell)
 
         # Calculate average position of clicked results

@@ -186,6 +186,100 @@ ______________________________________________________________________
 
 The server automatically detects git repositories and provides seamless session lifecycle management with crash resilience and network failure recovery. Non-git projects retain manual control for flexible workflow management.
 
+### Session Lifecycle Visualization
+
+```mermaid
+stateDiagram-v2
+    [*] --> GitRepo: Claude Code Connects
+    [*] --> ManualInit: Non-Git Project
+
+    GitRepo --> AutoStart: Auto-detect Git
+    AutoStart: Initialize Session
+    AutoStart --> Working: Development
+
+    ManualInit --> ManualStart: User runs /start
+    ManualStart: Initialize Session
+    ManualStart --> Working: Development
+
+    state Working {
+        [*] --> Active
+        Active --> Checkpoint: /checkpoint
+        Checkpoint --> Active: Continue Work
+        Active --> Monitoring: Track Quality
+        Monitoring --> Active
+    }
+
+    Working --> AutoEnd: Disconnect/Quit
+    Working --> ManualEnd: User runs /end
+
+    AutoEnd: Auto Cleanup
+    AutoEnd --> [*]: Session Handoff
+
+    ManualEnd: Manual Cleanup
+    ManualEnd --> [*]: Session Handoff
+
+    note right of AutoStart
+        Automatic Features:
+        - UV sync
+        - Project analysis
+        - Setup .claude/
+        - Create shortcuts
+    end note
+
+    note right of AutoEnd
+        Crash Resilient:
+        - Any disconnect
+        - Network failure
+        - System crash
+        All handled gracefully
+    end note
+```
+
+### Git Repository Auto-Management Flow
+
+```mermaid
+flowchart TD
+    Start([Claude Code Connects]) --> Detect{Git Repo?}
+
+    Detect -->|Yes| AutoInit[Auto-Initialize]
+    Detect -->|No| Manual{User runs /start?}
+
+    AutoInit --> Setup[Session Setup]
+    Setup --> UV[UV Sync]
+    UV --> Analysis[Project Analysis]
+    Analysis --> CreateDir[Create .claude/]
+    CreateDir --> Shortcuts[Create Shortcuts]
+    Shortcuts --> Ready([Session Ready])
+
+    Manual -->|Yes| ManualInit[/start Command]
+    Manual -->|No| Idle([No Session])
+    ManualInit --> Ready
+
+    Ready --> Work[Development Work]
+    Work --> Checkpoint{Mid-session?}
+    Checkpoint -->|Yes| Compact[Auto-Compact Context]
+    Checkpoint -->|No| Continue{Continue?}
+    Compact --> Work
+    Continue -->|Yes| Work
+    Continue -->|No| End
+
+    Work --> End{Disconnect?}
+    End -->|Yes| AutoCleanup[Auto Cleanup]
+    End -->|No| Work
+
+    AutoCleanup --> Handoff[Create Handoff Doc]
+    Handoff --> Complete([Session Complete])
+
+    Idle --> Manual
+    Manual --> Complete
+
+    style AutoInit fill:#c8e6c9
+    style AutoCleanup fill:#c8e6c9
+    style ManualInit fill:#fff9c4
+    style Ready fill:#b2dfdb
+    style Complete fill:#ffccbc
+```
+
 ## Available MCP Tools
 
 This server provides **79+ specialized tools** organized into 11 functional categories.

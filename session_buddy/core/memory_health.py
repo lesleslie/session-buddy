@@ -140,9 +140,9 @@ class MemoryHealthAnalyzer:
 
         self.db_path = os.path.expanduser(db_path)
         self.logger = logger or logging.getLogger(__name__)
-        self._conn: duckdb.DuckDBConnection | None = None  # type: ignore[attr-defined]
+        self._conn: Any = None
 
-    def _get_conn(self) -> duckdb.DuckDBConnection:  # type: ignore[attr-defined]
+    def _get_conn(self) -> Any:
         """Get or create database connection."""
         if self._conn is None:
             # Connect to reflection database
@@ -495,4 +495,4 @@ def get_memory_health_analyzer() -> MemoryHealthAnalyzer:
     analyzer = depends.get_sync(MemoryHealthAnalyzer)
     if analyzer is None:
         analyzer = MemoryHealthAnalyzer()
-    return analyzer
+    return analyzer  # type: ignore[no-any-return]

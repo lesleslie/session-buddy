@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import time
-import typing as t
 from pathlib import Path
 from statistics import mean, median, stdev
 
-from session_buddy.adapters.reflection_adapter_oneiric import ReflectionDatabaseAdapterOneiric
+from session_buddy.adapters.reflection_adapter_oneiric import (
+    ReflectionDatabaseAdapterOneiric,
+)
 from session_buddy.adapters.settings import ReflectionAdapterSettings
 
 
@@ -97,8 +98,12 @@ async def benchmark_hnsw_search(
         "min_ms": min(latencies_ms),
         "max_ms": max(latencies_ms),
         "stdev_ms": stdev(latencies_ms) if len(latencies_ms) > 1 else 0.0,
-        "p95_ms": sorted(latencies_ms)[int(len(latencies_ms) * 0.95)] if latencies_ms else 0.0,
-        "p99_ms": sorted(latencies_ms)[int(len(latencies_ms) * 0.99)] if latencies_ms else 0.0,
+        "p95_ms": sorted(latencies_ms)[int(len(latencies_ms) * 0.95)]
+        if latencies_ms
+        else 0.0,
+        "p99_ms": sorted(latencies_ms)[int(len(latencies_ms) * 0.99)]
+        if latencies_ms
+        else 0.0,
     }
 
 
@@ -111,9 +116,21 @@ async def main() -> None:
 
     # Test configurations
     test_configs = [
-        {"name": "Small Dataset (100 conversations)", "num_conversations": 100, "num_searches": 50},
-        {"name": "Medium Dataset (1,000 conversations)", "num_conversations": 1000, "num_searches": 100},
-        {"name": "Large Dataset (10,000 conversations)", "num_conversations": 10000, "num_searches": 100},
+        {
+            "name": "Small Dataset (100 conversations)",
+            "num_conversations": 100,
+            "num_searches": 50,
+        },
+        {
+            "name": "Medium Dataset (1,000 conversations)",
+            "num_conversations": 1000,
+            "num_searches": 100,
+        },
+        {
+            "name": "Large Dataset (10,000 conversations)",
+            "num_conversations": 10000,
+            "num_searches": 100,
+        },
     ]
 
     for config in test_configs:
@@ -159,9 +176,9 @@ async def main() -> None:
         print(f"   Target: <5ms, Actual: {hnsw_metrics['mean_ms']:.3f} ms")
 
         if hnsw_metrics["mean_ms"] < 5.0:
-            print(f"   ✅ MEETS <5ms target!")
+            print("   ✅ MEETS <5ms target!")
         else:
-            print(f"   ⚠️  Above <5ms target")
+            print("   ⚠️  Above <5ms target")
 
     print("\n" + "=" * 70)
     print("Benchmark Complete!")

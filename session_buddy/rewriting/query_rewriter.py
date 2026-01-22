@@ -162,7 +162,7 @@ class AmbiguityDetector:
 
     def __init__(self) -> None:
         """Initialize ambiguity detector with compiled regex patterns."""
-        self._all_patterns: dict[AmbiguityType, list[re.Pattern]] = {}
+        self._all_patterns: dict[AmbiguityType, list[re.Pattern[str]]] = {}
 
         # Compile all patterns for performance
         all_pattern_groups = [
@@ -643,7 +643,8 @@ class QueryRewriter:
             providers = llm.list_providers()
             if providers and len(providers) > 0:
                 # Return first available provider
-                return providers[0]
+                provider = providers[0]
+                return str(provider) if provider is not None else None
 
             return None
 

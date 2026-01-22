@@ -49,13 +49,16 @@ async def initialize_query_rewriting_hooks(
     if rewriter is None:
         rewriter = QueryRewriter()
 
+    async def _handler_wrapper(ctx: Any) -> Any:
+        return await _query_rewriting_handler(ctx, rewriter)
+
     # Register query rewriting hook
     await hooks_manager.register_hook(
         Hook(
             name="query_rewriting",
             hook_type=HookType.PRE_SEARCH_QUERY,
             priority=100,  # Run before search but after other preprocessing
-            handler=lambda ctx: _query_rewriting_handler(ctx, rewriter),
+            handler=_handler_wrapper,
             metadata={"module": "query_rewriting", "version": "1.0"},
         )
     )

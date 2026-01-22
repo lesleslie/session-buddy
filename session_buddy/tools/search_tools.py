@@ -753,8 +753,8 @@ def _parse_tags_parameter(tags: list[str] | str | None) -> list[str] | None:
         return [tags]
 
 
-def register_search_tools(mcp: Any) -> None:  # noqa: C901
-    """Register all search-related MCP tools.
+def _register_core_search_tools(mcp: Any) -> None:
+    """Register core search and reflection tools.
 
     Args:
         mcp: FastMCP server instance
@@ -799,6 +799,15 @@ def register_search_tools(mcp: Any) -> None:  # noqa: C901
         query: str, offset: int = 3, limit: int = 3, project: str | None = None
     ) -> str:
         return await _get_more_results_impl(query, offset, limit, project)
+
+
+def _register_specialized_search_tools(mcp: Any) -> None:
+    """Register specialized search tools (file, concept, code, errors, temporal).
+
+    Args:
+        mcp: FastMCP server instance
+
+    """
 
     @mcp.tool()  # type: ignore[misc]
     async def search_by_file(
@@ -850,7 +859,14 @@ def register_search_tools(mcp: Any) -> None:  # noqa: C901
     ) -> str:
         return await _search_temporal_impl(time_expression, query, limit, project)
 
-    # Progressive Search Tools (Phase 3)
+
+def _register_progressive_search_tools(mcp: Any) -> None:
+    """Register progressive search tools (Phase 3).
+
+    Args:
+        mcp: FastMCP server instance
+
+    """
 
     @mcp.tool()  # type: ignore[misc]
     async def progressive_search(
@@ -937,6 +953,18 @@ def register_search_tools(mcp: Any) -> None:  # noqa: C901
         return await _tier_stats_impl()
 
 
+def register_search_tools(mcp: Any) -> None:
+    """Register all search-related MCP tools.
+
+    Args:
+        mcp: FastMCP server instance
+
+    """
+    _register_core_search_tools(mcp)
+    _register_specialized_search_tools(mcp)
+    _register_progressive_search_tools(mcp)
+
+
 # ============================================================================
 # Progressive Search (Phase 3)
 # ============================================================================
@@ -980,7 +1008,7 @@ async def _progressive_search_impl(
         formatted_results = []
         for tier_result in result.tier_results:
             tier_name = SearchTier.get_tier_name(tier_result.tier)
-            for i, item in enumerate(tier_result.results[:5]):  # Show first 5 per tier
+            for item in tier_result.results[:5]:  # Show first 5 per tier
                 formatted_results.append(
                     f"[{tier_name}] {item.get('content', '')[:100]}..."
                 )

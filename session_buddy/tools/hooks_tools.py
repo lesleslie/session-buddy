@@ -24,7 +24,7 @@ def register_hooks_tools(server: SessionBuddyServer) -> None:
     from session_buddy.core.causal_chains import CausalChainTracker
     from session_buddy.core.hooks import HookType
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def list_hooks(
         hook_type: str | None = None,
     ) -> dict[str, Any]:
@@ -83,7 +83,7 @@ def register_hooks_tools(server: SessionBuddyServer) -> None:
             "message": f"Found {total_hooks} registered hooks",
         }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def query_similar_errors(
         error_message: str, limit: int = 5
     ) -> dict[str, Any]:
@@ -153,7 +153,7 @@ def register_hooks_tools(server: SessionBuddyServer) -> None:
             ),
         }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def record_fix_success(
         error_message: str,
         action_taken: str,
@@ -221,7 +221,7 @@ def register_hooks_tools(server: SessionBuddyServer) -> None:
             ),
         }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_causal_chain(
         chain_id: str,
     ) -> dict[str, Any]:
@@ -288,7 +288,7 @@ def register_hooks_tools(server: SessionBuddyServer) -> None:
             },
         }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def enable_hook(hook_name: str, hook_type: str) -> dict[str, Any]:
         """Enable a specific hook.
 
@@ -307,7 +307,7 @@ def register_hooks_tools(server: SessionBuddyServer) -> None:
             "message": "This feature will be added in a future update",
         }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def disable_hook(hook_name: str, hook_type: str) -> dict[str, Any]:
         """Disable a specific hook.
 
@@ -327,7 +327,7 @@ def register_hooks_tools(server: SessionBuddyServer) -> None:
         }
 
     # Register prompts
-    @server.prompt()
+    @server.prompt()  # type: ignore[misc]
     def hooks_help() -> str:
         """Get help for using hooks and causal chains."""
         return """# Hooks and Causal Chains - Usage Guide

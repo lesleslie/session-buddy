@@ -73,7 +73,51 @@ Session Buddy automatically extracts insights at two points:
 /session-buddy:search_insights "topic you're working on"
 ```
 
-### What Gets Captured
+### Insight Capture Flow
+
+```mermaid
+flowchart TD
+    Start([Start Session]) --> Work[Work with Explanatory Mode]
+    Work --> Write[Write ★ Insight Delimiters]
+    Write --> Work
+
+    Work --> Checkpoint{Run Checkpoint?}
+    Checkpoint -->|Yes| Extract1[Extract Insights]
+    Checkpoint -->|No| Continue[Continue Work]
+    Continue --> Work
+
+    Extract1 --> Hash1[Calculate SHA-256]
+    Hash1 --> Dedupe1{Duplicate?}
+    Dedupe1 -->|No| Store1[Store with Embeddings]
+    Dedupe1 -->|Yes| Skip1[Skip Duplicate]
+    Store1 --> Work
+    Skip1 --> Work
+
+    Work --> End{End Session?}
+    End -->|Yes| Extract2[Extract Final Insights]
+    End -->|No| Work
+
+    Extract2 --> Hash2[Calculate SHA-256]
+    Hash2 --> Dedupe2{Duplicate?}
+    Dedupe2 -->|No| Store2[Store with Embeddings]
+    Dedupe2 -->|Yes| Skip2[Skip Duplicate]
+
+    Store2 --> Search[Available for Search]
+    Skip2 --> Search
+
+    Search --> Query[Query: search_insights]
+    Query --> Semantic[Semantic Search]
+    Semantic --> Results[Ranked Results]
+
+    style Start fill:#e1f5ff
+    style Work fill:#fff9c4
+    style Extract1 fill:#c8e6c9
+    style Extract2 fill:#c8e6c9
+    style Store1 fill:#b2dfdb
+    style Store2 fill:#b2dfdb
+    style Search fill:#ffccbc
+    style Results fill:#f8bbd9
+```
 
 Session Buddy captures insights when:
 
@@ -151,6 +195,82 @@ deps = [
 
 # Get project insights
 /session-buddy:get_project_insights ["auth-service", "user-service"]
+```
+
+### Cross-Project Dependency Visualization
+
+```mermaid
+graph TB
+    subgraph "Project Group: microservices-app"
+        Auth[Auth Service<br/>🔐 Authentication]
+        User[User Service<br/>👤 User Management]
+        Gateway[API Gateway<br/>🌐 Routing]
+        Payment[Payment Service<br/>💳 Transactions]
+        Notification[Notification Service<br/>📧 Messaging]
+        Audit[Audit Service<br/>📊 Logging]
+    end
+
+    %% Dependency relationships
+    User -.->|uses| Auth
+    Payment -.->|uses| Auth
+    Gateway -.->|extends| User
+    Notification -.->|extends| User
+    Audit -.->|references| Payment
+    Audit -.->|references| Gateway
+
+    %% Knowledge flow
+    Auth -.Knowledge Flow.-> User
+    Auth -.Knowledge Flow.-> Payment
+    User -.Knowledge Flow.-> Gateway
+    User -.Knowledge Flow.-> Notification
+    Payment -.Knowledge Flow.-> Audit
+
+    %% Styling
+    style Auth fill:#ffcdd2
+    style User fill:#f8bbd9
+    style Gateway fill:#e1bee7
+    style Payment fill:#d1c4e9
+    style Notification fill:#c5cae9
+    style Audit fill:#bbdefb
+```
+
+### Cross-Project Knowledge Sharing Flow
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant Auth as Auth Service
+    participant Coord as Multi-Project<br/>Coordinator
+    participant User as User Service
+    participant Gateway as API Gateway
+
+    Note over Auth: Developer fixes auth bug
+
+    Dev->>Auth: Fix Authentication Issue
+    Auth->>Auth: Store Reflection
+
+    Note over Coord: Pattern Detected
+
+    Auth->>Coord: Share Pattern
+    Coord->>Coord: Check Dependencies
+
+    Note over Coord,User: "uses" relationship
+
+    Coord->>User: Propagate Solution
+    User->>User: Update Knowledge
+
+    Note over Coord,Gateway: "extends" relationship
+
+    Coord->>Gateway: Suggest Enhancement
+    Gateway->>Gateway: Apply Pattern
+
+    Note over Dev: Next session
+
+    Dev->>Coord: Search "authentication"
+    Coord-->>Dev: Ranked Results:
+    Coord-->>Dev: 1. Auth (source)
+    Coord-->>Dev: 2. User (uses)
+    Coord-->>Dev: 3. Gateway (extends)
 ```
 
 ### Example Use Cases
@@ -565,7 +685,9 @@ ______________________________________________________________________
 
 - **[Insights Capture & Deduplication](INSIGHTS_CAPTURE.md)** - Complete technical details
 - **[MCP Tools Reference](../user/MCP_TOOLS_REFERENCE.md)** - All intelligence tools
+
 <!-- - **[Claude Flow V2 Integration](../archive/implementation-plans/CLAUDE_FLOW_INTEGRATION_PLAN_V2.md)** - Future roadmap (file not found) -->
+
 - **[Architecture Overview](../developer/ARCHITECTURE.md)** - System design
 
 ______________________________________________________________________

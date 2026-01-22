@@ -16,6 +16,7 @@ from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 
+from session_buddy.core.hooks import HookResult, HooksManager
 from session_buddy.utils.git_operations import (
     create_checkpoint_commit,
     is_git_repository,
@@ -311,7 +312,7 @@ class SessionLifecycleManager:
         quality_score: int,
     ) -> list[str]:
         """Handle git operations for checkpoint commit using the new git utilities."""
-        output = []
+        output: list[str] = []
         output.extend(("\n" + "=" * 50, "📦 Git Checkpoint Commit", "=" * 50))
 
         try:
@@ -381,7 +382,7 @@ class SessionLifecycleManager:
                 data = json.loads(content)
                 # Ensure the return type is properly typed as dict[str, t.Any] | None
                 if isinstance(data, dict):
-                    return data  # type: ignore[return-value]
+                    return data
                 return None
             except json.JSONDecodeError:
                 # If not JSON, try to parse as markdown handoff file
@@ -542,7 +543,7 @@ class SessionLifecycleManager:
         from datetime import datetime
 
         # Format as markdown document
-        markdown_content = []
+        markdown_content: list[str] = []
         markdown_content.extend(
             (
                 f"# Session Handoff Report - {summary.get('project', 'unknown')}",
@@ -676,7 +677,7 @@ class SessionLifecycleManager:
             )
 
             # Execute PRE_CHECKPOINT hooks (quality validation, etc.)
-            pre_hooks_results = []
+            pre_hooks_results: list[HookResult] = []
             try:
                 hooks_manager = get_sync_typed(HooksManager)
                 pre_context = HookContext(

@@ -79,7 +79,7 @@ class ContextOptimizer:
         return len(text) // 4
 
     def load_project_context(
-        self, project_path: str, project_type: str | None = None
+        self, project_path: str | Path, project_type: str | None = None
     ) -> dict[str, Any]:
         """Load project-specific context for intelligent filtering.
 
@@ -90,17 +90,17 @@ class ContextOptimizer:
         Returns:
             Project context dictionary
         """
-        project_path = Path(project_path)
+        path_obj: Path = Path(project_path)
 
         # Auto-detect project type if not provided
         if project_type is None:
-            project_type = self._detect_project_type(project_path)
+            project_type = self._detect_project_type(path_obj)
 
         # Get context configuration for project type
         context_config = self.project_contexts.get(project_type, {})
 
         # Load project structure
-        structure = self._analyze_project_structure(project_path)
+        structure = self._analyze_project_structure(path_obj)
 
         return {
             "project_type": project_type,
@@ -152,7 +152,7 @@ class ContextOptimizer:
             extension_counts = {}
             total_files = 0
 
-            for ext in ["*.py", "*.ts", "*.tsx", "*.rs", "*.go", "*.java"]:
+            for ext in ("*.py", "*.ts", "*.tsx", "*.rs", "*.go", "*.java"):
                 matches = list(project_path.rglob(ext))
                 count = len(matches)
                 if count > 0:
@@ -161,7 +161,7 @@ class ContextOptimizer:
 
             # Identify key directories
             directories = []
-            for dir_name in ["src", "lib", "app", "test", "tests"]:
+            for dir_name in ("src", "lib", "app", "test", "tests"):
                 dir_path = project_path / dir_name
                 if dir_path.is_dir():
                     directories.append(dir_name)
@@ -287,10 +287,14 @@ class ContextOptimizer:
 
         parts = ["Relevant Patterns from Other Projects:"]
         for i, pattern in enumerate(patterns[:3], 1):  # Top 3 patterns
-            parts.append(f"\n{i}. {pattern.get('name', 'Unknown')}")
-            parts.append(f"   From: {pattern.get('project_id', 'Unknown')}")
-            parts.append(f"   Success Rate: {pattern.get('outcome_score', 0):.0%}")
-            parts.append(f"   Similarity: {pattern.get('similarity', 0):.0%}")
+            parts.extend(
+                (
+                    f"\n{i}. {pattern.get('name', 'Unknown')}",
+                    f"   From: {pattern.get('project_id', 'Unknown')}",
+                    f"   Success Rate: {pattern.get('outcome_score', 0):.0%}",
+                    f"   Similarity: {pattern.get('similarity', 0):.0%}",
+                )
+            )
 
             # Add context/problem
             context_snapshot = json.loads(pattern.get("context_snapshot", "{}"))

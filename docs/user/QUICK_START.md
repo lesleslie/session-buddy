@@ -135,6 +135,104 @@ Instantly find:
 
 Automatic cleanup with:
 
+- 📊 Final quality assessment and session summary
+- 🧠 Learning capture with insights extraction
+- 📝 Handoff documentation for next session
+- 🧹 Complete cleanup of session artifacts
+
+### Complete User Experience Flow
+
+```mermaid
+flowchart TD
+    Start([🚀 Start Claude Code]) --> Config{Session Buddy<br/>Configured?}
+
+    Config -->|No| Install[Install & Configure]
+    Config -->|Yes| Detect{Git Repo?}
+
+    Install --> Detect
+
+    Detect -->|Yes| Auto[Auto-Initialize]
+    Detect -->|No| Manual[/start Command]
+
+    Auto --> Setup[Session Setup]
+    Manual --> Setup
+
+    Setup --> Init[✅ Project Analysis<br/>✅ Dependency Sync<br/>✅ Memory Setup<br/>✅ Shortcuts Created]
+
+    Init --> Work[💻 Development Work]
+
+    Work --> Monitor{Quality Monitoring}
+
+    Monitor -->|Normal| Work
+    Monitor -->|Checkpoint| CP[Run Checkpoint]
+
+    CP --> Quality[📊 Quality Score<br/>🔧 Optimization Tips<br/>📝 Git Commit]
+    Quality --> Work
+
+    Work --> Search{Need Context?}
+
+    Search -->|Yes| Query[Search History]
+    Search -->|No| Work
+
+    Query --> Results[🎯 Semantic Results<br/>📅 Time-Ordered<br/>🔗 Cross-Project]
+    Results --> Work
+
+    Work --> End{Session End?}
+
+    End -->|Yes| Final[Run /end]
+    End -->|No| Work
+
+    Final --> Cleanup[🧹 Auto Cleanup<br/>📊 Final Assessment<br/>🧠 Extract Insights<br/>📝 Handoff Doc]
+
+    Cleanup --> Complete([✅ Session Complete])
+
+    style Start fill:#e1f5ff
+    style Setup fill:#c8e6c9
+    style Work fill:#fff9c4
+    style CP fill:#ffccbc
+    style Query fill:#b2dfdb
+    style Cleanup fill:#f8bbd9
+    style Complete fill:#c8e6c9
+```
+
+### Key User Interactions
+
+```mermaid
+sequenceDiagram
+    participant User as 👤 Developer
+    participant SB as Session Buddy
+    participant Memory as 🧠 Memory System
+    participant Quality as 📊 Quality Monitor
+    participant Git as 🔧 Git Integration
+
+    Note over User: First Time Setup
+    User->>SB: /start
+    SB->>SB: Analyze Project
+    SB->>SB: Sync Dependencies
+    SB-->>User: ✅ Session Ready
+
+    Note over User,SB: Development Loop
+    loop Every 30-45 min
+        User->>Quality: /checkpoint
+        Quality->>Quality: Calculate Score
+        Quality->>Git: Create Commit
+        Quality-->>User: 📊 Quality Report
+    end
+
+    Note over User,Memory: Need Context
+    User->>Memory: Search "authentication"
+    Memory->>Memory: Semantic Search
+    Memory-->>User: 🎯 Ranked Results
+
+    Note over User: Session End
+    User->>SB: /end
+    SB->>Memory: Extract Insights
+    SB->>Quality: Final Assessment
+    SB-->>User: 📝 Handoff Document
+```
+
+## Advanced Features
+
 - 📋 **Handoff documentation** for session continuity
 - 🎓 **Learning capture** across key insight categories
 - 🧹 **Workspace optimization** and memory persistence

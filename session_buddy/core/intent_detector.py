@@ -79,7 +79,7 @@ class IntentDetector:
                 self._load_default_patterns()
                 return
 
-            with open(patterns_path) as f:
+            with patterns_path.open() as f:
                 config = yaml.safe_load(f)
 
             for tool, data in config.items():
@@ -278,14 +278,21 @@ class IntentDetector:
             return pattern
 
         # Disagree - return higher confidence with alternatives
-        if semantic.confidence > pattern.confidence:
+        result: ToolMatch | None = None
+
+        if semantic and pattern and semantic.confidence > pattern.confidence:
             result = semantic
             result.alternatives = [pattern.tool_name]  # type: ignore[attr-defined]
-        else:
+        elif semantic and pattern:
             result = pattern
             result.alternatives = [semantic.tool_name]  # type: ignore[attr-defined]
+        else:
+            # Handle case where one is None
+            result = semantic or pattern
 
-        result.disambiguation_needed = True  # type: ignore[attr-defined]
+        if result:
+            result.disambiguation_needed = True  # type: ignore[attr-defined]
+
         return result
 
     async def _extract_arguments(
@@ -363,6 +370,11 @@ class IntentDetector:
             )
 
         # Sort by confidence
-        suggestions.sort(key=lambda s: s["confidence"], reverse=True)
+        suggestions.sort(
+            key=lambda s: s["confidence"]
+            if isinstance(s["confidence"], (int, float))
+            else 0,
+            reverse=True,
+        )
 
         return suggestions[:limit]

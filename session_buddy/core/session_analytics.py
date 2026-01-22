@@ -180,9 +180,9 @@ class SessionAnalytics:
 
         self.db_path = os.path.expanduser(db_path)
         self.logger = logger or logging.getLogger(__name__)
-        self._conn: duckdb.DuckDBConnection | None = None  # type: ignore[attr-defined]
+        self._conn: Any = None
 
-    def _get_conn(self) -> duckdb.DuckDBConnection:  # type: ignore[attr-defined]
+    def _get_conn(self) -> Any:
         """Get or create database connection."""
         if self._conn is None:
             self._conn = duckdb.connect(self.db_path)  # type: ignore[attr-defined]
@@ -359,7 +359,7 @@ class SessionAnalytics:
 
         # Find peak productivity day
         if day_of_week_dist:
-            peak_day = max(day_of_week_dist, key=day_of_week_dist.get)  # type: ignore[arg-type]
+            peak_day = max(day_of_week_dist.keys(), key=lambda k: day_of_week_dist[k])
         else:
             peak_day = "Monday"
 
@@ -554,7 +554,7 @@ class SessionAnalytics:
         if denominator == 0:
             return 0.0
 
-        return numerator / denominator
+        return numerator / denominator  # type: ignore[no-any-return]
 
     async def get_session_streaks(
         self, project_path: str | None = None, days_back: int = 30
@@ -713,12 +713,12 @@ class SessionAnalytics:
         peak_periods = []
         if temporal.time_of_day_distribution:
             peak_time = max(
-                temporal.time_of_day_distribution,
-                key=temporal.time_of_day_distribution.get,  # type: ignore[arg-type]
+                temporal.time_of_day_distribution.keys(),
+                key=lambda k: temporal.time_of_day_distribution[k],
             )
             peak_day = max(
-                temporal.day_of_week_distribution,
-                key=temporal.day_of_week_distribution.get,  # type: ignore[arg-type]
+                temporal.day_of_week_distribution.keys(),
+                key=lambda k: temporal.day_of_week_distribution[k],
             )
             peak_periods.append(f"{peak_day} {peak_time}s")
 
@@ -786,4 +786,4 @@ def get_session_analytics() -> SessionAnalytics:
     analytics = depends.get_sync(SessionAnalytics)
     if analytics is None:
         analytics = SessionAnalytics()
-    return analytics
+    return analytics  # type: ignore[no-any-return]

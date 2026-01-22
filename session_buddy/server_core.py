@@ -595,7 +595,7 @@ async def _perform_git_checkpoint(
     project_name: str,
 ) -> list[str]:
     """Handle git operations for checkpoint commit."""
-    output = []
+    output: list[str] = []
     output.extend(("\n" + "=" * 50, "📦 Git Checkpoint Commit", "=" * 50))
 
     # Use the proper checkpoint commit function from git_operations

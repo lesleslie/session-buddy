@@ -66,16 +66,45 @@ class KnowledgeGraphDatabaseAdapterOneiric:
         self,
         db_path: str | Path | None = None,
         settings: KnowledgeGraphAdapterSettings | None = None,
+        collection_name: str | None = None,
     ) -> None:
         """Initialize adapter with optional database path.
 
         Args:
             db_path: Path to DuckDB database file. If None, uses path from settings.
             settings: KnowledgeGraphAdapterSettings instance. If None, creates from defaults.
+            collection_name: Optional collection name (alias for graph_name for API compatibility).
 
         """
-        self.db_path = str(db_path) if db_path else None
+        # Create settings with custom graph_name if collection_name provided
+        if collection_name and settings is None:
+            # Create custom settings with collection_name as graph_name
+            from session_buddy.adapters.settings import _resolve_data_dir
+
+            data_dir = _resolve_data_dir()
+            settings = KnowledgeGraphAdapterSettings(
+                database_path=data_dir / f"knowledge_graph_{collection_name}.duckdb",
+                graph_name=collection_name,
+            )
+
         self.settings = settings or KnowledgeGraphAdapterSettings.from_settings()
+        # Use unique database file per graph name to avoid DuckDB locking conflicts
+        if db_path:
+            self.db_path = str(db_path)
+        else:
+            # Add graph name suffix to database path for test isolation
+            db_path_from_settings = self.settings.database_path
+            graph_name = self.settings.graph_name
+            if graph_name != "session_mgmt_graph" and not str(
+                db_path_from_settings
+            ).endswith(f"{graph_name}.duckdb"):
+                # Create unique database file per graph name
+                self.db_path = str(
+                    db_path_from_settings.parent
+                    / f"{db_path_from_settings.stem}_{graph_name}.duckdb"
+                )
+            else:
+                self.db_path = str(db_path_from_settings)
         self.conn: t.Any = None  # DuckDB connection (sync)
         self._duckpgq_installed = False
         self._initialized = False
@@ -109,12 +138,17 @@ class KnowledgeGraphDatabaseAdapterOneiric:
 
     def close(self) -> None:
         """Close DuckDB connection."""
-        if self.conn is not None:
+        # Use hasattr to safely check for conn attribute (may not exist if init failed)
+        if hasattr(self, "conn") and self.conn is not None:
             self.conn.close()
             self.conn = None
 
     def __del__(self) -> None:
         """Destructor to ensure cleanup."""
+        self.close()
+
+    async def aclose(self) -> None:
+        """Async close method for compatibility with async context managers."""
         self.close()
 
     def _get_db_path(self) -> str:
@@ -291,6 +325,7 @@ class KnowledgeGraphDatabaseAdapterOneiric:
         observations: list[str] | None = None,
         properties: dict[str, t.Any] | None = None,
         metadata: dict[str, t.Any] | None = None,
+        attributes: list[str] | None = None,  # Deprecated alias for observations
     ) -> dict[str, t.Any]:
         """Create a new entity (node) in the knowledge graph.
 
@@ -300,6 +335,7 @@ class KnowledgeGraphDatabaseAdapterOneiric:
             observations: List of observation strings
             properties: Additional properties as key-value pairs
             metadata: Additional metadata
+            attributes: Deprecated alias for observations (for backward compatibility)
 
         Returns:
             Created entity as dictionary
@@ -309,6 +345,21 @@ class KnowledgeGraphDatabaseAdapterOneiric:
 
         """
         conn = self._get_conn()
+
+        # Support both 'attributes' (deprecated) and 'observations' parameters
+        # Handle backward compatibility where 'attributes' might be a dict (properties) or list (observations)
+        if attributes is not None:
+            if isinstance(attributes, dict):
+                # 'attributes' is actually properties - merge with properties param
+                properties = {**(properties or {}), **attributes}
+                entity_observations = observations or []
+            elif isinstance(attributes, list):
+                # 'attributes' is a list - treat as observations
+                entity_observations = observations or attributes
+            else:
+                entity_observations = observations or []
+        else:
+            entity_observations = observations or []
 
         # Check if entity already exists
         existing = await self.find_entity_by_name(name)
@@ -330,7 +381,7 @@ class KnowledgeGraphDatabaseAdapterOneiric:
                 entity_id,
                 name,
                 entity_type,
-                observations or [],
+                entity_observations,
                 json.dumps(properties or {}),
                 now,
                 now,

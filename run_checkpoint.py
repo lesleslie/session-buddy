@@ -2,11 +2,11 @@
 """Run session checkpoint via MCP tool call."""
 
 import asyncio
-import json
-from pathlib import Path
 
 # Add project to path
 import sys
+from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from session_buddy.tools.session_tools import _checkpoint_impl
@@ -26,7 +26,7 @@ async def main():
         # Try to extract quality score
         if "Quality Score" in result:
             # Extract score using simple parsing
-            for line in result.split('\n'):
+            for line in result.split("\n"):
                 if "Quality Score" in line:
                     print(f"\n📊 {line.strip()}")
         elif "quality_score" in result.lower():
@@ -35,6 +35,7 @@ async def main():
     except Exception as e:
         print(f"❌ Checkpoint failed: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

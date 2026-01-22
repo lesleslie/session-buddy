@@ -50,35 +50,64 @@ def safe_json_parse(value: t.Any, expected_type: type) -> t.Any:
     # Not a string - can't parse
     if not isinstance(value, str):
         logger.warning(f"Unexpected type for JSON parsing: {type(value)}")
-        return expected_type() if expected_type in (dict, list) else None
+        return _get_default_value(expected_type)
 
     # Size check to prevent DoS
     if len(value) > 1_000_000:  # 1MB limit
         logger.warning("JSON data exceeds size limit")
-        return expected_type() if expected_type in (dict, list) else None
+        return _get_default_value(expected_type)
 
     try:
         result = json.loads(value)
-        # Validate type
-        if not isinstance(result, expected_type):
-            logger.warning(
-                f"JSON parsed but type mismatch: expected {expected_type}, got {type(result)}"
-            )
-            return expected_type() if expected_type in (dict, list) else None
-
-        # Validate structure size
-        if isinstance(result, dict) and len(result) > 1000:
-            logger.warning("JSON data has too many keys")
-            return {}
-
-        if isinstance(result, list) and len(result) > 1000:
-            logger.warning("JSON data has too many items")
-            return []
-
-        return result
+        return _validate_json_result(result, expected_type)
     except (json.JSONDecodeError, TypeError, ValueError) as e:
         logger.error(f"JSON decode error: {e}")
-        return expected_type() if expected_type in (dict, list) else None
+        return _get_default_value(expected_type)
+
+
+def _get_default_value(expected_type: type) -> t.Any:
+    """Get default value for a type.
+
+    Args:
+        expected_type: The expected type
+
+    Returns:
+        Default empty value for the type
+
+    """
+    if expected_type in (dict, list):
+        return expected_type()
+    return None
+
+
+def _validate_json_result(result: t.Any, expected_type: type) -> t.Any:
+    """Validate JSON parse result.
+
+    Args:
+        result: Parsed JSON result
+        expected_type: Expected type
+
+    Returns:
+        Validated result or default value
+
+    """
+    # Validate type
+    if not isinstance(result, expected_type):
+        logger.warning(
+            f"JSON parsed but type mismatch: expected {expected_type}, got {type(result)}"
+        )
+        return _get_default_value(expected_type)
+
+    # Validate structure size
+    if isinstance(result, dict) and len(result) > 1000:
+        logger.warning("JSON data has too many keys")
+        return {}
+
+    if isinstance(result, list) and len(result) > 1000:
+        logger.warning("JSON data has too many items")
+        return []
+
+    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -808,7 +837,10 @@ class IntelligenceEngine:
             Context dict with relevant features
         """
         # TODO: Implement proper context extraction
-        return session.get("context", {})
+        context = session.get("context", {})
+        if isinstance(context, dict):
+            return context
+        return {}
 
     def _calculate_relevance(
         self, current_context: dict[str, t.Any], pattern: dict[str, t.Any]
@@ -926,7 +958,12 @@ class IntelligenceEngine:
 
         # Sort by success_rate * invocations
         skills.sort(
-            key=lambda s: s["success_rate"] * s["invocations"],
+            key=lambda s: float(s["success_rate"]) * int(s["invocations"])
+            if s["success_rate"] is not None
+            and s["invocations"] is not None
+            and isinstance(s["success_rate"], (int, float))
+            and isinstance(s["invocations"], (int, float))
+            else 0.0,
             reverse=True,
         )
 
@@ -959,9 +996,9 @@ class IntelligenceEngine:
 
         for entry in conversation_history:
             content = entry.get("content", "").lower()
-            if any(word in content for word in ["try", "attempt", "fix"]):
+            if any(word in content for word in ("try", "attempt", "fix")):
                 attempt_count += 1
-            if any(word in content for word in ["success", "works", "solved"]):
+            if any(word in content for word in ("success", "works", "solved")):
                 has_success = True
 
         return attempt_count >= 2 and has_success
@@ -987,7 +1024,7 @@ class IntelligenceEngine:
                 # Check for type annotation additions
                 if any(
                     word in content
-                    for word in ["str", "int", "bool", "float", "list", "dict"]
+                    for word in ("str", "int", "bool", "float", "list", "dict")
                 ):
                     return True
         return False
@@ -1005,7 +1042,7 @@ class IntelligenceEngine:
                 has_test = True
             if any(
                 word in edit.get("content", "").lower()
-                for word in ["refactor", "extract", "simplify"]
+                for word in ("refactor", "extract", "simplify")
             ):
                 has_refactor = True
 
@@ -1017,7 +1054,7 @@ class IntelligenceEngine:
             content = edit.get("content", "").lower()
             # Look for function extraction patterns
             if "def " in content and any(
-                word in content for word in ["extract", "helper", "utility"]
+                word in content for word in ("extract", "helper", "utility")
             ):
                 return True
         return False
@@ -1049,7 +1086,7 @@ class IntelligenceEngine:
                 has_search = True
             # After search, look for implementation tools
             if has_search and any(
-                word in tool_name for word in ["edit", "write", "create", "implement"]
+                word in tool_name for word in ("edit", "write", "create", "implement")
             ):
                 has_implementation = True
 
@@ -1155,8 +1192,10 @@ class IntelligenceEngine:
 
         if limit:
             query += " LIMIT ?"
-            params.append(limit)
+            params.append(str(limit))
 
+        if not self.db:
+            return []
         results = self.db.conn.execute(query, params).fetchall()
 
         # Calculate similarity for each pattern

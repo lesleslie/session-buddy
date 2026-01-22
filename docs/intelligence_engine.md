@@ -6,10 +6,98 @@ The Intelligence Engine learns from your development sessions to provide proacti
 
 ## Architecture
 
+### Intelligence Pipeline Overview
+
+```mermaid
+graph TB
+    subgraph Input [Input Sources]
+        Checkpoints[Quality Checkpoints]
+        Conversations[Conversations]
+        Tools[Tool Usage]
+    end
+
+    subgraph Extraction [Pattern Extraction]
+        PE1[Extract Patterns]
+        PE2[Score Outcome]
+        PE3[Tag Patterns]
+    end
+
+    subgraph Consolidation [Skill Consolidation]
+        SC1{3+ Similar?}
+        SC2[Consolidate]
+        SC3[Learned Skill]
+    end
+
+    subgraph Library [Skill Library]
+        SL1[Skill Storage]
+        SL2[Success Tracking]
+        SL3[Usage Metrics]
+    end
+
+    subgraph Output [Proactive Suggestions]
+        PS1[Semantic Search]
+        PS2[Confidence Scoring]
+        PS3[User Suggestions]
+    end
+
+    Checkpoints --> PE1
+    Conversations --> PE1
+    Tools --> PE1
+    PE1 --> PE2
+    PE2 --> PE3
+    PE3 --> SC1
+    SC1 -->|Yes| SC2
+    SC1 -->|No| SL1
+    SC2 --> SC3
+    SC3 --> SL1
+    SL1 --> SL2
+    SL2 --> SL3
+    SL3 --> PS1
+    PS1 --> PS2
+    PS2 --> PS3
+
+    style Checkpoints fill:#e3f2fd
+    style SC3 fill:#c8e6c9
+    style SL1 fill:#fff9c4
+    style PS3 fill:#ffccbc
 ```
-Checkpoints → Pattern Extraction → Skill Library → Suggestions
-    ↓              ↓                  ↓            ↓
-Quality Data    Learned Patterns    Consolidated   Proactive Tips
+
+### Learning Process Flow
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant Engine as IntelligenceEngine
+    participant Checkpoint as Quality Checkpoint
+    participant Pattern as PatternExtractor
+    participant Skill as SkillLibrary
+    participant Suggest as SuggestionEngine
+
+    Dev->>Engine: Complete Checkpoint
+    Engine->>Checkpoint: Get Context Data
+    Checkpoint-->>Engine: Quality Score + Context
+
+    Engine->>Pattern: Extract Patterns
+    Pattern->>Pattern: Analyze Problem/Solution
+    Pattern->>Pattern: Calculate Outcome Score
+    Pattern-->>Engine: Pattern Instances
+
+    Engine->>Skill: Find Similar Patterns
+    Skill->>Skill: Semantic Search
+    Skill-->>Engine: Existing Patterns
+
+    Engine->>Engine: Consolidate (3+ similar?)
+    alt 3+ Similar Patterns
+        Engine->>Skill: Create Learned Skill
+        Skill-->>Engine: Skill Created
+    end
+
+    Note over Engine: Future Session
+
+    Dev->>Suggest: Current Context
+    Suggest->>Skill: Search Skills
+    Skill-->>Suggest: Relevant Skills
+    Suggest-->>Dev: Proactive Suggestions
 ```
 
 ### Core Components
@@ -521,4 +609,3 @@ class IntelligenceEngine:
 
 - [Hooks System](hooks_system.md) - Pattern extraction via POST_CHECKPOINT hook
 - [Causal Chains](causal_chains.md) - Error pattern learning
-<!-- - [Workflow Metrics](workflow_metrics.md) - Success rate tracking (archived) -->

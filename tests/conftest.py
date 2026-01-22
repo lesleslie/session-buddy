@@ -992,10 +992,20 @@ async def temp_working_dir():
 
 # Settings mock fixture to avoid configuration loading issues
 @pytest.fixture(autouse=True)
-def mock_settings():
-    """Mock settings to avoid loading actual configuration."""
+def mock_settings(tmp_path):
+    """Mock settings to avoid loading actual configuration.
+
+    Uses pytest's tmp_path fixture to ensure each test gets a unique
+    database path, avoiding DuckDB file lock conflicts between tests.
+    """
     from pathlib import Path
     from unittest.mock import Mock, patch
+
+    # Use pytest's tmp_path for unique per-test database path
+    test_data_dir = tmp_path / "session-buddy-data"
+    test_data_dir.mkdir(exist_ok=True)
+    test_log_dir = tmp_path / "session-buddy-logs"
+    test_log_dir.mkdir(exist_ok=True)
 
     with patch("session_buddy.settings.SessionMgmtSettings") as mock_settings_class:
         mock_settings_instance = Mock()
@@ -1003,9 +1013,9 @@ def mock_settings():
         mock_settings_instance.server_description = "Test configuration for Session Buddy MCP server"
         mock_settings_instance.log_level = "INFO"
         mock_settings_instance.enable_debug_mode = False
-        mock_settings_instance.data_dir = Path("/tmp/test-session-buddy-data")
-        mock_settings_instance.log_dir = Path("/tmp/test-session-buddy-logs")
-        mock_settings_instance.database_path = Path("/tmp/test-session-buddy-data/reflection.duckdb")
+        mock_settings_instance.data_dir = test_data_dir
+        mock_settings_instance.log_dir = test_log_dir
+        mock_settings_instance.database_path = test_data_dir / "reflection.duckdb"
         mock_settings_instance.database_connection_timeout = 30
         mock_settings_instance.database_query_timeout = 120
         mock_settings_instance.database_max_connections = 10
@@ -1095,8 +1105,13 @@ def mock_settings():
             ".idea",
             ".vscode",
         ]
-        # Set up the mock to return the instance when load is called
-        mock_settings_class.load.return_value = mock_settings_instance
+        # Insight extraction settings
+        mock_settings_instance.enable_insight_extraction = True
+        mock_settings_instance.insight_extraction_confidence_threshold = 0.3
+        mock_settings_instance.insight_extraction_max_per_checkpoint = 10
+        # Set up the mock to return the instance when load is called OR directly instantiated
+        mock_settings_class.return_value = mock_settings_instance  # For SessionMgmtSettings()
+        mock_settings_class.load.return_value = mock_settings_instance  # For SessionMgmtSettings.load()
         # Also mock model_validate to return the instance when called with test data
         def mock_model_validate(data, **kwargs):
             result = Mock()

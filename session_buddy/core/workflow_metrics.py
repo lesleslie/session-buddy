@@ -126,9 +126,9 @@ class WorkflowMetricsStore:
         import os
 
         self.db_path = os.path.expanduser(db_path)
-        self._conn: duckdb.DuckDBConnection | None = None  # type: ignore[attr-defined]
+        self._conn: Any = None
 
-    def _get_conn(self) -> duckdb.DuckDBConnection:  # type: ignore[attr-defined]
+    def _get_conn(self) -> Any:
         """Get or create database connection."""
         if self._conn is None:
             self._conn = duckdb.connect(self.db_path)  # type: ignore[attr-defined]
@@ -383,8 +383,7 @@ class WorkflowMetricsStore:
             return "improving"
         elif slope < -0.5:
             return "declining"
-        else:
-            return "stable"
+        return "stable"
 
     async def _find_most_productive_time_of_day(
         self, where_sql: str, params: list[Any]
@@ -412,7 +411,7 @@ class WorkflowMetricsStore:
         ).fetchone()
 
         if result and result[0]:
-            return result[0]
+            return str(result[0])
 
         return "unknown"
 
@@ -611,7 +610,9 @@ class WorkflowMetricsEngine:
             return None
 
         # Return language with most edits
-        return max(extension_counts, key=extension_counts.get)  # type: ignore[arg-type]
+        if extension_counts:
+            return max(extension_counts.keys(), key=lambda x: extension_counts[x])
+        return None
 
     def _classify_time_of_day(self, timestamp: datetime) -> str:
         """Classify timestamp into time of day category.
@@ -630,8 +631,7 @@ class WorkflowMetricsEngine:
             return "afternoon"
         elif 17 <= hour < 21:
             return "evening"
-        else:
-            return "night"
+        return "night"
 
     async def get_workflow_metrics(
         self,
@@ -677,4 +677,4 @@ def get_workflow_metrics_engine() -> WorkflowMetricsEngine:
     engine = depends.get_sync(WorkflowMetricsEngine)
     if engine is None:
         engine = WorkflowMetricsEngine()
-    return engine
+    return engine  # type: ignore[no-any-return]

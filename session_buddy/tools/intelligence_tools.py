@@ -375,7 +375,7 @@ async def capture_successful_pattern(
     except Exception as e:
         return {
             "success": False,
-            "error": f"Failed to capture pattern: {str(e)}",
+            "error": f"Failed to capture pattern: {e}",
         }
 
 
@@ -461,7 +461,7 @@ async def search_similar_patterns(
     except Exception as e:
         return {
             "success": False,
-            "error": f"Failed to search patterns: {str(e)}",
+            "error": f"Failed to search patterns: {e}",
         }
 
 
@@ -536,7 +536,7 @@ async def apply_pattern(
     except Exception as e:
         return {
             "success": False,
-            "error": f"Failed to apply pattern: {str(e)}",
+            "error": f"Failed to apply pattern: {e}",
         }
 
 
@@ -605,5 +605,5 @@ async def rate_pattern_outcome(
     except Exception as e:
         return {
             "success": False,
-            "error": f"Failed to rate outcome: {str(e)}",
+            "error": f"Failed to rate outcome: {e}",
         }

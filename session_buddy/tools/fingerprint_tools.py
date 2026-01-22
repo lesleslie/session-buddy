@@ -190,10 +190,8 @@ async def fingerprint_search(
         return {
             "success": True,
             "results": all_results,
-            "conversation_results": conversation_results
-            if conversation_results
-            else [],
-            "reflection_results": reflection_results if reflection_results else [],
+            "conversation_results": conversation_results,
+            "reflection_results": reflection_results,
             "total_results": len(all_results),
             "message": f"Found {len(all_results)} similar items using fingerprint search",
             "threshold_used": threshold,
@@ -226,27 +224,8 @@ async def deduplication_stats(
         threshold: Similarity threshold for duplicate detection
 
     Returns:
-        Dictionary with:
-        - success: True if analysis completed
-        - total_conversations: Total number of conversations
-        - total_reflections: Total number of reflections
-        - duplicate_conversations: Number of duplicate conversations
-        - duplicate_reflections: Number of duplicate reflections
-        - duplicate_rate: Percentage of content that is duplicated
-        - storage_saved_bytes: Estimated storage saved by deduplication
-        - message: Human-readable summary
+        Dictionary with deduplication statistics
 
-    Examples:
-        >>> await deduplication_stats(threshold=0.90)
-        {
-            "success": True,
-            "total_conversations": 100,
-            "total_reflections": 250,
-            "duplicate_conversations": 15,
-            "duplicate_reflections": 40,
-            "duplicate_rate": 18.6,
-            "message": "18.6% of content is duplicated at 0.90 threshold"
-        }
     """
     try:
         from session_buddy.adapters.reflection_adapter_oneiric import (
@@ -257,131 +236,189 @@ async def deduplication_stats(
             collection_name=collection_name
         ) as db:
             # Get total counts
-            conv_total_result = db.conn.execute(
-                f"SELECT COUNT(*) FROM {collection_name}_conversations"
-            ).fetchone()
-            total_conversations = conv_total_result[0] if conv_total_result else 0
+            total_conversations = _get_table_count(db, collection_name, "conversations")
+            total_reflections = _get_table_count(db, collection_name, "reflections")
 
-            refl_total_result = db.conn.execute(
-                f"SELECT COUNT(*) FROM {collection_name}_reflections"
-            ).fetchone()
-            total_reflections = refl_total_result[0] if refl_total_result else 0
-
-            # Check for duplicates in conversations
-            # This is expensive for large databases, so we sample if needed
-            duplicate_conversations = 0
-            duplicate_reflections = 0
-
-            # Get all conversations and check for duplicates
-            conv_result = db.conn.execute(
-                f"""
-                SELECT id, content, fingerprint
-                FROM {collection_name}_conversations
-                WHERE fingerprint IS NOT NULL
-                """
-            ).fetchall()
-
-            seen_fingerprints = set()
-            for row in conv_result:
-                _ = row[0]  # content_id (unused)
-                _ = row[1]  # content (unused)
-                fingerprint_bytes = row[2]
-
-                if not fingerprint_bytes:
-                    continue
-
-                # Check if this fingerprint is similar to any seen fingerprint
-                try:
-                    fingerprint = MinHashSignature.from_bytes(fingerprint_bytes)
-                    is_duplicate = False
-
-                    for seen_fp_bytes in seen_fingerprints:
-                        seen_fp = MinHashSignature.from_bytes(seen_fp_bytes)
-                        similarity = fingerprint.estimate_jaccard_similarity(seen_fp)
-                        if similarity >= threshold:
-                            is_duplicate = True
-                            break
-
-                    if is_duplicate:
-                        duplicate_conversations += 1
-                    else:
-                        seen_fingerprints.add(fingerprint_bytes)
-
-                except Exception:
-                    continue
-
-            # Get all reflections and check for duplicates
-            refl_result = db.conn.execute(
-                f"""
-                SELECT id, content, fingerprint
-                FROM {collection_name}_reflections
-                WHERE fingerprint IS NOT NULL
-                """
-            ).fetchall()
-
-            seen_fingerprints = set()
-            for row in refl_result:
-                _ = row[0]  # content_id (unused)
-                _ = row[1]  # content (unused)
-                fingerprint_bytes = row[2]
-
-                if not fingerprint_bytes:
-                    continue
-
-                try:
-                    fingerprint = MinHashSignature.from_bytes(fingerprint_bytes)
-                    is_duplicate = False
-
-                    for seen_fp_bytes in seen_fingerprints:
-                        seen_fp = MinHashSignature.from_bytes(seen_fp_bytes)
-                        similarity = fingerprint.estimate_jaccard_similarity(seen_fp)
-                        if similarity >= threshold:
-                            is_duplicate = True
-                            break
-
-                    if is_duplicate:
-                        duplicate_reflections += 1
-                    else:
-                        seen_fingerprints.add(fingerprint_bytes)
-
-                except Exception:
-                    continue
-
-            total_items = total_conversations + total_reflections
-            total_duplicates = duplicate_conversations + duplicate_reflections
-            duplicate_rate = (
-                (total_duplicates / total_items * 100) if total_items > 0 else 0
+            # Count duplicates in each table
+            duplicate_conversations = await _count_duplicates_in_table(
+                db, collection_name, "conversations", threshold
+            )
+            duplicate_reflections = await _count_duplicates_in_table(
+                db, collection_name, "reflections", threshold
             )
 
-            return {
-                "success": True,
-                "total_conversations": total_conversations,
-                "total_reflections": total_reflections,
-                "total_items": total_items,
-                "duplicate_conversations": duplicate_conversations,
-                "duplicate_reflections": duplicate_reflections,
-                "total_duplicates": total_duplicates,
-                "duplicate_rate": round(duplicate_rate, 2),
-                "threshold_used": threshold,
-                "message": f"{duplicate_rate:.1f}% of content ({total_duplicates}/{total_items} items) is duplicated at {threshold:.2f} threshold",
-            }
+            return _format_stats_result(
+                total_conversations,
+                total_reflections,
+                duplicate_conversations,
+                duplicate_reflections,
+                threshold,
+            )
 
     except Exception as e:
         logger.error(f"Error computing deduplication stats: {e}")
-        return {
-            "success": False,
-            "total_conversations": 0,
-            "total_reflections": 0,
-            "total_items": 0,
-            "duplicate_conversations": 0,
-            "duplicate_reflections": 0,
-            "total_duplicates": 0,
-            "duplicate_rate": 0,
-            "message": f"Error computing deduplication stats: {e}",
-        }
+        return _format_stats_error(str(e))
 
 
-async def deduplicate_content(  # noqa: C901
+def _get_table_count(
+    db: Any,
+    collection_name: str,
+    table_name: str,
+) -> int:
+    """Get total count from a table.
+
+    Args:
+        db: Database adapter
+        collection_name: Collection name
+        table_name: Table name
+
+    Returns:
+        Total count
+
+    """
+    result = db.conn.execute(
+        f"SELECT COUNT(*) FROM {collection_name}_{table_name}"
+    ).fetchone()
+    return result[0] if result else 0
+
+
+async def _count_duplicates_in_table(
+    db: Any,
+    collection_name: str,
+    table_name: str,
+    threshold: float,
+) -> int:
+    """Count duplicates in a specific table.
+
+    Args:
+        db: Database adapter
+        collection_name: Collection name
+        table_name: Table name
+        threshold: Similarity threshold
+
+    Returns:
+        Number of duplicates found
+
+    """
+    result = db.conn.execute(
+        f"""
+        SELECT fingerprint
+        FROM {collection_name}_{table_name}
+        WHERE fingerprint IS NOT NULL
+        """
+    ).fetchall()
+
+    seen_fingerprints: set[bytes] = set()
+    duplicate_count = 0
+
+    for row in result:
+        fingerprint_bytes = row[0]
+
+        if not fingerprint_bytes:
+            continue
+
+        try:
+            if _is_duplicate_fingerprint(
+                fingerprint_bytes, seen_fingerprints, threshold
+            ):
+                duplicate_count += 1
+            else:
+                seen_fingerprints.add(fingerprint_bytes)
+        except Exception:
+            continue
+
+    return duplicate_count
+
+
+def _is_duplicate_fingerprint(
+    fingerprint_bytes: bytes,
+    seen_fingerprints: set[bytes],
+    threshold: float,
+) -> bool:
+    """Check if a fingerprint is a duplicate.
+
+    Args:
+        fingerprint_bytes: Fingerprint bytes to check
+        seen_fingerprints: Set of seen fingerprint bytes
+        threshold: Similarity threshold
+
+    Returns:
+        True if duplicate, False otherwise
+
+    """
+    fingerprint = MinHashSignature.from_bytes(fingerprint_bytes)
+
+    for seen_fp_bytes in seen_fingerprints:
+        seen_fp = MinHashSignature.from_bytes(seen_fp_bytes)
+        similarity = fingerprint.estimate_jaccard_similarity(seen_fp)
+        if similarity >= threshold:
+            return True
+
+    return False
+
+
+def _format_stats_result(
+    total_conversations: int,
+    total_reflections: int,
+    duplicate_conversations: int,
+    duplicate_reflections: int,
+    threshold: float,
+) -> dict[str, t.Any]:
+    """Format deduplication statistics result.
+
+    Args:
+        total_conversations: Total conversation count
+        total_reflections: Total reflection count
+        duplicate_conversations: Duplicate conversation count
+        duplicate_reflections: Duplicate reflection count
+        threshold: Threshold used
+
+    Returns:
+        Formatted statistics dictionary
+
+    """
+    total_items = total_conversations + total_reflections
+    total_duplicates = duplicate_conversations + duplicate_reflections
+    duplicate_rate = (total_duplicates / total_items * 100) if total_items > 0 else 0
+
+    return {
+        "success": True,
+        "total_conversations": total_conversations,
+        "total_reflections": total_reflections,
+        "total_items": total_items,
+        "duplicate_conversations": duplicate_conversations,
+        "duplicate_reflections": duplicate_reflections,
+        "total_duplicates": total_duplicates,
+        "duplicate_rate": round(duplicate_rate, 2),
+        "threshold_used": threshold,
+        "message": f"{duplicate_rate:.1f}% of content ({total_duplicates}/{total_items} items) is duplicated at {threshold:.2f} threshold",
+    }
+
+
+def _format_stats_error(error_message: str) -> dict[str, t.Any]:
+    """Format deduplication stats error result.
+
+    Args:
+        error_message: The error message
+
+    Returns:
+        Formatted error dictionary
+
+    """
+    return {
+        "success": False,
+        "total_conversations": 0,
+        "total_reflections": 0,
+        "total_items": 0,
+        "duplicate_conversations": 0,
+        "duplicate_reflections": 0,
+        "total_duplicates": 0,
+        "duplicate_rate": 0,
+        "message": f"Error computing deduplication stats: {error_message}",
+    }
+
+
+async def deduplicate_content(
     content_type: t.Literal["conversation", "reflection", "both"] = "both",
     threshold: float = 0.85,
     dry_run: bool = True,
@@ -400,30 +437,8 @@ async def deduplicate_content(  # noqa: C901
         collection_name: Name of the collection
 
     Returns:
-        Dictionary with:
-        - success: True if operation completed
-        - duplicates_removed: Number of duplicates removed (or would be removed)
-        - ids_removed: List of IDs removed (or would be removed)
-        - space_saved_bytes: Estimated storage saved
-        - message: Human-readable summary
+        Dictionary with deduplication results
 
-    Examples:
-        >>> # Preview what would be deleted
-        >>> await deduplicate_content(threshold=0.90, dry_run=True)
-        {
-            "success": True,
-            "duplicates_removed": 5,
-            "ids_removed": ["abc123", "def456", ...],
-            "message": "Would remove 5 duplicates (dry run)"
-        }
-
-        >>> # Actually delete duplicates
-        >>> await deduplicate_content(threshold=0.90, dry_run=False)
-        {
-            "success": True,
-            "duplicates_removed": 5,
-            "message": "Removed 5 duplicates"
-        }
     """
     try:
         from session_buddy.adapters.reflection_adapter_oneiric import (
@@ -433,147 +448,234 @@ async def deduplicate_content(  # noqa: C901
         async with ReflectionDatabaseAdapterOneiric(
             collection_name=collection_name
         ) as db:
-            all_ids_to_remove = []
-
-            # Deduplicate conversations
-            if content_type in ["conversation", "both"]:
-                conv_result = db.conn.execute(
-                    f"""
-                    SELECT id, content, fingerprint
-                    FROM {collection_name}_conversations
-                    WHERE fingerprint IS NOT NULL
-                    ORDER BY created_at ASC
-                    """
-                ).fetchall()
-
-                seen_fingerprints = set()
-                for row in conv_result:
-                    content_id = row[0]
-                    _ = row[1]  # content (unused)
-                    fingerprint_bytes = row[2]
-
-                    if not fingerprint_bytes:
-                        continue
-
-                    try:
-                        fingerprint = MinHashSignature.from_bytes(fingerprint_bytes)
-                        is_duplicate = False
-
-                        for seen_fp_bytes in seen_fingerprints:
-                            seen_fp = MinHashSignature.from_bytes(seen_fp_bytes)
-                            similarity = fingerprint.estimate_jaccard_similarity(
-                                seen_fp
-                            )
-                            if similarity >= threshold:
-                                is_duplicate = True
-                                break
-
-                        if is_duplicate:
-                            all_ids_to_remove.append(
-                                {"id": content_id, "type": "conversation"}
-                            )
-                        else:
-                            seen_fingerprints.add(fingerprint_bytes)
-
-                    except Exception:
-                        continue
-
-            # Deduplicate reflections
-            if content_type in ["reflection", "both"]:
-                refl_result = db.conn.execute(
-                    f"""
-                    SELECT id, content, fingerprint
-                    FROM {collection_name}_reflections
-                    WHERE fingerprint IS NOT NULL
-                    ORDER BY created_at ASC
-                    """
-                ).fetchall()
-
-                seen_fingerprints = set()
-                for row in refl_result:
-                    content_id = row[0]
-                    _ = row[1]  # content (unused)
-                    fingerprint_bytes = row[2]
-
-                    if not fingerprint_bytes:
-                        continue
-
-                    try:
-                        fingerprint = MinHashSignature.from_bytes(fingerprint_bytes)
-                        is_duplicate = False
-
-                        for seen_fp_bytes in seen_fingerprints:
-                            seen_fp = MinHashSignature.from_bytes(seen_fp_bytes)
-                            similarity = fingerprint.estimate_jaccard_similarity(
-                                seen_fp
-                            )
-                            if similarity >= threshold:
-                                is_duplicate = True
-                                break
-
-                        if is_duplicate:
-                            all_ids_to_remove.append(
-                                {"id": content_id, "type": "reflection"}
-                            )
-                        else:
-                            seen_fingerprints.add(fingerprint_bytes)
-
-                    except Exception:
-                        continue
-
-            total_duplicates = len(all_ids_to_remove)
+            all_ids_to_remove = await _find_duplicate_content(
+                db, content_type, threshold, collection_name
+            )
 
             if dry_run:
-                return {
-                    "success": True,
-                    "duplicates_removed": total_duplicates,
-                    "ids_removed": [item["id"] for item in all_ids_to_remove],
-                    "details": all_ids_to_remove,
-                    "space_saved_bytes": total_duplicates * 512,  # Approximate
-                    "message": f"[DRY RUN] Would remove {total_duplicates} duplicates at threshold {threshold:.2f}",
-                }
-
-            # Actually delete the duplicates
-            duplicates_removed = 0
-            ids_removed = []
-
-            for item in all_ids_to_remove:
-                item_id = item["id"]
-                item_type = item["type"]
-
-                try:
-                    if item_type == "conversation":
-                        db.conn.execute(
-                            f"DELETE FROM {collection_name}_conversations WHERE id = ?",
-                            [item_id],
-                        )
-                    else:  # reflection
-                        db.conn.execute(
-                            f"DELETE FROM {collection_name}_reflections WHERE id = ?",
-                            [item_id],
-                        )
-
-                    duplicates_removed += 1
-                    ids_removed.append(item_id)
-
-                except Exception as e:
-                    logger.warning(f"Failed to delete {item_type} {item_id}: {e}")
-                    continue
-
-            return {
-                "success": True,
-                "duplicates_removed": duplicates_removed,
-                "ids_removed": ids_removed,
-                "space_saved_bytes": duplicates_removed * 512,  # Approximate
-                "message": f"Removed {duplicates_removed} duplicates at threshold {threshold:.2f}",
-            }
+                return _format_dedup_dry_run_result(all_ids_to_remove, threshold)
+            else:
+                return await _delete_duplicate_content(
+                    db, all_ids_to_remove, collection_name, threshold
+                )
 
     except Exception as e:
         logger.error(f"Error deduplicating content: {e}")
-        return {
-            "success": False,
-            "duplicates_removed": 0,
-            "ids_removed": [],
-            "space_saved_bytes": 0,
-            "message": f"Error deduplicating content: {e}",
-        }
+        return _format_deduplication_error(str(e))
+
+
+async def _find_duplicate_content(
+    db: Any,
+    content_type: str,
+    threshold: float,
+    collection_name: str,
+) -> list[dict[str, t.Any]]:
+    """Find duplicate content in database.
+
+    Args:
+        db: Database adapter
+        content_type: Type of content to check
+        threshold: Similarity threshold
+        collection_name: Collection name
+
+    Returns:
+        List of duplicate items with id and type
+
+    """
+    all_ids_to_remove = []
+
+    # Deduplicate conversations
+    if content_type in ("conversation", "both"):
+        conv_duplicates = await _find_duplicates_in_table(
+            db, collection_name, "conversations", threshold
+        )
+        all_ids_to_remove.extend(conv_duplicates)
+
+    # Deduplicate reflections
+    if content_type in ("reflection", "both"):
+        refl_duplicates = await _find_duplicates_in_table(
+            db, collection_name, "reflections", threshold
+        )
+        all_ids_to_remove.extend(refl_duplicates)
+
+    return all_ids_to_remove
+
+
+async def _find_duplicates_in_table(
+    db: Any,
+    collection_name: str,
+    table_name: str,
+    threshold: float,
+) -> list[dict[str, t.Any]]:
+    """Find duplicates in a specific table.
+
+    Args:
+        db: Database adapter
+        collection_name: Collection name
+        table_name: "conversations" or "reflections"
+        threshold: Similarity threshold
+
+    Returns:
+        List of duplicate items
+
+    """
+    result = db.conn.execute(
+        f"""
+        SELECT id, content, fingerprint
+        FROM {collection_name}_{table_name}
+        WHERE fingerprint IS NOT NULL
+        ORDER BY created_at ASC
+        """
+    ).fetchall()
+
+    seen_fingerprints: set[bytes] = set()
+    duplicates = []
+
+    for row in result:
+        content_id = row[0]
+        fingerprint_bytes = row[2]
+
+        if not fingerprint_bytes:
+            continue
+
+        try:
+            is_duplicate = _check_if_duplicate(
+                fingerprint_bytes, seen_fingerprints, threshold
+            )
+
+            if is_duplicate:
+                duplicates.append(
+                    {"id": content_id, "type": table_name[:-1]}
+                )  # Remove 's'
+            else:
+                seen_fingerprints.add(fingerprint_bytes)
+
+        except Exception:
+            continue
+
+    return duplicates
+
+
+def _check_if_duplicate(
+    fingerprint_bytes: bytes,
+    seen_fingerprints: set[bytes],
+    threshold: float,
+) -> bool:
+    """Check if a fingerprint is a duplicate.
+
+    Args:
+        fingerprint_bytes: Fingerprint bytes to check
+        seen_fingerprints: Set of seen fingerprint bytes
+        threshold: Similarity threshold
+
+    Returns:
+        True if duplicate, False otherwise
+
+    """
+    fingerprint = MinHashSignature.from_bytes(fingerprint_bytes)
+
+    for seen_fp_bytes in seen_fingerprints:
+        seen_fp = MinHashSignature.from_bytes(seen_fp_bytes)
+        similarity = fingerprint.estimate_jaccard_similarity(seen_fp)
+
+        if similarity >= threshold:
+            return True
+
+    return False
+
+
+def _format_dedup_dry_run_result(
+    all_ids_to_remove: list[dict[str, t.Any]],
+    threshold: float,
+) -> dict[str, t.Any]:
+    """Format dry run deduplication result.
+
+    Args:
+        all_ids_to_remove: List of items to remove
+        threshold: Threshold used
+
+    Returns:
+        Formatted result dictionary
+
+    """
+    total_duplicates = len(all_ids_to_remove)
+    return {
+        "success": True,
+        "duplicates_removed": total_duplicates,
+        "ids_removed": [item["id"] for item in all_ids_to_remove],
+        "details": all_ids_to_remove,
+        "space_saved_bytes": total_duplicates * 512,  # Approximate
+        "message": f"[DRY RUN] Would remove {total_duplicates} duplicates at threshold {threshold:.2f}",
+    }
+
+
+async def _delete_duplicate_content(
+    db: Any,
+    all_ids_to_remove: list[dict[str, t.Any]],
+    collection_name: str,
+    threshold: float,
+) -> dict[str, t.Any]:
+    """Delete duplicate content from database.
+
+    Args:
+        db: Database adapter
+        all_ids_to_remove: List of items to delete
+        collection_name: Collection name
+        threshold: Threshold used
+
+    Returns:
+        Result dictionary with deletion statistics
+
+    """
+    duplicates_removed = 0
+    ids_removed = []
+
+    for item in all_ids_to_remove:
+        item_id = item["id"]
+        item_type = item["type"]
+
+        try:
+            if item_type == "conversation":
+                db.conn.execute(
+                    f"DELETE FROM {collection_name}_conversations WHERE id = ?",
+                    [item_id],
+                )
+            else:  # reflection
+                db.conn.execute(
+                    f"DELETE FROM {collection_name}_reflections WHERE id = ?",
+                    [item_id],
+                )
+
+            duplicates_removed += 1
+            ids_removed.append(item_id)
+
+        except Exception as e:
+            logger.warning(f"Failed to delete {item_type} {item_id}: {e}")
+            continue
+
+    return {
+        "success": True,
+        "duplicates_removed": duplicates_removed,
+        "ids_removed": ids_removed,
+        "space_saved_bytes": duplicates_removed * 512,  # Approximate
+        "message": f"Removed {duplicates_removed} duplicates at threshold {threshold:.2f}",
+    }
+
+
+def _format_deduplication_error(error_message: str) -> dict[str, t.Any]:
+    """Format deduplication error result.
+
+    Args:
+        error_message: The error message
+
+    Returns:
+        Formatted error dictionary
+
+    """
+    return {
+        "success": False,
+        "duplicates_removed": 0,
+        "ids_removed": [],
+        "space_saved_bytes": 0,
+        "message": f"Error deduplicating content: {error_message}",
+    }

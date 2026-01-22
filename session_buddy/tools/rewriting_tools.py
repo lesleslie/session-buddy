@@ -118,7 +118,7 @@ async def rewrite_query(
         return json.dumps(
             {
                 "success": False,
-                "error": f"Query rewriting failed: {str(e)}",
+                "error": f"Query rewriting failed: {e}",
                 "query": query,
             },
             indent=2,
@@ -151,51 +151,111 @@ async def query_rewrite_stats(
 
         rewriter = depends.get_sync("QueryRewriter")
         if not rewriter:
-            return json.dumps(
-                {
-                    "success": False,
-                    "error": "Query rewriter not initialized. Start a session first.",
-                },
-                indent=2,
+            return _format_error_response(
+                "Query rewriter not initialized. Start a session first."
             )
 
-        # Get statistics
         stats = rewriter.get_stats()
-
-        # Add interpretation
-        cache_hit_rate = stats["cache_hit_rate"] if stats["total_rewrites"] > 0 else 0.0
+        health = _calculate_rewrite_health(stats)
 
         return json.dumps(
             {
                 "success": True,
                 "stats": stats,
-                "health": {
-                    "cache_hit_rate_category": "Excellent"
-                    if cache_hit_rate > 0.7
-                    else "Good"
-                    if cache_hit_rate > 0.5
-                    else "Needs warming",
-                    "llm_reliability": "Good"
-                    if stats["llm_failures"] == 0
-                    else "Some failures"
-                    if stats["llm_failures"] < 10
-                    else "High failure rate",
-                    "avg_latency_category": "Excellent"
-                    if stats["avg_latency_ms"] < 100
-                    else "Good"
-                    if stats["avg_latency_ms"] < 200
-                    else "Slow",
-                    "total_rewrites": stats["total_rewrites"],
-                },
+                "health": health,
             },
             indent=2,
         )
 
     except Exception as e:
-        return json.dumps(
-            {
-                "success": False,
-                "error": f"Failed to retrieve rewrite stats: {str(e)}",
-            },
-            indent=2,
-        )
+        return _format_error_response(f"Failed to retrieve rewrite stats: {e}")
+
+
+def _format_error_response(error_message: str) -> str:
+    """Format an error response as JSON.
+
+    Args:
+        error_message: The error message
+
+    Returns:
+        JSON-formatted error response
+
+    """
+    return json.dumps(
+        {
+            "success": False,
+            "error": error_message,
+        },
+        indent=2,
+    )
+
+
+def _calculate_rewrite_health(stats: dict[str, Any]) -> dict[str, Any]:
+    """Calculate health metrics from rewrite statistics.
+
+    Args:
+        stats: Statistics dictionary from QueryRewriter
+
+    Returns:
+        Health assessment with categories
+
+    """
+    cache_hit_rate = stats["cache_hit_rate"] if stats["total_rewrites"] > 0 else 0.0
+
+    return {
+        "cache_hit_rate_category": _categorize_cache_hit_rate(cache_hit_rate),
+        "llm_reliability": _categorize_llm_reliability(stats["llm_failures"]),
+        "avg_latency_category": _categorize_latency(stats["avg_latency_ms"]),
+        "total_rewrites": stats["total_rewrites"],
+    }
+
+
+def _categorize_cache_hit_rate(rate: float) -> str:
+    """Categorize cache hit rate.
+
+    Args:
+        rate: Cache hit rate (0.0 to 1.0)
+
+    Returns:
+        Category string
+
+    """
+    if rate > 0.7:
+        return "Excellent"
+    if rate > 0.5:
+        return "Good"
+    return "Needs warming"
+
+
+def _categorize_llm_reliability(failures: int) -> str:
+    """Categorize LLM reliability based on failure count.
+
+    Args:
+        failures: Number of LLM failures
+
+    Returns:
+        Category string
+
+    """
+    if failures == 0:
+        return "Good"
+    if failures < 10:
+        return "Some failures"
+    return "High failure rate"
+
+
+def _categorize_latency(latency_ms: float) -> str:
+    """Categorize latency.
+
+    Args:
+        latency_ms: Average latency in milliseconds
+
+    Returns:
+        Category string
+
+    """
+    if latency_ms < 100:
+        return "Excellent"
+    if latency_ms < 200:
+        return "Good"
+    return "Slow"

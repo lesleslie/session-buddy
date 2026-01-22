@@ -550,4 +550,4 @@ class CausalChainTracker:
         # Cache for future use
         self._embedding_cache[text] = embedding
 
-        return embedding
+        return embedding  # type: ignore[no-any-return]

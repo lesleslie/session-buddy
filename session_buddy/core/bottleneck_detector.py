@@ -139,7 +139,7 @@ class BottleneckDetector:
 
         self.db_path = os.path.expanduser(db_path)
         self.logger = logger or logging.getLogger(__name__)
-        self._conn: duckdb.DuckDBConnection | None = None  # type: ignore[attr-defined]
+        self._conn: Any = None
 
         # Bottleneck thresholds
         self.QUALITY_DROP_THRESHOLD = -10  # Quality delta < -10 is sudden drop
@@ -149,7 +149,7 @@ class BottleneckDetector:
         self.FRAGMENTED_SESSION_THRESHOLD = 15  # <15 minutes is fragmented
         self.CHECKPOINT_FREQUENCY_THRESHOLD = 0.1  # Checkpoints per 10 minutes
 
-    def _get_conn(self) -> duckdb.DuckDBConnection:  # type: ignore[attr-defined]
+    def _get_conn(self) -> Any:
         """Get or create database connection."""
         if self._conn is None:
             self._conn = duckdb.connect(self.db_path)  # type: ignore[attr-defined]
@@ -696,4 +696,4 @@ def get_bottleneck_detector() -> BottleneckDetector:
     detector = depends.get_sync(BottleneckDetector)
     if detector is None:
         detector = BottleneckDetector()
-    return detector
+    return detector  # type: ignore[no-any-return]

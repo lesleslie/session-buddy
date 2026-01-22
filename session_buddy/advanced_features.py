@@ -100,7 +100,7 @@ async def create_natural_reminder(
         )
 
         if reminder_id:
-            output = []
+            output: list[str] = []
             output.extend(
                 (
                     "⏰ Natural reminder created successfully!",
@@ -165,7 +165,7 @@ async def cancel_user_reminder(reminder_id: str) -> str:
         success = await _cancel_user_reminder(reminder_id)
 
         if success:
-            output = []
+            output: list[str] = []
             output.extend(
                 (
                     "❌ Reminder cancelled successfully!",
@@ -219,7 +219,7 @@ async def start_reminder_service() -> str:
         # Start the service
         _start_reminder_service()
 
-        output = []
+        output: list[str] = []
         output.extend(
             (
                 "🚀 Natural reminder service started!",
@@ -246,7 +246,7 @@ async def stop_reminder_service() -> str:
 
         _stop_reminder_service()
 
-        output = []
+        output: list[str] = []
         output.extend(
             (
                 "🛑 Natural reminder service stopped",
@@ -853,7 +853,7 @@ async def session_welcome() -> str:
     if not _connection_info:
         return "ℹ️ Session information not available (may not be a git repository)"
 
-    output = []
+    output: list[str] = []
     output.extend(("🚀 Session Management Connected!", "=" * 40))
 
     # Current session info

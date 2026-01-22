@@ -49,6 +49,61 @@ ______________________________________________________________________
    - Add migration notes for Oneiric conversion
    - Update API documentation for new implementations
 
+### Migration Timeline Visualization
+
+```mermaid
+gantt
+    title Oneiric + mcp-common Migration Timeline
+    dateFormat YYYY-MM-DD
+    axisFormat %m/%d
+
+    section Preparation
+    Phase 0: Alignment & Baselines   :done, p0, 2024-01-15, 1d
+
+    section Core Migration
+    Phase 1: CLI Factory Adoption     :done, p1, 2024-12-28, 1d
+    Phase 2: Runtime Snapshots        :done, p2, after p1, 1d
+    Phase 3: Settings Migration       :done, p3, after p2, 1d
+
+    section Infrastructure
+    Phase 4: DI Conversion            :done, p4, 2024-12-26, 3d
+    Phase 5: Adapter Conversion       :done, p5, after p4, 2d
+
+    section Validation
+    Phase 6: Testing & Cutover        :done, p6, after p5, 3d
+    Phase 7: Documentation            :active, p7, after p6, 2d
+```
+
+### Migration Phase Dependencies
+
+```mermaid
+graph TD
+    P0[Phase 0:<br/>Alignment] --> P1[Phase 1:<br/>CLI Factory]
+    P1 --> P2[Phase 2:<br/>Snapshots]
+    P2 --> P3[Phase 3:<br/>Settings]
+
+    P0 --> P4[Phase 4:<br/>DI Conversion]
+
+    P3 --> P5[Phase 5:<br/>Adapters]
+    P4 --> P5
+
+    P5 --> P6[Phase 6:<br/>Validation]
+    P6 --> P7[Phase 7:<br/>Documentation]
+
+    P6 -.->|100% Pass| Release[Production<br/>Release]
+    P7 --> Release
+
+    style P0 fill:#c8e6c9
+    style P1 fill:#c8e6c9
+    style P2 fill:#c8e6c9
+    style P3 fill:#c8e6c9
+    style P4 fill:#c8e6c9
+    style P5 fill:#c8e6c9
+    style P6 fill:#fff9c4
+    style P7 fill:#ffccbc
+    style Release fill:#b2dfdb
+```
+
 ### Test Status (last verified 2024-12-28)
 
 - ✅ CLI commands work: `python -m session_buddy status` returns "Server not running"
@@ -359,7 +414,6 @@ Crackerjack-style gates (required before release).
 
 **Documentation Created:**
 - [ONEIRIC_MIGRATION_COMPLETE.md](ONEIRIC_MIGRATION_COMPLETE.md) - User migration guide
-- [../RELEASE_NOTES_ONEIRIC_MIGRATION.md](../RELEASE_NOTES_ONEIRIC_MIGRATION.md) - Release notes
 
 **Status**: Phase 7 documentation complete and ready for release.
 

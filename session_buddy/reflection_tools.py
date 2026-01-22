@@ -314,14 +314,14 @@ class ReflectionDatabase:
                     # Create tables in the shared connection for in-memory DB
                     self._initialize_shared_tables()
                 self.local.conn = self._shared_conn
-            return self._shared_conn
+            return self._shared_conn  # type: ignore[return-value]
 
         # For normal environments, use thread-local storage
         if not hasattr(self.local, "conn") or self.local.conn is None:
             self.local.conn = duckdb.connect(
                 self.db_path, config={"allow_unsigned_extensions": True}
             )
-        return self.local.conn
+        return self.local.conn  # type: ignore[return-value]
 
     def _initialize_shared_tables(self) -> None:
         """Initialize tables in the shared connection for in-memory databases."""

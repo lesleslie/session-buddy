@@ -10,18 +10,19 @@ This module provides Model Context Protocol tools for:
 from __future__ import annotations
 
 import typing as t
+from typing import Any
 
 from session_buddy.core.workflow_metrics import get_workflow_metrics_engine
 
 
-def register_workflow_metrics_tools(server) -> None:
+def register_workflow_metrics_tools(server: Any) -> None:
     """Register workflow metrics MCP tools.
 
     Args:
         server: SessionBuddyServer instance to register tools on
     """
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_workflow_metrics(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -77,7 +78,7 @@ def register_workflow_metrics_tools(server) -> None:
                 "message": "Failed to retrieve workflow metrics",
             }
 
-    @server.tool()
+    @server.tool()  # type: ignore[misc]
     async def get_session_analytics(
         limit: int = 20, sort_by: str = "duration"
     ) -> dict[str, t.Any]:
@@ -144,27 +145,26 @@ def register_workflow_metrics_tools(server) -> None:
                 [limit],
             ).fetchall()
 
-            sessions = []
-            for row in result:
-                sessions.append(
-                    {
-                        "session_id": row[0],
-                        "project_path": row[1],
-                        "started_at": row[2].isoformat() if row[2] else None,
-                        "ended_at": row[3].isoformat() if row[3] else None,
-                        "duration_minutes": row[4],
-                        "checkpoint_count": row[5],
-                        "commit_count": row[6],
-                        "quality_start": row[7],
-                        "quality_end": row[8],
-                        "quality_delta": row[9],
-                        "avg_quality": row[10],
-                        "files_modified": row[11],
-                        "tools_used": list(row[12]) if row[12] else [],
-                        "primary_language": row[13],
-                        "time_of_day": row[14],
-                    }
-                )
+            sessions = [
+                {
+                    "session_id": row[0],
+                    "project_path": row[1],
+                    "started_at": row[2].isoformat() if row[2] else None,
+                    "ended_at": row[3].isoformat() if row[3] else None,
+                    "duration_minutes": row[4],
+                    "checkpoint_count": row[5],
+                    "commit_count": row[6],
+                    "quality_start": row[7],
+                    "quality_end": row[8],
+                    "quality_delta": row[9],
+                    "avg_quality": row[10],
+                    "files_modified": row[11],
+                    "tools_used": list(row[12]) if row[12] else [],
+                    "primary_language": row[13],
+                    "time_of_day": row[14],
+                }
+                for row in result
+            ]
 
             # Get total count
             total_result = conn.execute(
@@ -189,7 +189,7 @@ def register_workflow_metrics_tools(server) -> None:
                 "message": "Failed to retrieve session analytics",
             }
 
-    @server.prompt()
+    @server.prompt()  # type: ignore[misc]
     def workflow_metrics_help() -> str:
         """Get help for workflow metrics and monitoring."""
         return """# Workflow Metrics - Monitoring Guide
@@ -291,7 +291,7 @@ print(f"Project B velocity: {metrics_project_b['avg_velocity_commits_per_hour']:
 """
 
 
-def _generate_workflow_insights(metrics) -> list[str]:
+def _generate_workflow_insights(metrics: Any) -> list[str]:
     """Generate human-readable insights from workflow metrics.
 
     Args:
@@ -356,6 +356,78 @@ def _generate_workflow_insights(metrics) -> list[str]:
     return insights
 
 
+def _generate_quality_insights(sessions: list[dict[str, t.Any]]) -> list[str]:
+    """Generate quality-related insights from sessions."""
+    insights = []
+
+    # Analyze quality distribution
+    high_quality = [s for s in sessions if s.get("avg_quality", 0) >= 80]
+    low_quality = [s for s in sessions if s.get("avg_quality", 0) < 60]
+
+    if high_quality:
+        insights.append(f"✅ {len(high_quality)} high-quality sessions (≥80)")
+    if low_quality:
+        insights.append(f"⚠️ {len(low_quality)} sessions need attention (<60)")
+
+    return insights
+
+
+def _generate_length_insights(sessions: list[dict[str, t.Any]]) -> list[str]:
+    """Generate session length insights from sessions."""
+    insights = []
+
+    # Analyze session length distribution
+    long_sessions = [s for s in sessions if s.get("duration_minutes", 0) > 120]
+    short_sessions = [s for s in sessions if s.get("duration_minutes", 0) < 30]
+
+    if long_sessions:
+        insights.append(f"📊 {len(long_sessions)} marathon sessions (>2 hours)")
+    if short_sessions:
+        insights.append(f"⚡ {len(short_sessions)} quick sessions (<30 min)")
+
+    return insights
+
+
+def _generate_commit_insights(sessions: list[dict[str, t.Any]]) -> list[str]:
+    """Generate commit pattern insights from sessions."""
+    insights = []
+
+    # Analyze commit patterns
+    zero_commits = [s for s in sessions if s.get("commit_count", 0) == 0]
+    high_commits = [s for s in sessions if s.get("commit_count", 0) >= 10]
+
+    if zero_commits:
+        insights.append(f"📝 {len(zero_commits)} sessions with no commits")
+    if high_commits:
+        insights.append(
+            f"🔥 {len(high_commits)} high-commitment sessions (≥10 commits)"
+        )
+
+    return insights
+
+
+def _generate_language_insights(sessions: list[dict[str, t.Any]]) -> list[str]:
+    """Generate language diversity insights from sessions."""
+    insights = []
+
+    # Language diversity
+    languages: dict[str, int] = {}
+    for s in sessions:
+        lang = s.get("primary_language")
+        if lang:
+            languages[lang] = languages.get(lang, 0) + 1
+
+    if languages:
+        languages_dict: dict[str, int] = languages
+        if languages_dict:  # Check if dict is not empty
+            top_lang = max(languages_dict.keys(), key=lambda x: languages_dict[x])
+            insights.append(
+                f"💻 Primary language: {top_lang} ({languages[top_lang]} sessions)"
+            )
+
+    return insights
+
+
 def _generate_session_insights(sessions: list[dict[str, t.Any]]) -> list[str]:
     """Generate insights from session-level analytics.
 
@@ -370,46 +442,10 @@ def _generate_session_insights(sessions: list[dict[str, t.Any]]) -> list[str]:
 
     insights = []
 
-    # Analyze quality distribution
-    high_quality = [s for s in sessions if s.get("avg_quality", 0) >= 80]
-    low_quality = [s for s in sessions if s.get("avg_quality", 0) < 60]
-
-    if high_quality:
-        insights.append(f"✅ {len(high_quality)} high-quality sessions (≥80)")
-    if low_quality:
-        insights.append(f"⚠️ {len(low_quality)} sessions need attention (<60)")
-
-    # Analyze session length distribution
-    long_sessions = [s for s in sessions if s.get("duration_minutes", 0) > 120]
-    short_sessions = [s for s in sessions if s.get("duration_minutes", 0) < 30]
-
-    if long_sessions:
-        insights.append(f"📊 {len(long_sessions)} marathon sessions (>2 hours)")
-    if short_sessions:
-        insights.append(f"⚡ {len(short_sessions)} quick sessions (<30 min)")
-
-    # Analyze commit patterns
-    zero_commits = [s for s in sessions if s.get("commit_count", 0) == 0]
-    high_commits = [s for s in sessions if s.get("commit_count", 0) >= 10]
-
-    if zero_commits:
-        insights.append(f"📝 {len(zero_commits)} sessions with no commits")
-    if high_commits:
-        insights.append(
-            f"🔥 {len(high_commits)} high-commitment sessions (≥10 commits)"
-        )
-
-    # Language diversity
-    languages = {}
-    for s in sessions:
-        lang = s.get("primary_language")
-        if lang:
-            languages[lang] = languages.get(lang, 0) + 1
-
-    if languages:
-        top_lang = max(languages, key=languages.get)  # type: ignore[arg-type]
-        insights.append(
-            f"💻 Primary language: {top_lang} ({languages[top_lang]} sessions)"
-        )
+    # Combine insights from different aspects
+    insights.extend(_generate_quality_insights(sessions))
+    insights.extend(_generate_length_insights(sessions))
+    insights.extend(_generate_commit_insights(sessions))
+    insights.extend(_generate_language_insights(sessions))
 
     return insights
