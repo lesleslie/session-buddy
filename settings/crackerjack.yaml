@@ -1,0 +1,7 @@
+# Crackerjack Configuration for Session Buddy
+# This file configures crackerjack quality tool behavior
+
+# Adapter timeouts (in seconds)
+# Increase refurb timeout from default 480s to 600s (10 minutes)
+adapter_timeouts:
+  refurb_timeout: 600
