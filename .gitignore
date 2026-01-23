@@ -53,6 +53,9 @@ docs/archive/
 *.crackerjack.bak
 crackerjack-debug-*.log
 
+# Skylos cache (mcp_common runtime cache)
+.skylos/
+
 # Temporary directories
 docs (1)/
 settings/local.yaml
