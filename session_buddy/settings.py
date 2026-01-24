@@ -347,6 +347,10 @@ class SessionMgmtSettings(MCPBaseSettings):
         default=None,
         description="Gemini API key (overrides GEMINI_API_KEY/GOOGLE_API_KEY)",
     )
+    qwen_api_key: str | None = Field(
+        default=None,
+        description="Qwen API key (overrides QWEN_API_KEY)",
+    )
 
     # === Logging Settings ===
     log_format: str = Field(
@@ -620,6 +624,7 @@ def get_llm_api_key(provider: str) -> str | None:
         "openai": "openai_api_key",
         "anthropic": "anthropic_api_key",
         "gemini": "gemini_api_key",
+        "qwen": "qwen_api_key",
     }
     field = field_map.get(provider)
     if field is None:

@@ -38,6 +38,7 @@ def get_masked_api_key(provider: str = "openai") -> str:
         "openai": "openai_api_key",
         "anthropic": "anthropic_api_key",
         "gemini": "gemini_api_key",
+        "qwen": "qwen_api_key",
     }
     key_field = key_field_map.get(provider)
     if key_field:
@@ -51,6 +52,8 @@ def get_masked_api_key(provider: str = "openai") -> str:
         api_key = os.getenv("OPENAI_API_KEY")
     elif provider == "gemini":
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    elif provider == "qwen":
+        api_key = os.getenv("QWEN_API_KEY")
     elif provider == "ollama":
         # Ollama is local, no API key needed
         return "N/A (local service)"

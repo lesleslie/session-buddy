@@ -7,6 +7,7 @@ Memori-inspired features support multiple LLM providers. All keys are optional; 
 - OpenAI: set `OPENAI_API_KEY`
 - Anthropic: set `ANTHROPIC_API_KEY`
 - Google Gemini: set `GEMINI_API_KEY` (or `GOOGLE_API_KEY`)
+- Qwen: set `QWEN_API_KEY` (optionally set `QWEN_BASE_URL` and `QWEN_DEFAULT_MODEL`)
 - Ollama: no API key required; ensure the service is running locally
 
 ## Feature Flags (env overrides)
@@ -25,6 +26,9 @@ Example:
 ```bash
 export OPENAI_API_KEY=sk-...
 export ANTHROPIC_API_KEY=sk-ant-...
+export QWEN_API_KEY=sk-...
+export QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+export QWEN_DEFAULT_MODEL=qwen-coder-plus
 export SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION=true  # or 'false' to disable temporarily
 export SESSION_BUDDY_ENABLE_ANTHROPIC=true              # or 'false' to disable temporarily
 ```

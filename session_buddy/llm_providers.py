@@ -62,6 +62,8 @@ def _get_provider_api_key_and_env(
         if os.getenv("GOOGLE_API_KEY"):
             return os.getenv("GOOGLE_API_KEY"), "GOOGLE_API_KEY"
         return None, "GEMINI_API_KEY"
+    if provider == "qwen":
+        return os.getenv("QWEN_API_KEY"), "QWEN_API_KEY"
     if provider == "ollama":
         return None, None
     return None, None
@@ -76,12 +78,16 @@ def _get_configured_providers() -> list[str]:
         providers.add("gemini")
     if get_llm_api_key("anthropic"):
         providers.add("anthropic")
+    if get_llm_api_key("qwen"):
+        providers.add("qwen")
     if os.getenv("OPENAI_API_KEY"):
         providers.add("openai")
     if os.getenv("ANTHROPIC_API_KEY"):
         providers.add("anthropic")
     if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
         providers.add("gemini")
+    if os.getenv("QWEN_API_KEY"):
+        providers.add("qwen")
     return sorted(providers)
 
 
@@ -147,6 +153,7 @@ def get_masked_api_key(provider: str = "openai") -> str:
         "openai": "openai_api_key",
         "anthropic": "anthropic_api_key",
         "gemini": "gemini_api_key",
+        "qwen": "qwen_api_key",
     }
     key_field = key_field_map.get(provider)
     if key_field:
@@ -219,6 +226,16 @@ class LLMManager:
                 "default_model": "llama2",
             }
 
+        if not config["providers"].get("qwen"):
+            config["providers"]["qwen"] = {
+                "api_key": os.getenv("QWEN_API_KEY"),
+                "base_url": os.getenv(
+                    "QWEN_BASE_URL",
+                    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                ),
+                "default_model": os.getenv("QWEN_DEFAULT_MODEL", "qwen-coder-plus"),
+            }
+
         return config
 
     def _initialize_providers(self) -> None:
@@ -230,6 +247,7 @@ class LLMManager:
                 fromlist=["AnthropicProvider"],
             ).AnthropicProvider,
             "gemini": GeminiProvider,
+            "qwen": OpenAIProvider,
             "ollama": OllamaProvider,
         }
 

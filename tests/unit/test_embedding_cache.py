@@ -21,11 +21,12 @@ from session_buddy.adapters.reflection_adapter_oneiric import (
 
 
 @pytest.fixture
-async def db() -> ReflectionDatabaseAdapterOneiric:
+async def db(tmp_path) -> ReflectionDatabaseAdapterOneiric:
     """Create test database with cache enabled."""
     from pathlib import Path
 
-    settings = ReflectionAdapterSettings(database_path=":memory:")
+    test_db_path = tmp_path / "test_cache.duckdb"
+    settings = ReflectionAdapterSettings(database_path=test_db_path)
     adapter = ReflectionDatabaseAdapterOneiric(
         collection_name="test_cache", settings=settings
     )
