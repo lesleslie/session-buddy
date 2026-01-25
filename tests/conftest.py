@@ -28,13 +28,20 @@ from session_buddy.di import configure as configure_di
 from session_buddy.di.container import depends
 
 # Initialize DI container for tests - force registration to bypass async checks
-try:
-    configure_di(force=True)
-except Exception as e:
-    # If DI configuration fails during import, we'll retry in the fixture
-    import warnings
+# Only initialize once to avoid conflicts in multiprocessing
+import threading
+_di_configured = threading.local()
 
-    warnings.warn(f"DI configuration failed during conftest import: {e}", stacklevel=2)
+if not hasattr(_di_configured, 'configured'):
+    try:
+        configure_di(force=True)
+        _di_configured.configured = True
+    except Exception as e:
+        # If DI configuration fails during import, we'll retry in the fixture
+        import warnings
+
+        warnings.warn(f"DI configuration failed during conftest import: {e}", stacklevel=2)
+        _di_configured.configured = False
 
 
 # =====================================
@@ -466,13 +473,18 @@ def reset_di_container():
             pass
 
     # Clean up BEFORE test to ensure monkeypatch can take effect
-    _cleanup_container()
+    # Skip cleanup if we're in a multiprocessing worker to avoid conflicts
+    import os
+    if not os.environ.get('PYTEST_XDIST_WORKER'):
+        _cleanup_container()
 
     # Test runs here
     yield
 
     # Clean up AFTER test as well for consistency
-    _cleanup_container()
+    # Skip cleanup if we're in a multiprocessing worker to avoid conflicts
+    if not os.environ.get('PYTEST_XDIST_WORKER'):
+        _cleanup_container()
 
 
 @pytest.fixture
