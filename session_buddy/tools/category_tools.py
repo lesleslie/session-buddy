@@ -4,6 +4,7 @@ This module provides MCP tools for managing and interacting with the
 category evolution system.
 """
 
+import asyncio
 from typing import Any
 
 from session_buddy.memory.category_evolution import (
@@ -12,16 +13,91 @@ from session_buddy.memory.category_evolution import (
 )
 
 
+# Module-level singleton instance and lock
+_evolution_engine: CategoryEvolutionEngine | None = None
+_engine_lock = asyncio.Lock()
+
+
 async def get_evolution_engine() -> CategoryEvolutionEngine:
-    """Get or create the category evolution engine.
+    """Get or create the category evolution engine (thread-safe singleton).
+
+    Uses double-checked locking pattern for efficient singleton access
+    in async contexts.
 
     Returns:
         Initialized CategoryEvolutionEngine instance
     """
-    # TODO: Implement singleton pattern or DI integration
-    engine = CategoryEvolutionEngine()
-    await engine.initialize()
-    return engine
+    global _evolution_engine
+
+    # Fast path: return existing instance
+    if _evolution_engine is not None:
+        return _evolution_engine
+
+    # Slow path: create new instance with lock
+    async with _engine_lock:
+        # Double-check: another coroutine might have created it
+        if _evolution_engine is not None:
+            return _evolution_engine
+
+        # Create and initialize the engine
+        _evolution_engine = CategoryEvolutionEngine()
+        await _evolution_engine.initialize()
+
+    return _evolution_engine
+
+
+async def _fetch_category_memories(
+    category: TopLevelCategory,
+    limit: int = 1000,
+) -> list[dict[str, Any]]:
+    """Fetch memories for a specific category from the database.
+
+    Args:
+        category: Top-level category to fetch memories for
+        limit: Maximum number of memories to fetch
+
+    Returns:
+        List of memory dictionaries with id, content, embedding, and fingerprint
+    """
+    try:
+        from session_buddy.reflection_tools import get_reflection_database
+
+        db = await get_reflection_database()
+
+        # Search for reflections with the category tag
+        # Use a broad search to get memories, then filter by category tag
+        query = category.value  # Use category name as search term
+        reflections = await db.search_reflections(
+            query=query,
+            limit=limit,
+            use_embeddings=True,
+        )
+
+        # Convert reflections to memory format for evolution engine
+        memories = []
+        for refl in reflections:
+            memory = {
+                "id": refl.get("id", ""),
+                "content": refl.get("content", ""),
+                "embedding": refl.get("embedding"),
+                "fingerprint": refl.get("fingerprint"),
+                "tags": refl.get("tags", []) or [],
+                "created_at": refl.get("created_at"),
+            }
+
+            # Only include memories that have the category tag
+            tags = memory.get("tags") or []
+            if category.value in tags:
+                memories.append(memory)
+
+        return memories
+
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching memories for category {category.value}: {e}")
+        return []
 
 
 async def get_subcategories(
@@ -89,17 +165,46 @@ async def evolve_categories(
 
     engine = await get_evolution_engine()
 
-    # TODO: Fetch memories for this category from database
-    # For now, return a message indicating this needs integration
-    # memories = await _fetch_category_memories(cat_enum, limit=1000)
+    # Fetch memories for this category from database
+    memories = await _fetch_category_memories(cat_enum, limit=1000)
 
-    return {
-        "success": True,
-        "category": category,
-        "message": "Category evolution triggered. Database integration pending.",
-        "subcategory_count": len(engine.get_subcategories(cat_enum)),
-        "note": "This tool requires database integration to fetch category memories.",
-    }
+    # Check if we have enough memories to trigger evolution
+    if len(memories) < memory_count_threshold:
+        return {
+            "success": True,
+            "category": category,
+            "message": f"Insufficient memories for evolution. Found {len(memories)}, need {memory_count_threshold}.",
+            "subcategory_count": len(engine.get_subcategories(cat_enum)),
+            "memory_count": len(memories),
+            "threshold": memory_count_threshold,
+        }
+
+    # Extract embeddings for clustering
+    embeddings = [m.get("embedding") for m in memories if m.get("embedding") is not None]
+
+    # Perform evolution
+    try:
+        # This would call engine.evolve_category() if it existed
+        # For now, we return the memories fetched
+        return {
+            "success": True,
+            "category": category,
+            "message": f"Successfully fetched {len(memories)} memories for evolution.",
+            "subcategory_count": len(engine.get_subcategories(cat_enum)),
+            "memory_count": len(memories),
+            "memories_with_embeddings": len(embeddings),
+            "note": "Evolution algorithm integration pending - memories fetched successfully.",
+        }
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error during category evolution: {e}")
+        return {
+            "success": False,
+            "category": category,
+            "error": str(e),
+        }
 
 
 async def assign_memory_subcategory(
@@ -119,13 +224,38 @@ async def assign_memory_subcategory(
     Returns:
         Dictionary with assignment result
     """
-    # TODO: Fetch memory with embedding and fingerprint from database
-    # For now, create a mock memory
+    # Generate embedding for the content
+    embedding = None
+    try:
+        from session_buddy.reflection_tools import get_reflection_database
+
+        db = await get_reflection_database()
+        embedding = await db._generate_embedding(content)
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to generate embedding: {e}")
+
+    # Generate fingerprint for the content
+    fingerprint = None
+    try:
+        from session_buddy.utils.fingerprint import MinHashSignature
+
+        fp_obj = MinHashSignature.from_text(content)
+        fingerprint = fp_obj.to_bytes()
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Failed to generate fingerprint: {e}")
+
+    # Create memory dictionary with generated embedding and fingerprint
     memory = {
         "id": memory_id,
         "content": content,
-        "embedding": None,  # TODO: Generate embedding
-        "fingerprint": None,  # TODO: Generate fingerprint
+        "embedding": embedding,
+        "fingerprint": fingerprint,
     }
 
     engine = await get_evolution_engine()
@@ -154,6 +284,8 @@ async def assign_memory_subcategory(
         "subcategory": result.subcategory,
         "confidence": result.confidence,
         "method": result.method,
+        "embedding_generated": embedding is not None,
+        "fingerprint_generated": fingerprint is not None,
     }
 
 
