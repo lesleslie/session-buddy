@@ -499,6 +499,77 @@ class ReflectionDatabaseAdapterOneiric:
             f"CREATE INDEX IF NOT EXISTS idx_reflections_subcategory ON {self.collection_name}_reflections(subcategory)"
         )
 
+        # Add temporal tracking fields to memory_subcategories (for decay)
+        with suppress(Exception):
+            self.conn.execute(
+                "ALTER TABLE memory_subcategories ADD COLUMN last_accessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            )
+        with suppress(Exception):
+            self.conn.execute(
+                "ALTER TABLE memory_subcategories ADD COLUMN access_count INTEGER DEFAULT 0"
+            )
+
+        # ========================================================================
+        # CATEGORY EVOLUTION SNAPSHOTS (Phase 5: Temporal Decay)
+        # ========================================================================
+        # Tracks evolution history and quality metrics over time
+
+        # Create evolution snapshots table
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS category_evolution_snapshots (
+                id TEXT PRIMARY KEY,
+                category TEXT NOT NULL,
+                before_subcategory_count INTEGER NOT NULL,
+                before_silhouette REAL,
+                before_total_memories INTEGER NOT NULL,
+                after_subcategory_count INTEGER NOT NULL,
+                after_silhouette REAL,
+                after_total_memories INTEGER NOT NULL,
+                decayed_count INTEGER DEFAULT 0,
+                archived_count INTEGER DEFAULT 0,
+                bytes_freed INTEGER DEFAULT 0,
+                evolution_duration_ms REAL NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+        # Create archived subcategories table (for decayed subcategories)
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS archived_subcategories (
+                id TEXT PRIMARY KEY,
+                parent_category TEXT NOT NULL,
+                name TEXT NOT NULL,
+                keywords TEXT[],
+                centroid FLOAT[384],
+                centroid_fingerprint BLOB,
+                memory_count INTEGER DEFAULT 0,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                last_accessed_at TIMESTAMP NOT NULL,
+                access_count INTEGER DEFAULT 0,
+                archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                archive_reason TEXT NOT NULL
+            )
+            """
+        )
+
+        # Create indexes for evolution tracking
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_evolution_snapshots_category ON category_evolution_snapshots(category)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_evolution_snapshots_timestamp ON category_evolution_snapshots(timestamp)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_archived_subcategories_parent ON archived_subcategories(parent_category)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_archived_subcategories_archived_at ON archived_subcategories(archived_at)"
+        )
+
         # ========================================================================
         # USAGE ANALYTICS (Phase 5: Adaptive Results)
         # ========================================================================

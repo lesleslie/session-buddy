@@ -25,16 +25,17 @@ import operator
 import re
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from session_buddy.memory.evolution_config import DecayResult, EvolutionConfig
 from session_buddy.utils.fingerprint import MinHashSignature
 
 if TYPE_CHECKING:
-    pass
+    import json
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,8 @@ class Subcategory:
         memory_count: Number of memories assigned to this subcategory
         created_at: When this subcategory was created
         updated_at: When this subcategory was last updated
+        last_accessed_at: When this subcategory was last accessed during evolution
+        access_count: Number of times memories were assigned to this subcategory
     """
 
     id: str
@@ -82,12 +85,24 @@ class Subcategory:
     memory_count: int = 0
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    last_accessed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    access_count: int = 0
 
     def __str__(self) -> str:
         return f"{self.parent_category.value}/{self.name}"
 
     def __repr__(self) -> str:
         return f"Subcategory({self.parent_category.value}/{self.name}, {self.memory_count} memories)"
+
+    def record_access(self) -> None:
+        """Record that this subcategory was accessed during evolution.
+
+        Updates last_accessed_at timestamp and increments access_count.
+        Should be called whenever a memory is assigned to this subcategory.
+        """
+        self.last_accessed_at = datetime.now(UTC)
+        self.access_count += 1
+        self.updated_at = datetime.now(UTC)
 
 
 @dataclass
@@ -381,6 +396,7 @@ class SubcategoryClusterer:
                     self._update_fingerprint_centroid(best_match, memory["fingerprint"])
                 best_match.memory_count += 1
                 best_match.updated_at = datetime.now(UTC)
+                best_match.record_access()  # Track access for temporal decay
                 unassigned_indices.remove(idx)
 
         # Create new subcategories
@@ -477,8 +493,30 @@ class SubcategoryClusterer:
     def _update_fingerprint_centroid(
         self, subcategory: Subcategory, new_fingerprint: bytes
     ) -> None:
-        """Update subcategory's fingerprint centroid."""
-        subcategory.centroid_fingerprint = new_fingerprint
+        """Update subcategory's fingerprint centroid using MinHash union.
+
+        MinHash signatures support union operation via element-wise minimum,
+        which approximates the Jaccard similarity of the union set.
+        """
+        if subcategory.centroid_fingerprint is None:
+            # First fingerprint for this subcategory
+            subcategory.centroid_fingerprint = new_fingerprint
+            return
+
+        # Aggregate using MinHash union (element-wise minimum)
+        existing_sig = MinHashSignature.from_bytes(subcategory.centroid_fingerprint)
+        new_sig = MinHashSignature.from_bytes(new_fingerprint)
+
+        # Element-wise minimum approximates union of sets
+        union_signature = np.minimum(existing_sig.signature, new_sig.signature)
+
+        # Create new MinHashSignature with union
+        aggregated_sig = MinHashSignature(
+            signature=union_signature,
+            num_hashes=existing_sig.num_hashes
+        )
+
+        subcategory.centroid_fingerprint = aggregated_sig.to_bytes()
 
     def _create_new_subcategories(
         self,
@@ -730,26 +768,340 @@ class CategoryEvolutionEngine:
         self,
         category: TopLevelCategory,
         memories: list[dict[str, Any]],
-    ) -> list[Subcategory]:
-        """Evolve subcategories for a top-level category."""
-        logger.info(f"Evolving subcategories for {category.value}")
+        config: EvolutionConfig | None = None,
+    ) -> dict[str, Any]:
+        """Evolve subcategories for a top-level category.
 
-        existing_subcats = self._subcategories.get(category, [])
+        Args:
+            category: Top-level category to evolve
+            memories: Memories to cluster into subcategories
+            config: Optional evolution configuration
+
+        Returns:
+            Dictionary with comprehensive evolution results including:
+            - success: Boolean indicating success
+            - before_state: Dict with before metrics
+            - after_state: Dict with after metrics
+            - decay_results: Dict with temporal decay results
+            - snapshot_id: ID of created snapshot (if saved)
+        """
+        import time
+
+        logger.info(f"Evolving subcategories for {category.value}")
+        start_time = time.time()
+
+        # Use default config if not provided
+        if config is None:
+            config = EvolutionConfig()
+
+        # Capture before state
+        before_subcats = self._subcategories.get(category, [])
+        before_silhouette = self.calculate_silhouette_score(before_subcats, memories)
+        before_state = {
+            "subcategory_count": len(before_subcats),
+            "silhouette": before_silhouette,
+            "total_memories": len(memories),
+        }
+
+        # Apply temporal decay first (remove stale subcategories)
+        decay_result = DecayResult(
+            removed_count=0,
+            archived=config.archive_option,
+            freed_space=0,
+            message="Temporal decay not enabled",
+            decayed_subcategories=[],
+        )
+
+        if config.temporal_decay_enabled:
+            decay_result = await self.apply_temporal_decay(category, config)
+            logger.info(f"Temporal decay: {decay_result.message}")
+
+        # Perform clustering
         new_subcats = self.clusterer.cluster_memories(
             memories=memories,
             category=category,
-            existing_subcategories=existing_subcats,
+            existing_subcategories=self._subcategories.get(category, []),
         )
 
         self._subcategories[category] = new_subcats
         await self._persist_subcategories(category, new_subcats)
 
-        logger.info(f"Evolution complete: {len(new_subcats)} subcategories")
-        return new_subcats
+        # Calculate after state
+        after_silhouette = self.calculate_silhouette_score(new_subcats, memories)
+        after_state = {
+            "subcategory_count": len(new_subcats),
+            "silhouette": after_silhouette,
+            "total_memories": len(memories),
+        }
+
+        duration_ms = (time.time() - start_time) * 1000
+
+        # Save snapshot
+        await self._save_evolution_snapshot(
+            category=category,
+            before_state=before_state,
+            after_state=after_state,
+            decay_results=decay_result,
+            duration_ms=duration_ms,
+        )
+
+        logger.info(
+            f"Evolution complete: {len(new_subcats)} subcategories, "
+            f"silhouette: {before_silhouette:.3f} → {after_silhouette:.3f}, "
+            f"duration: {duration_ms:.1f}ms"
+        )
+
+        return {
+            "success": True,
+            "category": category.value,
+            "before_state": before_state,
+            "after_state": after_state,
+            "decay_results": decay_result.to_dict(),
+            "duration_ms": duration_ms,
+        }
+
+    async def apply_temporal_decay(
+        self,
+        category: TopLevelCategory,
+        config: EvolutionConfig,
+    ) -> DecayResult:
+        """Remove stale subcategories based on inactivity.
+
+        Stale subcategories are those that:
+        - Haven't been accessed in `temporal_decay_days` days
+        - Have low access counts (< `decay_access_threshold`)
+
+        Args:
+            category: Category to apply decay to
+            config: Evolution configuration
+
+        Returns:
+            DecayResult with counts and space freed
+        """
+        if not config.temporal_decay_enabled:
+            return DecayResult(
+                removed_count=0,
+                archived=config.archive_option,
+                freed_space=0,
+                message="Temporal decay disabled",
+                decayed_subcategories=[],
+            )
+
+        cutoff = datetime.now(UTC) - timedelta(days=config.temporal_decay_days)
+        subcategories = self._subcategories.get(category, [])
+
+        # Find stale subcategories
+        stale = [
+            sc for sc in subcategories
+            if sc.last_accessed_at < cutoff
+            and sc.access_count < config.decay_access_threshold
+        ]
+
+        if not stale:
+            return DecayResult(
+                removed_count=0,
+                archived=config.archive_option,
+                freed_space=0,
+                message="No stale subcategories found",
+                decayed_subcategories=[],
+            )
+
+        # Record names for result
+        decayed_names = [sc.name for sc in stale]
+
+        # Archive or delete
+        if config.archive_option:
+            await self._archive_subcategories(stale, category)
+        else:
+            await self._delete_subcategories(stale, category)
+
+        # Remove from in-memory state
+        for sc in stale:
+            self._subcategories[category].remove(sc)
+
+        freed = self._estimate_space_freed(stale)
+
+        logger.info(f"Temporal decay: {'archived' if config.archive_option else 'deleted'} {len(stale)} subcategories")
+
+        return DecayResult(
+            removed_count=len(stale),
+            archived=config.archive_option,
+            freed_space=freed,
+            message=f"{'Archived' if config.archive_option else 'Deleted'} {len(stale)} stale subcategories",
+            decayed_subcategories=decayed_names,
+        )
+
+    def _estimate_space_freed(self, subcategories: list[Subcategory]) -> int:
+        """Estimate bytes freed by removing subcategories.
+
+        Args:
+            subcategories: Subcategories being removed
+
+        Returns:
+            Estimated bytes freed
+        """
+        # Rough estimate: 1KB per subcategory + metadata
+        return len(subcategories) * 1024
+
+    async def _archive_subcategories(
+        self,
+        subcategories: list[Subcategory],
+        category: TopLevelCategory,
+    ) -> None:
+        """Archive subcategories to cold storage.
+
+        Args:
+            subcategories: Subcategories to archive
+            category: Parent category
+        """
+        if not self._db_adapter:
+            logger.warning("No database adapter available, skipping archive")
+            return
+
+        try:
+            conn = self._db_adapter.conn
+
+            for sc in subcategories:
+                # Convert to dict for JSON storage
+                sc_dict = {
+                    "id": sc.id,
+                    "parent_category": sc.parent_category.value,
+                    "name": sc.name,
+                    "keywords": sc.keywords,
+                    "memory_count": sc.memory_count,
+                    "centroid_fingerprint": sc.centroid_fingerprint,
+                }
+
+                conn.execute(
+                    """
+                    INSERT INTO archived_subcategories (
+                        id, original_subcategory_id, parent_category, name,
+                        keywords, memory_count, centroid_fingerprint,
+                        archived_at, reason, original_data
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), 'Temporal decay', ?)
+                    """,
+                    sc.id,
+                    sc.id,
+                    sc.parent_category.value,
+                    sc.name,
+                    json.dumps(sc.keywords),
+                    sc.memory_count,
+                    sc.centroid_fingerprint,
+                    json.dumps(sc_dict),
+                )
+
+            logger.info(f"Archived {len(subcategories)} subcategories")
+        except Exception as e:
+            logger.error(f"Error archiving subcategories: {e}")
+
+    async def _delete_subcategories(
+        self,
+        subcategories: list[Subcategory],
+        category: TopLevelCategory,
+    ) -> None:
+        """Delete subcategories from database.
+
+        Args:
+            subcategories: Subcategories to delete
+            category: Parent category
+        """
+        if not self._db_adapter:
+            logger.warning("No database adapter available, skipping delete")
+            return
+
+        try:
+            conn = self._db_adapter.conn
+
+            for sc in subcategories:
+                conn.execute(
+                    f"""
+                    DELETE FROM {self._db_adapter.collection_name}_subcategories
+                    WHERE id = ?
+                    """,
+                    (sc.id,),
+                )
+
+            logger.info(f"Deleted {len(subcategories)} subcategories")
+        except Exception as e:
+            logger.error(f"Error deleting subcategories: {e}")
 
     def get_subcategories(self, category: TopLevelCategory) -> list[Subcategory]:
         """Get all subcategories for a top-level category."""
         return self._subcategories.get(category, [])
+
+    def calculate_silhouette_score(
+        self,
+        subcategories: list[Subcategory],
+        memories: list[dict[str, Any]]
+    ) -> float:
+        """Calculate overall cluster quality using silhouette score.
+
+        Silhouette score ranges from -1 to +1:
+        - +1: Perfect clustering (dense, well-separated)
+        -  0: Overlapping clusters
+        - -1: Incorrect clustering
+
+        Args:
+            subcategories: List of subcategories to evaluate
+            memories: All memories (used to find cluster assignments)
+
+        Returns:
+            Silhouette score (higher is better). Returns 1.0 if < 2 clusters or < 2 points.
+        """
+        if len(subcategories) < 2:
+            return 1.0  # Perfect if only 1 cluster
+
+        # Build X (embeddings) and labels (subcategory assignments)
+        X = []
+        labels = []
+
+        for subcat_idx, subcat in enumerate(subcategories):
+            # Get embeddings for memories in this subcategory
+            for memory in memories:
+                if self._is_memory_in_subcategory(memory, subcat):
+                    embedding = memory.get("embedding")
+                    if embedding is not None:
+                        X.append(embedding)
+                        labels.append(subcat_idx)
+
+        if len(X) < 2:
+            return 1.0  # Can't calculate with < 2 points
+
+        # Calculate silhouette score
+        try:
+            from sklearn.metrics import silhouette_score
+            import numpy as np
+
+            X_array = np.array(X)
+            return silhouette_score(X_array, labels)
+        except Exception as e:
+            logger.warning(f"Failed to calculate silhouette score: {e}")
+            return 0.0  # Return neutral score on error
+
+    def _is_memory_in_subcategory(
+        self,
+        memory: dict[str, Any],
+        subcategory: Subcategory
+    ) -> bool:
+        """Check if a memory belongs to a subcategory.
+
+        Uses centroid similarity as a proxy for membership.
+        A memory belongs to a subcategory if its embedding is sufficiently
+        similar to the subcategory's centroid.
+
+        Args:
+            memory: Memory dictionary with optional 'embedding' field
+            subcategory: Subcategory to check membership against
+
+        Returns:
+            True if memory belongs to subcategory, False otherwise
+        """
+        embedding = memory.get("embedding")
+        if not embedding or subcategory.centroid is None:
+            return False
+
+        similarity = self._cosine_similarity(embedding, subcategory.centroid)
+        return similarity >= self.similarity_threshold
 
     def _detect_category(self, memory: dict[str, Any]) -> TopLevelCategory:
         """Auto-detect top-level category from memory content."""
@@ -914,7 +1266,7 @@ class CategoryEvolutionEngine:
                 SELECT
                     id, parent_category, name, keywords,
                     centroid, centroid_fingerprint, memory_count,
-                    created_at, updated_at
+                    created_at, updated_at, last_accessed_at, access_count
                 FROM memory_subcategories
                 ORDER BY parent_category, memory_count DESC
                 """
@@ -933,6 +1285,8 @@ class CategoryEvolutionEngine:
                     memory_count,
                     created_at,
                     updated_at,
+                    last_accessed_at,
+                    access_count,
                 ) = row
 
                 # Parse parent category
@@ -956,6 +1310,8 @@ class CategoryEvolutionEngine:
                     memory_count=memory_count or 0,
                     created_at=created_at,
                     updated_at=updated_at,
+                    last_accessed_at=last_accessed_at or created_at,
+                    access_count=access_count or 0,
                 )
 
                 self._subcategories[category].append(subcategory)
@@ -967,4 +1323,189 @@ class CategoryEvolutionEngine:
 
         except Exception as e:
             logger.error(f"Failed to load subcategories: {e}")
-            # Continue with empty subcategories
+
+    async def _save_evolution_snapshot(
+        self,
+        category: TopLevelCategory,
+        before_state: dict[str, Any],
+        after_state: dict[str, Any],
+        decay_results: DecayResult,
+        duration_ms: float,
+    ) -> None:
+        """Save evolution snapshot to database.
+
+        Args:
+            category: Category that was evolved
+            before_state: Dict with before-state metrics
+            after_state: Dict with after-state metrics
+            decay_results: DecayResult from temporal decay
+            duration_ms: Duration of evolution in milliseconds
+        """
+        if self._db_adapter is None:
+            logger.debug("No database adapter available, skipping snapshot save")
+            return
+
+        try:
+            from session_buddy.memory.evolution_config import EvolutionSnapshot
+
+            conn = self._db_adapter.conn
+
+            # Create snapshot
+            snapshot = EvolutionSnapshot(
+                id=str(uuid.uuid4()),
+                category=category.value,
+                before_state=before_state,
+                after_state=after_state,
+                decay_results=decay_results.to_dict(),
+                duration_ms=duration_ms,
+                timestamp=datetime.now(UTC),
+            )
+
+            # Save to database
+            conn.execute(
+                """
+                INSERT INTO category_evolution_snapshots (
+                    id, category, before_subcategory_count, before_silhouette,
+                    before_total_memories, after_subcategory_count, after_silhouette,
+                    after_total_memories, decayed_count, archived_count,
+                    bytes_freed, evolution_duration_ms, timestamp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    snapshot.id,
+                    snapshot.category,
+                    snapshot.before_state.get("subcategory_count", 0),
+                    snapshot.before_state.get("silhouette"),
+                    snapshot.before_state.get("total_memories", 0),
+                    snapshot.after_state.get("subcategory_count", 0),
+                    snapshot.after_state.get("silhouette"),
+                    snapshot.after_state.get("total_memories", 0),
+                    snapshot.decay_results.get("removed_count", 0),
+                    1 if snapshot.decay_results.get("archived", False) else 0,
+                    snapshot.decay_results.get("freed_space", 0),
+                    snapshot.duration_ms,
+                    snapshot.timestamp,
+                ],
+            )
+
+            logger.info(f"Saved evolution snapshot {snapshot.id}")
+
+        except Exception as e:
+            logger.error(f"Failed to save evolution snapshot: {e}")
+
+    async def get_evolution_history(
+        self,
+        category: TopLevelCategory,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Get recent evolution snapshots for a category.
+
+        Args:
+            category: Category to get history for
+            limit: Maximum number of snapshots to return
+
+        Returns:
+            List of snapshot dictionaries with improvement summaries
+        """
+        if self._db_adapter is None:
+            logger.debug("No database adapter available, returning empty history")
+            return []
+
+        try:
+            conn = self._db_adapter.conn
+
+            # Query recent snapshots
+            result = conn.execute(
+                """
+                SELECT
+                    id, category, before_subcategory_count, before_silhouette,
+                    before_total_memories, after_subcategory_count, after_silhouette,
+                    after_total_memories, decayed_count, archived_count,
+                    bytes_freed, evolution_duration_ms, timestamp
+                FROM category_evolution_snapshots
+                WHERE category = ?
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """,
+                [category.value, limit],
+            ).fetchall()
+
+            snapshots = []
+            for row in result:
+                (
+                    snapshot_id,
+                    cat,
+                    before_count,
+                    before_sil,
+                    before_memories,
+                    after_count,
+                    after_sil,
+                    after_memories,
+                    decayed,
+                    archived,
+                    bytes_freed,
+                    duration_ms,
+                    timestamp,
+                ) = row
+
+                # Calculate improvement summary
+                silhouette_delta = (after_sil or 0.0) - (before_sil or 0.0)
+                count_delta = after_count - before_count
+
+                if silhouette_delta > 0.1:
+                    level = "Significant improvement"
+                elif silhouette_delta > 0:
+                    level = "Moderate improvement"
+                elif silhouette_delta > -0.1:
+                    level = "Minor change (acceptable)"
+                else:
+                    level = f"Quality decreased: {silhouette_delta:.2f} ⚠️"
+
+                if count_delta > 0:
+                    count_change = f"Created {count_delta} subcategories"
+                elif count_delta < 0:
+                    count_change = f"Removed {abs(count_delta)} subcategories"
+                else:
+                    count_change = "Maintained subcategory count"
+
+                storage = f" freed {_format_bytes(bytes_freed)}" if bytes_freed > 0 else ""
+
+                snapshots.append(
+                    {
+                        "id": snapshot_id,
+                        "category": cat,
+                        "timestamp": timestamp.isoformat() if timestamp else None,
+                        "summary": f"{level} (silhouette: {silhouette_delta:+.2f}), {count_change},{storage}.",
+                        "before_silhouette": before_sil,
+                        "after_silhouette": after_sil,
+                        "before_subcategory_count": before_count,
+                        "after_subcategory_count": after_count,
+                        "decayed_count": decayed,
+                        "archived_count": archived,
+                        "bytes_freed": bytes_freed,
+                        "duration_ms": duration_ms,
+                    }
+                )
+
+            logger.info(f"Retrieved {len(snapshots)} evolution snapshots")
+            return snapshots
+
+        except Exception as e:
+            logger.error(f"Failed to get evolution history: {e}")
+            return []
+
+
+def _format_bytes(bytes_count: int) -> str:
+    """Format bytes as human-readable string.
+
+    Args:
+        bytes_count: Number of bytes
+
+    Returns:
+        Formatted string (e.g., "1.5 KB", "2.3 MB")
+    """
+    for unit in ["B", "KB", "MB", "GB"]:
+        if bytes_count < 1024:
+            return f"{bytes_count:.1f} {unit}"
+        bytes_count /= 1024
+    return f"{bytes_count:.1f} TB"

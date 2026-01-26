@@ -143,17 +143,31 @@ async def get_subcategories(
 async def evolve_categories(
     category: str,
     memory_count_threshold: int = 10,
+    temporal_decay_enabled: bool = True,
+    temporal_decay_days: int = 90,
+    archive_option: bool = False,
+    min_silhouette_score: float = 0.2,
 ) -> dict[str, Any]:
     """Trigger category evolution for a top-level category.
 
-    This will reorganize subcategories based on recent memories.
+    This will reorganize subcategories based on recent memories, with optional
+    temporal decay to remove stale subcategories.
 
     Args:
         category: Top-level category name to evolve
-        memory_count_threshold: Minimum number of new memories since last evolution
+        memory_count_threshold: Minimum number of memories needed for evolution
+        temporal_decay_enabled: Whether to apply temporal decay (default: True)
+        temporal_decay_days: Days of inactivity before decay (default: 90)
+        archive_option: If True, archive stale subcategories; if False, delete them
+        min_silhouette_score: Minimum acceptable silhouette score (default: 0.2)
 
     Returns:
-        Dictionary with evolution results
+        Dictionary with comprehensive evolution results including:
+        - success: Boolean indicating success
+        - before_state: Dict with before metrics (subcategory_count, silhouette, total_memories)
+        - after_state: Dict with after metrics
+        - decay_results: Dict with temporal decay results
+        - duration_ms: Evolution duration in milliseconds
     """
     try:
         cat_enum = TopLevelCategory(category.lower())
@@ -179,22 +193,65 @@ async def evolve_categories(
             "threshold": memory_count_threshold,
         }
 
-    # Extract embeddings for clustering
-    embeddings = [m.get("embedding") for m in memories if m.get("embedding") is not None]
+    # Create evolution config
+    from session_buddy.memory.evolution_config import EvolutionConfig
+
+    config = EvolutionConfig(
+        temporal_decay_enabled=temporal_decay_enabled,
+        temporal_decay_days=temporal_decay_days,
+        archive_option=archive_option,
+        min_silhouette_score=min_silhouette_score,
+    )
+
+    # Validate config
+    validation_errors = config.validate()
+    if validation_errors:
+        return {
+            "success": False,
+            "category": category,
+            "error": f"Invalid configuration: {', '.join(validation_errors)}",
+        }
 
     # Perform evolution
     try:
-        # This would call engine.evolve_category() if it existed
-        # For now, we return the memories fetched
-        return {
-            "success": True,
-            "category": category,
-            "message": f"Successfully fetched {len(memories)} memories for evolution.",
-            "subcategory_count": len(engine.get_subcategories(cat_enum)),
-            "memory_count": len(memories),
-            "memories_with_embeddings": len(embeddings),
-            "note": "Evolution algorithm integration pending - memories fetched successfully.",
-        }
+        result = await engine.evolve_category(cat_enum, memories, config)
+
+        # Add human-readable summary
+        silhouette_delta = (
+            result["after_state"]["silhouette"] - result["before_state"]["silhouette"]
+        )
+
+        if silhouette_delta > 0.1:
+            level = "Significant improvement"
+        elif silhouette_delta > 0:
+            level = "Moderate improvement"
+        elif silhouette_delta > -0.1:
+            level = "Minor change (acceptable)"
+        else:
+            level = f"Quality decreased: {silhouette_delta:.2f} ⚠️"
+
+        count_delta = (
+            result["after_state"]["subcategory_count"] -
+            result["before_state"]["subcategory_count"]
+        )
+
+        if count_delta > 0:
+            count_change = f"Created {count_delta} subcategories"
+        elif count_delta < 0:
+            count_change = f"Removed {abs(count_delta)} subcategories"
+        else:
+            count_change = "Maintained subcategory count"
+
+        freed = result["decay_results"].get("freed_space", 0)
+        storage_msg = f" freed {_format_bytes(freed)}" if freed > 0 else ""
+
+        result["summary"] = (
+            f"{level} (silhouette: {silhouette_delta:+.2f}), "
+            f"{count_change},{storage_msg}."
+        )
+
+        return result
+
     except Exception as e:
         import logging
 
@@ -205,6 +262,22 @@ async def evolve_categories(
             "category": category,
             "error": str(e),
         }
+
+
+def _format_bytes(bytes_count: int) -> str:
+    """Format bytes as human-readable string.
+
+    Args:
+        bytes_count: Number of bytes
+
+    Returns:
+        Formatted string (e.g., "1.5 KB", "2.3 MB")
+    """
+    for unit in ["B", "KB", "MB", "GB"]:
+        if bytes_count < 1024:
+            return f"{bytes_count:.1f} {unit}"
+        bytes_count /= 1024
+    return f"{bytes_count:.1f} TB"
 
 
 async def assign_memory_subcategory(
