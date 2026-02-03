@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", message=".*PyTorch.*TensorFlow.*Flax.*")
 
 from mcp_common import MCPServerCLIFactory, MCPServerSettings, RuntimeHealthSnapshot
 
-from session_buddy.tools.health_tools import get_health_status
+from session_buddy.mcp.tools.monitoring.health_tools import get_health_status
 from session_buddy.utils.runtime_snapshots import update_telemetry_counter
 
 
@@ -36,13 +36,18 @@ class SessionBuddySettings(MCPServerSettings):
     shutdown_timeout: int = 10
     force_kill_timeout: int = 5
 
+    # Adapter registry configuration
+    adapter_registry_enabled: bool = True
+    adapter_registry_host: str = "localhost"
+    adapter_registry_port: int = 8679
+
 
 def start_server_handler() -> None:
     """Start handler that launches session_buddy.server.main() in HTTP streaming mode.
 
     This function is called by the CLI factory when 'start' command is executed.
     """
-    from session_buddy.server import main
+    from session_buddy.mcp.server import main
 
     # Start server in HTTP mode with configured ports
     settings = SessionBuddySettings()

@@ -19,7 +19,9 @@ from pathlib import Path
 from session_buddy.core.hooks import HookResult, HooksManager
 from session_buddy.utils.git_operations import (
     create_checkpoint_commit,
+    is_git_operation_in_progress,
     is_git_repository,
+    schedule_automatic_git_gc,
 )
 
 
@@ -95,12 +97,12 @@ class SessionLifecycleManager:
         if project_dir is None:
             project_dir = Path.cwd()
 
-        if "session_buddy.server" in sys.modules:
-            server = sys.modules["session_buddy.server"]
+        if "session_buddy.mcp.server" in sys.modules:
+            server = sys.modules["session_buddy.mcp.server"]
         else:
             server = await asyncio.to_thread(
                 importlib.import_module,
-                "session_buddy.server",
+                "session_buddy.mcp.server",
             )
 
         return t.cast(
@@ -118,7 +120,7 @@ class SessionLifecycleManager:
     def _calculate_permissions_score(self) -> int:
         """Calculate permissions health score (20% of total)."""
         try:
-            from session_buddy.server import permissions_manager
+            from session_buddy.mcp.server import permissions_manager
 
             if hasattr(permissions_manager, "trusted_operations"):
                 trusted_count = len(permissions_manager.trusted_operations)
@@ -333,6 +335,9 @@ class SessionLifecycleManager:
                     quality_score,
                 )
 
+                # Schedule automatic git gc after successful checkpoint
+                await self._schedule_git_maintenance(current_dir, output)
+
         except Exception as e:
             output.append(f"\n⚠️ Git operations error: {e}")
             self.logger.exception(
@@ -343,10 +348,123 @@ class SessionLifecycleManager:
 
         return output
 
+    async def _schedule_git_maintenance(
+        self,
+        directory: Path,
+        output: list[str],
+    ) -> None:
+        """Schedule automatic git maintenance if configured.
+
+        This checks settings and repository state before scheduling
+        git gc to avoid interfering with user operations.
+
+        Args:
+            directory: Git repository path
+            output: Output list to append status messages
+
+        """
+        try:
+            from session_buddy.settings import get_settings
+
+            settings = get_settings()
+
+            # Check if automatic gc is enabled
+            if not settings.git_auto_gc:
+                return
+
+            # Check if we should only run when git is clean
+            if settings.git_gc_only_when_clean:
+                if is_git_operation_in_progress(directory):
+                    output.append("\n🔄 Git operation in progress - skipping gc")
+                    self.logger.info(
+                        "Git operation in progress, skipping gc, project=%s",
+                        self.current_project,
+                    )
+                    return
+
+            # Schedule automatic gc
+            success, message = schedule_automatic_git_gc(
+                directory,
+                prune_delay=settings.git_gc_prune_delay,
+                auto_threshold=settings.git_gc_auto_threshold,
+            )
+
+            if success:
+                output.append(f"\n🧹 {message}")
+                self.logger.info(
+                    "Scheduled git gc, project=%s, prune_delay=%s, threshold=%d",
+                    self.current_project,
+                    settings.git_gc_prune_delay,
+                    settings.git_gc_auto_threshold,
+                )
+            else:
+                self.logger.warning(
+                    "Failed to schedule git gc, project=%s, error=%s",
+                    self.current_project,
+                    message,
+                )
+
+        except Exception as e:
+            # Don't fail checkpoint if gc scheduling fails
+            self.logger.warning(
+                "Git maintenance scheduling failed (continuing), project=%s, error=%s",
+                self.current_project,
+                str(e),
+            )
+
+    def _validate_working_directory(self, path: str) -> Path:
+        """Validate working directory path to prevent traversal attacks.
+
+        SECURITY: This function prevents path traversal attacks by:
+        - Resolving the path to absolute (follows symlinks)
+        - Ensuring path doesn't escape allowed directories
+        - Checking path exists and is a directory
+
+        Args:
+            path: User-provided path to validate
+
+        Returns:
+            Validated absolute Path object
+
+        Raises:
+            ValueError: If path is outside allowed directories or doesn't exist
+        """
+        resolved = Path(path).resolve()
+
+        # Define allowed root directories
+        # User's home directory and current directory are always allowed
+        allowed_roots = {Path.cwd(), Path.home()}
+
+        # Check if resolved path is within allowed roots
+        is_allowed = any(
+            str(resolved).startswith(str(root))
+            for root in allowed_roots
+        )
+
+        if not is_allowed:
+            raise ValueError(
+                f"Path outside allowed directories: {path}. "
+                f"Allowed roots: {[str(r) for r in allowed_roots]}"
+            )
+
+        # Ensure path exists
+        if not resolved.exists():
+            raise ValueError(f"Path does not exist: {path}")
+
+        # Ensure path is a directory (not a file)
+        if not resolved.is_dir():
+            raise ValueError(f"Path is not a directory: {path}")
+
+        return resolved
+
     def _setup_working_directory(self, working_directory: str | None) -> Path:
         """Set up working directory and project name."""
         if working_directory:
-            os.chdir(working_directory)
+            # Validate path to prevent traversal attacks (production implementation)
+            from session_buddy.utils.path_validation import validate_working_directory
+
+            validated_path = validate_working_directory(working_directory)
+            os.chdir(validated_path)
 
         current_dir = Path.cwd()
         self.current_project = current_dir.name
