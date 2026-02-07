@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from session_buddy.core.session_manager import SessionLifecycleManager
 from session_buddy.mcp.tools.session.crackerjack_tools import _sanitize_crackerjack_args_emergency
 from session_buddy.utils.git_operations import _validate_prune_delay
-from session_buddy.utils.subprocess_helper import _get_safe_environment
+from session_buddy.utils.subprocess_executor import _get_safe_environment
 
 
 async def test_path_traversal_attempts():

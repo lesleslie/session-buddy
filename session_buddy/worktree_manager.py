@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .utils.git_operations import (
+from .utils.git_worktrees import (
     WorktreeInfo,
     get_worktree_info,
     is_git_repository,

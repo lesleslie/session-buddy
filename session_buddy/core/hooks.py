@@ -13,10 +13,12 @@ Architecture:
 from __future__ import annotations
 
 import logging
+from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -30,7 +32,7 @@ class HookType(str, Enum):
     Pre-operation hooks:
         - Execute before an operation occurs
         - Can validate, modify, or cancel operations
-        - PRE_SEARCH_QUERY: Rewrite ambiguous queries before search execution
+
 
     Post-operation hooks:
         - Execute after an operation completes
@@ -44,7 +46,6 @@ class HookType(str, Enum):
     # Pre-operation hooks
     PRE_CHECKPOINT = "pre_checkpoint"
     PRE_TOOL_EXECUTION = "pre_tool_execution"
-    PRE_REFLECTION_STORE = "pre_reflection_store"
     PRE_SESSION_END = "pre_session_end"
     PRE_SEARCH_QUERY = "pre_search_query"
 
@@ -52,12 +53,11 @@ class HookType(str, Enum):
     POST_CHECKPOINT = "post_checkpoint"
     POST_TOOL_EXECUTION = "post_tool_execution"
     POST_FILE_EDIT = "post_file_edit"
-    POST_ERROR = "post_error"  # Causal chain tracking hook
+    POST_ERROR = "post_error"
 
-    # Session boundary (existing integration points)
     SESSION_START = "session_start"
     SESSION_END = "session_end"
-    USER_PROMPT_SUBMIT = "user_prompt_submit"
+    # Session boundary hooks
 
 
 @dataclass
@@ -104,6 +104,47 @@ class HookResult:
     execution_time_ms: float = 0.0
     # For causal chain tracking
     causal_chain_id: str | None = None
+
+
+class CodeFormatter(ABC):
+    """Interface for code formatting functionality.
+
+    This interface allows the core layer to request code formatting
+    without depending on the MCP layer. Implementations can be provided
+    from any layer (MCP, infrastructure, etc.) via dependency injection.
+    """
+
+    @abstractmethod
+    async def format_file(self, file_path: Path, timeout: int = 30) -> bool:
+        """Format a file using the configured formatter.
+
+        Args:
+            file_path: Path to the file to format
+            timeout: Maximum time to wait for formatting to complete
+
+        Returns:
+            True if formatting succeeded, False otherwise
+        """
+        pass
+
+
+class DefaultCodeFormatter(CodeFormatter):
+    """Default code formatter implementation (no-op).
+
+    Provides a fallback when no formatter is available.
+    """
+
+    async def format_file(self, file_path: Path, timeout: int = 30) -> bool:
+        """Default implementation does nothing.
+
+        Args:
+            file_path: Path to the file to format
+            timeout: Maximum time to wait for formatting to complete
+
+        Returns:
+            True (no-op formatter always succeeds)
+        """
+        return True
 
 
 @dataclass
@@ -155,16 +196,22 @@ class HooksManager:
         >>> results = await manager.execute_hooks(HookType.POST_CHECKPOINT, context)
     """
 
-    def __init__(self, logger: logging.Logger | None = None) -> None:
+    def __init__(
+        self,
+        logger: logging.Logger | None = None,
+        formatter: CodeFormatter | None = None,
+    ) -> None:
         """Initialize hooks manager.
 
         Args:
             logger: Optional logger instance
+            formatter: Optional code formatter for auto-format hooks
         """
         self.logger = logger or logging.getLogger(__name__)
         self._hooks: dict[HookType, list[Hook]] = {}
         self._causal_tracker: CausalChainTracker | None = None
         self._intelligence_engine: IntelligenceEngine | None = None
+        self.formatter = formatter or DefaultCodeFormatter()
 
     async def initialize(self) -> None:
         """Initialize hook system with causal tracking and intelligence.
@@ -401,7 +448,7 @@ class HooksManager:
     async def _auto_format_handler(self, context: HookContext) -> HookResult:
         """Auto-format Python files after edits.
 
-        This hook runs crackerjack lint on Python files to ensure
+        This hook runs the injected code formatter on Python files to ensure
         consistent code formatting after edits.
 
         Args:
@@ -416,11 +463,9 @@ class HooksManager:
             return HookResult(success=True)
 
         try:
-            # Import here to avoid circular dependency
-            from session_buddy.server import run_crackerjack_command
-
-            await run_crackerjack_command(["lint", "--fix", str(file_path)], timeout=30)
-            return HookResult(success=True)
+            # Use injected formatter (follows Dependency Inversion Principle)
+            success = await self.formatter.format_file(Path(file_path), timeout=30)
+            return HookResult(success=success)
         except Exception as e:
             self.logger.warning(
                 "Auto-format failed for %s: %s",

@@ -31,7 +31,7 @@ async def test_execute_database_tool_success(monkeypatch: t.Any) -> None:
 
 @pytest.mark.asyncio
 async def test_execute_simple_database_tool_unavailable(monkeypatch: t.Any) -> None:
-    from session_buddy.utils.error_handlers import DatabaseUnavailableError
+    from session_buddy.utils.error_management import DatabaseUnavailableError
 
     async def fake_require_db() -> FakeDB:
         msg = "db missing"

@@ -114,6 +114,17 @@ enable_crackerjack: true
 crackerjack_command: "crackerjack"
 enable_git_integration: true
 git_auto_stage: false
+
+# === Git Maintenance Settings ===
+# Automatic git garbage collection during checkpoints
+git_auto_gc: true
+# Prune delay: 'now' (aggressive), '2.weeks' (Git default, safe), '1.month' (conservative)
+git_gc_prune_delay: "2.weeks"
+# Loose object threshold to trigger gc (Git default: 6700)
+git_gc_auto_threshold: 6700
+# Only run gc when no git operation (rebase, merge, bisect) is in progress
+git_gc_only_when_clean: true
+
 global_workspace_path: "~/Projects/claude"
 enable_global_toolkits: true
 

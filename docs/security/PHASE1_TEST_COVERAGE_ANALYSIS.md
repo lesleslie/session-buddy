@@ -482,7 +482,7 @@ def test_environment_sanitization_large_values():
 - **Git config injection**: Malicious config values
 
 **Priority 2 - HIGH (Robustness)**:
-- **Invalid time units**: `2.centuries`, `1.lightyear`
+- **Invalid time units**: `2.centuries`, `1.light year`
 - **Negative numbers**: Already tested but could be more comprehensive
 - **Floating point values**: `2.5.weeks` (should this be allowed?)
 - **Scientific notation**: `1e3.weeks`
@@ -520,7 +520,7 @@ def test_prune_delay_invalid_time_units():
     invalid_units = [
         "2.centuries",
         "1.millenniums",
-        "5.lightyears",
+        "5.light years",
         "1.decades",  # Not a git time unit
     ]
 

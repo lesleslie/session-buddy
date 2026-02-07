@@ -1,0 +1,69 @@
+{
+  "timestamp": "2026-02-06T22:04:58.399067",
+  "phases": {
+    "environment_setup": {
+      "tests": [
+        {
+          "name": "session-buddy",
+          "status": "fail"
+        },
+        {
+          "name": "oneiric",
+          "status": "pass",
+          "version": "0.5.1"
+        },
+        {
+          "name": "mahavishnu",
+          "status": "pass",
+          "version": "0.1.0"
+        }
+      ]
+    },
+    "session_buddy_server": {
+      "tests": [
+        {
+          "name": "server_running",
+          "status": "pass"
+        },
+        {
+          "name": "health_check",
+          "status": "fail"
+        }
+      ]
+    },
+    "mahavishnu_shell": {
+      "tests": [
+        {
+          "name": "command_available",
+          "status": "pass"
+        }
+      ],
+      "manual_test_required": true
+    },
+    "database_verification": {
+      "tests": [
+        {
+          "name": "list_sessions",
+          "status": "fail"
+        }
+      ]
+    }
+  },
+  "issues": [
+    {
+      "phase": "environment_setup",
+      "issue": "session-buddy not installed",
+      "fix": "cd /Users/les/Projects/session-buddy && pip install -e ."
+    },
+    {
+      "phase": "session_buddy_server",
+      "issue": "health check failed",
+      "error": "[Errno 2] No such file or directory: 'session-buddy'"
+    },
+    {
+      "phase": "database_verification",
+      "issue": "failed to list sessions",
+      "error": "[Errno 2] No such file or directory: 'session-buddy'"
+    }
+  ]
+}

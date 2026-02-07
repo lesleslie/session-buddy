@@ -5,18 +5,16 @@ This module handles session initialization, quality assessment, checkpoints,
 and cleanup operations.
 """
 
-import asyncio
-import importlib
 import logging
 import os
 import shutil
-import sys
 import typing as t
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 
 from session_buddy.core.hooks import HookResult, HooksManager
+from session_buddy.core.quality_scoring import QualityScorer, get_quality_scorer
 from session_buddy.utils.git_operations import (
     create_checkpoint_commit,
     is_git_operation_in_progress,
@@ -36,17 +34,23 @@ def get_session_logger() -> logging.Logger:
 class SessionLifecycleManager:
     """Manages session lifecycle operations."""
 
-    def __init__(self, logger: logging.Logger | None = None) -> None:
+    def __init__(
+        self,
+        logger: logging.Logger | None = None,
+        quality_scorer: QualityScorer | None = None,
+    ) -> None:
         """Initialize session lifecycle manager.
 
         Args:
             logger: Logger instance (injected by DI container or standard logger)
+            quality_scorer: QualityScorer instance (injected via DI for testability)
 
         """
         if logger is None:
             logger = logging.getLogger(__name__)
 
         self.logger = logger
+        self.quality_scorer = quality_scorer or get_quality_scorer()
         self.current_project: str | None = None
         self._quality_history: dict[str, list[int]] = {}  # project -> [scores]
         self._captured_insight_hashes: set[str] = (
@@ -85,29 +89,18 @@ class SessionLifecycleManager:
         self,
         project_dir: Path | None = None,
     ) -> dict[str, t.Any]:
-        """Calculate session quality score using V2 algorithm.
+        """Calculate session quality score using injected scorer.
 
-        Delegates to the centralized quality scoring in server.py to avoid
-        code duplication and ensure consistent scoring across the system.
+        Delegates to the injected QualityScorer implementation, breaking
+        the circular dependency with the MCP layer.
 
         Args:
             project_dir: Path to the project directory. If not provided, will use current directory.
 
         """
-        if project_dir is None:
-            project_dir = Path.cwd()
-
-        if "session_buddy.mcp.server" in sys.modules:
-            server = sys.modules["session_buddy.mcp.server"]
-        else:
-            server = await asyncio.to_thread(
-                importlib.import_module,
-                "session_buddy.mcp.server",
-            )
-
-        return t.cast(
-            "dict[str, t.Any]",
-            await server.calculate_quality_score(project_dir=project_dir),
+        # Use injected quality scorer (follows Dependency Inversion Principle)
+        return await self.quality_scorer.calculate_quality_score(
+            project_dir=project_dir
         )
 
     def _calculate_project_score(self, project_context: dict[str, bool]) -> float:
@@ -119,18 +112,8 @@ class SessionLifecycleManager:
 
     def _calculate_permissions_score(self) -> int:
         """Calculate permissions health score (20% of total)."""
-        try:
-            from session_buddy.mcp.server import permissions_manager
-
-            if hasattr(permissions_manager, "trusted_operations"):
-                trusted_count = len(permissions_manager.trusted_operations)
-                return min(
-                    trusted_count * 4,
-                    20,
-                )  # 4 points per trusted operation, max 20
-            return 10  # Basic score if we can't access trusted operations
-        except (ImportError, AttributeError):
-            return 10  # Fallback score
+        # Use injected quality scorer instead of importing from MCP layer
+        return self.quality_scorer.get_permissions_score()
 
     def _calculate_session_score(self) -> int:
         """Calculate session management score (20% of total)."""
@@ -436,10 +419,7 @@ class SessionLifecycleManager:
         allowed_roots = {Path.cwd(), Path.home()}
 
         # Check if resolved path is within allowed roots
-        is_allowed = any(
-            str(resolved).startswith(str(root))
-            for root in allowed_roots
-        )
+        is_allowed = any(str(resolved).startswith(str(root)) for root in allowed_roots)
 
         if not is_allowed:
             raise ValueError(

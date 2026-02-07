@@ -180,4 +180,3 @@ def test_validate_user_path_symlink_attack():
             # Cleanup
             if safe_link.exists() or safe_link.is_symlink():
                 safe_link.unlink()
-

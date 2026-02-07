@@ -6,7 +6,7 @@ Tests for subprocess helper functions to ensure security.
 import os
 import subprocess
 import pytest
-from session_buddy.utils.subprocess_helper import (
+from session_buddy.utils.subprocess_executor import (
     SafeSubprocess,
     _get_safe_environment,
 )

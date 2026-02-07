@@ -17,7 +17,35 @@ try:
 except ImportError:
     tiktoken = None  # type: ignore[assignment]
 
-from session_buddy.acb_cache_adapter import ACBChunkCache, get_chunk_cache
+# ACB cache replaced with native dict-based cache
+_chunk_cache: dict[str, list[tuple[Any, ...]]] = {}
+
+
+def get_chunk_cache() -> dict[str, list[tuple[Any, ...]]]:
+    """Get or create global chunk cache.
+
+    Returns:
+        Dictionary cache for chunked responses
+    """
+    return _chunk_cache
+
+
+class ACBChunkCache:
+    """Native cache for response chunks (replaces ACB dependency)."""
+
+    def get(
+        self, key: str, default: list[tuple[Any, ...]] | None = None
+    ) -> list[tuple[Any, ...]] | None:
+        """Get value from cache."""
+        return _chunk_cache.get(key, default)
+
+    def set(self, key: str, value: list[tuple[Any, ...]]) -> None:
+        """Set value in cache."""
+        _chunk_cache[key] = value
+
+    def clear(self) -> None:
+        """Clear all cached data."""
+        _chunk_cache.clear()
 
 
 @dataclass
@@ -413,7 +441,7 @@ class TokenOptimizer:
             },
         )
 
-        await self.chunk_cache.set(cache_key, chunk_result)
+        self.chunk_cache.set(cache_key, [(chunk_result,)])  # type: ignore[arg-type, func-returns-value]  # Store as tuple list, returns None
         return cache_key
 
     async def get_chunk(
@@ -431,10 +459,14 @@ class TokenOptimizer:
             Dict with chunk data and metadata, or None if not found
 
         """
-        if not await self.chunk_cache.__contains__(cache_key):
+        # Check if key exists in cache
+        if cache_key not in _chunk_cache:  # type: ignore[attr-defined]  # Direct cache check
             return None
 
-        chunk_result = await self.chunk_cache.get(cache_key)
+        cached = self.chunk_cache.get(cache_key)
+        if not cached:
+            return None
+        chunk_result = cached[0][0]  # type: ignore[index]  # Extract ChunkResult from tuple list
 
         if chunk_result and 1 <= chunk_index <= len(chunk_result.chunks):
             chunk_data = json.loads(chunk_result.chunks[chunk_index - 1])

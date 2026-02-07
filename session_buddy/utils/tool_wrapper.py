@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from session_buddy.utils.database_helpers import (
+from session_buddy.utils.database_tools import (
     require_reflection_database,
 )
-from session_buddy.utils.error_handlers import (
+from session_buddy.utils.error_management import (
     DatabaseUnavailableError,
     ValidationError,
     _get_logger,
@@ -214,7 +214,7 @@ async def execute_no_database_tool(
 
 def _validate_required_field(key: str, value: Any) -> None:
     """Validate a required field."""
-    from session_buddy.utils.error_handlers import validate_required
+    from session_buddy.utils.error_management import validate_required
 
     field_name = key[9:]  # Remove "required_" prefix
     validate_required(value, field_name)
@@ -222,7 +222,7 @@ def _validate_required_field(key: str, value: Any) -> None:
 
 def _validate_type_field(key: str, value: Any) -> None:
     """Validate a type field."""
-    from session_buddy.utils.error_handlers import validate_type
+    from session_buddy.utils.error_management import validate_type
 
     parts = key.split("_")
     if len(parts) < 3:
@@ -246,7 +246,7 @@ def _validate_type_field(key: str, value: Any) -> None:
 
 def _validate_range_field(key: str, value: Any) -> None:
     """Validate a range field."""
-    from session_buddy.utils.error_handlers import validate_range
+    from session_buddy.utils.error_management import validate_range
 
     field_name = key[6:]  # Remove "range_" prefix
     if isinstance(value, tuple) and len(value) == 3:

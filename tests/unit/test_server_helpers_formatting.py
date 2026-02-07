@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from session_buddy.utils import server_helpers as sh
+from session_buddy.utils import session_formatters as sh
 
 
 def test_format_metrics_summary() -> None:

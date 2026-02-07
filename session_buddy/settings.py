@@ -325,6 +325,27 @@ class SessionMgmtSettings(MCPBaseSettings):
         default=False,
         description="Automatically stage changes before commits",
     )
+
+    # === Git Maintenance Settings ===
+    git_auto_gc: bool = Field(
+        default=True,
+        description="Enable automatic git garbage collection during checkpoints",
+    )
+    git_gc_prune_delay: str = Field(
+        default="2.weeks",
+        min_length=2,
+        description="Prune delay for git gc (e.g., 'now', '2.weeks', '1.month') - Git default is 2 weeks",
+    )
+    git_gc_auto_threshold: int = Field(
+        default=6700,
+        ge=100,
+        le=50000,
+        description="Loose object threshold to trigger automatic gc (Git default: 6700)",
+    )
+    git_gc_only_when_clean: bool = Field(
+        default=True,
+        description="Only run git gc when no git operation (rebase, merge, bisect) is in progress",
+    )
     global_workspace_path: Path = Field(
         default=Path("~/Projects/claude"),
         description="Path to global workspace directory",
@@ -332,6 +353,23 @@ class SessionMgmtSettings(MCPBaseSettings):
     enable_global_toolkits: bool = Field(
         default=True,
         description="Enable global toolkit discovery and usage",
+    )
+
+    # === Prometheus Metrics Settings ===
+    enable_prometheus_metrics: bool = Field(
+        default=True,
+        description="Enable Prometheus metrics collection",
+    )
+    prometheus_metrics_port: int = Field(
+        default=9090,
+        ge=1024,
+        le=65535,
+        description="Port for Prometheus metrics endpoint",
+    )
+    prometheus_metrics_path: str = Field(
+        default="/metrics",
+        min_length=1,
+        description="Path for Prometheus metrics endpoint",
     )
 
     # === LLM API Keys (optional, overrides env vars) ===
@@ -557,6 +595,39 @@ class SessionMgmtSettings(MCPBaseSettings):
             msg = "Commit message template must contain {timestamp} placeholder"
             raise ValueError(msg)
         return v
+
+    @field_validator("git_gc_prune_delay")
+    @classmethod
+    def validate_prune_delay(cls, v: str) -> str:
+        """Validate git prune delay format to prevent command injection."""
+        import re
+
+        # Allowlist of safe prune delay patterns
+        # Format: <number>.<timeunit> (e.g., '2.weeks', '1.month')
+        # Or special values 'now' or 'never'
+        safe_patterns = [
+            r"^\d+\.(seconds?|minutes?|hours?|days?|weeks?|months?|years?)$",
+            r"^(now|never)$",
+        ]
+
+        for pattern in safe_patterns:
+            if re.match(pattern, v, re.IGNORECASE):
+                # Warn about dangerous 'now' option
+                if v.lower() == "now":
+                    import warnings
+
+                    warnings.warn(
+                        "git_gc_prune_delay set to 'now' - this can cause permanent data loss! "
+                        "Consider using '2.weeks' or '1.month' instead.",
+                        stacklevel=2,
+                    )
+                return v
+
+        msg = (
+            f"Invalid git_gc_prune_delay '{v}'. "
+            "Must be in format '<number>.<unit>' (e.g., '2.weeks', '1.month') or 'now'."
+        )
+        raise ValueError(msg)
 
 
 # Global settings instance

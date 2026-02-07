@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is Session Buddy, a Claude Session Management MCP (Model Context Protocol) server that provides comprehensive session management functionality for Claude Code across any project. It operates as a standalone MCP server with its own isolated environment to avoid dependency conflicts.
+Session Buddy is a Claude Session Management MCP (Model Context Protocol) server providing comprehensive session management for Claude Code across any project. It operates as a standalone MCP server with isolated environment to avoid dependency conflicts.
 
 ## Development Commands
 
@@ -14,13 +14,13 @@ This is Session Buddy, a Claude Session Management MCP (Model Context Protocol) 
 # Install all dependencies (development + production)
 uv sync --group dev
 
-# Install minimal dependencies only (production)
+# Install minimal dependencies (production)
 uv sync
 
-# Run server directly as a module
+# Run server
 python -m session_buddy.server
 
-# Run server with debug logging
+# Run with debug logging
 PYTHONPATH=. python -m session_buddy.server --debug
 
 # Verify installation
@@ -28,345 +28,277 @@ python -c "from session_buddy.server import mcp; print('✅ MCP server ready')"
 python -c "from session_buddy.reflection_tools import ReflectionDatabase; print('✅ Memory system ready')"
 ```
 
-### Quick Start Development
+### Quick Start
 
 ```bash
-# Complete development setup in one command
-uv sync --group dev && \
-  pytest -m "not slow" && \
-  crackerjack lint
+# Complete development setup
+uv sync --group dev && pytest -m "not slow" && crackerjack lint
 ```
 
-### Code Quality & Linting
+### Code Quality
 
 ```bash
-# Lint and format code (uses Ruff with strict settings)
-crackerjack lint
-
-# Run type checking
-crackerjack typecheck
-
-# Security scanning
-crackerjack security
-
-# Code complexity analysis
-crackerjack complexity
-
-# Full quality analysis
-crackerjack analyze
+crackerjack lint          # Lint and format code
+crackerjack typecheck     # Run type checking
+crackerjack security      # Security scanning
+crackerjack complexity    # Code complexity analysis
+crackerjack analyze       # Full quality analysis
 ```
 
-### Testing & Development
+### Testing
 
 ```bash
-# Run comprehensive test suite with coverage
-pytest
-
-# Quick smoke tests for development (recommended during coding)
-pytest -m "not slow"
-
-# Run specific test categories
-pytest tests/unit/                    # Unit tests only
-pytest tests/integration/             # Integration tests only
-pytest -m performance                 # Performance tests only
-pytest -m security                    # Security tests only
-
-# Run single test file with verbose output
-pytest tests/unit/test_session_permissions.py -v -s
-
-# Run tests with parallel execution (faster)
-pytest -n auto
-
-# Coverage reporting
-pytest --cov=session_buddy --cov-report=term-missing
-
-# Development debugging mode (keeps test data)
-pytest -v --tb=short
-
-# Fail build if coverage below 85%
-pytest --cov=session_buddy --cov-fail-under=85
-
-# Run tests with custom timeout
-pytest --timeout=300
+pytest                               # Run all tests
+pytest -m "not slow"                 # Quick smoke tests (dev recommended)
+pytest tests/unit/                   # Unit tests only
+pytest tests/integration/            # Integration tests only
+pytest -m performance                # Performance tests
+pytest -m security                   # Security tests
+pytest -n auto                       # Parallel execution (faster)
+pytest --cov=session_buddy --cov-report=term-missing  # Coverage
+pytest --cov=session_buddy --cov-fail-under=85        # Enforce 85%+ coverage
 ```
 
-### Development Workflow Commands
+### Workflows
 
 ```bash
-# Pre-commit workflow (run before any commit)
-uv sync --group dev && \
-  crackerjack lint && \
-  pytest -m "not slow" && \
-  crackerjack typecheck
+# Pre-commit workflow
+uv sync --group dev && crackerjack lint && pytest -m "not slow" && crackerjack typecheck
 
-# Full quality gate (run before PR)
-pytest --cov=session_buddy --cov-fail-under=85 && \
-  crackerjack security && \
-  crackerjack complexity
-
-# Debug server issues
-python -c "
-import logging
-logging.basicConfig(level=logging.DEBUG)
-from session_buddy.server import mcp
-print('Server debug check complete')
-"
+# Full quality gate (before PR)
+pytest --cov=session_buddy --cov-fail-under=85 && crackerjack security && crackerjack complexity
 ```
 
 ## Architecture Overview
 
-### Recent Architecture Changes (Phases 2.7 & 3.0 - January 2025)
+### Recent Changes (January 2025)
 
-**Latest Updates** (December 2025):
+- **Removed sitecustomize.py** - Eliminated 115 lines of startup-time patches
+- **Updated FastAPI to >=0.124.2** - Removed upper bound constraint
+- **Documentation Reorganization** - Archived 80 historical docs to `docs/archive/`
 
-- **Removed sitecustomize.py** - No longer needed with Codex AI workaround; eliminated 115 lines of brittle startup-time patches
-- **Updated FastAPI to >=0.124.2** - Removed upper bound constraint; FastAPI 0.121.x bugs resolved in 0.124.2+
-- **Documentation Reorganization** - Archived 80 historical docs to `docs/archive/` (91% reduction in top-level clutter)
+### Oneiric Adapter Migration (COMPLETE)
 
-**Oneiric Adapter Migration - COMPLETE** (**Phases 2-5** - January 2025)
+Both database layers migrated to native DuckDB adapters (Oneiric):
 
-Both database layers have been successfully migrated to native DuckDB adapters (Oneiric):
+**Phase 2-3**: Created `ReflectionDatabaseAdapter` and `KnowledgeGraphDatabaseAdapter` with hybrid sync/async pattern
+**Phase 5**: Replaced external framework with direct DuckDB operations
 
-**✅ Phase 2-3: Initial Migration** (Conversations/Reflections + Knowledge Graph)
-
-- Created `ReflectionDatabaseAdapter` using native DuckDB vector operations (566 lines)
-- Implemented `KnowledgeGraphDatabaseAdapter` with hybrid sync/async pattern (700 lines)
-- Migration scripts: `scripts/migrate_vector_database.py`, `scripts/migrate_graph_database.py`
-- 100% API compatibility maintained throughout
-
-**✅ Phase 5: Oneiric Conversion** (Native DuckDB Implementation)
-
-- **Replaced external framework dependency** with direct DuckDB operations
-- **No async driver required**: DuckDB operations are fast enough (\<1ms) to safely use sync code in async contexts
-- Async method signatures for API consistency, sync DuckDB operations internally
-- Maintained 100% backward compatibility while simplifying the stack
-
-**Hybrid Pattern Key Insight**:
-
-```text
+```python
 async def create_entity(self, name: str, ...) -> dict:
     """Async signature for API consistency, sync operation internally."""
     conn = self._get_conn()  # Sync DuckDB connection
-    conn.execute("INSERT INTO kg_entities ...")  # Fast local operation (<1ms)
+    conn.execute("INSERT INTO kg_entities ...")  # Fast (<1ms)
     return {"id": entity_id, ...}
 ```
 
-This pattern can be applied to other fast local databases (SQLite, in-memory caches) where operations complete in microseconds and don't block the event loop.
+**Benefits**: Native DuckDB, improved connection pooling, better testability, zero breaking changes
+**Details**: `docs/migrations/ONEIRIC_MIGRATION_PLAN.md`
 
-**Complete Migration Benefits**:
+### Phase 2 Architecture Refactoring (February 2026)
 
-- ✅ Both Vector and Graph databases use native DuckDB with Oneiric adapters
-- ✅ Removed external framework dependency (simplified stack)
-- ✅ Improved connection pooling and resource management
-- ✅ Better testability through dependency injection
-- ✅ Zero new dependencies (no `duckdb-engine` needed)
-- ✅ 100% API compatibility for both adapters
-- ✅ Zero breaking changes for users
+**Key Achievements**:
 
-**Full migration details**: `docs/migrations/ONEIRIC_MIGRATION_PLAN.md`
+- Zero circular dependencies between core and MCP layers
+- Core layer has ZERO MCP imports (verified programmatically)
+- 908 lines of code reduction through deprecated code removal
+- 18/18 architecture validation checks passed
 
-**Dependency Injection Migration** (**Phase 2.7 Days 1-4 completed**)
+**Details**: `docs/PHASE2_SUMMARY.md`
 
-- Migrated from manual singleton management to dependency injection
-- Centralized DI configuration in `session_buddy/di/` module with `configure()` function
-- Provides container-based access via `depends.get_sync(ClassName)` for testable, modular code
-- Benefits: Improved testability, reduced coupling, simplified lifecycle management
+#### Layer Separation
 
-**Test Infrastructure Cleanup** (Phase 2.7 Day 5)
+```
+MCP Layer (server.py)
+    - FastMCP integration, Tool registration
+    - Concrete implementations (MCPQualityScorer, MCPCodeFormatter)
+         implements
+    Core Layer Interfaces
+    - QualityScorer (ABC), CodeFormatter (ABC)
+         injected via DI
+    Core Layer Components
+    - SessionLifecycleManager, HooksManager
+         uses
+    Infrastructure Layer
+    - Reflection database, Git operations, File system utilities
+```
 
-- Removed 6 unused test factories (65% code reduction in data_factories.py)
-- Kept only actively-used factories: `ReflectionDataFactory`, `LargeDatasetFactory`, `SecurityTestDataFactory`
-- Removed redundant pytest fixtures from conftest.py
-- All 21 functional tests passing after cleanup
+**Dependency Rules**:
 
-**Quality Scoring V2 Algorithm** (Phase 2.7 Day 4)
+1. **MCP Layer**: Implements Core interfaces, CAN import Core + Infrastructure
+1. **Core Layer**: Contains interfaces/business logic, CAN import Infrastructure + ABC, CANNOT import MCP
+1. **Infrastructure Layer**: Storage/utilities, CAN import stdlib + external deps, CANNOT import MCP/Core
 
-- New filesystem-based quality assessment in `utils/quality_utils_v2.py`
-- Direct file inspection instead of abstracted context (more accurate, less mocking needed)
-- Updated test expectations to match V2 scoring ranges
+#### Dependency Injection
 
-**Async/Await Chain Fixes** (Phase 2.7 Day 4)
+```python
+# Configure DI container (server startup)
+from session_buddy.di import configure, get_sync_typed, reset
+configure()  # Registers all singletons
 
-- Fixed nested event loop bugs in session_manager.py
-- Made `_get_previous_session_info()` and `_read_previous_session_info()` properly async
-- Replaced `asyncio.run()` calls within async context with `await`
+# Get typed instance
+manager = get_sync_typed(SessionLifecycleManager)
+
+# Reset (testing)
+reset()
+```
+
+**Registration Order** (critical):
+
+1. SessionPaths → 2. SessionLogger → 3. SessionPermissionsManager →
+1. QualityScorer (MCPQualityScorer/DefaultQualityScorer) →
+1. CodeFormatter (MCPCodeFormatter/DefaultCodeFormatter) →
+1. SessionLifecycleManager → 7. HooksManager
+
+**Usage Patterns**:
+
+```python
+# Pattern 1: Constructor injection (preferred)
+class SessionLifecycleManager:
+    def __init__(self, quality_scorer: QualityScorer | None = None):
+        self.quality_scorer = quality_scorer or get_sync_typed(QualityScorer)
+
+# Pattern 2: Direct DI lookup (utilities)
+def some_function():
+    manager = get_sync_typed(SessionLifecycleManager)
+
+# Pattern 3: Testing with mocks
+manager = SessionLifecycleManager(quality_scorer=Mock(spec=QualityScorer))
+```
+
+#### Interface-Based Design
+
+**Core layer defines interface**:
+
+```python
+class QualityScorer(ABC):
+    @abstractmethod
+    async def calculate_quality_score(self, project_dir: Path | None = None) -> dict[str, Any]:
+        pass
+```
+
+**MCP layer provides concrete implementation**:
+
+```python
+class MCPQualityScorer(QualityScorer):
+    async def calculate_quality_score(self, project_dir: Path | None = None) -> dict[str, Any]:
+        from session_buddy.mcp.server import calculate_quality_score
+        return await calculate_quality_score(project_dir=project_dir)
+```
+
+**Core layer provides fallback**:
+
+```python
+class DefaultQualityScorer(QualityScorer):
+    async def calculate_quality_score(self, project_dir: Path | None = None) -> dict[str, Any]:
+        return {"overall": 75, "metrics": {}, "recommendations": []}
+```
+
+#### Reflection System Modularization
+
+**Before**: `reflection_tools.py` (1,345 lines) - Everything in one file
+**After**: Modular structure with 97% reduction in main file
+
+```
+session_buddy/reflection/
+|-- __init__.py (50 lines) - Public API
+|-- database.py (380 lines) - Database class
+|-- embeddings.py (200 lines) - Vector generation
+|-- schema.py (160 lines) - Database structure
+|-- search.py (330 lines) - Semantic/text search
+|-- storage.py (280 lines) - CRUD operations
+reflection_tools.py (37 lines) - Compatibility wrapper
+```
+
+**Benefits**: Clear separation, better testability, 100% backward compatibility
+
+#### Architectural Benefits
+
+- **Testability**: Core layer tested without MCP dependencies, DI supports test doubles
+- **Maintainability**: Layer separation prevents circular dependencies, modular structure isolates changes
+- **Extensibility**: Multiple implementations via DI, graceful degradation with fallbacks
+- **Performance**: DI adds \<1ms overhead, singleton pattern prevents duplicates
 
 ### Core Components
 
-1. **server.py** (~3,500+ lines): Main MCP server implementation
+**server.py** (~3,500+ lines): FastMCP integration, tool registration, session lifecycle, permissions, project analysis, Git integration, structured logging
 
-   - **FastMCP Integration**: Uses FastMCP framework for MCP protocol handling
-   - **Tool Registration**: Centralized registration of all MCP tools and prompts
-   - **Session Lifecycle**: Complete session management (start, checkpoint, end, status)
-   - **Permissions System**: Trusted operations management to reduce user prompts
-   - **Project Analysis**: Context-aware project health monitoring and scoring
-   - **Git Integration**: Automatic checkpoint commits with metadata tracking
-   - **Structured Logging**: SessionLogger class with file and console output
+**reflection_tools.py**: DuckDB database with FLOAT[384] vector embeddings, local ONNX model (all-MiniLM-L6-v2), async architecture with executor threads, text search fallback
 
-1. **reflection_tools.py**: Memory & conversation search system
+**crackerjack_integration.py**: Real-time parsing of Crackerjack output, quality metrics aggregation, test result analysis, command history learning
 
-   - **DuckDB Database**: Conversation storage with FLOAT[384] vector embeddings
-   - **Local ONNX Model**: all-MiniLM-L6-v2 for semantic search (no external API calls)
-   - **Async Architecture**: Executor threads prevent blocking on embedding generation
-   - **Fallback Strategy**: Text search when ONNX/transformers unavailable
-   - **Performance**: Optimized for concurrent access with connection pooling
+**tools/**: Organized MCP tool implementations (session, memory, search, crackerjack, LLM, team)
 
-1. **crackerjack_integration.py**: Code quality integration layer
+**core/**: Session state and lifecycle coordination
 
-   - **Real-time Parsing**: Crackerjack tool output analysis and progress tracking
-   - **Quality Metrics**: Aggregation and trend analysis of code quality scores
-   - **Test Result Analysis**: Pattern detection and success rate tracking
-   - **Command History**: Learning from effective Crackerjack command usage
+**di/**: Dependency injection configuration (`configure()`, `get_sync_typed()`, benefits: testability, reduced coupling)
 
-### Modular Architecture Components
-
-4. **tools/** directory: Organized MCP tool implementations
-
-   - **session_tools.py**: Core session management (start, checkpoint, end, status)
-   - **memory_tools.py**: Reflection and search functionality
-   - **search_tools.py**: Advanced search capabilities and pagination
-   - **crackerjack_tools.py**: Quality integration and progress tracking
-   - **llm_tools.py**: LLM provider management and configuration
-   - **team_tools.py**: Collaborative features and knowledge sharing
-
-1. **core/** directory: Core system management
-
-   - **session_manager.py**: Session state and lifecycle coordination
-
-1. **di/** directory: Dependency Injection configuration (Phase 2.7)
-
-   - **__init__.py**: Centralized DI configuration with `configure()` function
-   - **constants.py**: Component identifiers and DI-related constants
-   - Provides: `depends.get_sync(ClassName)` for container-based dependency resolution
-   - Benefits: Testable components, reduced coupling, simplified lifecycle management
-
-1. **utils/** directory: Shared utilities and helper functions
-
-   - **git_operations.py**: Git commit functions and repository management
-   - **logging.py**: SessionLogger implementation and structured logging
-   - **quality_utils.py**: Legacy quality assessment (V1)
-   - **quality_utils_v2.py**: Filesystem-based quality scoring V2 algorithm (Phase 2.7)
+**utils/**: Git operations, logging, quality scoring (V1 + V2 filesystem-based)
 
 ### Advanced Components
 
-7. **multi_project_coordinator.py**: Cross-project session coordination
+**multi_project_coordinator.py**: Cross-project coordination with `ProjectGroup`/`ProjectDependency` dataclasses, relationship types (related/continuation/reference), dependency-aware result ranking
 
-   - **Data Models**: `ProjectGroup` and `ProjectDependency` dataclasses with type safety
-   - **Relationship Types**: `related`, `continuation`, `reference` with semantic meaning
-   - **Cross-Project Search**: Dependency-aware result ranking across related projects
-   - **Use Case**: Coordinate microservices, monorepo modules, or related repositories
+**token_optimizer.py**: tiktoken-based token counting, auto-split responses >4000 tokens with `ChunkResult` pagination
 
-1. **token_optimizer.py**: Context window and response management
+**search_enhanced.py**: Faceted search (project, time, author, content type), aggregations, FTS5 full-text indexing
 
-   - **TokenOptimizer**: tiktoken-based accurate token counting for GPT models
-   - **Response Chunking**: Auto-split responses >4000 tokens with cache keys
-   - **ChunkResult**: Structured pagination with metadata and continuation support
-   - **Metrics Collection**: TokenUsageMetrics for optimization insights
+**interruption_manager.py**: File system monitoring, automatic context snapshots, session restoration
 
-1. **search_enhanced.py**: Advanced search capabilities
+**serverless_mode.py**: Oneiric storage adapters (File, S3, Azure, GCS, Memory), session serialization, multi-instance support
 
-   - **Faceted Search**: Filter by project, time, author, content type
-   - **Aggregations**: Statistical analysis of search results
-   - **Full-Text Indexing**: FTS5 support in DuckDB for complex queries
+**app_monitor.py**: IDE activity tracking, development behavior insights, workflow efficiency metrics
 
-1. **interruption_manager.py**: Context preservation during interruptions
+**natural_scheduler.py**: Natural language time parsing, background reminder service
 
-   - **Smart Detection**: File system monitoring and activity pattern analysis
-   - **Context Snapshots**: Automatic state preservation during interruptions
-   - **Recovery**: Session restoration with minimal context loss
+**worktree_manager.py**: Git worktree operations, session coordination, branch management
 
-1. **serverless_mode.py**: External storage integration
+### Key Design Patterns
 
-   - **Oneiric Storage Adapters**: File, S3, Azure, GCS, Memory backends using native DuckDB
-   - **Session Serialization**: Stateless operation with external persistence
-   - **Multi-Instance**: Support for distributed Claude Code deployments
-   - **See**: `docs/migrations/ONEIRIC_MIGRATION_PLAN.md` for migration details
+#### 1. Async-First Architecture
 
-1. **app_monitor.py**: IDE activity and browser documentation monitoring
-
-   - **Activity Tracking**: Monitor IDE usage and documentation patterns
-   - **Context Insights**: Generate insights from development behavior
-   - **Performance Metrics**: Track development workflow efficiency
-
-1. **natural_scheduler.py**: Natural language scheduling and reminders
-
-   - **Time Parsing**: Convert natural language to scheduled tasks
-   - **Reminder System**: Background service for task notifications
-   - **Integration**: Works with session management for deadline tracking
-
-1. **worktree_manager.py**: Git worktree management and coordination
-
-   - **Worktree Operations**: Create, remove, and manage Git worktrees
-   - **Session Coordination**: Context switching between worktrees
-   - **Branch Management**: Coordinate development across multiple branches
-
-### Key Design Patterns & Architectural Decisions
-
-#### 1. **Async-First Architecture**
-
-```text
-# Database operations use executor threads to prevent blocking
+```python
+# ✅ Correct: Use executor for blocking operations
 async def generate_embedding(text: str) -> np.ndarray:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _sync_embedding_generation, text)
 
-
-# MCP tools handle async/await automatically
-@mcp.tool()
-async def example_tool(param: str) -> dict[str, Any]:
-    result = await async_operation(param)
-    return {"success": True, "data": result}
+# ❌ Avoid: Blocking the event loop
+async def bad_embedding(text: str) -> np.ndarray:
+    return onnx_session.run(None, {"input": text})  # Blocks!
 ```
 
-#### 2. **Graceful Degradation Strategy**
+#### 2. Graceful Degradation
 
-- **Optional Dependencies**: Falls back gracefully when `onnxruntime`/`transformers` unavailable
-- **Search Fallback**: Text search when embeddings fail, maintaining functionality
-- **Memory Constraints**: Automatic chunking and compression for resource-limited environments
-- **Error Recovery**: Continues operation despite individual component failures
+- Optional dependencies fall back gracefully (ONNX → text search)
+- Memory constraints trigger automatic chunking/compression
+- Error recovery continues despite component failures
 
-#### 3. **Local-First Privacy Design**
+#### 3. Local-First Privacy
 
-- **No External APIs**: All embeddings generated locally via ONNX
-- **Local Storage**: DuckDB file-based storage in `~/.claude/` directory
-- **Zero Network Dependencies**: Functions without internet for core features
-- **User Data Control**: Complete data sovereignty with local processing
+- No external APIs (embeddings generated locally via ONNX)
+- Local DuckDB storage in `~/.claude/`
+- Zero network dependencies for core features
+- Complete user data control
 
-#### 4. **Selective Auto-Store for High Signal-to-Noise Ratio**
+#### 4. Selective Auto-Store (High Signal-to-Noise)
 
-The system intelligently decides when to auto-store checkpoint reflections to maintain high-quality memory:
+**Triggers**: Manual checkpoints (always), session end (always), quality delta ≥10, exceptional ≥90
+**Skips**: Routine auto-checkpoints with minimal changes
 
-**Auto-Store Triggers:**
-
-- **Manual Checkpoints**: Always stored (user explicitly requested)
-- **Session End**: Always stored (final state capture)
-- **Significant Quality Changes**: Delta ≥10 points (configurable)
-- **Exceptional Quality**: Score ≥90/100 (configurable)
-
-**Skipped Checkpoints:**
-
-- Routine automatic checkpoints with minimal changes
-- Quality changes below threshold (default: \<10 points)
-
-**Configuration Options** (config.py):
+**Configuration**:
 
 ```python
-enable_auto_store_reflections: bool = True  # Global toggle
-auto_store_quality_delta_threshold: int = 10  # Minimum delta to trigger
-auto_store_exceptional_quality_threshold: int = 90  # Exceptional quality
-auto_store_manual_checkpoints: bool = True  # Store manual checkpoints
-auto_store_session_end: bool = True  # Store session end
+enable_auto_store_reflections: bool = True
+auto_store_quality_delta_threshold: int = 10
+auto_store_exceptional_quality_threshold: int = 90
+auto_store_manual_checkpoints: bool = True
+auto_store_session_end: bool = True
 ```
 
-**Semantic Tagging**: Auto-stored reflections get meaningful tags:
+**Tags**: `manual_checkpoint`, `session_end`, `quality_improvement`, `quality_degradation`, `high-quality`, `good-quality`, `needs-improvement`, `user-initiated`, `quality-change`, `session-summary`
 
-- `manual_checkpoint`, `session_end`, `quality_improvement`, `quality_degradation`
-- `high-quality`, `good-quality`, `needs-improvement`
-- `user-initiated`, `quality-change`, `session-summary`
-
-This approach ensures the reflection database contains only meaningful insights, making searches more effective and preventing storage bloat.
-
-#### 5. **Type-Safe Data Modeling**
+#### 5. Type-Safe Data Modeling
 
 ```python
 @dataclass
@@ -377,14 +309,11 @@ class ProjectDependency:
     description: str | None = None
 ```
 
-- **Dataclass Architecture**: Immutable, type-safe data structures throughout
-- **Modern Type Hints**: Uses Python 3.13+ syntax with pipe unions
-- **Runtime Validation**: Pydantic integration with automatic serialization
+- Dataclass architecture, modern Python 3.13+ type hints, Pydantic runtime validation
 
-#### 6. **Performance-Optimized Vector Search**
+#### 6. Performance-Optimized Vector Search
 
 ```sql
--- DuckDB vector similarity with index support
 SELECT content, array_cosine_similarity(embedding, $1) as similarity
 FROM conversations
 WHERE similarity > 0.7
@@ -392,63 +321,38 @@ ORDER BY similarity DESC, timestamp DESC
 LIMIT 20;
 ```
 
-- **Vector Indexing**: FLOAT[384] arrays with similarity search optimization
-- **Hybrid Search**: Combines semantic similarity with temporal relevance
-- **Result Ranking**: Time-decay weighting favors recent conversations
+- FLOAT[384] vectors, cosine similarity, hybrid semantic + temporal ranking
 
 ### Session Management Workflow
 
-## Recommended Session Workflow
+**Git Repositories (Automatic)**:
 
-### Git Repositories (Automatic)
+1. Start Claude Code - Session auto-initializes
+1. Work normally - Automatic quality tracking
+1. Run `/checkpoint` - Manual checkpoints with auto-compaction
+1. Exit any way - Session auto-cleanup
 
-1. **Start Claude Code** - Session auto-initializes
-1. **Work normally** - Automatic quality tracking
-1. **Run `/checkpoint`** - Manual checkpoints with auto-compaction
-1. **Exit any way** - Session auto-cleanup on disconnect
+**Non-Git Projects (Manual)**:
 
-### Non-Git Projects (Manual)
+1. Start with `/start` (if you want session management)
+1. Checkpoint with `/checkpoint` as needed
+1. End with `/end` before quitting
 
-1. **Start with**: `/start` (if you want session management)
-1. **Checkpoint**: `/checkpoint` as needed
-1. **End with**: `/end` before quitting
+**Automatic Initialization** (Git repos): Sets up `~/.claude` directory, syncs UV dependencies, analyzes project context, calculates maturity score, sets up permissions, crash resilient
 
-### Detailed Tool Functions
+**Enhanced Quality Monitoring** (`checkpoint`): Multi-factor quality score, automatic context compaction, Git commits with metadata, workflow recommendations
 
-1. **Automatic Initialization** (Git repos only):
-
-   - **Triggers**: Claude Code connection in git repository
-   - Sets up ~/.claude directory structure
-   - Syncs UV dependencies and generates requirements.txt
-   - Analyzes project context and calculates maturity score
-   - Sets up session permissions and auto-checkpoints
-   - **Crash resilient**: Works even after network/system failures
-
-1. **Enhanced Quality Monitoring** (`checkpoint` tool):
-
-   - Calculates multi-factor quality score (project health, permissions, tools)
-   - **NEW: Automatic context compaction when needed**
-   - Creates automatic Git commits with checkpoint metadata
-   - Provides workflow optimization recommendations
-   - Intelligent analysis of development patterns
-
-1. **Automatic Session Cleanup** (Git repos only):
-
-   - **Triggers**: Any disconnect, quit, crash, or network failure
-   - Generates session handoff documentation
-   - Performs final quality assessment
-   - Cleans up session artifacts
-   - **Zero manual intervention** required
+**Automatic Session Cleanup** (Git repos): Any disconnect/quit/crash, generates handoff docs, final quality assessment, cleanup artifacts, zero manual intervention
 
 ### Memory System Architecture
 
-**DuckDB Schema**: Core tables with vector support:
+**DuckDB Schema**:
 
 ```sql
 CREATE TABLE conversations (
     id TEXT PRIMARY KEY,
     content TEXT,
-    embedding FLOAT[384],  -- all-MiniLM-L6-v2 vectors
+    embedding FLOAT[384],  -- all-MiniLM-L6-v2
     project TEXT,
     timestamp TIMESTAMP
 );
@@ -461,26 +365,15 @@ CREATE TABLE reflections (
 );
 ```
 
-**Vector Search Implementation**:
+**Vector Search**: Local ONNX model (all-MiniLM-L6-v2, 384-dim), cosine similarity, text search fallback, async executor threads
 
-- **Local ONNX Model**: all-MiniLM-L6-v2 with 384-dimensional vectors
-- **Cosine Similarity**: `array_cosine_similarity(embedding, query_vector)` in DuckDB
-- **Fallback Strategy**: Text search when embeddings unavailable or ONNX missing
-- **Async Execution**: Embedding generation runs in executor threads to avoid blocking
-
-**Multi-Project Coordination**:
-
-- `ProjectGroup` and `ProjectDependency` tables for relationship modeling
-- Cross-project search with dependency-aware result ranking
-- Session linking with typed relationships (`continuation`, `reference`, `related`)
+**Multi-Project**: `ProjectGroup`/`ProjectDependency` tables, cross-project search with dependency-aware ranking, typed relationships (continuation/reference/related)
 
 ## Configuration & Integration
 
 ### MCP Configuration
 
-**Note:** This project uses the global MCP configuration in `~/.claude/.mcp.json` (recommended). The project-level `.mcp.json` has been removed as redundant.
-
-Example configuration for `~/.claude/.mcp.json`:
+Uses global `~/.claude/.mcp.json` (recommended). Project-level `.mcp.json` removed as redundant.
 
 ```json
 {
@@ -489,9 +382,7 @@ Example configuration for `~/.claude/.mcp.json`:
       "command": "python",
       "args": ["-m", "session_buddy.server"],
       "cwd": "/path/to/session-buddy",
-      "env": {
-        "PYTHONPATH": "/path/to/session-buddy"
-      }
+      "env": {"PYTHONPATH": "/path/to/session-buddy"}
     }
   }
 }
@@ -499,300 +390,169 @@ Example configuration for `~/.claude/.mcp.json`:
 
 ### Directory Structure
 
-The server uses the ~/.claude directory for data storage:
-
 - **~/.claude/logs/**: Session management logging
 - **~/.claude/data/**: Reflection database storage
 
 ### Environment Variables
 
-- `PWD`: Used to detect current working directory
+- `PWD`: Current working directory detection
 
 ### Oneiric Storage Adapters
 
-Session Buddy uses Oneiric adapters with native DuckDB for improved reliability and multi-cloud support.
-
-**Recommended Backends**:
-
-- `file` - Local file storage (default, best for development)
-- `s3` - AWS S3/MinIO (production cloud storage)
-- `azure` - Azure Blob Storage (Azure deployments)
-- `gcs` - Google Cloud Storage (GCP deployments)
-- `memory` - In-memory storage (testing only)
+**Backends**: `file` (default, dev), `s3` (AWS/MinIO), `azure`, `gcs`, `memory` (testing only)
 
 **Configuration** (`settings/session-buddy.yaml`):
 
 ```yaml
 storage:
   default_backend: "file"
-
   file:
     local_path: "${SESSION_STORAGE_PATH:~/.claude/data/sessions}"
     auto_mkdir: true
-
   s3:
     bucket_name: "${S3_BUCKET:session-buddy}"
     endpoint_url: "${S3_ENDPOINT:}"
     region: "${S3_REGION:us-east-1}"
 ```
 
-**Benefits**:
+**Benefits**: Multi-cloud support, environment variable support, native DuckDB, better connection pooling, 91% code reduction, 100% backward compatibility
 
-- ✅ Multiple cloud providers (S3, Azure, GCS)
-- ✅ Environment variable support
-- ✅ Native DuckDB operations (no external framework)
-- ✅ Better connection pooling & error handling
-- ✅ 91% code reduction in storage layer
-- ✅ 100% backward compatibility
-
-**Migration**: See `docs/migrations/ONEIRIC_MIGRATION_PLAN.md` for detailed migration instructions.
+**Migration**: `docs/migrations/ONEIRIC_MIGRATION_PLAN.md`
 
 ## Development Notes
 
-### Dependencies & Isolation
+### Dependencies
 
-- Uses isolated virtual environment to prevent conflicts
-- **Core Dependencies**: `fastmcp>=2`, `duckdb>=0.9`, `pydantic>=2.0`, `tiktoken>=0.5`, `crackerjack`
-- **Embedding System**: `onnxruntime>=1.15`, `transformers>=4.21` (included in core)
-- **Development Tools**: `pytest>=7`, `pytest-asyncio>=0.21`, `hypothesis>=6.70`, `coverage>=7`
-- Falls back gracefully when embedding system unavailable (text search mode)
+- **Core**: `fastmcp>=2`, `duckdb>=0.9`, `pydantic>=2.0`, `tiktoken>=0.5`, `crackerjack`
+- **Embeddings**: `onnxruntime>=1.15`, `transformers>=4.21` (graceful fallback to text search)
+- **Dev**: `pytest>=7`, `pytest-asyncio>=0.21`, `hypothesis>=6.70`, `coverage>=7`
+- Isolated virtual environment prevents conflicts
 
 ### Testing Architecture
 
-The project uses a comprehensive pytest-based testing framework with multiple test categories:
+**Structure**:
 
-**Test Structure:**
+- **Unit** (`tests/unit/`): Core functionality, session permissions, reflection DB operations, async/await patterns, mock fixtures
+- **Integration** (`tests/integration/`): End-to-end MCP workflows, tool registration/execution, concurrent database operations
+- **Functional** (`tests/functional/`): Cross-component integration, user workflows, performance/reliability
 
-- **Unit Tests** (`tests/unit/`): Core functionality testing
-
-  - Session permissions and lifecycle management
-  - Reflection database operations with async/await patterns
-  - Mock fixtures for isolated component testing
-
-- **Integration Tests** (`tests/integration/`): Complete MCP workflow validation
-
-  - End-to-end session management workflows
-  - MCP tool registration and execution
-  - Database integrity with concurrent operations
-
-- **Functional Tests** (`tests/functional/`): Feature-level testing
-
-  - Cross-component integration testing
-  - User workflow simulation
-  - Performance and reliability validation
-
-**Key Testing Features:**
-
-- **Async/await support** for MCP server testing
-- **Temporary database fixtures** with automatic cleanup
-- **Data factories** for realistic test data generation
-- **Performance metrics** collection and baseline comparison
-- **Mock MCP server** creation for isolated testing
-
-**Testing Commands:**
-
-```bash
-# Run all tests
-pytest
-
-# Run specific test types
-pytest tests/unit/
-pytest tests/integration/
-pytest -m performance
-
-# Run with coverage
-pytest --cov=session_buddy --cov-report=term-missing
-
-# Quick development tests (exclude slow tests)
-pytest -m "not slow"
-```
+**Features**: Async/await support, temporary database fixtures, data factories, performance metrics, mock MCP server
 
 ## Available MCP Tools
 
-**Total: 70+ specialized tools** across 10 functional categories. See [README.md](README.md#available-mcp-tools) for complete list.
+**Total: 70+ tools** across 10 categories. See [README.md](README.md#available-mcp-tools) for complete list.
 
 ### Core Session Management (8 tools)
 
-- **`start`** - Comprehensive session initialization with project analysis, UV sync, and memory setup
-- **`checkpoint`** - Mid-session quality assessment with V2 scoring and automatic context compaction
-- **`end`** - Complete session cleanup with learning capture and handoff documentation
-- **`status`** - Current session overview with health checks and diagnostics
-- **`permissions`** - Manage trusted operations to reduce permission prompts
-- **`auto_compact`** - Automatic context window compaction when needed
-- **`quality_monitor`** - Real-time quality monitoring and tracking
-- **`session_welcome`** - Session connection information and continuity
+`start`, `checkpoint`, `end`, `status`, `permissions`, `auto_compact`, `quality_monitor`, `session_welcome`
 
-### Memory & Conversation Search (14 tools)
+### Memory & Search (14 tools)
 
-**Search & Retrieval**:
+**Search**: `search_reflections`/`reflect_on_past`, `quick_search`, `search_summary`, `get_more_results`, `search_by_file`, `search_by_concept`, `search_code`, `search_errors`, `search_temporal`
+**Storage**: `store_reflection`, `reflection_stats`, `reset_reflection_database`
 
-- **`search_reflections`** / **`reflect_on_past`** - Semantic search using local AI embeddings
-- **`quick_search`** - Fast overview with count and top results
-- **`search_summary`** - Aggregated insights without individual results
-- **`get_more_results`** - Pagination for large result sets
-- **`search_by_file`**, **`search_by_concept`**, **`search_code`**, **`search_errors`**, **`search_temporal`** - Targeted searches
+### Advanced Categories
 
-**Storage**:
+- **Crackerjack** (11): Command execution, quality metrics, patterns, health monitoring
+- **LLM Management** (5): `list_llm_providers`, `test_llm_providers`, `generate_with_llm`, `chat_with_llm`, `configure_llm_provider`
+- **Serverless** (8): External storage integration (Redis, S3, local)
+- **Team** (4): `create_team`, `search_team_knowledge`, `get_team_statistics`, `vote_on_reflection`
+- **Multi-Project** (4): `create_project_group`, `add_project_dependency`, `search_across_projects`, `get_project_insights`
+- **Plus**: App Monitoring (5), Interruption Management (7), Natural Scheduling (5), Git Worktree (3), Advanced Search (3)
 
-- **`store_reflection`** - Store insights with tagging
-- **`reflection_stats`** - Memory system statistics
-- **`reset_reflection_database`** - Reset/rebuild memory
+## Token Optimization
 
-### Advanced Tool Categories
-
-**Crackerjack Integration (11 tools)**:
-
-- Command execution (`crackerjack_run`, `execute_crackerjack_command`)
-- Quality metrics (`crackerjack_metrics`, `crackerjack_quality_trends`)
-- Pattern detection (`crackerjack_patterns`, `analyze_crackerjack_test_patterns`)
-- Health monitoring (`crackerjack_health_check`, `crackerjack_help`)
-
-**LLM Provider Management (5 tools)**:
-
-- `list_llm_providers`, `test_llm_providers`, `generate_with_llm`, `chat_with_llm`, `configure_llm_provider`
-
-**Serverless Sessions (8 tools)**:
-
-- External storage integration (Redis, S3, local) for stateless operation
-
-**Team Collaboration (4 tools)**:
-
-- `create_team`, `search_team_knowledge`, `get_team_statistics`, `vote_on_reflection`
-
-**Multi-Project Coordination (4 tools)**:
-
-- `create_project_group`, `add_project_dependency`, `search_across_projects`, `get_project_insights`
-
-**Plus**: App Monitoring (5), Interruption Management (7), Natural Scheduling (5), Git Worktree (3), Advanced Search (3)
-
-## Token Optimization and Response Chunking
-
-The server includes sophisticated token management to handle large responses:
-
-**Token Management Architecture**:
-
-- **TokenOptimizer** class with tiktoken integration for accurate token counting
-- **Response Chunking**: Automatically splits responses >4000 tokens into paginated chunks
-- **ChunkResult** dataclass structure:
-  ```python
-  @dataclass
-  class ChunkResult:
-      chunks: list[str]  # Paginated content chunks
-      total_chunks: int  # Total number of chunks
-      current_chunk: int  # Current chunk index
-      cache_key: str  # Unique cache identifier
-      metadata: dict[str, Any]  # Additional context
-  ```
-
-**Usage Pattern for Large Responses**:
+**Architecture**: `TokenOptimizer` with tiktoken, auto-split responses >4000 tokens into paginated chunks
 
 ```python
-# Large response automatically chunked
+@dataclass
+class ChunkResult:
+    chunks: list[str]
+    total_chunks: int
+    current_chunk: int
+    cache_key: str
+    metadata: dict[str, Any]
+```
+
+**Usage**:
+
+```python
 result = await some_large_operation()
 if result.get("chunked"):
-    print(f"Response chunked: {result['current_chunk']}/{result['total_chunks']}")
-    # Use get_cached_chunk tool to retrieve additional chunks
+    # Use get_cached_chunk tool for additional chunks
 ```
 
 ## Integration with Crackerjack
 
-This project integrates deeply with [Crackerjack](https://github.com/lesleslie/crackerjack) for code quality and development workflow automation:
-
-- **Quality Commands**: Use `crackerjack lint`, `crackerjack typecheck`, etc. for code quality
-- **MCP Integration**: Crackerjack is configured as an MCP server in .mcp.json
-- **Progress Tracking**: `crackerjack_integration.py` provides real-time analysis parsing
-- **Test Integration**: Crackerjack handles test execution, this project handles results analysis
+- **Quality Commands**: `crackerjack lint`, `crackerjack typecheck`, etc.
+- **MCP Integration**: Crackerjack configured in `.mcp.json`
+- **Progress Tracking**: `crackerjack_integration.py` provides real-time analysis
+- **Test Integration**: Crackerjack handles execution, this project handles results
 
 ## Development Guidelines
 
 ### Adding New MCP Tools
 
-1. Define function with `@mcp.tool()` decorator in appropriate tools/ module
-1. Add corresponding prompt with `@mcp.prompt()` for slash command support
-1. Import and register in main server.py
-1. Update status() tool to report new functionality
-1. Add tests in appropriate test category
+1. Define function with `@mcp.tool()` in appropriate `tools/` module
+1. Add `@mcp.prompt()` for slash command support
+1. Import and register in `server.py`
+1. Update `status()` tool
+1. Add tests in appropriate category
 
 ### Extending Memory System
 
-1. Add new table schemas in reflection_tools.py:\_ensure_tables()
-1. Implement storage/retrieval methods in ReflectionDatabase class
-1. Add corresponding MCP tools in tools/memory_tools.py
-1. Update reflection_stats() to include new metrics
-1. Add performance tests for new operations
+1. Add table schemas in `reflection_tools.py:_ensure_tables()`
+1. Implement storage/retrieval in `ReflectionDatabase`
+1. Add MCP tools in `tools/memory_tools.py`
+1. Update `reflection_stats()` for new metrics
+1. Add performance tests
 
 ### Testing New Features
 
-1. Add unit tests for individual functions in `tests/unit/`
-1. Add integration tests for MCP tool workflows in `tests/integration/`
-1. Add functional tests for complete features in `tests/functional/`
-1. Use `tests/fixtures/` for test data factories and mock fixtures
-1. Ensure coverage is maintained via `pytest --cov=session_buddy`
+1. Add unit tests in `tests/unit/`
+1. Add integration tests in `tests/integration/`
+1. Add functional tests in `tests/functional/`
+1. Use `tests/fixtures/` for test data factories
+1. Ensure coverage: `pytest --cov=session_buddy`
 
 ## Configuration Files
 
-### pyproject.toml Configuration
+### pyproject.toml
 
-The project uses modern Python tooling with strict quality settings:
-
-- **Python 3.13+** required with latest language features
-- **Ruff**: Code formatting and linting with complexity limits (max 15)
-- **Pytest**: Comprehensive testing with async/await, coverage, and benchmarking
-- **Optional Dependencies**: `[embeddings]` for semantic search, `[dev]` for development tools
+- **Python 3.13+** required
+- **Ruff**: Formatting/linting, complexity ≤15
+- **Pytest**: Async/await, coverage, benchmarking
+- **Optional**: `[embeddings]` for semantic search, `[dev]` for dev tools
 
 ### MCP Server Configuration
 
-The global `~/.claude/.mcp.json` includes integration with multiple MCP servers:
-
-- **session-buddy**: This server (local development mode)
-- **crackerjack**: Code quality tools and workflow automation
-- Plus additional servers for GitHub, GitLab, memory, etc.
+Global `~/.claude/.mcp.json`: session-buddy, crackerjack, GitHub, GitLab, memory
 
 ### Testing Configuration (conftest.py)
 
-- Async/await support for MCP server testing
-- Temporary database fixtures with automatic cleanup
-- Mock MCP server creation for isolated testing
-- Performance baseline comparisons
+Async/await support, temporary database fixtures, mock MCP server, performance baselines
 
 ## Modern Development Patterns
 
-### 1. **Async/Await Best Practices**
+### Database Connection Management
 
-```text
-# ✅ Correct: Use executor for blocking operations
-async def generate_embedding(text: str) -> np.ndarray:
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _sync_embedding_generation, text)
-
-
-# ❌ Avoid: Blocking the event loop
-async def bad_embedding(text: str) -> np.ndarray:
-    return onnx_session.run(None, {"input": text})  # Blocks event loop
-```
-
-### 2. **Database Connection Management**
-
-```text
-# ✅ Correct: Context manager with connection pooling
+```python
+# ✅ Correct: Context manager with pooling
 async def store_conversation(content: str) -> str:
     async with ReflectionDatabase() as db:
         return await db.store_conversation(content)
 
-
-# ✅ Correct: Batch operations for efficiency
+# ✅ Correct: Batch operations
 async def bulk_store(conversations: list[str]) -> list[str]:
     async with ReflectionDatabase() as db:
         return await db.bulk_store_conversations(conversations)
 ```
 
-### 3. **Error Handling Strategy**
+### Error Handling
 
-```text
-# ✅ Correct: Graceful degradation with logging
+```python
 async def search_with_fallback(query: str) -> list[SearchResult]:
     try:
-        # Try semantic search first
         return await semantic_search(query)
     except (ImportError, RuntimeError) as e:
         logger.info(f"Semantic search unavailable: {e}. Using text search.")
@@ -802,27 +562,16 @@ async def search_with_fallback(query: str) -> list[SearchResult]:
         return []
 ```
 
-### 4. **MCP Tool Development Pattern**
+### MCP Tool Pattern
 
-```text
+```python
 @mcp.tool()
 async def example_tool(param1: str, param2: int | None = None) -> dict[str, Any]:
-    """
-    Tool description for Claude Code.
-
-    Args:
-        param1: Required parameter with clear description
-        param2: Optional parameter with default value
-
-    Returns:
-        Structured response with success/error handling
-    """
+    """Tool description for Claude Code."""
     try:
-        # Validate inputs
         if not param1.strip():
             return {"success": False, "error": "param1 cannot be empty"}
 
-        # Perform operation with proper async handling
         result = await perform_async_operation(param1, param2)
 
         return {
@@ -833,39 +582,24 @@ async def example_tool(param1: str, param2: int | None = None) -> dict[str, Any]
                 "execution_time_ms": 42,
             },
         }
-
     except Exception as e:
         logger.error(f"Tool execution failed: {e}")
         return {"success": False, "error": str(e)}
 ```
 
-## Troubleshooting Guide
+## Troubleshooting
 
-### Common Issues & Solutions
-
-#### 1. **MCP Server Not Loading**
+### MCP Server Not Loading
 
 ```bash
-# Check imports
-python -c "import session_buddy; print('✅ Package imports successfully')"
-
-# Verify FastMCP setup
-python -c "from session_buddy.server import mcp; print('✅ MCP server configured')"
-
-# Check for missing dependencies
-python -c "
-try:
-    import duckdb, numpy, tiktoken
-    print('✅ Core dependencies available')
-except ImportError as e:
-    print(f'❌ Missing dependency: {e}')
-"
+python -c "import session_buddy; print('✅ Package imports')"
+python -c "from session_buddy.server import mcp; print('✅ MCP server')"
+python -c "import duckdb, numpy, tiktoken; print('✅ Core deps')"
 ```
 
-#### 2. **Memory/Embedding Issues**
+### Memory/Embedding Issues
 
 ```bash
-# Test embedding system
 python -c "
 from session_buddy.reflection_tools import ReflectionDatabase
 import asyncio
@@ -876,199 +610,126 @@ async def test():
             result = await db.test_embedding_system()
             print(f'✅ Embedding system: {result}')
     except Exception as e:
-        print(f'⚠️ Embedding fallback mode: {e}')
+        print(f'⚠️ Fallback mode: {e}')
 
 asyncio.run(test())
 "
-
-# Reinstall all dependencies if needed
-uv sync
+uv sync  # Reinstall if needed
 ```
 
-#### 3. **Database Connection Problems**
+### Database Connection
 
 ```bash
-# Check DuckDB installation
-python -c "import duckdb; print(f'✅ DuckDB version: {duckdb.__version__}')"
-
-# Test database connection
-python -c "
-import duckdb
-conn = duckdb.connect(':memory:')
-print('✅ DuckDB connection successful')
-conn.close()
-"
-
-# Check file permissions
-ls -la ~/.claude/data/ 2>/dev/null || echo "Creating ~/.claude/data/" && mkdir -p ~/.claude/data/
+python -c "import duckdb; print(f'✅ DuckDB {duckdb.__version__}')"
+python -c "import duckdb; conn = duckdb.connect(':memory:'); print('✅ Connection')"
+ls -la ~/.claude/data/ || mkdir -p ~/.claude/data/
 ```
 
-#### 4. **Performance Issues**
+### Performance Issues
 
 ```bash
-# Run performance diagnostics
 pytest -m performance --verbose
-
-# Check memory usage patterns
-python -c "
-import psutil
-import os
-print(f'Memory usage: {psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024:.1f} MB')
-"
-
-# Enable detailed logging
+python -c "import psutil, os; print(f'Memory: {psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024:.1f} MB')"
 PYTHONPATH=. python -m session_buddy.server --debug
 ```
 
-### Development Environment Setup Issues
-
-#### **UV Package Manager**
+### Environment Setup
 
 ```bash
-# Verify UV installation
+# UV
 uv --version || curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Reset environment if corrupted
 rm -rf .venv && uv sync --group dev
-
-# Check for conflicting dependencies
 uv pip check
-```
 
-#### **Python Version Compatibility**
-
-```bash
-# Verify Python 3.13+ requirement
+# Python version
 python --version  # Should be 3.13+
-
-# Check for async/await compatibility
-python -c "
-import sys
-print(f'Python {sys.version}')
-assert sys.version_info >= (3, 13), 'Python 3.13+ required'
-print('✅ Python version compatible')
-"
+python -c "import sys; assert sys.version_info >= (3, 13)"
 ```
 
-### Coding Standards & Best Practices
+## Coding Standards
 
-#### Core Philosophy (from RULES.md)
+### Core Philosophy (RULES.md)
 
 - **EVERY LINE OF CODE IS A LIABILITY**: The best code is no code
-- **DRY (Don't Repeat Yourself)**: If you write it twice, you're doing it wrong
-- **YAGNI (You Ain't Gonna Need It)**: Build only what's needed NOW
-- **KISS (Keep It Simple, Stupid)**: Complexity is the enemy of maintainability
+- **DRY**: If you write it twice, you're doing it wrong
+- **YAGNI**: Build only what's needed NOW
+- **KISS**: Complexity is the enemy of maintainability
 
-#### Type Safety Requirements
+### Type Safety
 
-- **Always use comprehensive type hints** with modern Python 3.13+ syntax
-- **Import typing as `import typing as t`** and prefix all typing references
-- **Use built-in collection types**: `list[str]` instead of `t.List[str]`
-- **Use pipe operator for unions**: `str | None` instead of `Optional[str]`
+- Comprehensive type hints with Python 3.13+ syntax
+- `list[str]` instead of `typing.List[str]`
+- `str | None` instead of `Optional[str]`
 
-#### Development Practices
+### Development Practices
 
-1. **Always use async/await** for database and file operations
-1. **Test with both embedding and fallback modes** during development
-1. **Include comprehensive error handling** with graceful degradation
-1. **Use type hints and dataclasses** for data modeling
-1. **Follow the testing pattern**: unit → integration → functional
-1. **Run pre-commit workflow** before any commits
-1. **Monitor token usage** and response chunking during development
-1. **Test cross-project coordination** features with multiple repositories
+1. Always use async/await for database/file operations
+1. Test with both embedding and fallback modes
+1. Include comprehensive error handling with graceful degradation
+1. Use type hints and dataclasses
+1. Follow testing pattern: unit → integration → functional
+1. Run pre-commit workflow before commits
+1. Monitor token usage and response chunking
+1. Test cross-project coordination with multiple repos
 
-### Key Architecture Insights for Development
+### Key Architecture Patterns
 
-When working with this codebase, remember these architectural patterns:
-
-1. **FastMCP Integration**: All tools use `@mcp.tool()` decorators and return structured responses
-1. **Async-First Design**: Database operations run in executor threads to avoid blocking
-1. **Local Privacy**: No external API calls required - embeddings generated locally
-1. **Graceful Fallback**: System continues working even when optional features fail
-1. **Modular Structure**: Tools are organized by functionality in separate modules
-1. **Session Lifecycle**: Init → Work → Checkpoint → End workflow with persistent memory
+1. **FastMCP Integration**: `@mcp.tool()` decorators, structured responses
+1. **Async-First**: Executor threads prevent blocking
+1. **Local Privacy**: No external APIs, local embeddings
+1. **Graceful Fallback**: Continues despite component failures
+1. **Modular Structure**: Tools organized by functionality
+1. **Session Lifecycle**: Init → Work → Checkpoint → End
 
 <!-- CRACKERJACK INTEGRATION START -->
 
-This project uses crackerjack for Python project management and quality assurance.
+This project uses [crackerjack](https://github.com/lesleslie/crackerjack) for Python project management and quality assurance.
 
-For optimal development experience with this crackerjack - enabled project, use these specialized agents:
+**Specialized Agents**:
 
-- **🏗️ crackerjack-architect**: Expert in crackerjack's modular architecture and Python project management patterns. **Use PROACTIVELY** for all feature development, architectural decisions, and ensuring code follows crackerjack standards from the start.
+- **crackerjack-architect**: Use PROACTIVELY for all feature development and architectural decisions
+- **python-pro**: Modern Python with type hints, async/await, clean architecture
+- **pytest-hypothesis-specialist**: Advanced testing patterns and optimization
+- **backend-architect**: System design and API architecture
+- **security-auditor**: Security analysis and secure coding
 
-- **🐍 python-pro**: Modern Python development with type hints, async/await patterns, and clean architecture
-
-- **🧪 pytest-hypothesis-specialist**: Advanced testing patterns, property-based testing, and test optimization
-
-- **🧪 crackerjack-test-specialist**: Advanced testing specialist for complex testing scenarios and coverage optimization
-
-- **🏗️ backend-architect**: System design, API architecture, and service integration patterns
-
-- **🔒 security-auditor**: Security analysis, vulnerability detection, and secure coding practices
+**Usage**:
 
 ```bash
-
-Task tool with subagent_type ="crackerjack-architect" for feature planning
-
-
-Task tool with subagent_type ="python-pro" for code implementation
-
-
-Task tool with subagent_type ="pytest-hypothesis-specialist" for test development
-
-
-Task tool with subagent_type ="security-auditor" for security analysis
+# Use Task tool with subagent_type
+Task tool with subagent_type="crackerjack-architect"  # Feature planning
+Task tool with subagent_type="python-pro"             # Code implementation
+Task tool with subagent_type="pytest-hypothesis-specialist"  # Tests
+Task tool with subagent_type="security-auditor"       # Security analysis
 ```
 
-**💡 Pro Tip**: The crackerjack-architect agent automatically ensures code follows crackerjack patterns from the start, eliminating the need for retrofitting and quality fixes.
+**Crackerjack Philosophy** (same as core philosophy):
 
-This project follows crackerjack's clean code philosophy:
+- Every line of code is a liability
+- DRY, YAGNI, KISS
+- Cognitive complexity ≤15 per function
+- Coverage ratchet: never decrease, always improve toward 100%
+- Type annotations required
+- Security patterns: no hardcoded paths, proper temp file handling
+- Python 3.13+ patterns: `|` unions, pathlib over os.path
 
-- **EVERY LINE OF CODE IS A LIABILITY**: The best code is no code
-
-- **DRY (Don't Repeat Yourself)**: If you write it twice, you're doing it wrong
-
-- **YAGNI (You Ain't Gonna Need It)**: Build only what's needed NOW
-
-- **KISS (Keep It Simple, Stupid)**: Complexity is the enemy of maintainability
-
-- \*\*Cognitive complexity ≤15 \*\*per function (automatically enforced)
-
-- **Coverage ratchet system**: Never decrease coverage, always improve toward 100%
-
-- **Type annotations required**: All functions must have return type hints
-
-- **Security patterns**: No hardcoded paths, proper temp file handling
-
-- **Python 3.13+ modern patterns**: Use `|` unions, pathlib over os.path
+**Workflow**:
 
 ```bash
-
-python -m crackerjack
-
-
-python -m crackerjack - t
-
-
-python -m crackerjack - - ai - agent - t
-
-
-python -m crackerjack - a patch
+python -m crackerjack           # Main menu
+python -m crackerjack -t        # Run tests
+python -m crackerjack --ai-agent -t  # Auto-fix with AI
+python -m crackerjack -a patch  # Apply patches
 ```
 
-1. **Plan with crackerjack-architect**: Ensure proper architecture from the start
-1. **Implement with python-pro**: Follow modern Python patterns
-1. **Test comprehensively**: Use pytest-hypothesis-specialist for robust testing
-1. **Run quality checks**: `python -m crackerjack -t` before committing
-1. **Security review**: Use security-auditor for final validation
+**Best Practices**:
 
-- **Use crackerjack-architect agent proactively** for all significant code changes
-- **Never reduce test coverage** - the ratchet system only allows improvements
-- **Follow crackerjack patterns** - the tools will enforce quality automatically
-- **Leverage AI agent auto-fixing** - `python -m crackerjack --ai-agent -t` for autonomous quality fixes
+1. Plan with crackerjack-architect for proper architecture
+1. Implement with python-pro for modern patterns
+1. Test with pytest-hypothesis-specialist
+1. Run `python -m crackerjack -t` before committing
+1. Security review with security-auditor
 
-______________________________________________________________________
-
-- This project is enhanced by crackerjack's intelligent Python project management.\*
+**Key**: Use crackerjack-architect proactively to avoid retrofitting. Never reduce test coverage (ratchet system). Follow crackerjack patterns - tools enforce quality automatically.
 
 <!-- CRACKERJACK INTEGRATION END -->

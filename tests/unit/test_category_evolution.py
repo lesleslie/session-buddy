@@ -284,8 +284,16 @@ class TestCategoryEvolutionEngine:
             memories=memories,
         )
 
-        assert len(result) >= 1  # Should create at least one subcategory
-        assert all(sc.parent_category == TopLevelCategory.SKILLS for sc in result)
+        # Result is a dict with comprehensive evolution data
+        assert result["success"] is True
+        assert result["category"] == TopLevelCategory.SKILLS.value
+        assert "before_state" in result
+        assert "after_state" in result
+        assert "decay_results" in result
+        assert "duration_ms" in result
+
+        # Should create at least one subcategory
+        assert result["after_state"]["subcategory_count"] >= 1
 
     def test_detect_category_skills(self):
         """Test auto-detection of SKILLS category."""

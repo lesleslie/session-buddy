@@ -65,6 +65,8 @@ def configure(*, force: bool = False) -> None:
     _register_logger(paths.logs_dir, force)
     _register_session_logger(paths.logs_dir, force)  # Register SessionLogger
     _register_permissions_manager(paths.claude_dir, force)
+    _register_quality_scorer(force)  # Register quality scorer BEFORE lifecycle manager
+    _register_code_formatter(force)  # Register code formatter BEFORE hooks manager
     _register_lifecycle_manager(force)
     _register_hooks_manager(force)  # Register HooksManager for automation
 
@@ -152,6 +154,77 @@ def _register_permissions_manager(claude_dir: Path, force: bool) -> None:
     depends.set(SessionPermissionsManager, permissions_manager)
 
 
+def _register_quality_scorer(force: bool) -> None:
+    """Register QualityScorer with the DI container.
+
+    Args:
+        force: If True, re-registers even if already registered
+
+    Note:
+        The QualityScorer interface breaks the circular dependency between
+        session_manager.py (core) and server.py (MCP). The MCP layer provides
+        the concrete implementation (MCPQualityScorer) while the core layer
+        depends only on the abstraction.
+
+    """
+    from session_buddy.core.quality_scoring import QualityScorer
+
+    if not force:
+        with suppress(Exception):
+            existing = depends.get_sync(QualityScorer)
+            if existing is not None:
+                return
+
+    # Create and register MCP quality scorer implementation
+    # Import here to avoid circular dependency
+    try:
+        from session_buddy.mcp.quality_scorer import MCPQualityScorer
+
+        quality_scorer = MCPQualityScorer()
+    except ImportError:
+        # Fallback to default implementation if MCP layer not available
+        from session_buddy.core.quality_scoring import DefaultQualityScorer
+
+        quality_scorer = DefaultQualityScorer()
+
+    depends.set(QualityScorer, quality_scorer)
+
+
+def _register_code_formatter(force: bool) -> None:
+    """Register CodeFormatter with the DI container.
+
+    Args:
+        force: If True, re-registers even if already registered
+
+    Note:
+        The CodeFormatter interface breaks the circular dependency between
+        hooks.py (core) and server.py (MCP layer). The MCP layer provides
+        the concrete implementation (MCPCodeFormatter) while the core layer
+        depends only on the abstraction.
+
+    """
+    from session_buddy.core.hooks import CodeFormatter
+
+    if not force:
+        with suppress(Exception):
+            existing = depends.get_sync(CodeFormatter)
+            if existing is not None:
+                return
+
+    # Create and register MCP code formatter implementation
+    # Import here to avoid circular dependency
+    try:
+        from session_buddy.mcp.code_formatter import MCPCodeFormatter
+
+        code_formatter = MCPCodeFormatter()
+    except ImportError:
+        from session_buddy.core.hooks import DefaultCodeFormatter
+
+        code_formatter = DefaultCodeFormatter()
+
+    depends.set(CodeFormatter, code_formatter)
+
+
 def _register_lifecycle_manager(force: bool) -> None:
     """Register SessionLifecycleManager with the DI container.
 
@@ -159,6 +232,7 @@ def _register_lifecycle_manager(force: bool) -> None:
         force: If True, re-registers even if already registered
 
     """
+    from session_buddy.core.quality_scoring import QualityScorer
     from session_buddy.core.session_manager import SessionLifecycleManager
 
     if not force:
@@ -167,8 +241,11 @@ def _register_lifecycle_manager(force: bool) -> None:
             if isinstance(existing, SessionLifecycleManager):
                 return
 
-    # Create and register lifecycle manager instance
-    lifecycle_manager = SessionLifecycleManager()
+    # Get quality scorer from DI (must be registered first)
+    quality_scorer = depends.get_sync(QualityScorer)
+
+    # Create and register lifecycle manager instance with injected scorer
+    lifecycle_manager = SessionLifecycleManager(quality_scorer=quality_scorer)
     depends.set(SessionLifecycleManager, lifecycle_manager)
 
 
@@ -192,7 +269,13 @@ def _register_hooks_manager(force: bool) -> None:
                 return
 
     # Create and register hooks manager instance
-    hooks_manager = HooksManager()
+    from session_buddy.core.hooks import CodeFormatter
+
+    # Get code formatter from DI (must be registered first)
+    code_formatter = depends.get_sync(CodeFormatter)
+
+    # Create and register hooks manager instance with injected formatter
+    hooks_manager = HooksManager(formatter=code_formatter)
     depends.set(HooksManager, hooks_manager)
 
 

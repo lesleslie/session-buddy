@@ -1,0 +1,161 @@
+{
+  "timestamp": 1770292141.702275,
+  "package_path": "/Users/les/Projects/session-buddy/session_buddy",
+  "results": [
+    {
+      "tool": "Vulture",
+      "duration_ms": 6077.22282409668,
+      "exit_code": 3,
+      "issues_found": 22,
+      "issues": [
+        {
+          "file": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py",
+          "line": "119",
+          "message": "unused variable 'exc_type' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py",
+          "line": "120",
+          "message": "unused variable 'exc_value' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py",
+          "line": "121",
+          "message": "unused variable 'traceback' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py",
+          "line": "132",
+          "message": "unused variable 'exc_type' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py",
+          "line": "133",
+          "message": "unused variable 'exc_value' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/knowledge_graph_adapter_oneiric.py",
+          "line": "134",
+          "message": "unused variable 'traceback' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/reflection_adapter_oneiric.py",
+          "line": "147",
+          "message": "unused variable 'exc_type' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/reflection_adapter_oneiric.py",
+          "line": "148",
+          "message": "unused variable 'exc_value' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/reflection_adapter_oneiric.py",
+          "line": "149",
+          "message": "unused variable 'traceback' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/reflection_adapter_oneiric.py",
+          "line": "161",
+          "message": "unused variable 'exc_type' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/reflection_adapter_oneiric.py",
+          "line": "162",
+          "message": "unused variable 'exc_value' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/adapters/reflection_adapter_oneiric.py",
+          "line": "163",
+          "message": "unused variable 'traceback' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/app_monitor.py",
+          "line": "44",
+          "message": "unused variable 'recursive' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/reflection/database.py",
+          "line": "125",
+          "message": "unused variable 'exc_type' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/reflection/database.py",
+          "line": "126",
+          "message": "unused variable 'exc_val' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/reflection/database.py",
+          "line": "127",
+          "message": "unused variable 'exc_tb' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/reflection/storage.py",
+          "line": "17",
+          "message": "unused import 'runtime_checkable' (90% confidence, 1 line)",
+          "confidence": 90
+        },
+        {
+          "file": "session_buddy/shutdown_manager.py",
+          "line": "196",
+          "message": "unused variable 'frame' (100% confidence, 1 line)",
+          "confidence": 100
+        },
+        {
+          "file": "session_buddy/sync.py",
+          "line": "18",
+          "message": "unused import 'List' (90% confidence, 1 line)",
+          "confidence": 90
+        },
+        {
+          "file": "session_buddy/token_optimizer.py",
+          "line": "589",
+          "message": "unused variable 'max_age_hours' (100% confidence, 1 line)",
+          "confidence": 100
+        }
+      ],
+      "error": ""
+    },
+    {
+      "tool": "deadcode",
+      "duration_ms": 2210.5982303619385,
+      "exit_code": 2,
+      "issues_found": 0,
+      "issues": [],
+      "error": ""
+    },
+    {
+      "tool": "Skylos",
+      "duration_ms": 49595.84379196167,
+      "exit_code": 0,
+      "issues_found": 3,
+      "issues": [
+        {
+          "message": "\u2502 Found 626 dead-code items. Add this badge to your README: \u2502"
+        },
+        {
+          "message": "![Dead Code:"
+        },
+        {
+          "message": "626](https://img.shields.io/badge/Dead_Code-626_detected-orange?logo=codacy&logo"
+        }
+      ],
+      "error": ""
+    }
+  ]
+}

@@ -85,7 +85,7 @@ async def check_database_health() -> ComponentHealth:
             db is None
             and getattr(get_reflection_database, "__module__", "") == "unittest.mock"
         ):
-            db = await get_reflection_database()
+            db = await get_reflection_database()  # type: ignore[misc]
         if db is None:
             return ComponentHealth(
                 name="database",

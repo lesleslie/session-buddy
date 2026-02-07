@@ -4,7 +4,7 @@ Tests for git operation security, including prune delay validation.
 """
 
 import pytest
-from session_buddy.utils.git_operations import _validate_prune_delay
+from session_buddy.utils.git_worktrees import _validate_prune_delay
 
 
 def test_prune_delay_valid_values():

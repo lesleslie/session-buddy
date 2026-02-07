@@ -9,7 +9,7 @@ from __future__ import annotations
 from contextlib import suppress
 from typing import TYPE_CHECKING
 
-from session_buddy.utils.git_operations import is_git_repository
+from session_buddy.utils.git_worktrees import is_git_repository
 
 if TYPE_CHECKING:
     from pathlib import Path

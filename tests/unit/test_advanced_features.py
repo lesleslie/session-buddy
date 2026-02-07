@@ -104,7 +104,7 @@ class TestNaturalReminderTools:
             mock_list.return_value = [{"id": "1", "title": "Reminder 1"}]
 
             with patch(
-                "session_buddy.utils.server_helpers._format_reminders_list"
+                "session_buddy.utils.session_formatters._format_reminders_list"
             ) as mock_format:
                 mock_format.return_value = ["Formatted output"]
 

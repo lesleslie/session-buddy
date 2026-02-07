@@ -25,12 +25,12 @@ if TYPE_CHECKING:
     from session_buddy.reflection_tools import ReflectionDatabase
 
 # Import utility functions
-from session_buddy.utils.file_utils import (
+from session_buddy.utils.filesystem import (
     _cleanup_session_logs,
     _cleanup_temp_files,
     _cleanup_uv_cache,
 )
-from session_buddy.utils.git_utils import _optimize_git_repository
+from session_buddy.utils.git_worktrees import _optimize_git_repository
 from session_buddy.utils.quality import (
     check_git_activity as _check_git_activity,
 )
@@ -75,7 +75,7 @@ from session_buddy.utils.quality_utils import (
     _get_time_based_recommendations,
 )
 from session_buddy.utils.quality_utils_v2 import calculate_quality_score_v2
-from session_buddy.utils.server_helpers import _add_current_session_context
+from session_buddy.utils.session_formatters import _add_current_session_context
 
 # Extracted functions (compaction, recommendations, summary helpers) have been moved
 # to session_buddy.utils.quality module for better modularity and reusability.
@@ -133,7 +133,7 @@ async def _optimize_reflection_database() -> str:
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()
+        db = await get_reflection_database()  # type: ignore[misc]
         await db.get_stats()
         db_size_before = (
             Path(db.db_path).stat().st_size if Path(db.db_path).exists() else 0
@@ -200,7 +200,7 @@ async def _store_context_summary(conversation_summary: dict[str, Any]) -> None:
     with suppress(ImportError, RuntimeError, OSError, ValueError, AttributeError):
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()
+        db = await get_reflection_database()  # type: ignore[misc]
         summary_text = f"Session context: {', '.join(conversation_summary.get('key_topics', [])[:3])}"
         if conversation_summary.get("decisions_made"):
             summary_text += (
@@ -351,7 +351,7 @@ async def summarize_current_conversation() -> dict[str, Any]:
         try:
             from session_buddy.reflection_tools import get_reflection_database
 
-            db = await get_reflection_database()
+            db = await get_reflection_database()  # type: ignore[misc]  # type: ignore[misc]
             await _process_recent_reflections(db, summary)
             _add_current_session_context(summary)
             _ensure_summary_defaults(summary)
@@ -399,7 +399,7 @@ async def _get_conversation_statistics() -> dict[str, int]:
     with suppress(ImportError, RuntimeError, OSError, ValueError, AttributeError):
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()
+        db = await get_reflection_database()  # type: ignore[misc]
         stats = await db.get_stats()
         conv_stats["total_conversations"] = stats.get("conversations_count", 0)
 
@@ -463,7 +463,7 @@ async def analyze_conversation_flow() -> dict[str, Any]:
         try:
             from session_buddy.reflection_tools import get_reflection_database
 
-            db = await get_reflection_database()
+            db = await get_reflection_database()  # type: ignore[misc]  # type: ignore[misc]
 
             # Search recent reflections for patterns
             recent_reflections = await db.search_reflections(
@@ -697,12 +697,12 @@ async def _analyze_reflection_based_intelligence() -> list[str]:
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()
+        db = await get_reflection_database()  # type: ignore[misc]
         recent_reflections = await db.search_reflections("checkpoint", limit=3)
 
         if recent_reflections:
             recent_scores = _extract_quality_scores(recent_reflections)
-            return _generate_quality_trend_recommendations(recent_scores)
+            return _generate_quality_trend_recommendations(recent_scores)  # type: ignore[no-any-return]
 
     except ImportError:
         return []
@@ -730,7 +730,7 @@ async def generate_session_intelligence() -> dict[str, Any]:
         }
 
     except Exception as e:
-        return _get_intelligence_error_result(e)
+        return _get_intelligence_error_result(e)  # type: ignore[no-any-return]
 
 
 def _ensure_default_recommendations(priority_actions: list[str]) -> list[str]:
@@ -754,7 +754,7 @@ async def _perform_quality_analysis() -> tuple[str, list[str], bool]:
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()
+        db = await get_reflection_database()  # type: ignore[misc]
         recent_reflections = await db.search_reflections("quality score", limit=5)
         quality_scores = _extract_quality_scores(recent_reflections)
 
@@ -832,7 +832,7 @@ async def _analyze_memory_recommendations(results: list[str]) -> None:
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()
+        db = await get_reflection_database()  # type: ignore[misc]
         stats = await db.get_stats()
         conv_count = stats.get("conversations_count", 0)
 

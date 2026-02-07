@@ -117,7 +117,7 @@ class DecayResult:
         }
 
 
-def _format_bytes(bytes_count: int) -> str:
+def _format_bytes(bytes_count: float) -> str:
     """Format bytes as human-readable string.
 
     Args:
@@ -126,7 +126,7 @@ def _format_bytes(bytes_count: int) -> str:
     Returns:
         Formatted string (e.g., "1.5 KB", "2.3 MB")
     """
-    for unit in ["B", "KB", "MB", "GB"]:
+    for unit in ("B", "KB", "MB", "GB"):
         if bytes_count < 1024:
             return f"{bytes_count:.1f} {unit}"
         bytes_count /= 1024
@@ -163,10 +163,9 @@ class EvolutionSnapshot:
         Returns:
             Human-readable description of what changed
         """
-        silhouette_delta = (
-            self.after_state.get("silhouette", 0) -
-            self.before_state.get("silhouette", 0)
-        )
+        silhouette_delta = self.after_state.get(
+            "silhouette", 0
+        ) - self.before_state.get("silhouette", 0)
 
         # Interpret silhouette score change
         if silhouette_delta > 0.1:
@@ -179,10 +178,9 @@ class EvolutionSnapshot:
             level = f"Quality decreased: {silhouette_delta:.2f} ⚠️"
 
         # Subcategory count change
-        count_delta = (
-            self.after_state.get("subcategory_count", 0) -
-            self.before_state.get("subcategory_count", 0)
-        )
+        count_delta = self.after_state.get(
+            "subcategory_count", 0
+        ) - self.before_state.get("subcategory_count", 0)
 
         count_change = ""
         if count_delta > 0:
@@ -196,7 +194,9 @@ class EvolutionSnapshot:
         freed = self.decay_results.get("bytes_freed", 0)
         storage = f" freed {_format_bytes(freed)}" if freed > 0 else ""
 
-        return f"{level} (silhouette: {silhouette_delta:+.2f}), {count_change},{storage}."
+        return (
+            f"{level} (silhouette: {silhouette_delta:+.2f}), {count_change},{storage}."
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for database storage.

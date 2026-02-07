@@ -321,10 +321,10 @@ class IDEFileHandler(FileSystemEventHandler):  # type: ignore[misc]
         with suppress(Exception):
             import asyncio as _asyncio
 
-            from session_buddy.memory.file_context import build_file_context
-            from session_buddy.tools.entity_extraction_tools import (
+            from session_buddy.mcp.tools.entity_extraction_tools import (
                 extract_and_store_memory as _extract,
             )
+            from session_buddy.memory.file_context import build_file_context
 
             ctx = build_file_context(str(src_path))
             snippet = ctx.get("snippet", "")

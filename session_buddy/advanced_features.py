@@ -137,7 +137,7 @@ async def list_user_reminders(
         from .natural_scheduler import list_user_reminders as _list_user_reminders
 
         # Import formatting functions
-        from .utils.server_helpers import (
+        from .utils.session_formatters import (
             _format_no_reminders_message,
             _format_reminders_list,
         )
@@ -283,7 +283,7 @@ async def get_interruption_statistics(user_id: str) -> str:
             _format_no_data_message,
             _format_statistics_header,
         )
-        from .utils.server_helpers import (
+        from .utils.session_formatters import (
             _format_interruption_statistics,
             _format_snapshot_statistics,
         )
@@ -455,7 +455,7 @@ async def get_project_insights(projects: list[str], time_range_days: int = 30) -
         return "❌ Multi-project coordination not available"
 
     try:
-        from .utils.server_helpers import _format_project_insights
+        from .utils.session_formatters import _format_project_insights
 
         insights = await multi_project_coordinator.get_cross_project_insights(
             projects=projects,
@@ -500,7 +500,7 @@ async def advanced_search(
         return "❌ Advanced search not available"
 
     try:
-        from .utils.server_helpers import _format_advanced_search_results
+        from .utils.session_formatters import _format_advanced_search_results
 
         filters = _build_advanced_search_filters(content_type, project, timeframe)
         search_results = await advanced_search_engine.search(

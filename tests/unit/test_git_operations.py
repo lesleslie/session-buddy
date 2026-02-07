@@ -11,17 +11,20 @@ from typing import TYPE_CHECKING
 from unittest.mock import Mock, patch
 
 import pytest
-from session_buddy.utils.git_operations import (
+from session_buddy.utils.git_worktrees import (
     WorktreeInfo,
+    _validate_prune_delay,
     create_checkpoint_commit,
     create_commit,
     get_git_root,
     get_git_status,
     get_staged_files,
     get_worktree_info,
+    is_git_operation_in_progress,
     is_git_repository,
     is_git_worktree,
     list_worktrees,
+    schedule_automatic_git_gc,
     stage_files,
 )
 from tests.fixtures import (
@@ -380,3 +383,218 @@ class TestGitOperationsEdgeCases:
 
         # Git wraps filenames with spaces in quotes
         assert any("file with spaces.txt" in f for f in untracked)
+
+
+@pytest.mark.asyncio
+class TestGitMaintenanceOperations:
+    """Test automatic git maintenance (gc) functionality."""
+
+    def test_is_git_operation_in_progress_with_clean_repo(self, tmp_git_repo: Path):
+        """is_git_operation_in_progress returns False for clean repository."""
+        assert is_git_operation_in_progress(tmp_git_repo) is False
+
+    def test_is_git_operation_in_progress_during_rebase(self, tmp_git_repo: Path):
+        """is_git_operation_in_progress detects rebase in progress."""
+        # Simulate rebase in progress by creating indicator file
+        (tmp_git_repo / ".git" / "rebase-merge").mkdir(exist_ok=True)
+
+        assert is_git_operation_in_progress(tmp_git_repo) is True
+
+        # Clean up
+        (tmp_git_repo / ".git" / "rebase-merge").rmdir()
+
+    def test_is_git_operation_in_progress_during_merge(self, tmp_git_repo: Path):
+        """is_git_operation_in_progress detects merge in progress."""
+        # Create MERGE_HEAD indicator file
+        (tmp_git_repo / ".git" / "MERGE_HEAD").write_text("abc123\n")
+
+        assert is_git_operation_in_progress(tmp_git_repo) is True
+
+        # Clean up
+        (tmp_git_repo / ".git" / "MERGE_HEAD").unlink()
+
+    def test_is_git_operation_in_progress_during_bisect(self, tmp_git_repo: Path):
+        """is_git_operation_in_progress detects bisect in progress."""
+        # Create BISECT_LOG indicator file
+        (tmp_git_repo / ".git" / "BISECT_LOG").write_text("bisect log\n")
+
+        assert is_git_operation_in_progress(tmp_git_repo) is True
+
+        # Clean up
+        (tmp_git_repo / ".git" / "BISECT_LOG").unlink()
+
+    def test_is_git_operation_in_progress_with_non_repo(self, tmp_path: Path):
+        """is_git_operation_in_progress returns False for non-git directory."""
+        assert is_git_operation_in_progress(tmp_path) is False
+
+    def test_is_git_operation_in_progress_with_string_path(self, tmp_git_repo: Path):
+        """is_git_operation_in_progress accepts string path."""
+        assert is_git_operation_in_progress(str(tmp_git_repo)) is False
+
+    @patch("session_buddy.utils.git_operations.subprocess.Popen")
+    @patch("session_buddy.utils.git_operations.subprocess.run")
+    def test_schedule_automatic_git_gc_success(
+        self, mock_run: Mock, mock_popen: Mock, tmp_git_repo: Path
+    ):
+        """schedule_automatic_git_gc schedules gc successfully."""
+        # Configure mocks
+        mock_run.return_value = Mock(returncode=0)
+        mock_popen.return_value = Mock()
+
+        success, message = schedule_automatic_git_gc(tmp_git_repo)
+
+        assert success is True
+        assert "Scheduled git gc" in message
+        assert mock_run.called  # git config should be called
+        assert mock_popen.called  # git gc should be scheduled
+
+    @patch("session_buddy.utils.git_operations.subprocess.Popen")
+    @patch("session_buddy.utils.git_operations.subprocess.run")
+    def test_schedule_automatic_git_gc_with_custom_settings(
+        self, mock_run: Mock, mock_popen: Mock, tmp_git_repo: Path
+    ):
+        """schedule_automatic_git_gc uses custom prune delay and threshold."""
+        mock_run.return_value = Mock(returncode=0)
+        mock_popen.return_value = Mock()
+
+        success, message = schedule_automatic_git_gc(
+            tmp_git_repo, prune_delay="1.month", auto_threshold=10000
+        )
+
+        assert success is True
+        assert "1.month" in message
+
+        # Verify gc threshold was configured
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args
+        # call_args[0] contains the positional args tuple
+        # call_args[0][0] is the list ["git", "config", "gc.auto", "10000"]
+        assert "10000" in call_args[0][0]  # threshold in git config command
+
+    def test_schedule_automatic_git_gc_with_non_repo(self, tmp_path: Path):
+        """schedule_automatic_git_gc returns error for non-git directory."""
+        success, message = schedule_automatic_git_gc(tmp_path)
+
+        assert success is False
+        assert "Not a git repository" in message
+
+    @patch("session_buddy.utils.git_operations.subprocess.run")
+    def test_schedule_automatic_git_gc_configures_threshold(
+        self, mock_run: Mock, tmp_git_repo: Path
+    ):
+        """schedule_automatic_git_gc sets gc.auto config correctly."""
+        mock_run.return_value = Mock(returncode=0)
+
+        with patch("session_buddy.utils.git_operations.subprocess.Popen"):
+            schedule_automatic_git_gc(tmp_git_repo, auto_threshold=5000)
+
+            # Verify git config was called with threshold
+            mock_run.assert_called()
+            call_args = mock_run.call_args[0]
+            assert call_args[0] == ["git", "config", "gc.auto", "5000"]
+
+    @patch("session_buddy.utils.git_operations.subprocess.Popen")
+    @patch("session_buddy.utils.git_operations.subprocess.run")
+    def test_schedule_automatic_git_gc_background_execution(
+        self, mock_run: Mock, mock_popen: Mock, tmp_git_repo: Path
+    ):
+        """schedule_automatic_git_gc runs gc in background."""
+        mock_run.return_value = Mock(returncode=0)
+        mock_popen.return_value = Mock()
+
+        schedule_automatic_git_gc(tmp_git_repo, prune_delay="now")
+
+        # Verify Popen was called (background execution)
+        assert mock_popen.called
+        call_args = mock_popen.call_args[0]
+        assert call_args[0][0] == "git"  # Command
+        assert call_args[0][1] == "gc"  # Subcommand
+        assert "--auto" in call_args[0]  # Auto flag
+        assert "--prune=now" in call_args[0]  # Prune delay
+
+        # Verify stdout/stderr are suppressed
+        kwargs = mock_popen.call_args[1]
+        assert kwargs["stdout"] is not None
+        assert kwargs["stderr"] is not None
+
+
+@pytest.mark.asyncio
+class TestPruneDelayValidation:
+    """Test prune delay validation to prevent command injection."""
+
+    def test_validate_prune_delay_valid_formats(self):
+        """_validate_prune_delay accepts valid git prune delay formats."""
+        valid_delays = [
+            "2.weeks",
+            "1.month",
+            "30.days",
+            "12.hours",
+            "720.minutes",
+            "now",
+            "never",
+            "1.day",  # Singular
+            "5.years",  # Plural
+        ]
+
+        for delay in valid_delays:
+            is_valid, error = _validate_prune_delay(delay)
+            assert is_valid is True, f"Failed for valid delay: {delay}"
+            assert error == "", f"Unexpected error for {delay}: {error}"
+
+    def test_validate_prune_delay_invalid_formats(self):
+        """_validate_prune_delay rejects invalid formats."""
+        invalid_delays = [
+            "now; rm -rf /",  # Command injection attempt
+            "2.weeks; cat /etc/passwd",  # Another injection attempt
+            "$(whoami)",  # Command substitution
+            "`恶意命令`",  # Backtick injection
+            "2.weeks && malicious",  # Chain injection
+            "",  # Empty string
+            "invalid",  # No number
+            "2",  # No unit
+            "weeks",  # No number
+            ".weeks",  # No number
+            "2.",  # No unit
+            "x.weeks",  # Non-numeric
+            " 2.weeks",  # Leading space
+            "2.weeks ",  # Trailing space
+        ]
+
+        for delay in invalid_delays:
+            is_valid, error = _validate_prune_delay(delay)
+            assert is_valid is False, f"Should reject invalid delay: {delay}"
+            assert len(error) > 0, f"Should have error message for: {delay}"
+
+    def test_validate_prune_delay_case_insensitive(self):
+        """_validate_prune_delay handles case variations."""
+        # Case variations should all be valid
+        valid_variations = ["2.Weeks", "2.WEEKS", "2.WeEkS", "2.weeks"]
+
+        for delay in valid_variations:
+            is_valid, _error = _validate_prune_delay(delay)
+            assert is_valid is True, f"Should accept case variation: {delay}"
+
+    def test_schedule_automatic_git_gc_rejects_invalid_delay(
+        self, tmp_git_repo: Path
+    ):
+        """schedule_automatic_git_gc rejects invalid prune delay."""
+        success, message = schedule_automatic_git_gc(
+            tmp_git_repo, prune_delay="malicious; rm -rf /", auto_threshold=6700
+        )
+
+        assert success is False
+        assert "Invalid prune delay" in message or "format" in message.lower()
+
+    def test_schedule_automatic_git_gc_accepts_valid_delay(
+        self, tmp_git_repo: Path
+    ):
+        """schedule_automatic_git_gc accepts valid prune delay."""
+        with patch("session_buddy.utils.git_operations.subprocess.Popen"), patch(
+            "session_buddy.utils.git_operations.subprocess.run"
+        ):
+            success, message = schedule_automatic_git_gc(
+                tmp_git_repo, prune_delay="1.month", auto_threshold=5000
+            )
+
+            assert success is True
+            assert "1.month" in message

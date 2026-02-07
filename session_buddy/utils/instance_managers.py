@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from session_buddy.app_monitor import ApplicationMonitor
     from session_buddy.interruption_manager import InterruptionManager
     from session_buddy.llm_providers import LLMManager
-    from session_buddy.serverless_mode import ServerlessSessionManager
+    from session_buddy.mcp.serveress_mode import ServerlessSessionManager
 
 
 async def get_app_monitor() -> ApplicationMonitor | None:
@@ -83,7 +83,7 @@ async def get_serverless_manager() -> ServerlessSessionManager | None:
 
     """
     try:
-        from session_buddy.serverless_mode import (
+        from session_buddy.mcp.serveress_mode import (
             ServerlessConfigManager,
             ServerlessSessionManager,
         )
@@ -209,7 +209,7 @@ def _iter_dependencies() -> list[type[Any]]:
 
         deps.append(InterruptionManager)
     with suppress(ImportError):
-        from session_buddy.serverless_mode import ServerlessSessionManager
+        from session_buddy.mcp.serveress_mode import ServerlessSessionManager
 
         deps.append(ServerlessSessionManager)
     with suppress(ImportError):

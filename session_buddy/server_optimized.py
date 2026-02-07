@@ -69,7 +69,7 @@ logger = get_session_logger()
 import os
 
 from session_buddy.core import SessionLifecycleManager
-from session_buddy.utils.git_operations import get_git_root, is_git_repository
+from session_buddy.utils.git_worktrees import get_git_root, is_git_repository
 
 # Global session manager for lifespan handlers
 lifecycle_manager = SessionLifecycleManager()

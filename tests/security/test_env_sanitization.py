@@ -5,7 +5,7 @@ Tests for sensitive environment variable removal in subprocess calls.
 
 import os
 import pytest
-from session_buddy.utils.subprocess_helper import _get_safe_environment
+from session_buddy.utils.subprocess_executor import _get_safe_environment
 
 
 def test_environment_sanitization_removes_password():

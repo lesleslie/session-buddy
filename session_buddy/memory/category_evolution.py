@@ -39,7 +39,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # Enums and Data Models
 # ============================================================================
@@ -512,8 +511,7 @@ class SubcategoryClusterer:
 
         # Create new MinHashSignature with union
         aggregated_sig = MinHashSignature(
-            signature=union_signature,
-            num_hashes=existing_sig.num_hashes
+            signature=union_signature.tolist(), num_hashes=existing_sig.num_hashes
         )
 
         subcategory.centroid_fingerprint = aggregated_sig.to_bytes()
@@ -892,7 +890,8 @@ class CategoryEvolutionEngine:
 
         # Find stale subcategories
         stale = [
-            sc for sc in subcategories
+            sc
+            for sc in subcategories
             if sc.last_accessed_at < cutoff
             and sc.access_count < config.decay_access_threshold
         ]
@@ -921,7 +920,9 @@ class CategoryEvolutionEngine:
 
         freed = self._estimate_space_freed(stale)
 
-        logger.info(f"Temporal decay: {'archived' if config.archive_option else 'deleted'} {len(stale)} subcategories")
+        logger.info(
+            f"Temporal decay: {'archived' if config.archive_option else 'deleted'} {len(stale)} subcategories"
+        )
 
         return DecayResult(
             removed_count=len(stale),
@@ -1030,9 +1031,7 @@ class CategoryEvolutionEngine:
         return self._subcategories.get(category, [])
 
     def calculate_silhouette_score(
-        self,
-        subcategories: list[Subcategory],
-        memories: list[dict[str, Any]]
+        self, subcategories: list[Subcategory], memories: list[dict[str, Any]]
     ) -> float:
         """Calculate overall cluster quality using silhouette score.
 
@@ -1069,19 +1068,18 @@ class CategoryEvolutionEngine:
 
         # Calculate silhouette score
         try:
-            from sklearn.metrics import silhouette_score
             import numpy as np
+            from sklearn.metrics import silhouette_score
 
             X_array = np.array(X)
-            return silhouette_score(X_array, labels)
+            score = silhouette_score(X_array, labels)
+            return float(score)
         except Exception as e:
             logger.warning(f"Failed to calculate silhouette score: {e}")
             return 0.0  # Return neutral score on error
 
     def _is_memory_in_subcategory(
-        self,
-        memory: dict[str, Any],
-        subcategory: Subcategory
+        self, memory: dict[str, Any], subcategory: Subcategory
     ) -> bool:
         """Check if a memory belongs to a subcategory.
 
@@ -1162,9 +1160,7 @@ class CategoryEvolutionEngine:
         matches = []
         for subcat in subcategories:
             if subcat.centroid is not None:
-                similarity = self.clusterer._cosine_similarity(
-                    embedding, subcat.centroid
-                )
+                similarity = self._cosine_similarity(embedding, subcat.centroid)
 
                 if similarity >= self.similarity_threshold:
                     matches.append((subcat, similarity))
@@ -1174,6 +1170,24 @@ class CategoryEvolutionEngine:
             return SubcategoryMatch(subcategory=best_subcat, similarity=best_sim)
 
         return None
+
+    def _cosine_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
+        """Calculate cosine similarity between two vectors.
+
+        Args:
+            vec1: First vector
+            vec2: Second vector
+
+        Returns:
+            Cosine similarity (0.0 to 1.0)
+        """
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+
+        if 0 in (norm1, norm2):
+            return 0.0
+
+        return float(np.dot(vec1, vec2) / (norm1 * norm2))
 
     async def _persist_subcategories(
         self,
@@ -1412,81 +1426,8 @@ class CategoryEvolutionEngine:
             return []
 
         try:
-            conn = self._db_adapter.conn
-
-            # Query recent snapshots
-            result = conn.execute(
-                """
-                SELECT
-                    id, category, before_subcategory_count, before_silhouette,
-                    before_total_memories, after_subcategory_count, after_silhouette,
-                    after_total_memories, decayed_count, archived_count,
-                    bytes_freed, evolution_duration_ms, timestamp
-                FROM category_evolution_snapshots
-                WHERE category = ?
-                ORDER BY timestamp DESC
-                LIMIT ?
-                """,
-                [category.value, limit],
-            ).fetchall()
-
-            snapshots = []
-            for row in result:
-                (
-                    snapshot_id,
-                    cat,
-                    before_count,
-                    before_sil,
-                    before_memories,
-                    after_count,
-                    after_sil,
-                    after_memories,
-                    decayed,
-                    archived,
-                    bytes_freed,
-                    duration_ms,
-                    timestamp,
-                ) = row
-
-                # Calculate improvement summary
-                silhouette_delta = (after_sil or 0.0) - (before_sil or 0.0)
-                count_delta = after_count - before_count
-
-                if silhouette_delta > 0.1:
-                    level = "Significant improvement"
-                elif silhouette_delta > 0:
-                    level = "Moderate improvement"
-                elif silhouette_delta > -0.1:
-                    level = "Minor change (acceptable)"
-                else:
-                    level = f"Quality decreased: {silhouette_delta:.2f} ⚠️"
-
-                if count_delta > 0:
-                    count_change = f"Created {count_delta} subcategories"
-                elif count_delta < 0:
-                    count_change = f"Removed {abs(count_delta)} subcategories"
-                else:
-                    count_change = "Maintained subcategory count"
-
-                storage = f" freed {_format_bytes(bytes_freed)}" if bytes_freed > 0 else ""
-
-                snapshots.append(
-                    {
-                        "id": snapshot_id,
-                        "category": cat,
-                        "timestamp": timestamp.isoformat() if timestamp else None,
-                        "summary": f"{level} (silhouette: {silhouette_delta:+.2f}), {count_change},{storage}.",
-                        "before_silhouette": before_sil,
-                        "after_silhouette": after_sil,
-                        "before_subcategory_count": before_count,
-                        "after_subcategory_count": after_count,
-                        "decayed_count": decayed,
-                        "archived_count": archived,
-                        "bytes_freed": bytes_freed,
-                        "duration_ms": duration_ms,
-                    }
-                )
-
+            rows = self._query_evolution_snapshots(category.value, limit)
+            snapshots = [self._build_snapshot_dict(row) for row in rows]
             logger.info(f"Retrieved {len(snapshots)} evolution snapshots")
             return snapshots
 
@@ -1494,8 +1435,138 @@ class CategoryEvolutionEngine:
             logger.error(f"Failed to get evolution history: {e}")
             return []
 
+    def _query_evolution_snapshots(
+        self,
+        category_value: str,
+        limit: int,
+    ) -> list[tuple[Any, ...]]:
+        """Query evolution snapshots from database.
 
-def _format_bytes(bytes_count: int) -> str:
+        Args:
+            category_value: Category value to query
+            limit: Maximum results to return
+
+        Returns:
+            List of snapshot row tuples
+        """
+        conn = self._db_adapter.conn
+        return conn.execute(
+            """
+            SELECT
+                id, category, before_subcategory_count, before_silhouette,
+                before_total_memories, after_subcategory_count, after_silhouette,
+                after_total_memories, decayed_count, archived_count,
+                bytes_freed, evolution_duration_ms, timestamp
+            FROM category_evolution_snapshots
+            WHERE category = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            [category_value, limit],
+        ).fetchall()
+
+    def _build_snapshot_dict(self, row: tuple[Any, ...]) -> dict[str, Any]:
+        """Build a snapshot dictionary from a database row.
+
+        Args:
+            row: Database row containing snapshot data
+
+        Returns:
+            Snapshot dictionary with all fields and summary
+        """
+        (
+            snapshot_id,
+            cat,
+            before_count,
+            before_sil,
+            before_memories,
+            after_count,
+            after_sil,
+            after_memories,
+            decayed,
+            archived,
+            bytes_freed,
+            duration_ms,
+            timestamp,
+        ) = row
+
+        silhouette_delta = (after_sil or 0.0) - (before_sil or 0.0)
+        count_delta = after_count - before_count
+
+        return {
+            "id": snapshot_id,
+            "category": cat,
+            "timestamp": timestamp.isoformat() if timestamp else None,
+            "summary": self._format_snapshot_summary(
+                silhouette_delta,
+                count_delta,
+                bytes_freed,
+            ),
+            "before_silhouette": before_sil,
+            "after_silhouette": after_sil,
+            "before_subcategory_count": before_count,
+            "after_subcategory_count": after_count,
+            "decayed_count": decayed,
+            "archived_count": archived,
+            "bytes_freed": bytes_freed,
+            "duration_ms": duration_ms,
+        }
+
+    def _format_snapshot_summary(
+        self, silhouette_delta: float, count_delta: int, bytes_freed: int
+    ) -> str:
+        """Format a human-readable summary of evolution changes.
+
+        Args:
+            silhouette_delta: Change in silhouette score
+            count_delta: Change in subcategory count
+            bytes_freed: Bytes freed by decay
+
+        Returns:
+            Formatted summary string
+        """
+        level = self._get_improvement_level(silhouette_delta)
+        count_change = self._get_count_change_description(count_delta)
+        storage = f" freed {_format_bytes(bytes_freed)}" if bytes_freed > 0 else ""
+
+        return (
+            f"{level} (silhouette: {silhouette_delta:+.2f}), {count_change},{storage}."
+        )
+
+    def _get_improvement_level(self, silhouette_delta: float) -> str:
+        """Get improvement level description from silhouette delta.
+
+        Args:
+            silhouette_delta: Change in silhouette score
+
+        Returns:
+            Description string of improvement level
+        """
+        if silhouette_delta > 0.1:
+            return "Significant improvement"
+        if silhouette_delta > 0:
+            return "Moderate improvement"
+        if silhouette_delta > -0.1:
+            return "Minor change (acceptable)"
+        return f"Quality decreased: {silhouette_delta:.2f} \u26a0"
+
+    def _get_count_change_description(self, count_delta: int) -> str:
+        """Get description of subcategory count change.
+
+        Args:
+            count_delta: Change in subcategory count
+
+        Returns:
+            Description string
+        """
+        if count_delta > 0:
+            return f"Created {count_delta} subcategories"
+        if count_delta < 0:
+            return f"Removed {abs(count_delta)} subcategories"
+        return "Maintained subcategory count"
+
+
+def _format_bytes(bytes_count: float) -> str:
     """Format bytes as human-readable string.
 
     Args:
@@ -1504,7 +1575,7 @@ def _format_bytes(bytes_count: int) -> str:
     Returns:
         Formatted string (e.g., "1.5 KB", "2.3 MB")
     """
-    for unit in ["B", "KB", "MB", "GB"]:
+    for unit in ("B", "KB", "MB", "GB"):
         if bytes_count < 1024:
             return f"{bytes_count:.1f} {unit}"
         bytes_count /= 1024
