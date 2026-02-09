@@ -546,8 +546,13 @@ async def quality_monitor() -> str:
 
 
 # Server startup
-def run_server() -> None:
-    """Run the optimized MCP server."""
+def run_server(host: str = "127.0.0.1", port: int = 8678) -> None:
+    """Run the optimized MCP server.
+
+    Args:
+        host: Host to bind to (default: 127.0.0.1)
+        port: Port to bind to (default: 8678)
+    """
     try:
         logger.info("Starting optimized session-buddy server")
 
@@ -561,7 +566,8 @@ def run_server() -> None:
         )
 
         if MCP_AVAILABLE:
-            mcp.run()
+            # Use streamable-http transport for HTTP endpoint
+            mcp.run(transport="streamable-http", host=host, port=port, path="/mcp")
         else:
             logger.warning("Running in mock mode - FastMCP not available")
 

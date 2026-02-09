@@ -43,11 +43,11 @@ class SessionBuddySettings(MCPServerSettings):
 
 
 def start_server_handler() -> None:
-    """Start handler that launches session_buddy.server.main() in HTTP streaming mode.
+    """Start handler that launches the Session Buddy MCP server.
 
     This function is called by the CLI factory when 'start' command is executed.
     """
-    from session_buddy.mcp.server import main
+    from session_buddy.server_optimized import run_server
 
     # Start server in HTTP mode with configured ports
     settings = SessionBuddySettings()
@@ -56,8 +56,8 @@ def start_server_handler() -> None:
     print(f"HTTP Port: {settings.http_port}")
     print(f"WebSocket Port: {settings.websocket_port}")
 
-    # Launch the server in HTTP streaming mode
-    main(http_mode=True, http_port=settings.http_port)
+    # Launch the server with HTTP transport
+    run_server(host="127.0.0.1", port=settings.http_port)
 
 
 def _read_running_pid(settings: MCPServerSettings) -> int | None:
