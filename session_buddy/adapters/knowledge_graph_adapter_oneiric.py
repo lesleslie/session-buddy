@@ -11,16 +11,22 @@ Key Features:
     - Backward-compatible API with existing KnowledgeGraphDatabase
     - No ACB dependencies
     - Fast local/in-memory operations
+    - Auto-discovery of semantic relationships (Phase 2)
 
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import typing as t
 import uuid
 from datetime import UTC, datetime
+from functools import lru_cache
 
+from session_buddy.adapters.knowledge_graph_adapter_phase3 import (
+    Phase3RelationshipMixin,
+)
 from session_buddy.adapters.settings import KnowledgeGraphAdapterSettings
 
 if t.TYPE_CHECKING:
@@ -41,8 +47,19 @@ except ImportError:
 
         duckdb = types.SimpleNamespace()  # type: ignore[misc,assignment]
 
+# Embedding system imports
+try:
+    from session_buddy.reflection.embeddings import (
+        generate_embedding,
+        initialize_embedding_system,
+    )
 
-class KnowledgeGraphDatabaseAdapterOneiric:
+    EMBEDDING_AVAILABLE = True
+except ImportError:
+    EMBEDDING_AVAILABLE = False
+
+
+class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
     """Oneiric-compatible knowledge graph adapter using native DuckDB.
 
     This adapter provides the same API as the ACB-based KnowledgeGraphDatabaseAdapter
@@ -53,6 +70,7 @@ class KnowledgeGraphDatabaseAdapterOneiric:
         - No ACB dependency injection
         - Same hybrid sync/async pattern (sync DuckDB ops, async interface)
         - Maintains full API compatibility
+        - Auto-discovery of semantic relationships (Phase 2)
 
     Example:
         >>> settings = KnowledgeGraphAdapterSettings.from_settings()
@@ -108,6 +126,13 @@ class KnowledgeGraphDatabaseAdapterOneiric:
         self.conn: t.Any = None  # DuckDB connection (sync)
         self._duckpgq_installed = False
         self._initialized = False
+        self._embedding_initialized = False
+
+        # Initialize embedding system if available
+        if EMBEDDING_AVAILABLE:
+            self._embedding_session = initialize_embedding_system()
+        else:
+            self._embedding_session = None
 
     def __enter__(self) -> t.Self:
         """Sync context manager entry (not recommended - use async)."""
@@ -251,7 +276,7 @@ class KnowledgeGraphDatabaseAdapterOneiric:
         """Create knowledge graph schema.
 
         Creates:
-        - kg_entities table (nodes)
+        - kg_entities table (nodes) with embedding column
         - kg_relationships table (edges)
         - Indexes for performance
 
@@ -269,7 +294,8 @@ class KnowledgeGraphDatabaseAdapterOneiric:
                 properties JSON,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                metadata JSON
+                metadata JSON,
+                embedding FLOAT[384]
             )
         """)
 
@@ -297,6 +323,14 @@ class KnowledgeGraphDatabaseAdapterOneiric:
                 "ALTER TABLE kg_relationships "
                 "ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             )
+
+        # Ensure embedding column exists
+        entity_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info('kg_entities')").fetchall()
+        }
+        if "embedding" not in entity_columns:
+            conn.execute("ALTER TABLE kg_entities ADD COLUMN embedding FLOAT[384]")
 
         # Create indexes for performance
         conn.execute(
@@ -326,6 +360,9 @@ class KnowledgeGraphDatabaseAdapterOneiric:
         properties: dict[str, t.Any] | None = None,
         metadata: dict[str, t.Any] | None = None,
         attributes: list[str] | None = None,  # Deprecated alias for observations
+        auto_discover: bool = False,  # Phase 2: Auto-discovery
+        discovery_threshold: float = 0.75,
+        max_discoveries: int = 5,
     ) -> dict[str, t.Any]:
         """Create a new entity (node) in the knowledge graph.
 
@@ -336,6 +373,9 @@ class KnowledgeGraphDatabaseAdapterOneiric:
             properties: Additional properties as key-value pairs
             metadata: Additional metadata
             attributes: Deprecated alias for observations (for backward compatibility)
+            auto_discover: Auto-discover similar entities and create relationships (Phase 2)
+            discovery_threshold: Similarity threshold for auto-discovery (0.0-1.0)
+            max_discoveries: Maximum relationships to create via auto-discovery
 
         Returns:
             Created entity as dictionary
@@ -370,12 +410,15 @@ class KnowledgeGraphDatabaseAdapterOneiric:
         entity_id = str(uuid.uuid4())
         now = datetime.now(tz=UTC)
 
+        # Generate embedding for entity (Phase 2)
+        embedding = await self._generate_entity_embedding(name, entity_type, entity_observations)
+
         # Sync DuckDB execution (fast, local operation)
         conn.execute(
             """
             INSERT INTO kg_entities
-            (id, name, entity_type, observations, properties, created_at, updated_at, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (id, name, entity_type, observations, properties, created_at, updated_at, metadata, embedding)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 entity_id,
@@ -386,10 +429,11 @@ class KnowledgeGraphDatabaseAdapterOneiric:
                 now,
                 now,
                 json.dumps(metadata or {}),
+                embedding,
             ),
         )
 
-        return {
+        created_entity = {
             "id": entity_id,
             "name": name,
             "entity_type": entity_type,
@@ -399,6 +443,186 @@ class KnowledgeGraphDatabaseAdapterOneiric:
             "updated_at": now.isoformat(),
             "metadata": metadata or {},
         }
+
+        # Auto-discover relationships (Phase 2)
+        if auto_discover:
+            await self._auto_discover_relationships(
+                entity_id=entity_id,
+                max_relationships=max_discoveries,
+                similarity_threshold=discovery_threshold,
+            )
+
+        return created_entity
+
+    async def _generate_entity_embedding(
+        self,
+        entity_name: str,
+        entity_type: str,
+        observations: list[str],
+    ) -> list[float] | None:
+        """Generate embedding for an entity using the reflection system.
+
+        Args:
+            entity_name: Name of the entity
+            entity_type: Type of the entity
+            observations: List of observations
+
+        Returns:
+            Float vector of dimension 384, or None if embedding unavailable
+
+        """
+        if not EMBEDDING_AVAILABLE or self._embedding_session is None:
+            return None
+
+        # Combine entity information for rich semantic representation
+        text_parts = [entity_name, entity_type]
+        if observations:
+            text_parts.extend(observations)
+
+        text = " ".join(text_parts)
+
+        try:
+            return await generate_embedding(text, self._embedding_session, None)
+        except Exception:
+            # Silently fail - embeddings are optional
+            return None
+
+    async def _find_similar_entities(
+        self,
+        entity_id: str,
+        threshold: float = 0.75,
+        limit: int = 10,
+        exclude_existing: bool = True,
+    ) -> list[dict[str, t.Any]]:
+        """Find semantically similar entities using cosine similarity.
+
+        Args:
+            entity_id: Entity ID to find similarities for
+            threshold: Minimum similarity score (0.0-1.0)
+            limit: Maximum number of results
+            exclude_existing: Exclude entities already connected to this entity
+
+        Returns:
+            List of similar entities with similarity scores
+
+        """
+        conn = self._get_conn()
+
+        # Get source entity embedding
+        source_entity = await self.get_entity(entity_id)
+        if not source_entity:
+            return []
+
+        embedding = source_entity.get("embedding")
+        if not embedding:
+            return []
+
+        # Build similarity query
+        sql = """
+            SELECT id, name, entity_type, observations,
+                   array_cosine_similarity(embedding, ?) as similarity
+            FROM kg_entities
+            WHERE id != ?
+              AND embedding IS NOT NULL
+              AND array_cosine_similarity(embedding, ?) > ?
+            ORDER BY similarity DESC, created_at DESC
+            LIMIT ?
+        """
+
+        results = conn.execute(sql, (embedding, entity_id, embedding, threshold, limit)).fetchall()
+
+        similar_entities = []
+        for row in results:
+            entity_dict = {
+                "id": row[0],
+                "name": row[1],
+                "entity_type": row[2],
+                "observations": list(row[3]) if row[3] else [],
+                "similarity": float(row[4]),
+            }
+            similar_entities.append(entity_dict)
+
+        # Filter out existing relationships if requested
+        if exclude_existing:
+            existing_relations = await self.get_relationships(
+                entity_name=entity_id,
+                direction="both",
+            )
+            related_ids = {
+                rel["from_entity"] if rel["from_entity"] != entity_id else rel["to_entity"]
+                for rel in existing_relations
+            }
+            similar_entities = [
+                e for e in similar_entities if e["id"] not in related_ids
+            ]
+
+        return similar_entities
+
+    # _infer_relationship_type is now provided by Phase3RelationshipMixin
+    # and returns tuple[relation_type, confidence] instead of just str
+
+    async def _auto_discover_relationships(
+        self,
+        entity_id: str,
+        max_relationships: int = 5,
+        similarity_threshold: float = 0.75,
+    ) -> list[dict[str, t.Any]]:
+        """Auto-discover and create relationships for an entity.
+
+        Args:
+            entity_id: Entity ID to discover relationships for
+            max_relationships: Maximum number of relationships to create
+            similarity_threshold: Minimum similarity score (0.0-1.0)
+
+        Returns:
+            List of created relationships
+
+        """
+        # Find similar entities
+        similar_entities = await self._find_similar_entities(
+            entity_id=entity_id,
+            threshold=similarity_threshold,
+            limit=max_relationships,
+            exclude_existing=True,
+        )
+
+        if not similar_entities:
+            return []
+
+        # Get source entity
+        source_entity = await self.get_entity(entity_id)
+        if not source_entity:
+            return []
+
+        # Create relationships
+        created = []
+        for similar_entity in similar_entities[:max_relationships]:
+            try:
+                # Infer relationship type and confidence (Phase 3 enhanced)
+                relation_type, confidence = self._infer_relationship_type(
+                    source_entity,
+                    similar_entity,
+                    similar_entity["similarity"],
+                )
+
+                # Create relationship with confidence metadata
+                relation = await self.create_relation(
+                    from_entity=entity_id,
+                    to_entity=similar_entity["id"],
+                    relation_type=relation_type,
+                    properties={
+                        "similarity": similar_entity["similarity"],
+                        "confidence": confidence,
+                        "auto_discovered": True,
+                        "discovery_method": "semantic",
+                    },
+                )
+                created.append(relation)
+            except Exception:
+                # Silently skip failures (duplicates, etc.)
+                continue
+
+        return created
 
     async def get_entity(self, entity_id: str) -> dict[str, t.Any] | None:
         """Get entity by ID.
@@ -429,6 +653,7 @@ class KnowledgeGraphDatabaseAdapterOneiric:
             "created_at": self._format_timestamp(result[5]),
             "updated_at": self._format_timestamp(result[6]),
             "metadata": json.loads(result[7]) if result[7] else {},
+            "embedding": list(result[8]) if result[8] and len(result[8]) > 0 else None,
         }
 
     async def find_entity_by_name(self, name: str) -> dict[str, t.Any] | None:
@@ -446,7 +671,7 @@ class KnowledgeGraphDatabaseAdapterOneiric:
         result = conn.execute(
             """
             SELECT id, name, entity_type, observations, properties,
-                   created_at, updated_at, metadata
+                   created_at, updated_at, metadata, embedding
             FROM kg_entities
             WHERE name = ?
             """,
@@ -465,6 +690,7 @@ class KnowledgeGraphDatabaseAdapterOneiric:
             "created_at": result[5].isoformat() if result[5] else None,
             "updated_at": result[6].isoformat() if result[6] else None,
             "metadata": json.loads(result[7]) if result[7] else {},
+            "embedding": list(result[8]) if result[8] and len(result[8]) > 0 else None,
         }
 
     async def create_relation(
@@ -761,10 +987,10 @@ class KnowledgeGraphDatabaseAdapterOneiric:
         return paths
 
     async def get_stats(self) -> dict[str, t.Any]:
-        """Get statistics about the knowledge graph.
+        """Get statistics about the knowledge graph with connectivity metrics.
 
         Returns:
-            Summary with entity count, relationship count, type distributions
+            Summary with entity count, relationship count, connectivity metrics
 
         """
         conn = self._get_conn()
@@ -797,9 +1023,184 @@ class KnowledgeGraphDatabaseAdapterOneiric:
         ).fetchall()
         relationship_types = {row[0]: row[1] for row in relationship_types_result}
 
+        # Embedding coverage (Phase 2)
+        embedding_coverage_result = conn.execute(
+            "SELECT COUNT(*) FROM kg_entities WHERE embedding IS NOT NULL",
+        ).fetchone()
+        entities_with_embeddings = embedding_coverage_result[0] if embedding_coverage_result else 0
+        embedding_coverage = (
+            entities_with_embeddings / entity_count if entity_count > 0 else 0
+        )
+
+        # Isolated entities (Phase 2)
+        isolated_result = conn.execute(
+            """
+            SELECT COUNT(DISTINCT e.id)
+            FROM kg_entities e
+            LEFT JOIN kg_relationships r ON (e.id = r.from_entity OR e.id = r.to_entity)
+            WHERE r.id IS NULL
+            """,
+        ).fetchone()
+        isolated_entities = isolated_result[0] if isolated_result else 0
+
+        # Connectivity metrics (Phase 2)
+        connectivity_ratio = (
+            relationship_count / entity_count if entity_count > 0 else 0
+        )
+        avg_degree = connectivity_ratio * 2  # Each relationship contributes to 2 entities
+
         return {
             "total_entities": entity_count or 0,
             "total_relationships": relationship_count or 0,
             "entity_types": entity_types,
             "relationship_types": relationship_types,
+            # Phase 2: Connectivity metrics
+            "connectivity_ratio": round(connectivity_ratio, 3),
+            "isolated_entities": isolated_entities,
+            "avg_degree": round(avg_degree, 3),
+            "embedding_coverage": round(embedding_coverage, 3),
+            "entities_with_embeddings": entities_with_embeddings,
+            "database_path": self.db_path,
+        }
+
+    async def generate_embeddings_for_entities(
+        self,
+        entity_type: str | None = None,
+        batch_size: int = 50,
+        overwrite: bool = False,
+    ) -> dict[str, t.Any]:
+        """Generate embeddings for entities missing them.
+
+        Args:
+            entity_type: Optional filter by entity type
+            batch_size: Number of entities to process per batch
+            overwrite: Regenerate existing embeddings
+
+        Returns:
+            Dictionary with results including count of embeddings generated
+
+        """
+        conn = self._get_conn()
+
+        # Build query to find entities without embeddings
+        conditions = ["embedding IS NULL"]
+        params: list[t.Any] = []
+
+        if not overwrite:
+            conditions.append("embedding IS NULL")
+        if entity_type:
+            conditions.append("entity_type = ?")
+            params.append(entity_type)
+
+        where_clause = " AND ".join(conditions)
+
+        # Get entities needing embeddings
+        sql = f"""
+            SELECT id, name, entity_type, observations
+            FROM kg_entities
+            WHERE {where_clause}
+            LIMIT ?
+        """
+        params.append(batch_size)
+
+        results = conn.execute(sql, params).fetchall()
+
+        generated = 0
+        failed = 0
+
+        for row in results:
+            entity_id = row[0]
+            name = row[1]
+            entity_type_val = row[2]
+            observations = list(row[3]) if row[3] else []
+
+            try:
+                embedding = await self._generate_entity_embedding(
+                    name, entity_type_val, observations
+                )
+
+                if embedding:
+                    conn.execute(
+                        "UPDATE kg_entities SET embedding = ? WHERE id = ?",
+                        (embedding, entity_id),
+                    )
+                    generated += 1
+                else:
+                    failed += 1
+            except Exception:
+                failed += 1
+
+        return {
+            "generated": generated,
+            "failed": failed,
+            "total_processed": generated + failed,
+        }
+
+    async def batch_discover_relationships(
+        self,
+        entity_type: str | None = None,
+        threshold: float = 0.75,
+        limit: int = 100,
+        batch_size: int = 10,
+    ) -> dict[str, t.Any]:
+        """Batch discover relationships for multiple entities.
+
+        Args:
+            entity_type: Optional filter by entity type
+            threshold: Similarity threshold (0.0-1.0)
+            limit: Maximum number of entities to process
+            batch_size: Entities per batch
+
+        Returns:
+            Dictionary with results including relationships created
+
+        """
+        conn = self._get_conn()
+
+        # Build query to find entities with embeddings
+        conditions = ["embedding IS NOT NULL"]
+        params: list[t.Any] = []
+
+        if entity_type:
+            conditions.append("entity_type = ?")
+            params.append(entity_type)
+
+        where_clause = " AND ".join(conditions)
+
+        # Get entities to process
+        sql = f"""
+            SELECT id
+            FROM kg_entities
+            WHERE {where_clause}
+            LIMIT ?
+        """
+        params.append(limit)
+
+        results = conn.execute(sql, params).fetchall()
+
+        relationships_created = 0
+        entities_processed = 0
+
+        for row in results:
+            entity_id = row[0]
+            try:
+                created = await self._auto_discover_relationships(
+                    entity_id=entity_id,
+                    max_relationships=batch_size,
+                    similarity_threshold=threshold,
+                )
+                relationships_created += len(created)
+                entities_processed += 1
+            except Exception:
+                # Silently skip failures
+                continue
+
+        return {
+            "entities_processed": entities_processed,
+            "relationships_created": relationships_created,
+            "avg_relationships_per_entity": (
+                round(relationships_created / entities_processed, 2)
+                if entities_processed > 0
+                else 0
+            ),
         }

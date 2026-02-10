@@ -10,7 +10,9 @@ from ..server_optimized import mcp
 from .tools import (
     register_access_log_tools,
     register_admin_shell_tracking_tools,
+    register_akosha_tools,
     register_bottleneck_tools,
+    register_conversation_tools,
     register_cache_tools,
     register_code_graph_tools,
     register_conscious_agent_tools,
@@ -20,6 +22,7 @@ from .tools import (
     register_hooks_tools,
     register_intent_tools,
     register_knowledge_graph_tools,
+    register_phase3_knowledge_graph_tools,
     register_llm_tools,
     register_memory_health_tools,
     register_migration_tools,
@@ -42,9 +45,11 @@ from .tools.monitoring import register_prometheus_metrics_tools
 # Type ignore: mcp is MockFastMCP|FastMCP union in tests, both have compatible interface
 register_access_log_tools(mcp)  # type: ignore[argument-type]
 register_admin_shell_tracking_tools(mcp)  # type: ignore[argument-type]
+register_akosha_tools(mcp)  # type: ignore[argument-type]
 register_bottleneck_tools(mcp)  # type: ignore[argument-type]
 register_cache_tools(mcp)  # type: ignore[argument-type]
 register_code_graph_tools(mcp)  # type: ignore[argument-type]
+register_conversation_tools(mcp)  # type: ignore[argument-type]
 register_conscious_agent_tools(mcp)  # type: ignore[argument-type]
 register_crackerjack_tools(mcp)  # type: ignore[argument-type]
 register_extraction_tools(mcp)  # type: ignore[argument-type]
@@ -52,6 +57,7 @@ register_feature_flags_tools(mcp)  # type: ignore[argument-type]
 register_hooks_tools(mcp)  # type: ignore[argument-type]
 register_intent_tools(mcp)  # type: ignore[argument-type]
 register_knowledge_graph_tools(mcp)  # type: ignore[argument-type]
+register_phase3_knowledge_graph_tools(mcp)  # type: ignore[argument-type]
 register_llm_tools(mcp)  # type: ignore[argument-type]
 register_migration_tools(mcp)  # type: ignore[argument-type]
 register_monitoring_tools(mcp)  # type: ignore[argument-type]

@@ -1137,5 +1137,40 @@ def mock_settings(tmp_path):
         yield mock_settings_instance
 
 
+@pytest.fixture
+async def kg_adapter(tmp_path: Path) -> AsyncGenerator:
+    """Provide KnowledgeGraphDatabaseAdapterOneiric instance for Phase 3 tests.
+
+    This fixture creates a temporary knowledge graph adapter with the Phase 3
+    RelationshipMixin enabled, allowing tests to verify enhanced relationship
+    inference, pattern extraction, and transitive discovery.
+
+    The adapter is initialized with:
+    - Temporary database path (cleaned up after test)
+    - Auto-initialized schema
+    - Ready for entity/relationship operations
+    """
+    from pathlib import Path
+    from session_buddy.adapters.knowledge_graph_adapter_oneiric import (
+        KnowledgeGraphDatabaseAdapterOneiric,
+    )
+
+    # Create unique temp database path
+    db_path = tmp_path / "test_kg.duckdb"
+
+    # Create adapter with temporary database
+    adapter = KnowledgeGraphDatabaseAdapterOneiric(db_path=str(db_path))
+
+    # Initialize schema
+    await adapter.initialize()
+
+    try:
+        yield adapter
+    finally:
+        # Cleanup (close is not async)
+        if hasattr(adapter, 'close'):
+            adapter.close()
+
+
 # Async test timeout configuration
 pytestmark = pytest.mark.asyncio(scope="function")

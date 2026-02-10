@@ -12,10 +12,18 @@ from .advanced.fingerprint_tools import (
 from .advanced.intent_detection_tools import register_intent_tools
 
 # Collaboration tools
+from .collaboration.knowledge_graph_phase3_tools import (
+    register_phase3_knowledge_graph_tools,
+)
 from .collaboration.knowledge_graph_tools import (
     register_knowledge_graph_tools,
 )
 from .collaboration.team_tools import register_team_tools
+
+# Conversation tools
+from .conversation.conversation_tools import (
+    register_conversation_tools,
+)
 
 # Infrastructure tools
 from .infrastructure.access_log_tools import (
@@ -37,6 +45,7 @@ from ...subscribers import register_code_graph_tools
 from .intelligence.llm_tools import register_llm_tools
 
 # Memory tools
+from .memory.akosha_tools import register_akosha_tools
 from .memory.category_tools import register_category_tools
 from .memory.memory_tools import register_memory_tools
 from .memory.search_tools import register_search_tools
@@ -94,8 +103,12 @@ __all__ = [
     "register_llm_tools",
     # Collaboration
     "register_knowledge_graph_tools",
+    "register_phase3_knowledge_graph_tools",
     "register_team_tools",
+    # Conversation
+    "register_conversation_tools",
     # Memory
+    "register_akosha_tools",
     "register_category_tools",
     "register_memory_tools",
     "register_search_tools",

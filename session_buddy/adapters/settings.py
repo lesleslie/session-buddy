@@ -58,7 +58,7 @@ class KnowledgeGraphAdapterSettings:
     graph_name: str = "session_mgmt_graph"
     nodes_table: str = "kg_entities"
     edges_table: str = "kg_relationships"
-    install_extensions: tuple[str, ...] = ("duckpgq",)
+    install_extensions: tuple[str, ...] = ()  # Phase 3: DuckPGQ not available in v1.4.4
 
     @classmethod
     def from_settings(cls) -> KnowledgeGraphAdapterSettings:
