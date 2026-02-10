@@ -109,6 +109,7 @@ Detailed Statistics:
 ## Integration Examples
 
 ### Grafana
+
 ```bash
 # Install DuckDB plugin
 # Export query
@@ -117,6 +118,7 @@ session-buddy analytics sql session_stats --days 30 > grafana_query.sql
 ```
 
 ### Python + Pandas
+
 ```python
 import duckdb
 conn = duckdb.connect("~/.claude/data/reflection.duckdb")
@@ -125,6 +127,7 @@ print(df.describe())
 ```
 
 ### Jupyter Notebook
+
 ```python
 from session_buddy.analytics import SessionAnalytics
 analytics = SessionAnalytics()

@@ -3,6 +3,7 @@
 ## Overview
 
 This project uses **Vulture** to detect unused/dead Python code. Dead code includes:
+
 - Unused functions, classes, and variables
 - Unused imports
 - Entire `.py` files that are never imported
@@ -15,6 +16,7 @@ This project uses **Vulture** to detect unused/dead Python code. Dead code inclu
 **Installation**: Already installed (`vulture==2.14`)
 
 **What It Does**:
+
 - Static analysis (doesn't execute code)
 - Detects unused functions, classes, variables, imports
 - Can detect entire unused files
@@ -46,6 +48,7 @@ vulture session_buddy/ --exclude tests/,*/migrations/
 **Installation**: `uv add deadcode`
 
 **Advantages over Vulture**:
+
 - Can automatically fix unused code (remove it)
 - Better handling of false positives
 - More flexible configuration
@@ -66,6 +69,7 @@ deadcode session_buddy/ --fix
 **Tool**: `pytest-cov` (already configured)
 
 **What It Does**:
+
 - Detects code that's never executed during tests
 - Complementary to static analysis (finds different issues)
 
@@ -161,10 +165,10 @@ class MyProtocol(Protocol):  # noqa: F401
 ### Common False Positives
 
 1. **MCP Tool Exports**: Tools registered via decorators
-2. **Protocol Implementations**: Abstract base classes
-3. **Dynamic Imports**: `importlib.import_module()`
-4. **Test Fixtures**: Used by pytest discovery
-5. **CLI Commands**: Typer/Click command functions
+1. **Protocol Implementations**: Abstract base classes
+1. **Dynamic Imports**: `importlib.import_module()`
+1. **Test Fixtures**: Used by pytest discovery
+1. **CLI Commands**: Typer/Click command functions
 
 ## Best Practices
 
@@ -211,15 +215,17 @@ $ vulture session_buddy/ --min-confidence 80
 ```
 
 **Found**: 19 dead code issues
+
 - Unused exception handler variables (11)
 - Unused imports (2)
 - Unused parameters (5)
 - Dead code paths (1)
 
 **Action Items**:
+
 1. Review unused imports (`List`, `runtime_checkable`)
-2. Fix unsatisfiable `if` condition in `ollama_provider.py:190`
-3. Clean up exception handler variables (use `_` instead)
+1. Fix unsatisfiable `if` condition in `ollama_provider.py:190`
+1. Clean up exception handler variables (use `_` instead)
 
 ## See Also
 

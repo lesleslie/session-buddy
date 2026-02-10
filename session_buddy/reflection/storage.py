@@ -14,7 +14,7 @@ import logging
 import time
 import typing
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     import duckdb
@@ -430,7 +430,15 @@ async def store_code_graph(
             (id, repo_path, commit_hash, indexed_at, nodes_count, graph_data, metadata)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            [code_graph_id, repo_path, commit_hash, indexed_at, nodes_count, graph_json, metadata_json],
+            [
+                code_graph_id,
+                repo_path,
+                commit_hash,
+                indexed_at,
+                nodes_count,
+                graph_json,
+                metadata_json,
+            ],
         )
 
     if lock:

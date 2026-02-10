@@ -66,6 +66,7 @@ All schemas include version metadata:
 **Current Policy (v1.0)**: Exact version matching required
 
 **Future Policy (planned for v2.0+)**:
+
 - Additive changes only (new optional fields)
 - No breaking changes to existing fields
 - Semantic versioning (MAJOR.MINOR.PATCH)
@@ -281,10 +282,10 @@ All exported schemas include the following metadata:
 ### Validation Rules
 
 1. **Type Validation**: All fields have explicit type constraints
-2. **Format Validation**: UUID, ISO 8601 timestamps
-3. **Pattern Validation**: Component names must match `^[a-zA-Z0-9_-]+$`
-4. **Range Validation**: PID must be 1-4194304
-5. **Length Validation**: String fields have maxLength constraints
+1. **Format Validation**: UUID, ISO 8601 timestamps
+1. **Pattern Validation**: Component names must match `^[a-zA-Z0-9_-]+$`
+1. **Range Validation**: PID must be 1-4194304
+1. **Length Validation**: String fields have maxLength constraints
 
 ## Validation Examples
 
@@ -389,11 +390,13 @@ export_schemas_to_file("event_schemas.yaml", format="yaml")
 ### Evolution Guidelines
 
 **Additive Changes (Minor Version Update)**:
+
 - Add new optional fields
 - Add new validation rules that don't break existing valid data
 - Extend metadata schemas
 
 **Breaking Changes (Major Version Update)**:
+
 - Remove or rename fields
 - Change field types
 - Make required fields optional
@@ -404,9 +407,9 @@ export_schemas_to_file("event_schemas.yaml", format="yaml")
 When upgrading to a new schema version:
 
 1. **Update event_version field** in emitted events
-2. **Update validation logic** in Session-Buddy
-3. **Support multiple versions** during transition period
-4. **Provide migration tools** for old data
+1. **Update validation logic** in Session-Buddy
+1. **Support multiple versions** during transition period
+1. **Provide migration tools** for old data
 
 Example:
 
@@ -454,6 +457,7 @@ def validate_json(cls, json_data: str | dict[str, Any]) -> JsonSchemaMixin:
 ```
 
 **Parameters**:
+
 - `json_data`: JSON string or dictionary
 
 **Returns**: Validated model instance
@@ -474,6 +478,7 @@ def validate_json_safe(
 ```
 
 **Parameters**:
+
 - `json_data`: JSON string or dictionary
 
 **Returns**: Tuple of (model_instance, error)
@@ -501,6 +506,7 @@ def get_schema(model_name: str) -> dict[str, Any]:
 ```
 
 **Parameters**:
+
 - `model_name`: Name of the model
 
 **Returns**: JSON Schema dictionary
@@ -520,6 +526,7 @@ def validate_event_json(
 ```
 
 **Parameters**:
+
 - `model_name`: Name of the model
 - `json_data`: JSON string or dictionary
 
@@ -538,6 +545,7 @@ def export_schemas_to_file(
 ```
 
 **Parameters**:
+
 - `output_path`: Path to output file
 - `format`: Output format ("json" or "yaml")
 

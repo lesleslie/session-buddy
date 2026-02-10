@@ -17,9 +17,9 @@ Session-Buddy MCP tools now support JWT-based authentication for secure cross-pr
 ### Components
 
 1. **AuthConfig**: Configuration management from environment variables
-2. **JWTManager**: Token creation and validation
-3. **require_auth()**: Decorator for protecting MCP tools
-4. **CrossProjectAuth**: Shared authentication for cross-project messages
+1. **JWTManager**: Token creation and validation
+1. **require_auth()**: Decorator for protecting MCP tools
+1. **CrossProjectAuth**: Shared authentication for cross-project messages
 
 ## Setup
 
@@ -291,23 +291,23 @@ test_token = generate_test_token("test_user")
 ### Secret Management
 
 1. **Use strong secrets**: Minimum 32 characters, use `secrets.token_urlsafe(32)`
-2. **Never commit secrets**: Add `.env` to `.gitignore`
-3. **Rotate secrets regularly**: Every 90 days for production
-4. **Use different secrets**: Different secrets for dev/staging/prod
+1. **Never commit secrets**: Add `.env` to `.gitignore`
+1. **Rotate secrets regularly**: Every 90 days for production
+1. **Use different secrets**: Different secrets for dev/staging/prod
 
 ### Token Security
 
 1. **Short expiration**: Use 60 minutes or less for access tokens
-2. **HTTPS only**: Transmit tokens only over encrypted connections
-3. **Token refresh**: Implement refresh token rotation
-4. **Revoke on logout**: Implement token revocation if needed
+1. **HTTPS only**: Transmit tokens only over encrypted connections
+1. **Token refresh**: Implement refresh token rotation
+1. **Revoke on logout**: Implement token revocation if needed
 
 ### Validation
 
 1. **Always validate**: Never trust tokens without validation
-2. **Check expiration**: Always verify token expiration
-3. **Verify claims**: Validate all required claims
-4. **Log failures**: Log authentication failures for security monitoring
+1. **Check expiration**: Always verify token expiration
+1. **Verify claims**: Validate all required claims
+1. **Log failures**: Log authentication failures for security monitoring
 
 ## Troubleshooting
 
@@ -326,6 +326,7 @@ test_token = generate_test_token("test_user")
 ```
 
 **Solution**: Generate a longer secret with:
+
 ```bash
 python -c 'import secrets; print(secrets.token_urlsafe(32))'
 ```
@@ -345,9 +346,10 @@ python -c 'import secrets; print(secrets.token_urlsafe(32))'
 ```
 
 **Solution**: Verify:
+
 1. Token was generated with correct secret
-2. Token hasn't been tampered with
-3. Algorithm matches (HS256)
+1. Token hasn't been tampered with
+1. Algorithm matches (HS256)
 
 ## Examples
 
@@ -375,8 +377,8 @@ No changes required! Authentication is optional.
 ### For New Authenticated Clients
 
 1. Generate JWT token with your system's user_id
-2. Include token in MCP tool calls
-3. Handle authentication errors gracefully
+1. Include token in MCP tool calls
+1. Handle authentication errors gracefully
 
 Example:
 

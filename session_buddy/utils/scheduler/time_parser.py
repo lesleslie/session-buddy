@@ -90,7 +90,9 @@ class NaturalLanguageParser:
             r"every (day|daily)": "FREQ=DAILY",
             r"every (week|weekly)": "FREQ=WEEKLY",
             r"every (month|monthly)": "FREQ=MONTHLY",
-            r"every (\d+) (minute|minutes)": lambda m: f"FREQ=MINUTELY;INTERVAL={m.group(1)}",
+            r"every (\d+) (minute|minutes)": lambda m: (
+                f"FREQ=MINUTELY;INTERVAL={m.group(1)}"
+            ),
             r"every (\d+) (hour|hours)": lambda m: f"FREQ=HOURLY;INTERVAL={m.group(1)}",
             r"every (\d+) (day|days)": lambda m: f"FREQ=DAILY;INTERVAL={m.group(1)}",
         }

@@ -57,9 +57,7 @@ class SessionBuddyShell(AdminShell):
                 "ps": lambda: asyncio.run(self._list_sessions()),
                 "active": lambda: asyncio.run(self._list_active_sessions()),
                 "quality": lambda: asyncio.run(self._show_quality_metrics()),
-                "insights": lambda limit=10: asyncio.run(
-                    self._show_insights(limit)
-                ),
+                "insights": lambda limit=10: asyncio.run(self._show_insights(limit)),
             }
         )
 
@@ -130,9 +128,7 @@ class SessionBuddyShell(AdminShell):
     def _get_banner(self) -> str:
         """Get Session-Buddy-specific banner."""
         version = self._get_component_version()
-        cli_enabled = (
-            "Enabled" if self.config.cli_preprocessing_enabled else "Disabled"
-        )
+        cli_enabled = "Enabled" if self.config.cli_preprocessing_enabled else "Disabled"
 
         # Session tracking status (self-monitoring)
         session_tracking = "Enabled (self-monitoring)"
@@ -178,7 +174,9 @@ Type 'help()' for Python help or %help_shell for shell commands
             if self._session_id:
                 logger.info(f"Session-Buddy shell session started: {self._session_id}")
             else:
-                logger.debug("Session tracking unavailable (Session-Buddy MCP not reachable)")
+                logger.debug(
+                    "Session tracking unavailable (Session-Buddy MCP not reachable)"
+                )
         except Exception as e:
             logger.debug(f"Failed to emit session start: {e}")
 

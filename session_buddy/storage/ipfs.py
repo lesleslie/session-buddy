@@ -29,15 +29,12 @@ Example:
 """
 
 import asyncio
-import hashlib
 import json
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 import httpx
-
 
 logger = logging.getLogger(__name__)
 
@@ -198,10 +195,7 @@ class IPFSStorage:
         logger.info(f"Batch storing {len(memories)} memories")
 
         # Store in parallel
-        tasks = [
-            self.store_memory(m["content"], m.get("metadata"))
-            for m in memories
-        ]
+        tasks = [self.store_memory(m["content"], m.get("metadata")) for m in memories]
 
         cids = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -446,9 +440,7 @@ class DistributedMemoryAggregator:
                 if response.status_code == 200:
                     logger.info(f"Synced {len(cids)} memories to Akosha")
                 else:
-                    logger.warning(
-                        f"Akosha sync failed: {response.status_code}"
-                    )
+                    logger.warning(f"Akosha sync failed: {response.status_code}")
 
         except Exception as e:
             logger.warning(f"Failed to sync to Akosha: {e}")
@@ -465,8 +457,7 @@ class DistributedMemoryAggregator:
             "total_pools": len(self._aggregation_cache),
             "total_memories": total_memories,
             "pools": {
-                pool_id: len(cids)
-                for pool_id, cids in self._aggregation_cache.items()
+                pool_id: len(cids) for pool_id, cids in self._aggregation_cache.items()
             },
         }
 

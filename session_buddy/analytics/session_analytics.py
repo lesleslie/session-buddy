@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import typing as t
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -224,9 +224,7 @@ class SessionAnalytics:
         ```
     """
 
-    def __init__(
-        self, database_path: Path | None = None, conn=None
-    ) -> None:
+    def __init__(self, database_path: Path | None = None, conn=None) -> None:
         """Initialize session analytics.
 
         Args:
@@ -334,9 +332,7 @@ class SessionAnalytics:
             ```
         """
         # Build WHERE clause
-        where_conditions = [
-            f"start_time >= CURRENT_TIMESTAMP - INTERVAL '{days} days'"
-        ]
+        where_conditions = [f"start_time >= CURRENT_TIMESTAMP - INTERVAL '{days} days'"]
         if component:
             where_conditions.append(f"component_name = '{component}'")
 
@@ -640,9 +636,7 @@ class SessionAnalytics:
 
     # Export methods
 
-    def export_sql(
-        self, query_name: str, days: int = 7, **kwargs: t.Any
-    ) -> str:
+    def export_sql(self, query_name: str, days: int = 7, **kwargs: t.Any) -> str:
         """Export query as SQL string.
 
         Args:
@@ -779,7 +773,11 @@ class SessionAnalytics:
         ]
 
         output.append("Detailed Statistics:")
-        output.extend(visualizer.table(headers, rows, align=["left", "right", "right", "right", "right"]))
+        output.extend(
+            visualizer.table(
+                headers, rows, align=["left", "right", "right", "right", "right"]
+            )
+        )
         output.append("")
 
         return output
@@ -811,7 +809,13 @@ class SessionAnalytics:
         output.append("")
 
         # Table view
-        headers = ["Component", "Sessions", "Total Duration", "Avg Quality", "Last Active"]
+        headers = [
+            "Component",
+            "Sessions",
+            "Total Duration",
+            "Avg Quality",
+            "Last Active",
+        ]
         rows = [
             [
                 c.component_name,
@@ -928,9 +932,7 @@ def create_session_summary_report(
 
     # Summary statistics
     total_sessions = sum(s.total_sessions for s in stats)
-    total_errors = sum(
-        e.get("failed_sessions", 0) for e in error_rates.values()
-    )
+    total_errors = sum(e.get("failed_sessions", 0) for e in error_rates.values())
     avg_error_rate = (
         sum(e.get("error_rate", 0) for e in error_rates.values()) / len(error_rates)
         if error_rates
@@ -961,7 +963,9 @@ def create_session_summary_report(
     ]
     if high_error:
         lines.append("COMPONENTS WITH HIGH ERROR RATES:")
-        for name, data in sorted(high_error, key=lambda x: x[1]["error_rate"], reverse=True):
+        for name, data in sorted(
+            high_error, key=lambda x: x[1]["error_rate"], reverse=True
+        ):
             lines.append(f"  • {name}: {data['error_rate']:.1f}%")
             if data.get("most_common_error"):
                 lines.append(f"    Most common: {data['most_common_error']}")

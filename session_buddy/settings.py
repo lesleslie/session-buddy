@@ -267,6 +267,32 @@ class SessionMgmtSettings(MCPBaseSettings):
         description="Always store reflections at session end",
     )
 
+    # === Conversation Storage Settings ===
+    enable_conversation_storage: bool = Field(
+        default=True,
+        description="Enable automatic conversation storage at checkpoints",
+    )
+    conversation_storage_min_length: int = Field(
+        default=100,
+        ge=10,
+        le=1000,
+        description="Minimum conversation length to store (characters)",
+    )
+    conversation_storage_max_length: int = Field(
+        default=50000,
+        ge=1000,
+        le=1000000,
+        description="Maximum conversation length before truncation (characters)",
+    )
+    auto_store_conversations_on_checkpoint: bool = Field(
+        default=True,
+        description="Automatically store conversations at checkpoints",
+    )
+    auto_store_conversations_on_session_end: bool = Field(
+        default=True,
+        description="Automatically store conversations at session end",
+    )
+
     # === Insights Capture Settings ===
     enable_insight_extraction: bool = Field(
         default=True,
@@ -388,6 +414,68 @@ class SessionMgmtSettings(MCPBaseSettings):
     qwen_api_key: str | None = Field(
         default=None,
         description="Qwen API key (overrides QWEN_API_KEY)",
+    )
+
+    # === Akosha Sync Settings ===
+    akosha_cloud_bucket: str = Field(
+        default="",
+        description="S3/R2 bucket name for cloud sync (empty disables cloud)",
+    )
+    akosha_cloud_endpoint: str = Field(
+        default="",
+        description="S3/R2 endpoint URL (e.g., https://<account>.r2.cloudflarestorage.com)",
+    )
+    akosha_cloud_region: str = Field(
+        default="auto",
+        description="Storage region for cloud operations",
+    )
+    akosha_system_id: str = Field(
+        default="",
+        description="Unique system identifier (defaults to hostname if empty)",
+    )
+    akosha_upload_on_session_end: bool = Field(
+        default=True,
+        description="Automatically upload memories on session end",
+    )
+    akosha_enable_fallback: bool = Field(
+        default=True,
+        description="Allow cloud → HTTP fallback for sync",
+    )
+    akosha_force_method: t.Literal["auto", "cloud", "http"] = Field(
+        default="auto",
+        description="Force specific sync method (auto, cloud, http)",
+    )
+    akosha_upload_timeout_seconds: int = Field(
+        default=300,
+        ge=30,
+        le=3600,
+        description="Maximum time to wait for upload completion (default: 5 minutes)",
+    )
+    akosha_max_retries: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Maximum retry attempts for failed uploads",
+    )
+    akosha_retry_backoff_seconds: float = Field(
+        default=2.0,
+        ge=0.1,
+        le=60.0,
+        description="Base delay in seconds for exponential backoff",
+    )
+    akosha_enable_compression: bool = Field(
+        default=True,
+        description="Compress databases with gzip before uploading",
+    )
+    akosha_enable_deduplication: bool = Field(
+        default=True,
+        description="Skip uploads if database hasn't changed (SHA-256 comparison)",
+    )
+    akosha_chunk_size_mb: int = Field(
+        default=5,
+        ge=1,
+        le=100,
+        description="Upload chunk size in MB for large files",
     )
 
     # === Logging Settings ===

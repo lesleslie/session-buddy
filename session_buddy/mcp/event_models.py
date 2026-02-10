@@ -38,12 +38,11 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-
 
 # Schema metadata
 SCHEMA_VERSION = "1.0"
@@ -82,7 +81,7 @@ class JsonSchemaMixin:
         return schema
 
     @classmethod
-    def validate_json(cls, json_data: str | dict[str, Any]) -> "JsonSchemaMixin":
+    def validate_json(cls, json_data: str | dict[str, Any]) -> JsonSchemaMixin:
         """Validate JSON data and return model instance.
 
         Args:
@@ -109,7 +108,7 @@ class JsonSchemaMixin:
     def validate_json_safe(
         cls,
         json_data: str | dict[str, Any],
-    ) -> tuple["JsonSchemaMixin | None", ValidationError | None]:
+    ) -> tuple[JsonSchemaMixin | None, ValidationError | None]:
         """Validate JSON data with error handling.
 
         Args:
@@ -627,9 +626,7 @@ class SessionEndResult(BaseModel, JsonSchemaMixin):
         """
         valid_statuses = {"ended", "error", "not_found"}
         if v not in valid_statuses:
-            raise ValueError(
-                f"Invalid status: {v} (must be one of {valid_statuses})"
-            )
+            raise ValueError(f"Invalid status: {v} (must be one of {valid_statuses})")
         return v
 
     @model_validator(mode="after")

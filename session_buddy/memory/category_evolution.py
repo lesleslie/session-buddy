@@ -26,7 +26,7 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-class TopLevelCategory(str, Enum):
+class TopLevelCategory(StrEnum):
     """Top-level memory categories following MemU's taxonomy."""
 
     FACTS = "facts"  # Factual information, concepts, definitions

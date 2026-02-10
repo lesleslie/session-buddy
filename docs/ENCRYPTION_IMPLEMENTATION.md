@@ -13,13 +13,15 @@ Session-Buddy now includes **Fernet-based encryption** for sensitive session dat
 ### Components
 
 1. **DataEncryption** (`session_buddy/utils/encryption.py`)
+
    - Fernet symmetric encryption using cryptography library
    - Key derivation via PBKDF2HMAC for password-based encryption
    - Dictionary field encryption for structured data
    - Key rotation support
    - Singleton pattern for global access
 
-2. **Encryption Utilities**
+1. **Encryption Utilities**
+
    - `generate_encryption_key()`: Generate secure Fernet keys
    - `is_encrypted()`: Heuristic detection of Fernet tokens
    - `get_encryption()`: Singleton accessor for global instance
@@ -107,6 +109,7 @@ decrypted = new_enc.decrypt(rotated)
 ## Sensitive Fields
 
 The following fields are encrypted by default in `encrypt_dict()`:
+
 - `content` - Session content
 - `reflection` - Session reflections
 - `api_key` - API keys
@@ -118,6 +121,7 @@ The following fields are encrypted by default in `encrypt_dict()`:
 - `user_credentials` - User credentials
 
 Custom fields can be specified:
+
 ```python
 encrypted = enc.encrypt_dict(data, fields=["custom_field1", "custom_field2"])
 ```
@@ -127,6 +131,7 @@ encrypted = enc.encrypt_dict(data, fields=["custom_field1", "custom_field2"])
 ### Encryption Algorithm
 
 **Fernet Specification**:
+
 - AES-128-CBC for encryption
 - HMAC-SHA256 for authentication
 - PKCS7 padding
@@ -134,6 +139,7 @@ encrypted = enc.encrypt_dict(data, fields=["custom_field1", "custom_field2"])
 - Timestamp for token validity (optional)
 
 **Security Properties**:
+
 - Confidentiality via AES-128
 - Integrity via HMAC-SHA256
 - Authenticity via HMAC verification
@@ -142,6 +148,7 @@ encrypted = enc.encrypt_dict(data, fields=["custom_field1", "custom_field2"])
 ### Key Management
 
 **Production (Recommended)**:
+
 ```python
 # Set SESSION_ENCRYPTION_KEY environment variable
 # Generate key once, store securely, rotate periodically
@@ -149,6 +156,7 @@ enc = DataEncryption()  # Reads from environment
 ```
 
 **Testing (Password-Based)**:
+
 ```python
 # Derives key from password using PBKDF2HMAC
 enc = DataEncryption(password="test-password")
@@ -188,6 +196,7 @@ pytest tests/unit/test_encryption.py -v
 ```
 
 **Test Coverage**:
+
 - Initialization (key, password, environment)
 - String/bytes/unicode encryption
 - Dictionary field encryption/decryption
@@ -302,6 +311,7 @@ def store_sensitive_note(content: str, api_key: str) -> str:
 **Encryption Speed**: ~50μs per 1KB on modern CPU
 
 **Key Operations**:
+
 - `encrypt()`: ~10μs for 256 bytes
 - `decrypt()`: ~10μs for 256 bytes
 - `encrypt_dict()`: ~20μs per field
@@ -342,22 +352,28 @@ encryption:
 ### Common Issues
 
 **KeyNotFoundError**:
+
 ```
 SESSION_ENCRYPTION_KEY environment variable must be set.
 Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
 ```
+
 **Solution**: Set `SESSION_ENCRYPTION_KEY` environment variable.
 
 **DecryptionError: Invalid token**:
+
 ```
 Decryption failed: Invalid token or wrong key
 ```
+
 **Solution**: Wrong encryption key or data corruption. Verify key matches what was used for encryption.
 
 **AttributeError: 'bytes' object has no attribute 'encode'**:
+
 ```
 Attempted to encrypt already-encrypted data
 ```
+
 **Solution**: Check if data is already encrypted before encrypting again.
 
 ## Files
@@ -375,11 +391,11 @@ Attempted to encrypt already-encrypted data
 ## Next Steps
 
 1. ✅ **COMPLETED**: Core encryption implementation
-2. ✅ **COMPLETED**: Comprehensive test suite (30 tests)
-3. ⏳ **TODO**: Integrate with session storage backend
-4. ⏳ **TODO**: Add encryption to MCP tools that handle sensitive data
-5. ⏳ **TODO**: Implement key rotation CLI command
-6. ⏳ **TODO**: Add encryption status to health checks
+1. ✅ **COMPLETED**: Comprehensive test suite (30 tests)
+1. ⏳ **TODO**: Integrate with session storage backend
+1. ⏳ **TODO**: Add encryption to MCP tools that handle sensitive data
+1. ⏳ **TODO**: Implement key rotation CLI command
+1. ⏳ **TODO**: Add encryption status to health checks
 
 ## Summary
 

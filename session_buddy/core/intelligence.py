@@ -958,12 +958,14 @@ class IntelligenceEngine:
 
         # Sort by success_rate * invocations
         skills.sort(
-            key=lambda s: float(s["success_rate"]) * int(s["invocations"])
-            if s["success_rate"] is not None
-            and s["invocations"] is not None
-            and isinstance(s["success_rate"], (int, float))
-            and isinstance(s["invocations"], (int, float))
-            else 0.0,
+            key=lambda s: (
+                float(s["success_rate"]) * int(s["invocations"])
+                if s["success_rate"] is not None
+                and s["invocations"] is not None
+                and isinstance(s["success_rate"], (int, float))
+                and isinstance(s["invocations"], (int, float))
+                else 0.0
+            ),
             reverse=True,
         )
 

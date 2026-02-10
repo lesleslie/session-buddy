@@ -32,18 +32,15 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import ValidationError
-
 from session_buddy.mcp.event_models import (
-    SessionStartEvent,
-    SessionEndEvent,
-    SessionStartResult,
-    SessionEndResult,
-    ErrorResponse,
-    UserInfo,
     EnvironmentInfo,
+    ErrorResponse,
+    SessionEndEvent,
+    SessionEndResult,
+    SessionStartEvent,
+    SessionStartResult,
+    UserInfo,
 )
-
 
 # Schema metadata
 SCHEMA_VERSION = "1.0"
@@ -329,9 +326,7 @@ def export_schemas_to_file(
             with output_path.open("w") as f:
                 yaml.dump(schemas, f, default_flow_style=False)
         except ImportError:
-            raise ValueError(
-                "YAML format requires PyYAML: pip install pyyaml"
-            )
+            raise ValueError("YAML format requires PyYAML: pip install pyyaml")
     else:
         raise ValueError(f"Unsupported format: {format}")
 

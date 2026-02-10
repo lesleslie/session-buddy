@@ -1,0 +1,63 @@
+# Session-Buddy Lite Mode Configuration
+# Zero-dependency, in-memory mode for testing and CI/CD
+
+# === Mode Configuration ===
+mode: "lite"
+
+# === Database Settings ===
+database_path: ":memory:"  # In-memory database
+database_connection_timeout: 30
+database_query_timeout: 120
+database_max_connections: 10
+
+# === Storage Settings ===
+storage:
+  default_backend: "memory"  # In-memory storage
+  memory:
+    max_size_mb: 100
+
+# === Search Settings ===
+# Disable ONNX embeddings for faster startup
+enable_semantic_search: false
+enable_full_text_search: true  # Keep basic search
+
+# Disable advanced search features
+enable_faceted_search: false
+enable_search_suggestions: false
+enable_stemming: false
+enable_fuzzy_matching: false
+
+# === Token Optimization ===
+# Disable for faster performance
+enable_token_optimization: false
+
+# === Session Management ===
+# Disable auto-checkpoint
+auto_checkpoint_interval: 0
+enable_auto_checkpoint: false
+
+# Disable auto-store
+enable_auto_store_reflections: false
+
+# === Multi-Project Coordination ===
+# Disable for simplicity
+enable_multi_project: false
+auto_detect_projects: false
+project_groups_enabled: false
+
+# === Integration Settings ===
+# Disable Crackerjack integration
+enable_crackerjack: false
+
+# Disable git integration
+enable_git_integration: false
+
+# === Logging Settings ===
+log_level: "WARNING"  # Reduce log noise
+enable_file_logging: false  # No file logging in lite mode
+enable_performance_logging: false
+
+# === Security Settings ===
+anonymize_paths: false
+enable_rate_limiting: true
+max_requests_per_minute: 100

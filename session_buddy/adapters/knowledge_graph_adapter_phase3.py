@@ -15,10 +15,9 @@ from __future__ import annotations
 import json
 import re
 import typing as t
-from datetime import UTC, datetime
 
 if t.TYPE_CHECKING:
-    from collections.abc import Callable
+    pass
 
 
 class Phase3RelationshipMixin:
@@ -117,7 +116,7 @@ class Phase3RelationshipMixin:
         ]
 
         for (type1, type2), rel_type in type_pairs:
-            if (from_type == type1 and to_type == type2):
+            if from_type == type1 and to_type == type2:
                 # Medium confidence for type-based inference
                 return rel_type, "medium"
 
@@ -223,16 +222,18 @@ class Phase3RelationshipMixin:
                     if target_entity.lower() == entity_name.lower():
                         continue
 
-                    discovered.append({
-                        "from_entity": entity_id,
-                        "from_name": entity_name,
-                        "to_entity": target_entity,  # Name, not ID (will resolve later)
-                        "to_name": target_entity,
-                        "relation_type": rel_type,
-                        "confidence": "medium",  # Pattern extraction = medium confidence
-                        "evidence": [observation],
-                        "discovery_method": "pattern",
-                    })
+                    discovered.append(
+                        {
+                            "from_entity": entity_id,
+                            "from_name": entity_name,
+                            "to_entity": target_entity,  # Name, not ID (will resolve later)
+                            "to_name": target_entity,
+                            "relation_type": rel_type,
+                            "confidence": "medium",  # Pattern extraction = medium confidence
+                            "evidence": [observation],
+                            "discovery_method": "pattern",
+                        }
+                    )
 
         return discovered
 
@@ -300,7 +301,7 @@ class Phase3RelationshipMixin:
         # Pre-populate visited set with all existing relationships for duplicate detection
         visited: set[tuple[str, str]] = set()
         for from_e in graph:
-            for (to_e, _, _) in graph[from_e]:
+            for to_e, _, _ in graph[from_e]:
                 visited.add((from_e, to_e))
 
         for from_entity in graph:

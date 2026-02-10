@@ -21,6 +21,7 @@ We compared three dead code detection tools on the session-buddy codebase with s
 **22 issues detected** at 80%+ confidence:
 
 1. **Unused exception handler variables** (17 issues)
+
    - Common anti-pattern: `exc_type`, `exc_value`, `traceback` in exception handlers
    - Files affected:
      - `knowledge_graph_adapter_oneiric.py` (6 issues)
@@ -29,11 +30,13 @@ We compared three dead code detection tools on the session-buddy codebase with s
      - `shutdown_manager.py` (1 issue)
      - `app_monitor.py` (1 issue)
 
-2. **Unused imports** (2 issues)
+1. **Unused imports** (2 issues)
+
    - `runtime_checkable` in `reflection/storage.py`
    - `List` in `sync.py` (likely using lowercase `list` from Python 3.9+)
 
-3. **Unused function parameters** (3 issues)
+1. **Unused function parameters** (3 issues)
+
    - `max_age_hours` in `token_optimizer.py:589`
    - `recursive` in `app_monitor.py:44`
    - `frame` in `shutdown_manager.py:196`
@@ -46,12 +49,14 @@ We compared three dead code detection tools on the session-buddy codebase with s
 **Issues**: 0 found
 
 **Analysis**:
+
 - deadcode uses **more conservative detection criteria**
 - Focuses on **definitely unreachable code** rather than unused variables
 - Excellent for quick sanity checks
 - May miss smaller issues like unused parameters
 
 **Best For**:
+
 - Fast CI/CD pipelines
 - "Is there obviously dead code?" checks
 - Complementing vulture's detailed findings
@@ -62,6 +67,7 @@ We compared three dead code detection tools on the session-buddy codebase with s
 **Issues**: **626 items detected**
 
 **Analysis**:
+
 - Skylos detected **6x more issues** than vulture
 - Includes:
   - Unused code (like vulture)
@@ -71,12 +77,14 @@ We compared three dead code detection tools on the session-buddy codebase with s
   - Potential vulnerabilities
 
 **Trade-off**:
+
 - ✅ Most thorough analysis
 - ✅ Security insights beyond dead code
 - ❌ 8x slower than vulture
 - ❌ May flag false positives for review
 
 **Best For**:
+
 - Monthly comprehensive reviews
 - Security-conscious teams
 - Pre-release audits
@@ -96,6 +104,7 @@ Thoroughness: Skylos (626) >> Vulture (22) > deadcode (0)
 ### Vulture (🦅)
 
 **Strengths**:
+
 - ✅ Best balance of speed and thoroughness
 - ✅ 100% confidence on all findings
 - ✅ Clear, actionable output with file:line references
@@ -103,6 +112,7 @@ Thoroughness: Skylos (626) >> Vulture (22) > deadcode (0)
 - ✅ Sort by size feature (prioritize big cleanups)
 
 **Weaknesses**:
+
 - ❌ No auto-fix capability
 - ❌ Manual cleanup required
 - ❌ No security analysis
@@ -112,12 +122,14 @@ Thoroughness: Skylos (626) >> Vulture (22) > deadcode (0)
 ### deadcode (💀)
 
 **Strengths**:
+
 - ✅ **Fastest** (2.2s)
 - ✅ Auto-fix with `--fix` flag
 - ✅ Conservative (fewer false positives)
 - ✅ Dry-run mode for safety
 
 **Weaknesses**:
+
 - ❌ Found 0 issues (too conservative?)
 - ❌ Less detailed reporting
 - ❌ No confidence scoring
@@ -125,6 +137,7 @@ Thoroughness: Skylos (626) >> Vulture (22) > deadcode (0)
 **Best Use Case**: Quick sanity checks, automated cleanup pipelines
 
 **Note**: The fact that deadcode found 0 issues while vulture found 22 suggests:
+
 - deadcode may ignore "small" issues like unused variables
 - Focuses on entire unused functions/classes
 - Different definition of "dead code"
@@ -132,6 +145,7 @@ Thoroughness: Skylos (626) >> Vulture (22) > deadcode (0)
 ### Skylos (🛡️)
 
 **Strengths**:
+
 - ✅ Most comprehensive (626 items!)
 - ✅ Includes security scanning
 - ✅ Taint analysis
@@ -139,6 +153,7 @@ Thoroughness: Skylos (626) >> Vulture (22) > deadcode (0)
 - ✅ Interactive review mode
 
 **Weaknesses**:
+
 - ❌ Slowest (49.6s)
 - ❌ May be overkill for quick checks
 - ❌ More complex output
@@ -150,6 +165,7 @@ Thoroughness: Skylos (626) >> Vulture (22) > deadcode (0)
 All three tools agree on the **absence of large dead code** (no entire unused files or classes).
 
 The 22 issues vulture found represent **minor technical debt**:
+
 - Unused exception variables (can use `_` instead)
 - Unused imports (clean up imports)
 - Unused parameters (update signatures)
@@ -192,6 +208,7 @@ python -m crackerjack run skylos
 ### 1. Exception Handler Variables (17 issues)
 
 **Anti-pattern**:
+
 ```python
 try:
     ...
@@ -200,6 +217,7 @@ except Exception as exc_type, exc_value, traceback:  # ❌ Unused
 ```
 
 **Fix**:
+
 ```python
 try:
     ...
@@ -208,6 +226,7 @@ except Exception:  # ✅ Use _ if not needed
 ```
 
 **Files to fix**:
+
 - `session_buddy/adapters/knowledge_graph_adapter_oneiric.py` (lines 119-121, 132-134)
 - `session_buddy/adapters/reflection_adapter_oneiric.py` (lines 147-149, 161-163)
 - `session_buddy/reflection/database.py` (lines 125-127)
@@ -217,6 +236,7 @@ except Exception:  # ✅ Use _ if not needed
 ### 2. Unused Imports (2 issues)
 
 **Fix**:
+
 ```python
 # session_buddy/reflection/storage.py:17
 - from typing import runtime_checkable
@@ -230,6 +250,7 @@ except Exception:  # ✅ Use _ if not needed
 ### 3. Unused Parameters (3 issues)
 
 **Fix or use `_` placeholder**:
+
 ```python
 # session_buddy/token_optimizer.py:589
 - async def cleanup_cache(self, max_age_hours: int = 1) -> int:
@@ -241,13 +262,14 @@ except Exception:  # ✅ Use _ if not needed
 **For session-buddy, we recommend**:
 
 1. **Keep Vulture** for daily development (already configured ✅)
-2. **Add deadcode** to crackerjack workflow for automated cleanup
-3. **Use Skylos** monthly via crackerjack for comprehensive security + quality analysis
+1. **Add deadcode** to crackerjack workflow for automated cleanup
+1. **Use Skylos** monthly via crackerjack for comprehensive security + quality analysis
 
 **Next Steps**:
+
 1. Fix the 22 issues vulture found (quick wins)
-2. Run deadcode with `--fix --dry-run` to see if auto-cleanup is safe
-3. Schedule monthly Skylos analysis for security review
+1. Run deadcode with `--fix --dry-run` to see if auto-cleanup is safe
+1. Schedule monthly Skylos analysis for security review
 
 ## Files Generated
 

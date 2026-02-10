@@ -14,8 +14,6 @@ Commands:
 from __future__ import annotations
 
 import asyncio
-import sys
-from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
@@ -48,7 +46,9 @@ def parse_days_option(days: int | None) -> int:
 @app.command("sessions")
 def analytics_sessions(
     days: int = typer.Option(7, "--days", "-d", help="Number of days to analyze"),
-    component: str = typer.Option(None, "--component", "-c", help="Filter by component name"),
+    component: str = typer.Option(
+        None, "--component", "-c", help="Filter by component name"
+    ),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ) -> None:
     """Show session statistics.
@@ -84,7 +84,9 @@ def analytics_sessions(
 @app.command("duration")
 def analytics_duration(
     days: int = typer.Option(7, "--days", "-d", help="Number of days to analyze"),
-    component: str = typer.Option(None, "--component", "-c", help="Filter by component name"),
+    component: str = typer.Option(
+        None, "--component", "-c", help="Filter by component name"
+    ),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ) -> None:
     """Show average session duration by component.
@@ -133,7 +135,9 @@ def analytics_duration(
                 else:
                     duration_str = f"{seconds}s"
 
-                typer.echo(f"  {component_name:30} {duration_str:>20} ({avg_duration:.0f}s)")
+                typer.echo(
+                    f"  {component_name:30} {duration_str:>20} ({avg_duration:.0f}s)"
+                )
 
             typer.echo("")
 
@@ -182,7 +186,9 @@ def analytics_components(
 @app.command("errors")
 def analytics_errors(
     days: int = typer.Option(7, "--days", "-d", help="Number of days to analyze"),
-    component: str = typer.Option(None, "--component", "-c", help="Filter by component name"),
+    component: str = typer.Option(
+        None, "--component", "-c", help="Filter by component name"
+    ),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ) -> None:
     """Show error rate statistics by component.
@@ -246,6 +252,7 @@ def analytics_active(
     Example:
         session-buddy analytics active
     """
+
     async def run():
         analytics = SessionAnalytics()
         active = await analytics.get_active_sessions()
@@ -333,7 +340,9 @@ def analytics_report(
 
 @app.command("sql")
 def analytics_sql(
-    query: str = typer.Argument(..., help="Query name (session_stats, active_sessions, etc.)"),
+    query: str = typer.Argument(
+        ..., help="Query name (session_stats, active_sessions, etc.)"
+    ),
     days: int = typer.Option(7, "--days", "-d", help="Number of days to analyze"),
 ) -> None:
     """Export SQL query for use with external tools.

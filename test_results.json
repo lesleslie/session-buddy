@@ -1,6 +1,30 @@
 {
-  "timestamp": "2026-02-06T22:04:58.399067",
+  "issues": [
+    {
+      "fix": "cd /Users/les/Projects/session-buddy && pip install -e .",
+      "issue": "session-buddy not installed",
+      "phase": "environment_setup"
+    },
+    {
+      "error": "[Errno 2] No such file or directory: 'session-buddy'",
+      "issue": "health check failed",
+      "phase": "session_buddy_server"
+    },
+    {
+      "error": "[Errno 2] No such file or directory: 'session-buddy'",
+      "issue": "failed to list sessions",
+      "phase": "database_verification"
+    }
+  ],
   "phases": {
+    "database_verification": {
+      "tests": [
+        {
+          "name": "list_sessions",
+          "status": "fail"
+        }
+      ]
+    },
     "environment_setup": {
       "tests": [
         {
@@ -19,6 +43,15 @@
         }
       ]
     },
+    "mahavishnu_shell": {
+      "manual_test_required": true,
+      "tests": [
+        {
+          "name": "command_available",
+          "status": "pass"
+        }
+      ]
+    },
     "session_buddy_server": {
       "tests": [
         {
@@ -30,40 +63,7 @@
           "status": "fail"
         }
       ]
-    },
-    "mahavishnu_shell": {
-      "tests": [
-        {
-          "name": "command_available",
-          "status": "pass"
-        }
-      ],
-      "manual_test_required": true
-    },
-    "database_verification": {
-      "tests": [
-        {
-          "name": "list_sessions",
-          "status": "fail"
-        }
-      ]
     }
   },
-  "issues": [
-    {
-      "phase": "environment_setup",
-      "issue": "session-buddy not installed",
-      "fix": "cd /Users/les/Projects/session-buddy && pip install -e ."
-    },
-    {
-      "phase": "session_buddy_server",
-      "issue": "health check failed",
-      "error": "[Errno 2] No such file or directory: 'session-buddy'"
-    },
-    {
-      "phase": "database_verification",
-      "issue": "failed to list sessions",
-      "error": "[Errno 2] No such file or directory: 'session-buddy'"
-    }
-  ]
+  "timestamp": "2026-02-06T22:04:58.399067"
 }

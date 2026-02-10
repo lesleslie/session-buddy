@@ -1,0 +1,111 @@
+# Session-Buddy Standard Mode Configuration
+# Full-featured production mode with persistent storage
+
+# === Mode Configuration ===
+mode: "standard"
+
+# === Database Settings ===
+database_path: "~/.claude/data/reflection.duckdb"
+database_connection_timeout: 30
+database_query_timeout: 120
+database_max_connections: 10
+
+# === Multi-Project Coordination ===
+enable_multi_project: true
+auto_detect_projects: true
+project_groups_enabled: true
+
+# === Database Search ===
+enable_full_text_search: true
+search_index_update_interval: 3600
+max_search_results: 100
+
+# === Search Settings ===
+enable_semantic_search: true
+embedding_model: "all-MiniLM-L6-v2"
+embedding_cache_size: 1000
+
+# Advanced search
+enable_faceted_search: true
+max_facet_values: 50
+enable_search_suggestions: true
+suggestion_limit: 10
+enable_stemming: true
+enable_fuzzy_matching: true
+fuzzy_threshold: 0.8
+
+# === Token Optimization ===
+enable_token_optimization: true
+default_max_tokens: 4000
+default_chunk_size: 2000
+optimization_strategy: "auto"
+enable_response_chunking: true
+enable_duplicate_filtering: true
+track_token_usage: true
+usage_retention_days: 90
+
+# === Session Management ===
+auto_checkpoint_interval: 1800  # 30 minutes
+enable_auto_checkpoint: true
+enable_auto_commit: true
+commit_message_template: "checkpoint: Session checkpoint - {timestamp}"
+enable_permission_system: true
+default_trusted_operations:
+  - git_commit
+  - uv_sync
+  - file_operations
+auto_cleanup_old_sessions: true
+session_retention_days: 365
+
+# === Storage Settings ===
+storage:
+  default_backend: "file"
+  file:
+    local_path: "~/.claude/data/sessions"
+    auto_mkdir: true
+  memory:
+    max_size_mb: 100
+
+# Selective auto-store for reflections
+enable_auto_store_reflections: true
+auto_store_quality_delta_threshold: 10
+auto_store_exceptional_quality_threshold: 90
+auto_store_manual_checkpoints: true
+auto_store_session_end: true
+
+# === Integration Settings ===
+enable_crackerjack: true
+crackerjack_command: "crackerjack"
+enable_git_integration: true
+git_auto_stage: false
+
+# === Git Maintenance Settings ===
+git_auto_gc: true
+git_gc_prune_delay: "2.weeks"
+git_gc_auto_threshold: 6700
+git_gc_only_when_clean: true
+
+global_workspace_path: "~/Projects/claude"
+enable_global_toolkits: true
+
+# === Logging Settings ===
+log_level: "INFO"
+log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+enable_file_logging: true
+log_file_path: "~/.claude/logs/session-buddy.log"
+log_file_max_size: 10485760  # 10MB
+log_file_backup_count: 5
+enable_performance_logging: false
+log_slow_queries: true
+slow_query_threshold: 1.0
+
+# === Security Settings ===
+anonymize_paths: false
+enable_rate_limiting: true
+max_requests_per_minute: 100
+max_query_length: 10000
+max_content_length: 1000000
+
+# === Development Settings ===
+enable_debug_mode: false
+enable_hot_reload: false

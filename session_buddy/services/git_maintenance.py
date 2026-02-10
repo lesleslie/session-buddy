@@ -416,13 +416,18 @@ class GitMaintenanceService:
         }
 
         try:
-            can_proceed, error_msg = self._validate_maintenance_prerequisites(repository)
+            can_proceed, error_msg = self._validate_maintenance_prerequisites(
+                repository
+            )
 
             if not can_proceed:
                 result["message"] = error_msg
 
                 if "Git operation in progress" in error_msg:
-                    logger.info("Skipping gc: git operation in progress", repository=str(repository))
+                    logger.info(
+                        "Skipping gc: git operation in progress",
+                        repository=str(repository),
+                    )
                 elif "Max concurrent" in error_msg:
                     logger.warning(
                         "Skipping gc: too many active processes",

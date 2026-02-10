@@ -458,6 +458,7 @@ print("\n".join(output))
 ```
 
 Output:
+
 ```
 Total Sessions by Component:
 admin-shell                 150    ████████████████████████████████
@@ -477,6 +478,7 @@ print("\n".join(output))
 ```
 
 Output:
+
 ```
 SESSION TIME SERIES (by day)
 
@@ -521,12 +523,13 @@ print(sparkline)
 
 1. Install Grafana DuckDB plugin: https://github.com/matrix-org/grafana-duckdb
 
-2. Configure data source:
+1. Configure data source:
+
    - Name: Session-Buddy Analytics
    - Database: ~/.claude/data/reflection.duckdb
    - Format: Table
 
-3. Create dashboard panels using exported SQL queries:
+1. Create dashboard panels using exported SQL queries:
 
 ```bash
 # Export query for Grafana
@@ -538,7 +541,7 @@ session-buddy analytics sql session_stats --days 30 > grafana_query.sql
 ### Metabase
 
 1. Add DuckDB database connection in Metabase
-2. Use native query mode with exported SQL:
+1. Use native query mode with exported SQL:
 
 ```bash
 session-buddy analytics sql error_rate --days 7 > metabase_query.sql
@@ -799,17 +802,20 @@ asyncio.run(component_dashboard())
 If queries return no data:
 
 1. Check database path:
+
    ```bash
    echo $SESSION_BUDDY_DATABASE_PATH
    ls -la ~/.claude/data/reflection.duckdb
    ```
 
-2. Verify sessions table exists:
+1. Verify sessions table exists:
+
    ```bash
    duckdb ~/.claude/data/reflection.duckdb "SHOW TABLES"
    ```
 
-3. Check if sessions table has data:
+1. Check if sessions table has data:
+
    ```bash
    duckdb ~/.claude/data/reflection.duckdb "SELECT COUNT(*) FROM sessions"
    ```
@@ -819,16 +825,19 @@ If queries return no data:
 If you get connection errors:
 
 1. Install DuckDB:
+
    ```bash
    pip install duckdb
    ```
 
-2. Verify database file permissions:
+1. Verify database file permissions:
+
    ```bash
    ls -la ~/.claude/data/reflection.duckdb
    ```
 
-3. Check database integrity:
+1. Check database integrity:
+
    ```bash
    duckdb ~/.claude/data/reflection.duckdb "PRAGMA database_size"
    ```
@@ -838,17 +847,20 @@ If you get connection errors:
 For large databases:
 
 1. Use time range filters:
+
    ```python
    # Instead of querying all data
    stats = await analytics.get_session_stats(days=7)  # Good
    ```
 
-2. Use component filters:
+1. Use component filters:
+
    ```python
    stats = await analytics.get_session_stats(days=30, component='admin-shell')
    ```
 
-3. Use limit for component queries:
+1. Use limit for component queries:
+
    ```python
    components = await analytics.get_most_active_components(days=30, limit=10)
    ```
@@ -856,11 +868,11 @@ For large databases:
 ## Best Practices
 
 1. **Use Appropriate Time Ranges**: Query only the data you need
-2. **Filter Early**: Use component filters when analyzing specific components
-3. **Schedule Reports**: Generate reports periodically (daily, weekly)
-4. **Monitor Errors**: Track error rates to identify issues early
-5. **Export for Visualization**: Use SQL export for complex dashboards
-6. **Archive Old Data**: Move old sessions to archive tables to maintain performance
+1. **Filter Early**: Use component filters when analyzing specific components
+1. **Schedule Reports**: Generate reports periodically (daily, weekly)
+1. **Monitor Errors**: Track error rates to identify issues early
+1. **Export for Visualization**: Use SQL export for complex dashboards
+1. **Archive Old Data**: Move old sessions to archive tables to maintain performance
 
 ## Related Documentation
 

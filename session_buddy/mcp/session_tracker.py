@@ -318,7 +318,9 @@ class SessionTracker:
             >>> assert result.status == "ended"
         """
         start_time = time.time()
-        component_name = event.session_id.split("-")[0] if "-" in event.session_id else "unknown"
+        component_name = (
+            event.session_id.split("-")[0] if "-" in event.session_id else "unknown"
+        )
 
         try:
             # For now, we use SessionLifecycleManager.end_session()

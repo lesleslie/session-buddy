@@ -7,12 +7,13 @@
 ## Overview
 
 Session Buddy implements a defense-in-depth security strategy to protect against:
+
 - **Command Injection** (shell metacharacter, argument injection)
 - **Path Traversal** (symlink attacks, null byte injection)
 - **Environment Leakage** (sensitive data in subprocess environments)
 - **Race Conditions** (concurrent sanitization)
 
----
+______________________________________________________________________
 
 ## Architecture Components
 
@@ -23,13 +24,15 @@ Session Buddy implements a defense-in-depth security strategy to protect against
 **Purpose**: Secure subprocess execution with validation and sanitization
 
 **Security Features**:
+
 - ✅ Command allowlist validation
-- ✅ Shell metacharacter detection (`; | & $ ` ( ) < > \n \r`)
+- ✅ Shell metacharacter detection (`; | & $ ` ( ) < > \\n \\r\`)
 - ✅ Environment sanitization (removes sensitive variables)
 - ✅ Safe defaults enforcement (`shell=False`)
 - ✅ Thread-safe operation
 
 **API**:
+
 ```python
 SafeSubprocess.run_safe(
     command: list[str],
@@ -45,7 +48,7 @@ SafeSubprocess.run_safe(
 | Environment leakage | Sensitive pattern removal |
 | Race conditions | Immutable environment copies |
 
----
+______________________________________________________________________
 
 ### 2. Path Validation
 
@@ -54,6 +57,7 @@ SafeSubprocess.run_safe(
 **Purpose**: Prevent directory traversal and path-based attacks
 
 **Security Features**:
+
 - ✅ Path traversal detection (`..`, `~`)
 - ✅ Null byte blocking (CWE-158)
 - ✅ Symlink attack prevention (CWE-59)
@@ -61,6 +65,7 @@ SafeSubprocess.run_safe(
 - ✅ Filesystem boundary checks
 
 **API**:
+
 ```python
 PathValidator.validate_user_path(
     path: str | Path,
@@ -76,7 +81,7 @@ PathValidator.validate_user_path(
 | Symlink bypass | Realpath validation |
 | Buffer overflow | Length limit enforcement |
 
----
+______________________________________________________________________
 
 ### 3. Argument Parsing
 
@@ -85,12 +90,14 @@ PathValidator.validate_user_path(
 **Purpose**: Secure argument parsing for external tool execution
 
 **Security Features**:
+
 - ✅ Shlex-based quote handling
 - ✅ Argument allowlist (flag validation)
 - ✅ Unmatched quote detection
 - ✅ Shell metacharacter blocking
 
 **API**:
+
 ```python
 _parse_crackerjack_args(
     args: str,
@@ -105,19 +112,21 @@ _parse_crackerjack_args(
 | Quote confusion | Shlex-based parsing |
 | Flag bypass | Strict validation |
 
----
+______________________________________________________________________
 
 ## Threat Model
 
 ### Attacker Capabilities
 
 **Assumptions**:
+
 - Attacker can control command arguments
 - Attacker can create files and directories
 - Attacker can execute commands through Session Buddy
 - Attacker has local filesystem access
 
 **What Attacker CANNOT Do**:
+
 - Bypass command allowlist (enforced at execution)
 - Access files outside allowed directories
 - Inject shell metacharacters (blocked at validation)
@@ -151,23 +160,26 @@ _parse_crackerjack_args(
 **Attack**: Set `TOKEN=secret` and read through subprocess
 **Prevention**: Pattern matching removes `TOKEN` → empty in subprocess
 
----
+______________________________________________________________________
 
 ## Testing Strategy
 
 ### Test Categories
 
 1. **Unit Tests** (`tests/security/`):
+
    - Individual function validation
    - Edge case coverage
    - Error condition testing
 
-2. **Integration Tests** (`tests/integration/`):
+1. **Integration Tests** (`tests/integration/`):
+
    - Real filesystem operations
    - Actual subprocess execution
    - Concurrent operation validation
 
-3. **Manual Tests** (`tests/security/manual_penetration_tests.py`):
+1. **Manual Tests** (`tests/security/manual_penetration_tests.py`):
+
    - Penetration testing scenarios
    - Attack simulation
    - Validation bypass attempts
@@ -181,7 +193,7 @@ _parse_crackerjack_args(
 | Environment Safety | 100% | ✅ Complete |
 | Race Conditions | 90% | ✅ 80% (Priority 2) |
 
----
+______________________________________________________________________
 
 ## Security Checklist
 
@@ -201,23 +213,26 @@ _parse_crackerjack_args(
 - [ ] Threat model updated for new features
 - [ ] Documentation updated
 
----
+______________________________________________________________________
 
 ## Known Limitations
 
 ### Current Scope
 
 ✅ **Covered**:
+
 - Command injection prevention (shlex + allowlist)
 - Path traversal prevention (validation + resolution)
 - Environment sanitization (pattern matching)
 - Thread safety (immutable copies)
 
 ⚠️ **Partially Covered**:
+
 - Race conditions (80% coverage, 20% Priority 2 tests remaining)
 - DoS prevention (argument length limits, no rate limiting)
 
 ❌ **Not Covered** (Future Work):
+
 - Network-based attacks (no network operations)
 - Memory-based attacks (Python GC handles most)
 - Timing attacks (not applicable to current threat model)
@@ -225,11 +240,11 @@ _parse_crackerjack_args(
 ### Assumptions
 
 1. **Trusted Execution**: Python environment is trusted
-2. **Local Filesystem**: Attacker has filesystem access (mitigated via validation)
-3. **No Privilege Escalation**: Runs with user permissions only
-4. **Single-Tenant**: No multi-user isolation needed
+1. **Local Filesystem**: Attacker has filesystem access (mitigated via validation)
+1. **No Privilege Escalation**: Runs with user permissions only
+1. **Single-Tenant**: No multi-user isolation needed
 
----
+______________________________________________________________________
 
 ## Incident Response
 
@@ -238,8 +253,8 @@ _parse_crackerjack_args(
 **If vulnerability is found**:
 
 1. **DO NOT** open a public issue
-2. Email: security@example.com
-3. Include:
+1. Email: security@example.com
+1. Include:
    - Vulnerability description
    - Steps to reproduce
    - Impact assessment
@@ -248,12 +263,12 @@ _parse_crackerjack_args(
 ### Response Process
 
 1. **Acknowledge** within 48 hours
-2. **Investigate** and validate within 7 days
-3. **Fix** and test within 14 days
-4. **Release** patch with security advisory
-5. **Credit** disclosure (if requested)
+1. **Investigate** and validate within 7 days
+1. **Fix** and test within 14 days
+1. **Release** patch with security advisory
+1. **Credit** disclosure (if requested)
 
----
+______________________________________________________________________
 
 ## References
 
@@ -263,13 +278,14 @@ _parse_crackerjack_args(
 - **CWE-59: Improper Link Resolution**: https://cwe.mitre.org/data/definitions/59.html
 - **CWE-158: Null Byte Injection**: https://cwe.mitre.org/data/definitions/158.html
 
----
+______________________________________________________________________
 
 ## Changelog
 
 ### Version 1.0 (2026-02-03)
 
 ✅ **Phase 1 Complete**:
+
 - Implemented SafeSubprocess class
 - Implemented PathValidator class
 - Added 10 Priority 1 security tests (all passing)
@@ -278,6 +294,7 @@ _parse_crackerjack_args(
 - Performance optimization: 1.7x speedup in environment sanitization
 
 **Next Steps** (Phase 2):
+
 - Add 20 Priority 2 security tests
 - Implement rate limiting for DoS prevention
 - Add more comprehensive race condition tests

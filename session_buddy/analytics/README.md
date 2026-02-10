@@ -153,10 +153,10 @@ session_buddy/analytics/
 When adding new analytics features:
 
 1. Add query method to `SessionAnalytics`
-2. Add corresponding CLI command in `cli.py`
-3. Update documentation
-4. Add unit tests
-5. Update this README
+1. Add corresponding CLI command in `cli.py`
+1. Update documentation
+1. Add unit tests
+1. Update this README
 
 ## License
 

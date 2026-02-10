@@ -7,8 +7,8 @@ Session-Buddy provides comprehensive Prometheus metrics for monitoring session l
 Session-Buddy exposes metrics through three key components:
 
 1. **SessionMetrics Class** - Core Prometheus metrics collectors
-2. **SessionTracker Integration** - Automatic metric recording during session operations
-3. **MCP Tools** - Query metrics via MCP protocol
+1. **SessionTracker Integration** - Automatic metric recording during session operations
+1. **MCP Tools** - Query metrics via MCP protocol
 
 ## Available Metrics
 
@@ -21,10 +21,12 @@ Session-Buddy exposes metrics through three key components:
 **Description:** Total number of session start events tracked
 
 **Labels:**
+
 - `component_name` - Component name (e.g., "mahavishnu", "session-buddy")
 - `shell_type` - Shell type (e.g., "MahavishnuShell", "SessionBuddyShell")
 
 **Example:**
+
 ```prometheus
 session_start_total{component_name="mahavishnu",shell_type="MahavishnuShell"} 42
 ```
@@ -36,10 +38,12 @@ session_start_total{component_name="mahavishnu",shell_type="MahavishnuShell"} 42
 **Description:** Total number of session end events tracked
 
 **Labels:**
+
 - `component_name` - Component name
 - `status` - Session end status ("success", "error")
 
 **Example:**
+
 ```prometheus
 session_end_total{component_name="mahavishnu",status="success"} 40
 session_end_total{component_name="mahavishnu",status="error"} 2
@@ -52,12 +56,14 @@ session_end_total{component_name="mahavishnu",status="error"} 2
 **Description:** Session duration in seconds
 
 **Labels:**
+
 - `component_name` - Component name
 
 **Buckets:** [60, 300, 900, 1800, 3600, 7200, 14400, 28800]
 (1min, 5min, 15min, 30min, 1hr, 2hr, 4hr, 8hr)
 
 **Example:**
+
 ```prometheus
 session_duration_seconds_bucket{component_name="mahavishnu",le="60"} 5
 session_duration_seconds_bucket{component_name="mahavishnu",le="3600"} 35
@@ -74,10 +80,12 @@ session_duration_seconds_count{component_name="mahavishnu"} 40
 **Description:** Total number of successful MCP event emissions
 
 **Labels:**
+
 - `component_name` - Component name
 - `event_type` - Type of event emitted (e.g., "session_start", "session_end")
 
 **Example:**
+
 ```prometheus
 mcp_event_emit_success_total{component_name="mahavishnu",event_type="session_start"} 42
 ```
@@ -89,11 +97,13 @@ mcp_event_emit_success_total{component_name="mahavishnu",event_type="session_sta
 **Description:** Total number of failed MCP event emissions
 
 **Labels:**
+
 - `component_name` - Component name
 - `event_type` - Type of event being emitted
 - `error_type` - Type of error (e.g., "ValidationError", "ConnectionError")
 
 **Example:**
+
 ```prometheus
 mcp_event_emit_failure_total{component_name="mahavishnu",event_type="session_start",error_type="ValidationError"} 2
 ```
@@ -105,6 +115,7 @@ mcp_event_emit_failure_total{component_name="mahavishnu",event_type="session_sta
 **Description:** MCP event emission duration in seconds
 
 **Labels:**
+
 - `component_name` - Component name
 - `event_type` - Type of event emitted
 
@@ -112,6 +123,7 @@ mcp_event_emit_failure_total{component_name="mahavishnu",event_type="session_sta
 (1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s)
 
 **Example:**
+
 ```prometheus
 mcp_event_emit_duration_seconds_bucket{component_name="mahavishnu",event_type="session_start",le="0.1"} 40
 ```
@@ -125,9 +137,11 @@ mcp_event_emit_duration_seconds_bucket{component_name="mahavishnu",event_type="s
 **Description:** Number of currently active sessions
 
 **Labels:**
+
 - `component_name` - Component name
 
 **Example:**
+
 ```prometheus
 active_sessions{component_name="mahavishnu"} 3
 ```
@@ -139,9 +153,11 @@ active_sessions{component_name="mahavishnu"} 3
 **Description:** Session quality score (0-100)
 
 **Labels:**
+
 - `component_name` - Component name
 
 **Example:**
+
 ```prometheus
 session_quality_score{component_name="mahavishnu"} 85.5
 ```
@@ -153,16 +169,19 @@ Prometheus metrics are enabled by default. Configuration is managed through `Ses
 ### Enable/Disable Metrics
 
 **Environment Variable:**
+
 ```bash
 export SESSION_BUDDY_ENABLE_PROMETHEUS_METRICS=true
 ```
 
 **Configuration File (`settings/session-buddy.yaml`):**
+
 ```yaml
 enable_prometheus_metrics: true
 ```
 
 **Disable Metrics:**
+
 ```yaml
 enable_prometheus_metrics: false
 ```
@@ -185,6 +204,7 @@ Export all Session-Buddy metrics in Prometheus text format.
 **Returns:** Metrics in Prometheus text format (CONTENT_TYPE_LATEST)
 
 **Example:**
+
 ```python
 metrics = await get_prometheus_metrics()
 print(metrics)
@@ -201,6 +221,7 @@ List all available session metrics with descriptions.
 **Returns:** Dictionary with metric metadata
 
 **Example:**
+
 ```python
 metrics_info = await list_session_metrics()
 print(metrics_info["session_start_total"]["description"])
@@ -208,6 +229,7 @@ print(metrics_info["session_start_total"]["description"])
 ```
 
 **Response Structure:**
+
 ```json
 {
   "session_lifecycle_metrics": {
@@ -241,6 +263,7 @@ Get summary statistics of session metrics.
 **Returns:** Dictionary with metrics summary
 
 **Example:**
+
 ```python
 summary = await get_metrics_summary()
 print(summary["total_sessions_started"])
@@ -251,6 +274,7 @@ print(summary["active_sessions"])
 ```
 
 **Response Structure:**
+
 ```json
 {
   "total_sessions_started": 42,
@@ -492,6 +516,7 @@ async def test_session_tracker_metrics():
 ### 1. Label Selection
 
 Use consistent label values:
+
 - `component_name`: Use lowercase, hyphen-separated names (e.g., "mahavishnu", "session-buddy")
 - `shell_type`: Use PascalCase class names (e.g., "MahavishnuShell", "SessionBuddyShell")
 - `status`: Use lowercase status values (e.g., "success", "error")
@@ -499,6 +524,7 @@ Use consistent label values:
 ### 2. Metric Cardinality
 
 Avoid high cardinality labels:
+
 - Don't include user-specific labels (e.g., username, hostname)
 - Don't include session IDs as labels
 - Keep label values to a bounded set
@@ -506,6 +532,7 @@ Avoid high cardinality labels:
 ### 3. Scrape Interval
 
 Recommended scrape intervals:
+
 - Development: 15 seconds
 - Production: 30-60 seconds
 - Large deployments: 2-5 minutes
@@ -513,6 +540,7 @@ Recommended scrape intervals:
 ### 4. Retention Policy
 
 Configure Prometheus retention based on your needs:
+
 ```yaml
 # prometheus.yml
 global:
@@ -525,19 +553,22 @@ global:
 ### Metrics Not Appearing
 
 1. Check if metrics are enabled:
+
    ```python
    from session_buddy.settings import get_settings
    settings = get_settings()
    print(settings.enable_prometheus_metrics)
    ```
 
-2. Check for import errors:
+1. Check for import errors:
+
    ```python
    from session_buddy.mcp.metrics import METRICS_AVAILABLE
    print(METRICS_AVAILABLE)
    ```
 
-3. Verify prometheus_client is installed:
+1. Verify prometheus_client is installed:
+
    ```bash
    pip show prometheus-client
    ```
@@ -547,12 +578,14 @@ global:
 If Prometheus metrics are causing high memory usage:
 
 1. Reduce metric cardinality by limiting label values
-2. Disable metrics if not needed:
+
+1. Disable metrics if not needed:
+
    ```yaml
    enable_prometheus_metrics: false
    ```
 
-3. Adjust histogram bucket ranges in `SessionMetrics.__init__()`
+1. Adjust histogram bucket ranges in `SessionMetrics.__init__()`
 
 ## Dependencies
 

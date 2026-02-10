@@ -27,8 +27,8 @@ Example Usage:
 
 from __future__ import annotations
 
-import os
 import logging
+import os
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -324,7 +324,9 @@ def validate_token(token: str) -> dict[str, Any] | None:
         return None
 
 
-def require_auth(optional: bool = False) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def require_auth(
+    optional: bool = False,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator to require JWT authentication for MCP tools.
 
     This decorator validates the JWT token from the 'token' parameter

@@ -13,12 +13,14 @@ Session-Buddy now includes **memory synchronization to AkOSHA**, enabling aggreg
 ### Components
 
 1. **MemorySyncClient** (`session_buddy/sync.py`)
+
    - HTTP client for remote Session-Buddy instances
    - Fetches memories via MCP protocol
    - Async context manager for proper connection handling
    - Error handling with timeout support
 
-2. **AkoshaSync** (`session_buddy/sync.py`)
+1. **AkoshaSync** (`session_buddy/sync.py`)
+
    - Orchestrates sync from multiple instances
    - Generates embeddings using AkOSHA's EmbeddingService
    - Text extraction from various memory structures
@@ -200,6 +202,7 @@ pytest tests/integration/test_sync.py -v
 ```
 
 Covers:
+
 - MemorySyncClient initialization and context manager
 - HTTP request/response handling
 - Memory search and filtering
@@ -240,11 +243,13 @@ assert result["success"] is True  # Continues despite error
 **Throughput**: ~20 embeddings/second (single instance)
 
 **Latency**:
+
 - Memory fetch: ~100ms per 100 memories
 - Embedding generation: ~50ms per memory
 - Total sync: ~6 seconds per 100 memories
 
 **Scalability**:
+
 - Multiple instances synced in parallel (concurrent)
 - Linear scaling with number of instances
 
@@ -253,6 +258,7 @@ assert result["success"] is True  # Continues despite error
 ### Session-Buddy MCP Tools
 
 The sync uses Session-Buddy's existing MCP tools:
+
 - `quick_search` - Main search endpoint for memories
 - `search_conversations` - Full conversation search
 - Project filtering support
@@ -261,6 +267,7 @@ The sync uses Session-Buddy's existing MCP tools:
 ### AkOSHA Integration
 
 The sync integrates with AkOSHA's components:
+
 - **EmbeddingService** - Generate semantic embeddings
 - **HotStore** (planned) - Fast access to recent memories
 - **WarmStore** (planned) - Medium-term storage
@@ -289,6 +296,7 @@ async def aggregate_memories_workflow():
 ### Environment Variables
 
 No specific environment variables required. Sync uses:
+
 - Default instance URL: `http://localhost:8678`
 - Default timeout: 30 seconds
 - Incremental window: 24 hours
@@ -298,6 +306,7 @@ No specific environment variables required. Sync uses:
 Format: `http://<host>:<port>`
 
 Examples:
+
 - `http://localhost:8678` - Local instance
 - `http://192.168.1.100:8678` - Remote instance on LAN
 - `https://session-buddy.example.com:8678` - Remote instance with SSL
@@ -343,42 +352,42 @@ health = await check_instance_health("http://localhost:8678")
 ### Why HTTP Instead of MCP SDK?
 
 1. **Simplicity**: HTTP is universal, no MCP client dependency
-2. **Decoupling**: Looser coupling between systems
-3. **Flexibility**: Easy to add authentication, proxies, etc.
-4. **Testing**: Easier to mock HTTP than MCP protocol
+1. **Decoupling**: Looser coupling between systems
+1. **Flexibility**: Easy to add authentication, proxies, etc.
+1. **Testing**: Easier to mock HTTP than MCP protocol
 
 ### Why Async Context Manager?
 
 1. **Resource cleanup**: Guarantees HTTP client closed
-2. **Connection pooling**: Can reuse connections across requests
-3. **Exception safety**: Proper cleanup even on errors
+1. **Connection pooling**: Can reuse connections across requests
+1. **Exception safety**: Proper cleanup even on errors
 
 ### Why Incremental Sync by Default?
 
 1. **Efficiency**: Only sync new/recent memories
-2. **Performance**: Faster than full sync
-3. **Freshness**: Focus on recent data (last 24h)
-4. **Scalability**: Reduces load on both systems
+1. **Performance**: Faster than full sync
+1. **Freshness**: Focus on recent data (last 24h)
+1. **Scalability**: Reduces load on both systems
 
 ### Why Empty String for No Text?
 
 1. **Clear intent**: Empty string = no content
-2. **Skip embedding**: Don't generate embeddings for nothing
-3. **Graceful degradation**: Skip memories without text
-4. **Explicit**: Better than None or "N/A"
+1. **Skip embedding**: Don't generate embeddings for nothing
+1. **Graceful degradation**: Skip memories without text
+1. **Explicit**: Better than None or "N/A"
 
 ## Future Enhancements
 
 1. **AkOSHA Storage Integration** - Actually store memories in AkOSHA
-2. **Authentication** - Support for authenticated Session-Buddy instances
-3. **Retry Logic** - Exponential backoff for failed requests
-4. **Delta Sync** - Track last sync timestamp, only sync changes
-5. **Memory Deduplication** - Avoid syncing duplicate memories
-6. **Batch Embeddings** - Generate embeddings in batches for efficiency
-7. **Progress Callbacks** - Report sync progress in real-time
-8. **CLI Command** - Add `session-buddy sync` command to CLI
-9. **MCP Tool** - Expose sync as Session-Buddy MCP tool
-10. **Scheduled Sync** - Periodic sync using cron/scheduler
+1. **Authentication** - Support for authenticated Session-Buddy instances
+1. **Retry Logic** - Exponential backoff for failed requests
+1. **Delta Sync** - Track last sync timestamp, only sync changes
+1. **Memory Deduplication** - Avoid syncing duplicate memories
+1. **Batch Embeddings** - Generate embeddings in batches for efficiency
+1. **Progress Callbacks** - Report sync progress in real-time
+1. **CLI Command** - Add `session-buddy sync` command to CLI
+1. **MCP Tool** - Expose sync as Session-Buddy MCP tool
+1. **Scheduled Sync** - Periodic sync using cron/scheduler
 
 ## Files
 
@@ -410,8 +419,9 @@ Session-Buddy to AkOSHA memory synchronization provides:
 **Production Ready**: Yes (with placeholder storage integration)
 
 **Next Steps**:
+
 1. Integrate with AkOSHA's storage layers
-2. Add authentication support
-3. Implement retry logic with backoff
-4. Add CLI command and MCP tool
-5. Implement delta sync with timestamp tracking
+1. Add authentication support
+1. Implement retry logic with backoff
+1. Add CLI command and MCP tool
+1. Implement delta sync with timestamp tracking

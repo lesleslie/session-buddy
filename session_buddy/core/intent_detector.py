@@ -371,9 +371,9 @@ class IntentDetector:
 
         # Sort by confidence
         suggestions.sort(
-            key=lambda s: s["confidence"]
-            if isinstance(s["confidence"], (int, float))
-            else 0,
+            key=lambda s: (
+                s["confidence"] if isinstance(s["confidence"], (int, float)) else 0
+            ),
             reverse=True,
         )
 

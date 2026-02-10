@@ -223,12 +223,13 @@ python -m pytest tests/unit/test_mcp_auth.py -v
 ## Support
 
 For issues or questions:
-1. Check `docs/JWT_AUTHENTICATION.md` for detailed docs
-2. Run `python examples/jwt_auth_demo.py` for examples
-3. Review `tests/unit/test_mcp_auth.py` for usage patterns
-4. Open GitHub issue with error details
 
----
+1. Check `docs/JWT_AUTHENTICATION.md` for detailed docs
+1. Run `python examples/jwt_auth_demo.py` for examples
+1. Review `tests/unit/test_mcp_auth.py` for usage patterns
+1. Open GitHub issue with error details
+
+______________________________________________________________________
 
 **Last Updated**: 2025-02-06
 **Version**: 1.0.0

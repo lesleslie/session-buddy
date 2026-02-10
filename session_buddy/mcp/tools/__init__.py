@@ -4,6 +4,8 @@ This module exports all tool registration functions from subdirectories.
 """
 
 # Advanced tools
+# Subscribers (cross-system integration)
+from ...subscribers import register_code_graph_tools
 from .advanced.conscious_agent_tools import register_conscious_agent_tools
 from .advanced.entity_extraction_tools import register_extraction_tools
 from .advanced.fingerprint_tools import (
@@ -37,9 +39,6 @@ from .infrastructure.pools import register_pool_tools
 from .infrastructure.serverless_tools import (
     register_serverless_tools,
 )
-
-# Subscribers (cross-system integration)
-from ...subscribers import register_code_graph_tools
 
 # Intelligence tools
 from .intelligence.llm_tools import register_llm_tools

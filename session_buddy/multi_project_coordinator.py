@@ -457,12 +457,14 @@ class MultiProjectCoordinator:
 
         results = await asyncio.get_event_loop().run_in_executor(
             None,
-            lambda: self._get_conn()
-            .execute(
-                sql,
-                [session_id, session_id],
-            )
-            .fetchall(),
+            lambda: (
+                self._get_conn()
+                .execute(
+                    sql,
+                    [session_id, session_id],
+                )
+                .fetchall()
+            ),
         )
 
         links = []
@@ -686,12 +688,14 @@ class MultiProjectCoordinator:
         # Count old links before deletion
         count_before = await asyncio.get_event_loop().run_in_executor(
             None,
-            lambda: self._get_conn()
-            .execute(
-                "SELECT COUNT(*) FROM session_links WHERE created_at < ?",
-                [cutoff_date],
-            )
-            .fetchone()[0],
+            lambda: (
+                self._get_conn()
+                .execute(
+                    "SELECT COUNT(*) FROM session_links WHERE created_at < ?",
+                    [cutoff_date],
+                )
+                .fetchone()[0]
+            ),
         )
 
         # Clean up old session links

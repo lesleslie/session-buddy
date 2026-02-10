@@ -3,6 +3,7 @@
 ## Overview
 
 The Session-Buddy MCP server now provides two tools for tracking admin shell session lifecycle events:
+
 - `track_session_start`: Called when admin shell starts
 - `track_session_end`: Called when admin shell exits
 
@@ -296,6 +297,7 @@ tail -f /path/to/session-buddy.log | grep "Session start tracked\|Session end tr
 ```
 
 Expected log format:
+
 ```
 INFO - Session start tracked: session_id=mahavishnu-20260206-123456, component=mahavishnu, shell_type=MahavishnuShell, pid=12345, status=tracked
 INFO - Session end tracked: session_id=mahavishnu-20260206-123456, status=ended

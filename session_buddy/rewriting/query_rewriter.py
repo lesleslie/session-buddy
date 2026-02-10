@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class AmbiguityType(str, Enum):
+class AmbiguityType(StrEnum):
     """Types of query ambiguity to detect."""
 
     # Pronouns that require resolution

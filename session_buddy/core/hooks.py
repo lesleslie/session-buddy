@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from session_buddy.core.intelligence import IntelligenceEngine
 
 
-class HookType(str, Enum):
+class HookType(StrEnum):
     """Hook types for session lifecycle events.
 
     Pre-operation hooks:

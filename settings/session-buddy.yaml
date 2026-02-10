@@ -105,7 +105,7 @@ storage:
 # Selective auto-store for reflections
 enable_auto_store_reflections: true
 auto_store_quality_delta_threshold: 10
-auto_store_exceptional_quality_threshold: 90
+auto_store_exceptional_quality_threshold: 70  # Lowered from 90 to capture more sessions
 auto_store_manual_checkpoints: true
 auto_store_session_end: true
 

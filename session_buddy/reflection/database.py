@@ -488,9 +488,11 @@ class ReflectionDatabase:
         else:
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._get_conn()
-                .execute("SELECT COUNT(*) FROM conversations")
-                .fetchone(),
+                lambda: (
+                    self._get_conn()
+                    .execute("SELECT COUNT(*) FROM conversations")
+                    .fetchone()
+                ),
             )
             return result[0] if result and result[0] else 0
 
@@ -513,9 +515,11 @@ class ReflectionDatabase:
         else:
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._get_conn()
-                .execute("SELECT COUNT(*) FROM reflections")
-                .fetchone(),
+                lambda: (
+                    self._get_conn()
+                    .execute("SELECT COUNT(*) FROM reflections")
+                    .fetchone()
+                ),
             )
             return result[0] if result and result[0] else 0
 

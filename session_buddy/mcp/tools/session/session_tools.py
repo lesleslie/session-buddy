@@ -91,6 +91,90 @@ def _get_session_manager() -> SessionLifecycleManager:
     return manager
 
 
+def _queue_akosha_sync_background() -> None:
+    """Queue Akosha sync as background task without blocking session end.
+
+    This function creates a background asyncio task that uploads memories
+    to Akosha after session end completes. The upload happens asynchronously
+    and does not block session cleanup.
+
+    Example:
+        >>> result = await _get_session_manager().end_session(working_dir)
+        >>> _queue_akosha_sync_background()
+        # Upload continues in background, session end completes immediately
+    """
+    try:
+        import asyncio
+
+        from session_buddy.settings import get_settings
+
+        # Check if Akosha sync is enabled
+        settings = get_settings()
+
+        if not settings.akosha_upload_on_session_end:
+            logger = _get_logger()
+            logger.debug(
+                "Akosha auto-upload disabled (akosha_upload_on_session_end=False)"
+            )
+            return
+
+        # Create background task
+        asyncio.create_task(
+            _akosha_sync_background_task(),
+            name="akosha_sync_upload",
+        )
+
+        logger = _get_logger()
+        logger.info("✅ Akosha sync queued (background task)")
+
+    except Exception as e:
+        logger = _get_logger()
+        logger.error(f"Failed to queue Akosha sync: {e}")
+
+
+async def _akosha_sync_background_task() -> None:
+    """Background sync task for uploading memories to Akosha.
+
+    This task runs in the background after session end and uploads
+    reflection and knowledge graph databases to Akosha using the
+    configured sync method (cloud → HTTP fallback).
+
+    Errors are logged but do not affect session end completion.
+    """
+    try:
+        from session_buddy.settings import get_settings
+        from session_buddy.storage.akosha_config import AkoshaSyncConfig
+        from session_buddy.storage.akosha_sync import HybridAkoshaSync
+
+        logger = _get_logger()
+        logger.info("🔄 Starting Akosha sync (background)")
+
+        # Load configuration
+        settings = get_settings()
+        config = AkoshaSyncConfig.from_settings(settings)
+
+        # Create sync orchestrator
+        sync = HybridAkoshaSync(config)
+
+        # Perform sync
+        result = await sync.sync_memories(force_method="auto")
+
+        if result["success"]:
+            logger.info(
+                f"✅ Akosha sync complete: method={result['method']}, "
+                f"files={len(result['files_uploaded'])}, "
+                f"bytes={result['bytes_transferred']:,}"
+            )
+        else:
+            logger.warning(
+                f"⚠️ Akosha sync failed: {result.get('error', 'Unknown error')}"
+            )
+
+    except Exception as e:
+        logger = _get_logger()
+        logger.error(f"❌ Akosha sync background task failed: {e}", exc_info=True)
+
+
 # ============================================================================
 # Session Shortcuts Management
 # ============================================================================
@@ -742,6 +826,10 @@ async def _end_impl(working_directory: str | None = None) -> str:
 
         if result["success"]:
             output.extend(_format_successful_end(result["summary"]))
+
+            # Queue Akosha sync without blocking
+            _queue_akosha_sync_background()
+
         else:
             output.append(f"❌ Session end failed: {result['error']}")
 

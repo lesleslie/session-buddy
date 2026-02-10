@@ -75,6 +75,7 @@ git push origin feature/your-feature-name
 Session Buddy follows **strict modern Python 3.13+** practices:
 
 #### Type Hints (Required)
+
 - **100% type hint coverage** on all function signatures
 - Use modern syntax: `str | None` instead of `Optional[str]`
 - Use built-in collections: `list[str]` instead of `List[str]`
@@ -100,6 +101,7 @@ def process_data(data, threshold=None):
 ```
 
 #### Docstrings (Required)
+
 - **All functions must have docstrings**
 - Use Google style or NumPy style
 - Include Args, Returns, Raises sections as needed
@@ -131,6 +133,7 @@ def calculate_quality_score(project_dir: Path) -> dict[str, int | str]:
 ```
 
 #### Error Handling
+
 - **Never suppress exceptions silently** - avoid `suppress(Exception)`, `pass` on `except:`
 - Always log exceptions with context
 - Use specific exception types
@@ -157,10 +160,10 @@ except:
 #### Code Quality Rules
 
 1. **DRY (Don't Repeat Yourself)**: If you write it twice, you're doing it wrong
-2. **KISS (Keep It Simple, Stupid)**: Complexity is the enemy of maintainability
-3. **YAGNI (You Ain't Gonna Need It)**: Build only what's needed NOW
-4. **Cognitive Complexity ≤15**: Enforced by Ruff
-5. **Maximum Function Length**: 50 lines (soft limit), 100 lines (hard limit)
+1. **KISS (Keep It Simple, Stupid)**: Complexity is the enemy of maintainability
+1. **YAGNI (You Ain't Gonna Need It)**: Build only what's needed NOW
+1. **Cognitive Complexity ≤15**: Enforced by Ruff
+1. **Maximum Function Length**: 50 lines (soft limit), 100 lines (hard limit)
 
 ### Ruff Configuration
 
@@ -184,6 +187,7 @@ crackerjack analyze
 ```
 
 **Ruff Rules**:
+
 - Max line length: 100 (soft), 120 (hard)
 - Max complexity: 15 per function
 - Forbidden patterns: `suppress(Exception)`, bare `except:`, `pass` on `except:`
@@ -254,17 +258,20 @@ pytest -n auto
 ### Security Testing
 
 Security tests are **mandatory** for any code that handles:
+
 - User input (file paths, commands, arguments)
 - External data (HTTP requests, file reads)
 - System operations (subprocess, file I/O)
 
 **Required Security Tests**:
+
 - Command injection prevention
 - Path traversal blocking
 - Input validation
 - Boundary conditions (overflow, underflow)
 
 Example:
+
 ```python
 def test_subprocess_blocks_absolute_path_bypass():
     """Test absolute path commands are blocked."""
@@ -304,6 +311,7 @@ Session Buddy follows **Conventional Commits** specification:
 ### Scopes
 
 Common scopes:
+
 - `core`: Core session management
 - `mcp`: MCP server functionality
 - `tools`: MCP tools
@@ -336,20 +344,22 @@ Co-Authored-By: Contributor Name <email@example.com>
 ### Before Opening a PR
 
 1. **Ensure all tests pass**:
+
    ```bash
    pytest --cov=session_buddy --cov-fail-under=85
    ```
 
-2. **Run quality checks**:
+1. **Run quality checks**:
+
    ```bash
    crackerjack lint
    crackerjack typecheck
    crackerjack security
    ```
 
-3. **Update documentation** if applicable
+1. **Update documentation** if applicable
 
-4. **Add tests** for new functionality (100% coverage on new code)
+1. **Add tests** for new functionality (100% coverage on new code)
 
 ### PR Description Template
 
@@ -388,14 +398,14 @@ Co-Authored-By: Contributor Name <email@example.com>
 ### Review Process
 
 1. **Automated checks**: CI runs tests, linting, type checking
-2. **Code review**: Maintainer reviews for:
+1. **Code review**: Maintainer reviews for:
    - Code quality and style
    - Test coverage
    - Security considerations
    - Documentation
    - Performance impact
-3. **Approval**: At least one maintainer approval required
-4. **Merge**: Squash and merge to main branch
+1. **Approval**: At least one maintainer approval required
+1. **Merge**: Squash and merge to main branch
 
 ## Security Considerations
 
@@ -406,6 +416,7 @@ Co-Authored-By: Contributor Name <email@example.com>
 Instead, send an email to: security@example.com
 
 Include:
+
 - Description of vulnerability
 - Steps to reproduce
 - Impact assessment
@@ -414,25 +425,28 @@ Include:
 ### Secure Coding Guidelines
 
 1. **Input Validation**: Always validate user input
+
    ```python
    # ✅ Good
    if not path or len(path) > 4096:
        raise ValueError("Invalid path")
    ```
 
-2. **Sanitization**: Remove sensitive data from subprocess environments
+1. **Sanitization**: Remove sensitive data from subprocess environments
+
    ```python
    SENSITIVE_PATTERNS = {"PASSWORD", "TOKEN", "SECRET", "KEY"}
    env = {k: v for k, v in os.environ.items()
           if not any(p in k.upper() for p in SENSITIVE_PATTERNS)}
    ```
 
-3. **Safe Defaults**: Use secure defaults
+1. **Safe Defaults**: Use secure defaults
+
    ```python
    subprocess.run(cmd, shell=False)  # Never shell=True
    ```
 
-4. **Principle of Least Privilege**: Request minimal permissions
+1. **Principle of Least Privilege**: Request minimal permissions
 
 ## Getting Help
 
@@ -444,6 +458,7 @@ Include:
 ## Recognition
 
 Contributors will be recognized in:
+
 - CONTRIBUTORS.md file
 - Release notes
 - Project README

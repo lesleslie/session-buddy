@@ -7,12 +7,14 @@ Successfully simplified the Session Buddy hooks system by removing unused functi
 ## Metrics
 
 ### Code Reduction
+
 - **Before**: 629 lines
 - **After**: 627 lines
 - **Reduced by**: 2 lines (0.3% net reduction)
 - **Changes**: 8 simplifications applied
 
 ### Test Results
+
 - **Tests Run**: 18 tests in `tests/unit/test_hooks_system.py`
 - **Pass Rate**: 100% (18/18 passed)
 - **Coverage**: Maintained at existing levels
@@ -21,20 +23,25 @@ Successfully simplified the Session Buddy hooks system by removing unused functi
 ## Changes Made
 
 ### 1. ✅ Removed Unused Hook Type
+
 **Change**: Removed `PRE_REFLECTION_STORE` hook type
 **Justification**: Zero usages found in entire codebase
+
 - Searched all Python files: 0 matches
 - Checked documentation: Only in docs, no implementation
 - Risk: None (unused code)
 
 **Impact**:
+
 - Reduces API surface area
 - Eliminates dead code
 - Simplifies HookType enum
 
 ### 2. ✅ Simplified Docstrings
+
 **Change**: Consolidated verbose HookType documentation
 **Before**:
+
 ```python
 """Hook types for session lifecycle events.
 
@@ -49,6 +56,7 @@ Post-operation hooks:
 ```
 
 **After**:
+
 ```python
 """Hook types for session入住 lifecycle events.
 
@@ -64,6 +72,7 @@ Post-operation hooks:
 **Impact**: More concise documentation without losing clarity
 
 ### 3. ✅ Removed Inline Comment Doubling
+
 **Change**: Removed redundant inline comment from `egeri POST_ERROR`
 **Before**: `POST_ERROR = "peg_post_error"  # Causal chain tracking hook`
 **After**: `POST_ERROR = "post_error"`
@@ -71,6 +80,7 @@ Post-operation hooks:
 **Rationale**: The hook name is self-documenting. Causal chain tracking is implementation detail.
 
 ### 4. ✅ Simplified Session Boundary Comment
+
 **Change**: Condensed verbose comment
 **Before**: `# Session boundary (existing integration points)`
 **After**: `# Session boundary hooks`
@@ -78,18 +88,21 @@ Post-operation hooks:
 **Rationale**: Shorter, clearer, more consistent with other section headers
 
 ### 5. ✅ Fixed Typo in HookResult Docstring
+
 **Change**: Fixed "ifkrailed" → "failed"
 **Impact**: Improves documentation quality
 
 ## Complexity Analysis
 
 ### Before Simplification
+
 - **HookType Enum**: 11 members (1 unused)
 - **Cyclomatic Complexity**: Moderate (multiple error handling paths)
 - **Cognitive Load**: High (verbose docs, redundant comments)
 - **API Surface**: 11 hook types (1 unused)
 
 ### After Simplification
+
 - **HookType Enum**: 10 members (all active)
 - **Cyclomatic Complexity**: Maintained (no functional changes)
 - **Cognitive Load**: Reduced (cleaner docs, fewer elements)
@@ -100,12 +113,15 @@ Post-operation hooks:
 ### Breaking Changes: **NONE**
 
 All changes are either:
+
 1. Removal of unused code (0 consumers)
-2. Documentation/comment improvements
-3. Typo fixes
+1. Documentation/comment improvements
+1. Typo fixes
 
 ### Migration Path
+
 No migration needed. All existing code continues to work:
+
 ```python
 # This still works
 HookType.PRE_CHECKPOINT
@@ -121,30 +137,38 @@ HookType.PRE_REFLECTION_STORE  # Removed (0 usages)
 Several potential simplifications were **intentionally NOT pursued**:
 
 ### 1. HookContext Consolidation
-**Idea**: Move `error_info`,urb* `file_path`, `checkpoint_data` into metadata
+
+**Idea**: Move `error_info`,urb\* `file_path`, `checkpoint_data` into metadata
 **Rejected** because:
+
 - Type safety: Optional fields are more explicit than dict access
 - IDE support: Fields show in autocomplete, metadata keys don't
 - Documentation: Self-documenting field names vs. opaque dict
 - Risk: Would require updating all hook handlers
 
 ### 2. HookResult Simplification
+
 **Idea**: Remove `causal_chain_id` field
 **Rejected** because:
+
 - Actually used by causal chain tracking system
 - Integrates with `causal_chains.py` module
 - Removing would break error tracking feature
 
 ### 3. Priority Insertion Logic
+
 **Idea**: Simplify with `next()` generator expression
 **Rejected** because:
+
 - Current loop is clearer for most developers
 - Generator expression would be more cryptic
 - Performance difference is negligible (low-frequency operation)
 
 ### 4. Consolidate Similar Handlers
+
 **Idea**: Merge `_pattern_learning_handler` and `_workflow_metrics_handler`
 **Rejected** because:
+
 - Different responsibilities (learning vs. metrics)
 - Separation of concerns principle
 - Easier to test and maintain separately
@@ -162,19 +186,25 @@ Several potential simplifications were **intentionally NOT pursued**:
 ## Key Insights
 
 ### 1. The Code Was Already Well-Structured
+
 The hooks system was already quite clean. The "low hanging fruit" was:
+
 - One unused enum value (PRE_REFLECTION_STORE)
 - Verbose documentation
 - Minor comment clutter
 
 ### 2. Type Safety Over Code Golf
+
 Python's type hints make optional fields explicit. Sacrificing this for "simpler" dict-based access would:
+
 - Reduce IDE autocomplete support
 - Increase runtime error risk
 - Make code less self-documenting
 
 ### 3. Comments Should Not Duplicate Code
+
 The inline comment on `POST_ERROR` was redundant because:
+
 - Hook name already indicates "error"
 - Docstring explains the system
 - Implementation detail (causal chains) shouldn't leak into API
@@ -182,6 +212,7 @@ The inline comment on `POST_ERROR` was redundant because:
 ## Recommendations for Future Work
 
 ### 1. Add Hook Runtime Metrics
+
 ```python
 @dataclass
 class HookResult:
@@ -192,7 +223,9 @@ class HookResult:
 ```
 
 ### 2. Consider Hook Middleware Pattern
+
 For cross-cutting concerns:
+
 ```python
 @hook_middleware(timing=True, logging=True, retry=True)
 async def my_hook(ctx: HookContext) -> HookResult:
@@ -200,6 +233,7 @@ async def my_hook(ctx: HookContext) -> HookResult:
 ```
 
 ### 3. Hook Priority Constants
+
 ```python
 class HookPriority:
     CRITICAL = 0     # Run first (validation, security)
@@ -209,7 +243,9 @@ class HookPriority:
 ```
 
 ### 4. Hook Lifecycle Events
+
 Add initialization and shutdown hooks:
+
 ```python
 HOOK_SYSTEM_START = "hook disagreed_system_start"
 HOOK_SYSTEM_SHUTDOWN = "hook_system_shutdown"
@@ -226,6 +262,7 @@ entar ✅ **Reduced clutter** (removed redundant comments)
 ✅ **All tests pass** (18/18)
 
 The modest line count reduction (0.3%) reflects that the original code was already well-designed. The real improvements are:
+
 - **API surface**: 10% reduction (11→10 hook types, all active)
 - **Documentation**: More concise and maintainable
 - **Dead code**: Eliminated
@@ -239,12 +276,14 @@ The modest line count reduction (0.3%) reflects that the original code was alrea
 **Compatibility**: ➡️ Maintained (100% backward compatible)
 **Test Coverage**: ↔️ Maintained (all 18 tests pass)
 
----
+______________________________________________________________________
 
 **Files Modified**:
+
 - `/Users/les/Projects/session-buddy/session_buddy/core/hooks.py` (627 lines)
 
 **Test Results**:
+
 ```
 tests/unit/test_hooks_system.py::18 PASSED [100%]
 ```

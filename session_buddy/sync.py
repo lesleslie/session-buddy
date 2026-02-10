@@ -16,10 +16,9 @@ Features:
 from __future__ import annotations
 
 import json
-import logging
 import os
 from datetime import UTC, datetime, timedelta
-from typing import Any, List, cast
+from typing import Any, cast
 
 import httpx
 
@@ -159,7 +158,9 @@ class MemorySyncClient:
 
         # Use empty query to get all memories, then filter by timestamp
         # This approach works with the current search API
-        memories = await self.search_memories(query="", limit=limit * 2)  # Fetch extra to account for filtering
+        memories = await self.search_memories(
+            query="", limit=limit * 2
+        )  # Fetch extra to account for filtering
 
         # Filter memories by timestamp
         recent = []
@@ -171,7 +172,9 @@ class MemorySyncClient:
                 try:
                     # Parse ISO format timestamp
                     if isinstance(created_at, str):
-                        memory_time = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                        memory_time = datetime.fromisoformat(
+                            created_at.replace("Z", "+00:00")
+                        )
                     elif isinstance(created_at, datetime):
                         memory_time = created_at
                     else:
@@ -353,7 +356,9 @@ class AkoshaSync:
 
         # Generate embedding
         embedding = await self.embedding_service.generate_embedding(text)
-        self.stats["embeddings_generated"] = cast(int, self.stats["embeddings_generated"]) + 1
+        self.stats["embeddings_generated"] = (
+            cast(int, self.stats["embeddings_generated"]) + 1
+        )
 
         # Store in AkOSHA with source metadata
         await self._store_in_akosha(
@@ -418,7 +423,9 @@ class AkoshaSync:
         memory_data = {
             "id": memory_id,
             "text": text,
-            "embedding": embedding.tolist() if hasattr(embedding, "tolist") else embedding,
+            "embedding": embedding.tolist()
+            if hasattr(embedding, "tolist")
+            else embedding,
             "metadata": {
                 "source": source,
                 "original_id": memory.get("id"),

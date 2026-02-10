@@ -4,10 +4,10 @@ Enhanced Memory Schema v2 - Memori-inspired categorization with DuckDB.
 Combines Memori's superior categorization with session-mgmt's ONNX vector search.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class MemoryCategory(str, Enum):
+class MemoryCategory(StrEnum):
     """
     Memory categories inspired by Memori's structured categorization.
 
@@ -21,7 +21,7 @@ class MemoryCategory(str, Enum):
     CONTEXT = "context"  # Contextual information (current tasks, environment)
 
 
-class MemoryTier(str, Enum):
+class MemoryTier(StrEnum):
     """
     Memory storage tiers for optimized retrieval.
 

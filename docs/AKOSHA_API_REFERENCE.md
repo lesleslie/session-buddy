@@ -14,7 +14,7 @@ Developer-facing API documentation for Session-Buddy's Akosha synchronization sy
 - [Session End Hook](#session-end-hook)
 - [Exceptions](#exceptions)
 
----
+______________________________________________________________________
 
 ## Core Components
 
@@ -50,7 +50,7 @@ session_buddy/
 └── settings.py                   # Global configuration
 ```
 
----
+______________________________________________________________________
 
 ## Configuration
 
@@ -135,7 +135,7 @@ if config.cloud_configured:
     print(f"Using cloud sync: {config.cloud_bucket}")
 ```
 
----
+______________________________________________________________________
 
 ## Sync Protocol
 
@@ -222,7 +222,7 @@ except HybridSyncError as e:
     # All methods exhausted
 ```
 
----
+______________________________________________________________________
 
 ## Cloud Sync Method
 
@@ -358,7 +358,7 @@ if cloud_sync.is_available():
     print(f"Duration: {result['duration_seconds']:.2f}s")
 ```
 
----
+______________________________________________________________________
 
 ## HTTP Sync Method
 
@@ -431,7 +431,7 @@ if http_sync.is_available():
     print(f"HTTP sync: {result['success']}")
 ```
 
----
+______________________________________________________________________
 
 ## Hybrid Orchestrator
 
@@ -518,7 +518,7 @@ if not result['success']:
     print(f"Cloud failed: {result['error']}")
 ```
 
----
+______________________________________________________________________
 
 ## MCP Tools
 
@@ -619,7 +619,7 @@ else:
     print("Cloud sync disabled, will use HTTP fallback")
 ```
 
----
+______________________________________________________________________
 
 ## Session End Hook
 
@@ -687,7 +687,7 @@ Background task runs:
     - Log result
 ```
 
----
+______________________________________________________________________
 
 ## Exceptions
 
@@ -771,7 +771,7 @@ except HybridSyncError as e:
         logger.error(f"  - {error['method']}: {error['error']}")
 ```
 
----
+______________________________________________________________________
 
 ## Type Hints
 
@@ -794,7 +794,7 @@ type DeduplicationEnabled = bool
 type ChunkSizeMB = int  # 1-100
 ```
 
----
+______________________________________________________________________
 
 ## Best Practices
 
@@ -864,7 +864,7 @@ logger.warning(f"Retry attempt {attempt}/{max_retries}")
 logger.error(f"Sync failed: {e}")
 ```
 
----
+______________________________________________________________________
 
 ## Performance Considerations
 
@@ -886,7 +886,7 @@ logger.error(f"Sync failed: {e}")
 - **Checksum**: SHA-256 computation (~1s for 100MB)
 - **Chunking**: Minimal overhead
 
----
+______________________________________________________________________
 
 ## Testing
 
@@ -915,13 +915,14 @@ async def test_hybrid_fallback():
     assert result["success"] is True
 ```
 
----
+______________________________________________________________________
 
 ## Migration Guide
 
 ### From Manual Sync
 
 Before:
+
 ```python
 # Manual HTTP POST to Akosha
 async with httpx.AsyncClient() as client:
@@ -929,6 +930,7 @@ async with httpx.AsyncClient() as client:
 ```
 
 After:
+
 ```python
 # Use hybrid sync with automatic fallback
 from session_buddy.storage.akosha_sync import HybridAkoshaSync
@@ -940,6 +942,7 @@ result = await hybrid.sync_memories()
 ### From Direct S3 Uploads
 
 Before:
+
 ```python
 import boto3
 
@@ -948,6 +951,7 @@ s3.upload_file("reflection.duckdb", "bucket", "key")
 ```
 
 After:
+
 ```python
 from session_buddy.storage.cloud_sync import CloudSyncMethod
 
@@ -955,16 +959,17 @@ cloud_sync = CloudSyncMethod(config)
 result = await cloud_sync.sync()  # Handles compression, retry, manifest
 ```
 
----
+______________________________________________________________________
 
 ## Support
 
 For issues or questions:
+
 - Check logs: `~/.claude/logs/session-buddy.log`
 - Verify configuration: Use `akosha_sync_status()` tool
 - See troubleshooting guide in [User Guide](USER_GUIDE.md)
 
----
+______________________________________________________________________
 
 **API Version**: 1.0.0
 **Last Updated**: 2026-02-08

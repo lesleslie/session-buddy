@@ -21,6 +21,7 @@ Session-Buddy operates independently with no required dependencies:
 - **Standard Mode**: Self-contained with optional integrations
 
 **Minimum Requirements**:
+
 - Python 3.11+
 - 100MB disk space (lite mode)
 - 512MB RAM (lite mode)
@@ -36,6 +37,7 @@ ______________________________________________________________________
 **Protocol**: MCP (Model Context Protocol)
 
 **Connection**:
+
 - Mahavishna → Session-Buddy (client initiates)
 - Session-Buddy acts as MCP server
 - Mahavishna delegates session management
@@ -43,6 +45,7 @@ ______________________________________________________________________
 **Configuration**:
 
 In Mahavishnu's `.mcp.json`:
+
 ```json
 {
   "mcpServers": {
@@ -59,22 +62,26 @@ In Mahavishnu's `.mcp.json`:
 ```
 
 **Required For**:
+
 - Session delegation from Mahavishnu
 - Cross-project session tracking
 - Workflow state persistence
 - Checkpoint/resume functionality
 
 **Not Required For**:
+
 - Standalone session management
 - Local development
 - Testing and debugging
 
 **Startup Order**:
+
 1. Start Session-Buddy: `session-buddy start --mode=standard --mcp`
-2. Start Mahavishnu: `mahavishnu start`
-3. Mahavishnu auto-connects to Session-Buddy
+1. Start Mahavishnu: `mahavishnu start`
+1. Mahavishnu auto-connects to Session-Buddy
 
 **Health Check**:
+
 ```bash
 # Check Session-Buddy is running
 session-buddy health
@@ -87,6 +94,7 @@ mahavishnu health
 
 **Problem**: "Mahavishnu cannot connect to Session-Buddy"
 **Solution**:
+
 ```bash
 # Verify Session-Buddy MCP server is running
 session-buddy health | grep "MCP Server"
@@ -100,6 +108,7 @@ session-buddy start --mode=standard --mcp --port 8678
 
 **Problem**: "Authentication failed"
 **Solution**:
+
 ```bash
 # Verify auth is enabled on both sides
 export SESSION_BUDDY_AUTH_ENABLED=true
@@ -110,7 +119,7 @@ session-buddy start --mode=standard --mcp
 mahavishnu start
 ```
 
----
+______________________________________________________________________
 
 ### Akosha (Diviner)
 
@@ -119,6 +128,7 @@ mahavishnu start
 **Protocol**: MCP / HTTP API
 
 **Connection**:
+
 - Session-Buddy → Akosha (client initiates)
 - Syncs analytics data periodically
 - Aggregates cross-project insights
@@ -126,6 +136,7 @@ mahavishnu start
 **Configuration**:
 
 In `settings/session-buddy.yaml`:
+
 ```yaml
 sync:
   akosha_enabled: true
@@ -134,28 +145,33 @@ sync:
 ```
 
 Or via environment variables:
+
 ```bash
 export SESSION_BUDDY_AKOSHA_ENABLED=true
 export SESSION_BUDDY_AKOSHA_URL="http://localhost:8682/mcp"
 ```
 
 **Required For**:
+
 - Cross-project analytics
 - Advanced pattern recognition
 - Knowledge graph integration
 - Multi-project insights
 
 **Not Required For**:
+
 - Single-project usage
 - Basic analytics (DuckDB-powered)
 - Local development
 
 **Startup Order**:
+
 1. Start Akosha: `akosha start --mcp`
-2. Start Session-Buddy: `session-buddy start --mode=standard`
-3. Session-Buddy syncs to Akosha automatically
+1. Start Session-Buddy: `session-buddy start --mode=standard`
+1. Session-Buddy syncs to Akosha automatically
 
 **Health Check**:
+
 ```bash
 # Check Akosha is running
 curl http://localhost:8682/health
@@ -168,6 +184,7 @@ session-buddy sync-status
 
 **Problem**: "Session-Buddy cannot connect to Akosha"
 **Solution**:
+
 ```bash
 # Verify Akosha is running
 curl http://localhost:8682/health
@@ -184,6 +201,7 @@ SESSION_BUDDY_LOG_LEVEL=DEBUG session-buddy start --mode=standard
 
 **Problem**: "Sync is not working"
 **Solution**:
+
 ```bash
 # Check sync is enabled
 session-buddy config | grep akosha
@@ -195,7 +213,7 @@ session-buddy sync-now
 session-buddy logs | grep -i sync
 ```
 
----
+______________________________________________________________________
 
 ### Crackerjack (Inspector)
 
@@ -204,6 +222,7 @@ session-buddy logs | grep -i sync
 **Protocol**: MCP
 
 **Connection**:
+
 - Session-Buddy → Crackerjack (client initiates)
 - Stores test results in sessions
 - Tracks quality metrics over time
@@ -211,6 +230,7 @@ session-buddy logs | grep -i sync
 **Configuration**:
 
 In `settings/session-buddy.yaml`:
+
 ```yaml
 integrations:
   crackerjack_enabled: true
@@ -218,17 +238,20 @@ integrations:
 ```
 
 **Required For**:
+
 - Test result storage in sessions
 - Quality trend tracking
 - Correlating code changes with test results
 - Automated QC reporting
 
 **Not Required For**:
+
 - Basic session management
 - Manual testing workflows
 - Development without QC tracking
 
 **Usage Example**:
+
 ```python
 # Store test result in session
 await mcp.call_tool("store_test_result", {
@@ -244,6 +267,7 @@ await mcp.call_tool("store_test_result", {
 
 **Problem**: "Cannot store test results"
 **Solution**:
+
 ```bash
 # Verify Crackerjack is running
 crackerjack health
@@ -255,7 +279,7 @@ session-buddy health | grep crackerjack
 session-buddy add-message --session "my-project" "Manual test passed"
 ```
 
----
+______________________________________________________________________
 
 ### Ollama (LLM Service)
 
@@ -264,6 +288,7 @@ session-buddy add-message --session "my-project" "Manual test passed"
 **Protocol**: HTTP API
 
 **Connection**:
+
 - Session-Buddy → Ollama (client initiates)
 - Generates embeddings for semantic search
 - Powers AI insights
@@ -271,6 +296,7 @@ session-buddy add-message --session "my-project" "Manual test passed"
 **Configuration**:
 
 In `settings/session-buddy.yaml`:
+
 ```yaml
 intelligence:
   enabled: true
@@ -279,17 +305,20 @@ intelligence:
 ```
 
 **Required For**:
+
 - Semantic search (vector similarity)
 - AI-powered insights
 - Pattern detection
 - Intelligent recommendations
 
 **Not Required For**:
+
 - Basic session management
 - Keyword search
 - Manual tagging
 
 **Setup**:
+
 ```bash
 # Install Ollama
 curl -fsSL https://ollama.ai/install.sh | sh
@@ -311,6 +340,7 @@ curl http://localhost:11434/api/embeddings -d '{
 
 **Problem**: "Cannot generate embeddings"
 **Solution**:
+
 ```bash
 # Check Ollama is running
 ps aux | grep ollama
@@ -328,7 +358,7 @@ curl http://localhost:11434/api/tags
 session-buddy start --mode=lite --no-intelligence
 ```
 
----
+______________________________________________________________________
 
 ### PostgreSQL (Database)
 
@@ -337,6 +367,7 @@ session-buddy start --mode=lite --no-intelligence
 **Protocol**: PostgreSQL wire protocol
 
 **Connection**:
+
 - Session-Buddy → PostgreSQL (client initiates)
 - Persistent session storage
 - Advanced JSON support
@@ -345,6 +376,7 @@ session-buddy start --mode=lite --no-intelligence
 **Configuration**:
 
 In `settings/session-buddy.yaml`:
+
 ```yaml
 database:
   type: "postgresql"
@@ -359,17 +391,20 @@ database:
 ```
 
 **Required For**:
+
 - Production deployments
 - High-concurrency scenarios
 - Advanced JSON queries
 - pgvector extension (vector similarity)
 
 **Not Required For**:
+
 - Development (use SQLite)
 - Testing (use in-memory)
 - Low-traffic deployments
 
 **Setup**:
+
 ```bash
 # Create database
 createdb session_buddy
@@ -389,6 +424,7 @@ session-buddy health
 
 **Problem**: "Cannot connect to PostgreSQL"
 **Solution**:
+
 ```bash
 # Verify PostgreSQL is running
 pg_isready
@@ -405,6 +441,7 @@ session-buddy start --mode=standard --database sqlite
 
 **Problem**: "SSL connection failed"
 **Solution**:
+
 ```bash
 # Verify SSL mode is set correctly
 session-buddy config | grep sslmode
@@ -427,23 +464,26 @@ ______________________________________________________________________
 **Database**: In-memory SQLite
 
 **Startup**:
+
 ```bash
 session-buddy start --mode=lite
 ```
 
 **Dependencies**: None
 
----
+______________________________________________________________________
 
 ### Local Development with Ecosystem
 
 **Mode**: Standard
 **Services**:
+
 1. Session-Buddy (primary)
-2. Mahavishnu (optional)
-3. Ollama (optional, for embeddings)
+1. Mahavishnu (optional)
+1. Ollama (optional, for embeddings)
 
 **Startup**:
+
 ```bash
 # Terminal 1: Session-Buddy
 session-buddy start --mode=standard --mcp
@@ -456,35 +496,39 @@ ollama serve
 ```
 
 **Dependencies**:
+
 - Session-Buddy (required)
 - Mahavishnu (optional)
 - Ollama (optional)
 
----
+______________________________________________________________________
 
 ### Production Deployment
 
 **Mode**: Standard
 **Services**:
+
 1. Session-Buddy (required)
-2. PostgreSQL (required)
-3. Mahavishnu (recommended)
-4. Akosha (optional)
-5. Ollama (optional)
+1. PostgreSQL (required)
+1. Mahavishnu (recommended)
+1. Akosha (optional)
+1. Ollama (optional)
 
 **Startup** (via docker-compose):
+
 ```bash
 docker-compose up -d
 ```
 
 **Dependencies**:
+
 - Session-Buddy (required)
 - PostgreSQL (required)
 - Mahavishnu (recommended)
 - Akosha (optional)
 - Ollama (optional)
 
----
+______________________________________________________________________
 
 ### CI/CD Pipeline
 
@@ -493,6 +537,7 @@ docker-compose up -d
 **Database**: In-memory
 
 **Startup**:
+
 ```bash
 session-buddy start --mode=lite --no-auth
 pytest tests/
@@ -536,6 +581,7 @@ graph TB
 ```
 
 **Legend**:
+
 - **Green**: Required (Session-Buddy itself)
 - **Yellow**: Optional ecosystem services
 - **Blue**: Optional infrastructure
@@ -557,11 +603,13 @@ ______________________________________________________________________
 **Configure Ports**:
 
 Session-Buddy:
+
 ```bash
 session-buddy start --mode=standard --mcp --port 8679
 ```
 
 Mahavishnu (in `.mcp.json`):
+
 ```json
 {
   "mcpServers": {
@@ -593,16 +641,19 @@ ______________________________________________________________________
 ### Authentication
 
 **Session-Buddy**:
+
 - Enable JWT auth in production
 - Use strong secret (32+ characters)
 - Set appropriate expiration
 
 **Mahavishnu Integration**:
+
 - Use same auth secret on both sides
 - Enable TLS for remote connections
 - Rotate secrets regularly
 
 **PostgreSQL**:
+
 - Always use SSL (`sslmode=verify-full`)
 - Use strong passwords
 - Restrict network access
@@ -611,17 +662,20 @@ ______________________________________________________________________
 ### Network Security
 
 **Local Development**:
+
 - Use `127.0.0.1` (localhost only)
 - No external exposure
 - No authentication required
 
 **Production**:
+
 - Restrict to specific interfaces
 - Enable authentication
 - Use TLS for all connections
 - Firewall rules to restrict access
 
 **Example Production Config**:
+
 ```yaml
 # settings/session-buddy.yaml
 server:
@@ -644,6 +698,7 @@ ______________________________________________________________________
 ### General Issues
 
 **"Service won't start"**:
+
 ```bash
 # Check what's blocking the port
 lsof -i :8678
@@ -656,6 +711,7 @@ session-buddy logs --tail 50
 ```
 
 **"Cannot connect to service"**:
+
 ```bash
 # Verify service is running
 curl http://localhost:8678/health
@@ -668,6 +724,7 @@ telnet localhost 8678
 ```
 
 **"Authentication failed"**:
+
 ```bash
 # Verify auth is enabled
 session-buddy config | grep auth
@@ -682,18 +739,22 @@ python -c 'import secrets; print(secrets.token_urlsafe(32))'
 ### Service-Specific Issues
 
 **Mahavishnu**:
+
 - Problem: "Mahavishnu cannot find Session-Buddy"
 - Solution: Check `.mcp.json` configuration, verify Session-Buddy is running
 
 **Akosha**:
+
 - Problem: "Sync is not working"
 - Solution: Check `sync_interval`, manually trigger sync with `session-buddy sync-now`
 
 **PostgreSQL**:
+
 - Problem: "SSL connection failed"
 - Solution: Verify `sslmode=verify-full`, check certificates
 
 **Ollama**:
+
 - Problem: "Cannot generate embeddings"
 - Solution: Verify Ollama is running, pull model with `ollama pull nomic-embed-text`
 
@@ -704,27 +765,27 @@ ______________________________________________________________________
 ### Development
 
 1. **Use lite mode** for fastest startup
-2. **No external services** required
-3. **In-memory database** for testing
-4. **Disable authentication** locally
+1. **No external services** required
+1. **In-memory database** for testing
+1. **Disable authentication** locally
 
 ### Production
 
 1. **Use standard mode** with PostgreSQL
-2. **Enable authentication** with JWT
-3. **Use SSL** for all connections
-4. **Monitor service health** regularly
-5. **Set up alerts** for service failures
-6. **Backup database** daily
-7. **Rotate secrets** every 90 days
+1. **Enable authentication** with JWT
+1. **Use SSL** for all connections
+1. **Monitor service health** regularly
+1. **Set up alerts** for service failures
+1. **Backup database** daily
+1. **Rotate secrets** every 90 days
 
 ### Integration
 
 1. **Start services in order**: Dependencies first
-2. **Verify health** before proceeding
-3. **Use environment variables** for configuration
-4. **Document custom ports** and settings
-5. **Test connectivity** before production
+1. **Verify health** before proceeding
+1. **Use environment variables** for configuration
+1. **Document custom ports** and settings
+1. **Test connectivity** before production
 
 ______________________________________________________________________
 
@@ -787,6 +848,7 @@ Session-Buddy is designed to be **fully standalone** with no required dependenci
 **Required**: None (Session-Buddy is standalone)
 
 **Optional Integrations**:
+
 - Mahavishnu (orchestration)
 - Akosha (analytics)
 - Crackerjack (quality control)

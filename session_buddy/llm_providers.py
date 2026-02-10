@@ -622,7 +622,6 @@ class LLMManager:
             ... )
         """
         from pathlib import Path
-        import hashlib
 
         # Configuration paths
         CLAUDE_CONFIG = Path.home() / ".claude.json"
@@ -630,7 +629,9 @@ class LLMManager:
         CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
         CLAUDE_COMMANDS_DIR = Path.home() / ".claude" / "commands"
         QWEN_COMMANDS_DIR = Path.home() / ".qwen" / "commands"
-        CLAUDE_PLUGINS_FILE = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
+        CLAUDE_PLUGINS_FILE = (
+            Path.home() / ".claude" / "plugins" / "installed_plugins.json"
+        )
 
         # Default skip servers
         DEFAULT_SKIP_SERVERS = ["homebrew", "pycharm"]
@@ -713,7 +714,9 @@ class LLMManager:
             # Look for description line
             for i, line in enumerate(lines):
                 if "description:" in line.lower():
-                    match = re.search(r"description:\s*(.+?)(?:\s+id:)?$", line, re.IGNORECASE)
+                    match = re.search(
+                        r"description:\s*(.+?)(?:\s+id:)?$", line, re.IGNORECASE
+                    )
                     if match:
                         description = match.group(1).strip()
                         prompt_start = i + 1
@@ -790,7 +793,9 @@ description: {description}
                         stats["errors"].append(error_msg)
                         stats["commands_skipped"] += 1
 
-                self.logger.info(f"✅ Synced {stats['commands_synced']} commands to {destination}")
+                self.logger.info(
+                    f"✅ Synced {stats['commands_synced']} commands to {destination}"
+                )
 
             except Exception as e:
                 error_msg = f"Failed to sync commands: {e}"
@@ -851,7 +856,7 @@ description: {description}
             try:
                 if source == "claude":
                     claude_settings = load_json_safely(CLAUDE_SETTINGS)
-                    plugins_manifest = load_json_safely(CLAUDE_PLUGINS_FILE)
+                    load_json_safely(CLAUDE_PLUGINS_FILE)
 
                     enabled_plugins = claude_settings.get("enabledPlugins", {})
                     stats["plugins_found"] = len(enabled_plugins)

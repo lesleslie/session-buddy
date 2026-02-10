@@ -12,14 +12,18 @@ from typing import TYPE_CHECKING, Any
 from session_buddy.utils.database_tools import require_reflection_database
 
 if TYPE_CHECKING:
-    from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter
+    pass
 
 logger = logging.getLogger(__name__)
 
 
 def _get_lock(reflection_db: Any) -> Any:
     """Get lock from reflection database if available."""
-    return reflection_db.lock if hasattr(reflection_db, "is_temp_db") and reflection_db.is_temp_db else None
+    return (
+        reflection_db.lock
+        if hasattr(reflection_db, "is_temp_db") and reflection_db.is_temp_db
+        else None
+    )
 
 
 def _register_code_graph_storage_tool(mcp: Any) -> None:
@@ -97,7 +101,9 @@ def _register_code_graph_storage_tool(mcp: Any) -> None:
             }
 
 
-def _query_code_graph(conn: Any, repo_path: str, commit_hash: str) -> dict[str, Any] | None:
+def _query_code_graph(
+    conn: Any, repo_path: str, commit_hash: str
+) -> dict[str, Any] | None:
     """Query code graph from database.
 
     Args:
@@ -133,7 +139,9 @@ def _query_code_graph(conn: Any, repo_path: str, commit_hash: str) -> dict[str, 
     }
 
 
-def _query_code_graphs_list(conn: Any, repo_path: str | None, limit: int) -> list[dict[str, Any]]:
+def _query_code_graphs_list(
+    conn: Any, repo_path: str | None, limit: int
+) -> list[dict[str, Any]]:
     """Query code graphs list from database.
 
     Args:
@@ -205,7 +213,11 @@ def _register_code_graph_retrieval_tool(mcp: Any) -> None:
         """
         try:
             reflection_db = await require_reflection_database()
-            conn = reflection_db if hasattr(reflection_db, "execute") else typing.cast(Any, reflection_db)._get_conn()  # type: ignore[union-attr]
+            conn = (
+                reflection_db
+                if hasattr(reflection_db, "execute")
+                else typing.cast(Any, reflection_db)._get_conn()
+            )  # type: ignore[union-attr]
 
             import asyncio
 
@@ -262,7 +274,11 @@ def _register_code_graph_list_tool(mcp: Any) -> None:
         """
         try:
             reflection_db = await require_reflection_database()
-            conn = reflection_db if hasattr(reflection_db, "execute") else typing.cast(Any, reflection_db)._get_conn()  # type: ignore[union-attr]
+            conn = (
+                reflection_db
+                if hasattr(reflection_db, "execute")
+                else typing.cast(Any, reflection_db)._get_conn()
+            )  # type: ignore[union-attr]
 
             import asyncio
 

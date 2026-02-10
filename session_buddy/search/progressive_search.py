@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class SearchTier(str, Enum):
+class SearchTier(StrEnum):
     """Search tiers ordered by speed (fastest to slowest).
 
     Tiers are searched sequentially, with early stopping when sufficient

@@ -402,7 +402,6 @@ async def pool_manager_status() -> dict[str, Any]:
 
 def _register_pool_execution_tools(mcp: FastMCP) -> None:
     """Register pool task execution tools."""
-    from fastmcp import FastMCP
 
     @mcp.tool()  # type: ignore[misc]
     async def create_pool(
@@ -508,7 +507,6 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
 
 def _register_pool_monitoring_tools(mcp: FastMCP) -> None:
     """Register pool monitoring and status tools."""
-    from fastmcp import FastMCP
 
     @mcp.tool()  # type: ignore[misc]
     async def list_pools() -> str:
@@ -580,7 +578,6 @@ def _register_pool_monitoring_tools(mcp: FastMCP) -> None:
 
 def _register_pool_management_tools(mcp: FastMCP) -> None:
     """Register pool lifecycle management tools."""
-    from fastmcp import FastMCP
 
     @mcp.tool()  # type: ignore[misc]
     async def delete_pool(pool_id: str, timeout: float = 5.0) -> str:

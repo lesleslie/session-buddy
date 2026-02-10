@@ -2,7 +2,7 @@
 
 Get started with Session-Buddy in 5 minutes with this progressive guide.
 
----
+______________________________________________________________________
 
 ## Level 1: Basic Session Management (1 minute) ✅
 
@@ -23,11 +23,12 @@ session-buddy list-sessions
 ```
 
 **What you learned**:
+
 - ✅ Basic installation
 - ✅ Lite mode startup
 - ✅ Session creation and listing
 
----
+______________________________________________________________________
 
 ## Level 2: Memory Integration (2 minutes) 🧠
 
@@ -52,12 +53,13 @@ session-buddy reflection-stats
 ```
 
 **What you learned**:
+
 - ✅ Message tracking
 - ✅ Reflection storage
 - ✅ Cross-session search
 - ✅ Analytics viewing
 
----
+______________________________________________________________________
 
 ## Level 3: Integration with Mahavishnu (2 minutes) 🔄
 
@@ -85,12 +87,13 @@ session-buddy export "my-project.json"
 ```
 
 **What you learned**:
+
 - ✅ MCP server startup
 - ✅ Project group management
 - ✅ Cross-project search
 - ✅ Session data export
 
----
+______________________________________________________________________
 
 ## Level 4: Advanced Analytics (5 minutes) 📊
 
@@ -120,12 +123,13 @@ session-buddy export-analytics \
 ```
 
 **What you learned**:
+
 - ✅ Session summarization
 - ✅ Pattern detection
 - ✅ Insights dashboard
 - ✅ Analytics export
 
----
+______________________________________________________________________
 
 ## Next Steps
 
@@ -141,12 +145,13 @@ session-buddy export-analytics \
 🌐 **Architecture**: Understand the system design
 → `ARCHITECTURE.md`
 
----
+______________________________________________________________________
 
 ## Troubleshooting
 
 **Problem**: "Session-Buddy won't start"
 **Solution**:
+
 ```bash
 # Check what's blocking the port
 lsof -i :8678
@@ -157,6 +162,7 @@ session-buddy start --port 8679
 
 **Problem**: "Cannot connect to Mahavishnu"
 **Solution**:
+
 ```bash
 # Verify Mahavishnu is running
 mahavishnu health
@@ -170,6 +176,7 @@ session-buddy start --mode=lite
 
 **Problem**: "Search returns no results"
 **Solution**:
+
 ```bash
 # Check if sessions have data
 session-buddy list-sessions
@@ -183,6 +190,7 @@ session-buddy reflection-stats
 
 **Problem**: "Analytics not working"
 **Solution**:
+
 ```bash
 # Verify DuckDB is installed
 pip install duckdb
@@ -194,7 +202,7 @@ session-buddy health | grep analytics
 session-buddy start --mode=standard --analytics
 ```
 
----
+______________________________________________________________________
 
 ## Need Help?
 
@@ -203,7 +211,7 @@ session-buddy start --mode=standard --analytics
 - 💬 [Community Discussions](https://github.com/yourusername/session-buddy/discussions)
 - 🐛 [Report Issues](https://github.com/yourusername/session-buddy/issues)
 
----
+______________________________________________________________________
 
 **Quickstart Version**: v1.0
 **Last Updated**: 2026-02-09

@@ -188,6 +188,7 @@ ______________________________________________________________________
 **Use Case**: Fast development, testing, CI/CD
 
 **Features**:
+
 - Instant startup (< 1 second)
 - No persistent storage
 - All data in memory
@@ -195,11 +196,13 @@ ______________________________________________________________________
 - No external services required
 
 **Startup Command**:
+
 ```bash
 session-buddy start --mode=lite
 ```
 
 **Trade-offs**:
+
 - ❌ No data persistence
 - ❌ No cross-session analytics
 - ❌ No cloud sync
@@ -213,6 +216,7 @@ session-buddy start --mode=lite
 **Use Case**: Production deployments, long-running sessions
 
 **Features**:
+
 - Persistent storage
 - Cross-session analytics
 - DuckDB-powered insights
@@ -220,11 +224,13 @@ session-buddy start --mode=lite
 - MCP server enabled
 
 **Startup Command**:
+
 ```bash
 session-buddy start --mode=standard --mcp
 ```
 
 **Trade-offs**:
+
 - ✅ Full persistence
 - ✅ Advanced analytics
 - ✅ Cloud sync
@@ -241,12 +247,14 @@ ______________________________________________________________________
 **Implementation**: `session_buddy/core/permissions.py`
 
 **Features**:
+
 - JWT-based authentication (HS256)
 - Configurable token expiration
 - Environment-based secret management
 - Role-based access control (RBAC)
 
 **Configuration**:
+
 ```yaml
 # settings/session-buddy.yaml
 auth:
@@ -256,6 +264,7 @@ auth:
 ```
 
 **Environment Variables**:
+
 ```bash
 export SESSION_BUDDY_AUTH_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export SESSION_BUDDY_AUTH_ENABLED=true
@@ -264,17 +273,20 @@ export SESSION_BUDDY_AUTH_ENABLED=true
 ### Data Security
 
 **Encryption**:
+
 - AES-256-GCM encryption for sensitive data
 - Encrypted SQLite database option
 - Secure secret storage (HashiCorp Vault, AWS Secrets Manager)
 
 **Input Validation**:
+
 - All inputs validated via Pydantic models
 - Path traversal prevention
 - SQL injection protection
 - XSS prevention
 
 **Privacy**:
+
 - 100% local processing
 - No external API calls
 - No telemetry or tracking
@@ -296,6 +308,7 @@ ______________________________________________________________________
 **File**: `session_buddy/mcp/tools/session/session_tools.py`
 
 **Tools**:
+
 - `create_session`: Create a new development session
 - `get_session`: Retrieve session details
 - `update_session`: Update session metadata
@@ -310,6 +323,7 @@ ______________________________________________________________________
 **File**: `session_buddy/mcp/tools/memory/memory_tools.py`
 
 **Tools**:
+
 - `store_reflection`: Store insight/reflection
 - `search_reflections`: Search across reflections
 - `get_reflection_stats`: Get reflection statistics
@@ -321,6 +335,7 @@ ______________________________________________________________________
 **File**: `session_buddy/mcp/tools/analytics/analytics_tools.py`
 
 **Tools**:
+
 - `summarize_session`: Generate session summary
 - `get_insights`: Get AI-powered insights
 - `query_analytics`: Query DuckDB analytics
@@ -403,6 +418,7 @@ ______________________________________________________________________
 ### SQLite Storage (Default)
 
 **Schema**:
+
 ```sql
 -- Sessions table
 CREATE TABLE sessions (
@@ -437,6 +453,7 @@ CREATE TABLE reflections (
 **File**: `session_buddy/intelligence/reflection_database.py`
 
 **Capabilities**:
+
 - Vector similarity search
 - Time-series analytics
 - Pattern detection
@@ -444,6 +461,7 @@ CREATE TABLE reflections (
 - Export to CSV/JSON/Parquet
 
 **Example Queries**:
+
 ```sql
 -- Find patterns across sessions
 SELECT
@@ -469,6 +487,7 @@ LIMIT 20;
 ### PostgreSQL Storage (Optional)
 
 **Benefits**:
+
 - Better concurrent access
 - Advanced JSON support
 - Full-text search
@@ -476,6 +495,7 @@ LIMIT 20;
 - Native vector extensions (pgvector)
 
 **Configuration**:
+
 ```yaml
 database:
   type: "postgresql"
@@ -500,12 +520,14 @@ ______________________________________________________________________
 **Implementation**: `session_buddy/integration/mahavishnu.py`
 
 **Features**:
+
 - Session delegation from Mahavishnu
 - Cross-project session tracking
 - Workflow state persistence
 - Checkpoint/resume functionality
 
 **Usage**:
+
 ```python
 # Mahavishnua creates session via MCP
 await mcp.call_tool("create_session", {
@@ -530,12 +552,14 @@ await mcp.call_tool("add_message", {
 **Implementation**: `session_buddy/integration/akosha_sync.py`
 
 **Features**:
+
 - Aggregate analytics across projects
 - Cross-project pattern detection
 - Advanced insights generation
 - Knowledge graph integration
 
 **Configuration**:
+
 ```yaml
 sync:
   akosha_enabled: true
@@ -550,6 +574,7 @@ sync:
 **Protocol**: MCP
 
 **Features**:
+
 - Store test results in sessions
 - Track quality metrics over time
 - Correlate code changes with test results
@@ -566,6 +591,7 @@ ______________________________________________________________________
 **Purpose**: Semantic search and similarity
 
 **Implementation**:
+
 ```python
 from session_buddy.intelligence import MemoryStore
 
@@ -587,6 +613,7 @@ await store.store_reflection(
 **Implementation**: `session_buddy/intelligence/patterns.py`
 
 **Capabilities**:
+
 - Detect recurring code patterns
 - Identify best practices
 - Find anti-patterns
@@ -598,6 +625,7 @@ await store.store_reflection(
 **Implementation**: `session_buddy/intelligence/insights.py`
 
 **Features**:
+
 - Session summarization
 - Trend analysis
 - Anomaly detection
@@ -662,6 +690,7 @@ def test_full_workflow():
 **Current Status**: See `scripts/analyze_coverage.py`
 
 **Run Tests**:
+
 ```bash
 # Unit tests only
 pytest tests/unit/ -m unit
@@ -680,18 +709,21 @@ ______________________________________________________________________
 ### Optimization Strategies
 
 **Database**:
+
 - Connection pooling (SQLite, PostgreSQL)
 - Prepared statements
 - Index optimization
 - Query result caching
 
 **Memory**:
+
 - Lazy loading for large sessions
 - Embedding caching
 - Batch processing for analytics
 - Async I/O throughout
 
 **MCP Server**:
+
 - Connection pooling
 - Request batching
 - Response streaming
@@ -700,12 +732,14 @@ ______________________________________________________________________
 ### Performance Metrics
 
 **Lite Mode**:
+
 - Startup: < 1 second
 - Session creation: < 100ms
 - Message storage: < 50ms
 - Search queries: < 200ms
 
 **Standard Mode**:
+
 - Startup: 2-3 seconds
 - Session creation: < 200ms
 - Message storage: < 100ms
@@ -721,6 +755,7 @@ ______________________________________________________________________
 **File**: `session_buddy/core/errors.py`
 
 **Exception Types**:
+
 - `SessionBuddyError`: Base exception
 - `ConfigurationError`: Configuration-related errors
 - `SessionError`: Session management errors
@@ -729,6 +764,7 @@ ______________________________________________________________________
 - `IntegrationError`: External integration errors
 
 **Features**:
+
 - Structured error context
 - Detailed error messages
 - Recovery suggestions
@@ -737,16 +773,19 @@ ______________________________________________________________________
 ### Resilience Patterns
 
 **Retry Logic**:
+
 - Exponential backoff
 - Max retry attempts
 - Jitter for distributed systems
 
 **Circuit Breakers**:
+
 - Open circuit after N failures
 - Half-open state for recovery
 - Fallback mechanisms
 
 **Dead Letter Queue**:
+
 - Failed operations stored for review
 - Automatic retry with backoff
 - Manual recovery interface
@@ -763,6 +802,7 @@ ______________________________________________________________________
 **Monitoring**: Minimal
 
 **Startup**:
+
 ```bash
 session-buddy start --mode=lite
 ```
@@ -775,6 +815,7 @@ session-buddy start --mode=lite
 **Monitoring**: OpenTelemetry, Prometheus
 
 **Startup**:
+
 ```bash
 export SESSION_BUDDY_AUTH_SECRET="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 export SESSION_BUDDY_AUTH_ENABLED=true
@@ -786,6 +827,7 @@ session-buddy start --mode=standard --mcp --analytics
 ### Docker Deployment
 
 **Dockerfile**:
+
 ```dockerfile
 FROM python:3.11-slim
 
@@ -800,6 +842,7 @@ CMD ["session-buddy", "start", "--mode=standard", "--mcp"]
 ```
 
 **docker-compose.yml**:
+
 ```yaml
 version: '3.8'
 services:
@@ -870,30 +913,35 @@ ______________________________________________________________________
 ### Optional Integrations
 
 **Mahavishnu** (Orchestrator):
+
 - Purpose: Workflow orchestration
 - Protocol: MCP
 - URL: http://localhost:8680/mcp
 - Required: Standard mode (for session delegation)
 
 **Akosha** (Analytics):
+
 - Purpose: Advanced analytics
 - Protocol: MCP/HTTP
 - URL: http://localhost:8682/mcp
 - Required: Optional (for cross-project analytics)
 
 **Crackerjack** (Quality Control):
+
 - Purpose: Testing and QC
 - Protocol: MCP
 - URL: http://localhost:8676/mcp
 - Required: Optional (for quality tracking)
 
 **Ollama** (LLM):
+
 - Purpose: Embedding generation
 - Protocol: HTTP
 - URL: http://localhost:11434
 - Required: Optional (for intelligence features)
 
 **PostgreSQL** (Database):
+
 - Purpose: Persistent storage
 - Protocol: PostgreSQL wire protocol
 - URL: postgresql://localhost:5432/session_buddy
@@ -902,13 +950,15 @@ ______________________________________________________________________
 ### Startup Order
 
 **Lite Mode**:
+
 1. Start Session-Buddy (only service needed)
 
 **Standard Mode**:
+
 1. Start PostgreSQL (if used)
-2. Start Ollama (if embeddings needed)
-3. Start Session-Buddy
-4. Start Mahavishnu (connects to Session-Buddy)
+1. Start Ollama (if embeddings needed)
+1. Start Session-Buddy
+1. Start Mahavishnu (connects to Session-Buddy)
 
 ______________________________________________________________________
 

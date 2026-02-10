@@ -26,8 +26,9 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 from prometheus_client import Counter, Gauge, Histogram, generate_latest
 from prometheus_client.registry import CollectorRegistry
@@ -38,7 +39,6 @@ except ImportError:
     # prometheus_client < 0.20.0
     from prometheus_client.exposition import (
         CONTENT_TYPE_LATEST,
-        choose_formatter as _choose_formatter,
     )
 
     def choose_formatter(_: str) -> tuple[str, bytes]:
@@ -326,7 +326,9 @@ class SessionMetrics:
             duration_seconds,
         )
 
-    def set_session_quality_score(self, component_name: str, quality_score: float) -> None:
+    def set_session_quality_score(
+        self, component_name: str, quality_score: float
+    ) -> None:
         """Set the session quality score gauge.
 
         Args:
@@ -337,7 +339,9 @@ class SessionMetrics:
             >>> metrics = SessionMetrics()
             >>> metrics.set_session_quality_score("mahavishnu", 85.5)
         """
-        self.session_quality_score.labels(component_name=component_name).set(quality_score)
+        self.session_quality_score.labels(component_name=component_name).set(
+            quality_score
+        )
 
         self.logger.debug(
             "Session quality score set: component=%s, score=%.1f",

@@ -822,6 +822,13 @@ class SessionLifecycleManager:
                 capture_point="checkpoint"
             )
 
+            # Store conversation checkpoint
+            conversation_stored = await self._store_conversation_checkpoint_if_enabled(
+                checkpoint_type="checkpoint",
+                quality_score=quality_score,
+                is_manual=is_manual,
+            )
+
             # Git checkpoint
             git_output = await self.perform_git_checkpoint(current_dir, quality_score)
 
@@ -870,6 +877,7 @@ class SessionLifecycleManager:
                 "auto_store_decision": auto_store_decision,
                 "auto_store_summary": format_auto_store_summary(auto_store_decision),
                 "insights_extracted": insights_extracted,
+                "conversation_stored": conversation_stored,
                 "pre_hooks_results": pre_hooks_results,
                 "post_hooks_results": post_hooks_results,
             }
@@ -974,6 +982,86 @@ class SessionLifecycleManager:
 
         return insights_extracted
 
+    async def _store_conversation_checkpoint_if_enabled(
+        self,
+        checkpoint_type: str = "checkpoint",
+        quality_score: int | None = None,
+        is_manual: bool = False,
+    ) -> dict[str, t.Any]:
+        """Store conversation checkpoint if enabled in settings.
+
+        This helper method checks settings and stores conversation checkpoints
+        only when conversation storage is enabled.
+
+        Args:
+            checkpoint_type: Type of checkpoint (checkpoint, session_end, manual)
+            quality_score: Current quality score
+            is_manual: Whether this was manually triggered
+
+        Returns:
+            Dictionary with storage result
+        """
+        from session_buddy.core.conversation_storage import (
+            store_conversation_checkpoint,
+        )
+
+        try:
+            from session_buddy.settings import get_settings
+
+            settings = get_settings()
+
+            # Check if auto-store is enabled for this checkpoint type
+            if checkpoint_type == "checkpoint":
+                enabled = getattr(
+                    settings, "auto_store_conversations_on_checkpoint", True
+                )
+            elif checkpoint_type == "session_end":
+                enabled = getattr(
+                    settings, "auto_store_conversations_on_session_end", True
+                )
+            else:  # manual
+                enabled = True
+
+            if not enabled:
+                self.logger.debug(
+                    "Conversation storage disabled for %s checkpoints", checkpoint_type
+                )
+                return {"success": False, "reason": "disabled_in_settings"}
+
+            # Store the conversation checkpoint
+            result = await store_conversation_checkpoint(
+                manager=self,
+                checkpoint_type=checkpoint_type,
+                quality_score=quality_score,
+                is_manual=is_manual,
+            )
+
+            if result["success"]:
+                self.logger.info(
+                    "Conversation checkpoint stored, project=%s, checkpoint_type=%s, conversation_id=%s",
+                    self.current_project,
+                    checkpoint_type,
+                    result["conversation_id"],
+                )
+            else:
+                self.logger.debug(
+                    "Conversation storage skipped, project=%s, checkpoint_type=%s, reason=%s",
+                    self.current_project,
+                    checkpoint_type,
+                    result.get("error", "unknown"),
+                )
+
+            return result
+
+        except Exception as e:
+            # Don't fail checkpoint if conversation storage fails
+            self.logger.warning(
+                "Conversation storage failed (continuing), project=%s, error=%s",
+                self.current_project,
+                str(e),
+            )
+            return {"success": False, "error": str(e)}
+
     async def end_session(
         self,
         working_directory: str | None = None,
@@ -1018,6 +1106,13 @@ class SessionLifecycleManager:
             # This final capture ensures no insights are missed before cleanup
             insights_extracted = await self._extract_and_store_insights(
                 capture_point="session_end"
+            )
+
+            # Store conversation checkpoint at session end
+            conversation_stored = await self._store_conversation_checkpoint_if_enabled(
+                checkpoint_type="session_end",
+                quality_score=quality_score,
+                is_manual=False,
             )
 
             # Create session summary
@@ -1076,6 +1171,9 @@ class SessionLifecycleManager:
                 str(handoff_path) if handoff_path else None
             )
             summary["insights_extracted"] = insights_extracted
+
+            # Add conversation storage result to summary
+            summary["conversation_stored"] = conversation_stored
 
             return {
                 "success": True,

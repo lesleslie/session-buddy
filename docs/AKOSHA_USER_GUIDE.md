@@ -11,7 +11,7 @@ Complete guide for configuring and using Session-Buddy's Akosha cloud synchroniz
 - [Troubleshooting](#troubleshooting)
 - [Advanced Configuration](#advanced-configuration)
 
----
+______________________________________________________________________
 
 ## Overview
 
@@ -26,16 +26,18 @@ Akosha sync automatically uploads your Session-Buddy memories to cloud storage o
 ### Sync Methods
 
 1. **Cloud Sync** (Primary)
+
    - Uploads to S3-compatible storage (Cloudflare R2, AWS S3, MinIO)
    - Fast, reliable, scalable
    - Recommended for production
 
-2. **HTTP Sync** (Fallback)
+1. **HTTP Sync** (Fallback)
+
    - Direct POST to Akosha server
    - For development/testing
    - Requires Akosha running locally
 
----
+______________________________________________________________________
 
 ## Quick Start
 
@@ -88,6 +90,7 @@ print(result)
 ```
 
 Expected output:
+
 ```json
 {
   "cloud_configured": true,
@@ -115,7 +118,7 @@ print(result)
 "
 ```
 
----
+______________________________________________________________________
 
 ## Configuration
 
@@ -134,9 +137,9 @@ export SESSION_BUDDY_AKOSHA_SYSTEM_ID="macbook-pro-username"
 Settings are loaded in this order (highest to lowest):
 
 1. Environment variables (`SESSION_BUDDY_AKOSHA_*`)
-2. `settings/local.yaml` (local overrides, gitignored)
-3. `settings/session-buddy.yaml` (base configuration)
-4. Default values
+1. `settings/local.yaml` (local overrides, gitignored)
+1. `settings/session-buddy.yaml` (base configuration)
+1. Default values
 
 ### Field Reference
 
@@ -156,7 +159,7 @@ Settings are loaded in this order (highest to lowest):
 | `akosha_enable_deduplication` | bool | `true` | Skip unchanged uploads |
 | `akosha_chunk_size_mb` | int | `5` | Upload chunk size (MB) |
 
----
+______________________________________________________________________
 
 ## Usage
 
@@ -196,6 +199,7 @@ await akosha_sync_status()
 ```
 
 Returns:
+
 ```json
 {
   "cloud_configured": true,
@@ -209,7 +213,7 @@ Returns:
 }
 ```
 
----
+______________________________________________________________________
 
 ## Troubleshooting
 
@@ -282,29 +286,33 @@ def register_tools(mcp_instance):
     mcp_instance.tool()(my_tool)
 ```
 
----
+______________________________________________________________________
 
 ## Advanced Configuration
 
 ### Cloudflare R2 Setup
 
 1. **Create R2 Bucket**:
+
    ```bash
    # Via wrangler CLI
    wrangler r2 bucket create session-buddy-memories
    ```
 
-2. **Get API Token**:
+1. **Get API Token**:
+
    - Go to Cloudflare Dashboard → R2 → Overview → Manage R2 API Tokens
    - Create token with `Edit` permissions
 
-3. **Configure Session-Buddy**:
+1. **Configure Session-Buddy**:
+
    ```yaml
    akosha_cloud_bucket: "session-buddy-memories"
    akosha_cloud_endpoint: "https://<account-id>.r2.cloudflarestorage.com"
    ```
 
-4. **Set Credentials**:
+1. **Set Credentials**:
+
    ```bash
    export AWS_ACCESS_KEY_ID="your-r2-token-id"
    export AWS_SECRET_ACCESS_KEY="your-r2-token-secret"
@@ -313,15 +321,18 @@ def register_tools(mcp_instance):
 ### AWS S3 Setup
 
 1. **Create S3 Bucket**:
+
    ```bash
    aws s3 mb s3://session-buddy-memories --region us-east-1
    ```
 
-2. **Create IAM User**:
+1. **Create IAM User**:
+
    - Policy: `AmazonS3FullAccess` (or scoped to specific bucket)
    - Generate access keys
 
-3. **Configure Session-Buddy**:
+1. **Configure Session-Buddy**:
+
    ```yaml
    akosha_cloud_bucket: "session-buddy-memories"
    akosha_cloud_endpoint: "https://s3.us-east-1.amazonaws.com"
@@ -331,6 +342,7 @@ def register_tools(mcp_instance):
 ### MinIO Setup (Local Development)
 
 1. **Start MinIO**:
+
    ```bash
    docker run -p 9000:9000 -p 9001:9001 \
      -e "MINIO_ROOT_USER=minioadmin" \
@@ -338,13 +350,15 @@ def register_tools(mcp_instance):
      minio/minio server /data --console-address ":9001"
    ```
 
-2. **Create Bucket**:
+1. **Create Bucket**:
+
    ```bash
    mc alias set local http://localhost:9000 minioadmin minioadmin
    mc mb local/session-buddy-memories
    ```
 
-3. **Configure Session-Buddy**:
+1. **Configure Session-Buddy**:
+
    ```yaml
    akosha_cloud_bucket: "session-buddy-memories"
    akosha_cloud_endpoint: "http://localhost:9000"
@@ -366,19 +380,21 @@ Or force HTTP explicitly:
 akosha_force_method: "http"
 ```
 
----
+______________________________________________________________________
 
 ## Performance Tuning
 
 ### Upload Speed
 
 **Faster Uploads** (larger chunks, compression):
+
 ```yaml
 akosha_chunk_size_mb: 10  # 10MB chunks (fewer requests)
 akosha_enable_compression: true  # 65% less data to transfer
 ```
 
 **Slower but More Reliable** (smaller chunks):
+
 ```yaml
 akosha_chunk_size_mb: 1  # 1MB chunks (more progress tracking)
 ```
@@ -386,12 +402,14 @@ akosha_chunk_size_mb: 1  # 1MB chunks (more progress tracking)
 ### Retry Behavior
 
 **Aggressive Retries** (slow connections):
+
 ```yaml
 akosha_max_retries: 5
 akosha_retry_backoff_seconds: 1.0
 ```
 
 **Conservative Retries** (fast connections):
+
 ```yaml
 akosha_max_retries: 2
 akosha_retry_backoff_seconds: 3.0
@@ -400,26 +418,28 @@ akosha_retry_backoff_seconds: 3.0
 ### Memory Usage
 
 **Low Memory** (smaller chunks):
+
 ```yaml
 akosha_chunk_size_mb: 1  # ~1MB per chunk in memory
 ```
 
 **Higher Throughput** (larger chunks):
+
 ```yaml
 akosha_chunk_size_mb: 10  # ~10MB per chunk in memory
 ```
 
----
+______________________________________________________________________
 
 ## Security Best Practices
 
 ### Credentials
 
 1. **Never commit credentials** to git
-2. **Use environment variables** for sensitive data
-3. **Restrict bucket access** to specific IAM users
-4. **Enable bucket encryption** (SSE-S3 or SSE-KMS)
-5. **Use HTTPS endpoints** only
+1. **Use environment variables** for sensitive data
+1. **Restrict bucket access** to specific IAM users
+1. **Enable bucket encryption** (SSE-S3 or SSE-KMS)
+1. **Use HTTPS endpoints** only
 
 ### IAM Policy Example
 
@@ -445,7 +465,7 @@ Minimal policy for Session-Buddy:
 }
 ```
 
----
+______________________________________________________________________
 
 ## Monitoring and Logging
 
@@ -460,6 +480,7 @@ log_level: "DEBUG"
 ### Sync Logs
 
 Logs include:
+
 - Upload progress (files, bytes, duration)
 - Retry attempts and backoff delays
 - Fallback from cloud to HTTP
@@ -471,7 +492,7 @@ View logs:
 tail -f ~/.claude/logs/session-buddy.log | grep -i akosha
 ```
 
----
+______________________________________________________________________
 
 ## API Reference
 
@@ -489,6 +510,7 @@ await sync_to_akosha(
 ```
 
 **Returns**:
+
 ```json
 {
   "method": "cloud",
@@ -510,6 +532,7 @@ await akosha_sync_status() -> dict[str, Any]
 ```
 
 **Returns**:
+
 ```json
 {
   "cloud_configured": true,
@@ -523,7 +546,7 @@ await akosha_sync_status() -> dict[str, Any]
 }
 ```
 
----
+______________________________________________________________________
 
 ## Next Steps
 

@@ -50,7 +50,6 @@ from session_buddy.mcp.event_models import (
 )
 from session_buddy.mcp.session_tracker import SessionTracker
 
-
 # ============================================================================
 # Logger
 # ============================================================================

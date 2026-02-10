@@ -23,6 +23,7 @@ SESSION_BUDDY_MODE=lite session-buddy start
 ```
 
 **Characteristics:**
+
 - ⚡ In-memory database (`:memory:`)
 - 📦 No external dependencies
 - ⏱️ Fast startup (< 2 seconds)
@@ -45,6 +46,7 @@ SESSION_BUDDY_MODE=standard session-buddy start
 ```
 
 **Characteristics:**
+
 - 💾 Persistent database (`~/.claude/data/reflection.duckdb`)
 - 📦 Full feature set
 - 🧠 Semantic search enabled
@@ -75,6 +77,7 @@ SESSION_BUDDY_MODE=standard session-buddy start
 ### Lite Mode
 
 **Best for:**
+
 - ✅ Quick testing and experimentation
 - ✅ CI/CD pipelines
 - ✅ Performance testing
@@ -82,6 +85,7 @@ SESSION_BUDDY_MODE=standard session-buddy start
 - ✅ Feature development without persistence
 
 **Not recommended for:**
+
 - ❌ Long-term development
 - ❌ Production deployments
 - ❌ Sessions requiring persistence
@@ -90,6 +94,7 @@ SESSION_BUDDY_MODE=standard session-buddy start
 ### Standard Mode
 
 **Best for:**
+
 - ✅ Daily development
 - ✅ Production deployments
 - ✅ Persistent data storage
@@ -98,6 +103,7 @@ SESSION_BUDDY_MODE=standard session-buddy start
 - ✅ Knowledge base building
 
 **Not recommended for:**
+
 - ❌ Quick testing (startup overhead)
 - ❌ CI/CD (unnecessary persistence)
 

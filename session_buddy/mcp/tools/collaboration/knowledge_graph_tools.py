@@ -5,6 +5,7 @@ This module provides MCP tools for interacting with the DuckPGQ-based knowledge 
 enabling semantic memory through entity-relationship modeling.
 
 Refactored to use utility modules for reduced code duplication.
+Phase 2: Added auto-discovery tools for relationship generation
 """
 
 from __future__ import annotations
@@ -472,7 +473,7 @@ def _format_relationship_types(relationship_types: dict[str, int]) -> list[str]:
 
 
 async def _get_knowledge_graph_stats_operation(kg: Any) -> str:
-    """Get knowledge graph statistics."""
+    """Get knowledge graph statistics with connectivity metrics."""
     stats = await kg.get_stats()
 
     lines = [
@@ -483,6 +484,18 @@ async def _get_knowledge_graph_stats_operation(kg: Any) -> str:
         "",
     ]
 
+    # Phase 2: Connectivity metrics
+    if "connectivity_ratio" in stats:
+        lines.extend(
+            [
+                f"🔗 Connectivity Ratio: {stats['connectivity_ratio']:.3f}",
+                f"📈 Average Degree: {stats['avg_degree']:.3f}",
+                f"🏝️ Isolated Entities: {stats['isolated_entities']}",
+                f"🧠 Embedding Coverage: {stats['embedding_coverage']:.1%}",
+                "",
+            ]
+        )
+
     # Entity types
     entity_types = stats.get("entity_types", {})
     lines.extend(_format_entity_types(entity_types))
@@ -491,12 +504,12 @@ async def _get_knowledge_graph_stats_operation(kg: Any) -> str:
     relationship_types = stats.get("relationship_types", {})
     lines.extend(_format_relationship_types(relationship_types))
 
-    lines.extend(
-        [
-            f"💾 Database: {stats['database_path']}",
-            f"🔧 DuckPGQ: {'✅ Installed' if stats['duckpgq_installed'] else '❌ Not installed'}",
-        ]
-    )
+    if "database_path" in stats:
+        lines.extend(
+            [
+                f"💾 Database: {stats['database_path']}",
+            ]
+        )
 
     _get_logger().info("Knowledge graph stats retrieved", **stats)
     return "\n".join(lines)
@@ -676,6 +689,154 @@ async def _batch_create_entities_impl(entities: list[dict[str, Any]]) -> str:
 
 
 # ============================================================================
+# Phase 2: Auto-Discovery Operations
+# ============================================================================
+
+
+async def _generate_embeddings_impl(
+    entity_type: str | None = None,
+    batch_size: int = 50,
+    overwrite: bool = False,
+) -> str:
+    """Generate embeddings for entities missing them."""
+
+    async def operation_wrapper(kg: Any) -> str:
+        result = await kg.generate_embeddings_for_entities(
+            entity_type=entity_type,
+            batch_size=batch_size,
+            overwrite=overwrite,
+        )
+
+        lines = [
+            "🧠 Embedding Generation Results",
+            "",
+            f"✅ Generated: {result['generated']}",
+            f"❌ Failed: {result['failed']}",
+            f"📊 Total Processed: {result['total_processed']}",
+        ]
+
+        _get_logger().info(
+            "Embeddings generated",
+            generated=result["generated"],
+            failed=result["failed"],
+        )
+
+        return "\n".join(lines)
+
+    return await _execute_kg_operation(
+        "Generate embeddings",
+        operation_wrapper,
+    )
+
+
+async def _discover_relationships_impl(
+    entity_type: str | None = None,
+    threshold: float = 0.75,
+    limit: int = 100,
+    batch_size: int = 10,
+) -> str:
+    """Batch discover relationships for entities."""
+
+    async def operation_wrapper(kg: Any) -> str:
+        result = await kg.batch_discover_relationships(
+            entity_type=entity_type,
+            threshold=threshold,
+            limit=limit,
+            batch_size=batch_size,
+        )
+
+        lines = [
+            "🔗 Relationship Discovery Results",
+            "",
+            f"📊 Entities Processed: {result['entities_processed']}",
+            f"✅ Relationships Created: {result['relationships_created']}",
+            f"📈 Avg Relationships/Entity: {result['avg_relationships_per_entity']}",
+        ]
+
+        _get_logger().info(
+            "Relationships discovered",
+            entities_processed=result["entities_processed"],
+            relationships_created=result["relationships_created"],
+        )
+
+        return "\n".join(lines)
+
+    return await _execute_kg_operation(
+        "Discover relationships",
+        operation_wrapper,
+    )
+
+
+async def _analyze_graph_connectivity_impl() -> str:
+    """Analyze graph connectivity and health metrics."""
+
+    async def operation_wrapper(kg: Any) -> str:
+        stats = await kg.get_stats()
+
+        # Calculate health metrics
+        connectivity = stats.get("connectivity_ratio", 0)
+        embedding_coverage = stats.get("embedding_coverage", 0)
+        isolated = stats.get("isolated_entities", 0)
+        total = stats.get("total_entities", 0)
+
+        # Determine health status
+        if connectivity >= 0.5:
+            health = "🟢 Excellent"
+        elif connectivity >= 0.2:
+            health = "🟡 Good"
+        elif connectivity >= 0.1:
+            health = "🟠 Fair"
+        else:
+            health = "🔴 Poor"
+
+        lines = [
+            "📊 Knowledge Graph Connectivity Analysis",
+            "",
+            f"🏥 Health Status: {health}",
+            "",
+            "Connectivity Metrics:",
+            f"  🔗 Connectivity Ratio: {connectivity:.3f}",
+            f"  📈 Average Degree: {stats.get('avg_degree', 0):.3f}",
+            "",
+            "Entity Metrics:",
+            f"  📌 Total Entities: {total}",
+            f"  🏝️ Isolated Entities: {isolated} ({isolated / total * 100 if total > 0 else 0:.1f}%)",
+            "",
+            "Embedding Metrics:",
+            f"  🧠 Coverage: {embedding_coverage:.1%}",
+            f"  📊 With Embeddings: {stats.get('entities_with_embeddings', 0)}",
+            "",
+        ]
+
+        # Recommendations
+        if connectivity < 0.2:
+            lines.extend(
+                [
+                    "💡 Recommendations:",
+                    "  1. Run 'generate_embeddings' to increase embedding coverage",
+                    "  2. Run 'discover_relationships' to create semantic connections",
+                    "  3. Consider lowering threshold for more connections",
+                    "",
+                ]
+            )
+        elif embedding_coverage < 0.8:
+            lines.extend(
+                [
+                    "💡 Recommendations:",
+                    "  1. Run 'generate_embeddings' to increase embedding coverage",
+                    "",
+                ]
+            )
+
+        return "\n".join(lines)
+
+    return await _execute_kg_operation(
+        "Analyze connectivity",
+        operation_wrapper,
+    )
+
+
+# ============================================================================
 # MCP Tool Registration
 # ============================================================================
 
@@ -756,3 +917,53 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
     async def batch_create_entities(entities: list[dict[str, Any]]) -> str:
         """Bulk create multiple entities in one operation."""
         return await _batch_create_entities_impl(entities)
+
+    # Phase 2: Auto-discovery tools
+    @mcp_server.tool()  # type: ignore[misc]
+    async def generate_embeddings(
+        entity_type: str | None = None,
+        batch_size: int = 50,
+        overwrite: bool = False,
+    ) -> str:
+        """Generate embeddings for entities missing them.
+
+        Args:
+            entity_type: Optional filter by entity type (None = all)
+            batch_size: Number of entities to process per batch
+            overwrite: Regenerate existing embeddings
+
+        Returns:
+            Summary of embeddings generated
+        """
+        return await _generate_embeddings_impl(entity_type, batch_size, overwrite)
+
+    @mcp_server.tool()  # type: ignore[misc]
+    async def discover_relationships(
+        entity_type: str | None = None,
+        threshold: float = 0.75,
+        limit: int = 100,
+        batch_size: int = 10,
+    ) -> str:
+        """Batch discover relationships for entities.
+
+        Args:
+            entity_type: Optional filter by entity type (None = all)
+            threshold: Similarity threshold (0.0-1.0)
+            limit: Max entities to process
+            batch_size: Entities per batch
+
+        Returns:
+            Summary of relationships created
+        """
+        return await _discover_relationships_impl(
+            entity_type, threshold, limit, batch_size
+        )
+
+    @mcp_server.tool()  # type: ignore[misc]
+    async def analyze_graph_connectivity() -> str:
+        """Analyze graph connectivity and health metrics.
+
+        Returns:
+            Connectivity metrics and recommendations
+        """
+        return await _analyze_graph_connectivity_impl()

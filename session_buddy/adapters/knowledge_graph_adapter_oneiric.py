@@ -17,12 +17,10 @@ Key Features:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import typing as t
 import uuid
 from datetime import UTC, datetime
-from functools import lru_cache
 
 from session_buddy.adapters.knowledge_graph_adapter_phase3 import (
     Phase3RelationshipMixin,
@@ -411,7 +409,9 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         now = datetime.now(tz=UTC)
 
         # Generate embedding for entity (Phase 2)
-        embedding = await self._generate_entity_embedding(name, entity_type, entity_observations)
+        embedding = await self._generate_entity_embedding(
+            name, entity_type, entity_observations
+        )
 
         # Sync DuckDB execution (fast, local operation)
         conn.execute(
@@ -529,7 +529,9 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             LIMIT ?
         """
 
-        results = conn.execute(sql, (embedding, entity_id, embedding, threshold, limit)).fetchall()
+        results = conn.execute(
+            sql, (embedding, entity_id, embedding, threshold, limit)
+        ).fetchall()
 
         similar_entities = []
         for row in results:
@@ -549,7 +551,9 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
                 direction="both",
             )
             related_ids = {
-                rel["from_entity"] if rel["from_entity"] != entity_id else rel["to_entity"]
+                rel["from_entity"]
+                if rel["from_entity"] != entity_id
+                else rel["to_entity"]
                 for rel in existing_relations
             }
             similar_entities = [
@@ -1027,7 +1031,9 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         embedding_coverage_result = conn.execute(
             "SELECT COUNT(*) FROM kg_entities WHERE embedding IS NOT NULL",
         ).fetchone()
-        entities_with_embeddings = embedding_coverage_result[0] if embedding_coverage_result else 0
+        entities_with_embeddings = (
+            embedding_coverage_result[0] if embedding_coverage_result else 0
+        )
         embedding_coverage = (
             entities_with_embeddings / entity_count if entity_count > 0 else 0
         )
@@ -1047,7 +1053,9 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         connectivity_ratio = (
             relationship_count / entity_count if entity_count > 0 else 0
         )
-        avg_degree = connectivity_ratio * 2  # Each relationship contributes to 2 entities
+        avg_degree = (
+            connectivity_ratio * 2
+        )  # Each relationship contributes to 2 entities
 
         return {
             "total_entities": entity_count or 0,

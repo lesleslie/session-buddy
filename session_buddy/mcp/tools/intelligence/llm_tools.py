@@ -487,6 +487,7 @@ def register_llm_tools(mcp: FastMCP) -> None:
             )
 
         """
+
         async def operation(manager: Any) -> str:
             result = await manager.sync_provider_configs(
                 source=source,
