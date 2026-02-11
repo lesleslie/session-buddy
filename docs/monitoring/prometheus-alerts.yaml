@@ -1,0 +1,204 @@
+# Prometheus Alert Rules for Session-Buddy Phase 4
+#
+# Place this file in your Prometheus configuration directory and reference it:
+#
+#   prometheus.yml:
+#     rule_files:
+#       - "session-buddy-alerts.yaml"
+#
+# Reload Prometheus: curl -X POST http://localhost:9090/-/reload
+
+groups:
+  - name: session_buddy_skill_anomalies
+    interval: 30s
+    rules:
+      - alert: SessionBuddyHighAnomalyRate
+        expr: sum(increase(anomalies_detected_total[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+          component: analytics
+        annotations:
+          summary: "High anomaly detection rate ({{ $value }} anomalies in 5m)"
+          description: "More than 5 anomalies detected in the last 5 minutes. Check skill performance."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/anomalies"
+
+      - alert: SessionBuddySkillPerformanceDrop
+        expr: skill_completion_rate{skill_name!="test"} < 0.7
+        for: 5m
+        labels:
+          severity: warning
+          component: analytics
+        annotations:
+          summary: "Skill completion rate below 70%: {{ $labels.skill_name }}"
+          description: "{{ $labels.skill_name }} completion rate is {{ $value | humanizePercentage }} (baseline: 85%+)"
+          runbook_url: "https://docs.session-buddy.dev/runbooks/performance"
+
+      - alert: SessionBuddySkillCriticalFailure
+        expr: skill_completion_rate{skill_name!="test"} < 0.5
+        for: 2m
+        labels:
+          severity: critical
+          component: analytics
+        annotations:
+          summary: "CRITICAL: Skill failure rate above 50%: {{ $labels.skill_name }}"
+          description: "{{ $labels.skill_name }} is failing more than half the time. Immediate investigation required."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/critical-failures"
+
+  - name: session_buddy_system_health
+    interval: 15s
+    rules:
+      - alert: SessionBuddyWebSocketServerDown
+        expr: up{job="session-buddy-websocket"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "WebSocket server is down"
+          description: "Session-Buddy WebSocket server has been down for more than 1 minute."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/websocket"
+
+      - alert: SessionBuddyDatabasePoolExhausted
+        expr: (sqlite_connections_active / sqlite_connections_max) > 0.9
+        for: 2m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database connection pool usage above 90%"
+          description: "{{ $value | humanizePercentage }} of database connections in use."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/database-pool"
+
+      - alert: SessionBuddyDatabasePoolCritical
+        expr: (sqlite_connections_active / sqlite_connections_max) > 0.95
+        for: 30s
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "CRITICAL: Database connection pool exhausted"
+          description: "Only {{ 100 - mul($value, 100) }}% capacity remaining."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/database-pool"
+
+      - alert: SessionBuddyActiveSessionsZero
+        expr: active_sessions_total == 0
+        for: 10m
+        labels:
+          severity: info
+          component: monitoring
+        annotations:
+          summary: "No active sessions for 10 minutes"
+          description: "System may be idle or tracking is broken."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/sessions"
+
+  - name: session_buddy_performance
+    interval: 1m
+    rules:
+      - alert: SessionBuddySlowSkillExecution
+        expr: histogram_quantile(0.95, rate(skill_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "95th percentile execution time above 30s: {{ $labels.skill_name }}"
+          description: "Skill {{ $labels.skill_name }} p95 duration is {{ $value }}s."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/slow-skills"
+
+      - alert: SessionBuddyVerySlowSkillExecution
+        expr: histogram_quantile(0.95, rate(skill_duration_seconds_bucket[5m])) > 60
+        for: 2m
+        labels:
+          severity: critical
+          component: performance
+        annotations:
+          summary: "CRITICAL: 95th percentile execution time above 60s"
+          description: "Skill {{ $labels.skill_name }} p95 duration is {{ $value }}s. Performance severely degraded."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/slow-skills"
+
+      - alert: SessionBuddyHighInvocationRate
+        expr: rate(skill_invocations_total[1m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "High skill invocation rate: {{ $labels.skill_name }}"
+          description: "{{ $labels.skill_name }} invoked {{ $value }}/s for 5 minutes."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/high-load"
+
+  - name: session_buddy_data_quality
+    interval: 5m
+    rules:
+      - alert: SessionBuddyStaleMetricsCache
+        expr: time() - skill_metrics_cache_last_update > 300
+        for: 5m
+        labels:
+          severity: warning
+          component: data_quality
+        annotations:
+          summary: "Metrics cache not updated for 5 minutes"
+          description: "Real-time metrics cache may be stale."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/stale-cache"
+
+      - alert: SessionBuddyMissingSkillMetrics
+        expr: count(skill_completion_rate) < 10
+        for: 10m
+        labels:
+          severity: info
+          component: data_quality
+        annotations:
+          summary: "Less than 10 skills have metrics"
+          description: "Expected more skills to be tracked. Check data collection."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/missing-metrics"
+
+  - name: session_buddy_integration
+    interval: 1m
+    rules:
+      - alert: SessionBuddyCrackerjackIntegrationFailing
+        expr: rate(skill_invocations_total{workflow_phase="execution", skill_name=~".*-fail"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: integration
+        annotations:
+          summary: "Crackerjack integration failures detected"
+          description: "{{ $value | humanize }} failures/sec in Crackerjack workflow."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/crackerjack"
+
+      - alert: SessionBuddyCICDPipelineFailure
+        expr: rate(skill_invocations_total{workflow_phase="execution", completed="false"}[5m]) > 0.2
+        for: 3m
+        labels:
+          severity: critical
+          component: integration
+        annotations:
+          summary: "CI/CD pipeline failure rate above 20%"
+          description: "High failure rate in CI/CD skill invocations."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/cicd"
+
+  - name: session_buddy_predictions
+    interval: 5m
+    rules:
+      - alert: SessionBuddyPredictionAccuracyDrop
+        expr: (skill_prediction_correct / skill_prediction_total) < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          component: ml
+        annotations:
+          summary: "Predictive model accuracy below 70%"
+          description: "Model accuracy is {{ $value | humanizePercentage }}. Retraining may be needed."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/predictions"
+
+      - alert: SessionBuddyABTestSampleSizeInsufficient
+        expr: ab_test_samples_total < ab_test_min_sample_size
+        for: 1h
+        labels:
+          severity: info
+          component: analytics
+        annotations:
+          summary: "A/B test sample size insufficient"
+          description: "Test {{ $labels.test_name }} has only {{ $value }} samples ({{ $labels.min_required }} required)."
+          runbook_url: "https://docs.session-buddy.dev/runbooks/ab-testing"
