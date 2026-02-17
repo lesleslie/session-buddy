@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2026-02-17
+
+### Added
+
+- Add JWT authentication to Session-Buddy WebSocket
+
+### Changed
+
+- Session-buddy (quality: 63/100) - 2026-02-17 08:34:17
+- Session-buddy (quality: 63/100) - 2026-02-17 08:52:43
+- Session-buddy (quality: 63/100) - 2026-02-17 08:55:08
+- Session-buddy (quality: 63/100) - 2026-02-17 08:58:00
+- Session-buddy (quality: 75/100) - 2026-02-17 06:25:18
+- Session-buddy (quality: 75/100) - 2026-02-17 07:39:00
+- Session-buddy (quality: 75/100) - 2026-02-17 08:18:08
+- Update core, docs
+
+### Fixed
+
+- WebSocket integration tests - V4 migration foreign key bug
+
+### Documentation
+
+- Add Phase 4 completion summary
+- Add Phase 4 production monitoring and API documentation
+- Add session checkpoint summary
+
+### Testing
+
+- Add Phase 4 analytics and integration tests
+- Add WebSocket server load testing script
+
+### Internal
+
+- Session checkpoint - Phase 4 complete, production-ready
+- Session checkpoint after Phase 4 WebSocket deployment
+
 ## [0.14.0] - 2026-02-10
 
 ### Added
