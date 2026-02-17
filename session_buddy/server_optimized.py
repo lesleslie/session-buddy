@@ -8,8 +8,15 @@ It's organized into focused modules for better maintainability and performance.
 import sys
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
+from importlib.metadata import version as pkg_version
 from pathlib import Path
 from typing import Any
+
+# Get version from package metadata
+try:
+    __version__ = pkg_version("session-buddy")
+except Exception:
+    __version__ = "0.0.0-unknown"
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent
@@ -129,7 +136,7 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
 
 
 # Initialize MCP server with lifespan
-mcp = FastMCP("session-buddy", lifespan=session_lifecycle)
+mcp = FastMCP("session-buddy", version=__version__, lifespan=session_lifecycle)
 
 # Register modularized tools
 from session_buddy.tools import (
