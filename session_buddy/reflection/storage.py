@@ -183,7 +183,7 @@ async def store_conversation(
             _store()
     else:
         # For normal file-based DB, run in executor for thread safety
-        await asyncio.get_event_loop().run_in_executor(None, _store())
+        await asyncio.get_event_loop().run_in_executor(None, _store)
 
     return conversation_id  # Return legacy ID for compatibility
 
