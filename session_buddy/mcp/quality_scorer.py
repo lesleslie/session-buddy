@@ -63,6 +63,7 @@ class MCPQualityScorer(QualityScorer):
             )
             # Return basic score if MCP server not available
             return {
+                "total_score": 75,  # Add missing key for compatibility
                 "overall": 75,
                 "metrics": {
                     "coverage": {"coverage_pct": 0},
@@ -71,6 +72,10 @@ class MCPQualityScorer(QualityScorer):
                     "security": {"test_count": 0},
                 },
                 "recommendations": [],
+                "project_health": {"total": 75},
+                "permissions_health": {"score": 10},
+                "session_health": {"status": "active"},
+                "tool_health": {"count": 0},
             }
 
     def get_permissions_score(self) -> int:

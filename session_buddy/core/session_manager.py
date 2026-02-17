@@ -203,6 +203,34 @@ class SessionLifecycleManager:
     ) -> tuple[int, dict[str, t.Any]]:
         """Perform quality assessment and return score and data."""
         quality_data = await self.calculate_quality_score(project_dir=project_dir)
+
+        # Defensive check: ensure quality_data is not empty
+        if not quality_data or not isinstance(quality_data, dict):
+            self.logger.error(
+                "calculate_quality_score returned invalid data: type=%s, value=%s",
+                type(quality_data).__name__, quality_data
+            )
+            # Return default score if quality assessment fails
+            return 75, {
+                "total_score": 75,
+                "version": "unknown",
+                "project_health": {"total": 75},
+                "permissions_health": {"score": 10},
+                "session_health": {"status": "unknown"},
+                "tool_health": {"count": 0},
+                "recommendations": ["Quality assessment failed - using default score"],
+                "breakdown": {},
+            }
+
+        # Check for total_score key
+        if "total_score" not in quality_data:
+            self.logger.error(
+                "Quality data missing 'total_score' key. Available keys: %s",
+                list(quality_data.keys())
+            )
+            # Add total_score if missing
+            quality_data["total_score"] = quality_data.get("overall", 75)
+
         quality_score = quality_data["total_score"]
         return quality_score, quality_data
 
