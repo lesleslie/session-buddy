@@ -18,7 +18,7 @@ from session_buddy.core.ulid_generator import generate_ulid
 from pathlib import Path
 
 from session_buddy.core.hooks import HookResult, HooksManager
-from session_buddy.core.quality_scoring import QualityScorer, get_quality_scorer
+from session_buddy.core.quality_scoring import QualityScorer
 from session_buddy.utils.git_operations import (
     create_checkpoint_commit,
     is_git_operation_in_progress,
@@ -54,7 +54,19 @@ class SessionLifecycleManager:
             logger = logging.getLogger(__name__)
 
         self.logger = logger
-        self.quality_scorer = quality_scorer or get_quality_scorer()
+
+        # Use injected scorer or get from DI container
+        if quality_scorer is None:
+            from session_buddy.di import get_sync_typed
+            try:
+                self.quality_scorer = get_sync_typed(QualityScorer)
+            except Exception:
+                # Fallback to DefaultQualityScorer if DI not configured
+                from session_buddy.core.quality_scoring import DefaultQualityScorer
+                self.quality_scorer = DefaultQualityScorer()
+        else:
+            self.quality_scorer = quality_scorer
+
         self.current_project: str | None = None  # CRITICAL: Initialize current project tracking
         self._quality_history: dict[str, list[int]] = {}  # project -> [scores]
         self._captured_insight_hashes: set[str] = (
