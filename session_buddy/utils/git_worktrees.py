@@ -690,9 +690,9 @@ def schedule_automatic_git_gc(
         # Schedule gc in background (non-blocking)
         # Note: prune_delay is now validated, so this is safe
         # SECURITY: Use sanitized environment to prevent sensitive data leakage
-        from .subprocess_executor import popen_safe
+        from .subprocess_executor import SafeSubprocess
 
-        popen_safe(
+        SafeSubprocess.popen_safe(
             ["git", "gc", "--auto", f"--prune={prune_delay}"],
             allowed_commands={"git"},
             cwd=directory,

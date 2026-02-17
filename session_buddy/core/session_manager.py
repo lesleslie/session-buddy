@@ -12,10 +12,8 @@ import typing as t
 from contextlib import suppress
 from datetime import datetime
 
-try:
-    from dhruva import generate as generate_ulid
-except ImportError:
-    generate_ulid = None  # Fallback for ULID
+# Use ULID generator for reliable ID generation
+from session_buddy.core.ulid_generator import generate_ulid
 
 from pathlib import Path
 
@@ -806,39 +804,40 @@ class SessionLifecycleManager:
 
         """
         try:
-            from session_buddy.core.hooks import HookContext, HookType
+            from session_buddy.core.hooks import HookContext, HookResult, HookType, HooksManager
             from session_buddy.di import get_sync_typed
 
             current_dir = Path(working_directory) if working_directory else Path.cwd()
             self.current_project = current_dir.name
 
             # Generate session ID for this checkpoint
-            if generate_ulid:
-                session_id = generate_ulid()
-            else:
-                # Fallback to timestamp-based format
-                session_id = (
-                    f"{self.current_project}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-                )
+            session_id = generate_ulid()
+
+            # Get hooks manager for checkpoint automation
+            hooks_manager: HooksManager | None = None
+            try:
+                hooks_manager = get_sync_typed(HooksManager)
+            except Exception as e:
+                self.logger.warning("Failed to get hooks manager from DI: %s", str(e))
 
             # Execute PRE_CHECKPOINT hooks (quality validation, etc.)
             pre_hooks_results: list[HookResult] = []
-            try:
-                hooks_manager = get_sync_typed(HooksManager)
-                pre_context = HookContext(
-                    hook_type=HookType.PRE_CHECKPOINT,
-                    session_id=session_id,
-                    timestamp=datetime.now(),
-                    metadata={
-                        "working_directory": str(current_dir),
-                        "is_manual": is_manual,
-                    },
-                )
-                pre_hooks_results = await hooks_manager.execute_hooks(
-                    HookType.PRE_CHECKPOINT, pre_context
-                )
-            except Exception as e:
-                self.logger.warning("PRE_CHECKPOINT hooks failed: %s", str(e))
+            if hooks_manager:
+                try:
+                    pre_context = HookContext(
+                        hook_type=HookType.PRE_CHECKPOINT,
+                        session_id=session_id,
+                        timestamp=datetime.now(),
+                        metadata={
+                            "working_directory": str(current_dir),
+                            "is_manual": is_manual,
+                        },
+                    )
+                    pre_hooks_results = await hooks_manager.execute_hooks(
+                        HookType.PRE_CHECKPOINT, pre_context
+                    )
+                except Exception as e:
+                    self.logger.warning("PRE_CHECKPOINT hooks failed: %s", str(e))
 
             # Quality assessment
             self.logger.debug("Starting quality assessment for project: %s", current_dir)
@@ -883,29 +882,30 @@ class SessionLifecycleManager:
             git_output = await self.perform_git_checkpoint(current_dir, quality_score)
 
             # Execute POST_CHECKPOINT hooks (pattern learning, etc.)
-            post_hooks_results = []
-            try:
-                post_context = HookContext(
-                    hook_type=HookType.POST_CHECKPOINT,
-                    session_id=session_id,
-                    timestamp=datetime.now(),
-                    metadata={
-                        "quality_score": quality_score,
-                        "previous_score": previous_score,
-                        "auto_store_decision": auto_store_decision.should_store,
-                        "insights_extracted": insights_extracted,
-                    },
-                    checkpoint_data={
-                        "quality_score": quality_score,
-                        "quality_data": quality_data,
-                        "auto_store_decision": auto_store_decision,
-                    },
-                )
-                post_hooks_results = await hooks_manager.execute_hooks(
-                    HookType.POST_CHECKPOINT, post_context
-                )
-            except Exception as e:
-                self.logger.warning("POST_CHECKPOINT hooks failed: %s", str(e))
+            post_hooks_results: list[HookResult] = []
+            if hooks_manager:
+                try:
+                    post_context = HookContext(
+                        hook_type=HookType.POST_CHECKPOINT,
+                        session_id=session_id,
+                        timestamp=datetime.now(),
+                        metadata={
+                            "quality_score": quality_score,
+                            "previous_score": previous_score,
+                            "auto_store_decision": auto_store_decision.should_store,
+                            "insights_extracted": insights_extracted,
+                        },
+                        checkpoint_data={
+                            "quality_score": quality_score,
+                            "quality_data": quality_data,
+                            "auto_store_decision": auto_store_decision,
+                        },
+                    )
+                    post_hooks_results = await hooks_manager.execute_hooks(
+                        HookType.POST_CHECKPOINT, post_context
+                    )
+                except Exception as e:
+                    self.logger.warning("POST_CHECKPOINT hooks failed: %s", str(e))
 
             # Format results
             quality_output = self.format_quality_results(quality_score, quality_data)

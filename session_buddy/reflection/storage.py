@@ -21,6 +21,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Import ULID generator for conversation IDs
+from session_buddy.core.ulid_generator import generate_ulid
+
 # Text encoding constants for Unicode support
 _SURROGATE_PREFIX = "__SB64__"
 

@@ -1017,9 +1017,9 @@ async def calculate_quality_score(project_dir: Path | None = None) -> dict[str, 
         else 0,
         "session_management": 20,  # Fixed value as in original tests
         "tools": quality_result.trust_score.tool_ecosystem,
-        "code_quality": quality_result.project_health.tooling_score,  # Add code_quality key for tests
-        "dev_velocity": quality_result.dev_velocity.total,  # Use actual dev_velocity score
-        "security": quality_result.security.total,  # Add security key for tests
+        "code_quality": quality_result.code_quality.total,  # Fixed: was using tooling_score instead of code_quality.total
+        "dev_velocity": quality_result.dev_velocity.total,
+        "security": quality_result.security.total,
     }
 
     return result_dict
