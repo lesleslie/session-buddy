@@ -16,10 +16,10 @@ from datetime import UTC, datetime, timedelta
 
 def demo_generate_token():
     """Generate a JWT token for Session-Buddy MCP tools."""
-    import jwt
-
     # Get the secret from environment
     import os
+
+    import jwt
 
     secret = os.getenv("SESSION_BUDDY_SECRET")
     if not secret:
@@ -45,7 +45,7 @@ def demo_generate_token():
     print("✅ JWT Token Generated Successfully")
     print(f"\nToken: {token}")
     print(f"\nPayload: {payload}")
-    print(f"\nAlgorithm: HS256")
+    print("\nAlgorithm: HS256")
     print(f"Expires: {payload['exp']}")
 
     return token
@@ -53,8 +53,9 @@ def demo_generate_token():
 
 def demo_validate_token(token: str):
     """Validate a JWT token."""
-    import jwt
     import os
+
+    import jwt
 
     secret = os.getenv("SESSION_BUDDY_SECRET")
     if not secret:
@@ -87,13 +88,15 @@ def demo_session_buddy_auth():
     try:
         from session_buddy.mcp.auth import (
             JWTManager,
-            validate_token,
-            is_authentication_enabled,
             generate_test_token,
+            is_authentication_enabled,
+            validate_token,
         )
     except ImportError as e:
         print(f"❌ Failed to import session_buddy.mcp.auth: {e}")
-        print("\nMake sure you're running this from the Session-Buddy project directory")
+        print(
+            "\nMake sure you're running this from the Session-Buddy project directory"
+        )
         return
 
     # Check if authentication is enabled
@@ -104,7 +107,9 @@ def demo_session_buddy_auth():
     else:
         print("⚠️  Authentication is DISABLED (SESSION_BUDDY_SECRET not set)")
         print("\nTo enable authentication:")
-        print("  export SESSION_BUDDY_SECRET='$(python -c \"import secrets; print(secrets.token_urlsafe(32))\")'")
+        print(
+            "  export SESSION_BUDDY_SECRET='$(python -c \"import secrets; print(secrets.token_urlsafe(32))\")'"
+        )
         return
 
     # Create JWT manager
@@ -112,7 +117,7 @@ def demo_session_buddy_auth():
     print("-" * 40)
     try:
         manager = JWTManager()
-        print(f"✅ JWT Manager initialized")
+        print("✅ JWT Manager initialized")
         print(f"   Algorithm: {manager.algorithm}")
         print(f"   Expiration: {manager.expire_minutes} minutes")
     except Exception as e:
@@ -127,7 +132,7 @@ def demo_session_buddy_auth():
             user_id="demo_user",
             additional_claims={"role": "developer", "projects": ["mahavishnu"]},
         )
-        print(f"✅ Token created successfully")
+        print("✅ Token created successfully")
         print(f"   Token (first 50 chars): {token[:50]}...")
     except Exception as e:
         print(f"❌ Failed to generate token: {e}")
@@ -138,7 +143,7 @@ def demo_session_buddy_auth():
     print("-" * 40)
     try:
         payload = manager.verify_token(token)
-        print(f"✅ Token verified successfully")
+        print("✅ Token verified successfully")
         print(f"   User ID: {payload['user_id']}")
         print(f"   Role: {payload.get('role', 'N/A')}")
         print(f"   Projects: {payload.get('projects', 'N/A')}")
@@ -152,10 +157,10 @@ def demo_session_buddy_auth():
     print("-" * 40)
     payload = validate_token(token)
     if payload:
-        print(f"✅ Token validated via validate_token()")
+        print("✅ Token validated via validate_token()")
         print(f"   User ID: {payload['user_id']}")
     else:
-        print(f"❌ Token validation failed")
+        print("❌ Token validation failed")
 
     # Test invalid token
     print("\n6. Testing Invalid Token")
@@ -163,18 +168,19 @@ def demo_session_buddy_auth():
     invalid_token = "invalid.token.here"
     payload = validate_token(invalid_token)
     if payload is None:
-        print(f"✅ Invalid token correctly rejected")
+        print("✅ Invalid token correctly rejected")
         from session_buddy.mcp.auth import get_auth_error
+
         print(f"   Error: {get_auth_error()}")
     else:
-        print(f"❌ Invalid token was not rejected")
+        print("❌ Invalid token was not rejected")
 
     # Refresh token
     print("\n7. Refreshing Token")
     print("-" * 40)
     try:
         new_token = manager.refresh_token(token)
-        print(f"✅ Token refreshed successfully")
+        print("✅ Token refreshed successfully")
         print(f"   New token (first 50 chars): {new_token[:50]}...")
 
         # Verify refreshed token has extended expiration
@@ -188,7 +194,7 @@ def demo_session_buddy_auth():
     print("-" * 40)
     try:
         test_token = generate_test_token("test_user")
-        print(f"✅ Test token generated")
+        print("✅ Test token generated")
         print(f"   Token (first 50 chars): {test_token[:50]}...")
     except Exception as e:
         print(f"❌ Failed to generate test token: {e}")

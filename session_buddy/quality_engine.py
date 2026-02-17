@@ -67,12 +67,14 @@ from session_buddy.utils.quality import (
 from session_buddy.utils.quality import (
     process_recent_reflections as _process_recent_reflections,
 )
-from session_buddy.utils.quality_utils import (
+from session_buddy.utils.quality_score_parser import (
     _analyze_quality_trend,
     _extract_quality_scores,
     _generate_quality_trend_recommendations,
-    _get_intelligence_error_result,
     _get_time_based_recommendations,
+)
+from session_buddy.utils.quality_score_parser import (
+    _get_intelligence_error_result,
 )
 from session_buddy.utils.quality_utils_v2 import calculate_quality_score_v2
 from session_buddy.utils.session_formatters import _add_current_session_context

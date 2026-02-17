@@ -1,32 +1,35 @@
 # 🎯 Phase 3: Semantic Relationship Enhancement
+
 **Status:** 📋 PLANNED (Not yet implemented)
 **Dependencies:** Phase 2 (Auto-Discovery) - ✅ COMPLETE
 **Estimated Effort:** 2-3 hours
 **Priority:** Medium (Optional enhancement)
 
----
+______________________________________________________________________
 
 ## Phase 3 Overview
 
 Building on the massive success of Phase 2 (27.3x connectivity improvement), Phase 3 focuses on **making relationships smarter and more expressive** through:
 
 1. **Relationship Type Hierarchy** - Rich relationship vocabulary
-2. **Confidence Scoring** - Track relationship quality/strength
-3. **Transitive Relationships** - A uses B, B uses C → A uses C
-4. **Contextual Pattern Extraction** - Auto-detect relationship types from observations
+1. **Confidence Scoring** - Track relationship quality/strength
+1. **Transitive Relationships** - A uses B, B uses C → A uses C
+1. **Contextual Pattern Extraction** - Auto-detect relationship types from observations
 
----
+______________________________________________________________________
 
 ## Phase 3 Components
 
 ### 1. Relationship Type Hierarchy
 
 **Current (Phase 2):**
+
 ```
 related_to (generic, catch-all)
 ```
 
 **Enhanced (Phase 3):**
+
 ```
 related_to (generic, low similarity 0.70-0.75)
 ├── similar_to (medium similarity 0.75-0.85)
@@ -51,6 +54,7 @@ related_to (generic, low similarity 0.70-0.75)
 ### 2. Confidence Scoring System
 
 **Add metadata to relationships:**
+
 ```python
 {
     "similarity": 0.87,          # Cosine similarity
@@ -65,6 +69,7 @@ related_to (generic, low similarity 0.70-0.75)
 ### 3. Transitive Relationship Discovery
 
 **Example:**
+
 ```
 If: session-buddy → uses → FastMCP
 And: FastMCP → extends → MCP
@@ -72,6 +77,7 @@ Then: session-buddy → uses → MCP (transitive)
 ```
 
 **Algorithm:**
+
 ```python
 async def discover_transitive_relationships(max_depth: int = 3):
     """Discover transitive relationships (A→B→C implies A→C)."""
@@ -96,13 +102,14 @@ FastMCP --[used_by]--> session-buddy
 ```
 
 **Pattern Matching:**
+
 - "X uses Y" → uses relationship
 - "X extends Y" → extends relationship
 - "X depends on Y" → depends_on relationship
 - "X is part of Y" → part_of relationship
 - "X implements Y" → implements relationship
 
----
+______________________________________________________________________
 
 ## Implementation Plan
 
@@ -111,6 +118,7 @@ FastMCP --[used_by]--> session-buddy
 **File:** `session_buddy/adapters/knowledge_graph_adapter_oneiric.py`
 
 **Add to `_infer_relationship_type()`:**
+
 ```python
 def _infer_relationship_type(
     from_type: str,
@@ -161,6 +169,7 @@ def _infer_relationship_type(
 ### Step 2: Confidence Scoring (30 min)
 
 **Update `create_relation()`:**
+
 ```python
 async def create_relation(
     self,
@@ -185,6 +194,7 @@ async def create_relation(
 ### Step 3: Transitive Discovery (60 min)
 
 **New method:**
+
 ```python
 async def discover_transitive_relationships(
     self,
@@ -206,6 +216,7 @@ async def discover_transitive_relationships(
 ### Step 4: Pattern Extraction (45 min)
 
 **New method:**
+
 ```python
 def _extract_relationships_from_observations(
     self,
@@ -253,11 +264,12 @@ def _extract_relationships_from_observations(
     return relationships
 ```
 
----
+______________________________________________________________________
 
 ## Expected Results
 
 ### Before Phase 3 (Current)
+
 ```
 Relationships: 519
 Types: 6 generic types
@@ -270,6 +282,7 @@ Types: 6 generic types
 ```
 
 ### After Phase 3 (Target)
+
 ```
 Relationships: 600-700 (+100-200)
 Types: 15+ expressive types
@@ -286,24 +299,26 @@ Types: 15+ expressive types
 ```
 
 ### Quality Improvements
+
 - **More granular** - 15+ types vs 6 generic types
 - **Confidence tracking** - Know which relationships are strong/weak
 - **Transitive closure** - Discover hidden connections
 - **Evidence-based** - Support relationships with observation patterns
 
----
+______________________________________________________________________
 
 ## Success Criteria
 
 ✅ **Complete when:**
-1. [ ] Relationship type hierarchy implemented
-2. [ ] Confidence scoring added to all relationships
-3. [ ] Transitive relationship discovery functional
-4. [ ] Pattern extraction from observations working
-5. [ ] 15+ relationship types in use
-6. [ ] Relationship quality metrics available
 
----
+1. [ ] Relationship type hierarchy implemented
+1. [ ] Confidence scoring added to all relationships
+1. [ ] Transitive relationship discovery functional
+1. [ ] Pattern extraction from observations working
+1. [ ] 15+ relationship types in use
+1. [ ] Relationship quality metrics available
+
+______________________________________________________________________
 
 ## Activation Command (When Implemented)
 
@@ -312,7 +327,7 @@ Types: 15+ expressive types
 python scripts/activate_phase3_enhanced.py --extract-patterns --transitive
 ```
 
----
+______________________________________________________________________
 
 ## Recommendation
 
@@ -321,18 +336,20 @@ python scripts/activate_phase3_enhanced.py --extract-patterns --transitive
 **Reason:** Phase 2 already achieved **excellent results** (0.869 connectivity vs 0.2-0.5 target). Phase 3 provides **incremental value** for specialized use cases:
 
 **Do Phase 3 if:**
+
 - ✅ You need very granular relationship types
 - ✅ You want confidence scoring for query ranking
 - ✅ You need transitive relationship queries
 - ✅ You want pattern extraction from observations
 
 **Skip Phase 3 if:**
+
 - ✅ Current 0.869 connectivity is sufficient
 - ✅ Generic "related_to" relationships meet your needs
 - ✅ You have higher priority features to implement
 
 **My Assessment:** Phase 2 was the critical breakthrough (27x improvement). Phase 3 is a **nice-to-have** enhancement that can be implemented later when specific use cases arise.
 
----
+______________________________________________________________________
 
 **Documentation:** See `KNOWLEDGE_GRAPH_CONNECTIVITY_PLAN.md` for full details.

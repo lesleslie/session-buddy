@@ -130,21 +130,59 @@ async def store_conversation(
         lock: Optional lock for thread-safe temp DB access
 
     Returns:
-        Conversation ID
+        Conversation ID (MD5 hash) and ULID
 
     Example:
         >>> from session_buddy.reflection import ReflectionDatabase
         >>> db = ReflectionDatabase()
         >>> await db.initialize()
-        >>> conv_id = await store_conversation(
+        >>> result = await store_conversation(
         ...     db, "Hello world", {"project": "test"}, None
         ... )
+        >>> # Returns: {"conversation_id": "...", "conversation_ulid": "..."}
     """
-    # Generate conversation ID
+    # Generate conversation ID (MD5 hash - legacy)
     conversation_id = hashlib.md5(
         f"{content}_{time.time()}".encode("utf-8", "surrogatepass"),
         usedforsecurity=False,
     ).hexdigest()
+
+    # Generate conversation ULID (new format)
+    conversation_ulid = generate_ulid()
+
+    # Encode content for database
+    db_content = _encode_text_for_db(content)
+
+    # Get connection if db is ReflectionDatabase instance
+    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+
+    # Insert into database
+    def _store() -> None:
+        conn.execute(
+            """
+            INSERT INTO conversations (id, content, embedding, project, timestamp, metadata, conversation_ulid)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                conversation_id,
+                db_content,
+                embedding,
+                metadata.get("project") if metadata else None,
+                datetime.now(UTC),
+                _serialize_metadata(metadata),
+                conversation_ulid,
+            ],
+        )
+
+    if is_temp_db and lock:
+        # For temp DB, use lock to protect database operations
+        with lock:
+            _store()
+    else:
+        # For normal file-based DB, run in executor for thread safety
+        await asyncio.get_event_loop().run_in_executor(None, _store())
+
+    return conversation_id  # Return legacy ID for compatibility
 
     # Encode content for database
     db_content = _encode_text_for_db(content)
@@ -306,6 +344,7 @@ async def get_conversation(
             "project": result[3],  # type: ignore[misc]
             "timestamp": result[4],  # type: ignore[misc]
             "metadata": _parse_metadata(result[5]),  # type: ignore[misc]
+            "reflection_ulid": result[6] if len(result) > 6 else None,  # type: ignore[misc]
         }
 
     if is_temp_db and lock:
@@ -322,11 +361,11 @@ async def get_reflection(
     is_temp_db: bool = False,
     lock: Any = None,
 ) -> dict[str, Any] | None:
-    """Get a reflection by ID.
+    """Get a reflection by ID (supports both MD5 and ULID).
 
     Args:
         db: Database connection (or ReflectionDatabase instance)
-        refl_id: Reflection ID
+        refl_id: Reflection ID (MD5 hash or ULID)
         is_temp_db: Whether this is an in-memory temp DB
         lock: Optional lock for thread-safe temp DB access
 
@@ -334,9 +373,14 @@ async def get_reflection(
         Reflection dict or None if not found
 
     Example:
-        >>> refl = await get_reflection(db, "xyz789")
-        >>> if refl:
-        ...     print(refl["content"])
+        >>> from session_buddy.reflection import ReflectionDatabase
+        >>> db = ReflectionDatabase()
+        >>> await db.initialize()
+        >>> # Query by MD5 ID
+        >>> refl = await get_reflection(db, "abc123")
+        >>> # Query by ULID
+        >>> refl_ulid = await get_reflection_by_ulid(db, "01ARZ3NDEKTS6PQRYF")
+
     """
     # Get connection if db is ReflectionDatabase instance
     conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
@@ -344,7 +388,7 @@ async def get_reflection(
     def _get() -> dict[str, Any] | None:
         result = conn.execute(
             """
-            SELECT id, content, embedding, project, tags, timestamp, metadata
+            SELECT id, content, embedding, project, tags, timestamp, metadata, reflection_ulid
             FROM reflections
             WHERE id = ?
             """,
@@ -362,6 +406,7 @@ async def get_reflection(
             "tags": result[4] or [],  # type: ignore[misc]
             "timestamp": result[5],  # type: ignore[misc]
             "metadata": _parse_metadata(result[6]),  # type: ignore[misc]
+            "reflection_ulid": result[7] if len(result) > 7 else None,  # type: ignore[misc]
         }
 
     if is_temp_db and lock:

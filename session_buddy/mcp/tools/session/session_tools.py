@@ -541,12 +541,19 @@ def _add_quality_section_to_output(
     breakdown: dict[str, Any],
 ) -> None:
     """Add quality breakdown to output. Target complexity: ≤5."""
-    quality_items = [
-        f"   • Code quality: {breakdown['code_quality']:.1f}/40",
-        f"   • Project health: {breakdown['project_health']:.1f}/30",
-        f"   • Dev velocity: {breakdown['dev_velocity']:.1f}/20",
-        f"   • Security: {breakdown['security']:.1f}/10",
-    ]
+    try:
+        quality_items = [
+            f"   • Code quality: {breakdown['code_quality']:.1f}/40",
+            f"   • Project health: {breakdown['project_health']:.1f}/30",
+            f"   • Dev velocity: {breakdown['dev_velocity']:.1f}/20",
+            f"   • Security: {breakdown['security']:.1f}/10",
+        ]
+        output_builder.add_section("Quality Metrics", quality_items)
+    except KeyError as e:
+        import traceback
+        _get_logger().exception("Failed to format quality breakdown: %s", str(e))
+        traceback.print_exc()
+        output_builder.add_section("Quality Metrics", ["⚠️  Error formatting quality metrics"])
     output_builder.add_section("📈 Quality breakdown", quality_items)
 
 
@@ -770,6 +777,16 @@ async def _checkpoint_impl(working_directory: str | None = None) -> str:
             working_directory,
             is_manual=True,
         )
+
+        # Validate result has expected keys
+        if result.get("success") and isinstance(result.get("quality_data", {}), dict):
+            if "total_score" not in result.get("quality_data", {}):
+                _get_logger().error(
+                    "Quality data missing 'total_score' key. Keys: %s",
+                    list(result.get("quality_data", {}).keys())
+                )
+                result["success"] = False
+                result["error"] = "Quality data missing 'total_score' key"
 
         if result["success"]:
             # Add quality assessment output

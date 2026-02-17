@@ -52,9 +52,7 @@ def analyze_coverage(coverage_file: Path) -> dict:
     # Calculate percentages
     for module, data in module_coverage.items():
         if data["total_lines"] > 0:
-            data["percent_covered"] = (
-                data["covered_lines"] / data["total_lines"] * 100
-            )
+            data["percent_covered"] = data["covered_lines"] / data["total_lines"] * 100
         else:
             data["percent_covered"] = 0.0
 

@@ -86,6 +86,9 @@ from .session.migration_tools import register_migration_tools
 from .session.prompt_tools import register_prompt_tools
 from .session.session_tools import register_session_tools
 
+# Skills tools (Phase 4 Analytics)
+from .skills.phase4_tools import register_phase4_tools
+
 __all__ = [
     # Advanced
     "register_conscious_agent_tools",
@@ -127,6 +130,8 @@ __all__ = [
     "register_migration_tools",
     "register_prompt_tools",
     "register_session_tools",
+    # Skills
+    "register_phase4_tools",
     # Subscribers
     "register_code_graph_tools",
 ]

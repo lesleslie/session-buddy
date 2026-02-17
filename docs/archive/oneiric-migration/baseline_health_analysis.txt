@@ -1,0 +1,2 @@
+Baseline artifact removed during root cleanup.
+Regenerate by documenting health/status behavior (ports 8677/8678, PID checks, snapshots).

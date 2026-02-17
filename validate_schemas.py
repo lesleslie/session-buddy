@@ -5,7 +5,6 @@ This script demonstrates the JSON Schema functionality without requiring
 full package imports.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -21,16 +20,15 @@ def test_session_buddy():
 
     # Import event_models module
     import importlib.util
+
     spec = importlib.util.spec_from_file_location(
-        "event_models",
-        "session_buddy/mcp/event_models.py"
+        "event_models", "session_buddy/mcp/event_models.py"
     )
     event_models = importlib.util.module_from_spec(spec)
 
     # Import schemas module
     spec2 = importlib.util.spec_from_file_location(
-        "schemas",
-        "session_buddy/mcp/schemas.py"
+        "schemas", "session_buddy/mcp/schemas.py"
     )
     schemas = importlib.util.module_from_spec(spec2)
 
@@ -45,19 +43,19 @@ def test_session_buddy():
         print("Testing JSON Schema files directly...")
 
     # Read and validate the event_models.py file
-    with open('session_buddy/mcp/event_models.py', 'r') as f:
+    with open("session_buddy/mcp/event_models.py") as f:
         content = f.read()
 
     # Check for key components
     checks = [
-        ('JsonSchemaMixin class', 'class JsonSchemaMixin:'),
-        ('json_schema() method', 'def json_schema(cls)'),
-        ('validate_json() method', 'def validate_json(cls'),
-        ('validate_json_safe() method', 'def validate_json_safe('),
-        ('SessionStartEvent', 'class SessionStartEvent(BaseModel, JsonSchemaMixin):'),
-        ('SessionEndEvent', 'class SessionEndEvent(BaseModel, JsonSchemaMixin):'),
-        ('UserInfo', 'class UserInfo(BaseModel, JsonSchemaMixin):'),
-        ('EnvironmentInfo', 'class EnvironmentInfo(BaseModel, JsonSchemaMixin):'),
+        ("JsonSchemaMixin class", "class JsonSchemaMixin:"),
+        ("json_schema() method", "def json_schema(cls)"),
+        ("validate_json() method", "def validate_json(cls"),
+        ("validate_json_safe() method", "def validate_json_safe("),
+        ("SessionStartEvent", "class SessionStartEvent(BaseModel, JsonSchemaMixin):"),
+        ("SessionEndEvent", "class SessionEndEvent(BaseModel, JsonSchemaMixin):"),
+        ("UserInfo", "class UserInfo(BaseModel, JsonSchemaMixin):"),
+        ("EnvironmentInfo", "class EnvironmentInfo(BaseModel, JsonSchemaMixin):"),
     ]
 
     print("\nChecking event_models.py:")
@@ -69,18 +67,18 @@ def test_session_buddy():
             return False
 
     # Check schemas.py
-    with open('session_buddy/mcp/schemas.py', 'r') as f:
+    with open("session_buddy/mcp/schemas.py") as f:
         content = f.read()
 
     checks2 = [
-        ('SchemaRegistry class', 'class SchemaRegistry:'),
-        ('get_all_schemas()', 'def get_all_schemas()'),
-        ('get_schema()', 'def get_schema('),
-        ('validate_event_json()', 'def validate_event_json('),
-        ('export_schemas_to_file()', 'def export_schemas_to_file('),
-        ('get_schema_version()', 'def get_schema_version()'),
-        ('check_schema_compatibility()', 'def check_schema_compatibility('),
-        ('get_schema_changelog()', 'def get_schema_changelog('),
+        ("SchemaRegistry class", "class SchemaRegistry:"),
+        ("get_all_schemas()", "def get_all_schemas()"),
+        ("get_schema()", "def get_schema("),
+        ("validate_event_json()", "def validate_event_json("),
+        ("export_schemas_to_file()", "def export_schemas_to_file("),
+        ("get_schema_version()", "def get_schema_version()"),
+        ("check_schema_compatibility()", "def check_schema_compatibility("),
+        ("get_schema_changelog()", "def get_schema_changelog("),
     ]
 
     print("\nChecking schemas.py:")
@@ -92,16 +90,16 @@ def test_session_buddy():
             return False
 
     # Check documentation
-    doc_file = Path('docs/JSON_SCHEMA_REFERENCE.md')
+    doc_file = Path("docs/JSON_SCHEMA_REFERENCE.md")
     if doc_file.exists():
-        with open(doc_file, 'r') as f:
+        with open(doc_file) as f:
             doc_content = f.read()
 
         doc_checks = [
-            ('JSON Schema export section', '## JSON Schema Export'),
-            ('Validation examples', '## Validation Examples'),
-            ('Schema registry', '### Using Schema Registry'),
-            ('API reference', '## API Reference'),
+            ("JSON Schema export section", "## JSON Schema Export"),
+            ("Validation examples", "## Validation Examples"),
+            ("Schema registry", "### Using Schema Registry"),
+            ("API reference", "## API Reference"),
         ]
 
         print("\nChecking documentation:")
@@ -110,9 +108,9 @@ def test_session_buddy():
                 print(f"  ✓ {name}")
             else:
                 print(f"  ✗ {name} NOT FOUND")
-        print(f"  ✓ Documentation file exists")
+        print("  ✓ Documentation file exists")
     else:
-        print(f"  ✗ Documentation file NOT FOUND")
+        print("  ✗ Documentation file NOT FOUND")
         return False
 
     print("\n✅ Session-Buddy validation passed!")
@@ -126,27 +124,27 @@ def test_mahavishnu():
     print("=" * 60)
 
     # Check event_models.py
-    event_models_file = Path('oneiric/shell/event_models.py')
+    event_models_file = Path("oneiric/shell/event_models.py")
     if not event_models_file.exists():
         print(f"  ✗ event_models.py NOT FOUND at {event_models_file}")
         return False
 
-    with open(event_models_file, 'r') as f:
+    with open(event_models_file) as f:
         content = f.read()
 
     checks = [
-        ('JsonSchemaMixin class', 'class JsonSchemaMixin:'),
-        ('json_schema() method', 'def json_schema(cls)'),
-        ('validate_json() method', 'def validate_json(cls'),
-        ('validate_json_safe() method', 'def validate_json_safe('),
-        ('SessionStartEvent', 'class SessionStartEvent(BaseModel, JsonSchemaMixin):'),
-        ('SessionEndEvent', 'class SessionEndEvent(BaseModel, JsonSchemaMixin):'),
-        ('UserInfo', 'class UserInfo(BaseModel, JsonSchemaMixin):'),
-        ('EnvironmentInfo', 'class EnvironmentInfo(BaseModel, JsonSchemaMixin):'),
-        ('SessionStartEvent.create()', 'def create('),
-        ('SessionEndEvent.create()', 'def create('),
-        ('UserInfo.from_system()', 'def from_system('),
-        ('EnvironmentInfo.from_system()', 'def from_system('),
+        ("JsonSchemaMixin class", "class JsonSchemaMixin:"),
+        ("json_schema() method", "def json_schema(cls)"),
+        ("validate_json() method", "def validate_json(cls"),
+        ("validate_json_safe() method", "def validate_json_safe("),
+        ("SessionStartEvent", "class SessionStartEvent(BaseModel, JsonSchemaMixin):"),
+        ("SessionEndEvent", "class SessionEndEvent(BaseModel, JsonSchemaMixin):"),
+        ("UserInfo", "class UserInfo(BaseModel, JsonSchemaMixin):"),
+        ("EnvironmentInfo", "class EnvironmentInfo(BaseModel, JsonSchemaMixin):"),
+        ("SessionStartEvent.create()", "def create("),
+        ("SessionEndEvent.create()", "def create("),
+        ("UserInfo.from_system()", "def from_system("),
+        ("EnvironmentInfo.from_system()", "def from_system("),
     ]
 
     print("\nChecking event_models.py:")
@@ -158,23 +156,23 @@ def test_mahavishnu():
             return False
 
     # Check schemas.py
-    schemas_file = Path('oneiric/shell/schemas.py')
+    schemas_file = Path("oneiric/shell/schemas.py")
     if not schemas_file.exists():
         print(f"  ✗ schemas.py NOT FOUND at {schemas_file}")
         return False
 
-    with open(schemas_file, 'r') as f:
+    with open(schemas_file) as f:
         content = f.read()
 
     checks2 = [
-        ('SchemaRegistry class', 'class SchemaRegistry:'),
-        ('get_all_schemas()', 'def get_all_schemas()'),
-        ('get_schema()', 'def get_schema('),
-        ('validate_event_json()', 'def validate_event_json('),
-        ('export_schemas_to_file()', 'def export_schemas_to_file('),
-        ('get_schema_version()', 'def get_schema_version()'),
-        ('check_schema_compatibility()', 'def check_schema_compatibility('),
-        ('get_schema_changelog()', 'def get_schema_changelog('),
+        ("SchemaRegistry class", "class SchemaRegistry:"),
+        ("get_all_schemas()", "def get_all_schemas()"),
+        ("get_schema()", "def get_schema("),
+        ("validate_event_json()", "def validate_event_json("),
+        ("export_schemas_to_file()", "def export_schemas_to_file("),
+        ("get_schema_version()", "def get_schema_version()"),
+        ("check_schema_compatibility()", "def check_schema_compatibility("),
+        ("get_schema_changelog()", "def get_schema_changelog("),
     ]
 
     print("\nChecking schemas.py:")
@@ -186,16 +184,16 @@ def test_mahavishnu():
             return False
 
     # Check documentation
-    doc_file = Path('docs/EVENT_SCHEMA_REFERENCE.md')
+    doc_file = Path("docs/EVENT_SCHEMA_REFERENCE.md")
     if doc_file.exists():
-        with open(doc_file, 'r') as f:
+        with open(doc_file) as f:
             doc_content = f.read()
 
         doc_checks = [
-            ('Event creation section', '## Creating Events'),
-            ('Validation examples', '## Validation Examples'),
-            ('Schema registry', '### Using Schema Registry'),
-            ('Integration guide', '## Integration with Session-Buddy'),
+            ("Event creation section", "## Creating Events"),
+            ("Validation examples", "## Validation Examples"),
+            ("Schema registry", "### Using Schema Registry"),
+            ("Integration guide", "## Integration with Session-Buddy"),
         ]
 
         print("\nChecking documentation:")
@@ -204,9 +202,9 @@ def test_mahavishnu():
                 print(f"  ✓ {name}")
             else:
                 print(f"  ✗ {name} NOT FOUND")
-        print(f"  ✓ Documentation file exists")
+        print("  ✓ Documentation file exists")
     else:
-        print(f"  ✗ Documentation file NOT FOUND")
+        print("  ✗ Documentation file NOT FOUND")
         return False
 
     print("\n✅ Mahavishnu/Oneiric validation passed!")
@@ -245,5 +243,5 @@ def main():
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

@@ -28,6 +28,7 @@ from .tools import (
     register_monitoring_tools,
     register_oneiric_discovery_tools,
     register_phase3_knowledge_graph_tools,
+    register_phase4_tools,  # Phase 4 Skills Analytics
     register_pool_tools,
     register_prompt_tools,
     register_search_tools,
@@ -58,6 +59,7 @@ register_hooks_tools(mcp)  # type: ignore[argument-type]
 register_intent_tools(mcp)  # type: ignore[argument-type]
 register_knowledge_graph_tools(mcp)  # type: ignore[argument-type]
 register_phase3_knowledge_graph_tools(mcp)  # type: ignore[argument-type]
+register_phase4_tools(mcp)  # type: ignore[argument-type]
 register_llm_tools(mcp)  # type: ignore[argument-type]
 register_migration_tools(mcp)  # type: ignore[argument-type]
 register_monitoring_tools(mcp)  # type: ignore[argument-type]

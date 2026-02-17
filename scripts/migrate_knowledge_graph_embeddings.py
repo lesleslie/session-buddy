@@ -47,9 +47,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-async def add_embedding_column(
-    conn: Any, dry_run: bool = False
-) -> bool:
+async def add_embedding_column(conn: Any, dry_run: bool = False) -> bool:
     """Add embedding column to kg_entities table.
 
     Args:
@@ -84,9 +82,7 @@ async def add_embedding_column(
         return False
 
 
-async def generate_embedding_for_entity(
-    entity: dict[str, Any]
-) -> list[float] | None:
+async def generate_embedding_for_entity(entity: dict[str, Any]) -> list[float] | None:
     """Generate embedding for a single entity.
 
     Args:
@@ -202,7 +198,9 @@ async def migrate_embeddings(
         batch_num = i // batch_size + 1
         total_batches = (total + batch_size - 1) // batch_size
 
-        print(f"\nBatch {batch_num}/{total_batches} (entities {i+1}-{min(i+batch_size, total)})")
+        print(
+            f"\nBatch {batch_num}/{total_batches} (entities {i + 1}-{min(i + batch_size, total)})"
+        )
 
         for entity in batch:
             processed_count += 1
@@ -234,7 +232,9 @@ async def migrate_embeddings(
 
             # Progress indicator
             if processed_count % 10 == 0:
-                print(f"  Progress: {processed_count}/{total} ({processed_count*100//total}%)")
+                print(
+                    f"  Progress: {processed_count}/{total} ({processed_count * 100 // total}%)"
+                )
 
     # Summary
     print("\n=== Migration Summary ===")

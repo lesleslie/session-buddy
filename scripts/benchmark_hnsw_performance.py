@@ -79,7 +79,7 @@ async def benchmark_hnsw_search(
         query = topics[i % len(topics)]
 
         start = time.perf_counter()
-        results = await adapter.search_conversations(query, limit=10, threshold=0.0)
+        await adapter.search_conversations(query, limit=10, threshold=0.0)
         end = time.perf_counter()
 
         latency_ms = (end - start) * 1000

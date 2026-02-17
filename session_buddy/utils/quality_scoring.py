@@ -741,8 +741,11 @@ def _create_fallback_metrics(coverage_pct: float) -> dict[str, Any]:
     }
 
 
-async def _get_crackerjack_metrics(project_dir: Path) -> dict[str, Any]:
+async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
     """Get Crackerjack quality metrics with caching."""
+    # Ensure project_dir is a Path object
+    if isinstance(project_dir, str):
+        project_dir = Path(project_dir)
     cache_key = str(project_dir.resolve())
 
     # Check cache

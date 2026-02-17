@@ -42,7 +42,7 @@ def benchmark_deepcopy():
     iterations = 1000
     start = time.perf_counter()
     for _ in range(iterations):
-        env = old_method()
+        old_method()
     end = time.perf_counter()
 
     elapsed_ms = (end - start) * 1000
@@ -88,7 +88,7 @@ def benchmark_dict_comprehension():
     iterations = 1000
     start = time.perf_counter()
     for _ in range(iterations):
-        env = new_method()
+        new_method()
     end = time.perf_counter()
 
     elapsed_ms = (end - start) * 1000

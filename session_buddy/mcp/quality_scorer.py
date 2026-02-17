@@ -54,7 +54,7 @@ class MCPQualityScorer(QualityScorer):
         # Import here to avoid circular dependency at module load time
         # This is safe because we're in the MCP layer
         try:
-            from session_buddy.mcp.server import calculate_quality_score
+            from session_buddy.quality_engine import calculate_quality_score
 
             return await calculate_quality_score(project_dir=project_dir)
         except ImportError:

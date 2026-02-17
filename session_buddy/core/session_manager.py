@@ -11,6 +11,12 @@ import shutil
 import typing as t
 from contextlib import suppress
 from datetime import datetime
+
+try:
+    from dhruva import generate as generate_ulid
+except ImportError:
+    generate_ulid = None  # Fallback for ULID
+
 from pathlib import Path
 
 from session_buddy.core.hooks import HookResult, HooksManager
@@ -51,7 +57,7 @@ class SessionLifecycleManager:
 
         self.logger = logger
         self.quality_scorer = quality_scorer or get_quality_scorer()
-        self.current_project: str | None = None
+        self.current_project: str | None = None  # CRITICAL: Initialize current project tracking
         self._quality_history: dict[str, list[int]] = {}  # project -> [scores]
         self._captured_insight_hashes: set[str] = (
             set()
@@ -99,9 +105,13 @@ class SessionLifecycleManager:
 
         """
         # Use injected quality scorer (follows Dependency Inversion Principle)
-        return await self.quality_scorer.calculate_quality_score(
+        scorer_info = f"{type(self.quality_scorer).__name__} from {getattr(self.quality_scorer, '__module__', 'unknown')}"
+        self.logger.debug("Using quality scorer: %s", scorer_info)
+        result = await self.quality_scorer.calculate_quality_score(
             project_dir=project_dir
         )
+        self.logger.debug("Quality scorer returned type=%s, keys=%s", type(result).__name__, list(result.keys()) if isinstance(result, dict) else "not a dict")
+        return result
 
     def _calculate_project_score(self, project_context: dict[str, bool]) -> float:
         """Calculate project health score (40% of total)."""
@@ -249,15 +259,20 @@ class SessionLifecycleManager:
 
         # Quality breakdown - V2 format (actual code quality metrics)
         output.append("\n📈 Quality breakdown (code health metrics):")
-        breakdown = quality_data["breakdown"]
-        output.extend(
-            (
-                f"   • Code quality: {breakdown['code_quality']:.1f}/40",
-                f"   • Project health: {breakdown['project_health']:.1f}/30",
-                f"   • Dev velocity: {breakdown['dev_velocity']:.1f}/20",
-                f"   • Security: {breakdown['security']:.1f}/10",
+
+        try:
+            breakdown = quality_data.get("breakdown", {})
+            output.extend(
+                (
+                    f"   • Code quality: {breakdown.get('code_quality', 0):.1f}/40",
+                    f"   • Project health: {breakdown.get('project_health', 0):.1f}/30",
+                    f"   • Dev velocity: {breakdown.get('dev_velocity', 0):.1f}/20",
+                    f"   • Security: {breakdown.get('security', 0):.1f}/10",
+                )
             )
-        )
+        except (KeyError, TypeError, AttributeError) as e:
+            self.logger.warning("Failed to format quality breakdown: %s", str(e))
+            output.append("   • Quality breakdown: unavailable")
 
         # Trust score (separate from quality) - extracted to helper
         if "trust_score" in quality_data:
@@ -770,9 +785,13 @@ class SessionLifecycleManager:
             self.current_project = current_dir.name
 
             # Generate session ID for this checkpoint
-            session_id = (
-                f"{self.current_project}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-            )
+            if generate_ulid:
+                session_id = generate_ulid()
+            else:
+                # Fallback to timestamp-based format
+                session_id = (
+                    f"{self.current_project}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+                )
 
             # Execute PRE_CHECKPOINT hooks (quality validation, etc.)
             pre_hooks_results: list[HookResult] = []
@@ -794,9 +813,12 @@ class SessionLifecycleManager:
                 self.logger.warning("PRE_CHECKPOINT hooks failed: %s", str(e))
 
             # Quality assessment
+            self.logger.debug("Starting quality assessment for project: %s", current_dir)
             quality_score, quality_data = await self.perform_quality_assessment(
                 project_dir=current_dir,
             )
+            self.logger.debug("Quality assessment complete. score=%d, data_type=%s, has_breakdown=%s",
+                quality_score, type(quality_data).__name__, "breakdown" in quality_data if isinstance(quality_data, dict) else False)
 
             # Get previous score for trend analysis
             previous_score = self.get_previous_quality_score(self.current_project)
@@ -883,8 +905,10 @@ class SessionLifecycleManager:
             }
 
         except Exception as e:
+            import traceback
             self.logger.exception("Session checkpoint failed, error=%s", str(e))
-            return {"success": False, "error": str(e)}
+            traceback.print_exc()  # Print full traceback for debugging
+            return {"success": False, "error": f"{type(e).__name__}: {e}"}
 
     async def _extract_and_store_insights(
         self,

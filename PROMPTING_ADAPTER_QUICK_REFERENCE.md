@@ -2,7 +2,7 @@
 
 **Decision:** Keep in **mcp-common** (current location) ✅
 
----
+______________________________________________________________________
 
 ## TL;DR
 
@@ -14,7 +14,7 @@
 | **Documentation** | Add platform-specific install guide | 🔄 IMPROVE |
 | **Error Messages** | Enhance with fallback suggestions | 🔄 IMPROVE |
 
----
+______________________________________________________________________
 
 ## Why Keep in mcp-common?
 
@@ -50,7 +50,7 @@ from mcp_common.prompting import create_prompt_adapter
 adapter = create_prompt_adapter()  # Auto-detects best backend
 ```
 
----
+______________________________________________________________________
 
 ## Current Installation Patterns
 
@@ -79,13 +79,14 @@ pip install 'mcp-common[all-prompts]'
 | Windows | prompt-toolkit | N/A |
 | CI/Headless | Error (future: no-op) | N/A |
 
----
+______________________________________________________________________
 
 ## Why NOT Other Locations?
 
 ### Oneiric? ❌
 
 **Problems:**
+
 - Breaking change (requires migration)
 - Adds dependency to all MCP servers
 - Oneiric = CLI/config, not UI focus
@@ -93,11 +94,12 @@ pip install 'mcp-common[all-prompts]'
 
 **Verdict:** More complexity than benefit
 
----
+______________________________________________________________________
 
 ### Standalone Package? ❌
 
 **Problems:**
+
 - Yet another package to maintain
 - Duplicate dependencies (Pydantic, Rich)
 - Ecosystem fragmentation
@@ -105,13 +107,14 @@ pip install 'mcp-common[all-prompts]'
 
 **Verdict:** Maintenance nightmare, no upside
 
----
+______________________________________________________________________
 
 ## Recommended Improvements
 
 ### 1. Version Pinning (High Priority 🔄)
 
 **Current:**
+
 ```toml
 [project.optional-dependencies]
 macos-prompts = ["pyobjc-core>=10.0", "pyobjc-framework-Cocoa>=10.0"]
@@ -119,6 +122,7 @@ terminal-prompts = ["prompt-toolkit>=3.0"]
 ```
 
 **Improved:**
+
 ```toml
 [project.optional-dependencies]
 macos-prompts = ["pyobjc-core>=10.0,<12.0", "pyobjc-framework-Cocoa>=10.0,<12.0"]
@@ -127,7 +131,7 @@ terminal-prompts = ["prompt-toolkit>=3.0,<4.0"]
 
 **Why:** Upper bounds prevent breaking changes, require explicit testing
 
----
+______________________________________________________________________
 
 ### 2. Documentation Update (High Priority 🔄)
 
@@ -146,11 +150,12 @@ pip install 'mcp-common[terminal-prompts]'
 pip install 'mcp-common[all-prompts]'
 ```
 
----
+______________________________________________________________________
 
 ### 3. Error Message Enhancement (Medium Priority 🔄)
 
 **Current:**
+
 ```python
 BackendUnavailableError: No suitable prompting backend is available
 Install with:
@@ -158,13 +163,14 @@ Install with:
 ```
 
 **Enhanced:**
+
 ```python
 BackendUnavailableError: PyObjC is not installed
 Install with: pip install 'mcp-common[macos-prompts]'
 Alternatively: pip install 'mcp-common[terminal-prompts]' for cross-platform support
 ```
 
----
+______________________________________________________________________
 
 ### 4. CI/Headless Backend (Future 🔮)
 
@@ -186,7 +192,7 @@ class NoOpPromptBackend(PromptBackend):
 
 **Installation:** `pip install 'mcp-common[ci-prompts]'`
 
----
+______________________________________________________________________
 
 ## Implementation Checklist
 
@@ -212,7 +218,7 @@ class NoOpPromptBackend(PromptBackend):
 - [ ] WebPush backend for remote servers
 - [ ] Terminal bell fallback for pure-TTY
 
----
+______________________________________________________________________
 
 ## Metrics
 
@@ -237,7 +243,7 @@ class NoOpPromptBackend(PromptBackend):
 | Terminal UI | +2MB | 1 extra (prompt-toolkit) |
 | All prompts | +62MB | 3 extras |
 
----
+______________________________________________________________________
 
 ## Key Takeaways
 
@@ -256,7 +262,7 @@ class NoOpPromptBackend(PromptBackend):
 - Make PyObjC required (bloat for non-macOS users)
 - Remove prompt-toolkit (only cross-platform option)
 
----
+______________________________________________________________________
 
 ## Usage Examples
 
@@ -298,7 +304,7 @@ except BackendUnavailableError as e:
     adapter = create_prompt_adapter(backend="prompt-toolkit")
 ```
 
----
+______________________________________________________________________
 
 ## Files
 
@@ -307,7 +313,7 @@ except BackendUnavailableError as e:
 - **Implementation:** `/Users/les/Projects/mcp-common/mcp_common/prompting/`
 - **Configuration:** `/Users/les/Projects/mcp-common/pyproject.toml`
 
----
+______________________________________________________________________
 
 **Decision:** Keep in mcp-common, implement recommended improvements
 

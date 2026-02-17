@@ -13,7 +13,9 @@ Implement automatic relationship discovery in the knowledge graph using semantic
 ## Files to Modify
 
 ### 1. session_buddy/adapters/knowledge_graph_adapter_oneiric.py
+
 Add auto-discovery methods:
+
 - `_generate_entity_embedding()` - Generate embeddings for entities
 - `_find_similar_entities()` - Find semantically similar entities using cosine similarity
 - `_auto_discover_relationships()` - Auto-discover and create relationships
@@ -21,7 +23,9 @@ Add auto-discovery methods:
 - Enhance `get_stats()` with connectivity metrics
 
 ### 2. session_buddy/mcp/tools/collaboration/knowledge_graph_tools.py
+
 Add new MCP tools:
+
 - `discover_relationships` - Batch discover relationships for entities
 - `generate_embeddings` - Generate embeddings for entities missing them
 - `analyze_graph_connectivity` - Analyze graph connectivity and health metrics
@@ -29,17 +33,21 @@ Add new MCP tools:
 ## Technical Approach
 
 ### Embedding Generation
+
 - Use existing `session_buddy.reflection.embeddings.generate_embedding()`
 - Combine entity name + entity_type + observations for rich semantic representation
 - Store as FLOAT[384] vector in kg_entities.embedding column
 
 ### Similarity Search
+
 - Use DuckDB's `array_cosine_similarity()` function
 - Query: `SELECT *, array_cosine_similarity(embedding, ?) as similarity FROM kg_entities WHERE similarity > ?`
 - Threshold: 0.75 (configurable)
 
 ### Relationship Type Inference
+
 Smart heuristics based on entity types and similarity:
+
 - High similarity (0.9+) = "related_to"
 - Both "project" type = "related_to"
 - One "project", one "library" = "uses"
@@ -47,7 +55,9 @@ Smart heuristics based on entity types and similarity:
 - One "test", one "project" = "tests"
 
 ### Connectivity Metrics
+
 Enhanced statistics:
+
 - `connectivity_ratio` = relationships / entities
 - `isolated_entities` = entities with 0 relationships
 - `avg_degree` = average relationships per entity
@@ -62,11 +72,11 @@ Enhanced statistics:
 ## Implementation Steps
 
 1. Add auto-discovery methods to KnowledgeGraphDatabaseAdapterOneiric
-2. Add relationship type inference logic
-3. Add enhanced statistics with connectivity metrics
-4. Add MCP tools for batch operations
-5. Test auto-discovery on existing entities
-6. Verify connectivity improvement
+1. Add relationship type inference logic
+1. Add enhanced statistics with connectivity metrics
+1. Add MCP tools for batch operations
+1. Test auto-discovery on existing entities
+1. Verify connectivity improvement
 
 ## Success Criteria
 

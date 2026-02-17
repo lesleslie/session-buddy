@@ -13,7 +13,6 @@ from pathlib import Path
 
 try:
     from huggingface_hub import snapshot_download
-    from transformers import AutoTokenizer
 except ImportError as e:
     print(f"❌ Missing required dependency: {e}")
     print("\nInstall with:")

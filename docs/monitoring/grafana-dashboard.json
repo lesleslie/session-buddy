@@ -1,18 +1,102 @@
 {
   "dashboard": {
-    "title": "Session-Buddy Phase 4 Monitoring",
+    "alerting": {
+      "conditions": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "execErrState": "Alerting",
+          "frequency": "1m",
+          "handler": 1,
+          "id": 1,
+          "message": "More than 5 anomalies detected in the last 5 minutes",
+          "name": "High Anomaly Rate",
+          "noDataState": "NoData",
+          "query": {
+            "expr": "sum(increase(anomalies_detected_total[5m])) > 5",
+            "instant": true,
+            "refId": "A"
+          }
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "execErrState": "Alerting",
+          "frequency": "5m",
+          "handler": 1,
+          "id": 2,
+          "message": "Skill completion rate below 70%",
+          "name": "Low Completion Rate",
+          "noDataState": "NoData",
+          "query": {
+            "expr": "avg(skill_completion_rate) by (skill_name) < 0.7",
+            "instant": true,
+            "refId": "A"
+          }
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "execErrState": "Alerting",
+          "frequency": "30s",
+          "handler": 1,
+          "id": 3,
+          "message": "WebSocket server is not responding",
+          "name": "WebSocket Server Down",
+          "noDataState": "Alerting",
+          "query": {
+            "expr": "up{job=\"session-buddy-websocket\"} == 0",
+            "instant": true,
+            "refId": "A"
+          }
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "execErrState": "Alerting",
+          "frequency": "1m",
+          "handler": 1,
+          "id": 4,
+          "message": "Database connection pool usage above 90%",
+          "name": "Database Pool Exhausted",
+          "noDataState": "NoData",
+          "query": {
+            "expr": "sqlite_connections_active / sqlite_connections_max > 0.9",
+            "instant": true,
+            "refId": "A"
+          }
+        }
+      ]
+    },
     "description": "Real-time monitoring for skill metrics, anomalies, and system health",
-    "tags": ["session-buddy", "skills", "analytics", "phase4"],
-    "timezone": "browser",
-    "schemaVersion": 38,
-    "version": 1,
-    "refresh": "5s",
     "panels": [
       {
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "fillOpacity": 10,
+              "lineWidth": 2
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
         "id": 1,
-        "title": "Real-Time Skill Invocations",
-        "type": "timeseries",
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
         "targets": [
           {
             "expr": "rate(skill_invocations_total[1m])",
@@ -20,21 +104,41 @@
             "refId": "A"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "custom": {
-              "lineWidth": 2,
-              "fillOpacity": 10
-            },
-            "color": {"mode": "palette-classic"}
-          }
-        }
+        "title": "Real-Time Skill Invocations",
+        "type": "timeseries"
       },
       {
+        "fieldConfig": {
+          "defaults": {
+            "max": 1,
+            "min": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 0.7
+                },
+                {
+                  "color": "green",
+                  "value": 0.9
+                }
+              ]
+            },
+            "unit": "percentunit"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 12,
+          "y": 0
+        },
         "id": 2,
-        "title": "Skill Completion Rate",
-        "type": "gauge",
-        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
         "targets": [
           {
             "expr": "avg(skill_completion_rate) by (skill_name)",
@@ -42,27 +146,41 @@
             "refId": "A"
           }
         ],
+        "title": "Skill Completion Rate",
+        "type": "gauge"
+      },
+      {
         "fieldConfig": {
           "defaults": {
-            "unit": "percentunit",
-            "min": 0,
-            "max": 1,
+            "color": {
+              "mode": "thresholds"
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
-                {"value": 0, "color": "red"},
-                {"value": 0.7, "color": "yellow"},
-                {"value": 0.9, "color": "green"}
+                {
+                  "color": "green",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
               ]
             }
           }
-        }
-      },
-      {
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 18,
+          "y": 0
+        },
         "id": 3,
-        "title": "Anomaly Detection",
-        "type": "stat",
-        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
         "targets": [
           {
             "expr": "sum(increase(anomalies_detected_total[5m]))",
@@ -70,25 +188,35 @@
             "refId": "A"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {"mode": "thresholds"},
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {"value": 0, "color": "green"},
-                {"value": 1, "color": "yellow"},
-                {"value": 5, "color": "red"}
-              ]
-            }
-          }
-        }
+        "title": "Anomaly Detection",
+        "type": "stat"
       },
       {
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "0": {
+                    "color": "red",
+                    "text": "No Sessions"
+                  }
+                },
+                "type": "value"
+              }
+            ]
+          }
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 18,
+          "y": 4
+        },
         "id": 4,
-        "title": "Active Sessions",
-        "type": "stat",
-        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 4},
         "targets": [
           {
             "expr": "active_sessions_total",
@@ -96,25 +224,17 @@
             "refId": "A"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {"mode": "palette-classic"},
-            "mappings": [
-              {
-                "type": "value",
-                "options": {
-                  "0": {"text": "No Sessions", "color": "red"}
-                }
-              }
-            ]
-          }
-        }
+        "title": "Active Sessions",
+        "type": "stat"
       },
       {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
         "id": 5,
-        "title": "Top Skills by Invocations (24h)",
-        "type": "table",
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
         "targets": [
           {
             "expr": "topk(10, sum(increase(skill_invocations_total[24h])) by (skill_name))",
@@ -123,22 +243,43 @@
             "refId": "A"
           }
         ],
+        "title": "Top Skills by Invocations (24h)",
         "transformations": [
           {
             "id": "organize",
             "options": {
-              "excludeByName": {"Time": true},
-              "indexByName": {"Value": 1, "skill_name": 0},
-              "renameByName": {"Value": "Invocations", "skill_name": "Skill Name"}
+              "excludeByName": {
+                "Time": true
+              },
+              "indexByName": {
+                "Value": 1,
+                "skill_name": 0
+              },
+              "renameByName": {
+                "Value": "Invocations",
+                "skill_name": "Skill Name"
+              }
             }
           }
-        ]
+        ],
+        "type": "table"
       },
       {
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "spectrum"
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
         "id": 6,
-        "title": "Skill Duration Distribution",
-        "type": "heatmap",
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
         "targets": [
           {
             "expr": "histogram_quantile(0.95, sum(rate(skill_duration_seconds_bucket[5m])) by (le, skill_name))",
@@ -146,18 +287,46 @@
             "refId": "A"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "unit": "s",
-            "color": {"mode": "spectrum"}
-          }
-        }
+        "title": "Skill Duration Distribution",
+        "type": "heatmap"
       },
       {
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "cleanup": {
+                    "text": "Cleanup"
+                  },
+                  "execution": {
+                    "text": "Execution"
+                  },
+                  "rollback": {
+                    "text": "Rollback"
+                  },
+                  "setup": {
+                    "text": "Setup"
+                  },
+                  "verification": {
+                    "text": "Verification"
+                  }
+                },
+                "type": "value"
+              }
+            ]
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        },
         "id": 7,
-        "title": "Workflow Phase Distribution",
-        "type": "piechart",
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
         "targets": [
           {
             "expr": "sum(increase(skill_invocations_total[1h])) by (workflow_phase)",
@@ -165,29 +334,41 @@
             "refId": "A"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {"mode": "palette-classic"},
-            "mappings": [
-              {
-                "type": "value",
-                "options": {
-                  "setup": {"text": "Setup"},
-                  "execution": {"text": "Execution"},
-                  "verification": {"text": "Verification"},
-                  "cleanup": {"text": "Cleanup"},
-                  "rollback": {"text": "Rollback"}
-                }
-              }
-            ]
-          }
-        }
+        "title": "Workflow Phase Distribution",
+        "type": "piechart"
       },
       {
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 3
+                }
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        },
         "id": 8,
-        "title": "Anomaly Timeline",
-        "type": "timeline",
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
         "targets": [
           {
             "expr": "increase(anomalies_detected_total[1h])",
@@ -195,25 +376,36 @@
             "refId": "A"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {"mode": "thresholds"},
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {"value": 0, "color": "green"},
-                {"value": 1, "color": "yellow"},
-                {"value": 3, "color": "red"}
-              ]
-            }
-          }
-        }
+        "title": "Anomaly Timeline",
+        "type": "timeline"
       },
       {
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {
+                "options": {
+                  "0": {
+                    "color": "red",
+                    "text": "DOWN"
+                  },
+                  "1": {
+                    "color": "green",
+                    "text": "UP"
+                  }
+                },
+                "type": "value"
+              }
+            ]
+          }
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 0,
+          "y": 24
+        },
         "id": 9,
-        "title": "WebSocket Server Health",
-        "type": "stat",
-        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 24},
         "targets": [
           {
             "expr": "up{job=\"session-buddy-websocket\"}",
@@ -221,25 +413,41 @@
             "refId": "A"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "mappings": [
-              {
-                "type": "value",
-                "options": {
-                  "0": {"text": "DOWN", "color": "red"},
-                  "1": {"text": "UP", "color": "green"}
-                }
-              }
-            ]
-          }
-        }
+        "title": "WebSocket Server Health",
+        "type": "stat"
       },
       {
+        "fieldConfig": {
+          "defaults": {
+            "max": 1,
+            "min": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 0.7
+                },
+                {
+                  "color": "red",
+                  "value": 0.9
+                }
+              ]
+            },
+            "unit": "percentunit"
+          }
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 6,
+          "y": 24
+        },
         "id": 10,
-        "title": "Database Connection Pool",
-        "type": "gauge",
-        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 24},
         "targets": [
           {
             "expr": "sqlite_connections_active / sqlite_connections_max",
@@ -247,27 +455,41 @@
             "refId": "A"
           }
         ],
+        "title": "Database Connection Pool",
+        "type": "gauge"
+      },
+      {
         "fieldConfig": {
           "defaults": {
-            "unit": "percentunit",
-            "min": 0,
-            "max": 1,
+            "color": {
+              "mode": "thresholds"
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
-                {"value": 0, "color": "green"},
-                {"value": 0.7, "color": "yellow"},
-                {"value": 0.9, "color": "red"}
+                {
+                  "color": "green",
+                  "value": 0
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
               ]
             }
           }
-        }
-      },
-      {
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 12,
+          "x": 12,
+          "y": 24
+        },
         "id": 11,
-        "title": "Alert Rules Summary",
-        "type": "stat",
-        "gridPos": {"h": 4, "w": 12, "x": 12, "y": 24},
         "targets": [
           {
             "expr": "sum(ALERTS{alertname=~\"SessionBuddy.*\"}) by (alertstate)",
@@ -275,100 +497,20 @@
             "refId": "A"
           }
         ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {"mode": "thresholds"},
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {"value": 0, "color": "green"},
-                {"value": 1, "color": "yellow"},
-                {"value": 5, "color": "red"}
-              ]
-            }
-          }
-        }
+        "title": "Alert Rules Summary",
+        "type": "stat"
       }
     ],
-    "alerting": {
-      "conditions": [
-        {
-          "id": 1,
-          "name": "HighAnomalyRate",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "query": {
-            "refId": "A",
-            "expr": "sum(increase(anomalies_detected_total[5m])) > 5",
-            "instant": true
-          },
-          "frequency": "1m",
-          "handler": 1,
-          "name": "High Anomaly Rate",
-          "noDataState": "NoData",
-          "execErrState": "Alerting",
-          "message": "More than 5 anomalies detected in the last 5 minutes"
-        },
-        {
-          "id": 2,
-          "name": "LowCompletionRate",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "query": {
-            "refId": "A",
-            "expr": "avg(skill_completion_rate) by (skill_name) < 0.7",
-            "instant": true
-          },
-          "frequency": "5m",
-          "handler": 1,
-          "name": "Low Completion Rate",
-          "noDataState": "NoData",
-          "execErrState": "Alerting",
-          "message": "Skill completion rate below 70%"
-        },
-        {
-          "id": 3,
-          "name": "WebSocketServerDown",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "query": {
-            "refId": "A",
-            "expr": "up{job=\"session-buddy-websocket\"} == 0",
-            "instant": true
-          },
-          "frequency": "30s",
-          "handler": 1,
-          "name": "WebSocket Server Down",
-          "noDataState": "Alerting",
-          "execErrState": "Alerting",
-          "message": "WebSocket server is not responding"
-        },
-        {
-          "id": 4,
-          "name": "DatabasePoolExhausted",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "query": {
-            "refId": "A",
-            "expr": "sqlite_connections_active / sqlite_connections_max > 0.9",
-            "instant": true
-          },
-          "frequency": "1m",
-          "handler": 1,
-          "name": "Database Pool Exhausted",
-          "noDataState": "NoData",
-          "execErrState": "Alerting",
-          "message": "Database connection pool usage above 90%"
-        }
-      ]
-    }
+    "refresh": "5s",
+    "schemaVersion": 38,
+    "tags": [
+      "session-buddy",
+      "skills",
+      "analytics",
+      "phase4"
+    ],
+    "timezone": "browser",
+    "title": "Session-Buddy Phase 4 Monitoring",
+    "version": 1
   }
 }

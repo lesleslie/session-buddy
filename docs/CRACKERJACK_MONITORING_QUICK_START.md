@@ -16,6 +16,7 @@ python scripts/monitor_crackerjack_metrics.py --format json --output metrics.jso
 ## What It Does
 
 Analyzes your Crackerjack execution history to provide:
+
 - Quality trend analysis (improving vs declining)
 - Automatic alerts for quality degradation
 - Command performance metrics
@@ -52,20 +53,23 @@ Analyzes your Crackerjack execution history to provide:
 ### 1. Trend Analysis
 
 Tracks quality metrics over time:
+
 - `build_status` - Build success rate
 - `lint_score` - Code quality score
 - `security_score` - Security scan results
 - `complexity_score` - Code complexity metrics
 
 **Indicators**:
+
 - 📈 Improving (metric getting better)
 - 📉 Declining (metric getting worse)
 - ➡️ Stable (no significant change)
 
 **Strength**:
+
 - ⚡ Strong (>5% change)
 - 🔄 Moderate (1-5% change)
-- 📍 Weak (<1% change)
+- 📍 Weak (\<1% change)
 
 ### 2. Alert System
 
@@ -78,6 +82,7 @@ Configurable alerts for quality degradation:
 | Info | 5-10% change | Monitor |
 
 **Customize threshold**:
+
 ```bash
 python scripts/monitor_crackerjack_metrics.py --alert-threshold 15
 ```
@@ -85,28 +90,33 @@ python scripts/monitor_crackerjack_metrics.py --alert-threshold 15
 ### 3. Command Statistics
 
 Execution patterns per command:
+
 - Total executions
 - Success rate
 - Average execution time
 - Failure count
 
 **Identify issues**:
+
 - High failure rates → test instability
 - Long execution times → performance problems
 
 ### 4. Performance Metrics
 
 Execution time analysis:
+
 - Average/Min/Max times
 - Slowest commands
 - Fastest commands
 
 **Optimization targets**:
+
 - Commands averaging >30s need optimization
 
 ### 5. Project Insights
 
 Per-project analysis:
+
 - Execution count
 - Success rate
 - Average time
@@ -167,7 +177,7 @@ python scripts/monitor_crackerjack_metrics.py \
 | build_status | ↑ Increasing | >95% | Sudden drop |
 | lint_score | ↑ Increasing | >90% | Gradual decline |
 | security_score | ↑ Increasing | >85% | New vulnerabilities |
-| complexity_score | ↓ Decreasing | <20% | Rapid increase |
+| complexity_score | ↓ Decreasing | \<20% | Rapid increase |
 
 ### Alert Severity
 
@@ -178,16 +188,19 @@ python scripts/monitor_crackerjack_metrics.py \
 ### Common Patterns
 
 **Sudden Quality Drop**:
+
 - Recent commits introduced issues
 - Dependency changes broke tests
 - Environment problems
 
 **Gradual Decline**:
+
 - Technical debt accumulation
 - Insufficient refactoring
 - Test coverage gaps
 
 **Consistent Improvement**:
+
 - Good development practices
 - Effective code review
 - Regular quality investments
@@ -211,6 +224,7 @@ python scripts/monitor_crackerjack_metrics.py \
 **Automatically populated** by Session Buddy's Crackerjack integration during normal development.
 
 **Tables analyzed**:
+
 - `crackerjack_results` - Command execution history
 - `quality_metrics_history` - Quality metric snapshots
 - `test_results` - Individual test results
@@ -225,6 +239,7 @@ Error: Database not found
 ```
 
 **Solution**: Run some crackerjack commands first:
+
 ```bash
 python -m crackerjack run --fast
 python -m crackerjack run --comp
@@ -233,6 +248,7 @@ python -m crackerjack run --comp
 ### Empty Report
 
 **Try longer time range**:
+
 ```bash
 python scripts/monitor_crackerjack_metrics.py --days 90
 ```
@@ -240,6 +256,7 @@ python scripts/monitor_crackerjack_metrics.py --days 90
 ### Too Many Alerts
 
 **Adjust threshold**:
+
 ```bash
 python scripts/monitor_crackerjack_metrics.py --alert-threshold 20
 ```
@@ -247,10 +264,10 @@ python scripts/monitor_crackerjack_metrics.py --alert-threshold 20
 ## Best Practices
 
 1. **Run Regularly**: Weekly or monthly reports
-2. **Track Trends**: Look at multiple reports, not just one
-3. **Act on Alerts**: Critical alerts need immediate attention
-4. **Share with Team**: Use in standups or reviews
-5. **Adjust Thresholds**: Customize for your project's tolerance
+1. **Track Trends**: Look at multiple reports, not just one
+1. **Act on Alerts**: Critical alerts need immediate attention
+1. **Share with Team**: Use in standups or reviews
+1. **Adjust Thresholds**: Customize for your project's tolerance
 
 ## Integration Examples
 
@@ -285,10 +302,10 @@ python scripts/monitor_crackerjack_metrics.py --days 30 --format json > \
 ## Next Steps
 
 1. **Generate your first report**: `python scripts/monitor_crackerjack_metrics.py`
-2. **Review recommendations**: Check the recommendations section
-3. **Set up automation**: Add to cron or CI/CD
-4. **Customize thresholds**: Adjust for your project
-5. **Track improvements**: Compare reports over time
+1. **Review recommendations**: Check the recommendations section
+1. **Set up automation**: Add to cron or CI/CD
+1. **Customize thresholds**: Adjust for your project
+1. **Track improvements**: Compare reports over time
 
 ## Further Reading
 
@@ -318,7 +335,7 @@ python scripts/monitor_crackerjack_metrics.py --alert-threshold 15
 python scripts/monitor_crackerjack_metrics.py --project /path/to/project
 ```
 
----
+______________________________________________________________________
 
 **Generated by**: Session Buddy Crackerjack Integration
 **Data Source**: ~/.claude/data/crackerjack_integration.db

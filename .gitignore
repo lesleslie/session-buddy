@@ -1,130 +1,160 @@
-# Python cache and compiled files
+# ============================================================================
+# Python - Generated Files
+# ============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
-*.egg
-
-# Virtual environments
-.venv/
-venv/
-ENV/
-env/
-
-# Testing and coverage
-.pytest_cache/
-.hypothesis/
-.benchmarks/
-.coverage
-.coverage.*
-coverage.xml
-coverage.json
-htmlcov/
-.tox/
-
-# Type checking and linting
-.mypy_cache/
-.ruff_cache/
-.pytype/
-
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Project specific
-.claude/
-.mcp.json
-.envrc
-session_handoff_*.md
-
-# Archived documentation (excluded from quality checks)
-docs/archive/
-
-# Crackerjack
-.crackerjack/
-*.crackerjack.bak
-crackerjack-debug-*.log
-
-# Skylos cache (mcp_common runtime cache)
-.skylos/
-
-# Temporary directories
-docs (1)/
-settings/local.yaml
-*.backup
-/NOTES.md
-/.cache/
-/.oneiric_cache/
-/.jbeval/
-/.complexipy_cache/
-
-# Crackerjack patterns
-
-
-
-
-# Build/Distribution
-# Caches
-# Coverage
-# Crackerjack specific
-# Development
-*$py.class
-*.backup
-*.crackerjack.bak
-*.egg
-*.egg-info/
-*.py[cod]
+# ============================================================================
+# Python - C Extensions
+# ============================================================================
 *.pyc
-*.so
-*.swo
-*.swp
-*~
-.DS_STORE
-.benchmarks/
-.claude/
-.coverage
-.coverage*
-.coverage.*
-.crackerjack-*
-.crackerjack/
-.envrc
-.hypothesis/
-.idea/
-.mcp.json
-.mypy_cache/
-.pytest_cache/
-.pytype/
-.ruff_cache/
-.tox/
-.venv/
-.vscode/
-/.cache/
-/.complexipy_cache/
-/.jbeval/
-/.oneiric_cache/
-/NOTES.md
-/build/
-/dist/
-ENV/
-__pycache__/
+*.pyo
+
+# ============================================================================
+# Python - Distribution / Packaging
+# ============================================================================
 build/
-coverage.json
-coverage.xml
-crackerjack-ai-debug-*.log
-crackerjack-debug-*.log
+develop-eggs/
 dist/
-docs (1)/
-docs/archive/
-env/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+*.egg-info
+installed.cfg
+*.egg
+MANIFEST
+*.spec
+*.whl
+
+# ============================================================================
+# Python - Unit Test / Coverage Reports
+# ============================================================================
 htmlcov/
-session_handoff_*.md
-settings/local.yaml
+tox/
+.nox/
+coverage
+coverage.py
+coverage.*
+nosetests.xml
+coverage.xml
+coverage.json
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# ============================================================================
+# Translations
+# ============================================================================
+*.mo
+*.pot
+
+# ============================================================================
+# Python - Environments
+# ============================================================================
+.env
+.venv
 venv/
+env/
+venv/
+ENV/
+ENV/
+env.bak/
+venv.bak/
+
+# ============================================================================
+# Python - Type Checking & Linting
+# ============================================================================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pyre/
+.pytype/
+.pytype/
+
+# ============================================================================
+# Python - Package Management
+# ============================================================================
+.pdm-python/
+.pdm.toml
+.pyscn/
+.uv/
+.uv-cache/
+
+# ============================================================================
+# IDEs
+# ============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ============================================================================
+# Logs
+# ============================================================================
+*.log
+logs/
+
+# ============================================================================
+# OS
+# ============================================================================
+.DS_Store
+Thumbs.db
+
+# ============================================================================
+# Local Configuration
+# ============================================================================
+settings/local.yaml
+settings/repos.yaml
+settings/ecosystem.yaml
+.envrc.local
+
+# ============================================================================
+# Sensitive Configuration Files
+# ============================================================================
+config.yaml
+oneiric.yaml
+
+# ============================================================================
+# Crackerjack
+# ============================================================================
+.crackerjack/
+
+# ============================================================================
+# Archived Files
+# ============================================================================
+.archive/
+tests/archived/
+
+# ============================================================================
+# Project-Specific
+# ============================================================================
+# Archived test/debug scripts
+tests/archived/
+
+# XDG - Cache directories
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.oneiric_cache/
+.complexipy_cache/
+.cache/
+
+# XDG - State directories
+.claude/
+.session-buddy/
+.crackerjack/
+
+# XDG - DELETE candidates
+.obsidian/
+

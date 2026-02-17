@@ -23,6 +23,7 @@ __all__ = [
     "create_checkpoint_commit",
     "is_git_operation_in_progress",
     "schedule_automatic_git_gc",
+    "_optimize_git_repository",
 ]
 
 
@@ -701,3 +702,40 @@ def schedule_automatic_git_gc(
 
     except Exception as e:
         return False, f"Failed to schedule git gc: {e}"
+
+
+def _optimize_git_repository(directory: Path) -> list[str]:
+    """Optimize git repository with garbage collection and pruning.
+
+    Performs git optimization operations to reduce repository size and improve performance.
+    Returns a list of status messages for each optimization operation.
+
+    Args:
+        directory: Path to git repository to optimize
+
+    Returns:
+        List of status messages describing optimization results
+
+    """
+    results = []
+    directory = Path(directory) if not isinstance(directory, Path) else directory
+
+    # Verify it's a git repository
+    if not is_git_repository(directory):
+        results.append("⚠️  Not a git repository, skipping optimization")
+        return results
+
+    # Check for in-progress git operations
+    if is_git_operation_in_progress(directory):
+        results.append("⚠️  Git operation in progress, skipping optimization")
+        return results
+
+    # Schedule git gc with auto threshold
+    success, message = schedule_automatic_git_gc(
+        directory=directory,
+        prune_delay="2.weeks",
+        auto_threshold=6700,
+    )
+    results.append(message if success else f"❌ {message}")
+
+    return results

@@ -100,8 +100,10 @@ class DefaultQualityScorer(QualityScorer):
             project_dir = Path.cwd()
 
         # Basic scoring without full analysis
+        # Return 'total_score' for compatibility with quality_engine expectations
         return {
-            "overall": 75,  # Default moderate score
+            "total_score": 75,  # Default moderate score
+            "overall": 75,  # Legacy key for backward compatibility
             "metrics": {
                 "coverage": {"coverage_pct": 0},
                 "quality": {"score": 75},

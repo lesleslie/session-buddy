@@ -46,27 +46,33 @@ def print_stats(stats: dict[str, Any], label: str) -> None:
 
     # Phase 2 metrics
     if "connectivity_ratio" in stats:
-        print(f"\n🔗 Connectivity Metrics:")
-        print(f"  Connectivity Ratio: {stats['connectivity_ratio']:.3f} ({stats['connectivity_ratio']*100:.1f}%)")
+        print("\n🔗 Connectivity Metrics:")
+        print(
+            f"  Connectivity Ratio: {stats['connectivity_ratio']:.3f} ({stats['connectivity_ratio'] * 100:.1f}%)"
+        )
         print(f"  Average Degree: {stats['avg_degree']:.3f}")
-        print(f"  Isolated Entities: {stats['isolated_entities']} ({stats['isolated_entities']/stats['total_entities']*100:.1f}%)")
+        print(
+            f"  Isolated Entities: {stats['isolated_entities']} ({stats['isolated_entities'] / stats['total_entities'] * 100:.1f}%)"
+        )
 
     # Embedding metrics
     if "embedding_coverage" in stats:
-        print(f"\n🧠 Embedding Metrics:")
+        print("\n🧠 Embedding Metrics:")
         print(f"  Coverage: {stats['embedding_coverage']:.1%}")
         print(f"  Entities with Embeddings: {stats['entities_with_embeddings']}")
 
     # Entity types
     if stats.get("entity_types"):
-        print(f"\n📊 Entity Types:")
+        print("\n📊 Entity Types:")
         for etype, count in sorted(stats["entity_types"].items()):
             print(f"  {etype}: {count}")
 
     # Relationship types
     if stats.get("relationship_types"):
-        print(f"\n🔗 Relationship Types:")
-        for rtype, count in sorted(stats["relationship_types"].items(), key=lambda x: -x[1]):
+        print("\n🔗 Relationship Types:")
+        for rtype, count in sorted(
+            stats["relationship_types"].items(), key=lambda x: -x[1]
+        ):
             print(f"  {rtype}: {count}")
 
     print()
@@ -149,9 +155,9 @@ async def discover_relationships(
 async def main(args: argparse.Namespace) -> int:
     """Main workflow execution."""
     try:
-        from session_buddy.adapters.knowledge_graph_adapter_oneiric import (
-            KnowledgeGraphDatabaseAdapterOneiric,
-        )
+        import importlib.util
+        if importlib.util.find_spec("session_buddy.adapters.knowledge_graph_adapter_oneiric") is None:
+            raise ImportError("knowledge_graph_adapter_oneiric not found")
     except ImportError as e:
         print(f"❌ Failed to import knowledge graph adapter: {e}")
         return 1

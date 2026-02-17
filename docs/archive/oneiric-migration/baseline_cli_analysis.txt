@@ -1,0 +1,2 @@
+Baseline artifact removed during root cleanup.
+Regenerate by documenting CLI flags/entrypoints from session_buddy/cli.py and session_buddy/__main__.py.

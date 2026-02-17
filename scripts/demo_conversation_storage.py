@@ -60,7 +60,7 @@ async def demo_conversation_storage() -> None:
     )
 
     if result["success"]:
-        print(f"\n✅ Conversation stored successfully!")
+        print("\n✅ Conversation stored successfully!")
         print(f"   Conversation ID: {result['conversation_id']}")
     else:
         print(f"\n❌ Storage failed: {result.get('error')}")
@@ -110,7 +110,7 @@ async def demo_conversation_storage() -> None:
     print(f"Recent (7 days): {stats['recent_conversations']}")
 
     if stats["projects"]:
-        print(f"\nProjects with conversations:")
+        print("\nProjects with conversations:")
         for project in sorted(stats["projects"]):
             print(f"   • {project}")
 

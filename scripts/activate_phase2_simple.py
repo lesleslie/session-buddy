@@ -14,6 +14,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import duckdb
+
 from session_buddy.reflection.database import ReflectionDatabase
 
 
@@ -63,7 +64,9 @@ def generate_embeddings_sync() -> dict[str, int]:
         asyncio.run(refl_db.initialize())
     except RuntimeError as e:
         print(f"⚠️  Could not initialize embedding system: {e}")
-        print("   Skipping embedding generation (can discover relationships without them)")
+        print(
+            "   Skipping embedding generation (can discover relationships without them)"
+        )
         conn.close()
         return {"generated": 0, "skipped": entities_without}
 
@@ -100,12 +103,14 @@ def generate_embeddings_sync() -> dict[str, int]:
                 SET embedding = CAST($1 AS FLOAT[384])
                 WHERE id = $2
                 """,
-                [embedding_str, entity_id]
+                [embedding_str, entity_id],
             )
             generated += 1
 
             if generated % 10 == 0:
-                print(f"  Progress: {generated}/{entities_without} embeddings generated")
+                print(
+                    f"  Progress: {generated}/{entities_without} embeddings generated"
+                )
 
         except Exception as e:
             print(f"  ⚠️  Failed to generate embedding for {name}: {e}")
@@ -166,7 +171,7 @@ def discover_relationships_sync(threshold: float = 0.75) -> dict[str, int]:
         ORDER BY similarity DESC
         LIMIT 500
         """,
-        [threshold]
+        [threshold],
     ).fetchall()
 
     print(f"Found {len(result)} potential relationships above threshold {threshold}")
@@ -182,7 +187,7 @@ def discover_relationships_sync(threshold: float = 0.75) -> dict[str, int]:
             SELECT COUNT(*) FROM kg_relationships
             WHERE from_entity = $1 AND to_entity = $2
             """,
-            [from_id, to_id]
+            [from_id, to_id],
         ).fetchone()[0]
 
         if existing > 0:
@@ -195,6 +200,7 @@ def discover_relationships_sync(threshold: float = 0.75) -> dict[str, int]:
         # Create relationship
         try:
             import uuid
+
             relation_id = str(uuid.uuid4())
 
             conn.execute(
@@ -207,8 +213,8 @@ def discover_relationships_sync(threshold: float = 0.75) -> dict[str, int]:
                     from_id,
                     to_id,
                     relation_type,
-                    f'{{"similarity": {similarity:.3f}, "auto_discovered": true}}'
-                ]
+                    f'{{"similarity": {similarity:.3f}, "auto_discovered": true}}',
+                ],
             )
             created += 1
 
@@ -254,13 +260,17 @@ def analyze_connectivity() -> dict[str, Any]:
 
     # Get stats
     entity_count = conn.execute("SELECT COUNT(*) FROM kg_entities").fetchone()[0]
-    relationship_count = conn.execute("SELECT COUNT(*) FROM kg_relationships").fetchone()[0]
+    relationship_count = conn.execute(
+        "SELECT COUNT(*) FROM kg_relationships"
+    ).fetchone()[0]
     entities_with_embeddings = conn.execute(
         "SELECT COUNT(*) FROM kg_entities WHERE embedding IS NOT NULL"
     ).fetchone()[0]
 
     connectivity = relationship_count / entity_count if entity_count > 0 else 0
-    embedding_coverage = entities_with_embeddings / entity_count if entity_count > 0 else 0
+    embedding_coverage = (
+        entities_with_embeddings / entity_count if entity_count > 0 else 0
+    )
 
     # Isolated entities
     isolated = conn.execute(
@@ -275,7 +285,9 @@ def analyze_connectivity() -> dict[str, Any]:
 
     # Entity types
     entity_types = dict(
-        conn.execute("SELECT entity_type, COUNT(*) FROM kg_entities GROUP BY entity_type").fetchall()
+        conn.execute(
+            "SELECT entity_type, COUNT(*) FROM kg_entities GROUP BY entity_type"
+        ).fetchall()
     )
 
     # Relationship types
@@ -288,12 +300,12 @@ def analyze_connectivity() -> dict[str, Any]:
     conn.close()
 
     # Print stats
-    print(f"\n📊 Current State:")
+    print("\n📊 Current State:")
     print(f"  Entities: {entity_count}")
     print(f"  Relationships: {relationship_count}")
-    print(f"  Connectivity: {connectivity:.3f} ({connectivity*100:.1f}%)")
+    print(f"  Connectivity: {connectivity:.3f} ({connectivity * 100:.1f}%)")
     print(f"  Embedding Coverage: {embedding_coverage:.1%}")
-    print(f"  Isolated Entities: {isolated} ({isolated/entity_count*100:.1f}%)")
+    print(f"  Isolated Entities: {isolated} ({isolated / entity_count * 100:.1f}%)")
 
     # Health status
     if connectivity >= 0.5:
@@ -307,11 +319,11 @@ def analyze_connectivity() -> dict[str, Any]:
 
     print(f"\n  Health Status: {health}")
 
-    print(f"\n📊 Entity Types:")
+    print("\n📊 Entity Types:")
     for etype, count in sorted(entity_types.items()):
         print(f"  {etype}: {count}")
 
-    print(f"\n🔗 Relationship Types:")
+    print("\n🔗 Relationship Types:")
     for rtype, count in sorted(relationship_types.items(), key=lambda x: -x[1]):
         print(f"  {rtype}: {count}")
 
@@ -337,10 +349,10 @@ def main():
     stats_before = analyze_connectivity()
 
     # Step 2: Generate embeddings
-    embedding_results = generate_embeddings_sync()
+    generate_embeddings_sync()
 
     # Step 3: Discover relationships
-    relationship_results = discover_relationships_sync(threshold=0.75)
+    discover_relationships_sync(threshold=0.75)
 
     # Step 4: Analyze final state
     print_section("Step 4: Final State Analysis")
@@ -359,13 +371,15 @@ def main():
         improvement_x = connectivity_after / connectivity_before
         improvement_pct = (improvement_x - 1) * 100
     else:
-        improvement_x = float('inf') if relationships_after > 0 else 1
-        improvement_pct = float('inf') if relationships_after > 0 else 0
+        improvement_x = float("inf") if relationships_after > 0 else 1
+        improvement_pct = float("inf") if relationships_after > 0 else 0
 
-    print(f"\n📈 Improvement Summary:")
-    print(f"  Relationships: {relationships_before} → {relationships_after} (+{relationships_created})")
+    print("\n📈 Improvement Summary:")
+    print(
+        f"  Relationships: {relationships_before} → {relationships_after} (+{relationships_created})"
+    )
     print(f"  Connectivity: {connectivity_before:.3f} → {connectivity_after:.3f}")
-    if improvement_x != float('inf'):
+    if improvement_x != float("inf"):
         print(f"  Improvement: {improvement_x:.1f}x ({improvement_pct:.1f}% increase)")
     else:
         print(f"  Improvement: From 0 to {connectivity_after:.3f} (new relationships!)")

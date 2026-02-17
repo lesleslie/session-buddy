@@ -1,0 +1,2 @@
+Phase 1 thinking modes archive placeholder.
+Original notes were removed during cleanup; recreate from historical commits if needed.

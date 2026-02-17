@@ -34,11 +34,17 @@ def check_integration_status() -> dict[str, bool]:
     tests_dir = project_root / "tests" / "unit"
 
     status = {
-        "phase3_mixin_exists": (adapters_dir / "knowledge_graph_adapter_phase3.py").exists(),
-        "phase3_patch_exists": (adapters_dir / "knowledge_graph_phase3_patch.py").exists(),
+        "phase3_mixin_exists": (
+            adapters_dir / "knowledge_graph_adapter_phase3.py"
+        ).exists(),
+        "phase3_patch_exists": (
+            adapters_dir / "knowledge_graph_phase3_patch.py"
+        ).exists(),
         "phase3_tools_exist": (tools_dir / "knowledge_graph_phase3_tools.py").exists(),
         "phase3_tests_exist": (tests_dir / "test_phase3_relationships.py").exists(),
-        "main_adapter_exists": (adapters_dir / "knowledge_graph_adapter_oneiric.py").exists(),
+        "main_adapter_exists": (
+            adapters_dir / "knowledge_graph_adapter_oneiric.py"
+        ).exists(),
         "base_tools_exist": (tools_dir / "knowledge_graph_tools.py").exists(),
     }
 
@@ -148,18 +154,27 @@ def validate_integration() -> bool:
     project_root = Path(__file__).parent.parent
 
     # Check if Phase 3 is imported
-    adapter_file = project_root / "session_buddy" / "adapters" / "knowledge_graph_adapter_oneiric.py"
+    adapter_file = (
+        project_root
+        / "session_buddy"
+        / "adapters"
+        / "knowledge_graph_adapter_oneiric.py"
+    )
 
     try:
         content = adapter_file.read_text()
 
         checks = {
             "Phase3RelationshipMixin imported": "Phase3RelationshipMixin" in content,
-            "Class inherits from mixin": "class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin)" in content
-            or "class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin," in content,
+            "Class inherits from mixin": "class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin)"
+            in content
+            or "class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin,"
+            in content,
             "_infer_relationship_type returns tuple": "-> tuple[str, str]:" in content,
-            "discover_transitive_relationships exists": "async def discover_transitive_relationships" in content,
-            "_extract_relationships_from_observations exists": "def _extract_relationships_from_observations" in content,
+            "discover_transitive_relationships exists": "async def discover_transitive_relationships"
+            in content,
+            "_extract_relationships_from_observations exists": "def _extract_relationships_from_observations"
+            in content,
         }
 
         print("Validation Results:")
@@ -196,7 +211,13 @@ def run_tests() -> bool:
     print()
 
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/unit/test_phase3_relationships.py", "-v"],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/unit/test_phase3_relationships.py",
+            "-v",
+        ],
         cwd=Path(__file__).parent.parent,
     )
 

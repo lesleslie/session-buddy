@@ -1,0 +1,2 @@
+Phase 0 decisions archive placeholder.
+Original notes were removed during cleanup; recreate from historical commits if needed.

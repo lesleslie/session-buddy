@@ -19,7 +19,6 @@ Example:
 from __future__ import annotations
 
 import logging
-from threading import Thread
 from typing import TYPE_CHECKING
 
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
@@ -242,9 +241,7 @@ class PrometheusExporter:
             skill_name=skill_name,
         ).inc()
 
-        logger.debug(
-            f"Recorded anomaly: type={anomaly_type}, skill={skill_name}"
-        )
+        logger.debug(f"Recorded anomaly: type={anomaly_type}, skill={skill_name}")
 
     def update_active_sessions(self, count: int) -> None:
         """Update active sessions gauge.

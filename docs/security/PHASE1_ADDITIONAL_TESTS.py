@@ -466,7 +466,7 @@ def test_validate_user_path_toctou():
 
         try:
             # Validate path while another thread changes it
-            result = validator.validate_user_path(safe_path)
+            validator.validate_user_path(safe_path)
             t.join()
 
             # If validation succeeded, verify it's actually safe

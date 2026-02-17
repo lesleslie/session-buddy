@@ -44,7 +44,7 @@ def fix_embedding_symlink() -> bool:
     # Remove existing link if it exists (and is broken)
     if link_path.exists() or link_path.is_symlink():
         link_path.unlink()
-        print(f"🗑️  Removed existing symlink")
+        print("🗑️  Removed existing symlink")
 
     # Create new symlink
     try:
@@ -139,10 +139,11 @@ def test_embedding_system() -> bool:
     print("\n🧪 Testing Embedding System...")
 
     try:
+        import asyncio
+
         from session_buddy.reflection.embeddings import (
             initialize_embedding_system,
         )
-        import asyncio
 
         async def test():
             session = initialize_embedding_system()
@@ -160,7 +161,9 @@ def test_embedding_system() -> bool:
             )
 
             if test_embedding and len(test_embedding) == 384:
-                print(f"✅ Successfully generated {len(test_embedding)}-dimensional embedding")
+                print(
+                    f"✅ Successfully generated {len(test_embedding)}-dimensional embedding"
+                )
                 return True
             else:
                 print("❌ Failed to generate embedding")
@@ -191,7 +194,9 @@ def main() -> int:
 
     for name, success in results.items():
         status = "✅" if success else "❌"
-        print(f"{status} {name.replace('_', ' ').title():.<50} {'Success' if success else 'Failed'}")
+        print(
+            f"{status} {name.replace('_', ' ').title():.<50} {'Success' if success else 'Failed'}"
+        )
 
     all_success = all(results.values())
 
@@ -199,7 +204,9 @@ def main() -> int:
     if all_success:
         print("✅ All fixes applied successfully!")
         print("\n💡 Next steps:")
-        print("   1. Test storing a reflection: python -m session_buddy.mcp.tools.memory")
+        print(
+            "   1. Test storing a reflection: python -m session_buddy.mcp.tools.memory"
+        )
         print("   2. Run status check again: python scripts/test_database_status.py")
     else:
         print("⚠️  Some fixes failed. Check output above for details.")

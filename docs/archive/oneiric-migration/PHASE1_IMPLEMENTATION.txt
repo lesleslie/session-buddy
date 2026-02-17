@@ -1,0 +1,11 @@
+🚀 PHASE 1 IMPLEMENTATION STARTED - MCP CLI FACTORY ADOPTION 🚀
+
+📋 PHASE 1 TASK LIST:
+1. Replace CLI in session_buddy/cli.py with MCPServerCLIFactory
+2. Add Session Buddy MCP settings extending MCPServerSettings
+3. Implement start handler for HTTP streaming mode
+4. Implement stop handler with PID targeting
+5. Update session_buddy/__main__.py entrypoint
+6. Remove legacy boolean flags
+7. Update documentation and examples
+8. Preserve stdio entrypoint behavior

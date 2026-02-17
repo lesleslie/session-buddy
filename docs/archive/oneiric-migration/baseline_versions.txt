@@ -1,0 +1,2 @@
+Baseline artifact removed during root cleanup.
+Regenerate from pyproject.toml and uv.lock (oneiric, mcp-common, acb versions).

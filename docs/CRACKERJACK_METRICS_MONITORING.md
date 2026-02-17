@@ -85,6 +85,7 @@ Automatic alerts for quality issues:
 | Info | ≥10% change | Monitor closely |
 
 Example alert:
+
 ```markdown
 ### 🔴 CRITICAL: build_status
 
@@ -105,14 +106,16 @@ Track quality metrics over time:
 | `security_score` | ➡️ stable | 📍 weak | No significant change |
 
 **Direction Indicators**:
+
 - 📈 Improving: Metric getting better
 - 📉 Declining: Metric getting worse
 - ➡️ Stable: No significant change
 
 **Strength Indicators**:
+
 - ⚡ Strong: >5% change
 - 🔄 Moderate: 1-5% change
-- 📍 Weak: <1% change
+- 📍 Weak: \<1% change
 
 ### Command Statistics
 
@@ -125,6 +128,7 @@ Execution patterns per command type:
 | check | 30 | 60.0% | 20.380s | 12 |
 
 **Key Insights**:
+
 - High failure rates indicate test instability or environment issues
 - Long execution times suggest performance optimization opportunities
 - Low execution counts might indicate infrequent quality checks
@@ -149,6 +153,7 @@ Command execution performance:
 ```
 
 **Recommendations**:
+
 - Commands averaging >30s should be optimized
 - Consider parallel execution for test suites
 - Use `--fast` mode for quick feedback during development
@@ -164,6 +169,7 @@ Per-project development activity:
 | /Users/les/Projects/session-buddy | 6 | 0.0% | 207.616s | 4 |
 
 **Analysis**:
+
 - High execution count with low success rate: Investigate failing tests
 - Long average time: Performance optimization needed
 - Few active days: Sporadic development activity
@@ -173,8 +179,8 @@ Per-project development activity:
 Actionable insights based on analysis:
 
 1. **CRITICAL: Build success rate declining by 100.0%** - investigate failing builds
-2. **High failure rate for 'test' command (32/76 failed)** - investigate
-3. **Performance: 'all' averaging 117.3s** - consider optimization
+1. **High failure rate for 'test' command (32/76 failed)** - investigate
+1. **Performance: 'all' averaging 117.3s** - consider optimization
 
 ## Use Cases
 
@@ -283,6 +289,7 @@ The monitoring script analyzes data from:
 **Database**: `~/.claude/data/crackerjack_integration.db`
 
 **Tables**:
+
 - `crackerjack_results`: Command execution history
 - `quality_metrics_history`: Quality metric snapshots
 - `test_results`: Individual test results
@@ -299,23 +306,26 @@ The monitoring script analyzes data from:
 | `build_status` | Increasing | Decreasing | >95% |
 | `lint_score` | Increasing | Decreasing | >90% |
 | `security_score` | Increasing | Decreasing | >85% |
-| `complexity_score` | Decreasing | Increasing | <20% high complexity |
+| `complexity_score` | Decreasing | Increasing | \<20% high complexity |
 | `code_coverage` | Increasing | Decreasing | >80% |
 | `test_pass_rate` | Increasing | Decreasing | >95% |
 
 ### Common Patterns
 
 **Sudden Quality Drop**:
+
 - Recent commits introduced issues
 - Dependency changes broke tests
 - Environment configuration problems
 
 **Gradual Decline**:
+
 - Technical debt accumulation
 - Insufficient refactoring
 - Test coverage gaps
 
 **Consistent Improvement**:
+
 - Good development practices
 - Effective code review process
 - Regular quality investments
@@ -358,19 +368,19 @@ python scripts/monitor_crackerjack_metrics.py \
 ## Best Practices
 
 1. **Regular Reviews**: Run weekly or monthly reports to track trends
-2. **Alert Thresholds**: Adjust based on your project's tolerance for change
-3. **Historical Context**: Compare similar time periods (account for sprint cycles)
-4. **Action Orientation**: Focus on recommendations with highest impact
-5. **Team Visibility**: Share reports in team meetings or dashboards
-6. **Trend Analysis**: Look for patterns over multiple reports, not single data points
+1. **Alert Thresholds**: Adjust based on your project's tolerance for change
+1. **Historical Context**: Compare similar time periods (account for sprint cycles)
+1. **Action Orientation**: Focus on recommendations with highest impact
+1. **Team Visibility**: Share reports in team meetings or dashboards
+1. **Trend Analysis**: Look for patterns over multiple reports, not single data points
 
 ## Integration with Session Buddy
 
 The monitoring script works seamlessly with Session Buddy's MCP integration:
 
 1. **Automatic Data Collection**: Session Buddy collects metrics during normal development
-2. **No Additional Setup**: Monitoring uses existing data, no configuration needed
-3. **Complementary Tools**: Use alongside Session Buddy's session management features
+1. **No Additional Setup**: Monitoring uses existing data, no configuration needed
+1. **Complementary Tools**: Use alongside Session Buddy's session management features
 
 ## Advanced Usage
 
@@ -416,13 +426,14 @@ for metric, trend in data['metric_trends'].items():
 To enhance the monitoring script:
 
 1. Add new metric types to `CrackerjackMetricsMonitor._analyze_metric_trends()`
-2. Create custom alert logic in `_generate_quality_alerts()`
-3. Add new recommendations in `_generate_recommendations()`
-4. Extend output formats in `format_markdown_report()` or `format_json_report()`
+1. Create custom alert logic in `_generate_quality_alerts()`
+1. Add new recommendations in `_generate_recommendations()`
+1. Extend output formats in `format_markdown_report()` or `format_json_report()`
 
 ## Support
 
 For issues or questions:
+
 - Check existing data: `sqlite3 ~/.claude/data/crackerjack_integration.db "SELECT COUNT(*) FROM crackerjack_results;"`
 - Verify database integrity: `sqlite3 ~/.claude/data/crackerjack_integration.db "PRAGMA integrity_check;"`
 - Review Session Buddy logs: `~/.claude/logs/`

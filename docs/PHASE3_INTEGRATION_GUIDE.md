@@ -23,6 +23,7 @@ This guide explains how to integrate Phase 3 (Semantic Relationship Enhancement)
 File: `session_buddy/adapters/settings.py`
 
 Change line 61:
+
 ```python
 # Before:
 install_extensions: tuple[str, ...] = ("duckpgq",)
@@ -32,6 +33,7 @@ install_extensions: tuple[str, ...] = ()  # DuckPGQ not available in v1.4.4
 ```
 
 Or make it conditionally installed:
+
 ```python
 install_extensions: tuple[str, ...] = (
     "duckpgq" if _duckpgq_available else (),
@@ -151,12 +153,14 @@ Ensure Phase 3 tools are imported and registered.
 ### Fix DuckPGQ Dependency
 
 Option 1: Skip DuckPGQ
+
 ```python
 # In settings.py
 install_extensions: tuple[str, ...] = ()
 ```
 
 Option 2: Make it optional with graceful fallback
+
 ```python
 # In knowledge_graph_adapter_oneiric.py
 try:
@@ -198,9 +202,9 @@ pytest tests/unit/test_phase3_relationships.py --cov=session_buddy.adapters.know
 If issues occur, you can rollback by:
 
 1. Remove Phase3RelationshipMixin from class inheritance
-2. Restore original `_infer_relationship_type` method
-3. Remove Phase 3 MCP tool registration
-4. Delete Phase 3 test files (optional)
+1. Restore original `_infer_relationship_type` method
+1. Remove Phase 3 MCP tool registration
+1. Delete Phase 3 test files (optional)
 
 ## Usage Examples
 
@@ -246,10 +250,10 @@ get_relationship_confidence_stats()
 After integration:
 
 1. **Relationship Types**: 15+ expressive types instead of 6
-2. **Confidence Scoring**: All relationships have confidence (low/medium/high)
-3. **Pattern Extraction**: Auto-extract relationships from observations
-4. **Transitive Discovery**: Hidden connections discovered
-5. **Better Inference**: Smarter relationship type selection
+1. **Confidence Scoring**: All relationships have confidence (low/medium/high)
+1. **Pattern Extraction**: Auto-extract relationships from observations
+1. **Transitive Discovery**: Hidden connections discovered
+1. **Better Inference**: Smarter relationship type selection
 
 ## Troubleshooting
 
@@ -272,35 +276,38 @@ After integration:
 ## Files Summary
 
 ### Created (5 files):
+
 1. `session_buddy/adapters/knowledge_graph_adapter_phase3.py` - Mixin class
-2. `session_buddy/adapters/knowledge_graph_phase3_patch.py` - Standalone functions
-3. `tests/unit/test_phase3_relationships.py` - Unit tests
-4. `session_buddy/mcp/tools/collaboration/knowledge_graph_phase3_tools.py` - MCP tools
-5. `PHASE3_IMPLEMENTATION.md` - Implementation plan
+1. `session_buddy/adapters/knowledge_graph_phase3_patch.py` - Standalone functions
+1. `tests/unit/test_phase3_relationships.py` - Unit tests
+1. `session_buddy/mcp/tools/collaboration/knowledge_graph_phase3_tools.py` - MCP tools
+1. `PHASE3_IMPLEMENTATION.md` - Implementation plan
 
 ### To Modify (3 files):
+
 1. `session_buddy/adapters/settings.py` - Make DuckPGQ optional
-2. `session_buddy/adapters/knowledge_graph_adapter_oneiric.py` - Integrate mixin
-3. `session_buddy/mcp/tools/collaboration/knowledge_graph_tools.py` - Register tools
+1. `session_buddy/adapters/knowledge_graph_adapter_oneiric.py` - Integrate mixin
+1. `session_buddy/mcp/tools/collaboration/knowledge_graph_tools.py` - Register tools
 
 ## Next Steps
 
 1. Fix DuckPGQ dependency issue
-2. Integrate Phase 3 mixin into adapter
-3. Update tool registration
-4. Run tests and verify
-5. Update documentation
-6. Deploy to production
+1. Integrate Phase 3 mixin into adapter
+1. Update tool registration
+1. Run tests and verify
+1. Update documentation
+1. Deploy to production
 
 ## Support
 
 For issues or questions:
-1. Check this integration guide
-2. Review test files for examples
-3. Check PHASE3_COMPLETION_SUMMARY.md for overview
-4. Review implementation in knowledge_graph_adapter_phase3.py
 
----
+1. Check this integration guide
+1. Review test files for examples
+1. Check PHASE3_COMPLETION_SUMMARY.md for overview
+1. Review implementation in knowledge_graph_adapter_phase3.py
+
+______________________________________________________________________
 
 **Status**: Ready for integration
 **Estimated Time**: 1-2 hours

@@ -8,8 +8,6 @@ This example demonstrates the key features of the session analytics system:
 """
 
 import asyncio
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from session_buddy.analytics import SessionAnalytics, create_session_summary_report
 

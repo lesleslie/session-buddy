@@ -31,13 +31,12 @@ from websockets.server import ServerConnection
 
 from session_buddy.realtime.auth import (
     AUTH_ENABLED,
-    JWT_SECRET,
     get_authenticator,
 )
 from session_buddy.storage.skills_storage import SkillsStorage
 
 if TYPE_CHECKING:
-    from collections.abc import Set
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -191,10 +190,8 @@ class RealTimeMetricsServer:
                 )
                 return None
 
-        except asyncio.TimeoutError:
-            logger.warning(
-                f"Authentication timeout: {websocket.remote_address}"
-            )
+        except TimeoutError:
+            logger.warning(f"Authentication timeout: {websocket.remote_address}")
             return None
         except json.JSONDecodeError:
             logger.warning(
@@ -273,7 +270,9 @@ class RealTimeMetricsServer:
                                 await client.send(json.dumps(message))
 
                         except ConnectionClosed:
-                            logger.debug(f"Client disconnected: {client.remote_address}")
+                            logger.debug(
+                                f"Client disconnected: {client.remote_address}"
+                            )
                             disconnected.add(client)
                         except Exception as e:
                             logger.error(f"Error sending to client: {e}")

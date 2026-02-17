@@ -5,6 +5,7 @@ Real-time WebSocket API for streaming skill metrics and live updates.
 ## Overview
 
 The WebSocket API provides real-time access to:
+
 - Live skill invocation metrics
 - Performance anomaly detection
 - Session tracking updates
@@ -14,7 +15,7 @@ The WebSocket API provides real-time access to:
 **Default Update Interval**: 1 second
 **Message Format**: JSON
 
----
+______________________________________________________________________
 
 ## Connection
 
@@ -66,7 +67,7 @@ async def connect_to_websocket():
 asyncio.run(connect_to_websocket())
 ```
 
----
+______________________________________________________________________
 
 ## Message Types
 
@@ -75,6 +76,7 @@ asyncio.run(connect_to_websocket())
 Automatic broadcast every 1 second with top skills and anomalies.
 
 **Message Structure**:
+
 ```json
 {
     "type": "metrics_update",
@@ -103,6 +105,7 @@ Automatic broadcast every 1 second with top skills and anomalies.
 ```
 
 **Fields**:
+
 - `type`: Always `"metrics_update"`
 - `timestamp`: ISO 8601 timestamp
 - `data.top_skills`: Array of top 10 most active skills
@@ -118,13 +121,14 @@ Automatic broadcast every 1 second with top skills and anomalies.
   - `observed_value`: Actual value
   - `deviation_score`: Z-score deviation (≥2.0 = anomaly)
 
----
+______________________________________________________________________
 
 ### 2. Subscribe (Client → Server)
 
 Subscribe to updates for specific skill or all skills.
 
 **Request**:
+
 ```json
 {
     "type": "subscribe",
@@ -133,10 +137,12 @@ Subscribe to updates for specific skill or all skills.
 ```
 
 **Fields**:
+
 - `type`: Always `"subscribe"`
 - `skill_name`: Skill name to monitor, or `null` for all skills
 
 **Response**:
+
 ```json
 {
     "type": "subscription_confirmed",
@@ -145,13 +151,14 @@ Subscribe to updates for specific skill or all skills.
 }
 ```
 
----
+______________________________________________________________________
 
 ### 3. Get Metrics (Client → Server)
 
 Request current metrics for a specific skill.
 
 **Request**:
+
 ```json
 {
     "type": "get_metrics",
@@ -160,10 +167,12 @@ Request current metrics for a specific skill.
 ```
 
 **Fields**:
+
 - `type`: Always `"get_metrics"`
 - `skill_name`: Skill to query
 
 **Response**:
+
 ```json
 {
     "type": "metrics_response",
@@ -177,13 +186,14 @@ Request current metrics for a specific skill.
 }
 ```
 
----
+______________________________________________________________________
 
 ### 4. Error (Server → Client)
 
 Error responses for invalid requests.
 
 **Structure**:
+
 ```json
 {
     "type": "error",
@@ -191,13 +201,14 @@ Error responses for invalid requests.
 }
 ```
 
----
+______________________________________________________________________
 
 ## Server Configuration
 
 ### Starting the WebSocket Server
 
 **Python API**:
+
 ```python
 from session_buddy.realtime.websocket_server import RealTimeMetricsServer
 
@@ -213,17 +224,19 @@ await server.start()
 ```
 
 **Command Line**:
+
 ```bash
 python -m session_buddy.websocket-server --port 8765
 ```
 
 **Configuration Options**:
+
 - `host`: Server host (default: `"localhost"`)
 - `port`: Server port (default: `8765`)
 - `db_path`: Path to SQLite database (default: from config)
 - `update_interval`: Metrics broadcast interval in seconds (default: `1.0`)
 
----
+______________________________________________________________________
 
 ## Anomaly Detection
 
@@ -245,7 +258,7 @@ z_score = (observed_value - baseline_value) / standard_deviation
 | `performance_spike` | Completion rate significantly above baseline | 80% → 95% (z=2.1) |
 | `pattern_shift` | Execution time pattern changed | 5s → 15s average |
 
----
+______________________________________________________________________
 
 ## Real-Time Metrics Cache
 
@@ -272,7 +285,7 @@ CREATE TABLE skill_metrics_cache (
 - **WebSocket broadcast**: Every 1 second
 - **Anomaly detection**: Every broadcast cycle
 
----
+______________________________________________________________________
 
 ## Usage Examples
 
@@ -352,7 +365,7 @@ ws.onmessage = (event) => {
 };
 ```
 
----
+______________________________________________________________________
 
 ## Performance Considerations
 
@@ -365,8 +378,8 @@ ws.onmessage = (event) => {
 ### Optimization Tips
 
 1. **Subscribe to specific skills**: Reduces bandwidth vs. all skills
-2. **Increase update interval**: Use 2-5 seconds for non-critical monitoring
-3. **Filter anomalies on server-side**: Only broadcast anomalies above threshold
+1. **Increase update interval**: Use 2-5 seconds for non-critical monitoring
+1. **Filter anomalies on server-side**: Only broadcast anomalies above threshold
 
 ### Load Testing
 
@@ -378,7 +391,7 @@ pip install websockets
 python -m websockets ws://localhost:8765 --count 100 --duration 60
 ```
 
----
+______________________________________________________________________
 
 ## Error Handling
 
@@ -419,13 +432,14 @@ function connect() {
 connect();
 ```
 
----
+______________________________________________________________________
 
 ## Security Considerations
 
 ### Current Limitations
 
 ⚠️ **Production Use Requires**:
+
 - TLS/SSL encryption (wss:// instead of ws://)
 - Authentication token validation
 - Origin header checking
@@ -445,7 +459,7 @@ location /ws {
 }
 ```
 
----
+______________________________________________________________________
 
 ## Troubleshooting
 
@@ -464,25 +478,28 @@ await server.start()
 ### Common Issues
 
 **Issue**: Client not receiving updates
+
 - **Cause**: Not subscribed to any skill
 - **Fix**: Send `subscribe` message after connecting
 
 **Issue**: Anomaly detection not working
+
 - **Cause**: Insufficient data points (need ≥5 samples)
 - **Fix**: Generate test data with multiple invocations
 
 **Issue**: Server crashes under load
+
 - **Cause**: Too many concurrent connections
 - **Fix**: Implement connection pooling or load balancing
 
----
+______________________________________________________________________
 
 ## API Versioning
 
 **Current Version**: `v1.0`
 **Compatibility**: Breaking changes will increment major version
 
----
+______________________________________________________________________
 
 ## See Also
 

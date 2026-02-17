@@ -21,7 +21,7 @@ import argparse
 import json
 import sqlite3
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -30,6 +30,7 @@ from typing import Any
 @dataclass
 class MetricTrend:
     """Represents a metric trend over time."""
+
     metric_type: str
     current_value: float
     previous_value: float
@@ -43,6 +44,7 @@ class MetricTrend:
 @dataclass
 class QualityAlert:
     """Represents a quality degradation alert."""
+
     severity: str  # "critical", "warning", "info"
     metric_type: str
     message: str
@@ -55,6 +57,7 @@ class QualityAlert:
 @dataclass
 class CommandStats:
     """Statistics for a command type."""
+
     command: str
     total_executions: int
     successful_executions: int
@@ -66,6 +69,7 @@ class CommandStats:
 @dataclass
 class MonitoringReport:
     """Comprehensive monitoring report."""
+
     report_generated: str
     analysis_period_days: int
     total_records: int
@@ -126,7 +130,9 @@ class CrackerjackMetricsMonitor:
             command_stats = self._analyze_command_statistics(conn, days, project_filter)
             quality_alerts = self._generate_quality_alerts(metric_trends, summary)
             project_insights = self._analyze_project_insights(conn, days)
-            performance_metrics = self._analyze_performance_metrics(conn, days, project_filter)
+            performance_metrics = self._analyze_performance_metrics(
+                conn, days, project_filter
+            )
             recommendations = self._generate_recommendations(
                 metric_trends, command_stats, quality_alerts
             )
@@ -250,9 +256,21 @@ class CrackerjackMetricsMonitor:
             # Determine direction (for quality metrics, higher is usually better)
             # Except for complexity where lower is better
             if metric_type == "complexity_score":
-                direction = "improving" if change < 0 else "declining" if change > 0 else "stable"
+                direction = (
+                    "improving"
+                    if change < 0
+                    else "declining"
+                    if change > 0
+                    else "stable"
+                )
             else:
-                direction = "improving" if change > 0 else "declining" if change < 0 else "stable"
+                direction = (
+                    "improving"
+                    if change > 0
+                    else "declining"
+                    if change < 0
+                    else "stable"
+                )
 
             # Determine strength
             abs_change = abs(change_percentage)
@@ -416,14 +434,17 @@ class CrackerjackMetricsMonitor:
 
             insights[project_path] = {
                 "executions": total,
-                "success_rate": round((successful / total) * 100, 2) if total > 0 else 0,
+                "success_rate": round((successful / total) * 100, 2)
+                if total > 0
+                else 0,
                 "avg_execution_time": round(row["avg_time"] or 0, 3),
                 "first_run": row["first_run"],
                 "last_run": row["last_run"],
                 "days_active": (
-                    datetime.fromisoformat(row["last_run"]) -
-                    datetime.fromisoformat(row["first_run"])
-                ).days + 1,
+                    datetime.fromisoformat(row["last_run"])
+                    - datetime.fromisoformat(row["first_run"])
+                ).days
+                + 1,
             }
 
         return insights
@@ -536,18 +557,18 @@ class CrackerjackMetricsMonitor:
                         )
                     elif metric_type == "lint_score":
                         recommendations.append(
-                            f"WARNING: Code quality declining - run 'crackerjack lint' "
-                            f"and address issues"
+                            "WARNING: Code quality declining - run 'crackerjack lint' "
+                            "and address issues"
                         )
                     elif metric_type == "security_score":
                         recommendations.append(
-                            f"SECURITY: Security score declining - run "
-                            f"'crackerjack security' and review findings"
+                            "SECURITY: Security score declining - run "
+                            "'crackerjack security' and review findings"
                         )
                     elif metric_type == "complexity_score":
                         recommendations.append(
-                            f"TECHNICAL DEBT: Complexity increasing - consider "
-                            f"refactoring complex modules"
+                            "TECHNICAL DEBT: Complexity increasing - consider "
+                            "refactoring complex modules"
                         )
 
         # Command failure recommendations
@@ -571,7 +592,8 @@ class CrackerjackMetricsMonitor:
 
         # Positive reinforcement
         improving_metrics = [
-            (m, t) for m, t in trends.items()
+            (m, t)
+            for m, t in trends.items()
             if t.direction == "improving" and t.strength == "strong"
         ]
 
@@ -605,74 +627,106 @@ def format_markdown_report(report: MonitoringReport) -> str:
     ]
 
     # Executive Summary
-    lines.extend([
-        "## Executive Summary",
-        "",
-        f"- **Total Executions:** {report.summary.get('total_records', 0):,}",
-        f"- **Success Rate:** {report.summary.get('success_rate', 0):.1f}%",
-        f"- **Unique Commands:** {report.summary.get('unique_commands', 0)}",
-        f"- **Avg Execution Time:** {report.summary.get('avg_execution_time', 0):.3f}s",
-        f"- **Metric Records:** {report.summary.get('metric_records', 0):,}",
-        "",
-    ])
+    lines.extend(
+        [
+            "## Executive Summary",
+            "",
+            f"- **Total Executions:** {report.summary.get('total_records', 0):,}",
+            f"- **Success Rate:** {report.summary.get('success_rate', 0):.1f}%",
+            f"- **Unique Commands:** {report.summary.get('unique_commands', 0)}",
+            f"- **Avg Execution Time:** {report.summary.get('avg_execution_time', 0):.3f}s",
+            f"- **Metric Records:** {report.summary.get('metric_records', 0):,}",
+            "",
+        ]
+    )
 
     # Quality Alerts
     if report.quality_alerts:
-        lines.extend([
-            "## Quality Alerts",
-            "",
-        ])
+        lines.extend(
+            [
+                "## Quality Alerts",
+                "",
+            ]
+        )
 
         for alert in report.quality_alerts:
-            emoji = "🔴" if alert.severity == "critical" else "🟡" if alert.severity == "warning" else "🟢"
-            lines.extend([
-                f"### {emoji} {alert.severity.upper()}: {alert.metric_type}",
-                "",
-                f"- **Message:** {alert.message}",
-                f"- **Current Value:** {alert.current_value}",
-                f"- **Previous Value:** {alert.previous_value}",
-                f"- **Change:** {alert.change_percentage:.1f}%",
-                "",
-            ])
+            emoji = (
+                "🔴"
+                if alert.severity == "critical"
+                else "🟡"
+                if alert.severity == "warning"
+                else "🟢"
+            )
+            lines.extend(
+                [
+                    f"### {emoji} {alert.severity.upper()}: {alert.metric_type}",
+                    "",
+                    f"- **Message:** {alert.message}",
+                    f"- **Current Value:** {alert.current_value}",
+                    f"- **Previous Value:** {alert.previous_value}",
+                    f"- **Change:** {alert.change_percentage:.1f}%",
+                    "",
+                ]
+            )
     else:
-        lines.extend([
-            "## Quality Alerts",
-            "",
-            "✅ No quality alerts - all metrics within normal thresholds",
-            "",
-        ])
+        lines.extend(
+            [
+                "## Quality Alerts",
+                "",
+                "✅ No quality alerts - all metrics within normal thresholds",
+                "",
+            ]
+        )
 
     # Metric Trends
     if report.metric_trends:
-        lines.extend([
-            "## Metric Trends",
-            "",
-        ])
+        lines.extend(
+            [
+                "## Metric Trends",
+                "",
+            ]
+        )
 
         for metric_type, trend in sorted(report.metric_trends.items()):
-            direction_emoji = "📈" if trend.direction == "improving" else "📉" if trend.direction == "declining" else "➡️"
-            strength_emoji = "⚡" if trend.strength == "strong" else "🔄" if trend.strength == "moderate" else "📍"
+            direction_emoji = (
+                "📈"
+                if trend.direction == "improving"
+                else "📉"
+                if trend.direction == "declining"
+                else "➡️"
+            )
+            strength_emoji = (
+                "⚡"
+                if trend.strength == "strong"
+                else "🔄"
+                if trend.strength == "moderate"
+                else "📍"
+            )
 
-            lines.extend([
-                f"### {direction_emoji} {metric_type} {strength_emoji}",
-                "",
-                f"- **Current:** {trend.current_value}",
-                f"- **Previous:** {trend.previous_value}",
-                f"- **Change:** {trend.change:+.2f} ({trend.change_percentage:+.1f}%)",
-                f"- **Direction:** {trend.direction}",
-                f"- **Strength:** {trend.strength}",
-                f"- **Data Points:** {trend.data_points}",
-                "",
-            ])
+            lines.extend(
+                [
+                    f"### {direction_emoji} {metric_type} {strength_emoji}",
+                    "",
+                    f"- **Current:** {trend.current_value}",
+                    f"- **Previous:** {trend.previous_value}",
+                    f"- **Change:** {trend.change:+.2f} ({trend.change_percentage:+.1f}%)",
+                    f"- **Direction:** {trend.direction}",
+                    f"- **Strength:** {trend.strength}",
+                    f"- **Data Points:** {trend.data_points}",
+                    "",
+                ]
+            )
 
     # Command Statistics
     if report.command_statistics:
-        lines.extend([
-            "## Command Statistics",
-            "",
-            "| Command | Executions | Success Rate | Avg Time | Failures |",
-            "|---------|------------|--------------|----------|----------|",
-        ])
+        lines.extend(
+            [
+                "## Command Statistics",
+                "",
+                "| Command | Executions | Success Rate | Avg Time | Failures |",
+                "|---------|------------|--------------|----------|----------|",
+            ]
+        )
 
         for stats in report.command_statistics[:15]:  # Top 15
             lines.append(
@@ -684,45 +738,53 @@ def format_markdown_report(report: MonitoringReport) -> str:
         lines.append("")
 
     # Performance Metrics
-    lines.extend([
-        "## Performance Metrics",
-        "",
-        f"- **Average Execution Time:** {report.performance_metrics.get('avg_execution_time', 0):.3f}s",
-        f"- **Min Execution Time:** {report.performance_metrics.get('min_execution_time', 0):.3f}s",
-        f"- **Max Execution Time:** {report.performance_metrics.get('max_execution_time', 0):.3f}s",
-        "",
-    ])
+    lines.extend(
+        [
+            "## Performance Metrics",
+            "",
+            f"- **Average Execution Time:** {report.performance_metrics.get('avg_execution_time', 0):.3f}s",
+            f"- **Min Execution Time:** {report.performance_metrics.get('min_execution_time', 0):.3f}s",
+            f"- **Max Execution Time:** {report.performance_metrics.get('max_execution_time', 0):.3f}s",
+            "",
+        ]
+    )
 
     if report.performance_metrics.get("slowest_commands"):
-        lines.extend([
-            "### Slowest Commands",
-            "",
-            "| Command | Avg Time |",
-            "|---------|----------|",
-        ])
+        lines.extend(
+            [
+                "### Slowest Commands",
+                "",
+                "| Command | Avg Time |",
+                "|---------|----------|",
+            ]
+        )
         for cmd in report.performance_metrics["slowest_commands"]:
             lines.append(f"| {cmd['command']} | {cmd['avg_time']:.3f}s |")
         lines.append("")
 
     if report.performance_metrics.get("fastest_commands"):
-        lines.extend([
-            "### Fastest Commands",
-            "",
-            "| Command | Avg Time |",
-            "|---------|----------|",
-        ])
+        lines.extend(
+            [
+                "### Fastest Commands",
+                "",
+                "| Command | Avg Time |",
+                "|---------|----------|",
+            ]
+        )
         for cmd in report.performance_metrics["fastest_commands"]:
             lines.append(f"| {cmd['command']} | {cmd['avg_time']:.3f}s |")
         lines.append("")
 
     # Project Insights
     if report.project_insights:
-        lines.extend([
-            "## Project Insights",
-            "",
-            "| Project | Executions | Success Rate | Avg Time | Active Days |",
-            "|---------|------------|--------------|----------|------------|",
-        ])
+        lines.extend(
+            [
+                "## Project Insights",
+                "",
+                "| Project | Executions | Success Rate | Avg Time | Active Days |",
+                "|---------|------------|--------------|----------|------------|",
+            ]
+        )
 
         # Sort by executions
         sorted_projects = sorted(
@@ -733,7 +795,9 @@ def format_markdown_report(report: MonitoringReport) -> str:
 
         for project_path, insights in sorted_projects:
             # Shorten path for display
-            display_path = project_path if len(project_path) <= 50 else "..." + project_path[-47:]
+            display_path = (
+                project_path if len(project_path) <= 50 else "..." + project_path[-47:]
+            )
             lines.append(
                 f"| {display_path} | {insights['executions']} | "
                 f"{insights['success_rate']:.1f}% | {insights['avg_execution_time']:.3f}s | "
@@ -743,21 +807,25 @@ def format_markdown_report(report: MonitoringReport) -> str:
         lines.append("")
 
     # Recommendations
-    lines.extend([
-        "## Recommendations",
-        "",
-    ])
+    lines.extend(
+        [
+            "## Recommendations",
+            "",
+        ]
+    )
 
     for i, rec in enumerate(report.recommendations, 1):
         lines.append(f"{i}. {rec}")
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        f"*Report generated by Crackerjack Metrics Monitor*",
-        f"*Database: {report.database_path}*",
-    ])
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "*Report generated by Crackerjack Metrics Monitor*",
+            f"*Database: {report.database_path}*",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -781,9 +849,7 @@ def format_json_report(report: MonitoringReport) -> str:
 
     # Convert alerts to list of dicts
     if "quality_alerts" in report_dict:
-        report_dict["quality_alerts"] = [
-            asdict(a) for a in report.quality_alerts
-        ]
+        report_dict["quality_alerts"] = [asdict(a) for a in report.quality_alerts]
 
     return json.dumps(report_dict, indent=2, default=str)
 
@@ -792,7 +858,7 @@ def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Monitor and analyze Crackerjack metrics",
-    epilog="""
+        epilog="""
 Examples:
   python scripts/monitor_crackerjack_metrics.py                    # Full 30-day report
   python scripts/monitor_crackerjack_metrics.py --days 7           # Last 7 days

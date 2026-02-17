@@ -44,7 +44,7 @@ class ComparisonSummary:
 
 def run_vulture(package_path: Path, min_confidence: int = 80) -> ToolResult:
     """Run Vulture dead code detection."""
-    console.print(f"[cyan]🦅 Running Vulture...[/cyan]")
+    console.print("[cyan]🦅 Running Vulture...[/cyan]")
 
     cmd = [
         "vulture",
@@ -81,12 +81,14 @@ def run_vulture(package_path: Path, min_confidence: int = 80) -> ToolResult:
                             conf_str = message.split("(")[1].split("%")[0].strip()
                             confidence = int(conf_str)
 
-                        issues.append({
-                            "file": file_path,
-                            "line": line_num,
-                            "message": message,
-                            "confidence": confidence,
-                        })
+                        issues.append(
+                            {
+                                "file": file_path,
+                                "line": line_num,
+                                "message": message,
+                                "confidence": confidence,
+                            }
+                        )
                     except (ValueError, IndexError):
                         pass
 
@@ -121,7 +123,7 @@ def run_vulture(package_path: Path, min_confidence: int = 80) -> ToolResult:
 
 def run_deadcode(package_path: Path) -> ToolResult:
     """Run deadcode tool."""
-    console.print(f"[cyan]💀 Running deadcode...[/cyan]")
+    console.print("[cyan]💀 Running deadcode...[/cyan]")
 
     # First run with --dry-run to see what would be deleted
     cmd = [
@@ -180,7 +182,7 @@ def run_deadcode(package_path: Path) -> ToolResult:
 
 def run_skylos(package_path: Path) -> ToolResult:
     """Run Skylos if available via crackerjack."""
-    console.print(f"[cyan]🛡️ Running Skylos...[/cyan]")
+    console.print("[cyan]🛡️ Running Skylos...[/cyan]")
 
     # Try to run skylos directly if installed
     cmd = ["skylos", str(package_path)]
@@ -241,7 +243,11 @@ def run_skylos(package_path: Path) -> ToolResult:
 
 def display_comparison_table(results: list[ToolResult]) -> None:
     """Display comparison table."""
-    table = Table(title="🔍 Dead Code Detection Tool Comparison", show_header=True, header_style="bold magenta")
+    table = Table(
+        title="🔍 Dead Code Detection Tool Comparison",
+        show_header=True,
+        header_style="bold magenta",
+    )
     table.add_column("Tool", style="cyan", width=12)
     table.add_column("Duration", justify="right", style="green")
     table.add_column("Issues", justify="right", style="yellow")
@@ -283,22 +289,25 @@ def display_sample_issues(results: list[ToolResult]) -> None:
     """Display sample issues from each tool."""
     for result in results:
         if result.issues and result.issues_found > 0:
-            console.print(Panel.fit(
-                f"[bold cyan]{result.tool_name}[/bold cyan]\n\n"
-                + "\n".join(
-                    f"  • {issue.get('file', '')}:{issue.get('line', '')} {issue.get('message', '')}"
-                    for issue in result.issues[:5]
-                ),
-                title=f"Sample Issues (showing 5 of {result.issues_found})",
-                border_style="cyan",
-            ))
+            console.print(
+                Panel.fit(
+                    f"[bold cyan]{result.tool_name}[/bold cyan]\n\n"
+                    + "\n".join(
+                        f"  • {issue.get('file', '')}:{issue.get('line', '')} {issue.get('message', '')}"
+                        for issue in result.issues[:5]
+                    ),
+                    title=f"Sample Issues (showing 5 of {result.issues_found})",
+                    border_style="cyan",
+                )
+            )
             console.print()
 
 
 def display_recommendations(results: list[ToolResult]) -> None:
     """Display recommendations based on results."""
-    console.print(Panel.fit(
-        """
+    console.print(
+        Panel.fit(
+            """
 [bold green]✨ Recommendations[/bold green]
 
 1. [cyan]Pre-commit (Fast)[/cyan]: Use Vulture with 90% confidence
@@ -315,9 +324,10 @@ def display_recommendations(results: list[ToolResult]) -> None:
    • Weekly: deadcode (cleanup)
    • Monthly: Skylos (comprehensive review)
         """,
-        title="💡 Usage Recommendations",
-        border_style="green",
-    ))
+            title="💡 Usage Recommendations",
+            border_style="green",
+        )
+    )
 
 
 def main() -> int:
@@ -328,13 +338,15 @@ def main() -> int:
         console.print(f"[red]❌ Package path not found: {package_path}[/red]")
         return 1
 
-    console.print(Panel.fit(
-        f"[bold cyan]Comparing Dead Code Detection Tools[/bold cyan]\n\n"
-        f"Package: [yellow]{package_path}[/yellow]\n"
-        f"Tools: Vulture, deadcode, Skylos",
-        title="🔬 Dead Code Detection Comparison",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel.fit(
+            f"[bold cyan]Comparing Dead Code Detection Tools[/bold cyan]\n\n"
+            f"Package: [yellow]{package_path}[/yellow]\n"
+            f"Tools: Vulture, deadcode, Skylos",
+            title="🔬 Dead Code Detection Comparison",
+            border_style="cyan",
+        )
+    )
     console.print()
 
     # Run all tools

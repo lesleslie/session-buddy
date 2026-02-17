@@ -917,8 +917,7 @@ async def _crackerjack_run_impl(
     """Run crackerjack with enhanced analytics (replaces /crackerjack:run)."""
     try:
         from session_buddy.crackerjack_integration import CrackerjackIntegration
-
-        from .quality_metrics import QualityMetricsExtractor
+        from session_buddy.tools.quality_metrics import QualityMetricsExtractor
 
         # SECURITY: Parse and validate arguments to prevent command injection
         args_list = _parse_crackerjack_args(args) if args else []

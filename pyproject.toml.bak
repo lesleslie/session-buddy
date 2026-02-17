@@ -1,0 +1,268 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "session-buddy"
+version = "0.14.0"
+description = "A Session Management MCP Server for Claude Code"
+readme = "README.md"
+authors = [{name = "Les Leslie", email = "les@wedgwoodwebworks.com"}]
+requires-python = ">=3.13"
+classifiers = [
+    "Operating System :: POSIX",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    "aiofiles>=25.1.0",
+    "fastmcp>=2.14.5",
+    "hatchling>=1.28.0",
+    "numpy>=2.4.2",
+    "onnxruntime>=1.23.2,<1.24",
+    "oneiric>=0.6.0",
+    "transformers>=5.1.0",
+    "pydantic>=2.12.5",
+    "duckdb>=1.4.4",
+    "tiktoken>=0.12.0",
+    "aiohttp>=3.13.3",
+    "rich>=14.3.2",
+    "structlog>=25.5.0",
+    "typer>=0.21.1",
+    "psutil>=7.2.2",
+    "crackerjack>=0.52.0",
+    "prometheus-client>=0.24.1",
+    "scikit-learn>=1.6.0",
+    "scipy>=1.15.0",
+    "websockets>=15.0",
+]
+
+[project.license]
+text = "BSD-3-CLAUSE"
+
+[project.urls]
+documentation = "https://github.com/lesleslie/session-buddy"
+homepage = "https://github.com/lesleslie/session-buddy"
+repository = "https://github.com/lesleslie/session-buddy"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+exclude = [
+    "tests/",
+    "test_*.py",
+    "*_test.py",
+]
+
+[tool.ruff.lint]
+extend-select = [
+    "C901",
+    "F",
+    "I",
+    "UP",
+]
+ignore = [
+    "E402",
+    "F821",
+]
+fixable = [
+    "ALL",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+timeout = 600
+testpaths = [
+    "tests",
+]
+addopts = [
+    "--cov=session_buddy",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html:htmlcov",
+    "--cov-report=json",
+    "--strict-markers",
+    "--strict-config",
+    "-ra",
+    "--tb=short",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "e2e: End-to-end tests",
+    "security: Security-focused tests",
+    "performance: Performance and load tests",
+    "slow: Slow tests (>2s)",
+    "benchmark: Benchmark tests (deferred)",
+    "smoke: Quick smoke tests",
+    "regression: Regression tests",
+    "api: API endpoint tests",
+    "database: marks test as database test",
+    "external: marks test requiring external services",
+    "no_leaks: detect asyncio task leaks",
+    "property: marks test as property-based test",
+    "mutation: marks test as mutation testing",
+    "chaos: marks test as chaos engineering test",
+    "ai_generated: marks test as AI-generated test",
+    "breakthrough: marks test as breakthrough frontier test",
+]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+concurrency = [
+    "multiprocessing",
+]
+source = [
+    "session-buddy",
+]
+data_file = ".coverage"
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/__init__.py",
+    "*/_version.py",
+    "*/conftest.py",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+    "pass",
+    "raise ImportError",
+    "except ImportError",
+]
+
+[tool.vulture]
+min_confidence = 80
+paths = ["session_buddy"]
+exclude = ["tests/", "*/__pycache__/*"]
+ignore_names = []
+make_whitelist = false
+sort_by_size = true
+
+[tool.pyright]
+include = [
+    "session-buddy",
+]
+exclude = [
+    "tests/*",
+    "scratch",
+    ".venv",
+    "build",
+    "dist",
+]
+typeCheckingMode = "strict"
+pythonVersion = "3.13"
+
+[tool.bandit]
+target = [
+    "session-buddy",
+]
+skips = [
+    "B101",
+    "B110",
+    "B112",
+    "B404",
+    "B603",
+    "B607",
+]
+exclude_dirs = [
+    "tests/",
+]
+
+[tool.codespell]
+quiet-level = 3
+ignore-words-list = "crate,uptodate,nd,nin"
+
+[tool.creosote]
+paths = [
+    "session-buddy",
+]
+deps-file = "pyproject.toml"
+exclude-deps = [
+    "hatchling",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-xdist",
+    "pytest-timeout",
+    "pytest-benchmark",
+    "ruff",
+    "pyright",
+    "bandit",
+    "creosote",
+    "codespell",
+    "refurb",
+    "complexipy",
+    # Optional dependencies used conditionally or in TYPE_CHECKING
+    "aiofiles",
+    "aiohttp",
+    "duckdb",
+    "fastmcp",
+    "onnxruntime",
+    "psutil",
+    "rich",
+    "scipy",
+    "scikit-learn",
+    "structlog",
+    "tiktoken",
+    "transformers",
+    "typer",
+    # Transitive dependencies with known vulnerabilities (no fix available)
+    # protobuf GHSA-7gcm-g887-7qv7: JSON parsing depth issue, not exploitable in this context
+    "protobuf",
+]
+
+[tool.refurb]
+enable_all = false
+quiet = true
+python_version = "3.13"
+ignore = [
+    "FURB184",
+    "FURB120",
+]
+
+[tool.complexipy]
+default_pattern = "**/*.py"
+exclude_patterns = [
+    "**/tests/**",
+    "**/test_*.py",
+]
+max_complexity = 15
+
+[dependency-groups]
+dev = [
+    "crackerjack",
+    "deadcode>=2.4.1",
+    "factory-boy>=3.3.3",
+    "faker>=40.4.0",
+]
+
+[tool.crackerjack]
+# Exclude directories and files from link checking
+exclude_patterns = [
+    ".venv/**",
+    "node_modules/**",
+    "build/**",
+    "dist/**",
+    ".git/**",
+    "docs/ZUBAN_FIX_SUMMARY.md",
+    ".claude/commands/**",
+    "coverage_report/**",
+    "htmlcov/**",
+]
+
+# AI agent mode configuration (default: true)
+ai_agent_mode = true
