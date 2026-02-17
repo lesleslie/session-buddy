@@ -20,6 +20,8 @@ def generate_ulid() -> str:
         return generate_ulid_impl()
     except ImportError:
         # Use timestamp-based fallback
+        import struct
+
         timestamp_ms = int(time.time() * 1000)
         timestamp_bytes = timestamp_ms.to_bytes(6, byteorder='big')
 
@@ -31,11 +33,19 @@ def generate_ulid() -> str:
 
         # Encode to Crockford Base32 (Dhruva's alphabet)
         alphabet = "0123456789abcdefghjkmnpqrstvwxyz"
-        b32_encode = lambda data: ''.join([
-            alphabet[(b >> 35) & 31] for b in data
-        ])
 
-        return b32_encode(ulid_bytes)
+        # Convert 16 bytes to 128 bits, then encode as base32 (5 bits per char)
+        # This gives us 26 characters (last char only uses 3 bits)
+        result = []
+        value = int.from_bytes(ulid_bytes, byteorder='big')
+
+        for _ in range(26):
+            index = value & 0x1F  # Get lowest 5 bits
+            result.append(alphabet[index])
+            value >>= 5  # Shift right by 5 bits
+
+        # Reverse to get correct order (most significant first)
+        return ''.join(reversed(result))
 
 
 def is_valid_ulid(value: str) -> bool:
