@@ -187,39 +187,6 @@ async def store_conversation(
 
     return conversation_id  # Return legacy ID for compatibility
 
-    # Encode content for database
-    db_content = _encode_text_for_db(content)
-
-    # Get connection if db is ReflectionDatabase instance
-    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
-
-    # Insert into database
-    def _store() -> None:
-        conn.execute(
-            """
-            INSERT INTO conversations (id, content, embedding, project, timestamp, metadata)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            [
-                conversation_id,
-                db_content,
-                embedding,
-                metadata.get("project") if metadata else None,
-                datetime.now(UTC),
-                _serialize_metadata(metadata),
-            ],
-        )
-
-    if is_temp_db and lock:
-        # For temp DB, use lock to protect database operations
-        with lock:
-            _store()
-    else:
-        # For normal file-based DB, run in executor for thread safety
-        await asyncio.get_event_loop().run_in_executor(None, _store)
-
-    return conversation_id
-
 
 async def store_reflection(
     db: duckdb.DuckDBPyConnection | Any,
