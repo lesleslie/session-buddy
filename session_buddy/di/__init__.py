@@ -67,6 +67,7 @@ def configure(*, force: bool = False) -> None:
     _register_permissions_manager(paths.claude_dir, force)
     _register_quality_scorer(force)  # Register quality scorer BEFORE lifecycle manager
     _register_code_formatter(force)  # Register code formatter BEFORE hooks manager
+    _register_workflow_metrics_engine(force)  # Register workflow metrics engine
     _register_lifecycle_manager(force)
     _register_hooks_manager(force)  # Register HooksManager for automation
 
@@ -223,6 +224,30 @@ def _register_code_formatter(force: bool) -> None:
         code_formatter = DefaultCodeFormatter()
 
     depends.set(CodeFormatter, code_formatter)
+
+
+def _register_workflow_metrics_engine(force: bool) -> None:
+    """Register WorkflowMetricsEngine with the DI container.
+
+    Args:
+        force: If True, re-registers even if already registered
+
+    Note:
+        The WorkflowMetricsEngine provides comprehensive workflow analytics
+        including session velocity, quality trends, and performance metrics.
+
+    """
+    from session_buddy.core.workflow_metrics import WorkflowMetricsEngine
+
+    if not force:
+        with suppress(Exception):
+            existing = depends.get_sync(WorkflowMetricsEngine)
+            if isinstance(existing, WorkflowMetricsEngine):
+                return
+
+    # Create and register workflow metrics engine instance
+    workflow_metrics_engine = WorkflowMetricsEngine()
+    depends.set(WorkflowMetricsEngine, workflow_metrics_engine)
 
 
 def _register_lifecycle_manager(force: bool) -> None:

@@ -933,6 +933,7 @@ class SessionLifecycleManager:
             return {
                 "success": True,
                 "quality_score": quality_score,
+                "quality_data": quality_data,
                 "quality_output": quality_output,
                 "git_output": git_output,
                 "timestamp": datetime.now().isoformat(),

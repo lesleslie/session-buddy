@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 # Import conversation storage utilities
 from session_buddy.core.conversation_storage import (
     get_conversation_stats,
+    store_conversation_checkpoint as store_conversation_checkpoint_helper,
 )
 from session_buddy.di import get_sync_typed
 from session_buddy.utils.error_management import _get_logger
@@ -128,8 +129,8 @@ The conversation is now available for semantic search."""
             # Get session manager
             manager = get_sync_typed(SessionLifecycleManager)
 
-            # Store conversation checkpoint
-            result = await store_conversation_checkpoint(
+            # Store conversation checkpoint using the helper function
+            result = await store_conversation_checkpoint_helper(
                 manager=manager,
                 checkpoint_type=checkpoint_type,
                 quality_score=quality_score,
