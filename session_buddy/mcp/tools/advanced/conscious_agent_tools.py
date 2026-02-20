@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from session_buddy.config.feature_flags import get_feature_flags
 from session_buddy.memory.conscious_agent import ConsciousAgent
-from session_buddy.reflection_tools import get_reflection_database
+from session_buddy.utils.instance_managers import get_reflection_database
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -24,6 +24,8 @@ def register_conscious_agent_tools(mcp: FastMCP) -> None:
         global _agent
         if _agent is None:
             db = await get_reflection_database()
+            if db is None:
+                return {"status": "error", "message": "Database not available"}
             _agent = ConsciousAgent(db, analysis_interval_hours=interval_hours)
         await _agent.start()
         return {"status": "started", "interval_hours": interval_hours}
@@ -44,5 +46,7 @@ def register_conscious_agent_tools(mcp: FastMCP) -> None:
         global _agent
         if _agent is None:
             db = await get_reflection_database()
+            if db is None:
+                return {"status": "error", "message": "Database not available"}
             _agent = ConsciousAgent(db)
         return await _agent.force_analysis()

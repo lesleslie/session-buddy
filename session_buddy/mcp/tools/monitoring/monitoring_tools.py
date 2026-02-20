@@ -566,6 +566,14 @@ def register_monitoring_tools(mcp: FastMCP) -> None:
     @mcp.tool()  # type: ignore[misc]
     async def start_app_monitoring(project_paths: list[str] | None = None) -> str:
         """Start monitoring IDE activity and browser documentation usage."""
+        import json
+
+        # Defensive: Handle JSON string input from some MCP clients
+        if isinstance(project_paths, str):
+            try:
+                project_paths = json.loads(project_paths)
+            except json.JSONDecodeError:
+                project_paths = None
         return await _start_app_monitoring_impl(project_paths)
 
     @mcp.tool()  # type: ignore[misc]
