@@ -609,6 +609,7 @@ async def _handle_auto_store_reflection(
 
         try:
             db = get_reflection_database()  # Sync function, no await
+            await db.initialize()  # Must initialize before use
 
             # Create meaningful checkpoint summary
             checkpoint_content = f"Quality score: {result['quality_score']}/100. "
