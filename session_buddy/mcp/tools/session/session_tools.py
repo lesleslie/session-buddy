@@ -608,7 +608,7 @@ async def _handle_auto_store_reflection(
         from session_buddy.utils.reflection_utils import generate_auto_store_tags
 
         try:
-            db = await get_reflection_database()
+            db = get_reflection_database()  # Sync function, no await
 
             # Create meaningful checkpoint summary
             checkpoint_content = f"Quality score: {result['quality_score']}/100. "
@@ -646,7 +646,7 @@ async def _handle_auto_store_reflection(
 
 async def _handle_auto_compaction(output: list[str]) -> None:
     """Handle automatic compaction analysis and execution."""
-    from session_buddy.mcp.serveroptimized import (
+    from session_buddy.server_optimized import (
         _execute_auto_compact,
         should_suggest_compact,
     )
