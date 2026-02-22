@@ -895,6 +895,100 @@ async def _status_impl(working_directory: str | None = None) -> str:
 
 
 # ============================================================================
+# Pre-Compact Sync Implementation
+# ============================================================================
+
+
+async def _pre_compact_sync_impl() -> dict[str, Any]:
+    """Sync session state before context compaction.
+
+    This is designed to be called via PreCompactHook to preserve
+    valuable context before it's lost to compaction.
+
+    Returns:
+        Dict with success status and sync details
+    """
+    from datetime import UTC, datetime
+
+    from session_buddy.reflection_tools import get_reflection_database
+    from session_buddy.utils.reflection_utils import (
+        CheckpointReason,
+        format_auto_store_summary,
+        generate_auto_store_tags,
+    )
+
+    logger = _get_logger()
+    result = {
+        "success": False,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "reflection_stored": False,
+        "quality_score": None,
+        "project": None,
+    }
+
+    try:
+        # Get session manager for current state
+        manager = _get_session_manager()
+        project = manager.current_project
+        result["project"] = project
+
+        # Get current quality score if available
+        quality_score = None
+        if hasattr(manager, "_last_quality_score"):
+            quality_score = manager._last_quality_score
+            result["quality_score"] = quality_score
+
+        # Build context summary for reflection
+        context_parts = [
+            "Pre-compact context preservation snapshot.",
+            f"Project: {project or 'unknown'}",
+            f"Timestamp: {result['timestamp']}",
+        ]
+
+        if quality_score is not None:
+            context_parts.append(f"Quality score at compact time: {quality_score}/100")
+
+        # Add recent working directory info
+        working_dir = _get_client_working_directory()
+        if working_dir:
+            context_parts.append(f"Working directory: {working_dir}")
+
+        context_content = " ".join(context_parts)
+
+        # Store the reflection with pre-compact tags
+        try:
+            db = get_reflection_database()
+            await db.initialize()
+
+            tags = generate_auto_store_tags(
+                reason=CheckpointReason.PRE_COMPACT,
+                project=project,
+                quality_score=quality_score,
+            )
+
+            reflection_id = await db.store_reflection(context_content, tags)
+            result["reflection_stored"] = True
+            result["reflection_id"] = reflection_id
+            result["tags"] = tags
+
+            logger.info(
+                f"Pre-compact sync completed: reflection_id={reflection_id}, project={project}"
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to store pre-compact reflection: {e}")
+            result["reflection_error"] = str(e)
+
+        result["success"] = True
+
+    except Exception as e:
+        logger.error(f"Pre-compact sync failed: {e}")
+        result["error"] = str(e)
+
+    return result
+
+
+# ============================================================================
 # MCP Tool Registration
 # ============================================================================
 
@@ -1008,3 +1102,39 @@ Timestamp: {health_info["timestamp"]}
     async def ping() -> str:
         """Simple ping endpoint to test MCP connectivity."""
         return "🏓 Pong! MCP server is responding"
+
+    @mcp_server.tool()
+    async def pre_compact_sync() -> str:
+        """Sync session state before context compaction (called via PreCompactHook).
+
+        This tool preserves valuable context before it's lost to compaction by:
+        1. Storing a reflection with current session state
+        2. Tagging it with 'pre-compact' and 'context-preserved'
+        3. Capturing quality score at compact time
+
+        Designed to be called automatically via PreCompact hook.
+
+        """
+        result = await _pre_compact_sync_impl()
+
+        if result["success"]:
+            output = [
+                "🗜️ Pre-Compact Sync Complete",
+                "=" * 30,
+                f"📁 Project: {result.get('project', 'unknown')}",
+                f"⏰ Timestamp: {result['timestamp']}",
+            ]
+
+            if result.get("quality_score") is not None:
+                output.append(f"📊 Quality score: {result['quality_score']}/100")
+
+            if result.get("reflection_stored"):
+                output.append(f"💾 Reflection stored: {result.get('reflection_id', 'unknown')}")
+                output.append(f"🏷️ Tags: {', '.join(result.get('tags', []))}")
+            else:
+                output.append("⚠️ Reflection storage skipped")
+
+            output.append("\n✅ Context preserved before compaction")
+            return "\n".join(output)
+        else:
+            return f"❌ Pre-compact sync failed: {result.get('error', 'unknown error')}"

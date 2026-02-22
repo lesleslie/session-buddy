@@ -20,6 +20,7 @@ class CheckpointReason(Enum):
     QUALITY_DEGRADATION = "quality_degradation"
     EXCEPTIONAL_QUALITY = "exceptional_quality"
     ROUTINE_SKIP = "routine_skip"
+    PRE_COMPACT = "pre_compact"  # Before context compaction
 
 
 class AutoStoreDecision(t.NamedTuple):
@@ -185,6 +186,9 @@ def generate_auto_store_tags(
         tags.append("session-summary")
     elif reason == CheckpointReason.MANUAL_CHECKPOINT:
         tags.append("user-initiated")
+    elif reason == CheckpointReason.PRE_COMPACT:
+        tags.append("context-preserved")
+        tags.append("before-compaction")
     elif reason in {
         CheckpointReason.QUALITY_IMPROVEMENT,
         CheckpointReason.QUALITY_DEGRADATION,
@@ -213,6 +217,7 @@ def format_auto_store_summary(decision: AutoStoreDecision) -> str:
         CheckpointReason.QUALITY_IMPROVEMENT: "📈 Quality improved significantly - reflection stored",
         CheckpointReason.QUALITY_DEGRADATION: "📉 Quality changed significantly - reflection stored for analysis",
         CheckpointReason.EXCEPTIONAL_QUALITY: "⭐ Exceptional quality session - reflection stored",
+        CheckpointReason.PRE_COMPACT: "🗜️ Pre-compact sync - context preserved before compaction",
     }
 
     message = reason_messages.get(
