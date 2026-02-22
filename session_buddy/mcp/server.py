@@ -13,6 +13,7 @@ from .tools import (
     register_akosha_tools,
     register_bottleneck_tools,
     register_cache_tools,
+    register_code_analysis_tools,  # Tree-sitter integration
     register_code_graph_tools,
     register_conscious_agent_tools,
     register_conversation_tools,
@@ -79,5 +80,8 @@ register_oneiric_discovery_tools(mcp)  # type: ignore[argument-type]
 
 # Register Prometheus metrics tools
 register_prometheus_metrics_tools(mcp)  # type: ignore[argument-type]
+
+# Register code analysis tools (tree-sitter integration)
+register_code_analysis_tools(mcp)  # type: ignore[argument-type]
 
 __all__ = ["mcp"]

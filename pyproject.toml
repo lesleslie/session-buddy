@@ -38,6 +38,7 @@ dependencies = [
     "scikit-learn>=1.6.0",
     "scipy>=1.15.0",
     "websockets>=15.0",
+    "mcp-common[treesitter]>=0.9.4",
 ]
 
 [project.license]
