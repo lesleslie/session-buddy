@@ -35,7 +35,7 @@ class PromptDefinition:
 # Core session management prompts
 CORE_PROMPTS: tuple[PromptDefinition, ...] = (
     PromptDefinition(
-        "init",
+        "start",
         "Initialize Claude session with comprehensive setup including UV dependencies, global workspace verification, and automation tools.",
         content_key="init",
     ),

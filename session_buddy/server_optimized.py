@@ -78,7 +78,12 @@ import os
 from session_buddy.core import SessionLifecycleManager
 from session_buddy.utils.git_worktrees import get_git_root, is_git_repository
 
-# Global session manager for lifespan handlers
+# Configure DI container BEFORE creating lifecycle manager
+# This ensures MCPQualityScorer is registered instead of DefaultQualityScorer
+from session_buddy.di import configure
+configure()
+
+# Global session manager for lifespan handlers (now with proper DI injection)
 lifecycle_manager = SessionLifecycleManager()
 
 # Global connection info for notification display
@@ -143,6 +148,7 @@ from session_buddy.tools import (
     register_category_tools,
     register_fingerprint_tools,
     register_memory_tools,
+    register_prompt_tools,
     register_session_tools,
 )
 
@@ -158,6 +164,9 @@ register_fingerprint_tools(mcp)  # type: ignore[argument-type]
 
 # Category evolution tools (Phase 5: Category Evolution)
 register_category_tools(mcp)  # type: ignore[argument-type]
+
+# MCP prompts for slash command support
+register_prompt_tools(mcp)  # type: ignore[argument-type]
 
 
 @mcp.tool()
