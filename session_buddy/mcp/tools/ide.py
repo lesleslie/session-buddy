@@ -11,7 +11,7 @@ import logging
 import re
 import typing as t
 from dataclasses import dataclass
-from time import time
+import time
 
 from session_buddy.utils.error_management import _get_logger
 from fastmcp import FastMCP
