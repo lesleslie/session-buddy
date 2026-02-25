@@ -158,3 +158,6 @@ tests/archived/
 # XDG - DELETE candidates
 .obsidian/
 
+.archives/
+.backup/
+.backups/
