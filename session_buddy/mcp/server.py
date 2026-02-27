@@ -20,6 +20,7 @@ from .tools import (
     register_crackerjack_tools,
     register_extraction_tools,
     register_feature_flags_tools,
+    register_health_tools_sb,
     register_hooks_tools,
     register_intent_tools,
     register_knowledge_graph_tools,
@@ -83,5 +84,8 @@ register_prometheus_metrics_tools(mcp)  # type: ignore[argument-type]
 
 # Register code analysis tools (tree-sitter integration)
 register_code_analysis_tools(mcp)  # type: ignore[argument-type]
+
+# Register health check tools
+register_health_tools_sb(mcp)  # type: ignore[argument-type]
 
 __all__ = ["mcp"]

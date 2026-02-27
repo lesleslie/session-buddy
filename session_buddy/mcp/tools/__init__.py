@@ -92,6 +92,9 @@ from .skills.phase4_tools import register_phase4_tools
 # Code analysis tools (tree-sitter integration)
 from .code_analysis.tools import register_code_analysis_tools
 
+# Health check tools
+from .health_tools import register_health_tools_sb
+
 __all__ = [
     # Advanced
     "register_conscious_agent_tools",
@@ -139,4 +142,6 @@ __all__ = [
     "register_code_graph_tools",
     # Code analysis
     "register_code_analysis_tools",
+    # Health
+    "register_health_tools_sb",
 ]
