@@ -67,7 +67,15 @@ class DatabaseConnectionPool:
             raise ImportError(msg)
 
         try:
-            conn = duckdb.connect(self.db_path) if duckdb else None
+            # Use consistent config to avoid "different configuration" errors when
+            # other parts of the codebase have already opened the same database file
+            conn = (
+                duckdb.connect(
+                    self.db_path, config={"allow_unsigned_extensions": True}
+                )
+                if duckdb
+                else None
+            )
             # Set optimal pragmas for performance
             if conn:
                 conn.execute("PRAGMA threads=4")

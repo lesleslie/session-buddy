@@ -229,7 +229,14 @@ class ReflectionDatabaseAdapterOneiric:
         db_dir.mkdir(parents=True, exist_ok=True)
 
         # Connect to DuckDB database
-        self.conn = duckdb.connect(database=self.db_path, read_only=False)
+        # Use consistent config to avoid "different configuration" errors when
+        # other parts of the codebase (e.g., legacy ReflectionDatabase) have
+        # already opened the same database file with allow_unsigned_extensions
+        self.conn = duckdb.connect(
+            database=self.db_path,
+            read_only=False,
+            config={"allow_unsigned_extensions": True},
+        )
 
         # Enable vector extension if available
         with suppress(Exception):

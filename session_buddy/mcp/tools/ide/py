@@ -1,0 +1,50 @@
+"""PyCharm MCP Tools for Session-Buddy.
+
+Provides enhanced code analysis capabilities by integrating PyCharm's IDE
+indexing with Session-Buddy's session management system.
+
+Tools:
+- pycharm_diagnostics: Get IDE diagnostics for files
+- pycharm_navigate: Navigate to declarations using PyCharm index
+- pycharm_inspect: Real-time code inspection for context
+- pycharm_open_file: Open files in PyCharm context
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from fastmcp import FastMCP
+from session_buddy.utils.error_management import _get_logger
+
+from session_buddy.utils.messages import ToolMessages
+
+from .monitoring_tools import register_monitoring_tools
+from .session_analytics_tools import register_session_analytics_tools
+from .workflow_metrics_tools import register_workflow_metrics_tools
+from .bottleneck_tools import register_bottleneck_tools
+from .memory_health_tools import register_memory_health_tools
+from .code_analysis.tools import register_code_analysis_tools
+from .search_tools import register_search_tools
+from .conversation.conversation_tools import ConversationTools
+from .memory_tools import register_memory_tools
+from .category_tools import register_category_tools
+from .validated_memory_tools import register_validated_memory_tools
+
+__all__ = [
+    "register_ide_tools",
+    "register_monitoring_tools",
+    "register_session_analytics_tools",
+    "register_workflow_metrics_tools",
+    "register_bottleneck_tools",
+    "register_memory_health_tools",
+    "register_code_analysis_tools",
+    "register_search_tools",
+    "register_conversation_tools",
+    "register_memory_tools",
+    "register_category_tools",
+    "register_validated_memory_tools",
+]
+
+

@@ -52,11 +52,11 @@ And Session Buddy automatically:
 - ✅ **Your Data Stays Yours**: Nothing leaves your system
 - ✅ **Fast Performance**: \<50ms extraction, \<20ms search
 
-______________________________________________________________________
+---
 
 ## Features
 
-### 🎉 NEW in Phase 4: Advanced Analytics & Integration
+### Advanced Analytics & Integration
 
 Session Buddy Phase 4 introduces enterprise-grade analytics, real-time monitoring, and cross-session learning:
 
@@ -67,7 +67,6 @@ Session Buddy Phase 4 introduces enterprise-grade analytics, real-time monitorin
   - Top 10 most active skills displayed in real-time
   - Performance anomaly detection with Z-score analysis
   - Client subscriptions (all skills or specific skill monitoring)
-
 - **📈 Prometheus Metrics** - Production-ready monitoring export
 
   - 5 metric types: Counters, Histograms, Gauges
@@ -81,13 +80,11 @@ Session Buddy Phase 4 introduces enterprise-grade analytics, real-time monitorin
   - RandomForest classifier with 7 features
   - 30-day historical training window
   - Feature importance analysis
-
 - **🧪 A/B Testing Framework** - Experiment with recommendation strategies
 
   - Deterministic user assignment (SHA-256 hashing)
   - Statistical significance testing (t-test, p < 0.05)
   - Automated winner determination
-
 - **📉 Time-Series Analysis** - Trend detection and forecasting
 
   - Linear regression trend detection
@@ -101,7 +98,6 @@ Session Buddy Phase 4 introduces enterprise-grade analytics, real-time monitorin
   - Jaccard similarity for user matching
   - Personalized recommendations
   - SHA-256 privacy hashing for user IDs
-
 - **📊 Community Baselines** - Global skill effectiveness
 
   - Cross-user aggregation
@@ -115,13 +111,11 @@ Session Buddy Phase 4 introduces enterprise-grade analytics, real-time monitorin
   - Phase mapping to workflow stages
   - Automatic failure recommendations
   - ASCII workflow visualizations
-
 - **💻 IDE Plugin Protocol** - Context-aware recommendations
 
   - Code pattern detection (tests, imports, async)
   - Language-specific skill patterns
   - Keyboard shortcut management
-
 - **🚀 CI/CD Tracking** - Pipeline analytics
 
   - Stage-by-stage monitoring
@@ -135,7 +129,6 @@ Session Buddy Phase 4 introduces enterprise-grade analytics, real-time monitorin
   - Code Quality, Testing, Documentation, Deployment, etc.
   - 6 predefined categories
   - Multi-modal skill types (code → diagnostics, testing → test_results)
-
 - **🔗 Dependencies** - Co-occurrence patterns
 
   - Lift score calculation
@@ -201,7 +194,7 @@ More text here.
 
 **Documentation:** See [`docs/features/INSIGHTS_CAPTURE.md`](docs/features/INSIGHTS_CAPTURE.md) for complete details
 
-______________________________________________________________________
+---
 
 #### 🌐 Global Intelligence & Pattern Sharing
 
@@ -260,9 +253,9 @@ deps = [
 - **Monorepos**: Manage multiple packages/modules in one repository
 - **Multi-Repo**: Track patterns across separate but related repositories
 
-______________________________________________________________________
+---
 
-## 🚀 Automatic Session Management (NEW!)
+## 🚀 Automatic Session Management
 
 **For Git Repositories:**
 
@@ -414,7 +407,7 @@ For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_
 - `get_team_statistics` - View team activity and contribution metrics
 - `vote_on_reflection` - Upvote/downvote team reflections for quality filtering
 
-______________________________________________________________________
+---
 
 ### Core Session Management
 
@@ -453,9 +446,9 @@ Session Buddy includes deep integration with [Crackerjack](https://github.com/le
 **Example Workflow:**
 
 1. 🚀 **Session Buddy `start`** - Sets up your session with accumulated context from previous work
-1. 🔧 **Crackerjack runs** quality checks and applies AI agent fixes to resolve issues
-1. 💾 **Session Buddy captures** successful patterns and error resolutions
-1. 🧠 **Next session starts** with all accumulated knowledge
+2. 🔧 **Crackerjack runs** quality checks and applies AI agent fixes to resolve issues
+3. 💾 **Session Buddy captures** successful patterns and error resolutions
+4. 🧠 **Next session starts** with all accumulated knowledge
 
 For detailed information on Crackerjack integration, see [Crackerjack Integration Guide](docs/CRACKERJACK.md).
 
@@ -514,7 +507,6 @@ If installed with pip/uv, you can use the script entry point:
 ```
 
 **Dependencies:** Requires Python 3.13+. For a complete list of dependencies, see [pyproject.toml](pyproject.toml).
-Recent changes include upgrading FastAPI to the 0.127+ series for improved compatibility and removing sitecustomize.py for faster startup reliability.
 
 ### 🧠 Setting Up Semantic Search (Optional)
 
@@ -612,10 +604,10 @@ This server manages its data locally in the user's home directory:
 ## Recommended Session Workflow
 
 1. **Initialize Session**: `/session-buddy:start` - Sets up project context, dependencies, and memory system
-1. **Monitor Progress**: `/session-buddy:checkpoint` (every 30-45 minutes) - Quality scoring and optimization
-1. **Search Past Work**: `/session-buddy:quick_search` or `/session-buddy:search_summary` - Find relevant past conversations and solutions
-1. **Store Important Insights**: `/session-buddy:store_reflection` - Capture key learnings for future sessions
-1. **End Session**: `/session-buddy:end` - Final assessment, learning capture, and cleanup
+2. **Monitor Progress**: `/session-buddy:checkpoint` (every 30-45 minutes) - Quality scoring and optimization
+3. **Search Past Work**: `/session-buddy:quick_search` or `/session-buddy:search_summary` - Find relevant past conversations and solutions
+4. **Store Important Insights**: `/session-buddy:store_reflection` - Capture key learnings for future sessions
+5. **End Session**: `/session-buddy:end` - Final assessment, learning capture, and cleanup
 
 ## Benefits
 
@@ -652,32 +644,6 @@ This server manages its data locally in the user's home directory:
 
 Complete documentation is available in the `docs/` directory:
 
-### 🎉 Phase 4 Documentation (NEW!)
-
-- **[V4 Migration Guide](docs/migrations/V3_TO_V4_MIGRATION_GUIDE.md)** ⭐ **Start Here for Phase 4**
-
-  - Complete V3→V4 migration instructions
-  - Zero-breaking-changes deployment
-  - Rollback procedures
-  - Performance considerations
-
-- **[V4 Schema Summary](PHASE4_V4_SCHEMA_SUMMARY.md)** - Complete V4 database schema reference
-
-  - 11 new tables, 6 new views
-  - Query examples and usage patterns
-
-- **[Phase 4 Final Status](PHASE4_FINAL_STATUS_REPORT.md)** - Implementation complete (100% ✅)
-
-  - 32 files created, ~12,000 lines of code
-  - Production-ready status
-
-- **[Phase 4 Deployment Checklist](PHASE4_DEPLOYMENT_CHECKLIST.md)** - Complete deployment validation
-
-  - Pre-flight checks
-  - Migration steps
-  - Post-deployment validation
-  - Rollback testing
-
 ### 🧠 Intelligence Features (What Makes Session Buddy Unique)
 
 - **[Intelligence Features Quick Start](docs/features/INTELLIGENCE_QUICK_START.md)** ⭐ **Start Here** - 5-minute practical guide
@@ -687,7 +653,6 @@ Complete documentation is available in the `docs/` directory:
   - Team collaboration (shared knowledge with voting)
   - Advanced search techniques (semantic, faceted, temporal)
   - Configuration and troubleshooting
-
 - **[Insights Capture & Deduplication](docs/features/INSIGHTS_CAPTURE.md)** ⭐ **Deep Dive**
 
   - Automatic extraction of educational insights from conversations

@@ -246,14 +246,16 @@ class SessionAnalytics:
         try:
             import duckdb
 
+            # Use consistent config to avoid "different configuration" errors
+            db_config = {"allow_unsigned_extensions": True}
             if self.database_path:
-                conn = duckdb.connect(str(self.database_path))
+                conn = duckdb.connect(str(self.database_path), config=db_config)
             else:
                 # Use default database path from settings
                 from session_buddy.settings import get_settings
 
                 settings = get_settings()
-                conn = duckdb.connect(str(settings.database_path))
+                conn = duckdb.connect(str(settings.database_path), config=db_config)
 
             return conn
         except ImportError:
