@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
     import duckdb
+    from onnxruntime import InferenceSession
 
 try:
     import duckdb
@@ -105,11 +106,23 @@ class ReflectionDatabase:
         self.local = threading.local()
         self.lock = threading.RLock()  # Re-entrant for nested access in temp DB
 
-        # Embedding system
-        self.onnx_session = initialize_embedding_system()
+        # Embedding system (lazy-loaded to avoid HF requests on instantiation)
+        self._onnx_session: InferenceSession | None = None
+        self._embedding_initialized = False
         self.tokenizer = None  # Set by embedding system
         self.embedding_dim = 384  # all-MiniLM-L6-v2 dimension
         self._initialized = False
+
+    @property
+    def onnx_session(self) -> InferenceSession | None:
+        """Lazy-load ONNX session on first access.
+
+        This avoids triggering Hugging Face downloads during __init__.
+        """
+        if not self._embedding_initialized:
+            self._onnx_session = initialize_embedding_system()
+            self._embedding_initialized = True
+        return self._onnx_session
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection | None:
@@ -117,7 +130,7 @@ class ReflectionDatabase:
         return getattr(self.local, "conn", None)
 
     def __enter__(self) -> Self:
-        """Context manager entry."""
+        """Synchronous context manager entry."""
         return self
 
     def __exit__(
@@ -126,8 +139,27 @@ class ReflectionDatabase:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Context manager exit - close connection."""
+        """Synchronous context manager exit - close connection."""
         self.close()
+
+    async def __aenter__(self) -> Self:
+        """Async context manager entry - initializes the database.
+
+        This is the preferred way to use ReflectionDatabase:
+            async with ReflectionDatabase() as db:
+                ...
+        """
+        await self.initialize()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Async context manager exit - close connection."""
+        await self.aclose()
 
     def __del__(self) -> None:
         """Cleanup connection on deletion."""
@@ -150,8 +182,8 @@ class ReflectionDatabase:
             msg = "DuckDB is not available"
             raise RuntimeError(msg)
 
-        # Initialize embedding system
-        initialize_embedding_system()
+        # Note: Embedding system is now lazy-loaded via the onnx_session property
+        # to avoid triggering Hugging Face downloads during initialization
 
         # Create data directory if needed
         if not self.is_temp_db:
@@ -421,7 +453,7 @@ class ReflectionDatabase:
         )
 
     def close(self) -> None:
-        """Close database connection.
+        """Close database connection (synchronous).
 
         Example:
             >>> db.close()
@@ -430,6 +462,17 @@ class ReflectionDatabase:
             with suppress(Exception):
                 self.local.conn.close()
             self.local.conn = None
+
+    async def aclose(self) -> None:
+        """Async close database connection.
+
+        This is an async wrapper around close() for use in async contexts.
+
+        Example:
+            >>> await db.aclose()
+        """
+        # Run sync close in executor to avoid blocking event loop
+        await asyncio.get_event_loop().run_in_executor(None, self.close)
 
     async def get_stats(self) -> dict[str, Any]:
         """Get database statistics.

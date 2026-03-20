@@ -9,7 +9,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import warnings
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -25,16 +27,56 @@ if TYPE_CHECKING:
         TokenizersBackend,
     )
 
-# Embedding system imports
-try:
-    import onnxruntime as ort
-    from transformers import AutoTokenizer
+# Lazy imports to avoid triggering transformers warnings on module load
+ONNX_AVAILABLE = None  # Will be determined on first use
+_ort = None
+_AutoTokenizer = None
 
-    ONNX_AVAILABLE = True
-except ImportError:
-    ONNX_AVAILABLE = False
-    ort = None  # type: ignore[no-redef]
-    AutoTokenizer = None  # type: ignore[no-redef]
+
+def _check_onnx_available() -> bool:
+    """Lazily check if ONNX runtime is available."""
+    global ONNX_AVAILABLE, _ort, _AutoTokenizer
+    if ONNX_AVAILABLE is not None:
+        return ONNX_AVAILABLE
+
+    with suppress(ImportError):
+        import onnxruntime as ort  # noqa: PLW2901
+
+        _ort = ort
+        ONNX_AVAILABLE = True
+
+    if not ONNX_AVAILABLE:
+        return False
+
+    # Only import transformers if ONNX is available
+    # Suppress the "PyTorch was not found" warning from transformers
+    with suppress(ImportError):
+        import logging
+        import sys
+        from io import StringIO
+
+        # Temporarily redirect stdout/stderr to suppress PyTorch warning
+        # The warning is printed directly by transformers, not via warnings module
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        sys.stdout = StringIO()
+        sys.stderr = StringIO()
+
+        # Also suppress transformers logger
+        transformers_logger = logging.getLogger("transformers")
+        original_level = transformers_logger.level
+        transformers_logger.setLevel(logging.ERROR)
+
+        try:
+            from transformers import AutoTokenizer  # noqa: PLW2901
+
+            _AutoTokenizer = AutoTokenizer
+        finally:
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            transformers_logger.setLevel(original_level)
+
+    return ONNX_AVAILABLE
 
 # Global executor for async embedding operations
 _embedding_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="embedding")
@@ -49,11 +91,14 @@ _model_initialized = False
 
 def initialize_embedding_system(
     model_dir: str | Path | None = None,
+    allow_download: bool = False,
 ) -> InferenceSession | None:
     """Initialize the ONNX embedding model.
 
     Args:
         model_dir: Optional custom model directory path
+        allow_download: If True, allow downloading from HuggingFace if not cached.
+                       Default is False to avoid unexpected network requests.
 
     Returns:
         ONNX inference session if successful, None otherwise
@@ -65,8 +110,10 @@ def initialize_embedding_system(
     """
     global _onnx_session, _tokenizer, _model_initialized
 
-    if not ONNX_AVAILABLE:
-        logger.warning("ONNX runtime not available, embeddings disabled")
+    # Lazily check ONNX availability (this triggers imports only when needed)
+    if not _check_onnx_available():
+        logger.debug("ONNX runtime not available, embeddings disabled")
+        _model_initialized = True
         return None
 
     if _model_initialized:
@@ -81,34 +128,55 @@ def initialize_embedding_system(
 
         model_path = Path(model_dir)
 
-        # Try to find the model
-        if not model_path.exists():
-            # Use default HuggingFace cache location
-            logger.info(f"Model directory not found: {model_path}")
-            logger.info("Attempting to load model from transformers cache...")
+        # Check if model is locally cached
+        model_name = "models--sentence-transformers--all-MiniLM-L6-v2"
+        local_cache = model_path / model_name
+        is_cached = local_cache.exists()
 
-        # Load tokenizer
-        try:
-            _tokenizer = AutoTokenizer.from_pretrained(
-                "sentence-transformers/all-MiniLM-L6-v2"
+        if not is_cached and not allow_download:
+            logger.debug(
+                "Embedding model not cached locally and allow_download=False. "
+                "Embeddings will use text-only search."
             )
-        except Exception as e:
-            logger.warning(f"Failed to load tokenizer: {e}")
+            _model_initialized = True
+            return None
+
+        # Load tokenizer (only if cached or downloads allowed)
+        # Use lazy-loaded _AutoTokenizer from _check_onnx_available()
+        if _AutoTokenizer is not None:
+            try:
+                _tokenizer = _AutoTokenizer.from_pretrained(
+                    "sentence-transformers/all-MiniLM-L6-v2",
+                    local_files_only=not allow_download,
+                )
+            except Exception as e:
+                if allow_download:
+                    logger.warning(f"Failed to load tokenizer: {e}")
+                else:
+                    logger.debug(f"Tokenizer not cached locally: {e}")
+                _tokenizer = None
+        else:
+            logger.debug("AutoTokenizer not available, skipping tokenizer load")
             _tokenizer = None
 
         # Load ONNX session if available
-        try:
-            if model_path.exists():
-                # Use custom model path
-                _onnx_session = ort.InferenceSession(str(model_path / "model.onnx"))
-            else:
-                # Try to find model in cache
+        # Use lazy-loaded _ort from _check_onnx_available()
+        if _ort is not None:
+            try:
+                if model_path.exists():
+                    # Use custom model path
+                    _onnx_session = _ort.InferenceSession(str(model_path / "model.onnx"))
+                else:
+                    # Try to find model in cache
 
-                # Let transformers handle the model loading
-                logger.info("Using transformers for embedding generation")
-                _onnx_session = None  # Will use transformers directly
-        except Exception as e:
-            logger.warning(f"Failed to load ONNX model: {e}")
+                    # Let transformers handle the model loading
+                    logger.debug("Using transformers for embedding generation")
+                    _onnx_session = None  # Will use transformers directly
+            except Exception as e:
+                logger.warning(f"Failed to load ONNX model: {e}")
+                _onnx_session = None
+        else:
+            logger.debug("ONNX runtime not available, skipping session load")
             _onnx_session = None
 
         _model_initialized = True
@@ -139,6 +207,11 @@ def _sync_generate_embedding(
     Raises:
         RuntimeError: If embedding model not available
     """
+    # Ensure ONNX is available (triggers lazy import)
+    if not _check_onnx_available():
+        msg = "ONNX runtime not available"
+        raise RuntimeError(msg)
+
     if not onnx_session or not tokenizer:
         msg = "No embedding model available"
         raise RuntimeError(msg)
@@ -304,7 +377,7 @@ def get_embedding_system_info() -> dict[str, Any]:
         - cache_size: Current cache size
     """
     return {
-        "available": ONNX_AVAILABLE,
+        "available": _check_onnx_available(),
         "initialized": _model_initialized,
         "model_dim": _embedding_dim,
         "cache_size": generate_embedding.__wrapped__.cache_info()
@@ -313,5 +386,16 @@ def get_embedding_system_info() -> dict[str, Any]:
     }
 
 
-# Initialize embedding system on module import
-initialize_embedding_system()
+# Initialize embedding system on module import ONLY if model is cached locally
+# This prevents network requests during import while still enabling embeddings
+# for users who have already cached the model
+_model_name = "models--sentence-transformers--all-MiniLM-L6-v2"
+_cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+_local_cache = _cache_dir / _model_name
+if _local_cache.exists():
+    # Model is cached, safe to initialize without network requests
+    initialize_embedding_system(allow_download=False)
+else:
+    # Model not cached - don't initialize to avoid network requests
+    # Will be initialized lazily on first use if needed
+    logger.debug("Embedding model not cached locally - will use text-only search")
