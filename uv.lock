@@ -2510,7 +2510,7 @@ wheels = [
 
 [[package]]
 name = "oneiric"
-version = "0.8.0"
+version = "0.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobreaker" },
@@ -2531,9 +2531,9 @@ dependencies = [
     { name = "typer" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/91/91/d0301d90bea622f03aa5e3e6dae370b8c755c1465ce154cbe9f93654a756/oneiric-0.8.0.tar.gz", hash = "sha256:24da0a81448c3794133682d7f99ad7de716e817b6046e3ff55d4dda25a63723e", size = 259309, upload-time = "2026-02-17T15:59:44.423Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/35/72/3c5b8a2b7bb011c270e88319253342fbad6297cad76cfe6f78f98260e9a6/oneiric-0.8.1.tar.gz", hash = "sha256:99099cb03bfadfc5fa3b927ea7e2be03c7385a0157a11d5ebe8c8044234fc544", size = 260110, upload-time = "2026-03-20T13:00:18.516Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/86/6ad07bde1075e7f25d7313b6a05c937b1419b8e12101e5156d3d614042a3/oneiric-0.8.0-py3-none-any.whl", hash = "sha256:cff29dd2d1e2d356030fda8f2dbfce488faf65fd376d4e88edde29345f00c753", size = 350634, upload-time = "2026-02-17T15:59:47.098Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/ba/b9d9a609d34fa9076e6395856101cbac744e2f291994dd0e3ddf3ff427af/oneiric-0.8.1-py3-none-any.whl", hash = "sha256:d77fdcbf2259882fde32f59e52d6b6ce241bf06ed5e01af27f71af046770635d", size = 351622, upload-time = "2026-03-20T13:00:16.91Z" },
 ]
 
 [[package]]
@@ -3913,7 +3913,7 @@ wheels = [
 
 [[package]]
 name = "skylos"
-version = "4.1.0"
+version = "4.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ca9" },
@@ -3932,7 +3932,10 @@ dependencies = [
     { name = "tree-sitter-go" },
     { name = "tree-sitter-typescript" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4f/23/a29d2011b0380976f2d4028102bc54613ab4ebdb99ee89772182c393e84e/skylos-4.1.0.tar.gz", hash = "sha256:2ec064c238a242b417c7f4f930a5db6ebc90031482959aff2f6f2d1df57413da", size = 666453, upload-time = "2026-03-20T05:43:00.886Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/d1/c4ccb74290899dd1a9203e542aacbeb2a0df191d6dad307917a913dbc034/skylos-4.1.1.tar.gz", hash = "sha256:eb6b18eb587db4e266c6679df84fe3334787aefc2429c47fbd92845adec74fbb", size = 678204, upload-time = "2026-03-20T13:02:18.024Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fc/e0/786368c464ca42c39978ffd8f54fe04d5d399d2679c859952fa3d23b35db/skylos-4.1.1-py3-none-any.whl", hash = "sha256:ee499e4367f148a8f32eb055ac2ece0bb67eaf84fc0b285aa0ef55d534bffb8c", size = 472583, upload-time = "2026-03-20T13:02:15.947Z" },
+]
 
 [[package]]
 name = "sniffio"
