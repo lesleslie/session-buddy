@@ -3913,7 +3913,7 @@ wheels = [
 
 [[package]]
 name = "skylos"
-version = "4.1.1"
+version = "4.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ca9" },
@@ -3932,9 +3932,9 @@ dependencies = [
     { name = "tree-sitter-go" },
     { name = "tree-sitter-typescript" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1b/d1/c4ccb74290899dd1a9203e542aacbeb2a0df191d6dad307917a913dbc034/skylos-4.1.1.tar.gz", hash = "sha256:eb6b18eb587db4e266c6679df84fe3334787aefc2429c47fbd92845adec74fbb", size = 678204, upload-time = "2026-03-20T13:02:18.024Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/99/bfb75b878cf9ef2a92bc4edac24a4a2400260d287bafce3fb5d1faae1a75/skylos-4.1.2.tar.gz", hash = "sha256:8a5e8eeae71de7d2c072b192be9c4fa402be5569781088a83cbb3a5576120344", size = 678338, upload-time = "2026-03-20T14:09:52.346Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fc/e0/786368c464ca42c39978ffd8f54fe04d5d399d2679c859952fa3d23b35db/skylos-4.1.1-py3-none-any.whl", hash = "sha256:ee499e4367f148a8f32eb055ac2ece0bb67eaf84fc0b285aa0ef55d534bffb8c", size = 472583, upload-time = "2026-03-20T13:02:15.947Z" },
+    { url = "https://files.pythonhosted.org/packages/33/4c/e0563a867a2b98d61d18c9ecee9d1daa06a762bfc74580ecea06c9e261d9/skylos-4.1.2-py3-none-any.whl", hash = "sha256:3069cc96e8721207087a21d9fce36461a4240d0db8c5eee4b4d23bd616c778e1", size = 472700, upload-time = "2026-03-20T14:09:50.587Z" },
 ]
 
 [[package]]
