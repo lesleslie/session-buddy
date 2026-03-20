@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.4] - 2026-03-20
+
+### Added
+
+- Add health check tools using mcp-common
+- Add pre_compact_sync tool for PreCompactHook integration
+- Add PyCharm IDE tools for Session-Buddy
+- treesitter: Add tree-sitter integration for code analysis
+
+### Changed
+
+- Session-buddy (quality: 75/100) - 2026-02-22 06:07:44
+- Update dependencies
+
+### Fixed
+
+- Correct import paths for auto-compaction and reflection database
+- Correct test fixtures and imports for IDE tools
+- Initialize reflection database before storing checkpoint
+- Register MCP prompts for slash command support
+
+### Internal
+
+- Add archive/backup directories to gitignore
+- Remove .idea from git tracking, update dependencies
+- Update LICENSE copyright to 2026
+
 ## [0.14.3] - 2026-02-20
 
 ### Fixed
