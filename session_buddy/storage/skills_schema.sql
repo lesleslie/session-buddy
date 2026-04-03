@@ -1,7 +1,7 @@
 -- Skills Metrics Storage Schema for Session-Buddy
 --
 -- This schema defines the persistent storage for skills tracking using
--- Dhruva (ACID-compliant storage).
+-- Druva (ACID-compliant storage).
 --
 -- Tables:
 --   skill_invocation - Immutable event log (append-only)

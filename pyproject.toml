@@ -39,6 +39,7 @@ dependencies = [
     "scipy>=1.15.0",
     "websockets>=15.0",
     "mcp-common[treesitter]>=0.9.4",
+    "dhara>=0.7.0",
 ]
 
 [project.license]

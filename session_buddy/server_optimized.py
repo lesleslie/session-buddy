@@ -143,6 +143,24 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
 # Initialize MCP server with lifespan
 mcp = FastMCP("session-buddy", version=__version__, lifespan=session_lifecycle)
 
+
+# HTTP health endpoint for Claude Code compatibility
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Any) -> Any:
+    """HTTP health check endpoint for Claude Code `mcp list` compatibility."""
+    from starlette.responses import JSONResponse
+
+    return JSONResponse({"status": "ok", "service": "session-buddy", "version": __version__})
+
+
+@mcp.custom_route("/healthz", methods=["GET"])
+async def healthz_check(request: Any) -> Any:
+    """Kubernetes-style health check endpoint."""
+    from starlette.responses import JSONResponse
+
+    return JSONResponse({"status": "ok"})
+
+
 # Register modularized tools
 from session_buddy.tools import (
     register_category_tools,

@@ -9,14 +9,14 @@ import os
 
 
 def generate_ulid() -> str:
-    """Generate ULID using Dhruva implementation or timestamp-based fallback.
+    """Generate ULID using Druva implementation or timestamp-based fallback.
 
     Returns:
         26-character Crockford Base32 ULID string
     """
-    # Try Dhruva first
+    # Try Druva first
     try:
-        from dhruva import generate as generate_ulid_impl
+        from druva import generate as generate_ulid_impl
         return generate_ulid_impl()
     except ImportError:
         # Use timestamp-based fallback
@@ -31,7 +31,7 @@ def generate_ulid() -> str:
         # Combine: 6 bytes timestamp + 10 bytes randomness = 16 bytes
         ulid_bytes = timestamp_bytes + randomness
 
-        # Encode to Crockford Base32 (Dhruva's alphabet)
+        # Encode to Crockford Base32 (Druva's alphabet)
         alphabet = "0123456789abcdefghjkmnpqrstvwxyz"
 
         # Convert 16 bytes to 128 bits, then encode as base32 (5 bits per char)

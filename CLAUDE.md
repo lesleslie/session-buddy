@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+For a shorter, tool-neutral bootstrap document, start with `AGENTS.md`.
+
 ## Project Overview
 
 Session Buddy is a Claude Session Management MCP (Model Context Protocol) server providing comprehensive session management for Claude Code across any project. It operates as a standalone MCP server with isolated environment to avoid dependency conflicts.
@@ -460,276 +462,56 @@ storage:
 - **Multi-Project** (4): `create_project_group`, `add_project_dependency`, `search_across_projects`, `get_project_insights`
 - **Plus**: App Monitoring (5), Interruption Management (7), Natural Scheduling (5), Git Worktree (3), Advanced Search (3)
 
-## Token Optimization
+## Operational Notes
 
-**Architecture**: `TokenOptimizer` with tiktoken, auto-split responses >4000 tokens into paginated chunks
+### Token Optimization
 
-```python
-@dataclass
-class ChunkResult:
-    chunks: list[str]
-    total_chunks: int
-    current_chunk: int
-    cache_key: str
-    metadata: dict[str, Any]
-```
+Large MCP responses are chunked through `TokenOptimizer`; if a tool reports chunked output, retrieve subsequent chunks rather than expanding the tool response shape ad hoc.
 
-**Usage**:
+### Crackerjack Integration
 
-```python
-result = await some_large_operation()
-if result.get("chunked"):
-    # Use get_cached_chunk tool for additional chunks
-```
+Session Buddy uses Crackerjack for linting, type checks, security, and test execution, and includes `crackerjack_integration.py` for parsing and reporting quality results.
 
-## Integration with Crackerjack
-
-- **Quality Commands**: `crackerjack lint`, `crackerjack typecheck`, etc.
-- **MCP Integration**: Crackerjack configured in `.mcp.json`
-- **Progress Tracking**: `crackerjack_integration.py` provides real-time analysis
-- **Test Integration**: Crackerjack handles execution, this project handles results
-
-## Development Guidelines
-
-### Adding New MCP Tools
-
-1. Define function with `@mcp.tool()` in appropriate `tools/` module
-1. Add `@mcp.prompt()` for slash command support
-1. Import and register in `server.py`
-1. Update `status()` tool
-1. Add tests in appropriate category
-
-### Extending Memory System
-
-1. Add table schemas in `reflection_tools.py:_ensure_tables()`
-1. Implement storage/retrieval in `ReflectionDatabase`
-1. Add MCP tools in `tools/memory_tools.py`
-1. Update `reflection_stats()` for new metrics
-1. Add performance tests
-
-### Testing New Features
-
-1. Add unit tests in `tests/unit/`
-1. Add integration tests in `tests/integration/`
-1. Add functional tests in `tests/functional/`
-1. Use `tests/fixtures/` for test data factories
-1. Ensure coverage: `pytest --cov=session_buddy`
-
-## Configuration Files
-
-### pyproject.toml
-
-- **Python 3.13+** required
-- **Ruff**: Formatting/linting, complexity ≤15
-- **Pytest**: Async/await, coverage, benchmarking
-- **Optional**: `[embeddings]` for semantic search, `[dev]` for dev tools
-
-### MCP Server Configuration
-
-Global `~/.claude/.mcp.json`: session-buddy, crackerjack, GitHub, GitLab, memory
-
-### Testing Configuration (conftest.py)
-
-Async/await support, temporary database fixtures, mock MCP server, performance baselines
-
-## Modern Development Patterns
-
-### Database Connection Management
-
-```python
-# ✅ Correct: Context manager with pooling
-async def store_conversation(content: str) -> str:
-    async with ReflectionDatabase() as db:
-        return await db.store_conversation(content)
-
-# ✅ Correct: Batch operations
-async def bulk_store(conversations: list[str]) -> list[str]:
-    async with ReflectionDatabase() as db:
-        return await db.bulk_store_conversations(conversations)
-```
-
-### Error Handling
-
-```python
-async def search_with_fallback(query: str) -> list[SearchResult]:
-    try:
-        return await semantic_search(query)
-    except (ImportError, RuntimeError) as e:
-        logger.info(f"Semantic search unavailable: {e}. Using text search.")
-        return await text_search(query)
-    except Exception as e:
-        logger.error(f"Search failed: {e}")
-        return []
-```
-
-### MCP Tool Pattern
-
-```python
-@mcp.tool()
-async def example_tool(param1: str, param2: int | None = None) -> dict[str, Any]:
-    """Tool description for Claude Code."""
-    try:
-        if not param1.strip():
-            return {"success": False, "error": "param1 cannot be empty"}
-
-        result = await perform_async_operation(param1, param2)
-
-        return {
-            "success": True,
-            "data": result,
-            "metadata": {
-                "timestamp": datetime.now().isoformat(),
-                "execution_time_ms": 42,
-            },
-        }
-    except Exception as e:
-        logger.error(f"Tool execution failed: {e}")
-        return {"success": False, "error": str(e)}
-```
-
-## Troubleshooting
-
-### MCP Server Not Loading
+Recommended workflow:
 
 ```bash
-python -c "import session_buddy; print('✅ Package imports')"
-python -c "from session_buddy.server import mcp; print('✅ MCP server')"
-python -c "import duckdb, numpy, tiktoken; print('✅ Core deps')"
+crackerjack lint
+pytest -m "not slow"
+pytest --cov=session_buddy --cov-fail-under=85
 ```
 
-### Memory/Embedding Issues
+### Extending the System
+
+For new MCP tools:
+
+1. Add the tool in the appropriate `tools/` module.
+2. Register it through the server wiring.
+3. Add unit and integration coverage.
+4. Update any relevant status or statistics surfaces.
+
+For memory-system changes:
+
+1. Update schema and storage behavior together.
+2. Cover both embedding and fallback modes.
+3. Verify local performance before expanding the feature surface.
+
+### Troubleshooting
+
+Use focused smoke checks before deeper debugging:
 
 ```bash
-python -c "
-from session_buddy.reflection_tools import ReflectionDatabase
-import asyncio
-
-async def test():
-    try:
-        async with ReflectionDatabase() as db:
-            result = await db.test_embedding_system()
-            print(f'✅ Embedding system: {result}')
-    except Exception as e:
-        print(f'⚠️ Fallback mode: {e}')
-
-asyncio.run(test())
-"
-uv sync  # Reinstall if needed
-```
-
-### Database Connection
-
-```bash
-python -c "import duckdb; print(f'✅ DuckDB {duckdb.__version__}')"
-python -c "import duckdb; conn = duckdb.connect(':memory:'); print('✅ Connection')"
-ls -la ~/.claude/data/ || mkdir -p ~/.claude/data/
-```
-
-### Performance Issues
-
-```bash
-pytest -m performance --verbose
-python -c "import psutil, os; print(f'Memory: {psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024:.1f} MB')"
+python -c "import session_buddy; print('ok')"
+python -c "from session_buddy.server import mcp; print('mcp ok')"
+python -c "import duckdb; print(duckdb.__version__)"
 PYTHONPATH=. python -m session_buddy.server --debug
 ```
 
-### Environment Setup
+If search or embeddings fail, confirm the fallback path still works and avoid blocking core session features on optional semantic components.
 
-```bash
-# UV
-uv --version || curl -LsSf https://astral.sh/uv/install.sh | sh
-rm -rf .venv && uv sync --group dev
-uv pip check
+### Coding Standards
 
-# Python version
-python --version  # Should be 3.13+
-python -c "import sys; assert sys.version_info >= (3, 13)"
-```
-
-## Coding Standards
-
-### Core Philosophy (RULES.md)
-
-- **EVERY LINE OF CODE IS A LIABILITY**: The best code is no code
-- **DRY**: If you write it twice, you're doing it wrong
-- **YAGNI**: Build only what's needed NOW
-- **KISS**: Complexity is the enemy of maintainability
-
-### Type Safety
-
-- Comprehensive type hints with Python 3.13+ syntax
-- `list[str]` instead of `typing.List[str]`
-- `str | None` instead of `Optional[str]`
-
-### Development Practices
-
-1. Always use async/await for database/file operations
-1. Test with both embedding and fallback modes
-1. Include comprehensive error handling with graceful degradation
-1. Use type hints and dataclasses
-1. Follow testing pattern: unit → integration → functional
-1. Run pre-commit workflow before commits
-1. Monitor token usage and response chunking
-1. Test cross-project coordination with multiple repos
-
-### Key Architecture Patterns
-
-1. **FastMCP Integration**: `@mcp.tool()` decorators, structured responses
-1. **Async-First**: Executor threads prevent blocking
-1. **Local Privacy**: No external APIs, local embeddings
-1. **Graceful Fallback**: Continues despite component failures
-1. **Modular Structure**: Tools organized by functionality
-1. **Session Lifecycle**: Init → Work → Checkpoint → End
-
-<!-- CRACKERJACK INTEGRATION START -->
-
-This project uses [crackerjack](https://github.com/lesleslie/crackerjack) for Python project management and quality assurance.
-
-**Specialized Agents**:
-
-- **crackerjack-architect**: Use PROACTIVELY for all feature development and architectural decisions
-- **python-pro**: Modern Python with type hints, async/await, clean architecture
-- **pytest-hypothesis-specialist**: Advanced testing patterns and optimization
-- **backend-architect**: System design and API architecture
-- **security-auditor**: Security analysis and secure coding
-
-**Usage**:
-
-```bash
-# Use Task tool with subagent_type
-Task tool with subagent_type="crackerjack-architect"  # Feature planning
-Task tool with subagent_type="python-pro"             # Code implementation
-Task tool with subagent_type="pytest-hypothesis-specialist"  # Tests
-Task tool with subagent_type="security-auditor"       # Security analysis
-```
-
-**Crackerjack Philosophy** (same as core philosophy):
-
-- Every line of code is a liability
-- DRY, YAGNI, KISS
-- Cognitive complexity ≤15 per function
-- Coverage ratchet: never decrease, always improve toward 100%
-- Type annotations required
-- Security patterns: no hardcoded paths, proper temp file handling
-- Python 3.13+ patterns: `|` unions, pathlib over os.path
-
-**Workflow**:
-
-```bash
-python -m crackerjack           # Main menu
-python -m crackerjack -t        # Run tests
-python -m crackerjack --ai-agent -t  # Auto-fix with AI
-python -m crackerjack -a patch  # Apply patches
-```
-
-**Best Practices**:
-
-1. Plan with crackerjack-architect for proper architecture
-1. Implement with python-pro for modern patterns
-1. Test with pytest-hypothesis-specialist
-1. Run `python -m crackerjack -t` before committing
-1. Security review with security-auditor
-
-**Key**: Use crackerjack-architect proactively to avoid retrofitting. Never reduce test coverage (ratchet system). Follow crackerjack patterns - tools enforce quality automatically.
-
-<!-- CRACKERJACK INTEGRATION END -->
+- Keep the code async-first for I/O-heavy paths.
+- Prefer graceful degradation over hard failure when optional components are unavailable.
+- Maintain comprehensive type hints and structured responses for MCP tools.
+- Follow the test progression: unit, integration, then functional coverage where needed.
+- Use Crackerjack before landing non-trivial changes.

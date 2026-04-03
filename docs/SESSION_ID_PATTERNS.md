@@ -131,18 +131,18 @@ CREATE TABLE IF NOT EXISTS reflection_tags (
 - ⚠️ **No Foreign Key Enforcement:** Application must maintain consistency
 - ⚠️ **Manual Cascade Deletes:** Must implement cascade logic in code
 
-### Dhruva Adapter Usage
+### Dhara Adapter Usage
 
-**Current Usage:** Session-Buddy uses Dhruva `PersistentDict` for runtime state management
+**Current Usage:** Session-Buddy uses Dhara `PersistentDict` for runtime state management
 
 **Example from code:**
 ```python
-# Session context stored in-memory with Dhruva persistence
+# Session context stored in-memory with Dhara persistence
 self.session_context: dict[str, t.Any] = {}  # In-memory
 self._captured_insight_hashes: set[str] = set()  # In-memory
 ```
 
-**Note:** Dhruva usage appears limited to runtime state, not database storage.
+**Note:** Dhara usage appears limited to runtime state, not database storage.
 
 **Storage Adapter:** Oneiric-based reflection adapter handles persistence
 ```python

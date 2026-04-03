@@ -140,7 +140,7 @@ conversation_id = hashlib.md5(...).hexdigest()
 
 # NEW:
 try:
-    from dhruva import generate as generate_ulid
+    from dhara import generate as generate_ulid
 except ImportError:
     # Use timestamp-based fallback
     conversation_id = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}_{os.urandom(3).hex()}"
@@ -153,7 +153,7 @@ reflection_id = hashlib.md5(...).hexdigest()
 
 # NEW:
 try:
-    from dhruva import generate as generate_ulid
+    from dhara import generate as generate_ulid
 except ImportError:
     # Use timestamp-based fallback
     reflection_id = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}_{os.urandom(3).hex()}"
@@ -166,7 +166,7 @@ code_graph_id = f"{repo_path}:{commit_hash}"
 
 # NEW:
 try:
-    from dhruva import generate as generate_ulid
+    from dhara import generate as generate_ulid
 except ImportError:
     # Use composite fallback
     code_graph_id = f"{repo_path}:{commit_hash}:{generate_ulid()}"

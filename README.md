@@ -1,56 +1,45 @@
 # Session Buddy
 
-A Session Management MCP Server for Claude Code
-
 [![Code style: crackerjack](https://img.shields.io/badge/code%20style-crackerjack-000042)](https://github.com/lesleslie/crackerjack)
+[![Runtime: oneiric](https://img.shields.io/badge/runtime-oneiric-6e5494)](https://github.com/lesleslie/oneiric)
+[![Framework: FastMCP](https://img.shields.io/badge/framework-FastMCP-0ea5e9)](https://github.com/jlowin/fastmcp)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Python: 3.13+](https://img.shields.io/badge/python-3.13%2B-green)](https://www.python.org/downloads/)
-![Coverage](https://img.shields.io/badge/coverage-45.6%25-red)
-![Static Badge](https://img.shields.io/badge/claude--code-black?style=flat&logo=claude&logoColor=%23D97757&link=https%3A%2F%2Fgithub.com%2Fanthropics%2Fclaude-code)
 
-A dedicated MCP server that provides comprehensive session management functionality for Claude Code sessions across any project.
+A session management MCP server for Claude Code.
 
-## 🌟 What Makes Session Buddy Unique?
+A dedicated MCP server that manages session lifecycle, searchable memory, and cross-project intelligence for Claude Code sessions.
 
-Session Buddy isn't just another session management tool—it's an **intelligent development companion** that learns from your work and helps you work smarter across projects:
+## Quick Links
 
-### 💡 Automatic Knowledge Capture
+- [What Makes Session Buddy Unique?](#what-makes-session-buddy-unique)
+- [Features](#features)
+- [Automatic Session Management](#automatic-session-management)
+- [Integration with Crackerjack](#integration-with-crackerjack)
+- [Development](#development)
 
-**Industry-First Feature**: Session Buddy automatically captures educational insights from your conversations using deterministic pattern matching—no manual note-taking required.
+## Quality & CI
 
-```markdown
-Just write explanations like this:
-`★ Insight ─────────────────────────────────────`
-Your insight here...
-`─────────────────────────────────────────────────`
+Crackerjack is the standard quality-control and CI/CD gate for Session Buddy. Use the same Crackerjack workflow locally that the project expects in CI.
 
-And Session Buddy automatically:
-✅ Extracts and stores it with semantic embeddings
-✅ Prevents duplicate capture (SHA-256 hashing)
-✅ Makes it searchable across all future sessions
-✅ Requires zero configuration or manual effort
-```
+## What Makes Session Buddy Unique?
 
-**The Result**: Build a personal knowledge base automatically while you work!
+Session Buddy focuses on three things that set it apart from a simple session log:
 
-### 🌐 Cross-Project Intelligence
+### Automatic Knowledge Capture
 
-**Unique Capability**: Share knowledge across related projects automatically with dependency-aware search.
+Session Buddy can extract structured insights from conversation patterns and make them searchable in later sessions. That reduces manual note-taking and turns normal development work into reusable project memory.
 
-**Works Great For:**
+### Cross-Project Intelligence
 
-- 🏗️ **Microservices**: Coordinate patterns across service boundaries
-- 📦 **Monorepos**: Share insights across multiple packages/modules
-- 🔗 **Multi-Repo**: Track patterns across related repositories
-- 👥 **Teams**: Collaborative knowledge filtering with voting
+Session Buddy can surface relevant knowledge across related repos, services, or packages, which is especially useful for monorepos, microservices, and tightly coupled project families.
 
-**Example**: Fix an authentication issue in `auth-service`? Next time you work on `user-service` (which depends on `auth-service`), Session Buddy will surface that solution automatically.
+### Privacy-First Architecture
 
-### 🔒 Privacy-First Architecture
-
-- ✅ **100% Local Processing**: No external API calls
-- ✅ **Local AI Models**: ONNX embeddings run on your machine
-- ✅ **Your Data Stays Yours**: Nothing leaves your system
-- ✅ **Fast Performance**: \<50ms extraction, \<20ms search
+- Local processing by default
+- Local embedding support
+- No required external API dependency for core workflows
+- Fast search and retrieval oriented toward interactive use
 
 ---
 
@@ -58,78 +47,78 @@ And Session Buddy automatically:
 
 ### Advanced Analytics & Integration
 
-Session Buddy Phase 4 introduces enterprise-grade analytics, real-time monitoring, and cross-session learning:
+Session Buddy extends core session management with real-time monitoring, analytics, and cross-session learning.
 
-#### 📊 Real-Time Monitoring
+#### Real-Time Monitoring
 
-- **🔴 WebSocket Server** - Live dashboard streaming at 1-second intervals
+- **WebSocket Server** - Live dashboard streaming at 1-second intervals
 
   - Top 10 most active skills displayed in real-time
   - Performance anomaly detection with Z-score analysis
   - Client subscriptions (all skills or specific skill monitoring)
-- **📈 Prometheus Metrics** - Production-ready monitoring export
+- **Prometheus Metrics** - Monitoring export
 
   - 5 metric types: Counters, Histograms, Gauges
   - HTTP endpoint on port 9090 for scraping
   - Thread-safe updates for concurrent access
 
-#### 🤖 Advanced Analytics
+#### Advanced Analytics
 
-- **🎯 Predictive Models** - ML-based skill success prediction
+- **Predictive Models** - ML-based skill success prediction
 
   - RandomForest classifier with 7 features
   - 30-day historical training window
   - Feature importance analysis
-- **🧪 A/B Testing Framework** - Experiment with recommendation strategies
+- **A/B Testing Framework** - Experiment with recommendation strategies
 
   - Deterministic user assignment (SHA-256 hashing)
   - Statistical significance testing (t-test, p < 0.05)
   - Automated winner determination
-- **📉 Time-Series Analysis** - Trend detection and forecasting
+- **Time-Series Analysis** - Trend detection and forecasting
 
   - Linear regression trend detection
   - Hourly aggregation for dashboards
   - Anomaly detection using Z-scores
 
-#### 👥 Cross-Session Learning
+#### Cross-Session Learning
 
-- **🌍 Collaborative Filtering** - Learn from similar users
+- **Collaborative Filtering** - Learn from similar users
 
   - Jaccard similarity for user matching
   - Personalized recommendations
   - SHA-256 privacy hashing for user IDs
-- **📊 Community Baselines** - Global skill effectiveness
+- **Community Baselines** - Global skill effectiveness
 
   - Cross-user aggregation
   - Percentile rankings
   - User vs global comparisons
 
-#### 🔗 Tool Integration
+#### Tool Integration
 
-- **⚡ Crackerjack Integration** - Quality gate tracking
+- **Crackerjack Integration** - Quality gate tracking
 
   - Phase mapping to workflow stages
   - Automatic failure recommendations
   - ASCII workflow visualizations
-- **💻 IDE Plugin Protocol** - Context-aware recommendations
+- **IDE Plugin Protocol** - Context-aware recommendations
 
   - Code pattern detection (tests, imports, async)
   - Language-specific skill patterns
   - Keyboard shortcut management
-- **🚀 CI/CD Tracking** - Pipeline analytics
+- **CI/CD Tracking** - Pipeline analytics
 
   - Stage-by-stage monitoring
   - Bottleneck identification (< 80% success)
   - JSON export for dashboards
 
-#### 📚 Skills Taxonomy
+#### Skills Taxonomy
 
-- **🏷️ Categories** - Organized skill domains
+- **Categories** - Organized skill domains
 
   - Code Quality, Testing, Documentation, Deployment, etc.
   - 6 predefined categories
   - Multi-modal skill types (code → diagnostics, testing → test_results)
-- **🔗 Dependencies** - Co-occurrence patterns
+- **Dependencies** - Co-occurrence patterns
 
   - Lift score calculation
   - Relationship mapping
@@ -144,22 +133,22 @@ Session Buddy Phase 4 introduces enterprise-grade analytics, real-time monitorin
 
 ### Core Session Management
 
-- **🚀 Session Initialization**: Complete setup with UV dependency management, project analysis, and automation tools
-- **🔍 Quality Checkpoints**: Mid-session quality monitoring with workflow analysis and optimization recommendations
-- **🏁 Session Cleanup**: Comprehensive cleanup with learning capture and handoff file creation
-- **📊 Status Monitoring**: Real-time session status and project context analysis
-- **⚡ Auto-Generated Shortcuts**: Automatically creates `/start`, `/checkpoint`, and `/end` Claude Code slash commands
+- **Session Initialization**: Setup with UV dependency management, project analysis, and automation tools
+- **Quality Checkpoints**: Mid-session quality monitoring with workflow analysis and optimization recommendations
+- **Session Cleanup**: Cleanup with learning capture and handoff file creation
+- **Status Monitoring**: Real-time session status and project context analysis
+- **Auto-Generated Shortcuts**: Automatically creates `/start`, `/checkpoint`, and `/end` Claude Code slash commands
 
-### 🧠 Intelligence Features (Unique to Session Buddy)
+### Intelligence Features
 
-Session Buddy includes **industry-first** intelligent knowledge capture and sharing features that transform how you work across projects:
+Session Buddy includes local knowledge-capture and sharing features that help work carry across sessions and repos:
 
-#### 💡 Automatic Insights Capture & Injection
+#### Automatic Insights Capture & Injection
 
 **What It Does:**
 
 - Automatically extracts educational insights from your conversations using deterministic pattern matching
-- Stores insights with semantic embeddings for intelligent retrieval
+- Stores insights with semantic embeddings for later retrieval
 - Prevents duplicate capture through SHA-256 content hashing
 - Makes insights available across sessions via semantic search
 
@@ -186,17 +175,17 @@ More text here.
 
 **Benefits:**
 
-- ✅ **Zero Configuration**: Works automatically with explanatory mode
+- ✅ **Automatic Capture**: Works automatically with explanatory mode
 - ✅ **No Hallucination**: Rule-based extraction (not AI-generated)
-- ✅ **High Quality**: Conservative capture (better to miss than to hallucinate)
-- ✅ **Fast Performance**: \<50ms extraction, \<20ms semantic search
+- ✅ **Conservative Capture**: Better to miss an insight than invent one
+- ✅ **Measured Performance**: <50ms extraction, <20ms semantic search
 - ✅ **Privacy-First**: All processing done locally, no external APIs
 
 **Documentation:** See [`docs/features/INSIGHTS_CAPTURE.md`](docs/features/INSIGHTS_CAPTURE.md) for complete details
 
 ---
 
-#### 🌐 Global Intelligence & Pattern Sharing
+#### Global Intelligence & Pattern Sharing
 
 **What It Does:**
 
@@ -255,14 +244,14 @@ deps = [
 
 ---
 
-## 🚀 Automatic Session Management
+## Automatic Session Management
 
 **For Git Repositories:**
 
 - ✅ **Automatic initialization** when Claude Code connects
 - ✅ **Automatic cleanup** when session ends (quit, crash, or network failure)
-- ✅ **Intelligent auto-compaction** during checkpoints
-- ✅ **Zero manual intervention** required
+- ✅ **Automatic compaction** during checkpoints
+- ✅ **Automatic in supported workflows**
 
 **For Non-Git Projects:**
 
@@ -270,7 +259,7 @@ deps = [
 - 📝 Use `/end` for manual cleanup
 - 📝 Full session management features available on-demand
 
-The server automatically detects git repositories and provides seamless session lifecycle management with crash resilience and network failure recovery. Non-git projects retain manual control for flexible workflow management.
+The server automatically detects git repositories and manages the session lifecycle with crash resilience and network failure recovery. Non-git projects retain manual control for flexible workflow management.
 
 ### Session Lifecycle Visualization
 
@@ -371,7 +360,7 @@ flowchart TD
 This server provides **85+ specialized tools** organized into 12 functional categories.
 For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_REFERENCE.md).
 
-### 🎉 Phase 4 Analytics Tools (NEW!)
+### Phase 4 Analytics Tools
 
 **Real-Time Monitoring:**
 
@@ -385,7 +374,7 @@ For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_
 - `get_community_baselines` - Compare user performance vs global community
 - `get_skill_dependencies` - Explore skill co-occurrence patterns
 
-### 🧠 Intelligence Tools (What Makes Session Buddy Unique)
+### Intelligence Tools
 
 **Insights Management:**
 
@@ -411,7 +400,7 @@ For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_
 
 ### Core Session Management
 
-- `start` - Comprehensive session initialization with project analysis and memory setup
+- `start` - Session initialization with project analysis and memory setup
 - `checkpoint` - Mid-session quality assessment with workflow analysis
 - `end` - Complete session cleanup with learning capture
 - `status` - Current session overview with health checks
@@ -433,15 +422,15 @@ For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_
 
 All tools use **local processing** for privacy, with **DuckDB vector storage** (FLOAT[384] embeddings) and **ONNX-based semantic search** requiring no external API calls.
 
-## 🚀 Integration with Crackerjack
+## Integration with Crackerjack
 
 Session Buddy includes deep integration with [Crackerjack](https://github.com/lesleslie/crackerjack), the AI-driven Python development platform:
 
 **Key Features:**
 
-- **📊 Quality Metrics Tracking**: Automatically captures and tracks quality scores over time
-- **🧪 Test Result Monitoring**: Learns from test patterns, failures, and successful fixes
-- **🔍 Error Pattern Recognition**: Remembers how specific errors were resolved and suggests solutions
+- **Quality Metrics Tracking**: Automatically captures and tracks quality scores over time
+- **Test Result Monitoring**: Learns from test patterns, failures, and successful fixes
+- **Error Pattern Recognition**: Remembers how specific errors were resolved and suggests solutions
 
 **Example Workflow:**
 
@@ -508,7 +497,7 @@ If installed with pip/uv, you can use the script entry point:
 
 **Dependencies:** Requires Python 3.13+. For a complete list of dependencies, see [pyproject.toml](pyproject.toml).
 
-### 🧠 Setting Up Semantic Search (Optional)
+### Setting Up Semantic Search (Optional)
 
 Session Buddy includes semantic search capabilities using local AI embeddings with **no external API dependencies**.
 
@@ -609,9 +598,9 @@ This server manages its data locally in the user's home directory:
 4. **Store Important Insights**: `/session-buddy:store_reflection` - Capture key learnings for future sessions
 5. **End Session**: `/session-buddy:end` - Final assessment, learning capture, and cleanup
 
-## Benefits
+## Why Teams Use It
 
-### 🧠 Intelligence & Knowledge Sharing (Unique to Session Buddy)
+### Intelligence & Knowledge Sharing
 
 - **Automatic Insights Capture**: Extracts educational insights from conversations without manual effort
 - **Semantic Pattern Discovery**: Find related insights across sessions using vector embeddings
@@ -620,7 +609,7 @@ This server manages its data locally in the user's home directory:
 - **Team Knowledge Base**: Collaborative filtering and voting for best practices
 - **No Hallucination**: Rule-based extraction ensures only high-quality insights are captured
 
-### Comprehensive Coverage
+### Coverage
 
 - **Session Quality**: Real-time monitoring and optimization
 - **Memory Persistence**: Cross-session conversation retention
@@ -630,7 +619,7 @@ This server manages its data locally in the user's home directory:
 
 - **Single Command Setup**: One `/session-buddy:start` sets up everything
 - **Local Dependencies**: No external API calls or services required
-- **Intelligent Permissions**: Reduces repeated permission prompts
+- **Permission Memory**: Reduces repeated permission prompts
 - **Automated Workflows**: Structured processes for common tasks
 
 ### Enhanced Productivity
@@ -644,16 +633,16 @@ This server manages its data locally in the user's home directory:
 
 Complete documentation is available in the `docs/` directory:
 
-### 🧠 Intelligence Features (What Makes Session Buddy Unique)
+### Intelligence Features
 
-- **[Intelligence Features Quick Start](docs/features/INTELLIGENCE_QUICK_START.md)** ⭐ **Start Here** - 5-minute practical guide
+- **Intelligence Features Quick Start](docs/features/INTELLIGENCE_QUICK_START.md)** ⭐ **Start Here** - 5-minute practical guide
 
   - Automatic insights capture (how to use `★ Insight ─────` delimiters)
   - Cross-project intelligence (group related projects)
   - Team collaboration (shared knowledge with voting)
   - Advanced search techniques (semantic, faceted, temporal)
   - Configuration and troubleshooting
-- **[Insights Capture & Deduplication](docs/features/INSIGHTS_CAPTURE.md)** ⭐ **Deep Dive**
+- **Insights Capture & Deduplication](docs/features/INSIGHTS_CAPTURE.md)** ⭐ **Deep Dive**
 
   - Automatic extraction of educational insights from conversations
   - Multi-point capture strategy (checkpoint + session end)

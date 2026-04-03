@@ -12,6 +12,7 @@
 - `uv sync --group dev` installs reproducible runtime and development dependencies.
 - `uv run session-buddy --start-mcp-server --verbose` boots the MCP server locally; add `--status` to confirm ports 8677/8678.
 - `uv run pre-commit run --all-files` executes Ruff, Pyright, Bandit, Complexipy, and related quality gates while applying safe fixes.
+- Use Crackerjack as the canonical repo-wide quality and CI/CD gate when validating larger changes or matching CI locally.
 - `uv run pytest --cov=session_buddy --cov-report=term-missing` runs the suite with coverage; append `--maxfail=1` during rapid iteration.
 
 ## Coding Style & Naming Conventions

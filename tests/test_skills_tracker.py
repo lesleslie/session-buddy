@@ -3,7 +3,7 @@
 
 Tests cover:
 - Core tracking logic (SkillsTracker)
-- Dhruva storage layer (SkillsStorage)
+- Druva storage layer (SkillsStorage)
 - Migration system
 - End-to-end workflows
 
@@ -541,7 +541,7 @@ class TestIntegration:
 
     def test_json_import_workflow(self, temp_db_path):
         """Test importing JSON data via migrator."""
-        from scripts.migrate_json_to_dhruva import JSONToDhruvaMigrator
+        from scripts.migrate_json_to_druva import JSONToDruvaMigrator
 
         # Create test JSON
         json_data = {
@@ -561,7 +561,7 @@ class TestIntegration:
             json_path.write_text(json.dumps(json_data))
 
             # Run migration
-            migrator = JSONToDhruvaMigrator(
+            migrator = JSONToDruvaMigrator(
                 db_path=temp_db_path,
                 json_dir=Path(tmpdir),
             )

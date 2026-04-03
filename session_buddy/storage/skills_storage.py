@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dhruva-backed persistent storage for skills metrics.
+"""Druva-backed persistent storage for skills metrics.
 
 Provides ACID-compliant storage for skills tracking with:
 - SQLite3 with WAL mode for concurrency
@@ -57,7 +57,7 @@ class ValidationError(SkillsStorageError):
 
 
 # ============================================================================
-# Skills Storage: Dhruva-backed persistent storage
+# Skills Storage: Druva-backed persistent storage
 # ============================================================================
 
 
@@ -103,7 +103,7 @@ class StoredMetrics:
 
 
 class SkillsStorage:
-    """Dhruva-backed persistent storage for skills metrics.
+    """Druva-backed persistent storage for skills metrics.
 
     Provides ACID-compliant storage with:
     - Explicit transaction management
@@ -1947,7 +1947,7 @@ def migrate_from_crackerjack(
     json_file: Path,
     storage: SkillsStorage | None = None,
 ) -> dict[str, int]:
-    """Migrate metrics from crackerjack JSON to Dhruva storage.
+    """Migrate metrics from crackerjack JSON to Druva storage.
 
     This is a convenience wrapper for SkillsStorage.import_from_json().
 
