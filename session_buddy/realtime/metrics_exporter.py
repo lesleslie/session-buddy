@@ -1,5 +1,9 @@
 """Prometheus metrics exporter for skills monitoring.
 
+Deprecated: HTTP services in the Bodai ecosystem now standardize on exposing
+`/metrics` from the main service port. This standalone exporter remains only as a
+temporary migration aid and should not be used as the steady-state metrics surface.
+
 This module implements a Prometheus metrics exporter that exposes skill metrics
 in Prometheus format for scraping by monitoring systems (Grafana, Prometheus, etc.).
 

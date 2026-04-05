@@ -161,6 +161,19 @@ async def healthz_check(request: Any) -> Any:
     return JSONResponse({"status": "ok"})
 
 
+@mcp.custom_route("/metrics", methods=["GET"])
+async def metrics_check(request: Any) -> Any:
+    """Prometheus metrics endpoint on the main Session-Buddy service port."""
+    from starlette.responses import Response
+
+    from session_buddy.mcp.metrics import get_metrics
+
+    return Response(
+        content=get_metrics().export_metrics(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
 # Register modularized tools
 from session_buddy.tools import (
     register_category_tools,
