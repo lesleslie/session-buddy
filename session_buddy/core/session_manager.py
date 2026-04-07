@@ -491,13 +491,26 @@ class SessionLifecycleManager:
         return resolved
 
     def _setup_working_directory(self, working_directory: str | None) -> Path:
-        """Set up working directory and project name."""
-        if working_directory:
-            # Validate path to prevent traversal attacks (production implementation)
-            from session_buddy.utils.path_validation import validate_working_directory
+        """Set up working directory and project name.
 
-            validated_path = validate_working_directory(working_directory)
-            os.chdir(validated_path)
+        When a working_directory is provided (e.g., from an external shell
+        tracking event), we validate it exists but do NOT chdir — the caller
+        owns its own working directory.  When omitted, we fall back to cwd
+        as before.
+        """
+        if working_directory:
+            resolved = Path(working_directory).resolve()
+
+            # Basic safety: must exist and be a directory
+            if not resolved.exists():
+                raise ValueError(f"Path does not exist: {working_directory}")
+            if not resolved.is_dir():
+                raise ValueError(f"Path is not a directory: {working_directory}")
+
+            # Record the project but do NOT chdir — external callers
+            # (track_session_start) provide their own cwd.
+            self.current_project = resolved.name
+            return resolved
 
         current_dir = Path.cwd()
         self.current_project = current_dir.name
