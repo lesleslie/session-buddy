@@ -89,7 +89,7 @@ ______________________________________________________________________
 
 - Breaking change (requires migration)
 - Adds dependency to all MCP servers
-- Oneiric = CLI/config, not UI focus
+- Oneiric = platform foundation (resolution, lifecycle, adapters, actions), not UI focus
 - Release coordination burden
 
 **Verdict:** More complexity than benefit

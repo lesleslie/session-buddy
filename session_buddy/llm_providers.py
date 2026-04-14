@@ -52,42 +52,56 @@ def _get_provider_api_key_and_env(
     configured_key = get_llm_api_key(provider)
     if configured_key:
         return configured_key, f"settings.{provider}_api_key"
-    if provider == "openai":
-        return os.getenv("OPENAI_API_KEY"), "OPENAI_API_KEY"
-    if provider == "anthropic":
-        return os.getenv("ANTHROPIC_API_KEY"), "ANTHROPIC_API_KEY"
+
+    # Simple env var lookups
+    env_var_map: dict[str, str] = {
+        "zai": "ZAI_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "qwen": "QWEN_API_KEY",
+    }
+    if provider in env_var_map:
+        return os.getenv(env_var_map[provider]), env_var_map[provider]
+
+    # Gemini has two possible env vars
     if provider == "gemini":
         if os.getenv("GEMINI_API_KEY"):
             return os.getenv("GEMINI_API_KEY"), "GEMINI_API_KEY"
         if os.getenv("GOOGLE_API_KEY"):
             return os.getenv("GOOGLE_API_KEY"), "GOOGLE_API_KEY"
         return None, "GEMINI_API_KEY"
-    if provider == "qwen":
-        return os.getenv("QWEN_API_KEY"), "QWEN_API_KEY"
+
+    # Ollama is local, no API key
     if provider == "ollama":
         return None, None
+
     return None, None
 
 
 def _get_configured_providers() -> list[str]:
     """Get list of configured providers based on environment variables."""
     providers: set[str] = set()
-    if get_llm_api_key("openai"):
-        providers.add("openai")
-    if get_llm_api_key("gemini"):
-        providers.add("gemini")
-    if get_llm_api_key("anthropic"):
-        providers.add("anthropic")
-    if get_llm_api_key("qwen"):
-        providers.add("qwen")
-    if os.getenv("OPENAI_API_KEY"):
-        providers.add("openai")
-    if os.getenv("ANTHROPIC_API_KEY"):
-        providers.add("anthropic")
+
+    # Check settings-based API keys
+    for provider in ("zai", "openai", "gemini", "anthropic", "qwen"):
+        if get_llm_api_key(provider):
+            providers.add(provider)
+
+    # Check environment variable fallbacks
+    env_provider_map: dict[str, str] = {
+        "ZAI_API_KEY": "zai",
+        "OPENAI_API_KEY": "openai",
+        "ANTHROPIC_API_KEY": "anthropic",
+        "QWEN_API_KEY": "qwen",
+    }
+    for env_var, provider in env_provider_map.items():
+        if os.getenv(env_var):
+            providers.add(provider)
+
+    # Gemini has two possible env vars
     if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
         providers.add("gemini")
-    if os.getenv("QWEN_API_KEY"):
-        providers.add("qwen")
+
     return sorted(providers)
 
 
@@ -154,6 +168,7 @@ def get_masked_api_key(provider: str = "openai") -> str:
         "anthropic": "anthropic_api_key",
         "gemini": "gemini_api_key",
         "qwen": "qwen_api_key",
+        "zai": "zai_api_key",
     }
     key_field = key_field_map.get(provider)
     if key_field:
@@ -190,9 +205,9 @@ class LLMManager:
         """Load configuration from file or environment."""
         config: dict[str, Any] = {
             "providers": {},
-            "default_provider": "openai",
-            # Plan cascade: openai -> anthropic -> gemini (-> ollama future)
-            "fallback_providers": ["anthropic", "gemini", "ollama"],
+            "default_provider": "zai",
+            # ZAI coding plan primary, Ollama local fallback
+            "fallback_providers": ["ollama"],
         }
 
         if config_path and Path(config_path).exists():
@@ -202,16 +217,38 @@ class LLMManager:
                     config.update(file_config)
 
         # Add environment-based provider configs
+        # ZAI (primary) - GLM models via coding plan subscription
+        if not config["providers"].get("zai"):
+            zai_api_key = os.getenv("ZAI_API_KEY")
+            settings = get_settings()
+            if hasattr(settings, "zai_api_key") and settings.zai_api_key:
+                zai_api_key = settings.zai_api_key
+
+            config["providers"]["zai"] = {
+                "api_key": zai_api_key,
+                "base_url": os.getenv("ZAI_BASE_URL", "https://api.z.ai/api/coding/paas/v4"),
+                "default_model": os.getenv("ZAI_DEFAULT_MODEL", "glm-4.7"),
+            }
+
         if not config["providers"].get("openai"):
+            bifrost_openai_base = os.getenv("BIFROST_OPENAI_BASE_URL")
             config["providers"]["openai"] = {
-                "api_key": os.getenv("OPENAI_API_KEY"),
-                "default_model": "gpt-4",
+                "api_key": os.getenv("OPENAI_API_KEY")
+                or (os.getenv("BIFROST_API_KEY") or "local-bifrost" if bifrost_openai_base else None),
+                "base_url": bifrost_openai_base or os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
+                "default_model": os.getenv("OPENAI_DEFAULT_MODEL")
+                or ("zai-openai/glm-5-turbo" if bifrost_openai_base else "gpt-4"),
             }
 
         if not config["providers"].get("anthropic"):
+            bifrost_anthropic_base = os.getenv("BIFROST_ANTHROPIC_BASE_URL")
             config["providers"]["anthropic"] = {
-                "api_key": os.getenv("ANTHROPIC_API_KEY"),
-                "default_model": "claude-3-5-haiku-20241022",
+                "api_key": os.getenv("ANTHROPIC_API_KEY")
+                or os.getenv("ANTHROPIC_AUTH_TOKEN")
+                or (os.getenv("BIFROST_API_KEY") or "local-bifrost" if bifrost_anthropic_base else None),
+                "base_url": bifrost_anthropic_base or os.getenv("ANTHROPIC_BASE_URL"),
+                "default_model": os.getenv("ANTHROPIC_DEFAULT_MODEL")
+                or ("anthropic/GLM-4.7" if bifrost_anthropic_base else "claude-3-5-haiku-20241022"),
             }
 
         if not config["providers"].get("gemini"):
@@ -226,14 +263,22 @@ class LLMManager:
                 "default_model": "llama2",
             }
 
-        if not config["providers"].get("qwen"):
+        qwen_api_key = os.getenv("QWEN_API_KEY")
+        qwen_base_url = os.getenv("QWEN_BASE_URL")
+        bifrost_openai_base = os.getenv("BIFROST_OPENAI_BASE_URL")
+        if (
+            not config["providers"].get("qwen")
+            and (qwen_api_key or qwen_base_url or bifrost_openai_base)
+        ):
             config["providers"]["qwen"] = {
-                "api_key": os.getenv("QWEN_API_KEY"),
-                "base_url": os.getenv(
-                    "QWEN_BASE_URL",
-                    "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                ),
-                "default_model": os.getenv("QWEN_DEFAULT_MODEL", "qwen-coder-plus"),
+                "api_key": qwen_api_key
+                or (os.getenv("OPENAI_API_KEY") if bifrost_openai_base else None)
+                or ((os.getenv("BIFROST_API_KEY") or "local-bifrost") if bifrost_openai_base else None),
+                "base_url": bifrost_openai_base
+                or qwen_base_url
+                or "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "default_model": os.getenv("QWEN_DEFAULT_MODEL")
+                or ("zai-openai/glm-5-turbo" if bifrost_openai_base else "qwen-coder-plus"),
             }
 
         return config
@@ -241,6 +286,7 @@ class LLMManager:
     def _initialize_providers(self) -> None:
         """Initialize all configured providers."""
         provider_classes = {
+            "zai": OpenAIProvider,  # ZAI uses OpenAI-compatible API
             "openai": OpenAIProvider,
             "anthropic": __import__(
                 "session_buddy.llm.providers.anthropic_provider",

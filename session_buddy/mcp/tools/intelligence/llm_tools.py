@@ -393,7 +393,7 @@ def register_llm_tools(mcp: FastMCP) -> None:
 
         Args:
             prompt: The text prompt to generate from
-            provider: LLM provider to use (openai, gemini, ollama)
+            provider: LLM provider to use (zai, openai, gemini, ollama)
             model: Specific model to use
             temperature: Generation temperature (0.0-1.0)
             max_tokens: Maximum tokens to generate
@@ -421,7 +421,7 @@ def register_llm_tools(mcp: FastMCP) -> None:
 
         Args:
             messages: List of messages in format [{"role": "user/assistant/system", "content": "text"}]
-            provider: LLM provider to use (openai, gemini, ollama)
+            provider: LLM provider to use (zai, openai, gemini, ollama)
             model: Specific model to use
             temperature: Generation temperature (0.0-1.0)
             max_tokens: Maximum tokens to generate
@@ -445,7 +445,7 @@ def register_llm_tools(mcp: FastMCP) -> None:
         """Configure an LLM provider with API credentials and settings.
 
         Args:
-            provider: Provider name (openai, gemini, ollama)
+            provider: Provider name (zai, openai, gemini, ollama)
             api_key: API key for the provider
             base_url: Base URL for the provider API
             default_model: Default model to use

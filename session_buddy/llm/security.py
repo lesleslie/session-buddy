@@ -39,6 +39,7 @@ def get_masked_api_key(provider: str = "openai") -> str:
         "anthropic": "anthropic_api_key",
         "gemini": "gemini_api_key",
         "qwen": "qwen_api_key",
+        "zai": "zai_api_key",
     }
     key_field = key_field_map.get(provider)
     if key_field:
@@ -54,6 +55,8 @@ def get_masked_api_key(provider: str = "openai") -> str:
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     elif provider == "qwen":
         api_key = os.getenv("QWEN_API_KEY")
+    elif provider == "zai":
+        api_key = os.getenv("ZAI_API_KEY")
     elif provider == "ollama":
         # Ollama is local, no API key needed
         return "N/A (local service)"
@@ -85,6 +88,8 @@ def _get_provider_api_key_and_env(provider: str) -> tuple[str | None, str | None
             "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY"
         )
         return api_key, env_var_name
+    if provider == "zai":
+        return os.getenv("ZAI_API_KEY"), "ZAI_API_KEY"
     return None, None
 
 
@@ -121,18 +126,26 @@ def _validate_provider_basic(provider: str, api_key: str) -> str:
 def _get_configured_providers() -> list[str]:
     """Get list of configured LLM providers."""
     providers: set[str] = set()
-    if get_llm_api_key("openai"):
-        providers.add("openai")
-    if get_llm_api_key("gemini"):
-        providers.add("gemini")
-    if get_llm_api_key("anthropic"):
-        providers.add("anthropic")
-    if os.getenv("OPENAI_API_KEY"):
-        providers.add("openai")
-    if os.getenv("ANTHROPIC_API_KEY"):
-        providers.add("anthropic")
+
+    # Check settings-based API keys first
+    for provider in ("zai", "openai", "gemini", "anthropic", "qwen"):
+        if get_llm_api_key(provider):
+            providers.add(provider)
+
+    # Check environment variable fallbacks
+    env_provider_map: dict[str, str] = {
+        "ZAI_API_KEY": "zai",
+        "OPENAI_API_KEY": "openai",
+        "ANTHROPIC_API_KEY": "anthropic",
+    }
+    for env_var, provider in env_provider_map.items():
+        if os.getenv(env_var):
+            providers.add(provider)
+
+    # Gemini has two possible env vars
     if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
         providers.add("gemini")
+
     return sorted(providers)
 
 

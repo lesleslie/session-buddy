@@ -415,6 +415,30 @@ class SessionMgmtSettings(MCPBaseSettings):
         default=None,
         description="Qwen API key (overrides QWEN_API_KEY)",
     )
+    zai_api_key: str | None = Field(
+        default=None,
+        description="ZAI API key (overrides ZAI_API_KEY)",
+    )
+
+    # === LLM Provider URLs ===
+    zai_base_url: str = Field(
+        default="https://api.z.ai/api/coding/paas/v4",
+        description="ZAI coding plan API endpoint",
+    )
+    zai_default_model: str = Field(
+        default="glm-4.7",
+        description="Default ZAI model for LLM operations",
+    )
+
+    # === LLM Fallback Chain ===
+    default_llm_provider: str = Field(
+        default="zai",
+        description="Primary LLM provider (zai, openai, anthropic, gemini, ollama)",
+    )
+    llm_fallback_chain: list[str] = Field(
+        default=["zai", "ollama"],
+        description="Ordered list of LLM providers for fallback",
+    )
 
     # === Akosha Sync Settings ===
     akosha_cloud_bucket: str = Field(
@@ -784,6 +808,7 @@ def get_llm_api_key(provider: str) -> str | None:
         "anthropic": "anthropic_api_key",
         "gemini": "gemini_api_key",
         "qwen": "qwen_api_key",
+        "zai": "zai_api_key",
     }
     field = field_map.get(provider)
     if field is None:

@@ -11,6 +11,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+import os
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -127,9 +128,18 @@ class LLMEntityExtractor:
             api_key: Optional API key (uses environment variable if not provided)
 
         """
+        bifrost_openai_base = os.getenv("BIFROST_OPENAI_BASE_URL")
         self.llm_provider = llm_provider
-        self.model = model
-        self.api_key = api_key
+        self.model = (
+            os.getenv("OPENAI_DEFAULT_MODEL")
+            or ("zai-openai/glm-5-turbo" if bifrost_openai_base and model == "gpt-4o-mini" else model)
+        )
+        self.api_key = (
+            api_key
+            or os.getenv("OPENAI_API_KEY")
+            or ((os.getenv("BIFROST_API_KEY") or "local-bifrost") if bifrost_openai_base else None)
+        )
+        self.base_url = bifrost_openai_base or os.getenv("OPENAI_BASE_URL")
         self._client: Any = None
 
     async def initialize(self) -> None:
@@ -141,7 +151,7 @@ class LLMEntityExtractor:
             if self.llm_provider == "openai":
                 from openai import AsyncOpenAI
 
-                self._client = AsyncOpenAI(api_key=self.api_key)
+                self._client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
                 logger.info(f"Initialized OpenAI client with model: {self.model}")
             else:
                 msg = f"Unsupported LLM provider: {self.llm_provider}"

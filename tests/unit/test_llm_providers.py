@@ -53,8 +53,8 @@ async def test_llm_manager_initialization():
 
         manager = LLMManager()
 
-        assert manager.config["default_provider"] == "openai"
-        assert "openai" in manager.providers
+        assert manager.config["default_provider"] == "zai"
+        assert "zai" in manager.providers
         assert "gemini" in manager.providers
         assert "ollama" in manager.providers
 
@@ -82,10 +82,11 @@ async def test_get_available_providers():
         manager = LLMManager()
 
         available = await manager.get_available_providers()
+        assert "zai" in available
         assert "openai" in available
         assert "gemini" not in available  # Should not be available
         assert "ollama" in available
-        assert len(available) == 2
+        assert len(available) >= 3  # zai, openai, ollama (plus others from env)
 
 
 @pytest.mark.asyncio

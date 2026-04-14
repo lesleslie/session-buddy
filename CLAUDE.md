@@ -456,13 +456,35 @@ storage:
 ### Advanced Categories
 
 - **Crackerjack** (11): Command execution, quality metrics, patterns, health monitoring
-- **LLM Management** (5): `list_llm_providers`, `test_llm_providers`, `generate_with_llm`, `chat_with_llm`, `configure_llm_provider`
+- **LLM Management** (6): `list_llm_providers`, `test_llm_providers`, `generate_with_llm`, `chat_with_llm`, `configure_llm_provider`, `sync_claude_qwen_config`
 - **Serverless** (8): External storage integration (Redis, S3, local)
 - **Team** (4): `create_team`, `search_team_knowledge`, `get_team_statistics`, `vote_on_reflection`
 - **Multi-Project** (4): `create_project_group`, `add_project_dependency`, `search_across_projects`, `get_project_insights`
 - **Plus**: App Monitoring (5), Interruption Management (7), Natural Scheduling (5), Git Worktree (3), Advanced Search (3)
 
 ## Operational Notes
+
+### LLM Provider Configuration
+
+Session-Buddy uses ZAI GLM models as the primary LLM provider:
+
+- **Primary provider**: `zai` (OpenAI-compatible API at `https://api.z.ai/api/coding/paas/v4`)
+- **Fallback provider**: `ollama` (local at `http://localhost:11434`)
+- **Default model**: `glm-4.7` (general), `glm-4.5-air` (quick/haiku tasks)
+- **Provider chain**: `zai -> ollama`
+
+**Configuration** (in `settings/session-buddy.yaml` or environment variables):
+- `zai_api_key` / `ZAI_API_KEY` — ZAI coding plan subscription key
+- `zai_base_url` — API endpoint (default: `https://api.z.ai/api/coding/paas/v4`)
+- `zai_default_model` — Default model (default: `glm-4.7`)
+- `default_llm_provider` — Primary provider (default: `zai`)
+- `llm_fallback_chain` — Fallback order (default: `["zai", "ollama"]`)
+
+**Key files**:
+- `session_buddy/llm_providers.py` — LLMManager with multi-provider support
+- `session_buddy/llm/security.py` — API key validation and masking
+- `session_buddy/settings.py` — ZAI settings fields in SessionMgmtSettings
+- `tests/integration/test_zai_fallback_chain.py` — Integration tests for fallback chain
 
 ### Token Optimization
 

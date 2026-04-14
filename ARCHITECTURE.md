@@ -878,7 +878,7 @@ ______________________________________________________________________
 ### Core Dependencies
 
 - **FastMCP**: MCP server framework
-- **Oneiric**: Configuration management
+- **Oneiric**: Platform foundation — configuration, adapter resolution, lifecycle management, storage adapters, secrets, observability
 - **Pydantic**: Data validation
 - **Typer**: CLI framework
 - **SQLAlchemy**: Database ORM
