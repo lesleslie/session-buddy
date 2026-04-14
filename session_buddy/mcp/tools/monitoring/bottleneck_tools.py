@@ -25,33 +25,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
     async def detect_quality_bottlenecks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
-        """Detect quality-related workflow bottlenecks.
-
-        Analyzes session quality patterns to identify:
-        - Sudden quality drops (>10 point decline)
-        - Consecutive low quality sessions
-        - Low quality periods with time ranges
-        - Average recovery time from quality drops
-        - Common causes of quality drops
-
-        Args:
-            project_path: Optional filter by project path
-            days_back: Number of days to analyze (default: 30)
-
-        Returns:
-            Dictionary with quality bottleneck metrics including:
-                - sudden_quality_drops: Count of quality drops >10 points
-                - consecutive_low_quality_sessions: Max streak of low-quality sessions
-                - low_quality_periods: List of problematic time ranges
-                - avg_recovery_time_hours: Average time to recover from drops
-                - most_common_quality_drop_cause: Primary tool associated with drops
-                - insights: Human-readable bottleneck observations
-
-        Example:
-            >>> result = await detect_quality_bottlenecks(days_back=14)
-            >>> print(f"Quality drops: {result['sudden_quality_drops']}")
-            >>> print(f"Recovery time: {result['avg_recovery_time_hours']:.1f}h")
-        """
+        """Detect quality-related workflow bottlenecks."""
         try:
             detector = get_bottleneck_detector()
             await detector.initialize()
@@ -80,33 +54,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
     async def detect_velocity_bottlenecks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
-        """Detect velocity-related workflow bottlenecks.
-
-        Analyzes commit velocity patterns to identify:
-        - Low velocity sessions (<2 commits/hour)
-        - Zero-commit sessions (planning or debugging phases)
-        - Long sessions without commits
-        - Average commits/hour during low velocity periods
-        - Velocity stagnation days
-
-        Args:
-            project_path: Optional filter by project path
-            days_back: Number of days to analyze (default: 30)
-
-        Returns:
-            Dictionary with velocity bottleneck metrics including:
-                - low_velocity_sessions: Sessions with <2 commits/hour
-                - zero_commit_sessions: Sessions with no commits
-                - long_sessions_without_commits: >60min sessions with 0 commits
-                - avg_commits_per_hour_low_periods: Velocity during bottleneck periods
-                - velocity_stagnation_days: Days with declining velocity
-                - insights: Human-readable bottleneck observations
-
-        Example:
-            >>> result = await detect_velocity_bottlenecks(days_back=7)
-            >>> print(f"Zero-commit sessions: {result['zero_commit_sessions']}")
-            >>> print(f"Stagnation days: {result['velocity_stagnation_days']}")
-        """
+        """Detect velocity-related workflow bottlenecks."""
         try:
             detector = get_bottleneck_detector()
             await detector.initialize()
@@ -135,33 +83,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
     async def detect_session_pattern_bottlenecks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
-        """Detect session pattern workflow bottlenecks.
-
-        Analyzes work session patterns to identify:
-        - Marathon sessions (>4 hours without breaks)
-        - Fragmented work patterns (<15 minutes repeatedly)
-        - Infrequent checkpoint sessions (long sessions with few checkpoints)
-        - Excessive gaps between sessions
-        - Schedule consistency score (0-100, higher = more inconsistent)
-
-        Args:
-            project_path: Optional filter by project path
-            days_back: Number of days to analyze (default: 30)
-
-        Returns:
-            Dictionary with session pattern bottleneck metrics including:
-                - marathon_sessions: Count of sessions >4 hours
-                - fragmented_work_sessions: Count of short sessions occurring frequently
-                - infrequent_checkpoint_sessions: Long sessions with few checkpoints
-                - excessive_session_gaps: Average hours between sessions
-                - inconsistent_schedule_score: 0-100 inconsistency metric
-                - insights: Human-readable bottleneck observations
-
-        Example:
-            >>> result = await detect_session_pattern_bottlenecks()
-            >>> print(f"Marathon sessions: {result['marathon_sessions']}")
-            >>> print(f"Schedule inconsistency: {result['inconsistent_schedule_score']:.0}/100")
-        """
+        """Detect session pattern workflow bottlenecks."""
         try:
             detector = get_bottleneck_detector()
             await detector.initialize()
@@ -190,30 +112,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
     async def get_bottleneck_insights(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
-        """Get comprehensive bottleneck insights and recommendations.
-
-        Synthesizes all bottleneck types into actionable recommendations
-        including critical issues, improvement suggestions, and workflow
-        optimization opportunities.
-
-        Args:
-            project_path: Optional filter by project path
-            days_back: Number of days to analyze (default: 30)
-
-        Returns:
-            Dictionary with bottleneck insights including:
-                - critical_bottlenecks: List of high-impact issues
-                - improvement_recommendations: Specific actionable suggestions
-                - workflow_optimization_opportunities: Process improvement ideas
-                - estimated_impact_if_resolved: Expected improvement magnitude
-                - insights: Synthesized observations
-
-        Example:
-            >>> result = await get_bottleneck_insights()
-            >>> print(f"Critical issues: {len(result['critical_bottlenecks'])}")
-            >>> for rec in result['improvement_recommendations']:
-            ...     print(f"- {rec}")
-        """
+        """Get comprehensive bottleneck insights and recommendations."""
         try:
             detector = get_bottleneck_detector()
             await detector.initialize()

@@ -925,16 +925,7 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
         batch_size: int = 50,
         overwrite: bool = False,
     ) -> str:
-        """Generate embeddings for entities missing them.
-
-        Args:
-            entity_type: Optional filter by entity type (None = all)
-            batch_size: Number of entities to process per batch
-            overwrite: Regenerate existing embeddings
-
-        Returns:
-            Summary of embeddings generated
-        """
+        """Generate embeddings for entities missing them."""
         return await _generate_embeddings_impl(entity_type, batch_size, overwrite)
 
     @mcp_server.tool()  # type: ignore[misc]
@@ -944,26 +935,12 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
         limit: int = 100,
         batch_size: int = 10,
     ) -> str:
-        """Batch discover relationships for entities.
-
-        Args:
-            entity_type: Optional filter by entity type (None = all)
-            threshold: Similarity threshold (0.0-1.0)
-            limit: Max entities to process
-            batch_size: Entities per batch
-
-        Returns:
-            Summary of relationships created
-        """
+        """Batch discover relationships for entities."""
         return await _discover_relationships_impl(
             entity_type, threshold, limit, batch_size
         )
 
     @mcp_server.tool()  # type: ignore[misc]
     async def analyze_graph_connectivity() -> str:
-        """Analyze graph connectivity and health metrics.
-
-        Returns:
-            Connectivity metrics and recommendations
-        """
+        """Analyze graph connectivity and health metrics."""
         return await _analyze_graph_connectivity_impl()

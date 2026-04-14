@@ -389,17 +389,7 @@ def register_llm_tools(mcp: FastMCP) -> None:
         max_tokens: int | None = None,
         use_fallback: bool = True,
     ) -> str:
-        """Generate text using specified LLM provider.
-
-        Args:
-            prompt: The text prompt to generate from
-            provider: LLM provider to use (zai, openai, gemini, ollama)
-            model: Specific model to use
-            temperature: Generation temperature (0.0-1.0)
-            max_tokens: Maximum tokens to generate
-            use_fallback: Whether to use fallback providers if primary fails
-
-        """
+        """Generate text using specified LLM provider."""
         return await _generate_with_llm_impl(
             prompt,
             provider,
@@ -417,16 +407,7 @@ def register_llm_tools(mcp: FastMCP) -> None:
         temperature: float = 0.7,
         max_tokens: int | None = None,
     ) -> str:
-        """Have a conversation with an LLM provider.
-
-        Args:
-            messages: List of messages in format [{"role": "user/assistant/system", "content": "text"}]
-            provider: LLM provider to use (zai, openai, gemini, ollama)
-            model: Specific model to use
-            temperature: Generation temperature (0.0-1.0)
-            max_tokens: Maximum tokens to generate
-
-        """
+        """Have a conversation with an LLM provider."""
         return await _chat_with_llm_impl(
             messages,
             provider,
@@ -442,15 +423,7 @@ def register_llm_tools(mcp: FastMCP) -> None:
         base_url: str | None = None,
         default_model: str | None = None,
     ) -> str:
-        """Configure an LLM provider with API credentials and settings.
-
-        Args:
-            provider: Provider name (zai, openai, gemini, ollama)
-            api_key: API key for the provider
-            base_url: Base URL for the provider API
-            default_model: Default model to use
-
-        """
+        """Configure an LLM provider with API credentials and settings."""
         return await _configure_llm_provider_impl(
             provider,
             api_key,
@@ -465,28 +438,7 @@ def register_llm_tools(mcp: FastMCP) -> None:
         sync_types: list[str] | None = None,
         skip_servers: list[str] | None = None,
     ) -> str:
-        """Sync Claude and Qwen provider configurations.
-
-        Provides bidirectional synchronization between Claude Code and Qwen Code:
-        - MCP servers (JSON dict merge)
-        - Extensions/plugins (tracking only, manual install required)
-        - File-based resources (commands)
-
-        Args:
-            source: Source config ("claude" or "qwen")
-            destination: Destination config ("claude" or "qwen")
-            sync_types: Types to sync (mcp, commands, extensions, all)
-            skip_servers: MCP servers to skip during sync (default: homebrew, pycharm)
-
-        Example:
-            result = await sync_claude_qwen_config(
-                source="claude",
-                destination="qwen",
-                sync_types=["mcp", "commands"],
-                skip_servers=["homebrew", "pycharm"]
-            )
-
-        """
+        """Sync Claude and Qwen provider configurations."""
 
         async def operation(manager: Any) -> str:
             result = await manager.sync_provider_configs(

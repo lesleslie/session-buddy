@@ -441,28 +441,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
         file_path: str,
         errors_only: bool = False,
     ) -> str:
-        """Get IDE-level diagnostics for a file from PyCharm.
-
-        This tool retrieves diagnostics from PyCharm's inspections, which include:
-        - Syntax errors and warnings
-        - Type checking issues
-        - Code style violations
-        - Unused imports and variables
-        - Potential bugs and code smells
-
-        Args:
-            file_path: Path to the file to analyze (relative to project root)
-            errors_only: If True, only return errors (not warnings or info)
-
-        Returns:
-            JSON string with list of diagnostic issues in ToolIssue-compatible format.
-
-        Example:
-            >>> result = await get_ide_diagnostics("src/main.py")
-            >>> data = json.loads(result)
-            >>> for issue in data["issues"]:
-            ...     print(f"{issue['line_number']}: {issue['message']}")
-        """
+        """Get IDE-level diagnostics for a file from PyCharm."""
         try:
             problems = await adapter.get_file_problems(file_path, errors_only)
 
@@ -498,24 +477,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
         pattern: str,
         file_pattern: str | None = None,
     ) -> str:
-        """Search for code patterns across all indexed files.
-
-        Uses PyCharm's file index for fast, accurate regex searches
-        across the entire codebase.
-
-        Args:
-            pattern: Regex pattern to search for
-            file_pattern: Optional file glob filter (e.g., "*.py")
-
-        Returns:
-            JSON string with list of search results including file, line, and context.
-
-        Example:
-            >>> results = await search_code_patterns(r"async def\\s+\\w+\\(")
-            >>> data = json.loads(results)
-            >>> for match in data["results"]:
-            ...     print(f"{match['file']}:{match['line_number']}: {match['match_text']}")
-        """
+        """Search for code patterns across all indexed files."""
         try:
             results = await adapter.search_regex(pattern, file_pattern)
 
@@ -548,20 +510,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def get_symbol_info(symbol_name: str) -> str:
-        """Get information about a code symbol.
-
-        Retrieves symbol information from PyCharm's index including:
-        - Type
-        - Documentation
-        - Signature
-        - Location
-
-        Args:
-            symbol_name: Name of the symbol to look up
-
-        Returns:
-            JSON string with symbol information or error message.
-        """
+        """Get information about a code symbol."""
         try:
             info = await adapter.get_symbol_info(symbol_name)
             if info:
@@ -584,26 +533,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def find_usages(symbol_name: str) -> str:
-        """Find all usages of a symbol across the codebase.
-
-        Uses PyCharm's index to find where a symbol is used, including:
-        - Direct calls
-        - Imports
-        - References
-        - Inheritance
-
-        Args:
-            symbol_name: Name of the symbol to find usages for
-
-        Returns:
-            JSON string with list of usage locations.
-
-        Example:
-            >>> usages = await find_usages("my_function")
-            >>> data = json.loads(usages)
-            >>> for usage in data["usages"]:
-            ...     print(f"{usage['file']}:{usage['line_number']}")
-        """
+        """Find all usages of a symbol across the codebase."""
         try:
             usages = await adapter.find_usages(symbol_name)
 
@@ -634,15 +564,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def pycharm_health() -> str:
-        """Check health of PyCharm MCP integration.
-
-        Returns:
-            JSON string with health status including:
-            - mcp_available: Whether PyCharm MCP is connected
-            - circuit_breaker_open: Whether circuit breaker is tripped
-            - failure_count: Number of consecutive failures
-            - cache_size: Number of cached items
-        """
+        """Check health of PyCharm MCP integration."""
         try:
             health = await adapter.health_check()
             return json.dumps({

@@ -282,23 +282,7 @@ def register_phase3_knowledge_graph_tools(mcp_server: Any) -> None:
         min_confidence: str = "medium",
         limit: int = 100,
     ) -> str:
-        """Discover transitive relationships (A→B→C implies A→C).
-
-        Args:
-            max_depth: Maximum chain length to search (default: 3)
-            min_confidence: Minimum confidence level (low/medium/high)
-            limit: Maximum relationships to create
-
-        Returns:
-            Summary of transitive relationships discovered
-
-        Example:
-            If we have:
-                - session-buddy uses FastMCP
-                - FastMCP extends MCP
-            Then discover:
-                - session-buddy uses MCP (transitive)
-        """
+        """Discover transitive relationships (A→B→C implies A→C)."""
         return await _discover_transitive_relationships_impl(
             max_depth, min_confidence, limit
         )
@@ -309,48 +293,14 @@ def register_phase3_knowledge_graph_tools(mcp_server: Any) -> None:
         pattern_types: list[str] | None = None,
         auto_create: bool = False,
     ) -> str:
-        """Extract relationships from entity observations using patterns.
-
-        Scans entity observations for relationship patterns like:
-            - "X uses Y" → X uses Y
-            - "X extends Y" → X extends Y
-            - "X depends on Y" → X depends_on Y
-
-        Args:
-            entity_name: Name of entity to process
-            pattern_types: Optional filter by pattern types (e.g., ["uses", "extends"])
-            auto_create: Auto-create target entities if they don't exist
-
-        Returns:
-            Summary of pattern-based relationships extracted
-
-        Example:
-            >>> extract_pattern_relationships(
-            ...     entity_name="session-buddy",
-            ...     auto_create=True
-            ... )
-            Extracts: session-buddy uses FastMCP
-        """
+        """Extract relationships from entity observations using patterns."""
         return await _extract_pattern_relationships_impl(
             entity_name, pattern_types, auto_create
         )
 
     @mcp_server.tool()  # type: ignore[misc]
     async def get_relationship_confidence_stats() -> str:
-        """Get statistics about relationship confidence distribution.
-
-        Shows how many relationships have high/medium/low confidence scores,
-        broken down by relationship type.
-
-        Returns:
-            Confidence distribution statistics with type breakdown
-
-        Example output:
-            High Confidence:
-              • uses: 45
-              • extends: 23
-              • very_similar_to: 18
-        """
+        """Get statistics about relationship confidence distribution."""
         return await _get_relationship_confidence_stats_impl()
 
 

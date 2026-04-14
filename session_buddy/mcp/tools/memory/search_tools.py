@@ -877,22 +877,7 @@ def _register_progressive_search_tools(mcp: Any) -> None:
         max_tiers: int = 4,
         enable_early_stop: bool = True,
     ) -> dict[str, Any]:
-        """Execute multi-tier progressive search with early stopping.
-
-        Searches from fastest to slowest tiers (CATEGORIES → INSIGHTS → REFLECTIONS → CONVERSATIONS)
-        and stops early when sufficient results found.
-
-        Args:
-            query: Search query string
-            project: Optional project filter
-            min_score: Minimum similarity score (0.0-1.0)
-            max_results: Maximum total results across all tiers
-            max_tiers: Maximum number of tiers to search (1-4)
-            enable_early_stop: Whether to enable early stopping optimization
-
-        Returns:
-            Dictionary with search results, tier breakdown, and performance metrics
-        """
+        """Execute multi-tier progressive search with early stopping."""
         return await _progressive_search_impl(
             query, project, min_score, max_results, max_tiers, enable_early_stop
         )
@@ -910,26 +895,7 @@ def _register_progressive_search_tools(mcp: Any) -> None:
         sufficiency_min_results: int | None = None,
         sufficiency_high_quality_threshold: float | None = None,
     ) -> dict[str, Any]:
-        """Configure progressive search tier thresholds and sufficiency evaluation.
-
-        Allows customization of tier-specific quality thresholds and result limits,
-        as well as early stopping behavior.
-
-        Args:
-            categories_min_score: Minimum score for CATEGORIES tier (0.0-1.0)
-            categories_max_results: Maximum results from CATEGORIES tier
-            insights_min_score: Minimum score for INSIGHTS tier (0.0-1.0)
-            insights_max_results: Maximum results from INSIGHTS tier
-            reflections_min_score: Minimum score for REFLECTIONS tier (0.0-1.0)
-            reflections_max_results: Maximum results from REFLECTIONS tier
-            conversations_min_score: Minimum score for CONVERSATIONS tier (0.0-1.0)
-            conversations_max_results: Maximum results from CONVERSATIONS tier
-            sufficiency_min_results: Minimum results before considering early stop
-            sufficiency_high_quality_threshold: Avg score to consider results "high quality"
-
-        Returns:
-            Dictionary with updated configuration and confirmation
-        """
+        """Configure progressive search tier thresholds and sufficiency evaluation."""
         return await _configure_tiers_impl(
             categories_min_score,
             categories_max_results,

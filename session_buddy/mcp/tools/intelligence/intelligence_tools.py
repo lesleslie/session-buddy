@@ -30,15 +30,7 @@ def get_intelligence_engine() -> IntelligenceEngine:
 async def list_skills(
     min_success_rate: float = 0.0, limit: int = 20
 ) -> dict[str, t.Any]:
-    """List learned skills available for workflow guidance.
-
-    Args:
-        min_success_rate: Minimum success rate filter (0.0 to 1.0)
-        limit: Maximum number of skills to return
-
-    Returns:
-        Dictionary with list of skills and metadata
-    """
+    """List learned skills available for workflow guidance."""
     engine = get_intelligence_engine()
     await engine.initialize()
 
@@ -57,14 +49,7 @@ async def list_skills(
 
 @mcp.tool()
 async def get_skill_details(skill_name: str) -> dict[str, t.Any]:
-    """Get detailed information about a specific skill.
-
-    Args:
-        skill_name: Name of the skill to query
-
-    Returns:
-        Skill details with pattern information and usage statistics
-    """
+    """Get detailed information about a specific skill."""
     engine = get_intelligence_engine()
     await engine.initialize()
 
@@ -99,18 +84,7 @@ async def get_skill_details(skill_name: str) -> dict[str, t.Any]:
 async def invoke_skill(
     skill_name: str, context: dict[str, t.Any] | None = None
 ) -> dict[str, t.Any]:
-    """Invoke a learned skill to get workflow guidance.
-
-    Use this when you want to apply a successful pattern from past sessions
-    to your current work.
-
-    Args:
-        skill_name: Name of the skill to invoke
-        context: Optional current session context for relevance checking
-
-    Returns:
-        Skill invocation result with suggested actions
-    """
+    """Invoke a learned skill to get workflow guidance."""
     engine = get_intelligence_engine()
     await engine.initialize()
 
@@ -133,17 +107,7 @@ async def invoke_skill(
 async def suggest_improvements(
     current_session: dict[str, t.Any] | None = None,
 ) -> dict[str, t.Any]:
-    """Get proactive workflow improvement suggestions based on learned skills.
-
-    This tool analyzes your current session context and suggests relevant
-    skills and patterns that have been successful in similar situations.
-
-    Args:
-        current_session: Optional current session context for matching
-
-    Returns:
-        List of workflow suggestions sorted by relevance
-    """
+    """Get proactive workflow improvement suggestions based on learned skills."""
     engine = get_intelligence_engine()
     await engine.initialize()
 
@@ -184,17 +148,7 @@ async def suggest_improvements(
 
 @mcp.tool()
 async def trigger_learning(checkpoint_data: dict[str, t.Any]) -> dict[str, t.Any]:
-    """Manually trigger learning from a checkpoint.
-
-    This is typically called automatically by the POST_CHECKPOINT hook,
-    but you can use it to manually trigger learning after high-quality work.
-
-    Args:
-        checkpoint_data: Checkpoint data with quality score and history
-
-    Returns:
-        Learning results with any skills created or updated
-    """
+    """Manually trigger learning from a checkpoint."""
     engine = get_intelligence_engine()
     await engine.initialize()
 
@@ -235,17 +189,7 @@ async def trigger_learning(checkpoint_data: dict[str, t.Any]) -> dict[str, t.Any
 
 @mcp.tool()
 async def get_intelligence_stats() -> dict[str, t.Any]:
-    """Get statistics about the intelligence system.
-
-    Returns metrics about:
-    - Total skills in library
-    - Average success rate
-    - Most invoked skills
-    - Recent learning activity
-
-    Returns:
-        Intelligence system statistics
-    """
+    """Get statistics about the intelligence system."""
     engine = get_intelligence_engine()
     await engine.initialize()
 
@@ -301,35 +245,7 @@ async def capture_successful_pattern(
     outcome_score: float,
     tags: list[str] | None = None,
 ) -> dict[str, t.Any]:
-    """Capture a successful pattern for cross-project reuse.
-
-    This tool extracts and stores successful solutions from one project so they
-    can be automatically suggested when similar problems arise in other projects.
-
-    Use this after successfully resolving a complex issue that other projects
-    might benefit from knowing about.
-
-    Args:
-        pattern_type: Type of pattern ('solution', 'workaround', 'optimization')
-        project_id: Project where pattern was discovered (e.g., 'session-buddy')
-        context: Problem context (what was the issue, symptoms, constraints)
-        solution: Solution applied (code changes, configuration, approach)
-        outcome_score: Success metric from 0.0 (complete failure) to 1.0 (perfect success)
-        tags: Optional tags for categorization (e.g., ['performance', 'database'])
-
-    Returns:
-        Dictionary with pattern ID and metadata
-
-    Example:
-        >>> capture_successful_pattern(
-        ...     pattern_type="solution",
-        ...     project_id="session-buddy",
-        ...     context={"problem": "Slow database queries", "table": "reflections"},
-        ...     solution={"approach": "Add LRU cache", "ttl": 300},
-        ...     outcome_score=0.9,
-        ...     tags=["performance", "caching"]
-        ... )
-    """
+    """Capture a successful pattern for cross-project reuse."""
     engine = get_intelligence_engine()
     await engine.initialize()
 
@@ -386,30 +302,7 @@ async def search_similar_patterns(
     threshold: float = 0.75,
     limit: int = 10,
 ) -> dict[str, t.Any]:
-    """Search for patterns similar to the current context.
-
-    This tool finds successful patterns from past projects that match the
-    current problem context, enabling cross-project knowledge reuse.
-
-    Use this when encountering a problem to see if similar issues have been
-    successfully resolved in other projects.
-
-    Args:
-        current_context: Current problem context (symptoms, constraints, environment)
-        pattern_type: Optional filter by pattern type ('solution', 'workaround', 'optimization')
-        threshold: Minimum similarity score from 0.0 to 1.0 (default 0.75)
-        limit: Maximum number of patterns to return (default 10)
-
-    Returns:
-        Dictionary with list of similar patterns sorted by relevance
-
-    Example:
-        >>> search_similar_patterns(
-        ...     current_context={"problem": "Slow queries", "database": "postgres"},
-        ...     threshold=0.7,
-        ...     limit=5
-        ... )
-    """
+    """Search for patterns similar to the current context."""
     engine = get_intelligence_engine()
     await engine.initialize()
 
@@ -471,29 +364,7 @@ async def apply_pattern(
     applied_to_project: str,
     applied_context: dict[str, t.Any],
 ) -> dict[str, t.Any]:
-    """Record a pattern application for tracking and learning.
-
-    This tool tracks when a pattern is applied to a new project, enabling
-    the system to measure cross-project knowledge transfer effectiveness.
-
-    Use this after applying a pattern suggested by search_similar_patterns()
-    to track whether the pattern worked in a new context.
-
-    Args:
-        pattern_id: ID of pattern being applied (from search_similar_patterns)
-        applied_to_project: Project where pattern is being applied (e.g., 'crackerjack')
-        applied_context: Context in which pattern is applied (specifics of current situation)
-
-    Returns:
-        Dictionary with application ID for later outcome rating
-
-    Example:
-        >>> apply_pattern(
-        ...     pattern_id="pattern-a1b2c3d4",
-        ...     applied_to_project="crackerjack",
-        ...     applied_context={"file": "test_runner.py", "issue": "timeout"}
-        ... )
-    """
+    """Record a pattern application for tracking and learning."""
     engine = get_intelligence_engine()
     await engine.initialize()
 
@@ -546,28 +417,7 @@ async def rate_pattern_outcome(
     outcome: str,
     feedback: str | None = None,
 ) -> dict[str, t.Any]:
-    """Rate the outcome of a pattern application.
-
-    This tool provides feedback on whether a pattern worked when applied
-    to a new project, improving future pattern recommendations.
-
-    Use this after evaluating whether a pattern application was successful.
-
-    Args:
-        application_id: ID of pattern application (from apply_pattern)
-        outcome: Outcome ('success', 'partial', 'failure')
-        feedback: Optional feedback explaining what worked or didn't work
-
-    Returns:
-        Dictionary with updated pattern statistics
-
-    Example:
-        >>> rate_pattern_outcome(
-        ...     application_id="app-x9y8z7w6",
-        ...     outcome="success",
-        ...     feedback="Pattern worked perfectly, reduced query time by 80%"
-        ... )
-    """
+    """Rate the outcome of a pattern application."""
     engine = get_intelligence_engine()
     await engine.initialize()
 

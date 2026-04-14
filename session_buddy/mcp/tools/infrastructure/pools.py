@@ -407,14 +407,7 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
     async def create_pool(
         pool_id: str | None = None,
     ) -> str:
-        """Create a new worker pool with exactly 3 workers.
-
-        Args:
-            pool_id: Optional pool identifier (auto-generated if not provided)
-
-        Returns:
-            Pool creation result message
-        """
+        """Create a new worker pool with exactly 3 workers."""
         result = await pool_create(pool_id=pool_id)
         if result["success"]:
             return f"✅ Created pool {result['pool_id']} with {result['workers_count']} workers"
@@ -427,17 +420,7 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
         context: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> str:
-        """Execute a task on a specific pool.
-
-        Args:
-            pool_id: Pool identifier
-            prompt: Task prompt/instruction
-            context: Optional execution context
-            timeout: Maximum time to wait for result (seconds)
-
-        Returns:
-            Task execution result message
-        """
+        """Execute a task on a specific pool."""
         result = await pool_execute(
             pool_id=pool_id,
             prompt=prompt,
@@ -455,17 +438,7 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
         context: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> str:
-        """Execute multiple tasks in parallel on a pool.
-
-        Args:
-            pool_id: Pool identifier
-            prompts: List of task prompts
-            context: Optional shared execution context
-            timeout: Maximum time to wait for each result (seconds)
-
-        Returns:
-            Batch execution result message
-        """
+        """Execute multiple tasks in parallel on a pool."""
         result = await pool_execute_batch(
             pool_id=pool_id,
             prompts=prompts,
@@ -483,17 +456,7 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
         selector: str = "least_loaded",
         timeout: float | None = None,
     ) -> str:
-        """Route task to best available pool using specified strategy.
-
-        Args:
-            prompt: Task prompt/instruction
-            context: Optional execution context
-            selector: Pool selection strategy (least_loaded, round_robin, random)
-            timeout: Maximum time to wait for result (seconds)
-
-        Returns:
-            Task routing result message
-        """
+        """Route task to best available pool using specified strategy."""
         result = await pool_route_task(
             prompt=prompt,
             context=context,
@@ -510,11 +473,7 @@ def _register_pool_monitoring_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()  # type: ignore[misc]
     async def list_pools() -> str:
-        """List all worker pools.
-
-        Returns:
-            List of pools with status
-        """
+        """List all worker pools."""
         result = await pool_list()
         pools_info = "\n".join(
             f"  - {p['pool_id']}: running={p['running']}, workers={p['workers_count']}"
@@ -524,14 +483,7 @@ def _register_pool_monitoring_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()  # type: ignore[misc]
     async def get_pool_status(pool_id: str) -> str:
-        """Get detailed status of a specific pool.
-
-        Args:
-            pool_id: Pool identifier
-
-        Returns:
-            Pool status details
-        """
+        """Get detailed status of a specific pool."""
         result = await pool_status(pool_id)
         if result["success"]:
             status = result["status"]
@@ -548,14 +500,7 @@ def _register_pool_monitoring_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()  # type: ignore[misc]
     async def check_pool_health(pool_id: str | None = None) -> str:
-        """Get health status of pools.
-
-        Args:
-            pool_id: Optional pool identifier. If not provided, returns health for all pools.
-
-        Returns:
-            Health status information
-        """
+        """Get health status of pools."""
         result = await pool_health(pool_id)
         if result["success"]:
             if pool_id:
@@ -581,15 +526,7 @@ def _register_pool_management_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()  # type: ignore[misc]
     async def delete_pool(pool_id: str, timeout: float = 5.0) -> str:
-        """Delete a worker pool.
-
-        Args:
-            pool_id: Pool identifier
-            timeout: Maximum time to wait for pool shutdown (seconds)
-
-        Returns:
-            Pool deletion result message
-        """
+        """Delete a worker pool."""
         result = await pool_delete(pool_id, timeout)
         if result["success"]:
             if result["deleted"]:
@@ -599,11 +536,7 @@ def _register_pool_management_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()  # type: ignore[misc]
     async def get_pool_manager_status() -> str:
-        """Get status of the pool manager.
-
-        Returns:
-            Pool manager status information
-        """
+        """Get status of the pool manager."""
         result = await pool_manager_status()
         health = result["health"]
         return (

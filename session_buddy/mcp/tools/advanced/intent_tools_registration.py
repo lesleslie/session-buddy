@@ -243,33 +243,7 @@ def register_intent_detection_tools(server: SessionBuddyServer) -> None:
     async def detect_intent(
         user_message: str, confidence_threshold: float = 0.7
     ) -> dict[str, Any]:
-        """Detect user intent and suggest appropriate MCP tool.
-
-        This tool analyzes natural language messages to determine which
-        MCP tool the user wants to invoke. It uses both semantic matching
-        (embeddings) and keyword patterns for robust detection.
-
-        Args:
-            user_message: Natural language message from user
-            confidence_threshold: Minimum confidence to suggest a tool (0.0-1.0)
-
-        Returns:
-            Dictionary with:
-                - detected: Boolean indicating if intent was detected
-                - tool_name: Name of detected tool (if any)
-                - confidence: Confidence score (0.0-1.0)
-                - extracted_args: Arguments extracted from message
-                - disambiguation_needed: Whether multiple tools matched closely
-                - alternatives: Alternative tool names if ambiguous
-                - message: Human-readable explanation
-
-        Examples:
-            >>> detect_intent("what did I learn about async?")
-            {'detected': True, 'tool_name': 'search_reflections', ...}
-
-            >>> detect_intent("save my progress")
-            {'detected': True, 'tool_name': 'checkpoint', ...}
-        """
+        """Detect user intent and suggest appropriate MCP tool."""
         try:
             return await _detect_intent_impl(user_message, confidence_threshold)
         except Exception as e:
@@ -280,32 +254,7 @@ def register_intent_detection_tools(server: SessionBuddyServer) -> None:
     async def get_intent_suggestions(
         user_message: str, limit: int = 5
     ) -> dict[str, Any]:
-        """Get tool suggestions for an ambiguous message.
-
-        When intent is unclear, this tool provides a ranked list of potential
-        tool matches with confidence scores.
-
-        Args:
-            user_message: Natural language message that was unclear
-            limit: Maximum number of suggestions to return
-
-        Returns:
-            Dictionary with:
-                - suggestions: List of suggestions with tool, confidence, match_type
-                - message: Human-readable explanation
-                - count: Number of suggestions found
-
-        Examples:
-            >>> get_intent_suggestions("check code")
-            {
-                'suggestions': [
-                    {'tool': 'quality_monitor', 'confidence': 0.85, 'match_type': 'pattern'},
-                    {'tool': 'crackerjack_health_check', 'confidence': 0.72, 'match_type': 'semantic'}
-                ],
-                'message': 'Found 2 possible matches...',
-                'count': 2
-            }
-        """
+        """Get tool suggestions for an ambiguous message."""
         try:
             return await _get_intent_suggestions_impl(user_message, limit)
         except Exception as e:
@@ -314,30 +263,7 @@ def register_intent_detection_tools(server: SessionBuddyServer) -> None:
 
     @server.tool()  # type: ignore[misc]
     async def list_supported_intents() -> dict[str, Any]:
-        """List all supported intent patterns and their tools.
-
-        This shows which natural language phrases can trigger which tools,
-        useful for discovering the intent detection capabilities.
-
-        Returns:
-            Dictionary with:
-                - tools: Dictionary of tool names to their patterns
-                - total_tools: Total number of supported tools
-                - message: Human-readable overview
-
-        Examples:
-            >>> list_supported_intents()
-            {
-                'tools': {
-                    'checkpoint': {
-                        'patterns': ['save my progress', 'checkpoint this'],
-                        'semantic_examples': ["I've made good progress..."]
-                    },
-                    ...
-                },
-                'total_tools': 15
-            }
-        """
+        """List all supported intent patterns and their tools."""
         try:
             return await _list_supported_intents_impl()
         except Exception as e:

@@ -77,21 +77,7 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def get_prometheus_metrics() -> str:
-        """Export all Session-Buddy metrics in Prometheus text format.
-
-        This tool exports all collected session metrics in Prometheus
-        text exposition format for scraping by Prometheus server.
-
-        Returns:
-            Metrics in Prometheus text format (CONTENT_TYPE_LATEST)
-
-        Example:
-            >>> metrics = await get_prometheus_metrics()
-            >>> print(metrics)
-            # HELP session_start_total Total number of session start events tracked
-            # TYPE session_start_total counter
-            session_start_total{component_name="mahavishnu",shell_type="MahavishnuShell"} 42
-        """
+        """Export all Session-Buddy metrics in Prometheus text format."""
         try:
             metrics = get_metrics()
             metrics_data = metrics.export_metrics()
@@ -103,19 +89,7 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def list_session_metrics() -> dict[str, Any]:
-        """List all available session metrics with descriptions.
-
-        Returns a dictionary of all available Prometheus metrics with
-        their types, descriptions, and labels.
-
-        Returns:
-            Dictionary with metric metadata
-
-        Example:
-            >>> metrics_info = await list_session_metrics()
-            >>> print(metrics_info["session_start_total"]["description"])
-            Total number of session start events tracked
-        """
+        """List all available session metrics with descriptions."""
         return {
             "session_lifecycle_metrics": {
                 "session_start_total": {
@@ -191,21 +165,7 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def get_metrics_summary() -> dict[str, Any]:
-        """Get summary statistics of session metrics.
-
-        Returns a summary of current metrics values, including totals,
-        active sessions, and quality scores.
-
-        Returns:
-            Dictionary with metrics summary
-
-        Example:
-            >>> summary = await get_metrics_summary()
-            >>> print(summary["total_sessions_started"])
-            42
-            >>> print(summary["active_sessions"]["mahavishnu"])
-            3
-        """
+        """Get summary statistics of session metrics."""
         try:
             metrics = get_metrics()
 

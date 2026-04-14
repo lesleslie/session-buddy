@@ -59,26 +59,7 @@ def register_hooks_tools(server: FastMCP) -> None:
     async def list_hooks(
         hook_type: str | None = None,
     ) -> dict[str, Any]:
-        """List all registered hooks.
-
-        Provides visibility into what hooks are registered, their priorities,
-        and whether they're enabled. Useful for debugging and understanding
-        system behavior.
-
-        Args:
-            hook_type: Optional hook type filter (e.g., "post_checkpoint", "pre_tool_execution").
-                       If not provided, returns all hooks.
-
-        Returns:
-            Dictionary with:
-                - total_hooks: Total number of registered hooks
-                - hooks_by_type: Dictionary mapping hook types to their hooks
-                - message: Human-readable summary
-
-        Example:
-            >>> result = await list_hooks("post_checkpoint")
-            >>> print(result["hooks_by_type"]["post_checkpoint"])
-        """
+        """List all registered hooks."""
         hooks_manager = _get_hooks_manager()
 
         # Convert string to HookType if provided
@@ -112,31 +93,7 @@ def register_hooks_tools(server: FastMCP) -> None:
     async def query_similar_errors(
         error_message: str, limit: int = 5
     ) -> dict[str, Any]:
-        """Find similar past errors and their fixes.
-
-        Uses semantic search to find historically similar errors from past
-        debugging sessions and returns what fixes worked.
-
-        Args:
-            error_message: Current error message to search for
-            limit: Maximum number of similar errors to return (default: 5)
-
-        Returns:
-            Dictionary with:
-                - found_similar: Whether similar errors were found
-                - count: Number of similar errors found
-                - similar_errors: List of similar errors with fixes
-                - suggestion: Human-readable guidance
-
-        Example:
-            >>> result = await query_similar_errors(
-            ...     "ImportError: cannot import name 'foo'",
-            ...     limit=3
-            ... )
-            >>> if result["found_similar"]:
-            ...     for err in result["similar_errors"]:
-            ...         print(f"Try: {err['successful_fix']['action_taken']}")
-        """
+        """Find similar past errors and their fixes."""
         from session_buddy.utils.error_management import _get_logger
 
         tracker = CausalChainTracker(logger=_get_logger())
@@ -187,30 +144,7 @@ def register_hooks_tools(server: FastMCP) -> None:
         code_changes: str | None = None,
         error_type: str = "unknown",
     ) -> dict[str, Any]:
-        """Record a successful fix for learning.
-
-        Manually record a fix that resolved an error. This adds to the
-        causal chain database for future debugging assistance.
-
-        Args:
-            error_message: The error that was fixed
-            action_taken: What was done to fix it
-            code_changes: Optional code changes made
-            error_type: Type of error (e.g., "TypeError", "ImportError")
-
-        Returns:
-            Dictionary with:
-                - success: Whether recording succeeded
-                - fix_id: Fix attempt identifier
-                - message: Confirmation message
-
-        Example:
-            >>> result = await record_fix_success(
-            ...     error_message="NameError: name 'undefined_var' is not defined",
-            ...     action_taken="Defined undefined_var with proper value",
-            ...     error_type="NameError"
-            ... )
-        """
+        """Record a successful fix for learning."""
         from session_buddy.utils.error_management import _get_logger
 
         tracker = CausalChainTracker(logger=_get_logger())
@@ -252,24 +186,7 @@ def register_hooks_tools(server: FastMCP) -> None:
     async def get_causal_chain(
         chain_id: str,
     ) -> dict[str, Any]:
-        """Get complete causal chain by ID.
-
-        Retrieves the full error→attempts→solution chain for a
-        specific debugging session.
-
-        Args:
-            chain_id: Causal chain identifier (format: chain-XXXXXXXX)
-
-        Returns:
-            Dictionary with complete chain details or error if not found
-
-        Example:
-            >>> result = await get_causal_chain("chain-a1b2c3d4")
-            >>> if result["success"]:
-            ...     chain = result["chain"]
-            ...     print(f"Error: {chain['error_event']['error_message']}")
-            ...     print(f"Fixes attempted: {len(chain['fix_attempts'])}")
-        """
+        """Get complete causal chain by ID."""
         from session_buddy.utils.error_management import _get_logger
 
         tracker = CausalChainTracker(logger=_get_logger())
@@ -319,15 +236,7 @@ def register_hooks_tools(server: FastMCP) -> None:
 
     @server.tool()  # type: ignore[misc]
     async def enable_hook(hook_name: str, hook_type: str) -> dict[str, Any]:
-        """Enable a specific hook.
-
-        Args:
-            hook_name: Name of the hook to enable
-            hook_type: Type of hook (e.g., "post_checkpoint")
-
-        Returns:
-            Success/error message
-        """
+        """Enable a specific hook."""
         # This would require hooks_manager to have a enable_hook method
         # For now, return placeholder
         return {
@@ -338,15 +247,7 @@ def register_hooks_tools(server: FastMCP) -> None:
 
     @server.tool()  # type: ignore[misc]
     async def disable_hook(hook_name: str, hook_type: str) -> dict[str, Any]:
-        """Disable a specific hook.
-
-        Args:
-            hook_name: Name of the hook to disable
-            hook_type: Type of hook (e.g., "post_checkpoint")
-
-        Returns:
-            Success/error message
-        """
+        """Disable a specific hook."""
         # This would require hooks_manager to have a disable_hook method
         # For now, return placeholder
         return {

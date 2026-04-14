@@ -23,33 +23,7 @@ def register_memory_health_tools(server: t.Any) -> None:
 
     @server.tool()  # type: ignore[misc]
     async def get_reflection_health(stale_threshold_days: int = 90) -> dict[str, t.Any]:
-        """Get reflection database health metrics.
-
-        Analyzes the reflection database for staleness, storage usage,
-        and overall health indicators.
-
-        Args:
-            stale_threshold_days: Days before reflection is considered stale (default: 90)
-
-        Returns:
-            Dictionary with reflection health metrics including:
-                - total_reflections: Total number of stored reflections
-                - stale_reflections: Number of reflections older than threshold
-                - stale_threshold_days: Configured staleness threshold
-                - avg_reflection_age_days: Average age of all reflections
-                - tags_distribution: Count of reflections per tag
-                - storage_size_mb: Database storage size in megabytes
-                - last_reflection_timestamp: Most recent reflection timestamp
-                - first_reflection_timestamp: Oldest reflection timestamp
-                - insights: Human-readable health observations
-
-        Example:
-            >>> result = await get_reflection_health(stale_threshold_days=60)
-            >>> print(f"Total reflections: {result['total_reflections']}")
-            >>> print(f"Stale: {result['stale_reflections']} ({result['stale_pct']:.1f}%)")
-            >>> for tag, count in result['tags_distribution'].items():
-            ...     print(f"  {tag}: {count}")
-        """
+        """Get reflection database health metrics."""
         try:
             analyzer = get_memory_health_analyzer()
             await analyzer.initialize()
@@ -75,29 +49,7 @@ def register_memory_health_tools(server: t.Any) -> None:
 
     @server.tool()  # type: ignore[misc]
     async def get_error_hotspots() -> dict[str, t.Any]:
-        """Get error pattern and hot-spot metrics.
-
-        Analyzes causal chain data to identify recurring error patterns,
-        resolution times, and common error types.
-
-        Returns:
-            Dictionary with error hot-spot metrics including:
-                - total_errors: Total unique errors tracked
-                - most_common_error_types: Top 10 error types with frequency
-                - avg_resolution_time_minutes: Average time to fix errors
-                - fastest_resolution_minutes: Quickest fix time
-                - slowest_resolution_minutes: Longest fix time
-                - unresolved_errors: Number of errors without successful fix
-                - recent_error_rate: Errors per day in last 30 days
-                - insights: Human-readable pattern observations
-
-        Example:
-            >>> result = await get_error_hotspots()
-            >>> print(f"Error rate: {result['recent_error_rate']:.1f}/day")
-            >>> print(f"Unresolved: {result['unresolved_errors']}")
-            >>> for error_type, count in result['most_common_error_types']:
-            ...     print(f"  {error_type}: {count} occurrences")
-        """
+        """Get error pattern and hot-spot metrics."""
         try:
             analyzer = get_memory_health_analyzer()
             await analyzer.initialize()
@@ -121,29 +73,7 @@ def register_memory_health_tools(server: t.Any) -> None:
 
     @server.tool()  # type: ignore[misc]
     async def get_cleanup_recommendations() -> dict[str, t.Any]:
-        """Get cleanup and optimization recommendations.
-
-        Analyzes reflection database and error patterns to generate
-        actionable recommendations for system maintenance and optimization.
-
-        Returns:
-            Dictionary with recommendations including:
-                - recommendations: List of recommendation dictionaries
-                    - action: Specific action to take
-                    - priority: "high", "medium", or "low"
-                    - category: "maintenance", "optimization", "quality", or "debugging"
-                    - details: Human-readable description
-                    - estimated_impact: Expected benefit
-                - total_recommendations: Total number of recommendations
-                - by_priority: Recommendations grouped by priority
-                - by_category: Recommendations grouped by category
-
-        Example:
-            >>> result = await get_cleanup_recommendations()
-            >>> print(f"Found {result['total_recommendations']} recommendations")
-            >>> for rec in result['recommendations']:
-            ...     print(f"[{rec['priority']}] {rec['action']}: {rec['details']}")
-        """
+        """Get cleanup and optimization recommendations."""
         try:
             analyzer = get_memory_health_analyzer()
             await analyzer.initialize()

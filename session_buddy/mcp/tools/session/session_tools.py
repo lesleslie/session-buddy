@@ -998,42 +998,22 @@ def register_session_tools(mcp_server: FastMCP) -> None:
 
     @mcp_server.tool()
     async def start(working_directory: str | None = None) -> str:
-        """Initialize Claude session with comprehensive setup including UV dependencies and automation tools.
-
-        Args:
-            working_directory: Optional working directory override (defaults to PWD environment variable or current directory)
-
-        """
+        """Initialize Claude session with comprehensive setup including UV dependencies and automation tools."""
         return await _start_impl(working_directory)
 
     @mcp_server.tool()
     async def checkpoint(working_directory: str | None = None) -> str:
-        """Perform mid-session quality checkpoint with workflow analysis and optimization recommendations.
-
-        Args:
-            working_directory: Optional working directory override (defaults to PWD environment variable or current directory)
-
-        """
+        """Perform mid-session quality checkpoint with workflow analysis and optimization recommendations."""
         return await _checkpoint_impl(working_directory)
 
     @mcp_server.tool()
     async def end(working_directory: str | None = None) -> str:
-        """End Claude session with cleanup, learning capture, and handoff file creation.
-
-        Args:
-            working_directory: Optional working directory override (defaults to PWD environment variable or current directory)
-
-        """
+        """End Claude session with cleanup, learning capture, and handoff file creation."""
         return await _end_impl(working_directory)
 
     @mcp_server.tool()
     async def status(working_directory: str | None = None) -> str:
-        """Get current session status and project context information with health checks.
-
-        Args:
-            working_directory: Optional working directory override (defaults to PWD environment variable or current directory)
-
-        """
+        """Get current session status and project context information with health checks."""
         return await _status_impl(working_directory)
 
     @mcp_server.tool()
@@ -1105,16 +1085,7 @@ Timestamp: {health_info["timestamp"]}
 
     @mcp_server.tool()
     async def pre_compact_sync() -> str:
-        """Sync session state before context compaction (called via PreCompactHook).
-
-        This tool preserves valuable context before it's lost to compaction by:
-        1. Storing a reflection with current session state
-        2. Tagging it with 'pre-compact' and 'context-preserved'
-        3. Capturing quality score at compact time
-
-        Designed to be called automatically via PreCompact hook.
-
-        """
+        """Sync session state before context compaction (called via PreCompactHook)."""
         result = await _pre_compact_sync_impl()
 
         if result["success"]:

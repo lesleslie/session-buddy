@@ -29,23 +29,7 @@ def register_conversation_tools(mcp_server: FastMCP) -> None:
         project: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> str:
-        """Manually store a conversation with embedding support.
-
-        Args:
-            content: Conversation text content to store
-            project: Optional project identifier (defaults to current project)
-            metadata: Optional metadata dictionary (tags, source, etc.)
-
-        Returns:
-            Storage result with conversation ID
-
-        Example:
-            >>> result = await store_conversation(
-            ...     "Discussion about database architecture",
-            ...     project="session-buddy",
-            ...     metadata={"topic": "architecture"}
-            ... )
-        """
+        """Manually store a conversation with embedding support."""
         logger = _get_logger()
 
         try:
@@ -103,24 +87,7 @@ The conversation is now available for semantic search."""
         checkpoint_type: str = "manual",
         quality_score: int | None = None,
     ) -> str:
-        """Store a conversation checkpoint from current session context.
-
-        This tool captures the current session context and stores it as a
-        conversation checkpoint with full embedding support.
-
-        Args:
-            checkpoint_type: Type of checkpoint (manual, checkpoint, session_end)
-            quality_score: Optional quality score to include
-
-        Returns:
-            Storage result with conversation ID
-
-        Example:
-            >>> result = await store_conversation_checkpoint(
-            ...     checkpoint_type="manual",
-            ...     quality_score=85
-            ... )
-        """
+        """Store a conversation checkpoint from current session context."""
         logger = _get_logger()
 
         try:
@@ -156,20 +123,7 @@ The conversation checkpoint is now available for semantic search."""
 
     @mcp_server.tool()
     async def get_conversation_statistics() -> str:
-        """Get statistics about stored conversations.
-
-        Returns comprehensive statistics including:
-        - Total conversations stored
-        - Embedding coverage percentage
-        - Recent conversations (last 7 days)
-        - Projects with conversations
-
-        Returns:
-            Formatted statistics report
-
-        Example:
-            >>> stats = await get_conversation_statistics()
-        """
+        """Get statistics about stored conversations."""
         logger = _get_logger()
 
         try:
@@ -222,27 +176,7 @@ The conversation checkpoint is now available for semantic search."""
         min_score: float = 0.7,
         project: str | None = None,
     ) -> str:
-        """Search conversations by semantic similarity.
-
-        Uses vector embeddings to find semantically similar conversations.
-        Falls back to text search if embeddings are not available.
-
-        Args:
-            query: Search query text
-            limit: Maximum number of results (default: 10)
-            min_score: Minimum similarity score 0-1 (default: 0.7)
-            project: Optional project filter
-
-        Returns:
-            Formatted search results
-
-        Example:
-            >>> results = await search_conversations(
-            ...     "database architecture",
-            ...     limit=5,
-            ...     project="session-buddy"
-            ... )
-        """
+        """Search conversations by semantic similarity."""
         logger = _get_logger()
 
         try:

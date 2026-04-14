@@ -26,33 +26,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
     async def get_session_length_distribution(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
-        """Analyze session length distribution patterns.
-
-        Provides insights into session duration patterns including
-        short (<30min), medium (30-120min), and long (>120min) sessions.
-
-        Args:
-            project_path: Optional filter by project path
-            days_back: Number of days to analyze (default: 30)
-
-        Returns:
-            Dictionary with session length distribution including:
-                - short_sessions: Count of sessions < 30 minutes
-                - medium_sessions: Count of sessions 30-120 minutes
-                - long_sessions: Count of sessions > 120 minutes
-                - total_sessions: Total sessions analyzed
-                - short_percentage: Percentage of short sessions
-                - medium_percentage: Percentage of medium sessions
-                - long_percentage: Percentage of long sessions
-                - avg_duration_minutes: Average session duration
-                - median_duration_minutes: Median session duration
-                - insights: Human-readable observations
-
-        Example:
-            >>> result = await get_session_length_distribution(days_back=7)
-            >>> print(f"Medium sessions: {result['medium_percentage']:.1f}%")
-            >>> print(f"Average duration: {result['avg_duration_minutes']:.0f}min")
-        """
+        """Analyze session length distribution patterns."""
         try:
             analytics = get_session_analytics()
             await analytics.initialize()
@@ -81,31 +55,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
     async def get_temporal_patterns(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
-        """Analyze temporal patterns in session activity.
-
-        Identifies patterns in when sessions occur throughout the day
-        and week, helping identify peak productivity windows.
-
-        Args:
-            project_path: Optional filter by project path
-            days_back: Number of days to analyze (default: 30)
-
-        Returns:
-            Dictionary with temporal patterns including:
-                - time_of_day_distribution: Sessions per time period (morning/afternoon/evening/night)
-                - day_of_week_distribution: Sessions per day (Monday-Sunday)
-                - peak_productivity_hour: Hour (0-23) with highest activity
-                - peak_productivity_day: Day with highest activity
-                - most_productive_time_slot: Best time slot (e.g., "Tuesday morning")
-                - avg_sessions_per_day: Average daily session count
-                - session_frequency_trend: "increasing", "stable", or "decreasing"
-                - insights: Human-readable observations
-
-        Example:
-            >>> result = await get_temporal_patterns(days_back=14)
-            >>> print(f"Peak productivity: {result['most_productive_time_slot']}")
-            >>> print(f"Frequency trend: {result['session_frequency_trend']}")
-        """
+        """Analyze temporal patterns in session activity."""
         try:
             analytics = get_session_analytics()
             await analytics.initialize()
@@ -134,32 +84,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
     async def get_activity_correlations(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
-        """Analyze correlations between session activities.
-
-        Examines how session duration, quality scores, and commit
-        counts correlate with each other to identify patterns.
-
-        Args:
-            project_path: Optional filter by project path
-            days_back: Number of days to analyze (default: 30)
-
-        Returns:
-            Dictionary with activity correlations including:
-                - duration_quality_correlation: Correlation (-1 to 1) between length and quality
-                - duration_commits_correlation: Correlation between length and commits
-                - quality_commits_correlation: Correlation between quality and commits
-                - high_quality_sessions: Count of sessions with quality >= 80
-                - low_quality_sessions: Count of sessions with quality < 60
-                - high_commit_sessions: Count of sessions with >= 10 commits
-                - long_high_quality_sessions: Count of long sessions with high quality
-                - insights: Human-readable observations
-
-        Example:
-            >>> result = await get_activity_correlations()
-            >>> corr = result['duration_quality_correlation']
-            >>> if corr > 0.3:
-            ...     print("Longer sessions tend to have higher quality")
-        """
+        """Analyze correlations between session activities."""
         try:
             analytics = get_session_analytics()
             await analytics.initialize()
@@ -188,31 +113,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
     async def get_session_streaks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
-        """Analyze session streaks and consistency.
-
-        Tracks consecutive days of work and consistency patterns
-        to measure development momentum.
-
-        Args:
-            project_path: Optional filter by project path
-            days_back: Number of days to analyze (default: 30)
-
-        Returns:
-            Dictionary with session streak metrics including:
-                - longest_streak_days: Longest consecutive day streak
-                - current_streak_days: Current consecutive day streak
-                - avg_gap_between_sessions_hours: Average hours between sessions
-                - longest_gap_hours: Longest gap between sessions
-                - consistent_daily_sessions: Whether 5+ day streaks exist
-                - most_consistent_week: Week with most active days
-                - total_active_days: Total days with at least one session
-                - insights: Human-readable observations
-
-        Example:
-            >>> result = await get_session_streaks(days_back=30)
-            >>> print(f"Current streak: {result['current_streak_days']} days")
-            >>> print(f"Longest streak: {result['longest_streak_days']} days")
-        """
+        """Analyze session streaks and consistency."""
         try:
             analytics = get_session_analytics()
             await analytics.initialize()
@@ -241,32 +142,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
     async def get_productivity_insights(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
-        """Get actionable productivity insights and recommendations.
-
-        Synthesizes all session analytics data into practical,
-        actionable recommendations for improving development workflow.
-
-        Args:
-            project_path: Optional filter by project path
-            days_back: Number of days to analyze (default: 30)
-
-        Returns:
-            Dictionary with productivity insights including:
-                - best_performance_window: Optimal time for focused work
-                - recommended_session_length: Ideal session duration
-                - optimal_break_interval: Suggested break frequency (minutes)
-                - peak_productivity_periods: List of peak performance times
-                - quality_factors: Factors correlated with high quality
-                - improvement_suggestions: Actionable recommendations
-                - insights: Combined insights from all analytics
-
-        Example:
-            >>> result = await get_productivity_insights()
-            >>> print(f"Best window: {result['best_performance_window']}")
-            >>> print(f"Recommended: {result['recommended_session_length']}")
-            >>> for suggestion in result['improvement_suggestions']:
-            ...     print(f"- {suggestion}")
-        """
+        """Get actionable productivity insights and recommendations."""
         try:
             analytics = get_session_analytics()
             await analytics.initialize()

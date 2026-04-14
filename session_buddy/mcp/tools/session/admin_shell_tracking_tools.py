@@ -159,61 +159,7 @@ def register_admin_shell_tracking_tools(mcp_server: FastMCP) -> None:
         metadata: dict[str, Any] | None = None,
         token: str | None = None,
     ) -> dict[str, Any]:
-        """Track admin shell session start event.
-
-        This tool is called by admin shells (Mahavishnu, Session-Buddy, Oneiric, etc.)
-        when they start up. It validates the incoming event data and creates a session
-        record in Session-Buddy.
-
-        Authentication:
-            Requires JWT token via 'token' parameter when SESSION_BUDDY_SECRET is set.
-            Generate token with: python -c 'import secrets; print(secrets.token_urlsafe(32))'
-
-        Args:
-            event_version: Event format version (must be "1.0")
-            event_id: Unique event identifier (UUID v4 string)
-            event_type: Event type discriminator (must be "session_start")
-            component_name: Component name (e.g., "mahavishnu", "session-buddy")
-            shell_type: Shell class name (e.g., "MahavishnuShell", "SessionBuddyShell")
-            timestamp: ISO 8601 timestamp in UTC (e.g., "2026-02-06T12:34:56.789Z")
-            pid: Process ID (1-4194304)
-            user: User information dict with keys: username, home
-            hostname: System hostname
-            environment: Environment information dict with keys: python_version, platform, cwd
-            metadata: Optional additional metadata dict
-            token: JWT authentication token (required when SESSION_BUDDY_SECRET is set)
-
-        Returns:
-            Dict with keys:
-                - session_id: Unique session identifier (or None if failed)
-                - status: "tracked" or "error"
-                - error: Error message if status is "error"
-
-        Example:
-            >>> result = await track_session_start(
-            ...     event_version="1.0",
-            ...     event_id="550e8400-e29b-41d4-a716-446655440000",
-            ...     event_type="session_start",
-            ...     component_name="mahavishnu",
-            ...     shell_type="MahavishnuShell",
-            ...     timestamp="2026-02-06T12:34:56.789Z",
-            ...     pid=12345,
-            ...     user={"username": "john", "home": "/home/john"},
-            ...     hostname="server01",
-            ...     environment={
-            ...         "python_version": "3.13.0",
-            ...         "platform": "Linux-6.5.0-x86_64",
-            ...         "cwd": "/home/john/projects/mahavishnu"
-            ...     },
-            ...     token="eyJ..."
-            ... )
-            >>> print(result["session_id"])
-            mahavishnu-20260206-123456
-
-        Raises:
-            ValueError: If event validation fails (handled by Pydantic)
-            ValueError: If JWT authentication fails (handled by @require_auth)
-        """
+        """Record admin shell session start events with validation and auth."""
         logger = get_logger()
         tracker = _get_session_tracker()
 
@@ -275,43 +221,7 @@ def register_admin_shell_tracking_tools(mcp_server: FastMCP) -> None:
         metadata: dict[str, Any] | None = None,
         token: str | None = None,
     ) -> dict[str, Any]:
-        """Track admin shell session end event.
-
-        This tool is called by admin shells when they exit. It validates the incoming
-        event data and updates the session record in Session-Buddy.
-
-        Authentication:
-            Requires JWT token via 'token' parameter when SESSION_BUDDY_SECRET is set.
-            Generate token with: python -c 'import secrets; print(secrets.token_urlsafe(32))'
-
-        Args:
-            session_id: Session ID from SessionStartEvent response
-            timestamp: ISO 8601 timestamp in UTC (e.g., "2026-02-06T13:45:67.890Z")
-            event_type: Event type discriminator (must be "session_end")
-            metadata: Optional additional metadata dict (e.g., exit_reason)
-            token: JWT authentication token (required when SESSION_BUDDY_SECRET is set)
-
-        Returns:
-            Dict with keys:
-                - session_id: Session ID that was updated
-                - status: "ended", "error", or "not_found"
-                - error: Error message if status is "error"
-
-        Example:
-            >>> result = await track_session_end(
-            ...     session_id="mahavishnu-20260206-123456",
-            ...     timestamp="2026-02-06T13:45:67.890Z",
-            ...     event_type="session_end",
-            ...     metadata={"exit_reason": "user_exit"},
-            ...     token="eyJ..."
-            ... )
-            >>> print(result["status"])
-            ended
-
-        Raises:
-            ValueError: If event validation fails (handled by Pydantic)
-            ValueError: If JWT authentication fails (handled by @require_auth)
-        """
+        """Track admin shell session end event."""
         logger = get_logger()
         tracker = _get_session_tracker()
 

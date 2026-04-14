@@ -26,33 +26,7 @@ def register_workflow_metrics_tools(server: Any) -> None:
     async def get_workflow_metrics(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
-        """Get comprehensive workflow metrics.
-
-        Provides analytics about development velocity, quality trends,
-        session patterns, and productivity insights.
-
-        Args:
-            project_path: Optional filter by project path
-            days_back: Number of days to analyze (default: 30)
-
-        Returns:
-            Dictionary with workflow metrics including:
-                - total_sessions: Number of sessions in period
-                - avg_session_duration_minutes: Average session length
-                - avg_checkpoints_per_session: Checkpoint frequency
-                - avg_commits_per_session: Commit activity
-                - avg_quality_score: Average quality across sessions
-                - quality_trend: Quality direction (improving/stable/declining)
-                - most_productive_time_of_day: Best working time
-                - most_used_tools: Top tools with usage counts
-                - avg_velocity_commits_per_hour: Development speed
-                - active_projects: List of active projects
-
-        Example:
-            >>> result = await get_workflow_metrics(days_back=7)
-            >>> print(f"Quality trend: {result['quality_trend']}")
-            >>> print(f"Velocity: {result['avg_velocity_commits_per_hour']:.1f} commits/hour")
-        """
+        """Get comprehensive workflow metrics."""
         try:
             engine = get_workflow_metrics_engine()
             await engine.initialize()
@@ -82,27 +56,7 @@ def register_workflow_metrics_tools(server: Any) -> None:
     async def get_session_analytics(
         limit: int = 20, sort_by: str = "duration"
     ) -> dict[str, t.Any]:
-        """Get detailed session-level analytics.
-
-        Provides per-session breakdown for detailed analysis
-        of development patterns and productivity.
-
-        Args:
-            limit: Maximum number of sessions to return
-            sort_by: Sort field - "duration", "quality", "commits", or "checkpoints"
-
-        Returns:
-            Dictionary with:
-                - sessions: List of session metrics
-                - total_analyzed: Total sessions in database
-                - sort_field: Field used for sorting
-                - insights: Analytical observations
-
-        Example:
-            >>> result = await get_session_analytics(limit=10, sort_by="quality")
-            >>> for session in result["sessions"]:
-            ...     print(f"{session['session_id']}: quality={session['avg_quality']:.1f}")
-        """
+        """Get detailed session-level analytics."""
         try:
             from session_buddy.core.workflow_metrics import WorkflowMetricsStore
 

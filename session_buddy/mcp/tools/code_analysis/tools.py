@@ -28,19 +28,7 @@ def register_code_analysis_tools(mcp: FastMCP) -> None:
         project: str | None = None,
         language: str | None = None,
     ) -> dict[str, Any]:
-        """Parse a code file and store entities in knowledge graph.
-
-        Extracts functions, classes, methods, imports, and relationships
-        from source code and stores them for semantic search.
-
-        Args:
-            file_path: Absolute path to source file
-            project: Optional project name for grouping
-            language: Optional language override (python, go, etc.)
-
-        Returns:
-            Summary of ingested entities and relationships
-        """
+        """Parse a code file and store entities in knowledge graph."""
         from pathlib import Path
 
         from session_buddy.code_analysis.kg_extractor import KGExtractor
@@ -71,17 +59,7 @@ def register_code_analysis_tools(mcp: FastMCP) -> None:
         project: str | None = None,
         max_files: int = 100,
     ) -> dict[str, Any]:
-        """Parse all code files in a directory and store in knowledge graph.
-
-        Args:
-            directory: Directory path to scan
-            pattern: Glob pattern (default: Python files)
-            project: Optional project name for grouping
-            max_files: Maximum files to process (default 100)
-
-        Returns:
-            Summary of bulk ingestion results
-        """
+        """Parse all code files in a directory and store in knowledge graph."""
         from pathlib import Path
 
         from session_buddy.code_analysis.kg_extractor import KGExtractor
@@ -114,20 +92,7 @@ def register_code_analysis_tools(mcp: FastMCP) -> None:
         project: str | None = None,
         limit: int = 20,
     ) -> dict[str, Any]:
-        """Search for code symbols in the knowledge graph.
-
-        Performs semantic search across stored code entities.
-
-        Args:
-            query: Search query (symbol name or pattern)
-            symbol_kind: Filter by kind (function, class, method, variable, etc.)
-            language: Filter by language (python, go, etc.)
-            project: Filter by project name
-            limit: Maximum results to return (default 20)
-
-        Returns:
-            Matching symbols with context
-        """
+        """Search for code symbols in the knowledge graph."""
         from session_buddy.adapters.knowledge_graph_adapter import (
             KnowledgeGraphDatabaseAdapter,
         )
@@ -188,18 +153,7 @@ def register_code_analysis_tools(mcp: FastMCP) -> None:
         symbol_name: str,
         depth: int = 2,
     ) -> dict[str, Any]:
-        """Get a symbol with its knowledge graph relationships.
-
-        Retrieves a symbol and traverses its relationships to show
-        connections like imports, calls, extends, etc.
-
-        Args:
-            symbol_name: Name of the symbol to explore
-            depth: Relationship traversal depth (max 3)
-
-        Returns:
-            Symbol with connected entities and relationships
-        """
+        """Get a symbol with its knowledge graph relationships."""
         from session_buddy.adapters.knowledge_graph_adapter import (
             KnowledgeGraphDatabaseAdapter,
         )
@@ -249,11 +203,7 @@ def register_code_analysis_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def code_list_projects() -> dict[str, Any]:
-        """List all projects that have been ingested.
-
-        Returns:
-            List of unique project names with file counts
-        """
+        """List all projects that have been ingested."""
         from session_buddy.adapters.knowledge_graph_adapter import (
             KnowledgeGraphDatabaseAdapter,
         )
