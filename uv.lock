@@ -2047,7 +2047,7 @@ wheels = [
 
 [[package]]
 name = "mcp-common"
-version = "0.12.1"
+version = "0.12.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -2061,9 +2061,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/84/c6/1a0192cd1ddbc43eb6bfa3fd2268e337eaf4b3dd90d9bfc888fefe5eb7ef/mcp_common-0.12.1.tar.gz", hash = "sha256:94aeacd959f4e2b7be47880a46f0b52afcabfac592c886c5f495ef7e05388e73", size = 845734, upload-time = "2026-04-21T06:47:25.486Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/22/8e4d47c94d16595aa8c685da82976e696d800fdae0b87f5019a2f485d44c/mcp_common-0.12.3.tar.gz", hash = "sha256:1e6d72f667e986216194a0ce4a789668789eb609c8d46ceaaaee66de8fb2eb68", size = 846263, upload-time = "2026-04-21T11:41:03.358Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/aa/ba/e119d3ac4c1df38595ba01cad9de16cd7a608347bc4f7b451d8d5aae39a2/mcp_common-0.12.1-py3-none-any.whl", hash = "sha256:b77a0087ee400f76380daff7cadcc77d1e51df69c851964817883d25a3f70b6b", size = 372334, upload-time = "2026-04-21T06:47:26.885Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/d2/b56dcfe97c5bf4f8c9ab9a0dd6eb3ab355e09cffcb516b76819e062fabd9/mcp_common-0.12.3-py3-none-any.whl", hash = "sha256:cb368da162794ca2f15d058df7879690c6bf993cdf7084405d06d3a38a5dda1c", size = 372729, upload-time = "2026-04-21T11:41:01.682Z" },
 ]
 
 [package.optional-dependencies]
@@ -2466,7 +2466,7 @@ wheels = [
 
 [[package]]
 name = "oneiric"
-version = "0.9.3"
+version = "0.9.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobreaker" },
@@ -2489,9 +2489,9 @@ dependencies = [
     { name = "typer" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/16/76/022dedcc476d30cd284d3983d6cd76dd4dac9f10bbe7516dc760f83b62b0/oneiric-0.9.3.tar.gz", hash = "sha256:1ab9c1912142604cf893ea394310448997065c51ec9e600bab89c0396378137e", size = 262115, upload-time = "2026-04-15T13:04:52.114Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/11/9f049a6a97c9ae522e2d38048074e1fe52e9d9e0c23d2bc69c31d1bcd4c4/oneiric-0.9.6.tar.gz", hash = "sha256:66b3f155c9dc889e50898e4591e7978451cc84706674fdfe44c1132e47bed1b0", size = 262596, upload-time = "2026-04-21T11:38:55.537Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/ea/477b6df5415098dfe063745fb7734e929ff206f7d5f0530eb7b17e5f45ac/oneiric-0.9.3-py3-none-any.whl", hash = "sha256:d4d4c07c1dd24e463801c9c318ab61f79a92f68a1cb2eeb7beefc3d6659914d6", size = 353529, upload-time = "2026-04-15T13:04:50.428Z" },
+    { url = "https://files.pythonhosted.org/packages/26/66/37deb92f1e59df5d9665f1d478b0b822cc460886f881138bdd15af2e0a11/oneiric-0.9.6-py3-none-any.whl", hash = "sha256:24c1394c3c20573ac45945d473e34304b79a3796d8643271301f629430e5c291", size = 353975, upload-time = "2026-04-21T11:38:57.052Z" },
 ]
 
 [[package]]
@@ -3866,7 +3866,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.16.1"
+version = "0.16.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -4607,15 +4607,15 @@ wheels = [
 
 [[package]]
 name = "uvicorn"
-version = "0.44.0"
+version = "0.45.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "h11" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5e/da/6eee1ff8b6cbeed47eeb5229749168e81eb4b7b999a1a15a7176e51410c9/uvicorn-0.44.0.tar.gz", hash = "sha256:6c942071b68f07e178264b9152f1f16dfac5da85880c4ce06366a96d70d4f31e", size = 86947, upload-time = "2026-04-06T09:23:22.826Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/eb/2e/62b0d9a2cfc8b4de6771322dae30f2db76c66dae9ec32e94e176a44ad563/uvicorn-0.45.0.tar.gz", hash = "sha256:3fe650df136c5bd2b9b06efc5980636344a2fbb840e9ddd86437d53144fa335d", size = 87818, upload-time = "2026-04-21T10:43:46.815Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/23/a5bbd9600dd607411fa644c06ff4951bec3a4d82c4b852374024359c19c0/uvicorn-0.44.0-py3-none-any.whl", hash = "sha256:ce937c99a2cc70279556967274414c087888e8cec9f9c94644dfca11bd3ced89", size = 69425, upload-time = "2026-04-06T09:23:21.524Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/88/d0f7512465b166a4e931ccf7e77792be60fb88466a43964c7566cbaff752/uvicorn-0.45.0-py3-none-any.whl", hash = "sha256:2db26f588131aeec7439de00f2dd52d5f210710c1f01e407a52c90b880d1fd4f", size = 69838, upload-time = "2026-04-21T10:43:45.029Z" },
 ]
 
 [[package]]

@@ -1,5 +1,14 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+import structlog
+
+if TYPE_CHECKING:
+    from fastmcp import FastMCP
+
+logger = structlog.get_logger(__name__)
 
 
 async def _code_ingest_file_impl(
