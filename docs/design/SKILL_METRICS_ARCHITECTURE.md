@@ -150,6 +150,7 @@ class SkillMetricsCollector:
 ```
 
 **Characteristics:**
+
 - Read-only access to project files
 - Idempotent (safe to re-run)
 - No modification of source data
@@ -166,6 +167,7 @@ class SkillMetricsAggregator:
 ```
 
 **Characteristics:**
+
 - Pre-computed aggregates for performance
 - Multiple time windows (daily/weekly/monthly/all)
 - Support for both project-specific and cross-project queries
@@ -179,6 +181,7 @@ def init_skill_metrics_db() -> duckdb.DuckDBPyConnection
 ```
 
 **Characteristics:**
+
 - Centralized schema definition
 - Connection management
 - Index creation for query performance
@@ -188,17 +191,20 @@ def init_skill_metrics_db() -> duckdb.DuckDBPyConnection
 ### Query Optimization
 
 1. **Indexes on frequently queried columns**
+
    ```sql
    CREATE INDEX idx_skill_usage_project_time ON skill_usage(project_id, invoked_at);
    CREATE INDEX idx_skill_usage_skill_time ON skill_usage(skill_name, invoked_at);
    ```
 
-2. **Pre-computed aggregates**
+1. **Pre-computed aggregates**
+
    - Avoid repeated full-table scans
    - Fast OLAP queries on aggregated data
    - Refreshed on-demand or scheduled
 
-3. **Time-based partitioning** (future enhancement)
+1. **Time-based partitioning** (future enhancement)
+
    ```sql
    -- Partition by month for faster time-range queries
    CREATE TABLE skill_usage_2025_02 PARTITION OF skill_usage
@@ -207,9 +213,9 @@ def init_skill_metrics_db() -> duckdb.DuckDBPyConnection
 
 ### Scalability Targets
 
-- **Small:** 10 projects, 1000 records per project → <1s queries
-- **Medium:** 50 projects, 10000 records per project → <5s queries
-- **Large:** 100+ projects, 100000 records per project → <10s queries
+- **Small:** 10 projects, 1000 records per project → \<1s queries
+- **Medium:** 50 projects, 10000 records per project → \<5s queries
+- **Large:** 100+ projects, 100000 records per project → \<10s queries
 
 DuckDB's columnar storage makes these targets achievable.
 
@@ -278,8 +284,8 @@ def cleanup_old_records(retention_days: int = 90):
 **Synergy Opportunities:**
 
 1. **Session Start:** Show top skills for project
-2. **Checkpoint:** Recommend skill improvements
-3. **Session End:** Capture skill usage patterns
+1. **Checkpoint:** Recommend skill improvements
+1. **Session End:** Capture skill usage patterns
 
 ### Workflow Orchestration Integration
 
@@ -347,16 +353,19 @@ def test_concurrent_collection():
 ### Metrics to Track
 
 1. **Collection Metrics**
+
    - Records collected per project
    - Collection duration
    - Error rates
 
-2. **Aggregation Metrics**
+1. **Aggregation Metrics**
+
    - Aggregation computation time
    - Number of aggregates computed
    - Query response times
 
-3. **Usage Metrics**
+1. **Usage Metrics**
+
    - Most requested skills
    - Most effective skills
    - Skills needing improvement
@@ -378,16 +387,19 @@ def health_check() -> str:
 ### Phase 4: Advanced Analytics
 
 1. **Skill Relationship Graph**
+
    - Which skills are commonly used together?
    - Optimal skill sequences
    - Skill dependencies
 
-2. **Predictive Recommendations**
+1. **Predictive Recommendations**
+
    - "You usually use skill X after Y"
    - "Projects like yours benefit from skill Z"
    - Workflow optimization suggestions
 
-3. **Trend Analysis**
+1. **Trend Analysis**
+
    - Skill usage over time
    - Seasonal patterns
    - Adoption rates for new skills
@@ -395,16 +407,19 @@ def health_check() -> str:
 ### Phase 5: Team Collaboration (Optional)
 
 1. **Shared Skill Catalogs**
+
    - Team-wide skill best practices
    - Consensus on effective prompts
    - Skill versioning and evolution
 
-2. **Collaborative Filtering**
+1. **Collaborative Filtering**
+
    - "Teams using X also use Y"
    - Cross-team skill sharing
    - Privacy-preserving aggregation
 
-3. **Quality Metrics**
+1. **Quality Metrics**
+
    - Skill refinement tracking
    - A/B testing for skill variations
    - Effectiveness benchmarking

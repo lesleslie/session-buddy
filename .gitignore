@@ -153,6 +153,7 @@ tests/archived/
 # XDG - State directories
 .claude/
 .session-buddy/
+.skylos/
 .crackerjack/
 
 # XDG - DELETE candidates

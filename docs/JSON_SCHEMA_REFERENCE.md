@@ -713,5 +713,5 @@ if "T" not in timestamp:
 
 - [JSON Schema Specification](https://json-schema.org/specification)
 - [Pydantic Documentation](https://docs.pydantic.dev/)
-- [Session-Buddy MCP Tools](../MCP_TOOLS_SPECIFICATION.md)
+- Session-Buddy MCP Tools
 - [Event Models Source](../session_buddy/mcp/event_models.py)

@@ -18,6 +18,9 @@ Example:
     >>> # Server is initialized and tools are registered automatically
 """
 
+from contextlib import suppress
+from typing import Any
+
 from session_buddy.mcp.event_models import (
     EnvironmentInfo,
     ErrorResponse,
@@ -31,13 +34,24 @@ from session_buddy.mcp.event_models import (
     get_session_start_event_schema,
     get_session_start_result_schema,
 )
-from session_buddy.mcp.server import mcp  # noqa: F401
-from session_buddy.mcp.session_tracker import SessionTracker  # noqa: F401
+from session_buddy.mcp.telemetry import attach_otel_middleware, configure_otel_tracing
+
+mcp: Any | None = None
+SessionTracker: Any | None = None
+
+with suppress(Exception):
+    from session_buddy.mcp.server import mcp  # noqa: F401
+
+with suppress(Exception):
+    from session_buddy.mcp.session_tracker import SessionTracker  # noqa: F401
 
 __all__ = [
     "mcp",
     # Session tracking
     "SessionTracker",
+    # Telemetry
+    "attach_otel_middleware",
+    "configure_otel_tracing",
     # Event models
     "SessionStartEvent",
     "SessionEndEvent",

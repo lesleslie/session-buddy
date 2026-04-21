@@ -10,11 +10,13 @@ python scripts/initialize_taxonomy.py
 ## Prerequisites
 
 1. Run V4 migration:
+
    ```bash
    python -m session_buddy.storage.migrations migrate
    ```
 
-2. Verify database exists:
+1. Verify database exists:
+
    ```bash
    ls -la .session-buddy/skills.db
    ```
@@ -32,6 +34,7 @@ Initializes 3 taxonomy tables with seed data:
 ## Seed Data Summary
 
 **Categories:**
+
 - Code Quality (code)
 - Testing (testing)
 - Documentation (documentation)
@@ -40,12 +43,14 @@ Initializes 3 taxonomy tables with seed data:
 - Linting & Formatting (code)
 
 **Modalities:**
+
 - ruff-check: python_source → diagnostics
 - pytest-run: python_tests → test_results
 - sphinx-build: rst_docs → html_docs
 - docker-build: dockerfile → docker_image
 
 **Dependencies:**
+
 - ruff-check ↔ black-format (lift: 3.5)
 - pytest-run ↔ coverage-report (lift: 2.8)
 - git-commit ↔ git-push (lift: 4.2)

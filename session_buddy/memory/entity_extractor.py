@@ -9,9 +9,9 @@ skips any unavailable provider gracefully and falls back to patterns.
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
-import os
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -130,14 +130,19 @@ class LLMEntityExtractor:
         """
         bifrost_openai_base = os.getenv("BIFROST_OPENAI_BASE_URL")
         self.llm_provider = llm_provider
-        self.model = (
-            os.getenv("OPENAI_DEFAULT_MODEL")
-            or ("zai-openai/glm-5-turbo" if bifrost_openai_base and model == "gpt-4o-mini" else model)
+        self.model = os.getenv("OPENAI_DEFAULT_MODEL") or (
+            "zai-openai/glm-5-turbo"
+            if bifrost_openai_base and model == "gpt-4o-mini"
+            else model
         )
         self.api_key = (
             api_key
             or os.getenv("OPENAI_API_KEY")
-            or ((os.getenv("BIFROST_API_KEY") or "local-bifrost") if bifrost_openai_base else None)
+            or (
+                (os.getenv("BIFROST_API_KEY") or "local-bifrost")
+                if bifrost_openai_base
+                else None
+            )
         )
         self.base_url = bifrost_openai_base or os.getenv("OPENAI_BASE_URL")
         self._client: Any = None

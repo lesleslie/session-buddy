@@ -70,9 +70,7 @@ class DatabaseConnectionPool:
             # Use consistent config to avoid "different configuration" errors when
             # other parts of the codebase have already opened the same database file
             conn = (
-                duckdb.connect(
-                    self.db_path, config={"allow_unsigned_extensions": True}
-                )
+                duckdb.connect(self.db_path, config={"allow_unsigned_extensions": True})
                 if duckdb
                 else None
             )

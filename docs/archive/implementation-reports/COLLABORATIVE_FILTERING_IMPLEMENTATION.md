@@ -237,7 +237,7 @@ Where:
 Potential improvements for future versions:
 
 1. **Item-based filtering**: Recommend based on skill similarity
-2. **Matrix factorization**: SVD or ALS for scalability
+2. **Matrix factorization**: SVD or ALSO for scalability
 3. **Hybrid approach**: Combine with content-based filtering
 4. **Temporal weighting**: Weight recent interactions higher
 5. **Context awareness**: Workflow phase, project type

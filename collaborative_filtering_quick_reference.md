@@ -136,6 +136,7 @@ Jaccard(A, B) = |A ∩ B| / |A ∪ B|
 Measures how similar two users' skill sets are.
 
 **Example:**
+
 - User1: {pytest, ruff, mypy}
 - User2: {pytest, ruff, pylint}
 - Similarity: 2/4 = 0.5 (50%)
@@ -149,6 +150,7 @@ score = user_similarity × skill_completion_rate
 Combines similarity with skill success rate.
 
 **Example:**
+
 - User similarity: 0.80
 - Completion rate: 0.90
 - Score: 0.72 (72%)
@@ -215,9 +217,9 @@ def is_cold_start_user(user_id: str) -> bool:
 ## Performance Tips
 
 1. **Use caching**: Similarity calculations are cached for 1 hour
-2. **Batch updates**: Update community baselines periodically, not on every request
-3. **Limit results**: Use `limit` parameter to avoid large result sets
-4. **Set appropriate thresholds**: `min_common_skills` affects performance
+1. **Batch updates**: Update community baselines periodically, not on every request
+1. **Limit results**: Use `limit` parameter to avoid large result sets
+1. **Set appropriate thresholds**: `min_common_skills` affects performance
 
 ## Testing
 
@@ -247,6 +249,7 @@ print("✓ All tests passed")
 **Cause:** User has no skill history or `min_common_skills` too high
 
 **Solution:**
+
 ```python
 # Lower threshold
 similar = engine.get_similar_users(user_id, min_common_skills=1)
@@ -261,6 +264,7 @@ if not similar:
 **Cause:** Cold start or all similar users' skills already tried
 
 **Solution:** Always have fallback logic
+
 ```python
 recommendations = engine.recommend_from_similar_users(user_id)
 if not recommendations:
@@ -272,6 +276,7 @@ if not recommendations:
 **Cause:** Large user base, no caching
 
 **Solution:**
+
 ```python
 # Increase cache TTL
 engine = CollaborativeFilteringEngine(
@@ -322,6 +327,7 @@ CREATE TABLE skill_community_baselines (
 ## Support
 
 For issues or questions:
+
 1. Check documentation in `docs/collaborative_filtering.md`
-2. Review test cases in `tests/test_collaborative_filtering.py`
-3. Examine source code in `session_buddy/analytics/collaborative_filtering.py`
+1. Review test cases in `tests/test_collaborative_filtering.py`
+1. Examine source code in `session_buddy/analytics/collaborative_filtering.py`

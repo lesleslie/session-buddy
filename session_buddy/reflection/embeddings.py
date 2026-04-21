@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-import warnings
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 from functools import lru_cache
@@ -77,6 +76,7 @@ def _check_onnx_available() -> bool:
             transformers_logger.setLevel(original_level)
 
     return ONNX_AVAILABLE
+
 
 # Global executor for async embedding operations
 _embedding_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="embedding")
@@ -165,7 +165,9 @@ def initialize_embedding_system(
             try:
                 if model_path.exists():
                     # Use custom model path
-                    _onnx_session = _ort.InferenceSession(str(model_path / "model.onnx"))
+                    _onnx_session = _ort.InferenceSession(
+                        str(model_path / "model.onnx")
+                    )
                 else:
                     # Try to find model in cache
 

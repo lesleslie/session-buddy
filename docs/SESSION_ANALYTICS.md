@@ -877,5 +877,5 @@ For large databases:
 ## Related Documentation
 
 - [Session-Buddy CLI Guide](../README.md)
-- [Database Schema](../memory/schema_v2.md)
-- [MCP Tools Specification](../mcp/tools/README.md)
+- Database Schema
+- MCP Tools Specification

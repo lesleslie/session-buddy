@@ -5,8 +5,8 @@
 Phase 4 of Session-Buddy introduced three new taxonomy tables for organizing and understanding skills:
 
 1. **skill_categories** - Hierarchical categorization of skills
-2. **skill_modalities** - Multi-modal skill type definitions
-3. **skill_dependencies** - Co-occurrence relationships between skills
+1. **skill_modalities** - Multi-modal skill type definitions
+1. **skill_dependencies** - Co-occurrence relationships between skills
 
 The `initialize_taxonomy.py` script populates these tables with predefined seed data.
 
@@ -25,7 +25,7 @@ Before running the taxonomy initialization:
    python -m session_buddy.storage.migrations migrate
    ```
 
-2. **Database Must Exist**
+1. **Database Must Exist**
 
    The script expects `.session-buddy/skills.db` to exist.
 
@@ -125,6 +125,7 @@ python scripts/initialize_taxonomy.py
 ```
 
 Second run output:
+
 ```
 Step 1: Initializing categories...
 Categories initialized: 0  # All already exist
@@ -168,6 +169,7 @@ Dependencies initialized: 0  # All already exist
 | docker-build | k8s-deploy | 2.1 | Moderate co-occurrence |
 
 **Lift Score Interpretation**:
+
 - `> 2.0` - Strong positive relationship (used together much more than expected)
 - `1.5 - 2.0` - Moderate positive relationship
 - `1.0` - Independent usage

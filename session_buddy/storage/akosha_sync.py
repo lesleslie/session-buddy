@@ -612,7 +612,9 @@ class HttpSyncMethod(SyncMethod):
             Dict with entities_count, relationships_count, bytes, and errors
         """
         # Sync entities first
-        entities = await self._fetch_entities(incremental=incremental, batch_size=batch_size)
+        entities = await self._fetch_entities(
+            incremental=incremental, batch_size=batch_size
+        )
         entities_uploaded = 0
         entities_bytes = 0
         errors: list[dict[str, Any]] = []
@@ -672,7 +674,9 @@ class HttpSyncMethod(SyncMethod):
                     )
 
             except Exception as e:
-                errors.append({"type": "relationship", "id": rel["id"], "error": str(e)})
+                errors.append(
+                    {"type": "relationship", "id": rel["id"], "error": str(e)}
+                )
 
         return {
             "entities_count": entities_uploaded,

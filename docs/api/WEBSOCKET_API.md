@@ -503,6 +503,6 @@ ______________________________________________________________________
 
 ## See Also
 
-- [Prometheus Metrics Exporter](./PROMETHEUS.md) - HTTP metrics endpoint
-- [V4 Schema Reference](../storage/V4_SCHEMA.md) - Database schema
-- [Integration Guide](../integrations/CRACKERJACK.md) - Crackerjack integration
+- Prometheus Metrics Exporter - HTTP metrics endpoint
+- V4 Schema Reference - Database schema
+- Integration Guide - Crackerjack integration

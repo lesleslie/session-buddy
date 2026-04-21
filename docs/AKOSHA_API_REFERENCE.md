@@ -967,7 +967,7 @@ For issues or questions:
 
 - Check logs: `~/.claude/logs/session-buddy.log`
 - Verify configuration: Use `akosha_sync_status()` tool
-- See troubleshooting guide in [User Guide](USER_GUIDE.md)
+- See troubleshooting guide in User Guide
 
 ______________________________________________________________________
 

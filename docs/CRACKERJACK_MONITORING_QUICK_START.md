@@ -310,7 +310,7 @@ python scripts/monitor_crackerjack_metrics.py --days 30 --format json > \
 ## Further Reading
 
 - [Full Documentation](CRACKERJACK_METRICS_MONITORING.md)
-- [Visualization Guide](CRACKERJACK_DASHBOARD_VISUALIZATION.md)
+- Visualization Guide
 - [Session Buddy README](../README.md)
 
 ## Quick Reference

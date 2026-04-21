@@ -551,9 +551,12 @@ def _add_quality_section_to_output(
         output_builder.add_section("Quality Metrics", quality_items)
     except KeyError as e:
         import traceback
+
         _get_logger().exception("Failed to format quality breakdown: %s", str(e))
         traceback.print_exc()
-        output_builder.add_section("Quality Metrics", ["⚠️  Error formatting quality metrics"])
+        output_builder.add_section(
+            "Quality Metrics", ["⚠️  Error formatting quality metrics"]
+        )
     output_builder.add_section("📈 Quality breakdown", quality_items)
 
 
@@ -784,7 +787,7 @@ async def _checkpoint_impl(working_directory: str | None = None) -> str:
             if "total_score" not in result.get("quality_data", {}):
                 _get_logger().error(
                     "Quality data missing 'total_score' key. Keys: %s",
-                    list(result.get("quality_data", {}).keys())
+                    list(result.get("quality_data", {}).keys()),
                 )
                 result["success"] = False
                 result["error"] = "Quality data missing 'total_score' key"
@@ -913,7 +916,6 @@ async def _pre_compact_sync_impl() -> dict[str, Any]:
     from session_buddy.reflection_tools import get_reflection_database
     from session_buddy.utils.reflection_utils import (
         CheckpointReason,
-        format_auto_store_summary,
         generate_auto_store_tags,
     )
 
@@ -1100,7 +1102,9 @@ Timestamp: {health_info["timestamp"]}
                 output.append(f"📊 Quality score: {result['quality_score']}/100")
 
             if result.get("reflection_stored"):
-                output.append(f"💾 Reflection stored: {result.get('reflection_id', 'unknown')}")
+                output.append(
+                    f"💾 Reflection stored: {result.get('reflection_id', 'unknown')}"
+                )
                 output.append(f"🏷️ Tags: {', '.join(result.get('tags', []))}")
             else:
                 output.append("⚠️ Reflection storage skipped")

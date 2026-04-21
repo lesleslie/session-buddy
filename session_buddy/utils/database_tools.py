@@ -127,7 +127,7 @@ async def safe_database_operation_with_message[T](
         return f"❌ {error_message} failed: {e!s}"
 
 
-async def batch_database_operation(
+async def batch_database_operation[T](
     items: list[T],
     operation: Callable[[ReflectionDatabaseAdapter, T], Awaitable[Any]],
     batch_size: int = 100,

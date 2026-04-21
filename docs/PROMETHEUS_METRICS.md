@@ -598,5 +598,5 @@ prometheus-client = ">=0.21.0"
 
 - [Prometheus Best Practices](https://prometheus.io/docs/practices/naming/)
 - [Prometheus Data Types](https://prometheus.io/docs/concepts/metric_types/)
-- [Session Tracker Documentation](./SESSION_TRACKING.md)
-- [Settings Reference](./SETTINGS.md)
+- Session Tracker Documentation
+- Settings Reference

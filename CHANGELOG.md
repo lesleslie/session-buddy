@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- session: Allow external workspace paths in _setup_working_directory
+- session: Allow external workspace paths in \_setup_working_directory
 
 ## [0.14.8] - 2026-04-05
 

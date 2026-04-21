@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
-async def execute_database_tool(
+async def execute_database_tool[T](
     operation: Callable[[ReflectionDatabaseAdapter], Awaitable[T]],
     formatter: Callable[[T], str],
     operation_name: str,
@@ -172,7 +172,7 @@ async def execute_database_tool_with_dict(
         return {"success": False, "error": f"{operation_name} failed: {e!s}"}
 
 
-async def execute_no_database_tool(
+async def execute_no_database_tool[T](
     operation: Callable[..., Awaitable[T]],
     formatter: Callable[[T], str],
     operation_name: str,

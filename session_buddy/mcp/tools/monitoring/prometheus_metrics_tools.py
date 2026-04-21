@@ -49,6 +49,54 @@ def get_prometheus_tools_logger() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
+def _collect_session_start_total(metrics, summary):
+    for metric in metrics.session_start_total.collect():
+        for sample in metric.samples:
+            if sample.name.endswith("_total"):
+                summary["total_sessions_started"] += int(sample.value)
+
+
+def _collect_session_end_total(metrics, summary):
+    for metric in metrics.session_end_total.collect():
+        for sample in metric.samples:
+            if sample.name.endswith("_total"):
+                summary["total_sessions_ended"] += int(sample.value)
+            # Extract status from labels
+            labels = sample.labels or {}
+            if labels.get("status") == "error":
+                pass  # Already counted in total
+
+
+def _collect_active_sessions(metrics, summary):
+    for metric in metrics.active_sessions.collect():
+        for sample in metric.samples:
+            labels = sample.labels or {}
+            component = labels.get("component_name", "unknown")
+            summary["active_sessions"][component] = int(sample.value)
+
+
+def _collect_session_quality_score(metrics, summary):
+    for metric in metrics.session_quality_score.collect():
+        for sample in metric.samples:
+            labels = sample.labels or {}
+            component = labels.get("component_name", "unknown")
+            summary["quality_scores"][component] = float(sample.value)
+
+
+def _collect_mcp_event_emit_success_total(metrics, summary):
+    for metric in metrics.mcp_event_emit_success_total.collect():
+        for sample in metric.samples:
+            if sample.name.endswith("_total"):
+                summary["mcp_events_success"] += int(sample.value)
+
+
+def _collect_mcp_event_emit_failure_total(metrics, summary):
+    for metric in metrics.mcp_event_emit_failure_total.collect():
+        for sample in metric.samples:
+            if sample.name.endswith("_total"):
+                summary["mcp_events_failure"] += int(sample.value)
+
+
 def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
     """Register Prometheus metrics tools with the MCP server.
 
@@ -180,45 +228,21 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
             }
 
             # Get session start totals
-            for metric in metrics.session_start_total.collect():
-                for sample in metric.samples:
-                    if sample.name.endswith("_total"):
-                        summary["total_sessions_started"] += int(sample.value)
+            _collect_session_start_total(metrics, summary)
 
             # Get session end totals
-            for metric in metrics.session_end_total.collect():
-                for sample in metric.samples:
-                    if sample.name.endswith("_total"):
-                        summary["total_sessions_ended"] += int(sample.value)
-                    # Extract status from labels
-                    labels = sample.labels or {}
-                    if labels.get("status") == "error":
-                        pass  # Already counted in total
+            _collect_session_end_total(metrics, summary)
 
             # Get active sessions
-            for metric in metrics.active_sessions.collect():
-                for sample in metric.samples:
-                    labels = sample.labels or {}
-                    component = labels.get("component_name", "unknown")
-                    summary["active_sessions"][component] = int(sample.value)
+            _collect_active_sessions(metrics, summary)
 
             # Get quality scores
-            for metric in metrics.session_quality_score.collect():
-                for sample in metric.samples:
-                    labels = sample.labels or {}
-                    component = labels.get("component_name", "unknown")
-                    summary["quality_scores"][component] = float(sample.value)
+            _collect_session_quality_score(metrics, summary)
 
             # Get MCP event totals
-            for metric in metrics.mcp_event_emit_success_total.collect():
-                for sample in metric.samples:
-                    if sample.name.endswith("_total"):
-                        summary["mcp_events_success"] += int(sample.value)
+            _collect_mcp_event_emit_success_total(metrics, summary)
 
-            for metric in metrics.mcp_event_emit_failure_total.collect():
-                for sample in metric.samples:
-                    if sample.name.endswith("_total"):
-                        summary["mcp_events_failure"] += int(sample.value)
+            _collect_mcp_event_emit_failure_total(metrics, summary)
 
             return summary
 

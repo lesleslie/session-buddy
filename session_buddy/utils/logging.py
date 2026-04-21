@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import tempfile
 import typing as t
 from contextlib import suppress
 from datetime import datetime
@@ -42,13 +43,25 @@ class SessionLogger:
         console_handler.setFormatter(formatter)
 
         # Ensure file handler for this log directory exists
-        file_handler = _get_file_handler(self.logger, self.log_file)
-        if file_handler is None:
-            _replace_file_handlers(self.logger, self.log_file)
+        try:
             file_handler = _get_file_handler(self.logger, self.log_file)
             if file_handler is None:
-                file_handler = logging.FileHandler(self.log_file)
-                self.logger.addHandler(file_handler)
+                _replace_file_handlers(self.logger, self.log_file)
+                file_handler = _get_file_handler(self.logger, self.log_file)
+                if file_handler is None:
+                    file_handler = logging.FileHandler(self.log_file)
+                    self.logger.addHandler(file_handler)
+        except (OSError, PermissionError):
+            fallback_dir = Path(tempfile.gettempdir()) / "session-buddy" / "logs"
+            fallback_dir.mkdir(parents=True, exist_ok=True)
+            self.log_dir = fallback_dir
+            self.log_file = (
+                fallback_dir
+                / f"session_management_{datetime.now().strftime('%Y%m%d')}.log"
+            )
+            _replace_file_handlers(self.logger, self.log_file)
+            file_handler = logging.FileHandler(self.log_file)
+            self.logger.addHandler(file_handler)
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(formatter)
 
@@ -115,8 +128,13 @@ def _resolve_logs_dir() -> Path:
 
     # Fallback: create default logs directory
     logs_dir = Path.home() / ".claude" / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    return logs_dir
+    try:
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        return logs_dir
+    except (OSError, PermissionError):
+        fallback_dir = Path(tempfile.gettempdir()) / "session-buddy" / "logs"
+        fallback_dir.mkdir(parents=True, exist_ok=True)
+        return fallback_dir
 
 
 def _get_console_handler(

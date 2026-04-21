@@ -496,8 +496,8 @@ def get_workflow_recommendations(project_id: str | None = None) -> str:
 When Mahavishnu orchestrates workflows, it should track:
 
 1. **Which skills are used** in each workflow phase
-2. **Workflow outcomes** (success/failure, duration)
-3. **Skill-workflow correlation** (which skills work best in which contexts)
+1. **Workflow outcomes** (success/failure, duration)
+1. **Skill-workflow correlation** (which skills work best in which contexts)
 
 **Example:**
 
@@ -635,6 +635,7 @@ class WorkflowOptimizer:
 ## Implementation Roadmap
 
 ### Phase 1: Foundation (Week 1)
+
 - [ ] Create DuckDB schema for skill metrics
 - [ ] Implement `MetricsCollector` class
 - [ ] Implement `AggregationEngine` class
@@ -642,6 +643,7 @@ class WorkflowOptimizer:
 - [ ] Unit tests for collection and aggregation
 
 ### Phase 2: MCP Tools (Week 2)
+
 - [ ] Implement `register_project` tool
 - [ ] Implement `collect_skill_metrics` tool
 - [ ] Implement `get_top_skills` tool
@@ -649,12 +651,14 @@ class WorkflowOptimizer:
 - [ ] Integration tests
 
 ### Phase 3: Workflow Telemetry (Week 3)
+
 - [ ] Add workflow execution tracking
 - [ ] Implement skill-workflow correlation
 - [ ] Create `get_workflow_recommendations` tool
 - [ ] End-to-end workflow tests
 
 ### Phase 4: Analysis & Insights (Week 4)
+
 - [ ] Implement pattern detection algorithms
 - [ ] Add time-series trend analysis
 - [ ] Create visualization data exports
@@ -687,21 +691,25 @@ class WorkflowOptimizer:
 ## Future Enhancements
 
 1. **Skill Relationship Analysis**
+
    - Which skills are commonly used together?
    - Skill co-occurrence patterns
    - Optimal skill sequences
 
-2. **Predictive Recommendations**
+1. **Predictive Recommendations**
+
    - Predict which skills will be needed next
    - Suggest skill improvements based on failure patterns
    - Workflow optimization based on historical performance
 
-3. **Team Collaboration**
+1. **Team Collaboration**
+
    - Share skill metrics across team members (optional)
    - Aggregate team-level insights
    - Collaborative skill refinement
 
-4. **Visualization**
+1. **Visualization**
+
    - Export data for external visualization tools
    - Built-in charts for skill usage trends
    - Workflow performance dashboards

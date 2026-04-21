@@ -15,12 +15,14 @@ Jaccard(A, B) = |A ∩ B| / |A ∪ B|
 ```
 
 Where:
+
 - `A` = set of skills used by user A (completed)
 - `B` = set of skills used by user B (completed)
 - `|A ∩ B|` = number of common skills (intersection)
 - `|A ∪ B|` = number of unique skills across both users (union)
 
 **Example:**
+
 - User1 used skills: {pytest, ruff, mypy, black}
 - User2 used skills: {pytest, ruff, pylint}
 - Common skills: {pytest, ruff} = 2
@@ -36,10 +38,12 @@ recommendation_score = user_similarity × skill_completion_rate
 ```
 
 Where:
+
 - `user_similarity` = Jaccard similarity (0.0 to 1.0)
 - `skill_completion_rate` = success rate for similar user (0.0 to 1.0)
 
 **Example:**
+
 - User similarity: 0.8 (80%)
 - Skill completion rate: 0.9 (90%)
 - Recommendation score: 0.8 × 0.9 = 0.72 (72%)
@@ -67,6 +71,7 @@ for user_id, similarity in similar_users:
 ```
 
 **Output:**
+
 ```
 User user456: 75.0% similarity
 User user789: 60.0% similarity
@@ -90,6 +95,7 @@ for rec in recommendations:
 ```
 
 **Output:**
+
 ```
 semantic-search: 0.68 (completion: 90.0%)
 code-refactor: 0.55 (completion: 73.3%)
@@ -106,6 +112,7 @@ print(f"Updated {result['skills_updated']} skill baselines")
 ```
 
 This aggregates across all users to create:
+
 - Global completion rates
 - Average duration
 - Effectiveness percentiles
@@ -156,6 +163,7 @@ CollaborativeFilteringEngine(
 ```
 
 **Parameters:**
+
 - `db_path`: Path to SQLite database
 - `cache_ttl_seconds`: Cache TTL for similar users (default: 1 hour)
 
@@ -188,6 +196,7 @@ recommend_from_similar_users(
 Generate personalized recommendations.
 
 **Returns:** List of recommendation dictionaries:
+
 ```python
 {
     "skill_name": str,
@@ -207,6 +216,7 @@ update_community_baselines() -> dict[str, object]
 Update global skill effectiveness baselines.
 
 **Returns:** Update status dictionary:
+
 ```python
 {
     "status": "updated",
@@ -264,6 +274,7 @@ CREATE TABLE skill_user_interactions (
 ```
 
 **Indexes:**
+
 - `(user_id, invoked_at DESC)` - User history queries
 - `(skill_name, completed)` - Skill performance queries
 - `session_id` - Session analysis
@@ -292,11 +303,13 @@ CREATE TABLE skill_community_baselines (
 The engine implements two-level caching:
 
 1. **Similar Users Cache** (TTL: 1 hour)
+
    - Key: `user_id:min_common_skills:limit`
    - Value: List of similar users with similarity scores
    - Reduces expensive Jaccard calculations
 
-2. **Recommendation Cache** (implicit via similar users cache)
+1. **Recommendation Cache** (implicit via similar users cache)
+
    - Recommendations depend on similar users
    - Benefits from similar users cache
 
@@ -305,6 +318,7 @@ The engine implements two-level caching:
 Uses efficient SQL patterns:
 
 1. **Jaccard Similarity in SQL**
+
    ```sql
    SELECT
        user_id,
@@ -313,11 +327,13 @@ Uses efficient SQL patterns:
    FROM other_user_skills
    ```
 
-2. **Subquery Filtering**
+1. **Subquery Filtering**
+
    - Filters users before similarity calculation
    - Reduces result set size
 
-3. **Indexed Queries**
+1. **Indexed Queries**
+
    - All queries use indexed columns
    - Optimized for large datasets
 
@@ -342,6 +358,7 @@ def _hash_user_id(self, user_id: str) -> str:
 ```
 
 **Benefits:**
+
 - User IDs cannot be reverse-engineered
 - Consistent hashing (same user = same hash)
 - No personal data stored
@@ -355,9 +372,10 @@ def _hash_user_id(self, user_id: str) -> str:
 ## Cold Start Problem
 
 The cold start problem occurs when:
+
 1. New user has no skill history
-2. No similar users can be found
-3. Cannot generate personalized recommendations
+1. No similar users can be found
+1. Cannot generate personalized recommendations
 
 ### Solution: Fallback to Global Popularity
 
@@ -371,6 +389,7 @@ if not recommendations:
 ```
 
 Global recommendations use:
+
 - Community-wide completion rates
 - Effectiveness percentiles
 - Minimum invocation threshold
@@ -463,18 +482,18 @@ pytest tests/test_collaborative_filtering.py --cov=session_buddy.analytics.colla
 ### Current Limitations
 
 1. **Sparsity Problem**: Requires minimum common skills threshold
-2. **Popularity Bias**: Favors popular skills over niche ones
-3. **Cold Start**: Relies on fallback for new users
-4. **Scalability**: O(n²) similarity calculation for large user bases
+1. **Popularity Bias**: Favors popular skills over niche ones
+1. **Cold Start**: Relies on fallback for new users
+1. **Scalability**: O(n²) similarity calculation for large user bases
 
 ### Potential Improvements
 
 1. **Item-Based Filtering**: Also recommend based on skill similarity
-2. **Matrix Factorization**: Use SVD or ALS for better scalability
-3. **Hybrid Approach**: Combine with content-based filtering
-4. **Temporal Weighting**: Weight recent interactions higher
-5. **Context Awareness**: Consider workflow phase, project type
-6. **Diversity**: Ensure diverse skill recommendations
+1. **Matrix Factorization**: Use SVD or ALSO for better scalability
+1. **Hybrid Approach**: Combine with content-based filtering
+1. **Temporal Weighting**: Weight recent interactions higher
+1. **Context Awareness**: Consider workflow phase, project type
+1. **Diversity**: Ensure diverse skill recommendations
 
 ## References
 
@@ -487,10 +506,10 @@ pytest tests/test_collaborative_filtering.py --cov=session_buddy.analytics.colla
 When contributing to the collaborative filtering engine:
 
 1. **Maintain privacy**: Always hash user IDs
-2. **Handle cold start**: Provide fallback recommendations
-3. **Cache aggressively**: Similarity calculations are expensive
-4. **Test thoroughly**: Use realistic test data
-5. **Document changes**: Update this README with algorithm changes
+1. **Handle cold start**: Provide fallback recommendations
+1. **Cache aggressively**: Similarity calculations are expensive
+1. **Test thoroughly**: Use realistic test data
+1. **Document changes**: Update this README with algorithm changes
 
 ## License
 

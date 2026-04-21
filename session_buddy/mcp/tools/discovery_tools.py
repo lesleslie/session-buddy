@@ -29,7 +29,6 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "health_check": "Deep health check of all subsystems.",
     "get_health_status": "Detailed health status with per-component breakdown.",
     "server_info": "Server version and configuration info.",
-
     # -- Session lifecycle --
     "start": "Initialize Claude session with setup and automation.",
     "end": "End Claude session with cleanup and learning capture.",
@@ -41,7 +40,6 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "store_conversation_checkpoint": "Store a conversation checkpoint from session context.",
     "create_session_context": "Create a reusable session context snapshot.",
     "restore_session_context": "Restore a previously saved session context.",
-
     # -- Search --
     "quick_search": "Fast semantic search across reflections.",
     "quick_search_validated": "Validated semantic search with type checking.",
@@ -58,21 +56,17 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "search_temporal": "Search by time expression.",
     "get_more_results": "Get additional search results.",
     "search_regex": "Regex-based search across reflections.",
-
     # -- Hooks --
     "list_hooks": "List all registered hooks.",
     "enable_hook": "Enable a specific hook.",
     "disable_hook": "Disable a specific hook.",
-
     # -- Conversation --
     "store_conversation": "Store a conversation with embedding support.",
     "get_conversation_statistics": "Get statistics about stored conversations.",
-
     # -- Extraction --
     "extract_entities_from_context": "Extract named entities from text context.",
     "extract_and_store_memory": "Extract and store memories from text.",
     "extract_and_store_memory_tool": "Extract memories from text with auto-categorization.",
-
     # -- Knowledge graph --
     "create_entity": "Create a knowledge graph entity.",
     "create_relation": "Create a relation between entities.",
@@ -88,12 +82,10 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "analyze_graph_connectivity": "Analyze knowledge graph connectivity.",
     "get_relationship_confidence_stats": "Confidence score distribution for relations.",
     "extract_pattern_relationships": "Extract patterns from relationships.",
-
     # -- Phase 3 knowledge graph --
     "trigger_migration": "Trigger knowledge graph data migration.",
     "migration_status": "Check migration progress and status.",
     "rollback_migration": "Rollback a failed migration.",
-
     # -- Cache --
     "clear_query_cache": "Clear the search query cache.",
     "invalidate_cache": "Invalidate specific cache entries.",
@@ -102,14 +94,12 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "reset_cache": "Reset cache to empty state.",
     "warm_cache": "Pre-populate cache with common queries.",
     "query_rewrite_stats": "Statistics on query rewrites.",
-
     # -- Intent detection --
     "detect_intent": "Detect user intent from natural language.",
     "list_supported_intents": "List all supported intent categories.",
     "get_intent_suggestions": "Suggest likely intents for a query.",
     "process_natural_language_input": "Route natural language to correct tool.",
     "initialize_intent_detector": "(Re)initialize the intent detection model.",
-
     # -- Crackerjack integration --
     "crackerjack_help": "Show Crackerjack help and available commands.",
     "crackerjack_run": "Run a Crackerjack quality check command.",
@@ -119,10 +109,8 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "crackerjack_patterns": "Analyze quality patterns with Crackerjack.",
     "crackerjack_quality_trends": "View quality trends over time.",
     "execute_crackerjack_command": "Execute an arbitrary Crackerjack command.",
-
     # -- Feature flags --
     "feature_flags_status": "Show all feature flags and their states.",
-
     # -- Monitoring --
     "get_prometheus_metrics": "Export metrics in Prometheus text format.",
     "list_session_metrics": "List available session metrics.",
@@ -143,16 +131,13 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "resolve_reflection_database": "Resolve reflection database state.",
     "configure_tiers": "Configure storage tiers for data.",
     "tier_stats": "Statistics for storage tiers.",
-
     # -- Access log --
     "access_log_stats": "Statistics from the access log.",
-
     # -- Bottleneck analysis --
     "detect_quality_bottlenecks": "Detect quality bottlenecks in workflow.",
     "detect_session_pattern_bottlenecks": "Find session pattern bottlenecks.",
     "detect_velocity_bottlenecks": "Identify development velocity bottlenecks.",
     "get_bottleneck_insights": "Get actionable bottleneck insights.",
-
     # -- Session analytics --
     "get_session_analytics": "Comprehensive session analytics.",
     "get_session_streaks": "Development streak statistics.",
@@ -160,12 +145,10 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "get_productivity_insights": "Productivity analysis and insights.",
     "get_temporal_patterns": "Temporal development patterns.",
     "get_activity_correlations": "Correlations between activities.",
-
     # -- Workflow metrics --
     "get_workflow_metrics": "Workflow execution metrics.",
     "get_causal_chain": "Causal chain analysis for failures.",
     "get_error_hotspots": "Identify error hotspots in code.",
-
     # -- Memory health --
     "get_reflection_health": "Health check for the reflection database.",
     "reflection_stats": "Reflection database statistics.",
@@ -176,7 +159,6 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "deduplicate_content": "Find and remove duplicate reflections.",
     "deduplication_stats": "Statistics on duplicate content.",
     "find_duplicates": "Find duplicate entries in the database.",
-
     # -- Phase 4 skills analytics --
     "list_skills": "List all registered development skills.",
     "get_skill_details": "Detailed information about a specific skill.",
@@ -184,17 +166,14 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "get_skill_trend": "Usage trend for a skill over time.",
     "invoke_skill": "Invoke a registered skill.",
     "rollout_plan": "Plan a skill rollout strategy.",
-
     # -- Conscious agent --
     "start_conscious_agent": "Start the conscious agent monitoring loop.",
     "stop_conscious_agent": "Stop the conscious agent.",
     "force_conscious_analysis": "Force an immediate conscious analysis pass.",
-
     # -- Migration --
     "track_session_start": "Record session start for migration tracking.",
     "track_session_end": "Record session end for migration tracking.",
     "trigger_learning": "Trigger a learning cycle from session data.",
-
     # -- Pools --
     "create_pool": "Create a new worker pool.",
     "delete_pool": "Delete a worker pool.",
@@ -214,7 +193,6 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "check_pool_health": "Health check for all pools.",
     "get_pool_status": "Status of a specific pool.",
     "get_pool_manager_status": "Overall pool manager status.",
-
     # -- Serverless sessions --
     "create_serverless_session": "Create a serverless execution session.",
     "delete_serverless_session": "Delete a serverless session.",
@@ -223,12 +201,10 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "list_serverless_sessions": "List all serverless sessions.",
     "cleanup_serverless_sessions": "Clean up expired serverless sessions.",
     "configure_serverless_storage": "Configure storage backend for serverless.",
-
     # -- Team tools --
     "create_team": "Create a development team.",
     "get_team_statistics": "Team performance statistics.",
     "search_team_knowledge": "Search across team knowledge bases.",
-
     # -- LLM tools --
     "configure_llm_provider": "Configure an LLM provider connection.",
     "chat_with_llm": "Chat with a configured LLM.",
@@ -236,13 +212,11 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "list_llm_providers": "List configured LLM providers.",
     "generate_embeddings": "Generate embeddings for text.",
     "get_intelligence_stats": "LLM intelligence subsystem statistics.",
-
     # -- Prompt tools --
     "rewrite_query": "Rewrite a search query for better results.",
     "get_cleanup_recommendations": "Get cleanup recommendations for prompts.",
     "suggest_improvements": "Suggest prompt improvements.",
     "sync_claude_qwen_config": "Sync Claude/Qwen configuration.",
-
     # -- Code graph (subscribers) --
     "code_get_symbol_graph": "Get symbol graph for a codebase.",
     "code_search_symbols": "Search for symbols in code.",
@@ -251,7 +225,6 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "code_ingest_directory": "Ingest a directory into the code graph.",
     "get_symbol_info": "Get detailed info for a symbol.",
     "search_similar_patterns": "Search for similar code patterns.",
-
     # -- Code analysis (tree-sitter) --
     "get_file_problems": "Get problems/issues for a file.",
     "get_ide_diagnostics": "Get IDE diagnostic information.",
@@ -265,16 +238,13 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "get_community_baselines": "Get community baselines for quality.",
     "apply_pattern": "Apply a learned pattern to code.",
     "analyze_history": "Analyze development history for patterns.",
-
     # -- Oneiric discovery --
     "oneiric_discover_storage": "Discover Oneiric storage backends.",
     "oneiric_explain_storage": "Explain a Oneiric storage configuration.",
     "oneiric_resolve_storage": "Resolve Oneiric storage references.",
     "oneiric_storage_health": "Health check for Oneiric storage.",
-
     # -- Admin shell tracking --
     # (tools registered by register_admin_shell_tracking_tools)
-
     # -- Akosha integration --
     "sync_to_akosha": "Sync session data to Akosha for cross-system intelligence.",
     "akosha_sync_status": "Check Akosha sync status.",
@@ -283,7 +253,6 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "assign_memory_subcategory": "Assign subcategory to a memory.",
     "get_subcategories": "List subcategories for a category.",
     "category_stats": "Statistics for memory categories.",
-
     # -- Collaboration --
     "store_execution_result": "Store a tool execution result for collaboration.",
 }
@@ -312,24 +281,18 @@ def register_discovery_tools(mcp: Any) -> None:
 
         results: list[dict[str, str]] = []
         for tool_name, description in ALL_TOOLS_REGISTRY.items():
-            if (
-                query_lower in tool_name.lower()
-                or query_lower in description.lower()
-            ):
+            if query_lower in tool_name.lower() or query_lower in description.lower():
                 results.append({"name": tool_name, "description": description})
 
         results.sort(key=lambda r: r["name"])
 
-        logger.debug(
-            "discover_tools query=%r matched=%d", query_lower, len(results)
-        )
+        logger.debug("discover_tools query=%r matched=%d", query_lower, len(results))
 
         return {
             "found": len(results),
             "tools": results[:25],
             "hint": (
-                "Set SESSION_BUDDY_TOOL_PROFILE=full and restart "
-                "to enable all tools."
+                "Set SESSION_BUDDY_TOOL_PROFILE=full and restart to enable all tools."
             )
             if results
             else "No matching tools found. Try broader search terms.",

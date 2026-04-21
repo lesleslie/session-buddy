@@ -91,10 +91,10 @@ from session_buddy.adapters.knowledge_graph_adapter_oneiric import KnowledgeGrap
 async with KnowledgeGraphDatabaseAdapterOneiric() as kg:
     # Generate embeddings
     result = await kg.generate_embeddings_for_entities(batch_size=50)
-    
+
     # Discover relationships
     result = await kg.batch_discover_relationships(threshold=0.75, limit=597)
-    
+
     # Check stats
     stats = await kg.get_stats()
     print(f"Connectivity Ratio: {stats['connectivity_ratio']}")

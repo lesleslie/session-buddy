@@ -7,8 +7,8 @@ This document provides usage examples for the Phase 4 advanced analytics engine.
 The analytics engine provides three core capabilities:
 
 1. **Predictive Analytics** - Predict skill success probability
-2. **A/B Testing** - Compare skill strategies with statistical analysis
-3. **Time-Series Analysis** - Detect trends and anomalies in skill metrics
+1. **A/B Testing** - Compare skill strategies with statistical analysis
+1. **Time-Series Analysis** - Detect trends and anomalies in skill metrics
 
 ## Installation
 
@@ -293,22 +293,22 @@ if trend.trend == "insufficient_data":
 ### Predictive Analytics
 
 1. **Train regularly**: Retrain model weekly with fresh data
-2. **Handle missing features**: Return zeros/defaults for missing data
-3. **Feature importance**: Review feature importance to understand drivers
+1. **Handle missing features**: Return zeros/defaults for missing data
+1. **Feature importance**: Review feature importance to understand drivers
 
 ### A/B Testing
 
 1. **Minimum sample size**: Use at least 100 samples per group
-2. **Statistical significance**: Use p < 0.05 for decision making
-3. **Run duration**: Run tests for at least 7 days to capture weekly patterns
-4. **One variable**: Test one change at a time
+1. **Statistical significance**: Use p < 0.05 for decision making
+1. **Run duration**: Run tests for at least 7 days to capture weekly patterns
+1. **One variable**: Test one change at a time
 
 ### Time-Series Analysis
 
 1. **Trend detection**: Use 7-30 day windows for trend analysis
-2. **Anomaly threshold**: Use Z-score > 2.0 for anomaly detection
-3. **Hourly aggregation**: Use hourly granularity for detailed analysis
-4. **Seasonality**: Be aware of daily/weekly patterns
+1. **Anomaly threshold**: Use Z-score > 2.0 for anomaly detection
+1. **Hourly aggregation**: Use hourly granularity for detailed analysis
+1. **Seasonality**: Be aware of daily/weekly patterns
 
 ## Files Implemented
 

@@ -4,8 +4,8 @@ Provides standalone ULID generation functions that can be imported
 without requiring the full storage layer.
 """
 
-import time
 import os
+import time
 
 
 def generate_ulid() -> str:
@@ -17,13 +17,13 @@ def generate_ulid() -> str:
     # Try Druva first
     try:
         from druva import generate as generate_ulid_impl
+
         return generate_ulid_impl()
     except ImportError:
         # Use timestamp-based fallback
-        import struct
 
         timestamp_ms = int(time.time() * 1000)
-        timestamp_bytes = timestamp_ms.to_bytes(6, byteorder='big')
+        timestamp_bytes = timestamp_ms.to_bytes(6, byteorder="big")
 
         # Generate 10 bytes of randomness
         randomness = os.urandom(10)
@@ -37,7 +37,7 @@ def generate_ulid() -> str:
         # Convert 16 bytes to 128 bits, then encode as base32 (5 bits per char)
         # This gives us 26 characters (last char only uses 3 bits)
         result = []
-        value = int.from_bytes(ulid_bytes, byteorder='big')
+        value = int.from_bytes(ulid_bytes, byteorder="big")
 
         for _ in range(26):
             index = value & 0x1F  # Get lowest 5 bits
@@ -45,7 +45,7 @@ def generate_ulid() -> str:
             value >>= 5  # Shift right by 5 bits
 
         # Reverse to get correct order (most significant first)
-        return ''.join(reversed(result))
+        return "".join(reversed(result))
 
 
 def is_valid_ulid(value: str) -> bool:

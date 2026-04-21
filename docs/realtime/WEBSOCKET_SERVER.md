@@ -117,6 +117,7 @@ asyncio.run(client())
 ### Server → Client Messages
 
 #### Welcome Message
+
 ```json
 {
   "type": "connected",
@@ -126,6 +127,7 @@ asyncio.run(client())
 ```
 
 #### Metrics Update
+
 ```json
 {
   "type": "metrics_update",
@@ -152,6 +154,7 @@ asyncio.run(client())
 ```
 
 #### Subscription Confirmation
+
 ```json
 {
   "type": "subscription_confirmed",
@@ -161,6 +164,7 @@ asyncio.run(client())
 ```
 
 #### Pong Response
+
 ```json
 {
   "type": "pong"
@@ -170,6 +174,7 @@ asyncio.run(client())
 ### Client → Server Messages
 
 #### Subscribe to Skills
+
 ```json
 {
   "type": "subscribe",
@@ -180,6 +185,7 @@ asyncio.run(client())
 Set `skill` to `null` or omit to subscribe to all skills.
 
 #### Unsubscribe
+
 ```json
 {
   "type": "unsubscribe"
@@ -187,6 +193,7 @@ Set `skill` to `null` or omit to subscribe to all skills.
 ```
 
 #### Ping
+
 ```json
 {
   "type": "ping"
@@ -209,6 +216,7 @@ RealTimeMetricsServer(
 ```
 
 **Parameters:**
+
 - `host`: Server host address
 - `port`: Server port number
 - `db_path`: Path to SQLite database (default: `.session-buddy/skills.db`)
@@ -217,27 +225,35 @@ RealTimeMetricsServer(
 #### Methods
 
 ##### `async start()`
+
 Start the WebSocket server and metrics broadcaster.
 
 ##### `async stop()`
+
 Gracefully stop the server and close all connections.
 
 ##### `register_client(websocket)`
+
 Register a new WebSocket client.
 
 ##### `unregister_client(websocket)`
+
 Remove a WebSocket client.
 
 ##### `async broadcast_metrics()`
+
 Broadcast skill metrics to all connected clients (runs in background).
 
 ##### `async handle_client_message(websocket, message)`
+
 Handle incoming message from client.
 
 ##### `async handle_subscription(websocket, skill_name)`
+
 Handle skill subscription request.
 
 ##### `async client_handler(websocket)`
+
 Handle WebSocket client connection lifecycle.
 
 ## Configuration
@@ -255,6 +271,7 @@ server = RealTimeMetricsServer(
 ```
 
 **Trade-offs:**
+
 - Lower intervals = more responsive, higher CPU/network usage
 - Higher intervals = less resource usage, less responsive
 
@@ -319,10 +336,12 @@ ws.send(JSON.stringify({ type: 'subscribe', skill: null }));
 ### Scalability
 
 The server is designed for:
+
 - **Development**: 10-50 concurrent connections
 - **Production**: Up to 1000 concurrent connections with proper tuning
 
 For higher scale, consider:
+
 - Multiple server instances behind a load balancer
 - Redis pub/sub for cross-server broadcasting
 - Connection pooling and rate limiting
@@ -350,21 +369,25 @@ pytest tests/test_websocket_server.py -v
 ### Manual Testing
 
 1. **Start Server:**
+
    ```bash
    python examples/run_websocket_server.py
    ```
 
-2. **Test Client:**
+1. **Test Client:**
+
    ```bash
    python examples/websocket_client_example.py
    ```
 
-3. **Test Specific Skill:**
+1. **Test Specific Skill:**
+
    ```bash
    python examples/websocket_client_example.py pytest-run
    ```
 
-4. **Test Ping/Pong:**
+1. **Test Ping/Pong:**
+
    ```bash
    python examples/websocket_client_example.py --test-ping
    ```
@@ -379,6 +402,7 @@ server = RealTimeMetricsServer(port=8766)
 ```
 
 Or kill existing process:
+
 ```bash
 lsof -ti:8765 | xargs kill -9
 ```
@@ -406,6 +430,7 @@ lsof -ti:8765 | xargs kill -9
 ### Production Deployment
 
 1. **Authentication:**
+
    ```python
    # Add token-based auth
    async def client_handler(self, websocket):
@@ -415,7 +440,8 @@ lsof -ti:8765 | xargs kill -9
            return
    ```
 
-2. **TLS/SSL:**
+1. **TLS/SSL:**
+
    ```python
    import ssl
 
@@ -430,12 +456,14 @@ lsof -ti:8765 | xargs kill -9
    )
    ```
 
-3. **Rate Limiting:**
+1. **Rate Limiting:**
+
    - Limit connections per IP
    - Throttle message frequency
    - Implement backpressure
 
-4. **Input Validation:**
+1. **Input Validation:**
+
    - Validate all incoming JSON
    - Sanitize skill names
    - Limit message sizes
@@ -477,6 +505,6 @@ BSD-3-Clause
 
 ## See Also
 
-- [Session-Buddy Documentation](../README.md)
-- [V4 Schema](../storage/migrations/V4__phase4_extensions__up.sql)
-- [SkillsStorage API](../storage/skills_storage.py)
+- Session-Buddy Documentation
+- V4 Schema
+- SkillsStorage API

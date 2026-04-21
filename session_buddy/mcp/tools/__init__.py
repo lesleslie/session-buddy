@@ -13,6 +13,9 @@ from .advanced.fingerprint_tools import (
 )
 from .advanced.intent_detection_tools import register_intent_tools
 
+# Code analysis tools (tree-sitter integration)
+from .code_analysis.tools import register_code_analysis_tools
+
 # Collaboration tools
 from .collaboration.knowledge_graph_phase3_tools import (
     register_phase3_knowledge_graph_tools,
@@ -26,6 +29,9 @@ from .collaboration.team_tools import register_team_tools
 from .conversation.conversation_tools import (
     register_conversation_tools,
 )
+
+# Health check tools
+from .health_tools import register_health_tools_sb
 
 # Infrastructure tools
 from .infrastructure.access_log_tools import (
@@ -88,12 +94,6 @@ from .session.session_tools import register_session_tools
 
 # Skills tools (Phase 4 Analytics)
 from .skills.phase4_tools import register_phase4_tools
-
-# Code analysis tools (tree-sitter integration)
-from .code_analysis.tools import register_code_analysis_tools
-
-# Health check tools
-from .health_tools import register_health_tools_sb
 
 __all__ = [
     # Advanced

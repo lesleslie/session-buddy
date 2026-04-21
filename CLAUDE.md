@@ -474,6 +474,7 @@ Session-Buddy uses ZAI GLM models as the primary LLM provider:
 - **Provider chain**: `zai -> ollama`
 
 **Configuration** (in `settings/session-buddy.yaml` or environment variables):
+
 - `zai_api_key` / `ZAI_API_KEY` — ZAI coding plan subscription key
 - `zai_base_url` — API endpoint (default: `https://api.z.ai/api/coding/paas/v4`)
 - `zai_default_model` — Default model (default: `glm-4.7`)
@@ -481,6 +482,7 @@ Session-Buddy uses ZAI GLM models as the primary LLM provider:
 - `llm_fallback_chain` — Fallback order (default: `["zai", "ollama"]`)
 
 **Key files**:
+
 - `session_buddy/llm_providers.py` — LLMManager with multi-provider support
 - `session_buddy/llm/security.py` — API key validation and masking
 - `session_buddy/settings.py` — ZAI settings fields in SessionMgmtSettings
@@ -507,15 +509,15 @@ pytest --cov=session_buddy --cov-fail-under=85
 For new MCP tools:
 
 1. Add the tool in the appropriate `tools/` module.
-2. Register it through the server wiring.
-3. Add unit and integration coverage.
-4. Update any relevant status or statistics surfaces.
+1. Register it through the server wiring.
+1. Add unit and integration coverage.
+1. Update any relevant status or statistics surfaces.
 
 For memory-system changes:
 
 1. Update schema and storage behavior together.
-2. Cover both embedding and fallback modes.
-3. Verify local performance before expanding the feature surface.
+1. Cover both embedding and fallback modes.
+1. Verify local performance before expanding the feature surface.
 
 ### Troubleshooting
 

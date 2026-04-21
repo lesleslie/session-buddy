@@ -6,19 +6,17 @@ and cleanup operations.
 """
 
 import logging
-import os
 import shutil
 import typing as t
 from contextlib import suppress
 from datetime import datetime
+from pathlib import Path
+
+from session_buddy.core.hooks import HooksManager
+from session_buddy.core.quality_scoring import QualityScorer
 
 # Use ULID generator for reliable ID generation
 from session_buddy.core.ulid_generator import generate_ulid
-
-from pathlib import Path
-
-from session_buddy.core.hooks import HookResult, HooksManager
-from session_buddy.core.quality_scoring import QualityScorer
 from session_buddy.utils.git_operations import (
     create_checkpoint_commit,
     is_git_operation_in_progress,
@@ -58,16 +56,20 @@ class SessionLifecycleManager:
         # Use injected scorer or get from DI container
         if quality_scorer is None:
             from session_buddy.di import get_sync_typed
+
             try:
                 self.quality_scorer = get_sync_typed(QualityScorer)
             except Exception:
                 # Fallback to DefaultQualityScorer if DI not configured
                 from session_buddy.core.quality_scoring import DefaultQualityScorer
+
                 self.quality_scorer = DefaultQualityScorer()
         else:
             self.quality_scorer = quality_scorer
 
-        self.current_project: str | None = None  # CRITICAL: Initialize current project tracking
+        self.current_project: str | None = (
+            None  # CRITICAL: Initialize current project tracking
+        )
         self._quality_history: dict[str, list[int]] = {}  # project -> [scores]
         self._captured_insight_hashes: set[str] = (
             set()
@@ -120,7 +122,11 @@ class SessionLifecycleManager:
         result = await self.quality_scorer.calculate_quality_score(
             project_dir=project_dir
         )
-        self.logger.debug("Quality scorer returned type=%s, keys=%s", type(result).__name__, list(result.keys()) if isinstance(result, dict) else "not a dict")
+        self.logger.debug(
+            "Quality scorer returned type=%s, keys=%s",
+            type(result).__name__,
+            list(result.keys()) if isinstance(result, dict) else "not a dict",
+        )
         return result
 
     def _calculate_project_score(self, project_context: dict[str, bool]) -> float:
@@ -218,7 +224,8 @@ class SessionLifecycleManager:
         if not quality_data or not isinstance(quality_data, dict):
             self.logger.error(
                 "calculate_quality_score returned invalid data: type=%s, value=%s",
-                type(quality_data).__name__, quality_data
+                type(quality_data).__name__,
+                quality_data,
             )
             # Return default score if quality assessment fails
             return 75, {
@@ -236,7 +243,7 @@ class SessionLifecycleManager:
         if "total_score" not in quality_data:
             self.logger.error(
                 "Quality data missing 'total_score' key. Available keys: %s",
-                list(quality_data.keys())
+                list(quality_data.keys()),
             )
             # Add total_score if missing
             quality_data["total_score"] = quality_data.get("overall", 75)
@@ -829,7 +836,12 @@ class SessionLifecycleManager:
 
         """
         try:
-            from session_buddy.core.hooks import HookContext, HookResult, HookType, HooksManager
+            from session_buddy.core.hooks import (
+                HookContext,
+                HookResult,
+                HooksManager,
+                HookType,
+            )
             from session_buddy.di import get_sync_typed
 
             current_dir = Path(working_directory) if working_directory else Path.cwd()
@@ -865,12 +877,20 @@ class SessionLifecycleManager:
                     self.logger.warning("PRE_CHECKPOINT hooks failed: %s", str(e))
 
             # Quality assessment
-            self.logger.debug("Starting quality assessment for project: %s", current_dir)
+            self.logger.debug(
+                "Starting quality assessment for project: %s", current_dir
+            )
             quality_score, quality_data = await self.perform_quality_assessment(
                 project_dir=current_dir,
             )
-            self.logger.debug("Quality assessment complete. score=%d, data_type=%s, has_breakdown=%s",
-                quality_score, type(quality_data).__name__, "breakdown" in quality_data if isinstance(quality_data, dict) else False)
+            self.logger.debug(
+                "Quality assessment complete. score=%d, data_type=%s, has_breakdown=%s",
+                quality_score,
+                type(quality_data).__name__,
+                "breakdown" in quality_data
+                if isinstance(quality_data, dict)
+                else False,
+            )
 
             # Get previous score for trend analysis
             previous_score = self.get_previous_quality_score(self.current_project)
@@ -960,6 +980,7 @@ class SessionLifecycleManager:
 
         except Exception as e:
             import traceback
+
             self.logger.exception("Session checkpoint failed, error=%s", str(e))
             traceback.print_exc()  # Print full traceback for debugging
             return {"success": False, "error": f"{type(e).__name__}: {e}"}

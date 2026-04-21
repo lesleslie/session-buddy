@@ -4,29 +4,33 @@
 **Status:** ✅ Production Ready
 **Purpose:** Complete deployment and validation of Phase 4 features
 
----
+______________________________________________________________________
 
 ## Pre-Deployment Checklist
 
 ### 1. Environment Validation
 
 - [ ] **Python 3.13+ installed**
+
   ```bash
   python --version  # Should be 3.13.x
   ```
 
 - [ ] **All V4 dependencies installed**
+
   ```bash
   cd /path/to/session-buddy
   uv pip check  # Should pass without errors
   ```
 
 - [ ] **Sufficient disk space** (100MB recommended)
+
   ```bash
   df -h ~/.claude/data/
   ```
 
 - [ ] **Ports available** (8765 for WebSocket, 9090 for Prometheus)
+
   ```bash
   lsof -i :8765  # Should return empty
   lsof -i :9090  # Should return empty
@@ -35,6 +39,7 @@
 ### 2. Database Backup
 
 - [ ] **Current database backed up**
+
   ```bash
   cp ~/.claude/data/session_buddy.db ~/.claude/data/session_buddy.db.v3.backup
 
@@ -43,6 +48,7 @@
   ```
 
 - [ ] **Backup integrity verified**
+
   ```bash
   sqlite3 ~/.claude/data/session_buddy.db.v3.backup "SELECT COUNT(*) FROM skill_invocation;"
   # Should return non-zero if you have data
@@ -51,24 +57,27 @@
 ### 3. Migration Files Present
 
 - [ ] **V4 migration up file exists**
+
   ```bash
   ls -lh session_buddy/storage/migrations/V4__phase4_extensions__up.sql
   # Should be ~15KB (466 lines)
   ```
 
 - [ ] **V4 migration down file exists**
+
   ```bash
   ls -lh session_buddy/storage/migrations/V4__phase4_extensions__down.sql
   # Should be ~3KB (87 lines)
   ```
 
----
+______________________________________________________________________
 
 ## Deployment Steps
 
 ### Step 1: Apply V4 Migration
 
 - [ ] **Migration applied successfully**
+
   ```python
   from pathlib import Path
   from session_buddy.storage.migrations.base import MigrationManager
@@ -86,6 +95,7 @@
   ```
 
 - [ ] **Migration recorded in database**
+
   ```sql
   SELECT * FROM skill_migrations WHERE version = 4;
   # Should return one row with version=4
@@ -94,6 +104,7 @@
 ### Step 2: Verify V4 Schema
 
 - [ ] **All V4 tables created**
+
   ```sql
   SELECT COUNT(*) FROM sqlite_master
   WHERE type='table'
@@ -117,6 +128,7 @@
   ```
 
 - [ ] **All V4 views created**
+
   ```sql
   SELECT name FROM sqlite_master
   WHERE type='view'
@@ -132,6 +144,7 @@
   ```
 
 - [ ] **All V4 triggers created**
+
   ```sql
   SELECT name FROM sqlite_master
   WHERE type='trigger'
@@ -142,12 +155,14 @@
 ### Step 3: Initialize Taxonomy
 
 - [ ] **Taxonomy initialization script exists**
+
   ```bash
   ls -lh scripts/initialize_taxonomy.py
   # Should be ~10KB (360+ lines)
   ```
 
 - [ ] **Taxonomy initialized successfully**
+
   ```bash
   cd /path/to/session-buddy
   python scripts/initialize_taxonomy.py
@@ -161,6 +176,7 @@
   ```
 
 - [ ] **Taxonomy data verified**
+
   ```sql
   -- Check categories
   SELECT COUNT(*) FROM skill_categories;
@@ -175,13 +191,14 @@
   -- Expected: 4
   ```
 
----
+______________________________________________________________________
 
 ## Post-Deployment Validation
 
 ### 1. V3 Backward Compatibility
 
 - [ ] **V3 session management still works**
+
   ```python
   from session_buddy.storage.skills_storage import SkillsStorage
 
@@ -191,6 +208,7 @@
   ```
 
 - [ ] **V3 tracking still works**
+
   ```python
   invocation_id = storage.track_invocation(
       session_id=session_id,
@@ -202,6 +220,7 @@
   ```
 
 - [ ] **V3 queries still work**
+
   ```python
   metrics = storage.get_skill_metrics("test-skill")
   # Should return dict with effectiveness metrics
@@ -212,6 +231,7 @@
 #### Real-Time Monitoring
 
 - [ ] **WebSocket server starts**
+
   ```python
   from session_buddy.realtime import RealTimeMetricsServer
 
@@ -221,12 +241,14 @@
   ```
 
 - [ ] **Real-time metrics query works**
+
   ```python
   metrics = storage.get_real_time_metrics(limit=5)
   # Should return list of top 5 skills
   ```
 
 - [ ] **Anomaly detection works**
+
   ```python
   anomalies = storage.detect_anomalies(threshold=2.0)
   # Should return list (empty if no anomalies)
@@ -235,6 +257,7 @@
 #### Analytics Engine
 
 - [ ] **Predictive model works**
+
   ```python
   from session_buddy.analytics import get_predictor
 
@@ -249,6 +272,7 @@
   ```
 
 - [ ] **A/B testing framework works**
+
   ```python
   from session_buddy.analytics import get_ab_framework, ABTestConfig
 
@@ -263,6 +287,7 @@
   ```
 
 - [ ] **Time-series analysis works**
+
   ```python
   from session_buddy.analytics import get_analyzer
 
@@ -274,6 +299,7 @@
 #### Cross-Session Learning
 
 - [ ] **Collaborative filtering works**
+
   ```python
   from session_buddy.analytics import get_collaborative_engine
 
@@ -283,6 +309,7 @@
   ```
 
 - [ ] **Community baselines work**
+
   ```python
   baselines = storage.get_community_baselines()
   # Should return list of skills with global metrics
@@ -291,6 +318,7 @@
 #### MCP Tools
 
 - [ ] **Phase 4 MCP tools registered**
+
   ```python
   # Check server logs for tool registration
   # Should see:
@@ -303,6 +331,7 @@
   ```
 
 - [ ] **MCP tools execute successfully**
+
   ```python
   # Via MCP client
   result = await call_tool("get_real_time_metrics", {"limit": 5})
@@ -312,6 +341,7 @@
 ### 3. Integration Tests
 
 - [ ] **All Phase 4 integration tests pass**
+
   ```bash
   cd /path/to/session-buddy
   pytest tests/test_phase4_integration.py -v
@@ -320,6 +350,7 @@
   ```
 
 - [ ] **Test coverage meets threshold**
+
   ```bash
   pytest tests/test_phase4_integration.py --cov=session_buddy --cov-report=term
 
@@ -327,19 +358,21 @@
   ```
 
 - [ ] **No regression in existing tests**
+
   ```bash
   pytest tests/ -v --ignore=tests/test_phase4_integration.py
 
   # All existing tests should still pass
   ```
 
----
+______________________________________________________________________
 
 ## Performance Validation
 
 ### 1. Query Performance
 
 - [ ] **Real-time metrics < 100ms**
+
   ```python
   import time
   start = time.time()
@@ -349,6 +382,7 @@
   ```
 
 - [ ] **Anomaly detection < 200ms**
+
   ```python
   start = time.time()
   anomalies = storage.detect_anomalies(threshold=2.0)
@@ -357,6 +391,7 @@
   ```
 
 - [ ] **Collaborative filtering < 200ms**
+
   ```python
   start = time.time()
   recommendations = engine.recommend_from_similar_users("user123", limit=5)
@@ -367,11 +402,13 @@
 ### 2. WebSocket Performance
 
 - [ ] **Broadcast latency < 100ms**
+
   - Connect WebSocket client
   - Measure time from broadcast to receipt
   - Should be < 100ms for 10 clients
 
 - [ ] **Handles 100+ concurrent clients**
+
   - Connect 100 WebSocket clients
   - Verify all receive updates
   - No dropped connections
@@ -379,6 +416,7 @@
 ### 3. Database Size
 
 - [ ] **Database size reasonable**
+
   ```bash
   ls -lh ~/.claude/data/session_buddy.db
 
@@ -387,19 +425,21 @@
   ```
 
 - [ ] **Time-series data growth manageable**
+
   ```sql
   SELECT COUNT(*) FROM skill_time_series;
   SELECT COUNT(*) * 300 / 1024 / 1024 as "Estimated MB"
   FROM skill_time_series;
   ```
 
----
+______________________________________________________________________
 
 ## Rollback Testing
 
 ### 1. Rollback Procedure
 
 - [ ] **Rollback tested successfully**
+
   ```python
   from pathlib import Path
   from session_buddy.storage.migrations.base import MigrationManager
@@ -416,6 +456,7 @@
   ```
 
 - [ ] **V3 functionality restored after rollback**
+
   ```python
   storage = SkillsStorage()
   session_id = storage.create_session(project_path="/test")
@@ -430,13 +471,14 @@
   # Should succeed without errors
   ```
 
----
+______________________________________________________________________
 
 ## Monitoring Setup (Optional)
 
 ### 1. Prometheus Exporter
 
 - [ ] **Prometheus exporter starts**
+
   ```python
   from session_buddy.realtime import PrometheusExporter
 
@@ -446,6 +488,7 @@
   ```
 
 - [ ] **Metrics endpoint accessible**
+
   ```bash
   curl http://localhost:9090/metrics
 
@@ -456,6 +499,7 @@
   ```
 
 - [ ] **Grafana dashboard configured** (if using Grafana)
+
   - Add Prometheus data source
   - Import dashboard from `docs/grafana/`
   - Verify panels display data
@@ -463,6 +507,7 @@
 ### 2. Health Checks
 
 - [ ] **WebSocket health check**
+
   ```bash
   # Test WebSocket connection
   wscat -c ws://localhost:8765
@@ -470,6 +515,7 @@
   ```
 
 - [ ] **Database health check**
+
   ```python
   from session_buddy.storage.skills_storage import SkillsStorage
 
@@ -478,28 +524,31 @@
   # Should return {"status": "healthy"}
   ```
 
----
+______________________________________________________________________
 
 ## Documentation Verification
 
 - [ ] **README updated with Phase 4 features**
+
   - Check for "Real-Time Monitoring" section
   - Check for "Advanced Analytics" section
   - Check for "Cross-Session Learning" section
 
 - [ ] **Migration guide exists**
+
   ```bash
   ls -lh docs/migrations/V3_TO_V4_MIGRATION_GUIDE.md
   # Should exist and be comprehensive
   ```
 
 - [ ] **API documentation updated**
+
   ```bash
   ls -lh docs/user/MCP_TOOLS_REFERENCE.md
   # Should include Phase 4 tools
   ```
 
----
+______________________________________________________________________
 
 ## Final Sign-Off
 
@@ -525,16 +574,16 @@
 - [ ] **No errors in logs**
 - [ ] **User acceptance confirmed**
 
----
+______________________________________________________________________
 
 ## Contact & Support
 
 **Issues Encountered?**
 
 1. **Check logs:** `~/.claude/logs/session-buddy.log`
-2. **Run diagnostics:** `python -m pytest tests/test_phase4_integration.py -v`
-3. **Verify migration:** `sqlite3 skills.db "SELECT * FROM skill_migrations WHERE version=4;"`
-4. **Test rollback:** If all else fails, rollback and restore from backup
+1. **Run diagnostics:** `python -m pytest tests/test_phase4_integration.py -v`
+1. **Verify migration:** `sqlite3 skills.db "SELECT * FROM skill_migrations WHERE version=4;"`
+1. **Test rollback:** If all else fails, rollback and restore from backup
 
 **Documentation:**
 
@@ -547,7 +596,7 @@
 **Breaking Changes:** None
 **Recommendation:** Deploy during low-traffic window for first migration
 
----
+______________________________________________________________________
 
 **Last Updated:** 2026-02-10
 **Checklist Version:** 1.0

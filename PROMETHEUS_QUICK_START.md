@@ -54,6 +54,7 @@ open http://localhost:9090/metrics
 ## Metrics Reference
 
 ### Counter: skill_invocations_total
+
 ```python
 # Automatically incremented by record_invocation()
 exporter.record_invocation("pytest-run", "execution", True, 45.2)
@@ -62,6 +63,7 @@ exporter.record_invocation("pytest-run", "execution", True, 45.2)
 **Labels:** `skill_name`, `workflow_phase`, `completed` ("true"/"false")
 
 ### Histogram: skill_duration_seconds
+
 ```python
 # Automatically recorded by record_invocation()
 exporter.record_invocation("pytest-run", "execution", True, 45.2)
@@ -72,6 +74,7 @@ exporter.record_invocation("pytest-run", "execution", True, 45.2)
 **Buckets:** [0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 300.0] seconds
 
 ### Gauge: skill_completion_rate
+
 ```python
 # Manually update completion rate
 exporter.update_completion_rate("pytest-run", 0.92)
@@ -82,6 +85,7 @@ exporter.update_completion_rate("pytest-run", 0.92)
 **Range:** 0.0 to 1.0
 
 ### Gauge: active_sessions_total
+
 ```python
 # Update active session count
 exporter.update_active_sessions(5)
@@ -90,6 +94,7 @@ exporter.update_active_sessions(5)
 **Labels:** None (global counter)
 
 ### Counter: anomalies_detected_total
+
 ```python
 # Record anomaly detection
 exporter.record_anomaly("performance_drop", "pytest-run")
@@ -140,6 +145,7 @@ prometheus --config.file=prometheus.yml
 ## Grafana Dashboard Examples
 
 ### Panel 1: Skill Completion Rate
+
 ```
 Metric: skill_completion_rate
 Legend: {{skill_name}}
@@ -147,6 +153,7 @@ Type: Gauge
 ```
 
 ### Panel 2: Average Duration (p95)
+
 ```promql
 histogram_quantile(0.95,
   sum(rate(skill_duration_seconds_bucket[5m])) by (skill_name, le)
@@ -154,17 +161,20 @@ histogram_quantile(0.95,
 ```
 
 ### Panel 3: Invocation Rate
+
 ```promql
 sum(rate(skill_invocations_total[5m])) by (skill_name)
 ```
 
 ### Panel 4: Active Sessions
+
 ```
 Metric: active_sessions_total
 Type: Stat
 ```
 
 ### Panel 5: Anomalies by Type
+
 ```promql
 sum(anomalies_detected_total) by (anomaly_type)
 ```
@@ -172,6 +182,7 @@ sum(anomalies_detected_total) by (anomaly_type)
 ## Common Patterns
 
 ### Track Skill Success Rate
+
 ```python
 # In your skill execution code
 try:
@@ -195,6 +206,7 @@ except Exception as e:
 ```
 
 ### Periodic Completion Rate Update
+
 ```python
 import asyncio
 
@@ -213,6 +225,7 @@ async def update_metrics_periodically():
 ```
 
 ### Anomaly Detection Integration
+
 ```python
 # In your anomaly detection logic
 if deviation_score > 2.0:
@@ -225,12 +238,14 @@ if deviation_score > 2.0:
 ## Troubleshooting
 
 ### Port Already in Use
+
 ```python
 # Use a different port
 exporter = PrometheusExporter(port=9091)
 ```
 
 ### Metrics Not Appearing
+
 ```python
 # Check if server is running
 if exporter.is_running():
@@ -240,6 +255,7 @@ else:
 ```
 
 ### Label Cardinality Issues
+
 ```python
 # Keep label values limited (<100 unique values)
 # Use "unknown" for missing values
@@ -249,11 +265,11 @@ exporter.record_invocation("skill", None, True, 1.0)  # phase="unknown"
 ## Best Practices
 
 1. **Start exporter once** at application startup
-2. **Record metrics synchronously** in your skill execution path
-3. **Update gauges periodically** (e.g., every 60 seconds)
-4. **Use consistent label values** (lowercase, underscores)
-5. **Monitor metric cardinality** (keep <10k unique metric series)
-6. **Test in development** before production deployment
+1. **Record metrics synchronously** in your skill execution path
+1. **Update gauges periodically** (e.g., every 60 seconds)
+1. **Use consistent label values** (lowercase, underscores)
+1. **Monitor metric cardinality** (keep \<10k unique metric series)
+1. **Test in development** before production deployment
 
 ## Files Reference
 
@@ -264,12 +280,13 @@ exporter.record_invocation("skill", None, True, 1.0)  # phase="unknown"
 ## Support
 
 For issues or questions:
-1. Check the test script: `python test_prometheus_metrics.py`
-2. Verify Prometheus config: `promtool check config prometheus.yml`
-3. Test endpoint manually: `curl http://localhost:9090/metrics`
-4. Review logs for errors
 
----
+1. Check the test script: `python test_prometheus_metrics.py`
+1. Verify Prometheus config: `promtool check config prometheus.yml`
+1. Test endpoint manually: `curl http://localhost:9090/metrics`
+1. Review logs for errors
+
+______________________________________________________________________
 
 **Status:** ✅ Production Ready
 **Version:** 1.0.0

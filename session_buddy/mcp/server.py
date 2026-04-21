@@ -18,11 +18,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from ..server_optimized import mcp
 from mcp_common.tools import ToolProfile
 
+from ..server_optimized import mcp
 from .tools.profiles import (
-    FULL_REGISTRATIONS,
     MANDATORY_REGISTRATIONS,
     PROFILE_REGISTRATIONS,
 )
@@ -69,11 +68,11 @@ from .tools import (
     register_workflow_metrics_tools,
 )
 
-# Import Prometheus metrics tools
-from .tools.monitoring import register_prometheus_metrics_tools
-
 # Import discovery tools (always registered)
 from .tools.discovery_tools import register_discovery_tools
+
+# Import Prometheus metrics tools
+from .tools.monitoring import register_prometheus_metrics_tools
 
 # ---------------------------------------------------------------------------
 # Registry: map function name -> callable

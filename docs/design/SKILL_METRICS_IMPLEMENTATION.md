@@ -913,7 +913,7 @@ def test_skill_effectiveness_analysis(temp_project):
 
 **File:** `docs/features/SKILL_METRICS_AGGREGATION.md`
 
-```markdown
+````markdown
 # Cross-Project Skill Metrics Aggregation
 
 ## Overview
@@ -927,7 +927,7 @@ Mahavishnu provides privacy-first cross-project skill metrics aggregation, enabl
 ```bash
 /register_project project_path="/Users/les/Projects/crackerjack" project_name="Crackerjack" project_type="cli"
 /register_project project_path="/Users/les/Projects/session-buddy" project_name="Session Buddy" project_type="mcp-server"
-```
+````
 
 ### 2. Collect Metrics
 
@@ -982,7 +982,8 @@ Mahavishnu provides privacy-first cross-project skill metrics aggregation, enabl
 ## Usage Examples
 
 See implementation design doc for detailed examples.
-```
+
+````
 
 ## Integration Points
 
@@ -1011,7 +1012,7 @@ The skill metrics JSON file in crackerjack should follow this schema:
     ]
   }
 }
-```
+````
 
 ### With Mahavishnu Workflow Orchestration
 
@@ -1047,7 +1048,7 @@ def execute_workflow(workflow_name: str, project_id: str):
 
 - [ ] All tests passing
 - [ ] Privacy guarantees met (no external data transmission)
-- [ ] Performance: aggregation completes in <5 seconds for 1000 records
+- [ ] Performance: aggregation completes in \<5 seconds for 1000 records
 - [ ] MCP tools registered and functional
 - [ ] Documentation complete
 - [ ] Example workflows demonstrated
@@ -1057,6 +1058,6 @@ def execute_workflow(workflow_name: str, project_id: str):
 After implementation:
 
 1. **Workflow Telemetry**: Add workflow execution tracking
-2. **Pattern Detection**: Implement skill co-occurrence analysis
-3. **Recommendations**: Build intelligent workflow optimization
-4. **Visualization**: Create skill usage trend exports
+1. **Pattern Detection**: Implement skill co-occurrence analysis
+1. **Recommendations**: Build intelligent workflow optimization
+1. **Visualization**: Create skill usage trend exports

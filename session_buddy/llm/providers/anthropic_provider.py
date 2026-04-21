@@ -31,7 +31,9 @@ class AnthropicProvider(LLMProvider):
             try:
                 import anthropic
 
-                self._client = anthropic.AsyncAnthropic(api_key=self.api_key, base_url=self.base_url)
+                self._client = anthropic.AsyncAnthropic(
+                    api_key=self.api_key, base_url=self.base_url
+                )
             except ImportError:  # pragma: no cover - optional dependency
                 msg = "Anthropic package not installed. Install with: pip install anthropic"
                 raise ImportError(msg)

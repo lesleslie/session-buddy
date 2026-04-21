@@ -555,4 +555,4 @@ ______________________________________________________________________
 - **Automation**: Set up lifecycle policies for old uploads
 - **Documentation**: Document your specific setup for team
 
-For technical details, see [API Reference](API_REFERENCE.md) or [Developer Guide](DEVELOPER.md).
+For technical details, see API Reference or Developer Guide.

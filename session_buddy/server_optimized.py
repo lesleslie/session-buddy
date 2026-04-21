@@ -5,6 +5,7 @@ This is the refactored, modular version of the session management server.
 It's organized into focused modules for better maintainability and performance.
 """
 
+import os
 import sys
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
@@ -72,16 +73,19 @@ from session_buddy.utils.logging import get_session_logger
 
 logger = get_session_logger()
 
-# Import required modules for automatic lifecycle
-import os
-
 from session_buddy.core import SessionLifecycleManager
+from session_buddy.di import configure
+from session_buddy.mcp.telemetry import attach_otel_middleware, configure_otel_tracing
 from session_buddy.utils.git_worktrees import get_git_root, is_git_repository
 
 # Configure DI container BEFORE creating lifecycle manager
 # This ensures MCPQualityScorer is registered instead of DefaultQualityScorer
-from session_buddy.di import configure
+
 configure()
+configure_otel_tracing(
+    service_name="session-buddy",
+    environment=os.getenv("SESSION_BUDDY_ENVIRONMENT", "production"),
+)
 
 # Global session manager for lifespan handlers (now with proper DI injection)
 lifecycle_manager = SessionLifecycleManager()
@@ -142,6 +146,11 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
 
 # Initialize MCP server with lifespan
 mcp = FastMCP("session-buddy", version=__version__, lifespan=session_lifecycle)
+attach_otel_middleware(
+    mcp,
+    service_name="session-buddy",
+    environment=os.getenv("SESSION_BUDDY_ENVIRONMENT", "production"),
+)
 
 
 # HTTP health endpoint for Claude Code compatibility
@@ -150,7 +159,9 @@ async def health_check(request: Any) -> Any:
     """HTTP health check endpoint for Claude Code `mcp list` compatibility."""
     from starlette.responses import JSONResponse
 
-    return JSONResponse({"status": "ok", "service": "session-buddy", "version": __version__})
+    return JSONResponse(
+        {"status": "ok", "service": "session-buddy", "version": __version__}
+    )
 
 
 @mcp.custom_route("/healthz", methods=["GET"])

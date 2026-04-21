@@ -54,7 +54,10 @@ class KGExtractor:
         Returns:
             True if grammar is available
         """
-        from mcp_common.parsing.tree_sitter import SupportedLanguage, ensure_language_loaded
+        from mcp_common.parsing.tree_sitter import (
+            SupportedLanguage,
+            ensure_language_loaded,
+        )
 
         try:
             lang = SupportedLanguage(language.lower())

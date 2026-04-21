@@ -493,7 +493,7 @@ Successfully implemented a comprehensive metrics monitoring system that transfor
 
 - [Quick Start Guide](CRACKERJACK_MONITORING_QUICK_START.md)
 - [Full Documentation](CRACKERJACK_METRICS_MONITORING.md)
-- [Visualization Guide](CRACKERJACK_DASHBOARD_VISUALIZATION.md)
+- Visualization Guide
 - [Session Buddy README](../README.md)
 - [Crackerjack Integration](../README.md#crackerjack-integration)
 

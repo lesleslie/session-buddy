@@ -9,13 +9,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 import typing as t
 from dataclasses import dataclass
-import time
 
-from session_buddy.utils.error_management import _get_logger
 from fastmcp import FastMCP
-
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +33,9 @@ class CircuitBreakerState:
         self.last_failure_time = time.time()
         if self.failure_count >= self.failure_threshold:
             self.is_open = True
-            logger.warning(f"Circuit breaker opened after {self.failure_count} failures")
+            logger.warning(
+                f"Circuit breaker opened after {self.failure_count} failures"
+            )
 
     def record_success(self) -> None:
         self.failure_count = 0
@@ -237,7 +237,7 @@ class PyCharmMCPAdapter:
         file_pattern: str | None,
     ) -> list[SearchResult]:
         if not self._mcp:
-                return self._fallback_search(pattern, file_pattern)
+            return self._fallback_search(pattern, file_pattern)
 
         try:
             results = await self._mcp.search_regex(
@@ -448,29 +448,35 @@ def register_ide_tools(mcp: FastMCP) -> None:
             # Convert to ToolIssue-compatible format
             issues = []
             for prob in problems:
-                issues.append({
-                    "file_path": file_path,
-                    "line_number": prob.get("line", 0),
-                    "column": prob.get("column", 0),
-                    "message": prob.get("message", ""),
-                    "severity": prob.get("severity", "ERROR").upper(),
-                    "category": prob.get("category", "GENERAL"),
-                })
+                issues.append(
+                    {
+                        "file_path": file_path,
+                        "line_number": prob.get("line", 0),
+                        "column": prob.get("column", 0),
+                        "message": prob.get("message", ""),
+                        "severity": prob.get("severity", "ERROR").upper(),
+                        "category": prob.get("category", "GENERAL"),
+                    }
+                )
 
-            return json.dumps({
-                "success": True,
-                "file_path": file_path,
-                "count": len(issues),
-                "issues": issues,
-            })
+            return json.dumps(
+                {
+                    "success": True,
+                    "file_path": file_path,
+                    "count": len(issues),
+                    "issues": issues,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Failed to get IDE diagnostics: {e}")
-            return json.dumps({
-                "success": False,
-                "error": str(e),
-                "file_path": file_path,
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": str(e),
+                    "file_path": file_path,
+                }
+            )
 
     @mcp.tool()
     async def search_code_patterns(
@@ -484,29 +490,35 @@ def register_ide_tools(mcp: FastMCP) -> None:
             # Convert to serializable format
             matches = []
             for result in results:
-                matches.append({
-                    "file_path": result.file_path,
-                    "line_number": result.line_number,
-                    "column": result.column,
-                    "match_text": result.match_text,
-                    "context_before": result.context_before,
-                    "context_after": result.context_after,
-                })
+                matches.append(
+                    {
+                        "file_path": result.file_path,
+                        "line_number": result.line_number,
+                        "column": result.column,
+                        "match_text": result.match_text,
+                        "context_before": result.context_before,
+                        "context_after": result.context_after,
+                    }
+                )
 
-            return json.dumps({
-                "success": True,
-                "pattern": pattern,
-                "count": len(matches),
-                "results": matches,
-            })
+            return json.dumps(
+                {
+                    "success": True,
+                    "pattern": pattern,
+                    "count": len(matches),
+                    "results": matches,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Failed to search code patterns: {e}")
-            return json.dumps({
-                "success": False,
-                "error": str(e),
-                "pattern": pattern,
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": str(e),
+                    "pattern": pattern,
+                }
+            )
 
     @mcp.tool()
     async def get_symbol_info(symbol_name: str) -> str:
@@ -514,22 +526,28 @@ def register_ide_tools(mcp: FastMCP) -> None:
         try:
             info = await adapter.get_symbol_info(symbol_name)
             if info:
-                return json.dumps({
-                    "success": True,
-                    "symbol_name": symbol_name,
-                    **info,
-                })
-            return json.dumps({
-                "success": False,
-                "error": f"Symbol '{symbol_name}' not found",
-            })
+                return json.dumps(
+                    {
+                        "success": True,
+                        "symbol_name": symbol_name,
+                        **info,
+                    }
+                )
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": f"Symbol '{symbol_name}' not found",
+                }
+            )
 
         except Exception as e:
             logger.error(f"Failed to get symbol info: {e}")
-            return json.dumps({
-                "success": False,
-                "error": str(e),
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": str(e),
+                }
+            )
 
     @mcp.tool()
     async def find_usages(symbol_name: str) -> str:
@@ -540,45 +558,55 @@ def register_ide_tools(mcp: FastMCP) -> None:
             # Convert to serializable format
             usage_list = []
             for usage in usages:
-                usage_list.append({
-                    "file_path": usage.get("file_path", ""),
-                    "line_number": usage.get("line", 0),
-                    "column": usage.get("column", 0),
-                    "type": usage.get("type", "reference"),
-                    "symbol": usage.get("symbol", symbol_name),
-                })
+                usage_list.append(
+                    {
+                        "file_path": usage.get("file_path", ""),
+                        "line_number": usage.get("line", 0),
+                        "column": usage.get("column", 0),
+                        "type": usage.get("type", "reference"),
+                        "symbol": usage.get("symbol", symbol_name),
+                    }
+                )
 
-            return json.dumps({
-                "success": True,
-                "symbol_name": symbol_name,
-                "count": len(usage_list),
-                "usages": usage_list,
-            })
+            return json.dumps(
+                {
+                    "success": True,
+                    "symbol_name": symbol_name,
+                    "count": len(usage_list),
+                    "usages": usage_list,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Failed to find usages: {e}")
-            return json.dumps({
-                "success": False,
-                "error": str(e),
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": str(e),
+                }
+            )
 
     @mcp.tool()
     async def pycharm_health() -> str:
         """Check health of PyCharm MCP integration."""
         try:
             health = await adapter.health_check()
-            return json.dumps({
-                "success": True,
-                "healthy": health["mcp_available"],
-                **health,
-            })
+            return json.dumps(
+                {
+                    "success": True,
+                    "healthy": health["mcp_available"],
+                    **health,
+                }
+            )
 
         except Exception as e:
             logger.error(f"Health check failed: {e}")
-            return json.dumps({
-                "success": False,
-                "error": str(e),
-            })
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": str(e),
+                }
+            )
 
     logger.info("PyCharm IDE tools registered successfully")
 

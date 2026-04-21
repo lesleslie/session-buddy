@@ -4,7 +4,7 @@
 **Status:** ✅ Production Ready
 **Breaking Changes:** None (V4 is purely additive)
 
----
+______________________________________________________________________
 
 ## Executive Summary
 
@@ -23,10 +23,10 @@ V4 introduces enterprise-grade analytics, real-time monitoring, cross-session le
 
 - ✅ **Zero Downtime** - V4 tables added independently
 - ✅ **No Breaking Changes** - All V3 features work unchanged
-- ✅ **Rollback Safe** - Complete V4__down.sql available
+- ✅ **Rollback Safe** - Complete V4\_\_down.sql available
 - ✅ **Data Preservation** - No existing data modified
 
----
+______________________________________________________________________
 
 ## Migration Overview
 
@@ -48,7 +48,7 @@ V4 introduces enterprise-grade analytics, real-time monitoring, cross-session le
 ✅ **Existing queries and views functional**
 ✅ **No API changes to V3 functionality**
 
----
+______________________________________________________________________
 
 ## Pre-Migration Checklist
 
@@ -89,11 +89,12 @@ uv sync --all-extras
 ```
 
 **V4 New Dependencies:**
+
 - `websockets>=15.0` - WebSocket server
 - `scikit-learn>=1.6.0` - Predictive models
 - `scipy>=1.15.0` - Statistical analysis
 
----
+______________________________________________________________________
 
 ## Migration Steps
 
@@ -168,11 +169,12 @@ python scripts/initialize_taxonomy.py
 ```
 
 This pre-populates:
+
 - **6 Categories**: Code Quality, Testing, Documentation, Build & Deploy, Git & Version Control, Linting & Formatting
 - **4 Modalities**: ruff-check (code→diagnostics), pytest-run (testing→test_results), sphinx-build (documentation→html_docs), docker-build (deployment→docker_image)
 - **4 Dependencies**: ruff-check ↔ black-format, pytest-run ↔ coverage-report, git-commit → git-push, docker-build → k8s-deploy
 
----
+______________________________________________________________________
 
 ## Post-Migration Setup
 
@@ -229,7 +231,7 @@ result = await call_tool("get_collaborative_recommendations",
 print(result["recommendations"])
 ```
 
----
+______________________________________________________________________
 
 ## Data Backfill (Optional)
 
@@ -294,7 +296,7 @@ engine.update_community_baselines()
 print("Community baselines initialized")
 ```
 
----
+______________________________________________________________________
 
 ## Rollback Procedure
 
@@ -340,7 +342,7 @@ sqlite3 ~/.claude/data/session_buddy.db < session_buddy/storage/migrations/V4__p
 cp ~/.claude/data/session_buddy.db.v3.backup ~/.claude/data/session_buddy.db
 ```
 
----
+______________________________________________________________________
 
 ## Verification
 
@@ -382,7 +384,7 @@ recommendations = engine.recommend_from_similar_users("test_user", limit=5)
 print(f"✓ Collaborative filtering: {len(recommendations)} recommendations")
 ```
 
----
+______________________________________________________________________
 
 ## Performance Considerations
 
@@ -397,6 +399,7 @@ print(f"✓ Collaborative filtering: {len(recommendations)} recommendations")
 - User interactions: ~300 bytes per invocation
 
 **Example:** 100 skills, 1000 invocations/day
+
 - V3: ~5MB
 - V4: ~15MB (3x increase, primarily time-series data)
 
@@ -419,29 +422,32 @@ print(f"✓ Collaborative filtering: {len(recommendations)} recommendations")
 - Anomaly detection: Limit `time_window_hours` for faster scans
 - Collaborative filtering: Cache similar users (TTL: 1 hour)
 
----
+______________________________________________________________________
 
 ## Troubleshooting
 
 ### Issue: Migration Fails
 
-**Symptom:** Error applying V4__up.sql
+**Symptom:** Error applying V4\_\_up.sql
 
 **Solutions:**
 
 1. **Check database is not locked:**
+
    ```bash
    # Ensure no processes using the database
    lsof ~/.claude/data/session_buddy.db
    ```
 
-2. **Verify V3 migration was applied:**
+1. **Verify V3 migration was applied:**
+
    ```sql
    SELECT * FROM skill_migrations ORDER BY version DESC LIMIT 5;
    -- Should see V3, V2, V1 entries
    ```
 
-3. **Check disk space:**
+1. **Check disk space:**
+
    ```bash
    df -h ~/.claude/data/
    # Need at least 100MB free
@@ -454,12 +460,14 @@ print(f"✓ Collaborative filtering: {len(recommendations)} recommendations")
 **Solutions:**
 
 1. **Check port 8765 is free:**
+
    ```bash
    lsof -i :8765
    # Kill existing process if needed
    ```
 
-2. **Use different port:**
+1. **Use different port:**
+
    ```python
    server = RealTimeMetricsServer(port=8766)  # Alternate port
    ```
@@ -471,6 +479,7 @@ print(f"✓ Collaborative filtering: {len(recommendations)} recommendations")
 **Solutions:**
 
 1. **Ensure sufficient training data:**
+
    ```python
    predictor = get_predictor("skills.db")
    result = predictor.train_model()
@@ -478,41 +487,46 @@ print(f"✓ Collaborative filtering: {len(recommendations)} recommendations")
    # Need at least 1000 invocations for decent accuracy
    ```
 
-2. **Check feature importance:**
+1. **Check feature importance:**
+
    ```python
    print(result['feature_importance'])
    # Features with importance < 0.05 may not be predictive
    ```
 
-3. **Collect more data:** Model improves with more historical invocations
+1. **Collect more data:** Model improves with more historical invocations
 
----
+______________________________________________________________________
 
 ## Next Steps
 
 After successful migration:
 
 1. **Explore New Features:**
+
    - Start WebSocket server for real-time dashboards
    - Try collaborative filtering recommendations
    - Set up A/B tests for recommendation strategies
 
-2. **Configure Integrations:**
+1. **Configure Integrations:**
+
    - Enable Crackerjack quality gate tracking
    - Set up IDE plugin for context-aware recommendations
    - Configure CI/CD pipeline tracking
 
-3. **Monitor Performance:**
+1. **Monitor Performance:**
+
    - Check anomaly detection reports
    - Review time-series trends
    - Analyze community baselines
 
-4. **Optimize Over Time:**
+1. **Optimize Over Time:**
+
    - Tune predictive models with more data
    - Adjust anomaly detection thresholds
    - Refine skill taxonomy based on usage patterns
 
----
+______________________________________________________________________
 
 ## Support
 
@@ -539,7 +553,7 @@ pytest tests/test_phase4_integration.py --cov=session_buddy --cov-report=html
 **Breaking Changes:** None
 **Recommendation:** Migrate at your convenience
 
----
+______________________________________________________________________
 
 **Last Updated:** 2026-02-10
 **Migration Version:** V4 (Phase 4: Advanced Analytics & Integration)
