@@ -1,3 +1,148 @@
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable
+
+
+@dataclass
+class SkillInvocation:
+    skill_name: str
+    invoked_at: str
+    session_id: str
+    workflow_path: str | None = None
+    completed: bool = False
+    duration_seconds: float | None = None
+    user_query: str | None = None
+    alternatives_considered: list[str] = field(default_factory=list)
+    selection_rank: int | None = None
+    follow_up_actions: list[str] = field(default_factory=list)
+    error_type: str | None = None
+
+
+@dataclass
+class SkillMetrics:
+    skill_name: str
+    total_invocations: int = 0
+    completed_invocations: int = 0
+    abandoned_invocations: int = 0
+    total_duration_seconds: float = 0.0
+    workflow_paths: dict[str, int] = field(default_factory=dict)
+    common_errors: dict[str, int] = field(default_factory=dict)
+
+    def completion_rate(self) -> float:
+        if self.total_invocations == 0:
+            return 0.0
+        return (self.completed_invocations / self.total_invocations) * 100
+
+
+class SkillsTracker:
+    def __init__(self, session_id: str, metrics_file: Path | None = None) -> None:
+        self.session_id = session_id
+        self.metrics_file = metrics_file
+        self._invocations: list[SkillInvocation] = []
+        self._skill_metrics: dict[str, SkillMetrics] = {}
+
+        if self.metrics_file and self.metrics_file.exists():
+            self._load_metrics()
+
+    def _load_metrics(self) -> None:
+        raw = self.metrics_file.read_text().strip()
+        if not raw:
+            return
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return
+        self._invocations = [
+            SkillInvocation(**item) for item in payload.get("invocations", [])
+        ]
+        self._rebuild_metrics()
+
+    def _rebuild_metrics(self) -> None:
+        self._skill_metrics = {}
+        for invocation in self._invocations:
+            self._update_metrics(invocation)
+
+    def _update_metrics(self, invocation: SkillInvocation) -> None:
+        metrics = self._skill_metrics.setdefault(
+            invocation.skill_name,
+            SkillMetrics(skill_name=invocation.skill_name),
+        )
+        metrics.total_invocations += 1
+        if invocation.completed:
+            metrics.completed_invocations += 1
+            if invocation.duration_seconds is not None:
+                metrics.total_duration_seconds += invocation.duration_seconds
+        else:
+            metrics.abandoned_invocations += 1
+
+        if invocation.workflow_path:
+            metrics.workflow_paths[invocation.workflow_path] = (
+                metrics.workflow_paths.get(invocation.workflow_path, 0) + 1
+            )
+        if invocation.error_type:
+            metrics.common_errors[invocation.error_type] = (
+                metrics.common_errors.get(invocation.error_type, 0) + 1
+            )
+
+    def track_invocation(
+        self,
+        skill_name: str,
+        workflow_path: str | None = None,
+        user_query: str | None = None,
+        alternatives_considered: list[str] | None = None,
+        selection_rank: int | None = None,
+    ) -> Callable[..., None]:
+        invocation = SkillInvocation(
+            skill_name=skill_name,
+            invoked_at=datetime.now().isoformat(),
+            session_id=self.session_id,
+            workflow_path=workflow_path,
+            user_query=user_query,
+            alternatives_considered=list(alternatives_considered or []),
+            selection_rank=selection_rank,
+        )
+        self._invocations.append(invocation)
+
+        def complete(**kwargs: Any) -> None:
+            invocation.completed = kwargs.get("completed", True)
+            invocation.follow_up_actions = list(kwargs.get("follow_up_actions", []))
+            invocation.error_type = kwargs.get("error_type")
+            if invocation.completed:
+                invocation.duration_seconds = kwargs.get("duration_seconds", 0.01)
+            self._skill_metrics.clear()
+            self._rebuild_metrics()
+
+        return complete
+
+    def get_session_skills(self) -> list[SkillInvocation]:
+        return list(self._invocations)
+
+    def get_session_summary(self) -> dict[str, Any]:
+        total_duration = sum(
+            inv.duration_seconds or 0.0 for inv in self._invocations if inv.completed
+        )
+        return {
+            "session_id": self.session_id,
+            "total_invocations": len(self._invocations),
+            "completed_invocations": sum(1 for inv in self._invocations if inv.completed),
+            "abandoned_invocations": sum(1 for inv in self._invocations if not inv.completed),
+            "total_duration_seconds": total_duration,
+        }
+
+    def get_skill_metrics(self, skill_name: str) -> SkillMetrics | None:
+        return self._skill_metrics.get(skill_name)
+
+    def export_metrics(self, path: Path) -> None:
+        payload = {
+            "invocations": [inv.__dict__ for inv in self._invocations],
+        }
+        path.write_text(json.dumps(payload, indent=2))
+
+
 def _compute_skill(
     self, db_path: Path | None = None, session_id: str | None = None
 ) -> str:

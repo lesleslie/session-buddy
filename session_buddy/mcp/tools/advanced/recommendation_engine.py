@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from .agent_analyzer import AgentRecommendation, AgentType
+from session_buddy.mcp.tools.intelligence.agent_analyzer import (
+    AgentRecommendation,
+    AgentType,
+)
 
 
 @dataclass

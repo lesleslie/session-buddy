@@ -21,6 +21,13 @@ DROP VIEW IF EXISTS v_skill_dependency_network;
 DROP VIEW IF EXISTS v_community_baseline_comparison;
 DROP VIEW IF EXISTS v_skill_effectiveness_trend;
 DROP VIEW IF EXISTS v_realtime_skill_dashboard;
+DROP VIEW IF EXISTS v_skills_by_phase_usage;
+DROP VIEW IF EXISTS v_workflow_phase_patterns;
+DROP VIEW IF EXISTS v_skill_effectiveness_by_phase;
+DROP VIEW IF EXISTS v_daily_skill_source;
+DROP VIEW IF EXISTS v_top_skills;
+DROP VIEW IF EXISTS v_skill_effectiveness;
+DROP VIEW IF EXISTS v_session_skill_summary;
 
 -- ============================================================================
 -- Section 2: Drop Triggers
@@ -67,6 +74,30 @@ DROP TABLE IF EXISTS skill_metrics_cache;
 -- ============================================================================
 
 DELETE FROM skill_migrations WHERE version = 'V4__phase4_extensions';
+
+-- ============================================================================
+-- Section 8: Core Skills Schema Teardown
+-- ============================================================================
+
+DROP TRIGGER IF EXISTS trg_session_skills_after_insert;
+DROP TRIGGER IF EXISTS trg_skill_metrics_after_insert;
+
+DROP INDEX IF EXISTS idx_invocation_phase_completion;
+DROP INDEX IF EXISTS idx_invocation_workflow_step;
+DROP INDEX IF EXISTS idx_invocation_workflow_phase;
+DROP INDEX IF EXISTS idx_invocation_embedding;
+DROP INDEX IF EXISTS idx_invocation_session_completed;
+DROP INDEX IF EXISTS idx_invocation_invoked_at;
+DROP INDEX IF EXISTS idx_invocation_skill;
+DROP INDEX IF EXISTS idx_invocation_session;
+DROP INDEX IF EXISTS idx_migrations_applied_at;
+DROP INDEX IF EXISTS idx_session_skills_skill;
+
+DROP TABLE IF EXISTS skill_invocation_fts;
+DROP TABLE IF EXISTS session_skills;
+DROP TABLE IF EXISTS skill_metrics;
+DROP TABLE IF EXISTS skill_invocation;
+DROP TABLE IF EXISTS skill_migrations;
 
 -- ============================================================================
 -- Rollback Complete

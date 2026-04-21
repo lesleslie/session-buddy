@@ -738,7 +738,7 @@ async def _get_ai_recommendations_with_history(
     working_directory: str,
 ) -> tuple[str, list[Any], dict[str, Any]]:
     """Get AI recommendations adjusted by historical effectiveness."""
-    from .agent_analyzer import AgentAnalyzer
+    from session_buddy.mcp.tools.intelligence.agent_analyzer import AgentAnalyzer
     from .recommendation_engine import RecommendationEngine
 
     # Get base recommendations

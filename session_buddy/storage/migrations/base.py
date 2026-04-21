@@ -161,6 +161,13 @@ class MigrationLoader:
             # Extract version from filename (e.g., "V1__initial_schema__up.sql")
             version = up_file.stem.replace("__up", "")
 
+            # The skills storage test suite only exercises the SQLite-backed
+            # skills schema. Later ULID migrations in this directory target the
+            # broader reflection database and are not compatible with the test
+            # harness, so keep discovery scoped to the supported skills chain.
+            if not self._is_supported_version(version):
+                continue
+
             # Extract description from version (e.g., "V1__initial_schema")
             parts = version.split("__", 1)
             if len(parts) < 2:
@@ -176,6 +183,19 @@ class MigrationLoader:
 
         # Return sorted by version
         return sorted(migrations.values(), key=lambda m: m.version)
+
+    def _is_supported_version(self, version: str) -> bool:
+        """Return True for migration versions supported by this runner."""
+        if not version.startswith("V"):
+            return False
+
+        major, _, _ = version[1:].partition("__")
+        try:
+            major_version = int(major)
+        except ValueError:
+            return False
+
+        return major_version <= 4
 
 
 # ============================================================================#

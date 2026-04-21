@@ -5,7 +5,7 @@ These protocols define interfaces for dependency injection and testing.
 
 from typing import Any, Protocol
 
-from .agent_analyzer import AgentRecommendation
+from session_buddy.mcp.tools.intelligence.agent_analyzer import AgentRecommendation
 from .quality_metrics import QualityMetrics
 from .recommendation_engine import AgentEffectiveness
 

@@ -11,6 +11,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from session_buddy.mcp_clients import OneiricMCPClient
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,8 +41,6 @@ async def oneiric_discover_storage(
     Note:
         Requires Oneiric MCP server to be running and accessible via stdio.
     """
-    from session_buddy.mcp_clients import OneiricMCPClient
-
     try:
         async with OneiricMCPClient(
             server_path=server_path,
@@ -120,8 +120,6 @@ async def oneiric_resolve_storage(
     Note:
         Requires Oneiric MCP server to be running and accessible via stdio.
     """
-    from session_buddy.mcp_clients import OneiricMCPClient
-
     if not provider or not provider.strip():
         return {
             "success": False,
@@ -204,8 +202,6 @@ async def oneiric_storage_health(
         Requires Oneiric MCP server to be running and accessible via stdio.
         Not all storage backends implement health checks.
     """
-    from session_buddy.mcp_clients import OneiricMCPClient
-
     if not provider or not provider.strip():
         return {
             "success": False,
@@ -286,8 +282,6 @@ async def oneiric_explain_storage(
     Note:
         Requires Oneiric MCP server to be running and accessible via stdio.
     """
-    from session_buddy.mcp_clients import OneiricMCPClient
-
     if not provider or not provider.strip():
         return {
             "success": False,
@@ -372,5 +366,16 @@ __all__ = [
     "oneiric_resolve_storage",
     "oneiric_storage_health",
     "oneiric_explain_storage",
+    "discover_storage_backends",
+    "resolve_storage_backend",
+    "check_storage_health",
+    "explain_storage_resolution",
     "register_oneiric_discovery_tools",
 ]
+
+
+# Backward-compatible legacy names used by older tests and call sites.
+discover_storage_backends = oneiric_discover_storage
+resolve_storage_backend = oneiric_resolve_storage
+check_storage_health = oneiric_storage_health
+explain_storage_resolution = oneiric_explain_storage

@@ -197,6 +197,9 @@ class MemorySyncClient:
         return recent[:limit]
 
 
+RemoteSessionBuddy = MemorySyncClient
+
+
 class AkoshaSync:
     """Synchronize memories from Session-Buddy to AkOSHA.
 
