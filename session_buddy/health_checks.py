@@ -20,9 +20,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from session_buddy.reflection_tools import (
-        get_initialized_reflection_database,
-        get_reflection_database,
+    from session_buddy.adapters.reflection_adapter_oneiric import (
+        ReflectionDatabaseAdapterOneiric,
     )
 
 
@@ -47,14 +46,23 @@ class ComponentHealth:
 
 # Try to import optional dependencies
 try:
-    from session_buddy.reflection_tools import (
-        get_initialized_reflection_database,
-        get_reflection_database,
-    )
+    from session_buddy.utils.instance_managers import get_reflection_database
 
     REFLECTION_AVAILABLE = True
 except ImportError:
     REFLECTION_AVAILABLE = False
+
+
+async def get_initialized_reflection_database() -> t.Any | None:
+    """Return an initialized reflection database when available.
+
+    This wrapper exists for test compatibility and mirrors the older
+    health-check API that exposed an eagerly initialized accessor.
+    """
+    if not REFLECTION_AVAILABLE:
+        return None
+
+    return await get_reflection_database()
 
 
 async def check_database_health() -> ComponentHealth:
@@ -79,12 +87,9 @@ async def check_database_health() -> ComponentHealth:
     start_time = time.perf_counter()
 
     try:
-        db = get_initialized_reflection_database() if REFLECTION_AVAILABLE else None
+        db = await get_initialized_reflection_database()
         # Allow tests to patch get_reflection_database without initializing in production.
-        if (
-            db is None
-            and getattr(get_reflection_database, "__module__", "") == "unittest.mock"
-        ):
+        if db is None and getattr(get_reflection_database, "__module__", "") == "unittest.mock":
             db = await get_reflection_database()  # type: ignore[misc]
         if db is None:
             return ComponentHealth(

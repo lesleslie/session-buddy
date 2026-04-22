@@ -8,8 +8,10 @@ code analysis, and development workflow integration.
 from __future__ import annotations
 
 import logging
+import inspect
 import operator
 import shlex
+from types import SimpleNamespace
 import typing as t
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -91,6 +93,7 @@ def _get_allowed_args() -> set[str]:
         "--fix",
         "--check",
         "--watch",
+        "--parallel",
         # Test/coverage options
         "--coverage",
         "--failfast",
@@ -464,7 +467,7 @@ def _format_execution_status(result: CrackerjackResult) -> str:
 
 def _parse_crackerjack_output(output: str) -> tuple[list[str], list[str]]:
     """Parse crackerjack output to extract passed and failed hooks."""
-    from .hook_parser import ParseError
+    from session_buddy.mcp.tools.infrastructure.hook_parser import ParseError
 
     try:
         return _parse_with_structured_results(output)
@@ -474,7 +477,7 @@ def _parse_crackerjack_output(output: str) -> tuple[list[str], list[str]]:
 
 def _parse_with_structured_results(output: str) -> tuple[list[str], list[str]]:
     """Parse Crackerjack results using the structured hook parser."""
-    from .hook_parser import parse_hook_output
+    from session_buddy.mcp.tools.infrastructure.hook_parser import parse_hook_output
 
     passed_hooks: list[str] = []
     failed_hooks: list[str] = []
@@ -739,7 +742,9 @@ async def _get_ai_recommendations_with_history(
 ) -> tuple[str, list[Any], dict[str, Any]]:
     """Get AI recommendations adjusted by historical effectiveness."""
     from session_buddy.mcp.tools.intelligence.agent_analyzer import AgentAnalyzer
-    from .recommendation_engine import RecommendationEngine
+    from session_buddy.mcp.tools.advanced.recommendation_engine import (
+        RecommendationEngine,
+    )
 
     # Get base recommendations
     recommendations = AgentAnalyzer.analyze(
@@ -1566,15 +1571,35 @@ def register_crackerjack_tools(mcp: Any) -> None:
         mcp: FastMCP server instance
 
     """
-    mcp.tool()(execute_crackerjack_command)
-    mcp.tool()(crackerjack_run)
-    mcp.tool()(crackerjack_history)
-    mcp.tool()(crackerjack_metrics)
-    mcp.tool()(crackerjack_patterns)
-    mcp.tool()(crackerjack_help)
-    mcp.tool()(get_crackerjack_results_history)
-    mcp.tool()(get_crackerjack_quality_metrics)
-    mcp.tool()(analyze_crackerjack_test_patterns)
-    mcp.tool()(crackerjack_quality_trends)
-    mcp.tool()(crackerjack_health_check)
-    mcp.tool()(quality_monitor)
+    tool_functions = {
+        "execute_crackerjack_command": execute_crackerjack_command,
+        "crackerjack_run": crackerjack_run,
+        "crackerjack_history": crackerjack_history,
+        "crackerjack_metrics": crackerjack_metrics,
+        "crackerjack_patterns": crackerjack_patterns,
+        "crackerjack_help": crackerjack_help,
+        "get_crackerjack_results_history": get_crackerjack_results_history,
+        "get_crackerjack_quality_metrics": get_crackerjack_quality_metrics,
+        "analyze_crackerjack_test_patterns": analyze_crackerjack_test_patterns,
+        "crackerjack_quality_trends": crackerjack_quality_trends,
+        "crackerjack_health_check": crackerjack_health_check,
+        "quality_monitor": quality_monitor,
+    }
+
+    compat_tools: dict[str, Any] = {}
+
+    for name, fn in tool_functions.items():
+        mcp.tool()(fn)
+        sig = inspect.signature(fn)
+        properties = {param_name: {} for param_name in sig.parameters}
+        compat_tools[name] = SimpleNamespace(
+            function=fn,
+            parameters={"properties": properties},
+        )
+
+    async def get_tools() -> dict[str, Any]:
+        return compat_tools
+
+    mcp.get_tools = get_tools
+    mcp.tools = compat_tools
+    mcp._tools = compat_tools

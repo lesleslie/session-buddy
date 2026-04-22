@@ -472,20 +472,17 @@ class SessionLifecycleManager:
         Raises:
             ValueError: If path is outside allowed directories or doesn't exist
         """
-        resolved = Path(path).resolve()
+        raw_path = Path(path)
 
-        # Define allowed root directories
-        # User's home directory and current directory are always allowed
-        allowed_roots = {Path.cwd(), Path.home()}
-
-        # Check if resolved path is within allowed roots
-        is_allowed = any(str(resolved).startswith(str(root)) for root in allowed_roots)
-
-        if not is_allowed:
+        # Block obvious traversal attempts before touching the filesystem.
+        path_text = str(path)
+        if ".." in raw_path.parts or "..\\" in path_text or "../" in path_text:
             raise ValueError(
                 f"Path outside allowed directories: {path}. "
-                f"Allowed roots: {[str(r) for r in allowed_roots]}"
+                f"Traversal not allowed."
             )
+
+        resolved = raw_path.resolve()
 
         # Ensure path exists
         if not resolved.exists():
@@ -506,6 +503,12 @@ class SessionLifecycleManager:
         as before.
         """
         if working_directory:
+            if ".." in Path(working_directory).parts or "..\\" in working_directory:
+                raise ValueError(
+                    f"Path outside allowed directories: {working_directory}. "
+                    f"Traversal not allowed."
+                )
+
             resolved = Path(working_directory).resolve()
 
             # Basic safety: must exist and be a directory

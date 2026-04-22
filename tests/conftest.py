@@ -1067,6 +1067,11 @@ def mock_settings(tmp_path):
         mock_settings_instance.auto_store_exceptional_quality_threshold = 90
         mock_settings_instance.auto_store_manual_checkpoints = True
         mock_settings_instance.auto_store_session_end = True
+        mock_settings_instance.enable_conversation_storage = True
+        mock_settings_instance.conversation_storage_min_length = 100
+        mock_settings_instance.conversation_storage_max_length = 50000
+        mock_settings_instance.auto_store_conversations_on_checkpoint = True
+        mock_settings_instance.auto_store_conversations_on_session_end = True
         mock_settings_instance.enable_crackerjack = True
         mock_settings_instance.crackerjack_command = "crackerjack"
         mock_settings_instance.enable_git_integration = True

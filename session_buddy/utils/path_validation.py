@@ -23,8 +23,11 @@ class PathValidator:
     ALLOWED_SCHEMES = {"file", ""}  # Only file:// URIs allowed, no http/https
     MAX_PATH_LENGTH = 4096  # POSIX PATH_MAX limit
 
-    @staticmethod
+    def __init__(self) -> None:
+        self.allowed_directories: set[Path] = set()
+
     def validate_user_path(
+        self,
         path: str | Path,
         allow_traversal: bool = False,
         base_dir: Path | None = None,
@@ -63,6 +66,9 @@ class PathValidator:
 
             path = Path(path)
 
+        if "\x00" in str(path):
+            raise ValueError("Null bytes not allowed in path")
+
         # SECURITY: Length check to prevent overflow
         path_str = str(path)
         if len(path_str) > PathValidator.MAX_PATH_LENGTH:
@@ -76,22 +82,26 @@ class PathValidator:
 
         # SECURITY: Traversal prevention
         if not allow_traversal:
-            if base_dir is None:
-                # Default to current and home directory as allowed roots
-                base_dir = Path.cwd()
+            allowed_roots: set[Path] = set(self.allowed_directories)
+            if base_dir is not None:
+                allowed_roots.add(base_dir.resolve())
 
-            # Normalize base_dir for comparison
-            base_resolved = base_dir.resolve()
-
-            # Check if resolved path is within base directory
-            try:
-                resolved.relative_to(base_resolved)
-            except ValueError:
-                # Path escapes base directory
-                raise ValueError(
-                    f"Path {resolved} escapes base directory {base_resolved}. "
-                    f"Traversal not allowed."
-                )
+            if allowed_roots:
+                allowed_root_paths = [root.resolve() for root in allowed_roots]
+                base_resolved = base_dir.resolve() if base_dir is not None else None
+                if not any(
+                    resolved == root or resolved.is_relative_to(root)
+                    for root in allowed_root_paths
+                ):
+                    allowed_display = ", ".join(str(root) for root in allowed_root_paths)
+                    if base_resolved is not None and ".." not in path.parts:
+                        raise ValueError(
+                            f"Path {resolved} escapes base directory {base_resolved}. "
+                            f"Traversal not allowed."
+                        )
+                    raise ValueError(
+                        f"Path {resolved} is outside allowed directories: {allowed_display}"
+                    )
 
         # SECURITY: Existence check
         if not resolved.exists():
@@ -101,7 +111,7 @@ class PathValidator:
         if not resolved.is_dir():
             raise ValueError(f"Path is not a directory: {resolved}")
 
-        return resolved
+        return path.absolute()
 
     @staticmethod
     def validate_git_path(path: str | Path) -> Path:
@@ -125,7 +135,7 @@ class PathValidator:
             - Prevents accessing .git/config through .git directory
         """
         # Use user path validation first
-        validated = PathValidator.validate_user_path(path)
+        validated = PathValidator().validate_user_path(path)
 
         path_str = str(validated)
 
@@ -165,4 +175,4 @@ def validate_working_directory(path: str | None) -> Path:
     if path is None:
         return Path.cwd()
 
-    return PathValidator.validate_user_path(path, allow_traversal=False)
+    return PathValidator().validate_user_path(path, allow_traversal=False)
