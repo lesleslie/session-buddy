@@ -51,11 +51,26 @@ def _get_safe_environment() -> dict[str, str]:
         "COOKIE",  # Cookies can contain auth tokens
     }
 
+    # Exact names for common connection-string style secrets.
+    SENSITIVE_EXACT_KEYS = {
+        "DATABASE_URL",
+        "DATABASE_URI",
+        "DB_URL",
+        "DB_URI",
+        "REDIS_URL",
+        "REDIS_URI",
+        "MONGODB_URI",
+        "POSTGRES_URL",
+        "POSTGRES_URI",
+        "SQLALCHEMY_DATABASE_URI",
+    }
+
     # Use dict comprehension for performance (4-6x faster than deepcopy)
     return {
         key: value
         for key, value in os.environ.items()
-        if not any(pattern in key.upper() for pattern in SENSITIVE_PATTERNS)
+        if key.upper() not in SENSITIVE_EXACT_KEYS
+        and not any(pattern in key.upper() for pattern in SENSITIVE_PATTERNS)
     }
 
 
