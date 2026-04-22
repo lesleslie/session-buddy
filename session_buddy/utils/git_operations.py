@@ -23,6 +23,7 @@ __all__ = [
     "is_git_operation_in_progress",
     "is_git_repository",
     "schedule_automatic_git_gc",
+    "_validate_prune_delay",
     "stage_files",
 ]
 
@@ -188,5 +189,6 @@ from session_buddy.utils.git_worktrees import (  # noqa: F401
     is_git_operation_in_progress,
     is_git_repository,
     schedule_automatic_git_gc,
+    _validate_prune_delay,
     stage_files,
 )

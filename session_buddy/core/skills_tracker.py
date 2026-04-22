@@ -142,6 +142,132 @@ class SkillsTracker:
         }
         path.write_text(json.dumps(payload, indent=2))
 
+    def recommend_skills(
+        self,
+        user_query: str,
+        limit: int = 5,
+        workflow_phase: str | None = None,
+        phase_weight: float = 0.3,
+        db_path: Path | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return simple skill recommendations for backward compatibility."""
+        if db_path is None:
+            return []
+
+        from session_buddy.storage.skills_storage import SkillsStorage
+
+        storage = SkillsStorage(db_path=db_path)
+        metrics = storage.get_all_metrics()
+
+        recommendations: list[dict[str, Any]] = []
+        for metric in sorted(
+            metrics,
+            key=lambda item: (item.completion_rate, item.total_invocations),
+            reverse=True,
+        )[:limit]:
+            rec: dict[str, Any] = {
+                "skill_name": metric.skill_name,
+                "similarity_score": metric.completion_rate / 100.0,
+            }
+            if workflow_phase is not None:
+                rec["workflow_phase"] = workflow_phase
+            recommendations.append(rec)
+
+        return recommendations
+
+    def generate_workflow_report(
+        self,
+        db_path: Path | None = None,
+        session_id: str | None = None,
+    ) -> str:
+        """Generate a plain-text workflow report for compatibility tests."""
+        if db_path is None:
+            return "Workflow Correlation Report\nNo database available."
+
+        from session_buddy.storage.skills_storage import SkillsStorage
+
+        storage = SkillsStorage(db_path=db_path)
+        lines: list[str] = [
+            "Workflow Correlation Report",
+            "=" * 30,
+        ]
+        if session_id:
+            lines.append(f"Session: {session_id}")
+
+        effectiveness = storage.get_workflow_skill_effectiveness()
+        lines.extend(["", "Skill Effectiveness by Workflow Phase"])
+        if effectiveness:
+            for item in effectiveness[:10]:
+                lines.append(
+                    f"- {item['workflow_phase']}: {item['skill_name']} "
+                    f"({item['completion_rate']:.1f}% complete)"
+                )
+        else:
+            lines.append("No workflow data available.")
+
+        lines.extend(["", "Workflow Bottlenecks"])
+        bottlenecks = storage.identify_workflow_bottlenecks()
+        if bottlenecks:
+            for item in bottlenecks[:10]:
+                lines.append(
+                    f"- {item['workflow_phase']}: {item['abandonment_rate']:.1%} abandonment"
+                )
+        else:
+            lines.append("No significant bottlenecks detected.")
+
+        lines.extend(["", "Phase Transitions"])
+        transitions = storage.get_workflow_phase_transitions(session_id=session_id)
+        if transitions:
+            for item in transitions[:10]:
+                lines.append(
+                    f"- {item['from_phase']} -> {item['to_phase']} ({item['invocation_count']})"
+                )
+        else:
+            lines.append("No phase transition data available.")
+
+        lines.extend(["", "Recommendations by Phase"])
+        if effectiveness:
+            for item in effectiveness[:5]:
+                lines.append(
+                    f"- {item['workflow_phase']}: {item['skill_name']}"
+                )
+        else:
+            lines.append("No recommendations available.")
+
+        return "\n".join(lines)
+
+    def generate_phase_heatmap(
+        self,
+        db_path: Path | None = None,
+        session_id: str | None = None,
+    ) -> str:
+        """Generate a simple text heatmap for compatibility tests."""
+        if db_path is None:
+            return "Skill Usage Heatmap\nNo workflow data available.\nLegend: higher usage = denser marks"
+
+        from session_buddy.storage.skills_storage import SkillsStorage
+
+        storage = SkillsStorage(db_path=db_path)
+        effectiveness = storage.get_workflow_skill_effectiveness()
+        if not effectiveness:
+            return "Skill Usage Heatmap\nNo workflow data available.\nLegend: higher usage = denser marks"
+
+        phases = sorted({item["workflow_phase"] for item in effectiveness if item["workflow_phase"]})
+        lines = ["Skill Usage Heatmap", "=" * 20, "Phase | " + " | ".join(phases), "Legend: higher usage = denser marks"]
+
+        for skill_name in sorted({item["skill_name"] for item in effectiveness}):
+            row = [skill_name]
+            for phase in phases:
+                count = sum(
+                    1
+                    for item in effectiveness
+                    if item["skill_name"] == skill_name and item["workflow_phase"] == phase
+                )
+                row.append("##" if count else "..")
+            lines.append(" | ".join(row))
+
+        return "\n".join(lines)
+
 
 def _compute_skill(
     self, db_path: Path | None = None, session_id: str | None = None

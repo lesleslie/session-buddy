@@ -17,6 +17,7 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -73,13 +74,13 @@ class StoredInvocation:
     completed: bool
     duration_seconds: float | None
     user_query: str | None
-    alternatives_considered: str | None  # JSON string
-    selection_rank: int | None
-    follow_up_actions: str | None  # JSON string
-    error_type: str | None
-    embedding: bytes | None  # Packed 384-dim float32 array (1536 bytes)
-    workflow_phase: str | None  # Oneiric workflow phase
-    workflow_step_id: str | None  # Oneiric step identifier
+    alternatives_considered: str | None = None  # JSON string
+    selection_rank: int | None = None
+    follow_up_actions: str | None = None  # JSON string
+    error_type: str | None = None
+    embedding: bytes | None = None  # Packed 384-dim float32 array (1536 bytes)
+    workflow_phase: str | None = None  # Oneiric workflow phase
+    workflow_step_id: str | None = None  # Oneiric step identifier
 
 
 @dataclass
@@ -284,15 +285,7 @@ class SkillsStorage:
             cursor = conn.cursor()
 
             cursor.execute(
-                """
-                SELECT
-                    id, skill_name, invoked_at, session_id, workflow_path,
-                    completed, duration_seconds,
-                    user_query, alternatives_considered, selection_rank,
-                    follow_up_actions, error_type, embedding, workflow_phase, workflow_step_id
-                FROM skill_invocation
-                WHERE id = ?
-                """,
+                "SELECT * FROM skill_invocation WHERE id = ?",
                 (invocation_id,),
             )
 
@@ -314,6 +307,9 @@ class SkillsStorage:
                 selection_rank=row["selection_rank"],
                 follow_up_actions=row["follow_up_actions"],
                 error_type=row["error_type"],
+                embedding=row["embedding"] if "embedding" in row.keys() else None,
+                workflow_phase=row["workflow_phase"] if "workflow_phase" in row.keys() else None,
+                workflow_step_id=row["workflow_step_id"] if "workflow_step_id" in row.keys() else None,
             )
 
     def get_session_invocations(self, session_id: str) -> list[StoredInvocation]:
@@ -331,11 +327,7 @@ class SkillsStorage:
 
             cursor.execute(
                 """
-                SELECT
-                    id, skill_name, invoked_at, session_id, workflow_path,
-                    completed, duration_seconds,
-                    user_query, alternatives_considered, selection_rank,
-                    follow_up_actions, error_type, embedding, workflow_phase, workflow_step_id
+                SELECT *
                 FROM skill_invocation
                 WHERE session_id = ?
                 ORDER BY invoked_at ASC
@@ -359,6 +351,9 @@ class SkillsStorage:
                     selection_rank=row["selection_rank"],
                     follow_up_actions=row["follow_up_actions"],
                     error_type=row["error_type"],
+                    embedding=row["embedding"] if "embedding" in row.keys() else None,
+                    workflow_phase=row["workflow_phase"] if "workflow_phase" in row.keys() else None,
+                    workflow_step_id=row["workflow_step_id"] if "workflow_step_id" in row.keys() else None,
                 )
                 for row in rows
             ]
@@ -1003,12 +998,16 @@ class SkillsStorage:
                         COUNT(*) as total_invocations,
                         SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_count,
                         SUM(CASE WHEN completed = 0 THEN 1 ELSE 0 END) as abandoned_count,
-                        AVG(CASE WHEN completed = 1 THEN duration_seconds END) as avg_duration_seconds
+                        AVG(CASE WHEN completed = 1 THEN duration_seconds END) as avg_duration_seconds,
+                        CASE
+                            WHEN COUNT(*) > 0
+                            THEN SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
+                            ELSE 0.0
+                        END as completion_rate
                     FROM skill_invocation
                     WHERE workflow_phase = ?
                     GROUP BY skill_name
                     HAVING COUNT(*) >= ?
-                    ORDER BY completion_rate DESC
                     """,
                     (workflow_phase, min_invocations),
                 )
@@ -1020,34 +1019,40 @@ class SkillsStorage:
                         COUNT(*) as total_invocations,
                         SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed_count,
                         SUM(CASE WHEN completed = 0 THEN 1 ELSE 0 END) as abandoned_count,
-                        AVG(CASE WHEN completed = 1 THEN duration_seconds END) as avg_duration_seconds
+                        AVG(CASE WHEN completed = 1 THEN duration_seconds END) as avg_duration_seconds,
+                        CASE
+                            WHEN COUNT(*) > 0
+                            THEN SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)
+                            ELSE 0.0
+                        END as completion_rate
                     FROM skill_invocation
                     WHERE workflow_phase IS NOT NULL
                     GROUP BY skill_name, workflow_phase
                     HAVING COUNT(*) >= ?
-                    ORDER BY completion_rate DESC
                     """,
                     (min_invocations,),
                 )
 
             rows = cursor.fetchall()
 
-            return [
+            results = [
                 {
                     "skill_name": row["skill_name"],
                     "workflow_phase": row["workflow_phase"],
                     "total_invocations": row["total_invocations"],
                     "completed_count": row["completed_count"],
                     "abandoned_count": row["abandoned_count"],
-                    "completion_rate": (
-                        row["completed_count"] / row["total_invocations"] * 100
-                        if row["total_invocations"] > 0
-                        else 0.0
-                    ),
+                    "completion_rate": row["completion_rate"] or 0.0,
                     "avg_duration_seconds": row["avg_duration_seconds"] or 0.0,
                 }
                 for row in rows
             ]
+
+            return sorted(
+                results,
+                key=lambda item: item["completion_rate"],
+                reverse=True,
+            )
 
     def identify_workflow_bottlenecks(
         self,
@@ -1161,92 +1166,65 @@ class SkillsStorage:
             if session_id:
                 cursor.execute(
                     """
-                    SELECT
-                        phase1.workflow_phase as from_phase,
-                        phase2.workflow_phase as to_phase,
-                        COUNT(*) as invocation_count,
-                        phase2.skill_name as transition_skill,
-                        AVG(
-                            CASE
-                                WHEN phase2.duration_seconds IS NOT NULL
-                                THEN (julianday(phase2.invoked_at) - julianday(phase1.invoked_at)) * 86400
-                                ELSE NULL
-                            END
-                        ) as avg_transition_seconds
-                    FROM (
-                        SELECT
-                            invoked_at, workflow_phase, skill_name, duration_seconds,
-                            LAG(invoked_at) OVER (ORDER BY invoked_at ASC) as prev_invoked_at,
-                            LAG(workflow_phase) OVER (ORDER BY invoked_at ASC) as prev_phase,
-                            LAG(skill_name) OVER (ORDER BY invoked_at ASC) as prev_skill
-                        FROM skill_invocation
-                        WHERE session_id = ? AND workflow_phase IS NOT NULL
-                        ORDER BY invoked_at ASC
-                    ) phase1
-                    JOIN (
-                        SELECT invoked_at, workflow_phase, skill_name, duration_seconds
-                        FROM skill_invocation
-                        WHERE session_id = ? AND workflow_phase IS NOT NULL
-                        ORDER BY invoked_at ASC
-                    ) phase2 ON phase2.invoked_at > phase1.invoked_at
-                    WHERE phase1.workflow_phase IS NOT NULL
-                    GROUP BY phase1.workflow_phase, phase2.workflow_phase, phase2.skill_name
-                    ORDER BY invocation_count DESC
+                    SELECT session_id, invoked_at, workflow_phase, skill_name, duration_seconds
+                    FROM skill_invocation
+                    WHERE session_id = ? AND workflow_phase IS NOT NULL
+                    ORDER BY session_id, invoked_at ASC
                     """,
-                    (session_id, session_id),
+                    (session_id,),
                 )
             else:
-                # All sessions (more expensive query)
                 cursor.execute(
                     """
-                    SELECT
-                        phase1.workflow_phase as from_phase,
-                        phase2.workflow_phase as to_phase,
-                        COUNT(*) as invocation_count,
-                        phase2.skill_name as transition_skill,
-                        AVG(
-                            CASE
-                                WHEN phase2.duration_seconds IS NOT NULL
-                                THEN (julianday(phase2.invoked_at) - julianday(phase1.invoked_at)) * 86400
-                                ELSE NULL
-                            END
-                        ) as avg_transition_seconds
-                    FROM (
-                        SELECT
-                            invoked_at, workflow_phase, skill_name, duration_seconds,
-                            LAG(invoked_at) OVER (PARTITION BY session_id ORDER BY invoked_at ASC) as prev_invoked_at,
-                            LAG(workflow_phase) OVER (PARTITION BY session_id ORDER BY invoked_at ASC) as prev_phase,
-                            LAG(skill_name) OVER (PARTITION BY session_id ORDER BY invoked_at ASC) as prev_skill
-                        FROM skill_invocation
-                        WHERE workflow_phase IS NOT NULL
-                        ORDER BY session_id, invoked_at ASC
-                    ) phase1
-                    JOIN (
-                        SELECT
-                            invoked_at, workflow_phase, skill_name, duration_seconds
-                        FROM skill_invocation
-                        WHERE workflow_phase IS NOT NULL
-                        ORDER BY invoked_at ASC
-                    ) phase2 ON phase2.session_id = phase1.session_id
-                                    AND phase2.invoked_at > phase1.invoked_at
-                    WHERE phase1.workflow_phase IS NOT NULL
-                    GROUP BY phase1.workflow_phase, phase2.workflow_phase, phase2.skill_name
-                    ORDER BY invocation_count DESC
+                    SELECT session_id, invoked_at, workflow_phase, skill_name, duration_seconds
+                    FROM skill_invocation
+                    WHERE workflow_phase IS NOT NULL
+                    ORDER BY session_id, invoked_at ASC
                     """
                 )
 
             rows = cursor.fetchall()
 
-            return [
+        transitions: dict[tuple[str, str, str], dict[str, object]] = {}
+        previous_by_session: dict[str, sqlite3.Row] = {}
+
+        for row in rows:
+            session_key = row["session_id"]
+            previous = previous_by_session.get(session_key)
+            if previous is None:
+                previous_by_session[session_key] = row
+                continue
+
+            key = (previous["workflow_phase"], row["workflow_phase"], row["skill_name"])
+            entry = transitions.setdefault(
+                key,
                 {
-                    "from_phase": row["from_phase"],
-                    "to_phase": row["to_phase"],
-                    "invocation_count": row["invocation_count"],
-                    "most_common_skill": row["transition_skill"],
-                    "avg_transition_duration": row["avg_transition_seconds"] or 0.0,
-                }
-                for row in rows
-            ]
+                    "from_phase": previous["workflow_phase"],
+                    "to_phase": row["workflow_phase"],
+                    "invocation_count": 0,
+                    "most_common_skill": row["skill_name"],
+                    "avg_transition_duration": 0.0,
+                    "_total_transition_duration": 0.0,
+                },
+            )
+            entry["invocation_count"] = int(entry["invocation_count"]) + 1
+            try:
+                transition_duration = (
+                    datetime.fromisoformat(row["invoked_at"]) - datetime.fromisoformat(previous["invoked_at"])
+                ).total_seconds()
+            except ValueError:
+                transition_duration = 0.0
+            entry["_total_transition_duration"] = float(entry["_total_transition_duration"]) + max(0.0, transition_duration)
+            previous_by_session[session_key] = row
+
+        results: list[dict[str, object]] = []
+        for entry in transitions.values():
+            count = int(entry["invocation_count"])
+            total_duration = float(entry.pop("_total_transition_duration", 0.0))
+            entry["avg_transition_duration"] = total_duration / count if count else 0.0
+            results.append(entry)
+
+        return sorted(results, key=lambda item: item["invocation_count"], reverse=True)
 
     def search_by_query_workflow_aware(
         self,
@@ -1338,8 +1316,13 @@ class SkillsStorage:
                 completed=bool(row["completed"]),
                 duration_seconds=row["duration_seconds"],
                 user_query=row["user_query"],
+                alternatives_considered=row["alternatives_considered"] if "alternatives_considered" in row.keys() else None,
+                selection_rank=row["selection_rank"] if "selection_rank" in row.keys() else None,
+                follow_up_actions=row["follow_up_actions"] if "follow_up_actions" in row.keys() else None,
+                error_type=row["error_type"] if "error_type" in row.keys() else None,
                 embedding=row["embedding"],
                 workflow_phase=row["workflow_phase"],
+                workflow_step_id=row["workflow_step_id"] if "workflow_step_id" in row.keys() else None,
             )
 
             # Calculate semantic similarity
