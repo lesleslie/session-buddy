@@ -154,15 +154,9 @@ class QueryCacheManager:
         ON query_cache_l2(project);
         """
 
-        # Execute in executor thread to avoid blocking
-        def _create_table() -> None:
-            if self._conn:
-                self._conn.execute(create_table_sql)
-
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, _create_table)
+        # DuckDB connections are not safe to bounce across threads here.
+        if self._conn:
+            self._conn.execute(create_table_sql)
 
     @staticmethod
     def normalize_query(query: str) -> str:
@@ -386,11 +380,7 @@ class QueryCacheManager:
         def _update() -> None:
             if self._conn:
                 self._conn.execute(update_sql, [cache_key])
-
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, _update).result()
+        _update()
 
     def put(
         self,
@@ -515,15 +505,7 @@ class QueryCacheManager:
         """Clear all entries from L2 cache."""
         if not self._conn:
             return
-
-        def _clear() -> None:
-            if self._conn:
-                self._conn.execute("DELETE FROM query_cache_l2")
-
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, _clear).result()
+        self._conn.execute("DELETE FROM query_cache_l2")
 
     def get_stats(self) -> dict[str, int | float]:
         """Get cache performance statistics.
@@ -650,11 +632,7 @@ class QueryCacheManager:
                 result = self._conn.execute(delete_sql)
                 return result.rowcount
             return 0
-
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        deleted_count = await loop.run_in_executor(None, _cleanup)
+        deleted_count = _cleanup()
 
         with self._stats_lock:
             self._stats["l2_evictions"] += deleted_count

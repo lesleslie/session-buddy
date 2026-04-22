@@ -484,12 +484,12 @@ class ReflectionDatabaseAdapterOneiric:
         # Add subcategory column to existing tables (if not exists)
         with suppress(Exception):
             self.conn.execute(
-                f"ALTER TABLE {self.collection_name}_conversations ADD COLUMN subcategory TEXT"
+                f"ALTER TABLE {self.collection_name}_conversations ADD COLUMN IF NOT EXISTS subcategory TEXT"
             )
 
         with suppress(Exception):
             self.conn.execute(
-                f"ALTER TABLE {self.collection_name}_reflections ADD COLUMN subcategory TEXT"
+                f"ALTER TABLE {self.collection_name}_reflections ADD COLUMN IF NOT EXISTS subcategory TEXT"
             )
 
         # Create indexes for category operations
@@ -509,11 +509,11 @@ class ReflectionDatabaseAdapterOneiric:
         # Add temporal tracking fields to memory_subcategories (for decay)
         with suppress(Exception):
             self.conn.execute(
-                "ALTER TABLE memory_subcategories ADD COLUMN last_accessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                "ALTER TABLE memory_subcategories ADD COLUMN IF NOT EXISTS last_accessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
             )
         with suppress(Exception):
             self.conn.execute(
-                "ALTER TABLE memory_subcategories ADD COLUMN access_count INTEGER DEFAULT 0"
+                "ALTER TABLE memory_subcategories ADD COLUMN IF NOT EXISTS access_count INTEGER DEFAULT 0"
             )
 
         # ========================================================================
