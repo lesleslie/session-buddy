@@ -129,7 +129,7 @@ class TestCloudSyncMethodIntegration:
             file_data = await cloud_sync._read_database(reflection_db)
 
             # Verify compression was applied
-            assert file_data.startswith(b"\\x1f\\x8b")  # Gzip magic bytes
+            assert file_data.startswith(b"\x1f\x8b")  # Gzip magic bytes
 
             # Decompress to verify content
             decompressed = gzip.decompress(file_data)

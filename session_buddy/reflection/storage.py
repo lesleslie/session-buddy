@@ -114,6 +114,20 @@ def _parse_metadata(metadata_str: str | None) -> dict[str, Any]:
         return {}
 
 
+def _table_columns(conn: Any, table_name: str) -> set[str]:
+    """Return the set of column names for a table, if available."""
+    try:
+        rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+    except Exception:
+        return set()
+
+    columns: set[str] = set()
+    for row in rows:
+        if len(row) > 1:
+            columns.add(str(row[1]))
+    return columns
+
+
 async def store_conversation(
     db: duckdb.DuckDBPyConnection | Any,
     content: str,
@@ -158,24 +172,42 @@ async def store_conversation(
 
     # Get connection if db is ReflectionDatabase instance
     conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    conversation_columns = _table_columns(conn, "conversations")
+    include_ulid = "conversation_ulid" in conversation_columns
 
     # Insert into database
     def _store() -> None:
-        conn.execute(
-            """
-            INSERT INTO conversations (id, content, embedding, project, timestamp, metadata, conversation_ulid)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                conversation_id,
-                db_content,
-                embedding,
-                metadata.get("project") if metadata else None,
-                datetime.now(UTC),
-                _serialize_metadata(metadata),
-                conversation_ulid,
-            ],
-        )
+        if include_ulid:
+            conn.execute(
+                """
+                INSERT INTO conversations (id, content, embedding, project, timestamp, metadata, conversation_ulid)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    conversation_id,
+                    db_content,
+                    embedding,
+                    metadata.get("project") if metadata else None,
+                    datetime.now(UTC),
+                    _serialize_metadata(metadata),
+                    conversation_ulid,
+                ],
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO conversations (id, content, embedding, project, timestamp, metadata)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    conversation_id,
+                    db_content,
+                    embedding,
+                    metadata.get("project") if metadata else None,
+                    datetime.now(UTC),
+                    _serialize_metadata(metadata),
+                ],
+            )
 
     if is_temp_db and lock:
         # For temp DB, use lock to protect database operations
@@ -239,24 +271,44 @@ async def store_reflection(
 
     # Get connection if db is ReflectionDatabase instance
     conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    reflection_columns = _table_columns(conn, "reflections")
+    include_ulid = "reflection_ulid" in reflection_columns
 
     # Insert into database
     def _store() -> None:
-        conn.execute(
-            """
-            INSERT INTO reflections (id, content, embedding, project, tags, timestamp, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                reflection_id,
-                db_content,
-                embedding,
-                metadata.get("project") if metadata else None,
-                tags_list,
-                datetime.now(UTC),
-                _serialize_metadata(metadata),
-            ],
-        )
+        if include_ulid:
+            conn.execute(
+                """
+                INSERT INTO reflections (id, content, embedding, project, tags, timestamp, metadata, reflection_ulid)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    reflection_id,
+                    db_content,
+                    embedding,
+                    metadata.get("project") if metadata else None,
+                    tags_list,
+                    datetime.now(UTC),
+                    _serialize_metadata(metadata),
+                    reflection_id,
+                ],
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO reflections (id, content, embedding, project, tags, timestamp, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    reflection_id,
+                    db_content,
+                    embedding,
+                    metadata.get("project") if metadata else None,
+                    tags_list,
+                    datetime.now(UTC),
+                    _serialize_metadata(metadata),
+                ],
+            )
 
     if is_temp_db and lock:
         # For temp DB, use lock to protect database operations

@@ -17,6 +17,12 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+try:
+    from mcp import ClientSession, StdioServerParameters
+except ImportError:  # pragma: no cover - optional dependency in tests
+    ClientSession = None  # type: ignore[assignment]
+    StdioServerParameters = None  # type: ignore[assignment]
+
 if TYPE_CHECKING:
     from mcp import ClientSession, StdioServerParameters
 
@@ -83,11 +89,9 @@ class OneiricMCPClient:
         Raises:
             ImportError: If mcp package is not available
         """
-        try:
-            from mcp import StdioServerParameters
-        except ImportError as e:
+        if StdioServerParameters is None:
             msg = "mcp package is required. Install with: pip install mcp"
-            raise ImportError(msg) from e
+            raise ImportError(msg)
 
         return StdioServerParameters(
             command="uv",
@@ -110,14 +114,16 @@ class OneiricMCPClient:
         Raises:
             RuntimeError: If connection fails
         """
-        try:
-            from mcp import ClientSession
-        except ImportError as e:
+        if ClientSession is None:
             msg = "mcp package is required. Install with: pip install mcp"
-            raise ImportError(msg) from e
+            raise ImportError(msg)
 
         server_params = self._create_server_params()
-        self._session = ClientSession(server_params)
+        try:
+            self._session = ClientSession(server_params)
+        except TypeError as exc:
+            msg = f"Failed to initialize MCP client session: {exc}"
+            raise RuntimeError(msg) from exc
 
         try:
             await self._session.__aenter__()
@@ -222,6 +228,14 @@ class OneiricMCPClient:
             ...     if result["selected"]:
             ...         print("S3 storage backend resolved successfully")
         """
+        if not provider or not provider.strip():
+            return {
+                "error": "Provider name is required",
+                "provider": provider,
+                "selected": False,
+                "healthy": False,
+            }
+
         session = self._ensure_connected()
 
         try:
@@ -277,6 +291,14 @@ class OneiricMCPClient:
             ...     if health["healthy"]:
             ...         print("S3 backend is healthy")
         """
+        if not provider or not provider.strip():
+            return {
+                "error": "Provider name is required",
+                "provider": provider,
+                "healthy": False,
+                "has_health_check": False,
+            }
+
         session = self._ensure_connected()
 
         try:

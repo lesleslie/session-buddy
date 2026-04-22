@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import shutil
 import subprocess  # nosec B404
+import asyncio
 from contextlib import suppress
 from dataclasses import dataclass, field
+from collections.abc import Coroutine as ABCCoroutine
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -23,7 +25,11 @@ if TYPE_CHECKING:
     from fastmcp import FastMCP
 
 from session_buddy.core import SessionLifecycleManager
+from session_buddy.storage.akosha_config import AkoshaSyncConfig
 from session_buddy.utils.error_management import _get_logger
+
+if not hasattr(asyncio.coroutines, "Coroutine"):
+    asyncio.coroutines.Coroutine = ABCCoroutine  # type: ignore[attr-defined]
 
 
 @dataclass
@@ -106,12 +112,13 @@ def _queue_akosha_sync_background() -> None:
     try:
         import asyncio
 
-        from session_buddy.settings import get_settings
+        import session_buddy.settings as settings_module
 
         # Check if Akosha sync is enabled
-        settings = get_settings()
+        settings = settings_module.get_settings()
+        config = AkoshaSyncConfig.from_settings(settings)
 
-        if not settings.akosha_upload_on_session_end:
+        if not config.upload_on_session_end:
             logger = _get_logger()
             logger.debug(
                 "Akosha auto-upload disabled (akosha_upload_on_session_end=False)"

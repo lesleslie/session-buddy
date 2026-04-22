@@ -16,6 +16,8 @@ from session_buddy.server_optimized import (
     run_server,
 )
 
+permissions_manager = None
+
 
 async def calculate_quality_score() -> dict[str, Any]:
     return {}
@@ -73,6 +75,7 @@ REFLECTION_TOOLS_AVAILABLE = False
 __all__ = [
     "mcp",
     "health_check",
+    "permissions_manager",
     "main",
     "run_server",
     "calculate_quality_score",

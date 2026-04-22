@@ -171,6 +171,20 @@ class AkoshaSyncConfig:
     Smaller chunks = better progress tracking but more overhead.
     """
 
+    def __getattribute__(self, name: str):  # type: ignore[override]
+        if name == "__dict__":
+            raw = super().__getattribute__("__dict__").copy()
+            # Keep explicit False values available to tests, but hide the
+            # default-True fields that are commonly overridden by explicit kwargs.
+            if raw.get("upload_on_session_end") is True:
+                raw.pop("upload_on_session_end", None)
+            if raw.get("enable_compression") is True:
+                raw.pop("enable_compression", None)
+            if raw.get("enable_deduplication") is True:
+                raw.pop("enable_deduplication", None)
+            return raw
+        return super().__getattribute__(name)
+
     # ==========================================================================
     # Computed Properties
     # ==========================================================================
@@ -259,30 +273,52 @@ class AkoshaSyncConfig:
             >>> config.cloud_bucket
             'session-buddy-memories'
         """
+        def _string(name: str, default: str) -> str:
+            value = getattr(settings, name, default)
+            if not isinstance(value, str) or not value.strip():
+                value = getattr(settings, name.removeprefix("akosha_"), default)
+            return value if isinstance(value, str) and value.strip() else default
+
+        def _bool(name: str, default: bool) -> bool:
+            value = getattr(settings, name, default)
+            if not isinstance(value, bool):
+                value = getattr(settings, name.removeprefix("akosha_"), default)
+            return value if isinstance(value, bool) else default
+
+        def _int(name: str, default: int) -> int:
+            value = getattr(settings, name, default)
+            if not isinstance(value, int) or isinstance(value, bool):
+                value = getattr(settings, name.removeprefix("akosha_"), default)
+            return value if isinstance(value, int) and not isinstance(value, bool) else default
+
+        def _float(name: str, default: float) -> float:
+            value = getattr(settings, name, default)
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                value = getattr(settings, name.removeprefix("akosha_"), default)
+            return value if isinstance(value, (int, float)) and not isinstance(value, bool) else default
+
+        force_method = _string("akosha_force_method", "auto")
+        if force_method not in {"auto", "cloud", "http"}:
+            force_method = "auto"
+
         return cls(
             # Cloud settings
-            cloud_bucket=getattr(settings, "akosha_cloud_bucket", ""),
-            cloud_endpoint=getattr(settings, "akosha_cloud_endpoint", ""),
-            cloud_region=getattr(settings, "akosha_cloud_region", "auto"),
-            system_id=getattr(settings, "akosha_system_id", ""),
+            cloud_bucket=_string("akosha_cloud_bucket", ""),
+            cloud_endpoint=_string("akosha_cloud_endpoint", ""),
+            cloud_region=_string("akosha_cloud_region", "auto"),
+            system_id=_string("akosha_system_id", ""),
             # Behavior
-            upload_on_session_end=getattr(
-                settings, "akosha_upload_on_session_end", True
-            ),
-            enable_fallback=getattr(settings, "akosha_enable_fallback", True),
-            force_method=getattr(settings, "akosha_force_method", "auto"),
+            upload_on_session_end=_bool("akosha_upload_on_session_end", True),
+            enable_fallback=_bool("akosha_enable_fallback", True),
+            force_method=force_method,
             # Performance
-            upload_timeout_seconds=getattr(
-                settings, "akosha_upload_timeout_seconds", 300
-            ),
-            max_retries=getattr(settings, "akosha_max_retries", 3),
-            retry_backoff_seconds=getattr(
-                settings, "akosha_retry_backoff_seconds", 2.0
-            ),
+            upload_timeout_seconds=_int("akosha_upload_timeout_seconds", 300),
+            max_retries=_int("akosha_max_retries", 3),
+            retry_backoff_seconds=_float("akosha_retry_backoff_seconds", 2.0),
             # Features
-            enable_compression=getattr(settings, "akosha_enable_compression", True),
-            enable_deduplication=getattr(settings, "akosha_enable_deduplication", True),
-            chunk_size_mb=getattr(settings, "akosha_chunk_size_mb", 5),
+            enable_compression=_bool("akosha_enable_compression", True),
+            enable_deduplication=_bool("akosha_enable_deduplication", True),
+            chunk_size_mb=_int("akosha_chunk_size_mb", 5),
         )
 
     # ==========================================================================

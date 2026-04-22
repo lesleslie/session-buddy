@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from session_buddy.settings import get_settings
+import session_buddy.settings as settings_module
 from session_buddy.storage.akosha_config import AkoshaSyncConfig
 from session_buddy.storage.akosha_sync import HybridAkoshaSync
 from session_buddy.utils.error_management import _get_logger
@@ -65,7 +65,7 @@ async def sync_to_akosha(
     """
     try:
         # Load settings
-        settings = get_settings()
+        settings = settings_module.get_settings()
 
         # Create Akosha configuration
         config = AkoshaSyncConfig.from_settings(settings)
@@ -138,7 +138,7 @@ async def akosha_sync_status() -> dict[str, Any]:
             'configuration': {...}
         }
     """
-    settings = get_settings()
+    settings = settings_module.get_settings()
     config = AkoshaSyncConfig.from_settings(settings)
 
     return {
