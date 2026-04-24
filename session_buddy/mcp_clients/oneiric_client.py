@@ -1,7 +1,8 @@
-"""Oneiric MCP client for storage adapter discovery.
+"""Dhara adapter registry client for storage adapter discovery.
 
 This module provides an MCP client wrapper that Session-Buddy can use to
-communicate with Oneiric MCP server for storage adapter discovery and resolution.
+communicate with Dhara's adapter registry runtime for storage adapter
+discovery and resolution.
 
 Example:
     >>> from session_buddy.mcp_clients import OneiricMCPClient
@@ -30,13 +31,13 @@ logger = logging.getLogger(__name__)
 
 
 class OneiricMCPClient:
-    """MCP client for communicating with Oneiric MCP server.
+    """MCP client for communicating with the Dhara adapter registry runtime.
 
-    This client provides a simplified interface for querying Oneiric MCP
-    for storage adapter discovery, resolution, and health checks.
+    This client keeps the historic Session-Buddy interface while routing to the
+    Dhara compatibility surface.
 
     Attributes:
-        server_path: Path to Oneiric MCP server directory
+        server_path: Path to the Dhara compatibility server directory
         timeout_seconds: Timeout for MCP tool calls
 
     Example:
@@ -51,10 +52,10 @@ class OneiricMCPClient:
         server_path: str | Path | None = None,
         timeout_seconds: int = 10,
     ) -> None:
-        """Initialize Oneiric MCP client.
+        """Initialize Dhara adapter registry client.
 
         Args:
-            server_path: Path to Oneiric MCP server directory
+            server_path: Path to the Dhara compatibility server directory
             timeout_seconds: Timeout for MCP tool calls in seconds
         """
         self.server_path = (
@@ -65,26 +66,26 @@ class OneiricMCPClient:
         self._initialized = False
 
     def _default_server_path(self) -> Path:
-        """Get default Oneiric MCP server path."""
+        """Get default Dhara compatibility server path."""
         # Try common locations
         candidates = [
-            Path.home() / "Projects" / "oneiric-mcp",
-            Path("/Users/les/Projects/oneiric-mcp"),
-            Path.cwd().parent / "oneiric-mcp",
+            Path.home() / "Projects" / "dhara",
+            Path("/Users/les/Projects/dhara"),
+            Path.cwd().parent / "dhara",
         ]
 
         for path in candidates:
-            if (path / "oneiric_mcp" / "__init__.py").exists():
+            if (path / "dhara" / "mcp" / "oneiric_server.py").exists():
                 return path
 
         # Fallback to home directory
-        return Path.home() / "Projects" / "oneiric-mcp"
+        return Path.home() / "Projects" / "dhara"
 
     def _create_server_params(self) -> StdioServerParameters:
-        """Create stdio server parameters for Oneiric MCP.
+        """Create stdio server parameters for the Dhara compatibility server.
 
         Returns:
-            StdioServerParameters configured for Oneiric MCP
+            StdioServerParameters configured for the Dhara compatibility server
 
         Raises:
             ImportError: If mcp package is not available
@@ -101,7 +102,7 @@ class OneiricMCPClient:
                 "run",
                 "python",
                 "-m",
-                "oneiric_mcp",
+                "dhara.mcp.oneiric_server",
             ],
         )
 
@@ -129,9 +130,9 @@ class OneiricMCPClient:
             await self._session.__aenter__()
             await self._session.initialize()
             self._initialized = True
-            logger.info(f"Connected to Oneiric MCP at {self.server_path}")
+            logger.info(f"Connected to Dhara compatibility server at {self.server_path}")
         except Exception as e:
-            logger.error(f"Failed to connect to Oneiric MCP: {e}")
+            logger.error(f"Failed to connect to Dhara compatibility server: {e}")
             self._session = None
             self._initialized = False
             raise
@@ -143,9 +144,9 @@ class OneiricMCPClient:
         if self._session:
             try:
                 await self._session.__aexit__(*args)
-                logger.info("Disconnected from Oneiric MCP")
+                logger.info("Disconnected from Dhara compatibility server")
             except Exception as e:
-                logger.warning(f"Error closing Oneiric MCP connection: {e}")
+                logger.warning(f"Error closing Dhara compatibility server connection: {e}")
             finally:
                 self._session = None
                 self._initialized = False
@@ -168,7 +169,7 @@ class OneiricMCPClient:
         return self._session
 
     async def list_storage_adapters(self) -> list[dict[str, Any]]:
-        """List all available storage adapters from Oneiric.
+        """List all available storage adapters from Dhara.
 
         Returns:
             List of storage adapter dictionaries with provider, priority, etc.
@@ -210,7 +211,7 @@ class OneiricMCPClient:
         self,
         provider: str,
     ) -> dict[str, Any]:
-        """Resolve a specific storage backend via Oneiric.
+        """Resolve a specific storage backend via Dhara.
 
         Args:
             provider: Storage provider name (e.g., "s3", "local", "azure")
@@ -367,4 +368,6 @@ class OneiricMCPClient:
             return {"count": 0, "categories": []}
 
 
-__all__ = ["OneiricMCPClient"]
+DharaAdapterRegistryClient = OneiricMCPClient
+
+__all__ = ["OneiricMCPClient", "DharaAdapterRegistryClient"]

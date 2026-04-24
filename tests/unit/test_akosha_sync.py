@@ -308,14 +308,23 @@ class TestHttpSyncMethod:
 
         http_sync = HttpSyncMethod(sample_config)
 
-        with patch("httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client.__aenter__.return_value = mock_client
-            mock_client.__aexit__.return_value = None
-            mock_client.post.side_effect = Exception("Connection refused")
-
-            mock_client_class.return_value = mock_client
-
+        # Mock _batch_upload_memories to raise an exception,
+        # simulating an HTTP failure during upload
+        with patch.object(
+            http_sync,
+            "_batch_upload_memories",
+            new_callable=AsyncMock,
+            side_effect=Exception("Connection refused"),
+        ), patch.object(
+            http_sync,
+            "_fetch_conversations",
+            new_callable=AsyncMock,
+            return_value=[{
+                "id": "test-1",
+                "content": "test content",
+                "timestamp": "2026-01-01T00:00:00Z",
+            }],
+        ):
             with pytest.raises(HTTPSyncError):
                 await http_sync.sync()
 

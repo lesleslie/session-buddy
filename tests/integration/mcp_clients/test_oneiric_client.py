@@ -1,7 +1,7 @@
-"""Integration tests for Oneiric MCP client.
+"""Integration tests for the Dhara adapter registry client.
 
-Tests the integration between Session-Buddy and Oneiric MCP for storage
-backend discovery and resolution.
+Tests the integration between Session-Buddy and the Dhara compatibility
+surface for storage backend discovery and resolution.
 """
 
 import asyncio
@@ -19,7 +19,7 @@ def mock_server_params():
     with patch("session_buddy.mcp_clients.oneiric_client.StdioServerParameters") as mock:
         mock.return_value = MagicMock(
             command="uv",
-            args=["--directory", "/path/to/oneiric-mcp", "run", "python", "-m", "oneiric_mcp"],
+            args=["--directory", "/path/to/dhara", "run", "python", "-m", "dhara.mcp.oneiric_server"],
         )
         yield mock
 

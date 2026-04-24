@@ -1,6 +1,6 @@
-"""Integration tests for Oneiric discovery tools.
+"""Integration tests for Dhara adapter registry discovery tools.
 
-Tests the MCP tools that Session-Buddy exposes for Oneiric integration.
+Tests the MCP tools that Session-Buddy exposes for Dhara integration.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,8 +18,10 @@ from session_buddy.mcp.tools.oneiric.oneiric_discovery_tools import (
 # Test fixtures
 @pytest.fixture
 def mock_oneiric_client():
-    """Mock OneiricMCPClient."""
-    with patch("session_buddy.mcp.tools.oneiric.oneiric_discovery_tools.OneiricMCPClient") as mock:
+    """Mock DharaAdapterRegistryClient."""
+    with patch(
+        "session_buddy.mcp.tools.oneiric.oneiric_discovery_tools.DharaAdapterRegistryClient"
+    ) as mock:
         client_instance = MagicMock()
         client_instance.__aenter__ = AsyncMock(return_value=client_instance)
         client_instance.__aexit__ = AsyncMock(return_value=None)
@@ -70,7 +72,7 @@ class TestDiscoverStorageBackends:
     async def test_discover_import_error(self):
         """Test discovering handles import error."""
         with patch(
-            "session_buddy.mcp.tools.oneiric.oneiric_discovery_tools.OneiricMCPClient",
+            "session_buddy.mcp.tools.oneiric.oneiric_discovery_tools.DharaAdapterRegistryClient",
             side_effect=ImportError("mcp package not available"),
         ):
             result = await discover_storage_backends()

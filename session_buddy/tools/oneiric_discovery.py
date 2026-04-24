@@ -1,7 +1,7 @@
-"""Oneiric storage discovery tools for Session-Buddy.
+"""Dhara adapter registry discovery tools for Session-Buddy.
 
 This module provides MCP tools that Session-Buddy exposes for discovering
-and resolving Oneiric storage backends via the Oneiric MCP server.
+and resolving storage backends via the Dhara compatibility server.
 
 These tools enable dynamic storage backend selection at runtime.
 """
@@ -21,13 +21,13 @@ async def discover_storage_backends(
     server_path: str | None = None,
     timeout_seconds: int = 10,
 ) -> dict[str, Any]:
-    """Discover all available storage backends via Oneiric MCP.
+    """Discover all available storage backends via the Dhara compatibility server.
 
-    This tool queries Oneiric MCP to list all registered storage adapters
-    that can be used for session persistence.
+    This tool queries the Dhara compatibility server to list all registered
+    storage adapters that can be used for session persistence.
 
     Args:
-        server_path: Optional path to Oneiric MCP server directory
+        server_path: Optional path to the Dhara compatibility server directory
         timeout_seconds: Timeout for MCP tool calls (default: 10)
 
     Returns:
@@ -40,12 +40,12 @@ async def discover_storage_backends(
         ...     print(f"  - {adapter['provider']} (priority: {adapter['priority']})")
 
     Note:
-        Requires Oneiric MCP server to be running and accessible via stdio.
+        Requires the Dhara compatibility server to be running and accessible via stdio.
     """
-    from session_buddy.mcp_clients import OneiricMCPClient
+    from session_buddy.mcp_clients.oneiric_client import DharaAdapterRegistryClient
 
     try:
-        async with OneiricMCPClient(
+        async with DharaAdapterRegistryClient(
             server_path=server_path,
             timeout_seconds=timeout_seconds,
         ) as client:
@@ -64,12 +64,12 @@ async def discover_storage_backends(
                 "count": len(adapters),
                 "adapters": adapters,
                 "providers": list(providers.keys()),
-                "note": "Storage backends discovered via Oneiric MCP",
+                "note": "Storage backends discovered via the Dhara compatibility server",
                 "server_path": str(client.server_path),
             }
 
     except ImportError as e:
-        logger.error(f"Failed to import OneiricMCPClient: {e}")
+        logger.error(f"Failed to import DharaAdapterRegistryClient: {e}")
         return {
             "success": False,
             "error": f"MCP package not available: {e}",
@@ -77,13 +77,13 @@ async def discover_storage_backends(
             "count": 0,
         }
     except RuntimeError as e:
-        logger.error(f"Failed to connect to Oneiric MCP: {e}")
+        logger.error(f"Failed to connect to Dhara compatibility server: {e}")
         return {
             "success": False,
             "error": str(e),
             "adapters": [],
             "count": 0,
-            "note": "Ensure Oneiric MCP server is available",
+            "note": "Ensure the Dhara compatibility server is available",
         }
     except Exception as e:
         logger.exception(f"Unexpected error discovering storage backends: {e}")
@@ -100,14 +100,14 @@ async def resolve_storage_backend(
     server_path: str | None = None,
     timeout_seconds: int = 10,
 ) -> dict[str, Any]:
-    """Resolve a specific storage backend via Oneiric MCP.
+    """Resolve a specific storage backend via the Dhara compatibility server.
 
-    This tool resolves a specific storage provider via Oneiric, returning
+    This tool resolves a specific storage provider via the registry, returning
     information about whether the adapter was selected and its health status.
 
     Args:
         provider: Storage provider name (e.g., "s3", "local", "azure", "gcs")
-        server_path: Optional path to Oneiric MCP server directory
+        server_path: Optional path to the Dhara compatibility server directory
         timeout_seconds: Timeout for MCP tool calls (default: 10)
 
     Returns:
@@ -120,10 +120,10 @@ async def resolve_storage_backend(
         ...     print(f"Provider: {result['provider']}")
         ...     print(f"Healthy: {result.get('healthy', 'unknown')}")
 
-    Note:
-        Requires Oneiric MCP server to be running and accessible via stdio.
+        Note:
+        Requires the Dhara compatibility server to be running and accessible via stdio.
     """
-    from session_buddy.mcp_clients import OneiricMCPClient
+    from session_buddy.mcp_clients.oneiric_client import DharaAdapterRegistryClient
 
     if not provider or not provider.strip():
         return {
@@ -134,7 +134,7 @@ async def resolve_storage_backend(
         }
 
     try:
-        async with OneiricMCPClient(
+        async with DharaAdapterRegistryClient(
             server_path=server_path,
             timeout_seconds=timeout_seconds,
         ) as client:
@@ -150,7 +150,7 @@ async def resolve_storage_backend(
             return result
 
     except ImportError as e:
-        logger.error(f"Failed to import OneiricMCPClient: {e}")
+        logger.error(f"Failed to import DharaAdapterRegistryClient: {e}")
         return {
             "success": False,
             "error": f"MCP package not available: {e}",
@@ -158,13 +158,13 @@ async def resolve_storage_backend(
             "selected": False,
         }
     except RuntimeError as e:
-        logger.error(f"Failed to connect to Oneiric MCP: {e}")
+        logger.error(f"Failed to connect to Dhara compatibility server: {e}")
         return {
             "success": False,
             "error": str(e),
             "provider": provider,
             "selected": False,
-            "note": "Ensure Oneiric MCP server is available",
+            "note": "Ensure the Dhara compatibility server is available",
         }
     except Exception as e:
         logger.exception(f"Unexpected error resolving storage backend {provider}: {e}")
@@ -181,14 +181,14 @@ async def check_storage_health(
     server_path: str | None = None,
     timeout_seconds: int = 10,
 ) -> dict[str, Any]:
-    """Check health status of a Oneiric storage backend.
+    """Check health status of a storage backend via the Dhara compatibility server.
 
     This tool performs a health check on a specific storage provider to
     verify it is available and functioning correctly.
 
     Args:
         provider: Storage provider name to check
-        server_path: Optional path to Oneiric MCP server directory
+        server_path: Optional path to the Dhara compatibility server directory
         timeout_seconds: Timeout for MCP tool calls (default: 10)
 
     Returns:
@@ -203,11 +203,11 @@ async def check_storage_health(
         >>> else:
         ...     print("S3 backend does not implement health checks")
 
-    Note:
-        Requires Oneiric MCP server to be running and accessible via stdio.
+        Note:
+        Requires the Dhara compatibility server to be running and accessible via stdio.
         Not all storage backends implement health checks.
     """
-    from session_buddy.mcp_clients import OneiricMCPClient
+    from session_buddy.mcp_clients.oneiric_client import DharaAdapterRegistryClient
 
     if not provider or not provider.strip():
         return {
@@ -218,7 +218,7 @@ async def check_storage_health(
         }
 
     try:
-        async with OneiricMCPClient(
+        async with DharaAdapterRegistryClient(
             server_path=server_path,
             timeout_seconds=timeout_seconds,
         ) as client:
@@ -234,7 +234,7 @@ async def check_storage_health(
             return health
 
     except ImportError as e:
-        logger.error(f"Failed to import OneiricMCPClient: {e}")
+        logger.error(f"Failed to import DharaAdapterRegistryClient: {e}")
         return {
             "success": False,
             "error": f"MCP package not available: {e}",
@@ -242,13 +242,13 @@ async def check_storage_health(
             "healthy": False,
         }
     except RuntimeError as e:
-        logger.error(f"Failed to connect to Oneiric MCP: {e}")
+        logger.error(f"Failed to connect to Dhara compatibility server: {e}")
         return {
             "success": False,
             "error": str(e),
             "provider": provider,
             "healthy": False,
-            "note": "Ensure Oneiric MCP server is available",
+            "note": "Ensure the Dhara compatibility server is available",
         }
     except Exception as e:
         logger.exception(
@@ -269,12 +269,12 @@ async def explain_storage_resolution(
 ) -> dict[str, Any]:
     """Explain why a specific storage adapter was selected.
 
-    This tool provides detailed information about why Oneiric selected
+    This tool provides detailed information about why the registry selected
     a particular storage adapter, including priority scores and alternatives.
 
     Args:
         provider: Storage provider name to explain (e.g., "local")
-        server_path: Optional path to Oneiric MCP server directory
+        server_path: Optional path to the Dhara compatibility server directory
         timeout_seconds: Timeout for MCP tool calls (default: 10)
 
     Returns:
@@ -287,10 +287,8 @@ async def explain_storage_resolution(
         ...     print(f"  - {candidate['provider']}: score={candidate['score']}")
 
     Note:
-        Requires Oneiric MCP server to be running and accessible via stdio.
+        Requires the Dhara compatibility server to be running and accessible via stdio.
     """
-    from session_buddy.mcp_clients import OneiricMCPClient
-
     if not provider or not provider.strip():
         return {
             "success": False,
@@ -299,7 +297,7 @@ async def explain_storage_resolution(
         }
 
     try:
-        async with OneiricMCPClient(
+        async with DharaAdapterRegistryClient(
             server_path=server_path,
             timeout_seconds=timeout_seconds,
         ) as client:
@@ -327,14 +325,14 @@ async def explain_storage_resolution(
             return result_dict  # type: ignore[return-value]
 
     except ImportError as e:
-        logger.error(f"Failed to import OneiricMCPClient: {e}")
+        logger.error(f"Failed to import DharaAdapterRegistryClient: {e}")
         return {
             "success": False,
             "error": f"MCP package not available: {e}",
             "provider": provider,
         }
     except RuntimeError as e:
-        logger.error(f"Failed to connect to Oneiric MCP: {e}")
+        logger.error(f"Failed to connect to Dhara compatibility server: {e}")
         return {
             "success": False,
             "error": str(e),
@@ -382,7 +380,7 @@ def register_oneiric_discovery_tools(register_func: Callable[[str, Any], None]) 
         description="Explain why a storage adapter was selected",
     )(explain_storage_resolution)
 
-    logger.info("Registered Oneiric storage discovery tools")
+    logger.info("Registered Dhara storage discovery tools")
 
 
 __all__ = [

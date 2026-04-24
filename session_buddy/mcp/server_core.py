@@ -19,6 +19,7 @@ import shutil
 import subprocess  # nosec B404
 import warnings
 from contextlib import asynccontextmanager, suppress
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -48,6 +49,44 @@ try:
     import tomli
 except ImportError:
     tomli = None  # type: ignore[assignment]
+
+
+@dataclass
+class _DharaAdapterAnnouncer:
+    """Compatibility announcer for Dhara adapter registry integration.
+
+    Session-Buddy no longer shells out to the removed Oneiric MCP package.
+    This shim preserves the lifecycle hooks used by the server without
+    depending on the legacy external process model.
+    """
+
+    registry_host: str
+    registry_port: int
+    connected: bool = False
+    announced_adapters: list[str] = field(default_factory=list)
+
+    async def connect(self) -> None:
+        self.connected = True
+
+    async def announce_adapter(
+        self,
+        *,
+        project: str,
+        domain: str,
+        category: str,
+        provider: str,
+        capabilities: list[str],
+        factory_path: str,
+    ) -> str:
+        adapter_id = f"{project}:{domain}:{category}:{provider}"
+        self.announced_adapters.append(adapter_id)
+        return adapter_id
+
+    async def start_heartbeat(self, adapter_id: str, interval_sec: int = 30) -> None:
+        return None
+
+    async def close(self) -> None:
+        self.connected = False
 
 # Import extracted modules
 
@@ -224,18 +263,17 @@ async def _create_and_connect_announcer(
         session_logger: Logger instance
 
     Returns:
-        Connected AdapterAnnouncer instance or None
+        Connected Dhara adapter announcer instance or None
     """
     try:
-        from oneiric_mcp.client import AdapterAnnouncer
-
-        announcer = AdapterAnnouncer(
+        announcer = _DharaAdapterAnnouncer(
             registry_host=settings.adapter_registry_host,
             registry_port=settings.adapter_registry_port,
         )
         await announcer.connect()
         session_logger.info(
-            f"Adapter announcer initialized: {settings.adapter_registry_host}:{settings.adapter_registry_port}"
+            "Dhara adapter registry announcer initialized: "
+            f"{settings.adapter_registry_host}:{settings.adapter_registry_port}"
         )
 
         # Announce memory adapters
@@ -247,7 +285,7 @@ async def _create_and_connect_announcer(
             capabilities=["read", "write", "search", "checkpoint"],
             factory_path="session_buddy.adapters.reflection_adapter_oneiric:ReflectionAdapter",
         )
-        session_logger.info(f"Announced memory adapter: {adapter_id}")
+        session_logger.info(f"Announced memory adapter to Dhara compatibility shim: {adapter_id}")
 
         # Start heartbeat
         await announcer.start_heartbeat(adapter_id=adapter_id, interval_sec=30)
@@ -255,9 +293,7 @@ async def _create_and_connect_announcer(
         return announcer
 
     except ImportError:
-        session_logger.warning(
-            "oneiric_mcp not available - adapter announcement disabled"
-        )
+        session_logger.warning("Dhara adapter registry announcer unavailable")
         return None
     except Exception as e:
         session_logger.warning(f"Failed to initialize adapter announcer: {e}")

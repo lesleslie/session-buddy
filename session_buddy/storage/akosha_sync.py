@@ -420,7 +420,11 @@ class HttpSyncMethod(SyncMethod):
             "namespace": conv.get("namespace", "default"),
             "session_id": conv.get("session_id"),
             "user_id": conv.get("user_id", "default"),
-            "created_at": conv.get("timestamp"),
+            "created_at": (
+                conv["timestamp"].isoformat()
+                if isinstance(conv.get("timestamp"), datetime)
+                else conv.get("timestamp")
+            ),
             "ingestion_method": "http_push",
         }
 
@@ -588,7 +592,11 @@ class HttpSyncMethod(SyncMethod):
                 "related_entities": reflection.get("related_entities", []),
                 "project": reflection.get("project"),
                 "namespace": reflection.get("namespace", "default"),
-                "created_at": reflection.get("timestamp"),
+                "created_at": (
+                    reflection["timestamp"].isoformat()
+                    if isinstance(reflection.get("timestamp"), datetime)
+                    else reflection.get("timestamp")
+                ),
                 "ingestion_method": "http_push",
             },
         }
@@ -837,7 +845,11 @@ class HttpSyncMethod(SyncMethod):
                 **entity.get("properties", {}),
                 "source_system": self.config.system_id_resolved,
                 "original_id": entity["id"],
-                "created_at": entity.get("created_at"),
+                "created_at": (
+                    entity["created_at"].isoformat()
+                    if isinstance(entity.get("created_at"), datetime)
+                    else entity.get("created_at")
+                ),
                 "ingestion_method": "http_push",
             },
             "metadata": entity.get("metadata", {}),
@@ -860,7 +872,11 @@ class HttpSyncMethod(SyncMethod):
                 **rel.get("properties", {}),
                 "source_system": self.config.system_id_resolved,
                 "original_id": rel["id"],
-                "created_at": rel.get("created_at"),
+                "created_at": (
+                    rel["created_at"].isoformat()
+                    if isinstance(rel.get("created_at"), datetime)
+                    else rel.get("created_at")
+                ),
                 "ingestion_method": "http_push",
             },
             "metadata": rel.get("metadata", {}),
