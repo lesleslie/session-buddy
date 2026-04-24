@@ -238,11 +238,6 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "get_community_baselines": "Get community baselines for quality.",
     "apply_pattern": "Apply a learned pattern to code.",
     "analyze_history": "Analyze development history for patterns.",
-    # -- Oneiric discovery --
-    "oneiric_discover_storage": "Discover Oneiric storage backends.",
-    "oneiric_explain_storage": "Explain a Oneiric storage configuration.",
-    "oneiric_resolve_storage": "Resolve Oneiric storage references.",
-    "oneiric_storage_health": "Health check for Oneiric storage.",
     # -- Admin shell tracking --
     # (tools registered by register_admin_shell_tracking_tools)
     # -- Akosha integration --

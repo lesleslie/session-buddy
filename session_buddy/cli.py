@@ -36,11 +36,6 @@ class SessionBuddySettings(MCPServerSettings):
     shutdown_timeout: int = 10
     force_kill_timeout: int = 5
 
-    # Adapter registry configuration
-    adapter_registry_enabled: bool = True
-    adapter_registry_host: str = "localhost"
-    adapter_registry_port: int = 8679
-
 
 def start_server_handler() -> None:
     """Start handler that launches the Session Buddy MCP server.

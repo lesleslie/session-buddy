@@ -359,24 +359,6 @@ class TestCLIMain:
 
 
 @pytest.mark.asyncio
-class TestCLIAdapterRegistry:
-    """Test suite for adapter registry configuration."""
-
-    def test_adapter_registry_settings(self):
-        """Test adapter registry configuration in settings."""
-        from session_buddy.cli import SessionBuddySettings
-
-        settings = SessionBuddySettings()
-
-        # Verify adapter registry settings
-        assert hasattr(settings, "adapter_registry_enabled")
-        assert hasattr(settings, "adapter_registry_host")
-        assert hasattr(settings, "adapter_registry_port")
-        assert settings.adapter_registry_host == "localhost"
-        assert settings.adapter_registry_port == 8679
-
-
-@pytest.mark.asyncio
 class TestCLIProcessManagement:
     """Test suite for process management settings."""
 

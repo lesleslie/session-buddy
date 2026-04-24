@@ -19,7 +19,6 @@ import shutil
 import subprocess  # nosec B404
 import warnings
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -50,43 +49,6 @@ try:
 except ImportError:
     tomli = None  # type: ignore[assignment]
 
-
-@dataclass
-class _DharaAdapterAnnouncer:
-    """Compatibility announcer for Dhara adapter registry integration.
-
-    Session-Buddy no longer shells out to the removed Oneiric MCP package.
-    This shim preserves the lifecycle hooks used by the server without
-    depending on the legacy external process model.
-    """
-
-    registry_host: str
-    registry_port: int
-    connected: bool = False
-    announced_adapters: list[str] = field(default_factory=list)
-
-    async def connect(self) -> None:
-        self.connected = True
-
-    async def announce_adapter(
-        self,
-        *,
-        project: str,
-        domain: str,
-        category: str,
-        provider: str,
-        capabilities: list[str],
-        factory_path: str,
-    ) -> str:
-        adapter_id = f"{project}:{domain}:{category}:{provider}"
-        self.announced_adapters.append(adapter_id)
-        return adapter_id
-
-    async def start_heartbeat(self, adapter_id: str, interval_sec: int = 30) -> None:
-        return None
-
-    async def close(self) -> None:
-        self.connected = False
 
 # Import extracted modules
 
@@ -213,7 +175,6 @@ async def session_lifecycle(
     from session_buddy.utils.git_worktrees import is_git_repository
 
     current_dir = Path.cwd()
-    adapter_announcer = await _initialize_adapter_announcer(session_logger)
 
     # Initialize session for git repositories
     if is_git_repository(current_dir):
@@ -222,82 +183,7 @@ async def session_lifecycle(
     yield  # Server runs normally
 
     # Cleanup on disconnect
-    await _cleanup_session_lifecycle(
-        adapter_announcer, current_dir, lifecycle_manager, session_logger
-    )
-
-
-async def _initialize_adapter_announcer(
-    session_logger: SessionLogger,
-) -> Any:
-    """Initialize the adapter announcer for registry integration.
-
-    Args:
-        session_logger: Logger instance
-
-    Returns:
-        AdapterAnnouncer instance or None if initialization failed
-    """
-    try:
-        from .cli import SessionBuddySettings
-
-        settings = SessionBuddySettings()
-
-        if not settings.adapter_registry_enabled:
-            return None
-
-        return await _create_and_connect_announcer(settings, session_logger)
-
-    except Exception as e:
-        session_logger.warning(f"Failed to load settings for adapter announcer: {e}")
-        return None
-
-
-async def _create_and_connect_announcer(
-    settings: Any, session_logger: SessionLogger
-) -> Any:
-    """Create and connect the adapter announcer.
-
-    Args:
-        settings: SessionBuddySettings instance
-        session_logger: Logger instance
-
-    Returns:
-        Connected Dhara adapter announcer instance or None
-    """
-    try:
-        announcer = _DharaAdapterAnnouncer(
-            registry_host=settings.adapter_registry_host,
-            registry_port=settings.adapter_registry_port,
-        )
-        await announcer.connect()
-        session_logger.info(
-            "Dhara adapter registry announcer initialized: "
-            f"{settings.adapter_registry_host}:{settings.adapter_registry_port}"
-        )
-
-        # Announce memory adapters
-        adapter_id = await announcer.announce_adapter(
-            project="session-buddy",
-            domain="adapter",
-            category="memory",
-            provider="reflection",
-            capabilities=["read", "write", "search", "checkpoint"],
-            factory_path="session_buddy.adapters.reflection_adapter_oneiric:ReflectionAdapter",
-        )
-        session_logger.info(f"Announced memory adapter to Dhara compatibility shim: {adapter_id}")
-
-        # Start heartbeat
-        await announcer.start_heartbeat(adapter_id=adapter_id, interval_sec=30)
-
-        return announcer
-
-    except ImportError:
-        session_logger.warning("Dhara adapter registry announcer unavailable")
-        return None
-    except Exception as e:
-        session_logger.warning(f"Failed to initialize adapter announcer: {e}")
-        return None
+    await _end_git_session(current_dir, lifecycle_manager, session_logger)
 
 
 async def _initialize_git_session(
@@ -345,43 +231,6 @@ def _store_connection_info(result: dict[str, Any]) -> None:
         "recommendations": result["quality_data"].get("recommendations", []),
     }
     set_connection_info(connection_info)
-
-
-async def _cleanup_session_lifecycle(
-    adapter_announcer: Any,
-    current_dir: Path,
-    lifecycle_manager: Any,
-    session_logger: SessionLogger,
-) -> None:
-    """Cleanup adapter announcer and end session on disconnect.
-
-    Args:
-        adapter_announcer: AdapterAnnouncer instance or None
-        current_dir: Current working directory
-        lifecycle_manager: SessionLifecycleManager instance
-        session_logger: Logger instance
-    """
-    await _close_adapter_announcer(adapter_announcer, session_logger)
-    await _end_git_session(current_dir, lifecycle_manager, session_logger)
-
-
-async def _close_adapter_announcer(
-    adapter_announcer: Any, session_logger: SessionLogger
-) -> None:
-    """Close the adapter announcer connection.
-
-    Args:
-        adapter_announcer: AdapterAnnouncer instance or None
-        session_logger: Logger instance
-    """
-    if not adapter_announcer:
-        return
-
-    try:
-        await adapter_announcer.close()
-        session_logger.info("Adapter announcer connection closed")
-    except Exception as e:
-        session_logger.warning(f"Failed to close adapter announcer: {e}")
 
 
 async def _end_git_session(

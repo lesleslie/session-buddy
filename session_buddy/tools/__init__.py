@@ -80,11 +80,6 @@ from session_buddy.mcp.tools.monitoring.workflow_metrics_tools import (
     register_workflow_metrics_tools,
 )
 
-# Oneiric integration tools
-from session_buddy.mcp.tools.oneiric.oneiric_discovery_tools import (
-    register_oneiric_discovery_tools,
-)
-
 # Session tools
 from session_buddy.mcp.tools.session.crackerjack_tools import (
     register_crackerjack_tools,
@@ -157,8 +152,6 @@ __all__ = [
     "register_monitoring_tools",
     "register_session_analytics_tools",
     "register_workflow_metrics_tools",
-    # Oneiric
-    "register_oneiric_discovery_tools",
     # Session
     "register_session_tools",
     "register_crackerjack_tools",

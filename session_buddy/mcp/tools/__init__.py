@@ -75,11 +75,6 @@ from .monitoring.workflow_metrics_tools import (
     register_workflow_metrics_tools,
 )
 
-# Oneiric integration tools
-from .oneiric.oneiric_discovery_tools import (
-    register_oneiric_discovery_tools,
-)
-
 # Session tools
 from .session.admin_shell_tracking_tools import (
     register_admin_shell_tracking_tools,
@@ -127,8 +122,6 @@ __all__ = [
     "register_monitoring_tools",
     "register_session_analytics_tools",
     "register_workflow_metrics_tools",
-    # Oneiric
-    "register_oneiric_discovery_tools",
     # Session
     "register_admin_shell_tracking_tools",
     "register_crackerjack_tools",

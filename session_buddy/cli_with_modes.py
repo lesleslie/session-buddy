@@ -52,11 +52,6 @@ class SessionBuddySettings(MCPServerSettings):
     # Operational mode (lite, standard)
     mode: str = "standard"
 
-    # Adapter registry configuration
-    adapter_registry_enabled: bool = True
-    adapter_registry_host: str = "localhost"
-    adapter_registry_port: int = 8679
-
 
 def start_server_handler(mode: str = "standard") -> None:
     """Start handler that launches Session-Buddy in the specified mode.

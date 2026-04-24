@@ -55,7 +55,6 @@ from .tools import (
     register_memory_health_tools,
     register_migration_tools,
     register_monitoring_tools,
-    register_oneiric_discovery_tools,
     register_phase3_knowledge_graph_tools,
     register_phase4_tools,  # Phase 4 Skills Analytics
     register_pool_tools,
@@ -99,7 +98,6 @@ _ALL_REGISTERS: dict[str, Any] = {
     "register_memory_health_tools": register_memory_health_tools,
     "register_migration_tools": register_migration_tools,
     "register_monitoring_tools": register_monitoring_tools,
-    "register_oneiric_discovery_tools": register_oneiric_discovery_tools,
     "register_phase3_knowledge_graph_tools": register_phase3_knowledge_graph_tools,
     "register_phase4_tools": register_phase4_tools,
     "register_pool_tools": register_pool_tools,
