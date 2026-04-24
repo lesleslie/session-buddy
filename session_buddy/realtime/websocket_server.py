@@ -477,7 +477,8 @@ class RealTimeMetricsServer:
             return
 
         self._running = True
-        logger.info(f"Starting WebSocket server on {self.host}:{self.port}")
+        bind_host = "127.0.0.1" if self.host == "localhost" else self.host
+        logger.info(f"Starting WebSocket server on {bind_host}:{self.port}")
 
         # Start metrics broadcaster
         self._broadcast_task = asyncio.create_task(self.broadcast_metrics())
@@ -485,14 +486,14 @@ class RealTimeMetricsServer:
         # Start WebSocket server (websockets 16.0 API)
         self._server = await websockets.serve(
             self.client_handler,
-            self.host,
+            bind_host,
             self.port,
             ping_interval=20,
             ping_timeout=20,
             close_timeout=10,
         )
 
-        logger.info(f"WebSocket server started: ws://{self.host}:{self.port}")
+        logger.info(f"WebSocket server started: ws://{bind_host}:{self.port}")
 
     async def stop(self) -> None:
         """Stop the WebSocket server.
@@ -511,7 +512,6 @@ class RealTimeMetricsServer:
 
         # Stop broadcaster
         if self._broadcast_task:
-            self._broadcast_task.cancel()
             try:
                 await self._broadcast_task
             except asyncio.CancelledError:

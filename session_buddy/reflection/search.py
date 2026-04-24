@@ -197,7 +197,7 @@ async def _text_search_conversations(
     for row in results:
         content = _decode_text_from_db(row[1]).lower()
         # Check if this is reflections (has tags column) or conversations (no tags)
-        if len(row) >= 4 and isinstance(row[3], list):
+        if len(row) >= 4 and isinstance(row[3], (list, tuple)):
             # Reflections - search both content and tags
             tags = [tag.lower() for tag in row[3]]
             if any(
@@ -327,6 +327,11 @@ async def _semantic_search_reflections(
         # Filter by minimum score
         filtered = [row for row in results if float(row[7]) >= min_score]
 
+        if not filtered:
+            return await _text_search_reflections(
+                conn, query, limit, project, is_temp_db, lock
+            )
+
         return [
             {
                 "id": str(row[0]),
@@ -371,10 +376,6 @@ async def _text_search_reflections(
     """
     search_terms = query.lower().split()
 
-    # Return empty list when query is empty
-    if not search_terms:
-        return []
-
     sql = "SELECT id, content, project, tags, timestamp, metadata FROM reflections"
     params = []
 
@@ -394,23 +395,26 @@ async def _text_search_reflections(
             lambda: conn.execute(sql, params).fetchall(),
         )
 
-    # Filter results by search terms (search both content and tags for reflections)
-    filtered = []
-    for row in results:
-        content = _decode_text_from_db(row[1]).lower()
-        # Check if this is reflections (has tags column) or conversations (no tags)
-        if len(row) >= 4 and isinstance(row[3], list):
-            # Reflections - search both content and tags
-            tags = [tag.lower() for tag in row[3]]
-            if any(
-                term in content or any(term in tag for tag in tags)
-                for term in search_terms
-            ):
-                filtered.append(row)
-        else:
-            # Conversations - only search content
-            if any(term in content for term in search_terms):
-                filtered.append(row)
+    if not search_terms:
+        filtered = results
+    else:
+        # Filter results by search terms (search both content and tags for reflections)
+        filtered = []
+        for row in results:
+            content = _decode_text_from_db(row[1]).lower()
+            # Check if this is reflections (has tags column) or conversations (no tags)
+            if len(row) >= 4 and isinstance(row[3], (list, tuple)):
+                # Reflections - search both content and tags
+                tags = [tag.lower() for tag in row[3]]
+                if any(
+                    term in content or any(term in tag for tag in tags)
+                    for term in search_terms
+                ):
+                    filtered.append(row)
+            else:
+                # Conversations - only search content
+                if any(term in content for term in search_terms):
+                    filtered.append(row)
 
     # Return top results with no similarity score
     return [

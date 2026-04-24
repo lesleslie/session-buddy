@@ -594,10 +594,9 @@ class LLMManager:
             for fallback in self.config["fallback_providers"]:
                 if fallback not in ordered:
                     ordered.append(fallback)
-
-        for name in self.providers:
-            if name not in ordered:
-                ordered.append(name)
+            for name in self.providers:
+                if name not in ordered:
+                    ordered.append(name)
         return ordered
 
     def list_providers(self) -> list[str]:

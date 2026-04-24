@@ -408,10 +408,13 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         entity_id = str(uuid.uuid4())
         now = datetime.now(tz=UTC)
 
-        # Generate embedding for entity (Phase 2)
-        embedding = await self._generate_entity_embedding(
-            name, entity_type, entity_observations
-        )
+        # Generate embeddings only when we have richer content to embed.
+        # Minimal entity creation should stay fast for the hybrid sync/async path.
+        embedding = None
+        if entity_observations:
+            embedding = await self._generate_entity_embedding(
+                name, entity_type, entity_observations
+            )
 
         # Sync DuckDB execution (fast, local operation)
         conn.execute(

@@ -1042,6 +1042,18 @@ class ReflectionDatabaseAdapterOneiric:
                 return existing_id  # Return ID of most similar duplicate
 
         conv_id = self._generate_id(content)
+        if not deduplicate:
+            existing_row = self.conn.execute(
+                f"""
+                SELECT 1
+                FROM {self.collection_name}_conversations
+                WHERE id = ?
+                LIMIT 1
+                """,
+                [conv_id],
+            ).fetchone()
+            if existing_row:
+                conv_id = str(uuid.uuid4())
         now = datetime.now(UTC)
         metadata_json = json.dumps(metadata or {})
 

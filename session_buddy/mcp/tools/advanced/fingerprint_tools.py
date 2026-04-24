@@ -13,6 +13,7 @@ content-level similarity detection independent of semantic meaning.
 from __future__ import annotations
 
 import logging
+import re
 import typing as t
 from typing import Any
 
@@ -187,6 +188,29 @@ async def fingerprint_search(
                 reflection_results = reflection_duplicates[:limit]
                 all_results.extend(reflection_results)
 
+            # Fallback for short queries when MinHash similarity is too strict.
+            if not all_results:
+                fallback_results = _search_by_token_overlap(
+                    db,
+                    query=query,
+                    collection_name=collection_name,
+                    content_type=content_type,
+                    limit=limit,
+                )
+                all_results.extend(fallback_results)
+                if content_type is None or content_type == "conversation":
+                    conversation_results = [
+                        result
+                        for result in fallback_results
+                        if result.get("content_type") == "conversation"
+                    ]
+                if content_type is None or content_type == "reflection":
+                    reflection_results = [
+                        result
+                        for result in fallback_results
+                        if result.get("content_type") == "reflection"
+                    ]
+
         return {
             "success": True,
             "results": all_results,
@@ -207,6 +231,79 @@ async def fingerprint_search(
             "total_results": 0,
             "message": f"Error in fingerprint search: {e}",
         }
+
+
+def _search_by_token_overlap(
+    db: Any,
+    query: str,
+    collection_name: str,
+    content_type: t.Literal["conversation", "reflection"] | None,
+    limit: int,
+) -> list[dict[str, t.Any]]:
+    """Fallback search using token overlap when fingerprint matching is too strict."""
+    tokens = [
+        token
+        for token in re.findall(r"[A-Za-z0-9_]+", query.lower())
+        if len(token) >= 3
+    ]
+    if not tokens:
+        return []
+
+    results: list[dict[str, t.Any]] = []
+    table_specs: list[tuple[str, str]] = []
+    if content_type is None or content_type == "conversation":
+        table_specs.append((f"{collection_name}_conversations", "conversation"))
+    if content_type is None or content_type == "reflection":
+        table_specs.append((f"{collection_name}_reflections", "reflection"))
+
+    for table_name, label in table_specs:
+        where_clauses = " OR ".join(["lower(content) LIKE ?" for _ in tokens])
+        params = [f"%{token}%" for token in tokens]
+        if label == "conversation":
+            rows = db.conn.execute(
+                f"""
+                SELECT id, content, metadata, created_at, updated_at
+                FROM {table_name}
+                WHERE {where_clauses}
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                params + [limit],
+            ).fetchall()
+        else:
+            rows = db.conn.execute(
+                f"""
+                SELECT id, content, tags, created_at, updated_at
+                FROM {table_name}
+                WHERE {where_clauses}
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                params + [limit],
+            ).fetchall()
+
+        for row in rows:
+            content = row[1] or ""
+            content_lower = content.lower()
+            overlap = sum(1 for token in tokens if token in content_lower)
+            similarity = overlap / len(tokens)
+            tags = []
+            if label == "reflection":
+                tags = list(row[2]) if row[2] else []
+            results.append(
+                {
+                    "id": row[0],
+                    "content": content,
+                    "tags": tags,
+                    "created_at": row[3].isoformat() if row[3] else None,
+                    "updated_at": row[4].isoformat() if row[4] else None,
+                    "similarity": similarity,
+                    "content_type": label,
+                }
+            )
+
+    results.sort(key=lambda item: item.get("similarity", 0.0), reverse=True)
+    return results[:limit]
 
 
 async def deduplication_stats(

@@ -166,7 +166,7 @@ class TestCollaborativeFilteringEngine:
 
     def test_recommend_from_similar_users(self, test_db_with_interactions: Path) -> None:
         """Test generating recommendations."""
-        engine = CollaborativeFilteringFilteringEngine(test_db_with_interactions)
+        engine = CollaborativeFilteringEngine(test_db_with_interactions)
 
         # Get recommendations for user1
         recommendations = engine.recommend_from_similar_users("user1", limit=3)

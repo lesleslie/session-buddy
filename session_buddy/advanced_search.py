@@ -394,6 +394,7 @@ class AdvancedSearchEngine:
         # Ensure database tables exist before indexing
         if self.reflection_db.conn:
             await self.reflection_db._ensure_tables()
+            self._ensure_advanced_search_tables()
 
         # Index conversations
         await self._index_conversations()
@@ -403,6 +404,37 @@ class AdvancedSearchEngine:
 
         # Update facets
         await self._update_search_facets()
+
+    def _ensure_advanced_search_tables(self) -> None:
+        """Create advanced search tables if they do not already exist."""
+        if not self.reflection_db.conn:
+            return
+
+        self.reflection_db.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS search_index (
+                id TEXT PRIMARY KEY,
+                content_type TEXT NOT NULL,
+                content_id TEXT NOT NULL,
+                indexed_content TEXT NOT NULL,
+                search_metadata TEXT,
+                last_indexed TIMESTAMP NOT NULL
+            )
+            """
+        )
+        self.reflection_db.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS search_facets (
+                id TEXT PRIMARY KEY,
+                content_type TEXT NOT NULL,
+                content_id TEXT NOT NULL,
+                facet_name TEXT NOT NULL,
+                facet_value TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        self.reflection_db.conn.commit()
 
     async def _index_conversations(self) -> None:
         """Index all conversations for search."""

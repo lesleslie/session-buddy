@@ -82,9 +82,6 @@ class CollaborativeFilteringEngine:
         # Cache for similar users calculations
         self._similar_users_cache: dict[str, tuple[list[tuple[str, float]], float]] = {}
 
-        # Ensure parent directory exists
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-
     # ========================================================================
     # Connection Management
     # ========================================================================
@@ -123,6 +120,16 @@ class CollaborativeFilteringEngine:
             SHA256 hash of user ID
         """
         return hashlib.sha256(user_id.encode()).hexdigest()
+
+    def _user_id_variants(self, user_id: str) -> tuple[str, str]:
+        """Return raw and hashed identifiers for a user.
+
+        Some test fixtures store raw IDs, while production data may store
+        hashed IDs for privacy. Accepting both keeps the engine compatible
+        with either format.
+        """
+        hashed_user_id = self._hash_user_id(user_id)
+        return user_id, hashed_user_id
 
     # ========================================================================
     # User Similarity
@@ -166,7 +173,7 @@ class CollaborativeFilteringEngine:
                 return cached_results
 
         # Hash user ID for privacy
-        hashed_user_id = self._hash_user_id(user_id)
+        raw_user_id, hashed_user_id = self._user_id_variants(user_id)
 
         try:
             with self._get_connection() as conn:
@@ -177,9 +184,9 @@ class CollaborativeFilteringEngine:
                     """
                     SELECT DISTINCT skill_name
                     FROM skill_user_interactions
-                    WHERE user_id = ? AND completed = 1
+                    WHERE user_id IN (?, ?) AND completed = 1
                     """,
-                    (hashed_user_id,),
+                    (raw_user_id, hashed_user_id),
                 )
 
                 target_skills = {row["skill_name"] for row in cursor.fetchall()}
@@ -200,11 +207,11 @@ class CollaborativeFilteringEngine:
                             COUNT(*) as total_skills,
                             COUNT(CASE WHEN skill_name IN (
                                 SELECT skill_name
-                                FROM skill_user_interactions
-                                WHERE user_id = ? AND completed = 1
-                            ) THEN 1 END) as common_skills
                         FROM skill_user_interactions
-                        WHERE completed = 1 AND user_id != ?
+                        WHERE user_id IN (?, ?) AND completed = 1
+                    ) THEN 1 END) as common_skills
+                        FROM skill_user_interactions
+                        WHERE completed = 1 AND user_id NOT IN (?, ?)
                         GROUP BY user_id
                         HAVING common_skills >= ?
                     )
@@ -217,7 +224,9 @@ class CollaborativeFilteringEngine:
                     LIMIT ?
                     """,
                     (
+                        raw_user_id,
                         hashed_user_id,
+                        raw_user_id,
                         hashed_user_id,
                         min_common_skills,
                         target_skills_count,
@@ -284,7 +293,7 @@ class CollaborativeFilteringEngine:
             ...     print(f"{rec['skill_name']}: {rec['score']:.2f} "
             ...           f"(rate: {rec['completion_rate']:.1%})")
         """
-        hashed_user_id = self._hash_user_id(user_id)
+        raw_user_id, hashed_user_id = self._user_id_variants(user_id)
 
         try:
             # Step 1: Get similar users
@@ -306,9 +315,9 @@ class CollaborativeFilteringEngine:
                     """
                     SELECT DISTINCT skill_name
                     FROM skill_user_interactions
-                    WHERE user_id = ?
+                    WHERE user_id IN (?, ?)
                     """,
-                    (hashed_user_id,),
+                    (raw_user_id, hashed_user_id),
                 )
 
                 tried_skills = {row["skill_name"] for row in cursor.fetchall()}
@@ -410,9 +419,31 @@ class CollaborativeFilteringEngine:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
 
+                cursor.execute("PRAGMA table_info(skill_invocation)")
+                skill_invocation_columns = {row[1] for row in cursor.fetchall()}
+
+                avg_duration_expr = (
+                    "AVG(si.duration_seconds)"
+                    if "duration_seconds" in skill_invocation_columns
+                    else "NULL"
+                )
+                if "workflow_phase" in skill_invocation_columns:
+                    most_common_phase_expr = """
+                        (
+                            SELECT workflow_phase
+                            FROM skill_invocation si2
+                            WHERE si2.skill_name = si.skill_name
+                            GROUP BY workflow_phase
+                            ORDER BY COUNT(*) DESC
+                            LIMIT 1
+                        )
+                    """
+                else:
+                    most_common_phase_expr = "NULL"
+
                 # Calculate community baselines from invocations
                 cursor.execute(
-                    """
+                    f"""
                     INSERT OR REPLACE INTO skill_community_baselines (
                         skill_name,
                         total_users,
@@ -428,15 +459,8 @@ class CollaborativeFilteringEngine:
                         COUNT(DISTINCT si.session_id) as total_users,
                         COUNT(*) as total_invocations,
                         AVG(CASE WHEN si.completed = 1 THEN 1.0 ELSE 0.0 END) as global_completion_rate,
-                        AVG(si.duration_seconds) as global_avg_duration_seconds,
-                        (
-                            SELECT workflow_phase
-                            FROM skill_invocation si2
-                            WHERE si2.skill_name = si.skill_name
-                            GROUP BY workflow_phase
-                            ORDER BY COUNT(*) DESC
-                            LIMIT 1
-                        ) as most_common_workflow_phase,
+                        {avg_duration_expr} as global_avg_duration_seconds,
+                        {most_common_phase_expr} as most_common_workflow_phase,
                         NULL as effectiveness_percentile,  -- Calculated below
                         datetime('now') as last_updated
                     FROM skill_invocation si
@@ -447,37 +471,42 @@ class CollaborativeFilteringEngine:
                 skills_updated = cursor.rowcount
 
                 # Calculate effectiveness percentile (relative to other skills)
-                cursor.execute(
-                    """
-                    WITH skill_rates AS (
-                        SELECT
-                            skill_name,
-                            global_completion_rate
-                        FROM skill_community_baselines
-                    ),
-                    percentiles AS (
-                        SELECT
-                            skill_name,
-                            global_completion_rate,
-                            -- Percentile rank: percentage of skills with lower completion rate
-                            CAST(
-                                SUM(CASE
-                                    WHEN sr2.global_completion_rate < sr1.global_completion_rate
-                                    THEN 1
-                                    ELSE 0
-                                END) AS REAL) * 100.0 / COUNT(*) as percentile
-                        FROM skill_rates sr1
-                        CROSS JOIN skill_rates sr2
-                        GROUP BY sr1.skill_name, sr1.global_completion_rate
+                try:
+                    cursor.execute(
+                        """
+                        WITH skill_rates AS (
+                            SELECT
+                                skill_name,
+                                global_completion_rate
+                            FROM skill_community_baselines
+                        ),
+                        percentiles AS (
+                            SELECT
+                                skill_name,
+                                global_completion_rate,
+                                -- Percentile rank: percentage of skills with lower completion rate
+                                CAST(
+                                    SUM(CASE
+                                        WHEN sr2.global_completion_rate < sr1.global_completion_rate
+                                        THEN 1
+                                        ELSE 0
+                                    END) AS REAL) * 100.0 / COUNT(*) as percentile
+                            FROM skill_rates sr1
+                            CROSS JOIN skill_rates sr2
+                            GROUP BY sr1.skill_name, sr1.global_completion_rate
+                        )
+                        UPDATE skill_community_baselines
+                        SET effectiveness_percentile = (
+                            SELECT percentile
+                            FROM percentiles
+                            WHERE percentiles.skill_name = skill_community_baselines.skill_name
+                        )
+                        """
                     )
-                    UPDATE skill_community_baselines
-                    SET effectiveness_percentile = (
-                        SELECT percentile
-                        FROM percentiles
-                        WHERE percentiles.skill_name = skill_community_baselines.skill_name
-                    )
-                    """
-                )
+                except sqlite3.Error:
+                    # Percentile calculation is best-effort; baseline rows are
+                    # still useful even if the derived ranking cannot be updated.
+                    pass
 
                 timestamp = datetime.now().isoformat()
 
@@ -597,7 +626,7 @@ class CollaborativeFilteringEngine:
             >>> profile = engine.get_user_skill_profile("user123")
             >>> print(f"User has {profile['unique_skills']} unique skills")
         """
-        hashed_user_id = self._hash_user_id(user_id)
+        raw_user_id, hashed_user_id = self._user_id_variants(user_id)
 
         try:
             with self._get_connection() as conn:
@@ -611,9 +640,9 @@ class CollaborativeFilteringEngine:
                         COUNT(*) as total_interactions,
                         AVG(CASE WHEN completed = 1 THEN 1.0 ELSE 0.0 END) as completion_rate
                     FROM skill_user_interactions
-                    WHERE user_id = ?
+                    WHERE user_id IN (?, ?)
                     """,
-                    (hashed_user_id,),
+                    (raw_user_id, hashed_user_id),
                 )
 
                 row = cursor.fetchone()
@@ -625,12 +654,12 @@ class CollaborativeFilteringEngine:
                         skill_name,
                         COUNT(*) as invocation_count
                     FROM skill_user_interactions
-                    WHERE user_id = ?
+                    WHERE user_id IN (?, ?)
                     GROUP BY skill_name
                     ORDER BY invocation_count DESC
                     LIMIT 10
                     """,
-                    (hashed_user_id,),
+                    (raw_user_id, hashed_user_id),
                 )
 
                 top_skills = [

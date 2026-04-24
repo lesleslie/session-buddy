@@ -429,11 +429,11 @@ class QueryCacheManager:
 
         upsert_sql = """
         INSERT INTO query_cache_l2
-        (cache_key, normalized_query, project, result_ids, ttl_seconds)
-        VALUES (?, ?, ?, ?, ?)
+        (cache_key, normalized_query, project, result_ids, created_at, last_accessed, ttl_seconds)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (cache_key) DO UPDATE SET
             result_ids = excluded.result_ids,
-            last_accessed = CURRENT_TIMESTAMP,
+            last_accessed = excluded.last_accessed,
             hit_count = query_cache_l2.hit_count + 1
         """
 
@@ -446,6 +446,11 @@ class QueryCacheManager:
                     entry.normalized_query,
                     entry.project,
                     entry.result_ids,
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(entry.created_at)),
+                    time.strftime(
+                        "%Y-%m-%d %H:%M:%S",
+                        time.gmtime(entry.last_accessed),
+                    ),
                     entry.ttl_seconds,
                 ],
             )

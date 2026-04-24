@@ -79,8 +79,17 @@ class SessionPermissionsManager:
             "last_updated": datetime.now().isoformat(),
             "session_id": self.session_id,
         }
-        with self.permissions_file.open("w") as f:
-            json.dump(data, f, indent=2)
+        try:
+            with self.permissions_file.open("w") as f:
+                json.dump(data, f, indent=2)
+        except OSError:
+            # Best-effort persistence only. In sandboxed test environments the
+            # default permissions file may not be writable, but in-memory trust
+            # state should still work.
+            logger.debug(
+                "Skipping permission persistence for unwritable file %s",
+                self.permissions_file,
+            )
 
     def is_operation_trusted(self, operation: str) -> bool:
         """Check if an operation is already trusted."""
@@ -127,8 +136,14 @@ class SessionPermissionsManager:
     def revoke_all_permissions(self) -> None:
         """Revoke all trusted permissions (for security reset)."""
         self.trusted_operations.clear()
-        if self.permissions_file.exists():
-            self.permissions_file.unlink()
+        try:
+            if self.permissions_file.exists():
+                self.permissions_file.unlink()
+        except OSError:
+            logger.debug(
+                "Skipping permission file cleanup for unwritable file %s",
+                self.permissions_file,
+            )
 
     @classmethod
     def reset_singleton(cls) -> None:

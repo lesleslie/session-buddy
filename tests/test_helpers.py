@@ -35,7 +35,6 @@ def create_test_reflection_database(
     # Create settings with test configuration
     settings = ReflectionAdapterSettings(
         database_path=Path(db_path),
-        collection_name="test",
         embedding_dim=384,
         distance_metric="cosine",
         enable_vss=False,  # Disable vector similarity search for tests
@@ -63,7 +62,6 @@ def create_test_reflection_database_with_path(db_path: str | Path):
     # Create settings with test configuration
     settings = ReflectionAdapterSettings(
         database_path=Path(db_path),
-        collection_name="test",
         embedding_dim=384,
         distance_metric="cosine",
         enable_vss=False,  # Disable vector similarity search for tests

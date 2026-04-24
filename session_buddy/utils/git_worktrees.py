@@ -566,21 +566,21 @@ def _matches_safe_pattern(prune_delay: str) -> tuple[bool, str]:
     """
     import re
 
-    safe_patterns = [
-        r"^(\d+)\.(seconds?|minutes?|hours?|days?|weeks?|months?|years?)$",
-        r"^(now|never)$",
-    ]
+    keyword_pattern = re.match(r"^(now|never)$", prune_delay, re.IGNORECASE)
+    if keyword_pattern:
+        return True, ""
 
-    for pattern in safe_patterns:
-        match = re.match(pattern, prune_delay, re.IGNORECASE)
-        if match:
-            if match.groups() and match.group(1):
-                try:
-                    value = int(match.group(1))
-                    return _validate_numeric_range(value)
-                except ValueError:
-                    return False, f"Invalid numeric value in: {prune_delay}"
-            return True, ""
+    numeric_pattern = re.match(
+        r"^(\d+)\.(seconds?|minutes?|hours?|days?|weeks?|months?|years?)$",
+        prune_delay,
+        re.IGNORECASE,
+    )
+    if numeric_pattern:
+        try:
+            value = int(numeric_pattern.group(1))
+            return _validate_numeric_range(value)
+        except ValueError:
+            return False, f"Invalid numeric value in: {prune_delay}"
 
     return False, ""
 

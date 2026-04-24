@@ -1012,6 +1012,7 @@ def mock_settings(tmp_path):
     """
     from pathlib import Path
     from unittest.mock import Mock, patch
+    import session_buddy.settings as settings_module
 
     # Use pytest's tmp_path for unique per-test database path
     test_data_dir = tmp_path / "session-buddy-data"
@@ -1139,7 +1140,12 @@ def mock_settings(tmp_path):
                 result.enable_debug_mode = bool(data["debug"])
             return result
         mock_settings_class.model_validate = mock_model_validate
-        yield mock_settings_instance
+        previous_settings = settings_module._settings
+        settings_module._settings = mock_settings_instance
+        try:
+            yield mock_settings_instance
+        finally:
+            settings_module._settings = previous_settings
 
 
 @pytest.fixture

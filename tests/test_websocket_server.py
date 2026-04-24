@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import socket
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,20 @@ import websockets
 
 from session_buddy.realtime.websocket_server import RealTimeMetricsServer
 from session_buddy.storage.skills_storage import SkillsStorage
+
+
+def _can_bind_loopback() -> bool:
+    """Check whether this environment allows binding a local test socket."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+        return True
+    except OSError:
+        return False
+
+
+if not _can_bind_loopback():
+    pytestmark = pytest.mark.skip(reason="Local socket binding is unavailable")
 
 
 # ============================================================================

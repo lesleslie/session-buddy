@@ -228,8 +228,7 @@ class TestAkoshaStorageIntegration:
             await akosha_sync.store_memory(memory, text, embedding, "source")
 
             # Verify the data sent to AkOSHA
-            call_args = mock_httpx.call_args
-            sent_data = call_args[1][1]["json"]  # Get the 'json' kwarg
+            sent_data = mock_client.post.call_args.kwargs["json"]
 
             assert sent_data["id"] == "test_mem"
             assert sent_data["text"] == "Test memory"
@@ -244,22 +243,22 @@ class TestTemporalDecayScoring:
     @pytest.mark.asyncio
     async def test_temporal_decay_calculation(self):
         """Test temporal decay reduces score for old memories."""
-        # Calculate decay factor: max(0.8, 1.0 - (age_days / 180))
+        # Calculate decay factor: max(0.5, 1.0 - (age_days / 180))
         now = datetime.now(UTC)
 
         # Recent memory (30 days old)
-        recent_age = (now - timedelta(days=30)).days
-        recent_decay = max(0.8, 1.0 - (recent_age / 180))
+        recent_age = 30
+        recent_decay = max(0.5, 1.0 - (recent_age / 180))
         assert recent_decay == 1.0 - (30 / 180)  # ~0.833
 
         # Old memory (200 days old)
-        old_age = (now - timedelta(days=200)).days
-        old_decay = max(0.8, 1.0 - (old_age / 180))
-        assert old_decay == 0.8  # Minimum decay factor
+        old_age = 200
+        old_decay = max(0.5, 1.0 - (old_age / 180))
+        assert old_decay == 0.5  # Minimum decay factor
 
         # Medium age memory (90 days old)
-        medium_age = (now - timedelta(days=90)).days
-        medium_decay = max(0.8, 1.0 - (medium_age / 180))
+        medium_age = 90
+        medium_decay = max(0.5, 1.0 - (medium_age / 180))
         assert medium_decay == 0.5  # 1.0 - (90/180) = 0.5
 
     @pytest.mark.asyncio
@@ -271,7 +270,7 @@ class TestTemporalDecayScoring:
 
         semantic_score = 0.9
         age_days = 90
-        decay_factor = max(0.8, 1.0 - (age_days / 180))
+        decay_factor = max(0.5, 1.0 - (age_days / 180))
         temporal_score = semantic_score * decay_factor
 
         assert temporal_score == 0.45

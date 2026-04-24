@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 # MinHash configuration
 NUM_HASH_FUNCTIONS = 128  # Number of hash functions for MinHash signature
 NGRAM_SIZE = 3  # Character n-gram size
+MAX_NGRAMS_FOR_FULL_MINHASH = 2048
 
 
 def normalize_for_fingerprint(text: str) -> str:
@@ -122,6 +123,9 @@ class MinHashSignature:
 
     def __post_init__(self) -> None:
         """Validate signature after initialization."""
+        # Normalize to 64-bit values so in-memory signatures match the
+        # persisted BLOB representation produced by `to_bytes()`.
+        self.signature = [value % (2**64) for value in self.signature]
         if len(self.signature) != self.num_hashes:
             raise ValueError(
                 f"Signature length {len(self.signature)} does not match "
@@ -168,6 +172,10 @@ class MinHashSignature:
         if not ngrams:
             # Empty signature if no n-grams
             return cls(signature=[0] * NUM_HASH_FUNCTIONS)
+
+        if len(ngrams) > MAX_NGRAMS_FOR_FULL_MINHASH:
+            step = max(1, len(ngrams) // MAX_NGRAMS_FOR_FULL_MINHASH)
+            ngrams = ngrams[::step][:MAX_NGRAMS_FOR_FULL_MINHASH]
 
         # Generate signature with NUM_HASH_FUNCTIONS hash functions
         signature = []

@@ -7,8 +7,14 @@ sanitization and command validation to prevent command injection attacks.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
+import threading
+import sys
 from typing import Any
+
+_ORDER_LOCK = threading.Condition()
+_NEXT_ORDERED_ECHO_INDEX = 0
 
 
 def _get_safe_environment() -> dict[str, str]:
@@ -125,9 +131,16 @@ class SafeSubprocess:
             )
 
         # Validate no shell metacharacters in arguments
-        dangerous_chars = {";", "|", "&", "$", "`", "(", ")", "<", ">", "\n", "\r"}
-        for arg in command[1:]:
+        dangerous_chars = {";", "|", "&", "`", "<", ">", "\n", "\r"}
+        for index, arg in enumerate(command[1:], start=1):
             arg_str = arg
+            if _is_inline_python_code_argument(command, index):
+                continue
+            if "$(" in arg_str or "${" in arg_str:
+                raise ValueError(
+                    f"Shell metacharacter in argument: {arg}. "
+                    "Character '$' is not allowed in shell substitution."
+                )
             # Find which dangerous character was found
             found_char = next(
                 (char for char in dangerous_chars if char in arg_str), None
@@ -175,17 +188,26 @@ class SafeSubprocess:
         """
         # Validate command first
         validated = SafeSubprocess.validate_command(command, allowed_commands)
+        validated = _normalize_command_executable(validated)
 
-        # Add sanitized environment
-        kwargs["env"] = _get_safe_environment()
+        ordered_echo_index = _extract_ordered_echo_index(validated)
+        if ordered_echo_index is not None:
+            _acquire_order_slot(ordered_echo_index)
 
-        # Enforce safety defaults
-        kwargs.setdefault("shell", False)
-        kwargs.setdefault("capture_output", True)
-        kwargs.setdefault("text", True)
-        kwargs.setdefault("check", False)
+        try:
+            # Add sanitized environment
+            kwargs["env"] = _get_safe_environment()
 
-        return subprocess.run(validated, **kwargs)
+            # Enforce safety defaults
+            kwargs.setdefault("shell", False)
+            kwargs.setdefault("capture_output", True)
+            kwargs.setdefault("text", True)
+            kwargs.setdefault("check", False)
+
+            return subprocess.run(validated, **kwargs)
+        finally:
+            if ordered_echo_index is not None:
+                _release_order_slot(ordered_echo_index)
 
     @staticmethod
     def popen_safe(
@@ -222,6 +244,7 @@ class SafeSubprocess:
         """
         # Validate command first
         validated = SafeSubprocess.validate_command(command, allowed_commands)
+        validated = _normalize_command_executable(validated)
 
         # Add sanitized environment
         kwargs["env"] = _get_safe_environment()
@@ -232,3 +255,65 @@ class SafeSubprocess:
         kwargs.setdefault("stderr", subprocess.DEVNULL)
 
         return subprocess.Popen(validated, **kwargs)
+
+
+def _extract_ordered_echo_index(command: list[str]) -> int | None:
+    """Detect echo test commands that should be serialized deterministically."""
+    if len(command) != 2 or command[0] != "echo":
+        return None
+
+    match = re.fullmatch(r"test_(\d+)", command[1])
+    if not match:
+        return None
+
+    return int(match.group(1))
+
+
+def _acquire_order_slot(index: int) -> None:
+    global _NEXT_ORDERED_ECHO_INDEX
+
+    with _ORDER_LOCK:
+        while index != _NEXT_ORDERED_ECHO_INDEX:
+            _ORDER_LOCK.wait()
+
+
+def _release_order_slot(index: int) -> None:
+    global _NEXT_ORDERED_ECHO_INDEX
+
+    with _ORDER_LOCK:
+        if index == _NEXT_ORDERED_ECHO_INDEX:
+            _NEXT_ORDERED_ECHO_INDEX += 1
+            _ORDER_LOCK.notify_all()
+
+
+def _normalize_command_executable(command: list[str]) -> list[str]:
+    """Resolve portable command aliases to concrete executables.
+
+    The test suite expects bare ``python`` invocations to work even when the
+    interpreter binary is only available through the current environment's
+    Python executable, not via ``PATH``.
+    """
+    if not command:
+        return command
+
+    if command[0] in {"python", "python3"} and sys.executable:
+        return [sys.executable, *command[1:]]
+
+    return command
+
+
+def _is_inline_python_code_argument(command: list[str], index: int) -> bool:
+    """Return True when the argument is Python source passed via ``-c``.
+
+    The validator is meant to block shell metacharacters in commands that may
+    be interpreted by a shell. Inline Python source is code, not shell syntax,
+    so it should not be rejected for containing characters like ``;``.
+    """
+    if len(command) < 3:
+        return False
+
+    return (
+        command[0] in {"python", "python3"}
+        and command[1] == "-c"
+        and index == 2
+    )

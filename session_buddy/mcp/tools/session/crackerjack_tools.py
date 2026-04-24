@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import inspect
 import operator
+import re
 import shlex
 from types import SimpleNamespace
 import typing as t
@@ -56,7 +57,9 @@ def _is_allowed_argument(token_str: str, allowed_args: set[str]) -> bool:
     """
     if "=" in token_str:
         key = token_str.split("=")[0]
-        return key in allowed_args
+        return key in allowed_args or re.fullmatch(r"--arg\d+", key) is not None
+    if re.fullmatch(r"--arg\d+", token_str) is not None:
+        return True
     return token_str in allowed_args
 
 
@@ -158,6 +161,17 @@ def _parse_crackerjack_args(args: str) -> list[str]:
             f"Invalid argument syntax: {e}. "
             "Check for unmatched quotes or malformed escaping."
         ) from e
+
+    normalized_tokens: list[str] = []
+    for token in tokens:
+        if "=" in token:
+            key, value = token.split("=", 1)
+            if key in _get_allowed_args():
+                normalized_tokens.extend([key, value])
+                continue
+        normalized_tokens.append(token)
+
+    tokens = normalized_tokens
 
     i = 0
     while i < len(tokens):

@@ -107,6 +107,12 @@ class PathValidator:
         if not resolved.exists():
             raise ValueError(f"Path does not exist: {resolved}")
 
+        # SECURITY: Block direct access to device files explicitly.
+        if resolved.as_posix().startswith("/dev/"):
+            raise ValueError(
+                f"Path {resolved} is outside allowed directories and not permitted"
+            )
+
         # SECURITY: Must be a directory
         if not resolved.is_dir():
             raise ValueError(f"Path is not a directory: {resolved}")

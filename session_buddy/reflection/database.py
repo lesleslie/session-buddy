@@ -90,7 +90,9 @@ class ReflectionDatabase:
             raise TypeError(msg)
 
         if db_path is _DB_PATH_UNSET:
-            resolved_path: str = os.path.expanduser("~/.claude/data/reflection.duckdb")
+            from session_buddy.settings import get_database_path
+
+            resolved_path = str(get_database_path())
         else:
             resolved_path = os.path.expanduser(str(db_path))
 
@@ -222,6 +224,22 @@ class ReflectionDatabase:
             self.local.conn = duckdb.connect(
                 self.db_path, config={"allow_unsigned_extensions": True}
             )
+
+    async def _ensure_tables(self) -> None:
+        """Ensure the reflection schema exists.
+
+        Compatibility hook for callers that still expect the legacy private
+        table-initialization method from the older reflection database class.
+        """
+        if self._initialized and self.conn is not None:
+            return
+
+        if self.conn is None:
+            await self.initialize()
+            return
+
+        initialize_schema(self.conn)
+        self._initialized = True
 
     def _get_conn(self) -> duckdb.DuckDBPyConnection:
         """Get database connection for the current thread, initializing if needed.
