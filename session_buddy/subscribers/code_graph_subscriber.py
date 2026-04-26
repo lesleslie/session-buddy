@@ -309,8 +309,476 @@ def _register_code_graph_list_tool(mcp: Any) -> None:
             }
 
 
+def _register_code_call_chain_tool(mcp: Any) -> None:
+    """Register the code_call_chain query tool."""
+
+    @mcp.tool()  # type: ignore[misc]
+    async def code_call_chain(
+        symbol_name: str,
+        direction: str = "both",
+        max_depth: int = 5,
+        repo_path: str | None = None,
+        edge_filter: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Resolve transitive callers/callees of a symbol in the code graph.
+
+        Traverses the stored code graph to find who calls a symbol (callers)
+        and what the symbol calls (callees), up to *max_depth* hops.
+
+        Args:
+            symbol_name: Qualified symbol ID or bare name (use repo_path to disambiguate)
+            direction: "callers", "callees", or "both"
+            max_depth: Maximum traversal depth (1-10, default 5)
+            repo_path: Disambiguate bare symbol_name
+            edge_filter: Filter by edge types (e.g. ["calls", "imports"])
+
+        Returns:
+            Dict with root_symbol, chains, total_nodes, truncated, and staleness info.
+        """
+        import re
+
+        max_depth = min(max_depth, 10)
+
+        # Validate qualified symbol ID if present
+        symbol_id_pattern = re.compile(r"^[^|]+(\|\|\|[^|]+){3}[^|]+$")
+        if "|||" in symbol_name and not symbol_id_pattern.match(symbol_name):
+            return {
+                "error": "Invalid symbol ID format",
+                "detail": symbol_name,
+            }
+
+        try:
+            reflection_db = await require_reflection_database()
+            conn = (
+                reflection_db
+                if hasattr(reflection_db, "execute")
+                else _get_conn(reflection_db)
+            )
+
+            import asyncio
+            import json
+
+            # Find the latest code graph for the repo (if repo_path given) or any
+            if repo_path:
+                row = conn.execute(
+                    """
+                    SELECT graph_data, indexed_at, nodes_count
+                    FROM code_graphs
+                    WHERE repo_path = ?
+                    ORDER BY indexed_at DESC
+                    LIMIT 1
+                    """,
+                    [repo_path],
+                ).fetchone()
+            else:
+                # Try to find any graph containing the symbol
+                row = conn.execute(
+                    """
+                    SELECT graph_data, indexed_at, nodes_count, repo_path
+                    FROM code_graphs
+                    ORDER BY indexed_at DESC
+                    LIMIT 1
+                    """,
+                ).fetchone()
+
+            if not row:
+                return {
+                    "root_symbol": symbol_name,
+                    "chains": [],
+                    "total_nodes": 0,
+                    "truncated": False,
+                    "stale": False,
+                    "message": "No code graphs found in database",
+                }
+
+            graph_data = json.loads(row[0]) if row[0] else {}
+            indexed_at = row[1]
+            nodes_count = row[2]
+            graph_repo_path = row[3] if len(row) > 3 else repo_path
+
+            # Traverse the graph from the target symbol
+            nodes = graph_data.get("nodes", [])
+            edges = graph_data.get("edges", [])
+
+            # Build adjacency structures
+            # Nodes may be dicts with 'id', 'name', etc. or just strings
+            node_map: dict[str, dict[str, Any]] = {}
+            for n in nodes:
+                if isinstance(n, dict):
+                    nid = n.get("id", n.get("name", ""))
+                    node_map[nid] = n
+                elif isinstance(n, str):
+                    node_map[n] = {"id": n, "name": n}
+
+            # Find matching node
+            target_node_id = None
+            bare = symbol_name.split("|||")[-1] if "|||" in symbol_name else symbol_name
+            for nid, n in node_map.items():
+                nname = n.get("name", nid) if isinstance(n, dict) else nid
+                if nname == symbol_name or nname == bare:
+                    target_node_id = nid
+                    break
+
+            if not target_node_id:
+                return {
+                    "root_symbol": symbol_name,
+                    "chains": [],
+                    "total_nodes": 0,
+                    "truncated": False,
+                    "stale": False,
+                    "message": f"Symbol '{symbol_name}' not found in code graph "
+                    f"for {graph_repo_path}",
+                }
+
+            # Build directed edge lists (from -> to)
+            call_edges: list[tuple[str, str, str]] = []
+            for e in edges:
+                if isinstance(e, dict):
+                    src = e.get("source", e.get("from", ""))
+                    dst = e.get("target", e.get("to", ""))
+                    etype = e.get("type", e.get("relation", "calls"))
+                    call_edges.append((src, dst, etype))
+                elif isinstance(e, (list, tuple)) and len(e) >= 2:
+                    etype = e[2] if len(e) > 2 else "calls"
+                    call_edges.append((e[0], e[1], etype))
+
+            # Filter edges by type if requested
+            if edge_filter:
+                call_edges = [
+                    (s, d, t) for s, d, t in call_edges if t in edge_filter
+                ]
+
+            # BFS traversal
+            visited: set[str] = {target_node_id}
+            queue: list[tuple[str, int]] = [(target_node_id, 0)]
+            result_chains: list[dict[str, Any]] = []
+            total_nodes = 0
+            truncated = False
+
+            while queue:
+                current, depth = queue.pop(0)
+                if depth >= max_depth:
+                    continue
+
+                for src, dst, etype in call_edges:
+                    if direction in ("callers", "both") and dst == current and src not in visited:
+                        visited.add(src)
+                        total_nodes += 1
+                        queue.append((src, depth + 1))
+                        src_info = node_map.get(src, {"id": src, "name": src})
+                        result_chains.append({
+                            "symbol": src_info.get("name", src),
+                            "direction": "caller",
+                            "depth": depth + 1,
+                            "edge_type": etype,
+                            "path": _build_path_str(src_info, current, node_map),
+                        })
+
+                    if direction in ("callees", "both") and src == current and dst not in visited:
+                        visited.add(dst)
+                        total_nodes += 1
+                        queue.append((dst, depth + 1))
+                        dst_info = node_map.get(dst, {"id": dst, "name": dst})
+                        result_chains.append({
+                            "symbol": dst_info.get("name", dst),
+                            "direction": "callee",
+                            "depth": depth + 1,
+                            "edge_type": etype,
+                            "path": _build_path_str(current, dst_info, node_map),
+                        })
+
+                # Truncation guard
+                if total_nodes > 500:
+                    truncated = True
+                    break
+
+            # Staleness check
+            from datetime import datetime, timezone
+
+            stale = False
+            last_indexed_at = None
+            if indexed_at:
+                try:
+                    idx_dt = datetime.fromisoformat(indexed_at.replace("Z", "+00:00"))
+                    age_hours = (datetime.now(timezone.utc) - idx_dt).total_seconds() / 3600
+                    stale = age_hours > 24
+                    if stale:
+                        last_indexed_at = indexed_at
+                except (ValueError, TypeError):
+                    pass
+
+            return {
+                "root_symbol": symbol_name,
+                "root_node_id": target_node_id,
+                "repo_path": graph_repo_path,
+                "chains": result_chains,
+                "total_nodes": total_nodes,
+                "truncated": truncated,
+                "stale": stale,
+                "last_indexed_at": last_indexed_at,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to resolve call chain for '{symbol_name}': {e}")
+            return {
+                "root_symbol": symbol_name,
+                "chains": [],
+                "total_nodes": 0,
+                "truncated": False,
+                "stale": False,
+                "error": str(e),
+            }
+
+
+def _register_code_impact_analysis_tool(mcp: Any) -> None:
+    """Register the code_impact_analysis query tool."""
+
+    @mcp.tool()  # type: ignore[misc]
+    async def code_impact_analysis(
+        symbol_name: str,
+        repo_path: str | None = None,
+        include_indirect: bool = True,
+        max_depth: int = 5,
+    ) -> dict[str, Any]:
+        """Analyze the impact of changing a symbol -- what depends on it?
+
+        Walks the code graph in the caller direction to enumerate all symbols
+        that directly or transitively depend on *symbol_name*.
+
+        Args:
+            symbol_name: Qualified symbol ID or bare name (use repo_path to disambiguate)
+            repo_path: Disambiguate bare symbol_name
+            include_indirect: Include transitive dependents
+            max_depth: Maximum traversal depth (1-10, default 5)
+
+        Returns:
+            Dict with direct_dependents, indirect_dependents, affected_files,
+            risk_level, blast_radius, and staleness info.
+        """
+        import re
+
+        max_depth = min(max_depth, 10)
+
+        symbol_id_pattern = re.compile(r"^[^|]+(\|\|\|[^|]+){3}[^|]+$")
+        if "|||" in symbol_name and not symbol_id_pattern.match(symbol_name):
+            return {
+                "error": "Invalid symbol ID format",
+                "detail": symbol_name,
+            }
+
+        try:
+            reflection_db = await require_reflection_database()
+            conn = (
+                reflection_db
+                if hasattr(reflection_db, "execute")
+                else _get_conn(reflection_db)
+            )
+
+            import asyncio
+            import json
+
+            # Find the latest code graph
+            if repo_path:
+                row = conn.execute(
+                    """
+                    SELECT graph_data, indexed_at, nodes_count
+                    FROM code_graphs
+                    WHERE repo_path = ?
+                    ORDER BY indexed_at DESC
+                    LIMIT 1
+                    """,
+                    [repo_path],
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT graph_data, indexed_at, nodes_count, repo_path
+                    FROM code_graphs
+                    ORDER BY indexed_at DESC
+                    LIMIT 1
+                    """,
+                ).fetchone()
+
+            if not row:
+                return {
+                    "target": symbol_name,
+                    "direct_dependents": [],
+                    "indirect_dependents": [],
+                    "affected_files": [],
+                    "risk_level": "low",
+                    "blast_radius": 0,
+                    "stale": False,
+                    "message": "No code graphs found in database",
+                }
+
+            graph_data = json.loads(row[0]) if row[0] else {}
+            indexed_at = row[1]
+            graph_repo_path = row[3] if len(row) > 3 else repo_path
+
+            nodes = graph_data.get("nodes", [])
+            edges = graph_data.get("edges", [])
+
+            # Build node map
+            node_map: dict[str, dict[str, Any]] = {}
+            for n in nodes:
+                if isinstance(n, dict):
+                    nid = n.get("id", n.get("name", ""))
+                    node_map[nid] = n
+                elif isinstance(n, str):
+                    node_map[n] = {"id": n, "name": n}
+
+            # Find matching node
+            target_node_id = None
+            bare = symbol_name.split("|||")[-1] if "|||" in symbol_name else symbol_name
+            for nid, n in node_map.items():
+                nname = n.get("name", nid) if isinstance(n, dict) else nid
+                if nname == symbol_name or nname == bare:
+                    target_node_id = nid
+                    break
+
+            if not target_node_id:
+                return {
+                    "target": symbol_name,
+                    "direct_dependents": [],
+                    "indirect_dependents": [],
+                    "affected_files": [],
+                    "risk_level": "low",
+                    "blast_radius": 0,
+                    "stale": False,
+                    "message": f"Symbol '{symbol_name}' not found in code graph "
+                    f"for {graph_repo_path}",
+                }
+
+            # Build reverse adjacency (who calls me -> callers)
+            callers_of: dict[str, list[str]] = {}
+            for e in edges:
+                if isinstance(e, dict):
+                    src = e.get("source", e.get("from", ""))
+                    dst = e.get("target", e.get("to", ""))
+                elif isinstance(e, (list, tuple)) and len(e) >= 2:
+                    src, dst = e[0], e[1]
+                else:
+                    continue
+                callers_of.setdefault(dst, []).append(src)
+
+            # BFS in caller direction
+            visited: set[str] = {target_node_id}
+            queue: list[tuple[str, int]] = [(target_node_id, 0)]
+            direct_dependents: list[dict[str, Any]] = []
+            indirect_dependents: list[dict[str, Any]] = []
+            affected_files: set[str] = set()
+
+            # Track the target's file
+            target_info = node_map.get(target_node_id, {})
+            if isinstance(target_info, dict):
+                target_file = target_info.get("file", target_info.get("path", ""))
+                if target_file:
+                    affected_files.add(target_file)
+
+            while queue:
+                current, depth = queue.pop(0)
+                if depth >= max_depth:
+                    continue
+
+                for caller_id in callers_of.get(current, []):
+                    if caller_id in visited:
+                        continue
+                    visited.add(caller_id)
+
+                    caller_info = node_map.get(caller_id, {"id": caller_id, "name": caller_id})
+                    caller_name = caller_info.get("name", caller_id) if isinstance(caller_info, dict) else caller_id
+                    caller_file = caller_info.get("file", caller_info.get("path", "")) if isinstance(caller_info, dict) else ""
+                    if caller_file:
+                        affected_files.add(caller_file)
+
+                    entry = {
+                        "symbol": caller_name,
+                        "node_id": caller_id,
+                        "depth": depth + 1,
+                        "file": caller_file,
+                    }
+
+                    if depth == 0:
+                        direct_dependents.append(entry)
+                    elif include_indirect:
+                        indirect_dependents.append(entry)
+
+                    if include_indirect:
+                        queue.append((caller_id, depth + 1))
+
+            # Risk assessment
+            blast_radius = len(direct_dependents) + len(indirect_dependents)
+            if blast_radius == 0:
+                risk_level = "low"
+            elif blast_radius <= 5:
+                risk_level = "medium"
+            elif blast_radius <= 20:
+                risk_level = "high"
+            else:
+                risk_level = "critical"
+
+            # Staleness check
+            from datetime import datetime, timezone
+
+            stale = False
+            last_indexed_at = None
+            if indexed_at:
+                try:
+                    idx_dt = datetime.fromisoformat(indexed_at.replace("Z", "+00:00"))
+                    age_hours = (datetime.now(timezone.utc) - idx_dt).total_seconds() / 3600
+                    stale = age_hours > 24
+                    if stale:
+                        last_indexed_at = indexed_at
+                except (ValueError, TypeError):
+                    pass
+
+            return {
+                "target": symbol_name,
+                "target_node_id": target_node_id,
+                "repo_path": graph_repo_path,
+                "direct_dependents": direct_dependents,
+                "indirect_dependents": indirect_dependents,
+                "affected_files": sorted(affected_files),
+                "risk_level": risk_level,
+                "blast_radius": blast_radius,
+                "stale": stale,
+                "last_indexed_at": last_indexed_at,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to analyze impact for '{symbol_name}': {e}")
+            return {
+                "target": symbol_name,
+                "direct_dependents": [],
+                "indirect_dependents": [],
+                "affected_files": [],
+                "risk_level": "low",
+                "blast_radius": 0,
+                "stale": False,
+                "error": str(e),
+            }
+
+
+def _get_conn(reflection_db: Any) -> Any:
+    """Get the underlying connection from a reflection database wrapper."""
+    import typing
+    return typing.cast(Any, reflection_db)._get_conn()
+
+
+def _build_path_str(
+    from_info: dict[str, Any] | str,
+    to_id: str,
+    node_map: dict[str, dict[str, Any]],
+) -> str:
+    """Build a human-readable path string for a chain entry."""
+    from_name = from_info.get("name", str(from_info)) if isinstance(from_info, dict) else str(from_info)
+    to_info = node_map.get(to_id, {"name": to_id})
+    to_name = to_info.get("name", to_id) if isinstance(to_info, dict) else str(to_info)
+    return f"{from_name} -> {to_name}"
+
+
 def register_code_graph_tools(mcp: Any) -> None:
-    """Register code graph storage tools with MCP server.
+    """Register code graph storage and query tools with MCP server.
 
     Args:
         mcp: FastMCP server instance
@@ -324,3 +792,5 @@ def register_code_graph_tools(mcp: Any) -> None:
     _register_code_graph_storage_tool(mcp)
     _register_code_graph_retrieval_tool(mcp)
     _register_code_graph_list_tool(mcp)
+    _register_code_call_chain_tool(mcp)
+    _register_code_impact_analysis_tool(mcp)
