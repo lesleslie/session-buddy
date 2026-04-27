@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .reflection_tools import ReflectionDatabase
-from .utils.git_operations import get_worktree_info, list_worktrees
+from .utils.git_worktrees import get_worktree_info, list_worktrees
 
 
 class ContextDetector:

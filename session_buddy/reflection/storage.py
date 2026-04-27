@@ -408,14 +408,28 @@ async def get_reflection(
     conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
 
     def _get() -> dict[str, Any] | None:
-        result = conn.execute(
-            """
-            SELECT id, content, embedding, project, tags, timestamp, metadata, reflection_ulid
-            FROM reflections
-            WHERE id = ?
-            """,
-            [refl_id],
-        ).fetchone()
+        # Check available columns to handle schemas with/without reflection_ulid
+        columns = _table_columns(conn, "reflections")
+        has_ulid = "reflection_ulid" in columns
+
+        if has_ulid:
+            result = conn.execute(
+                """
+                SELECT id, content, embedding, project, tags, timestamp, metadata, reflection_ulid
+                FROM reflections
+                WHERE id = ?
+                """,
+                [refl_id],
+            ).fetchone()
+        else:
+            result = conn.execute(
+                """
+                SELECT id, content, embedding, project, tags, timestamp, metadata
+                FROM reflections
+                WHERE id = ?
+                """,
+                [refl_id],
+            ).fetchone()
 
         if not result:
             return None
@@ -428,7 +442,7 @@ async def get_reflection(
             "tags": result[4] or [],  # type: ignore[misc]
             "timestamp": result[5],  # type: ignore[misc]
             "metadata": _parse_metadata(result[6]),  # type: ignore[misc]
-            "reflection_ulid": result[7] if len(result) > 7 else None,  # type: ignore[misc]
+            "reflection_ulid": result[7] if has_ulid and len(result) > 7 else None,  # type: ignore[misc]
         }
 
     if is_temp_db and lock:

@@ -110,7 +110,9 @@ _alias_submodule("session_buddy.tools.crackerjack_tools", "session_buddy.mcp.too
 _alias_submodule("session_buddy.tools.entity_extraction_tools", "session_buddy.mcp.tools.advanced.entity_extraction_tools")
 _alias_submodule("session_buddy.tools.feature_flags_tools", "session_buddy.mcp.tools.infrastructure.feature_flags_tools")
 _alias_submodule("session_buddy.tools.fingerprint_tools", "session_buddy.mcp.tools.advanced.fingerprint_tools")
-_alias_submodule("session_buddy.tools.health_tools", "session_buddy.mcp.tools.health_tools")
+_alias_submodule("session_buddy.tools.protocols", "session_buddy.mcp.tools.infrastructure.protocols")
+# health_tools is now a local module at session_buddy/tools/health_tools.py
+# (no alias needed)
 _alias_submodule("session_buddy.tools.history_cache", "session_buddy.mcp.tools.infrastructure.history_cache")
 _alias_submodule("session_buddy.tools.intelligence_tools", "session_buddy.mcp.tools.intelligence.intelligence_tools")
 _alias_submodule("session_buddy.tools.knowledge_graph_tools", "session_buddy.mcp.tools.collaboration.knowledge_graph_tools")

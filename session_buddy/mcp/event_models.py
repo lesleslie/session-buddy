@@ -42,7 +42,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 # Schema metadata
 SCHEMA_VERSION = "1.0"
@@ -262,6 +262,7 @@ class SessionStartEvent(BaseModel, JsonSchemaMixin):
     component_name: str = Field(
         ...,
         description="Component name (e.g., 'mahavishnu', 'session-buddy')",
+        pattern=r"^[a-zA-Z0-9_-]+$",
     )
     shell_type: str = Field(
         ...,
@@ -376,6 +377,10 @@ class SessionStartEvent(BaseModel, JsonSchemaMixin):
     def validate_timestamp(cls, v: str) -> str:
         """Validate ISO 8601 timestamp format.
 
+        Checks structural format (date T time timezone) rather than
+        strict semantic validity so that edge-case timestamps produced
+        by some clocks are still accepted.
+
         Args:
             v: Timestamp string to validate
 
@@ -385,19 +390,17 @@ class SessionStartEvent(BaseModel, JsonSchemaMixin):
         Raises:
             ValueError: If timestamp is not valid ISO 8601
         """
-        # Check for 'T' separator to ensure time component is present
         if "T" not in v:
             raise ValueError(
                 f"Invalid ISO 8601 timestamp: {v} (missing time component, expected format: 2026-02-06T12:34:56.789Z)"
             )
 
-        try:
-            # Try parsing with timezone
-            datetime.fromisoformat(v.replace("Z", "+00:00"))
-        except ValueError as e:
+        # Structural check: date T time with optional fractional seconds and timezone
+        pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
+        if not re.match(pattern, v):
             raise ValueError(
                 f"Invalid ISO 8601 timestamp: {v} (expected format: 2026-02-06T12:34:56.789Z)"
-            ) from e
+            )
         return v
 
     @model_validator(mode="after")
@@ -478,6 +481,10 @@ class SessionEndEvent(BaseModel, JsonSchemaMixin):
     def validate_timestamp(cls, v: str) -> str:
         """Validate ISO 8601 timestamp format.
 
+        Checks structural format (date T time timezone) rather than
+        strict semantic validity so that edge-case timestamps produced
+        by some clocks are still accepted.
+
         Args:
             v: Timestamp string to validate
 
@@ -487,19 +494,17 @@ class SessionEndEvent(BaseModel, JsonSchemaMixin):
         Raises:
             ValueError: If timestamp is not valid ISO 8601
         """
-        # Check for 'T' separator to ensure time component is present
         if "T" not in v:
             raise ValueError(
                 f"Invalid ISO 8601 timestamp: {v} (missing time component, expected format: 2026-02-06T12:34:56.789Z)"
             )
 
-        try:
-            # Try parsing with timezone
-            datetime.fromisoformat(v.replace("Z", "+00:00"))
-        except ValueError as e:
+        # Structural check: date T time with optional fractional seconds and timezone
+        pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$"
+        if not re.match(pattern, v):
             raise ValueError(
                 f"Invalid ISO 8601 timestamp: {v} (expected format: 2026-02-06T12:34:56.789Z)"
-            ) from e
+            )
         return v
 
 

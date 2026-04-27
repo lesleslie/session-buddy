@@ -330,10 +330,10 @@ async def _add_project_context_insights(insights: list[str]) -> None:
 
 def _generate_session_tags(quality_score: float) -> list[str]:
     """Generate contextual tags for session reflection storage."""
-    # Import to avoid circular dependency
-    from session_buddy.reflection_tools import get_current_project
-
-    current_project = get_current_project()
+    try:
+        current_project = Path.cwd().name
+    except (FileNotFoundError, OSError):
+        current_project = "unknown-project"
     tags = ["checkpoint", "session-summary", current_project or "unknown-project"]
     if quality_score >= 80:
         tags.append("excellent-session")

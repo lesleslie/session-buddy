@@ -29,6 +29,17 @@ from session_buddy.core import SessionLifecycleManager
 from session_buddy.storage.akosha_config import AkoshaSyncConfig
 from session_buddy.utils.error_management import _get_logger
 
+
+def should_suggest_compact() -> tuple[bool, str]:
+    """Re-export of should_suggest_compact for test patching.
+
+    Delegates to the real implementation in server_optimized, but
+    is defined at module level so tests can patch it by name.
+    """
+    from session_buddy.server_optimized import should_suggest_compact as _impl
+
+    return _impl()
+
 if not hasattr(asyncio.coroutines, "Coroutine"):
     asyncio.coroutines.Coroutine = ABCCoroutine  # type: ignore[attr-defined]
 
@@ -687,7 +698,7 @@ async def _handle_auto_compaction(output: list[str]) -> None:
 # ============================================================================
 
 
-def _format_successful_end(summary: dict[str, Any]) -> list[str]:
+def _format_successful_end(summary: dict[str, Any]) -> str:
     """Format successful session end output."""
     output = [
         f"📁 Project: {summary['project']}",
@@ -695,8 +706,11 @@ def _format_successful_end(summary: dict[str, Any]) -> list[str]:
         f"⏰ Session ended: {summary['session_end_time']}",
     ]
 
-    output.extend(_format_recommendations(summary.get("recommendations", [])))
-    output.extend(_format_session_summary(summary))
+    recommendations_text = _format_recommendations(summary.get("recommendations", []))
+    if recommendations_text:
+        output.append(recommendations_text)
+
+    output.append(_format_session_summary(summary))
 
     output.extend(
         [
@@ -705,20 +719,20 @@ def _format_successful_end(summary: dict[str, Any]) -> list[str]:
         ],
     )
 
-    return output
+    return "\n".join(output)
 
 
-def _format_recommendations(recommendations: list[str]) -> list[str]:
+def _format_recommendations(recommendations: list[str]) -> str:
     """Format recommendations section."""
     if not recommendations:
-        return []
+        return ""
 
     output = ["\n🎯 Final recommendations for future sessions:"]
     output.extend(f"   • {rec}" for rec in recommendations[:5])
-    return output
+    return "\n".join(output)
 
 
-def _format_session_summary(summary: dict[str, Any]) -> list[str]:
+def _format_session_summary(summary: dict[str, Any]) -> str:
     """Format session summary section."""
     output = [
         "\n📝 Session Summary:",
@@ -732,7 +746,7 @@ def _format_session_summary(summary: dict[str, Any]) -> list[str]:
     if handoff_doc:
         output.append(f"   • Handoff documentation: {handoff_doc}")
 
-    return output
+    return "\n".join(output)
 
 
 # ============================================================================
@@ -862,7 +876,7 @@ async def _end_impl(working_directory: str | None = None) -> str:
         result = await _get_session_manager().end_session(working_directory)
 
         if result["success"]:
-            output.extend(_format_successful_end(result["summary"]))
+            output.append(_format_successful_end(result["summary"]))
 
             # Queue Akosha sync without blocking
             _queue_akosha_sync_background()

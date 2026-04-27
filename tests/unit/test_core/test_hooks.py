@@ -2,201 +2,222 @@
 """Unit tests for HooksManager class."""
 
 import asyncio
-from unittest.mock import AsyncMock, Mock, patch
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from session_buddy.core.hooks import HookResult, HooksManager
+from session_buddy.core.hooks import (
+    Hook,
+    HookContext,
+    HookResult,
+    HookType,
+    HooksManager,
+)
+
+
+def _make_context(
+    hook_type: HookType = HookType.POST_CHECKPOINT,
+    session_id: str = "test-session",
+) -> HookContext:
+    """Create a HookContext for testing."""
+    return HookContext(
+        hook_type=hook_type,
+        session_id=session_id,
+        timestamp=datetime.now(UTC),
+    )
 
 
 class TestHooksManagerRegistration:
     """Test hook registration."""
 
-    def test_register_hook_sync(self):
-        """Test registering a synchronous hook."""
+    @pytest.mark.asyncio
+    async def test_register_hook(self):
+        """Test registering a hook via Hook dataclass."""
         manager = HooksManager()
 
-        # Define a simple sync hook
-        def test_hook(context):
-            return HookResult(success=True, data={"message": "Hook executed"})
+        async def handler(ctx: HookContext) -> HookResult:
+            return HookResult(success=True)
 
-        # Register the hook
-        manager.register_hook("test_event", test_hook)
+        hook = Hook(
+            name="test_hook",
+            hook_type=HookType.POST_CHECKPOINT,
+            priority=100,
+            handler=handler,
+        )
+        await manager.register_hook(hook)
 
         # Verify it was registered
-        assert "test_event" in manager.hooks
-        assert len(manager.hooks["test_event"]) == 1
-        assert manager.hooks["test_event"][0] == test_hook
+        assert HookType.POST_CHECKPOINT in manager._hooks
+        assert len(manager._hooks[HookType.POST_CHECKPOINT]) == 1
+        assert manager._hooks[HookType.POST_CHECKPOINT][0].name == "test_hook"
 
-    def test_register_hook_async(self):
-        """Test registering an asynchronous hook."""
+    @pytest.mark.asyncio
+    async def test_register_multiple_hooks_same_type(self):
+        """Test registering multiple hooks for the same HookType."""
         manager = HooksManager()
 
-        # Define a simple async hook
-        async def test_hook(context):
-            return HookResult(success=True, data={"message": "Async hook executed"})
+        async def handler1(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"order": 1})
 
-        # Register the hook
-        manager.register_hook("test_event", test_hook)
+        async def handler2(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"order": 2})
 
-        # Verify it was registered
-        assert "test_event" in manager.hooks
-        assert len(manager.hooks["test_event"]) == 1
+        async def handler3(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"order": 3})
 
-    def test_register_multiple_hooks_same_event(self):
-        """Test registering multiple hooks for the same event."""
+        await manager.register_hook(
+            Hook(name="hook1", hook_type=HookType.POST_CHECKPOINT, priority=30, handler=handler3)
+        )
+        await manager.register_hook(
+            Hook(name="hook2", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=handler1)
+        )
+        await manager.register_hook(
+            Hook(name="hook3", hook_type=HookType.POST_CHECKPOINT, priority=20, handler=handler2)
+        )
+
+        # Verify all registered in priority order (10, 20, 30)
+        hooks = manager._hooks[HookType.POST_CHECKPOINT]
+        assert len(hooks) == 3
+        assert hooks[0].name == "hook2"  # priority 10
+        assert hooks[1].name == "hook3"  # priority 20
+        assert hooks[2].name == "hook1"  # priority 30
+
+    @pytest.mark.asyncio
+    async def test_register_hooks_different_types(self):
+        """Test registering hooks for different HookTypes."""
         manager = HooksManager()
 
-        # Define multiple hooks
-        def hook1(context):
-            return HookResult(success=True, data={"order": 1})
-
-        def hook2(context):
-            return HookResult(success=True, data={"order": 2})
-
-        def hook3(context):
-            return HookResult(success=True, data={"order": 3})
-
-        # Register all hooks for same event
-        manager.register_hook("test_event", hook1)
-        manager.register_hook("test_event", hook2)
-        manager.register_hook("test_event", hook3)
-
-        # Verify all were registered in order
-        assert len(manager.hooks["test_event"]) == 3
-        assert manager.hooks["test_event"][0] == hook1
-        assert manager.hooks["test_event"][1] == hook2
-        assert manager.hooks["test_event"][2] == hook3
-
-    def test_register_hooks_different_events(self):
-        """Test registering hooks for different events."""
-        manager = HooksManager()
-
-        # Define hooks for different events
-        def before_start(context):
+        async def handler(ctx: HookContext) -> HookResult:
             return HookResult(success=True)
 
-        def after_start(context):
-            return HookResult(success=True)
-
-        def before_end(context):
-            return HookResult(success=True)
-
-        # Register hooks for different events
-        manager.register_hook("before_start", before_start)
-        manager.register_hook("after_start", after_start)
-        manager.register_hook("before_end", before_end)
+        await manager.register_hook(
+            Hook(name="h1", hook_type=HookType.PRE_CHECKPOINT, priority=10, handler=handler)
+        )
+        await manager.register_hook(
+            Hook(name="h2", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=handler)
+        )
+        await manager.register_hook(
+            Hook(name="h3", hook_type=HookType.POST_FILE_EDIT, priority=10, handler=handler)
+        )
 
         # Verify all were registered
-        assert len(manager.hooks) == 3
-        assert "before_start" in manager.hooks
-        assert "after_start" in manager.hooks
-        assert "before_end" in manager.hooks
+        assert len(manager._hooks) == 3
+        assert HookType.PRE_CHECKPOINT in manager._hooks
+        assert HookType.POST_CHECKPOINT in manager._hooks
+        assert HookType.POST_FILE_EDIT in manager._hooks
+
+    @pytest.mark.asyncio
+    async def test_replace_existing_hook(self):
+        """Test that registering a hook with the same name replaces it."""
+        manager = HooksManager()
+
+        async def handler1(ctx: HookContext) -> HookResult:
+            return HookResult(success=True)
+
+        async def handler2(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"replaced": True})
+
+        await manager.register_hook(
+            Hook(name="same_name", hook_type=HookType.POST_CHECKPOINT, priority=100, handler=handler1)
+        )
+        await manager.register_hook(
+            Hook(name="same_name", hook_type=HookType.POST_CHECKPOINT, priority=50, handler=handler2)
+        )
+
+        hooks = manager._hooks[HookType.POST_CHECKPOINT]
+        assert len(hooks) == 1
+        assert hooks[0].priority == 50
 
 
 class TestHooksManagerExecution:
     """Test hook execution."""
 
     @pytest.mark.asyncio
-    async def test_execute_single_sync_hook(self):
-        """Test executing a single synchronous hook."""
+    async def test_execute_single_hook(self):
+        """Test executing a single hook."""
         manager = HooksManager()
 
-        # Define and register hook
-        def test_hook(context):
-            return HookResult(success=True, data={"message": "Executed"})
+        async def handler(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"message": "Executed"})
 
-        manager.register_hook("test_event", test_hook)
+        await manager.register_hook(
+            Hook(name="test_hook", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=handler)
+        )
 
-        # Execute hook
-        results = await manager.execute_hooks("test_event", {"key": "value"})
+        context = _make_context()
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, context)
 
-        # Verify results
         assert len(results) == 1
         assert results[0].success is True
-        assert results[0].data == {"message": "Executed"}
+        assert context.metadata["message"] == "Executed"
 
     @pytest.mark.asyncio
-    async def test_execute_single_async_hook(self):
-        """Test executing a single asynchronous hook."""
+    async def test_execute_multiple_hooks(self):
+        """Test executing multiple hooks for the same type."""
         manager = HooksManager()
 
-        # Define and register async hook
-        async def test_hook(context):
-            await asyncio.sleep(0)  # Yield control
-            return HookResult(success=True, data={"message": "Async executed"})
+        async def handler1(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"hook": 1})
 
-        manager.register_hook("test_event", test_hook)
+        async def handler2(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"hook": 2})
 
-        # Execute hook
-        results = await manager.execute_hooks("test_event", {"key": "value"})
+        async def handler3(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"hook": 3})
 
-        # Verify results
-        assert len(results) == 1
-        assert results[0].success is True
-        assert results[0].data == {"message": "Async executed"}
+        await manager.register_hook(
+            Hook(name="h1", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=handler1)
+        )
+        await manager.register_hook(
+            Hook(name="h2", hook_type=HookType.POST_CHECKPOINT, priority=20, handler=handler2)
+        )
+        await manager.register_hook(
+            Hook(name="h3", hook_type=HookType.POST_CHECKPOINT, priority=30, handler=handler3)
+        )
 
-    @pytest.mark.asyncio
-    async def test_execute_multiple_hooks_same_event(self):
-        """Test executing multiple hooks for the same event."""
-        manager = HooksManager()
+        context = _make_context()
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, context)
 
-        # Define hooks
-        def hook1(context):
-            return HookResult(success=True, data={"hook": 1})
-
-        def hook2(context):
-            return HookResult(success=True, data={"hook": 2})
-
-        def hook3(context):
-            return HookResult(success=True, data={"hook": 3})
-
-        # Register hooks
-        manager.register_hook("test_event", hook1)
-        manager.register_hook("test_event", hook2)
-        manager.register_hook("test_event", hook3)
-
-        # Execute hooks
-        results = await manager.execute_hooks("test_event", {})
-
-        # Verify all hooks executed
         assert len(results) == 3
-        assert results[0].data == {"hook": 1}
-        assert results[1].data == {"hook": 2}
-        assert results[2].data == {"hook": 3}
+        assert all(r.success for r in results)
 
     @pytest.mark.asyncio
-    async def test_execute_hooks_with_context(self):
+    async def test_execute_hooks_passes_context(self):
         """Test that hooks receive the correct context."""
         manager = HooksManager()
 
-        # Define hook that captures context
-        captured_context = {}
+        captured_context: HookContext | None = None
 
-        def test_hook(context):
-            captured_context.update(context)
+        async def handler(ctx: HookContext) -> HookResult:
+            nonlocal captured_context
+            captured_context = ctx
             return HookResult(success=True)
 
-        # Register hook
-        manager.register_hook("test_event", test_hook)
+        await manager.register_hook(
+            Hook(name="ctx_hook", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=handler)
+        )
 
-        # Execute with context
-        test_context = {"project": "test", "user": "developer"}
-        await manager.execute_hooks("test_event", test_context)
+        test_context = HookContext(
+            hook_type=HookType.POST_CHECKPOINT,
+            session_id="session-123",
+            timestamp=datetime.now(UTC),
+            metadata={"project": "test", "user": "developer"},
+        )
+        await manager.execute_hooks(HookType.POST_CHECKPOINT, test_context)
 
-        # Verify context was received
-        assert captured_context == test_context
+        assert captured_context is test_context
+        assert captured_context.session_id == "session-123"
+        assert captured_context.metadata["project"] == "test"
 
     @pytest.mark.asyncio
     async def test_execute_hooks_no_hooks_registered(self):
         """Test executing event with no registered hooks."""
         manager = HooksManager()
 
-        # Execute event with no hooks
-        results = await manager.execute_hooks("nonexistent_event", {})
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, _make_context())
 
-        # Should return empty list
-        assert len(results) == 0
+        assert results == []
 
 
 class TestHooksManagerErrorHandling:
@@ -207,90 +228,95 @@ class TestHooksManagerErrorHandling:
         """Test executing a hook that raises an exception."""
         manager = HooksManager()
 
-        # Define hook that raises exception
-        def failing_hook(context):
+        async def failing_handler(ctx: HookContext) -> HookResult:
             raise ValueError("Hook failed")
 
-        manager.register_hook("test_event", failing_hook)
+        await manager.register_hook(
+            Hook(name="failing", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=failing_handler)
+        )
 
-        # Execute hook (should handle exception gracefully)
-        results = await manager.execute_hooks("test_event", {})
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, _make_context())
 
-        # Should return failure result
         assert len(results) == 1
         assert results[0].success is False
-        assert "error" in results[0].data
+        assert results[0].error == "Hook failed"
 
     @pytest.mark.asyncio
     async def test_execute_async_hook_with_exception(self):
         """Test executing an async hook that raises an exception."""
         manager = HooksManager()
 
-        # Define async hook that raises exception
-        async def failing_hook(context):
+        async def failing_handler(ctx: HookContext) -> HookResult:
             await asyncio.sleep(0)
             raise RuntimeError("Async hook failed")
 
-        manager.register_hook("test_event", failing_hook)
+        await manager.register_hook(
+            Hook(name="async_failing", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=failing_handler)
+        )
 
-        # Execute hook (should handle exception gracefully)
-        results = await manager.execute_hooks("test_event", {})
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, _make_context())
 
-        # Should return failure result
         assert len(results) == 1
         assert results[0].success is False
-        assert "error" in results[0].data
+        assert "Async hook failed" in results[0].error
 
     @pytest.mark.asyncio
     async def test_execute_mixed_hooks_with_exceptions(self):
         """Test executing mix of successful and failing hooks."""
         manager = HooksManager()
 
-        # Define hooks
-        def success_hook(context):
-            return HookResult(success=True, data={"status": "ok"})
+        async def success_handler(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"status": "ok"})
 
-        def failing_hook(context):
+        async def failing_handler(ctx: HookContext) -> HookResult:
             raise ValueError("Failed")
 
-        def another_success_hook(context):
-            return HookResult(success=True, data={"status": "also ok"})
+        async def another_success_handler(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"status": "also ok"})
 
-        # Register hooks
-        manager.register_hook("test_event", success_hook)
-        manager.register_hook("test_event", failing_hook)
-        manager.register_hook("test_event", another_success_hook)
+        await manager.register_hook(
+            Hook(name="s1", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=success_handler)
+        )
+        await manager.register_hook(
+            Hook(name="f1", hook_type=HookType.POST_CHECKPOINT, priority=20, handler=failing_handler)
+        )
+        await manager.register_hook(
+            Hook(name="s2", hook_type=HookType.POST_CHECKPOINT, priority=30, handler=another_success_handler)
+        )
 
-        # Execute hooks
-        results = await manager.execute_hooks("test_event", {})
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, _make_context())
 
-        # All three should have results
         assert len(results) == 3
-
-        # First and third should succeed
         assert results[0].success is True
+        assert results[1].success is False
         assert results[2].success is True
 
-        # Middle one should fail
-        assert results[1].success is False
-
     @pytest.mark.asyncio
-    async def test_execute_hook_returns_none(self):
-        """Test hook that returns None instead of HookResult."""
+    async def test_hook_error_handler_called(self):
+        """Test that a hook's error_handler is invoked on failure."""
         manager = HooksManager()
 
-        # Define hook that returns None
-        def bad_hook(context):
-            return None
+        error_handler_mock = AsyncMock()
 
-        manager.register_hook("test_event", bad_hook)
+        async def failing_handler(ctx: HookContext) -> HookResult:
+            raise ValueError("Boom")
 
-        # Should handle gracefully
-        results = await manager.execute_hooks("test_event", {})
+        await manager.register_hook(
+            Hook(
+                name="with_error_handler",
+                hook_type=HookType.POST_CHECKPOINT,
+                priority=10,
+                handler=failing_handler,
+                error_handler=error_handler_mock,
+            )
+        )
 
-        # Should create a failure result
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, _make_context())
+
         assert len(results) == 1
         assert results[0].success is False
+        error_handler_mock.assert_called_once()
+        assert isinstance(error_handler_mock.call_args[0][0], ValueError)
 
 
 class TestHooksManagerResultAggregation:
@@ -301,172 +327,165 @@ class TestHooksManagerResultAggregation:
         """Test aggregating results from successful hooks."""
         manager = HooksManager()
 
-        # Define hooks that return data
-        def hook1(context):
-            return HookResult(success=True, data={"count": 1})
+        async def handler1(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"count": 1})
 
-        def hook2(context):
-            return HookResult(success=True, data={"count": 2})
+        async def handler2(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"count": 2})
 
-        def hook3(context):
-            return HookResult(success=True, data={"count": 3})
+        async def handler3(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"count": 3})
 
-        # Register hooks
-        manager.register_hook("test_event", hook1)
-        manager.register_hook("test_event", hook2)
-        manager.register_hook("test_event", hook3)
+        await manager.register_hook(
+            Hook(name="h1", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=handler1)
+        )
+        await manager.register_hook(
+            Hook(name="h2", hook_type=HookType.POST_CHECKPOINT, priority=20, handler=handler2)
+        )
+        await manager.register_hook(
+            Hook(name="h3", hook_type=HookType.POST_CHECKPOINT, priority=30, handler=handler3)
+        )
 
-        # Execute and aggregate
-        results = await manager.execute_hooks("test_event", {})
+        context = _make_context()
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, context)
 
-        # All should succeed
         assert all(r.success for r in results)
         assert len(results) == 3
+        # Last hook's modified_context wins for "count" key
+        assert context.metadata["count"] == 3
 
     @pytest.mark.asyncio
     async def test_aggregate_mixed_results(self):
         """Test aggregating mix of successful and failed results."""
         manager = HooksManager()
 
-        # Define hooks
-        def success_hook(context):
-            return HookResult(success=True, data={"status": "ok"})
+        async def success_handler(ctx: HookContext) -> HookResult:
+            return HookResult(success=True, modified_context={"status": "ok"})
 
-        def failure_hook(context):
-            return HookResult(success=False, data={"error": "Failed"})
+        async def failure_handler(ctx: HookContext) -> HookResult:
+            return HookResult(success=False, error="Failed")
 
-        # Register hooks
-        manager.register_hook("test_event", success_hook)
-        manager.register_hook("test_event", failure_hook)
+        await manager.register_hook(
+            Hook(name="s1", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=success_handler)
+        )
+        await manager.register_hook(
+            Hook(name="f1", hook_type=HookType.POST_CHECKPOINT, priority=20, handler=failure_handler)
+        )
 
-        # Execute
-        results = await manager.execute_hooks("test_event", {})
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, _make_context())
 
-        # Should have both results
         assert len(results) == 2
         assert results[0].success is True
         assert results[1].success is False
+        assert results[1].error == "Failed"
 
 
-class TestHooksManagerTimeoutHandling:
-    """Test hook timeout handling."""
+class TestHooksManagerExecutionOrder:
+    """Test hook execution ordering."""
 
     @pytest.mark.asyncio
-    async def test_execute_slow_hook_with_timeout(self):
-        """Test executing a slow hook with timeout."""
+    async def test_hooks_execute_in_priority_order(self):
+        """Test that hooks execute in priority order (lower first)."""
         manager = HooksManager()
 
-        # Define a slow hook
-        async def slow_hook(context):
-            await asyncio.sleep(2)  # Sleep for 2 seconds
+        execution_order: list[str] = []
+
+        async def handler_a(ctx: HookContext) -> HookResult:
+            execution_order.append("a")
             return HookResult(success=True)
 
-        manager.register_hook("test_event", slow_hook)
+        async def handler_b(ctx: HookContext) -> HookResult:
+            execution_order.append("b")
+            return HookResult(success=True)
 
-        # Execute with short timeout
-        # Note: This test might need adjustment based on actual timeout implementation
-        results = await manager.execute_hooks("test_event", {}, timeout=0.1)
+        async def handler_c(ctx: HookContext) -> HookResult:
+            execution_order.append("c")
+            return HookResult(success=True)
 
-        # Should handle timeout (implementation dependent)
-        # For now, just verify it returns results
-        assert isinstance(results, list)
+        # Register in reverse priority order
+        await manager.register_hook(
+            Hook(name="c", hook_type=HookType.POST_CHECKPOINT, priority=300, handler=handler_c)
+        )
+        await manager.register_hook(
+            Hook(name="a", hook_type=HookType.POST_CHECKPOINT, priority=100, handler=handler_a)
+        )
+        await manager.register_hook(
+            Hook(name="b", hook_type=HookType.POST_CHECKPOINT, priority=200, handler=handler_b)
+        )
+
+        await manager.execute_hooks(HookType.POST_CHECKPOINT, _make_context())
+
+        assert execution_order == ["a", "b", "c"]
+
+    @pytest.mark.asyncio
+    async def test_disabled_hooks_are_skipped(self):
+        """Test that disabled hooks are not executed."""
+        manager = HooksManager()
+
+        execution_order: list[str] = []
+
+        async def handler_a(ctx: HookContext) -> HookResult:
+            execution_order.append("a")
+            return HookResult(success=True)
+
+        async def handler_b(ctx: HookContext) -> HookResult:
+            execution_order.append("b")
+            return HookResult(success=True)
+
+        await manager.register_hook(
+            Hook(name="a", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=handler_a)
+        )
+        await manager.register_hook(
+            Hook(name="b", hook_type=HookType.POST_CHECKPOINT, priority=20, handler=handler_b, enabled=False)
+        )
+
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, _make_context())
+
+        assert len(results) == 1
+        assert execution_order == ["a"]
 
 
-class TestHooksManagerAdvanced:
-    """Test advanced hooks manager features."""
+class TestHooksManagerContextModification:
+    """Test context modification by hooks."""
 
     @pytest.mark.asyncio
     async def test_hook_can_modify_context(self):
-        """Test that hooks can modify the context for subsequent hooks."""
+        """Test that hooks can modify context metadata for subsequent hooks."""
         manager = HooksManager()
 
-        # Define hooks that modify context
-        def hook1(context):
-            context["value"] = 1
+        async def handler1(ctx: HookContext) -> HookResult:
+            ctx.metadata["value"] = 1
             return HookResult(success=True)
 
-        def hook2(context):
-            context["value"] = context.get("value", 0) + 1
+        async def handler2(ctx: HookContext) -> HookResult:
+            ctx.metadata["value"] = ctx.metadata.get("value", 0) + 1
             return HookResult(success=True)
 
-        def hook3(context):
-            context["final"] = context.get("value", 0) * 2
+        async def handler3(ctx: HookContext) -> HookResult:
+            ctx.metadata["final"] = ctx.metadata.get("value", 0) * 2
             return HookResult(success=True)
 
-        # Register hooks
-        manager.register_hook("test_event", hook1)
-        manager.register_hook("test_event", hook2)
-        manager.register_hook("test_event", hook3)
+        await manager.register_hook(
+            Hook(name="h1", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=handler1)
+        )
+        await manager.register_hook(
+            Hook(name="h2", hook_type=HookType.POST_CHECKPOINT, priority=20, handler=handler2)
+        )
+        await manager.register_hook(
+            Hook(name="h3", hook_type=HookType.POST_CHECKPOINT, priority=30, handler=handler3)
+        )
 
-        # Execute with initial context
-        context = {"initial": True}
-        await manager.execute_hooks("test_event", context)
+        context = HookContext(
+            hook_type=HookType.POST_CHECKPOINT,
+            session_id="test-session",
+            timestamp=datetime.now(UTC),
+            metadata={"initial": True},
+        )
+        await manager.execute_hooks(HookType.POST_CHECKPOINT, context)
 
-        # Verify context was modified
-        assert context["value"] == 2  # hook1 set to 1, hook2 added 1
-        assert context["final"] == 4  # hook3 doubled it
-        assert context["initial"] is True
-
-    @pytest.mark.asyncio
-    async def test_hook_execution_order(self):
-        """Test that hooks execute in registration order."""
-        manager = HooksManager()
-
-        execution_order = []
-
-        def hook1(context):
-            execution_order.append(1)
-            return HookResult(success=True)
-
-        def hook2(context):
-            execution_order.append(2)
-            return HookResult(success=True)
-
-        def hook3(context):
-            execution_order.append(3)
-            return HookResult(success=True)
-
-        # Register in specific order
-        manager.register_hook("test_event", hook3)
-        manager.register_hook("test_event", hook1)
-        manager.register_hook("test_event", hook2)
-
-        # Execute
-        await manager.execute_hooks("test_event", {})
-
-        # Should execute in registration order (3, 1, 2)
-        assert execution_order == [3, 1, 2]
-
-    @pytest.mark.asyncio
-    async def test_hook_result_custom_data(self):
-        """Test hooks returning custom data."""
-        manager = HooksManager()
-
-        # Define hooks with custom data
-        def hook1(context):
-            return HookResult(
-                success=True,
-                data={"message": "Hook 1", "metadata": {"priority": 1}},
-            )
-
-        def hook2(context):
-            return HookResult(
-                success=True,
-                data={"message": "Hook 2", "metadata": {"priority": 2}},
-            )
-
-        # Register hooks
-        manager.register_hook("test_event", hook1)
-        manager.register_hook("test_event", hook2)
-
-        # Execute
-        results = await manager.execute_hooks("test_event", {})
-
-        # Verify custom data
-        assert results[0].data["message"] == "Hook 1"
-        assert results[0].data["metadata"]["priority"] == 1
-        assert results[1].data["message"] == "Hook 2"
-        assert results[1].data["metadata"]["priority"] == 2
+        assert context.metadata["value"] == 2  # h1 set to 1, h2 added 1
+        assert context.metadata["final"] == 4  # h3 doubled it
+        assert context.metadata["initial"] is True
 
 
 class TestHookResult:
@@ -474,24 +493,136 @@ class TestHookResult:
 
     def test_hook_result_creation(self):
         """Test creating a HookResult."""
-        result = HookResult(success=True, data={"key": "value"})
+        result = HookResult(success=True, modified_context={"key": "value"})
 
         assert result.success is True
-        assert result.data == {"key": "value"}
+        assert result.modified_context == {"key": "value"}
 
-    def test_hook_result_default_data(self):
-        """Test HookResult with default data."""
+    def test_hook_result_defaults(self):
+        """Test HookResult default values."""
         result = HookResult(success=True)
 
         assert result.success is True
-        assert result.data == {}
+        assert result.modified_context is None
+        assert result.error is None
+        assert result.execution_time_ms == 0.0
+        assert result.causal_chain_id is None
 
     def test_hook_result_failure(self):
         """Test HookResult for failure case."""
-        result = HookResult(success=False, data={"error": "Something went wrong"})
+        result = HookResult(success=False, error="Something went wrong")
 
         assert result.success is False
-        assert "error" in result.data
+        assert result.error == "Something went wrong"
+
+
+class TestHookContext:
+    """Test HookContext class."""
+
+    def test_hook_context_creation(self):
+        """Test creating a HookContext."""
+        ctx = HookContext(
+            hook_type=HookType.POST_CHECKPOINT,
+            session_id="session-123",
+            timestamp=datetime.now(UTC),
+            metadata={"key": "value"},
+        )
+
+        assert ctx.hook_type == HookType.POST_CHECKPOINT
+        assert ctx.session_id == "session-123"
+        assert ctx.metadata == {"key": "value"}
+
+    def test_hook_context_error_info(self):
+        """Test HookContext with error_info."""
+        ctx = HookContext(
+            hook_type=HookType.POST_ERROR,
+            session_id="session-123",
+            timestamp=datetime.now(UTC),
+            error_info={"error_message": "test error", "context": {}},
+        )
+
+        assert ctx.error_info["error_message"] == "test error"
+
+    def test_hook_context_file_path(self):
+        """Test HookContext with file_path."""
+        ctx = HookContext(
+            hook_type=HookType.POST_FILE_EDIT,
+            session_id="session-123",
+            timestamp=datetime.now(UTC),
+            file_path="/tmp/test.py",
+        )
+
+        assert ctx.file_path == "/tmp/test.py"
+
+
+class TestHookType:
+    """Test HookType enum."""
+
+    def test_hook_type_values(self):
+        """Test HookType enum has expected values."""
+        assert HookType.PRE_CHECKPOINT == "pre_checkpoint"
+        assert HookType.POST_CHECKPOINT == "post_checkpoint"
+        assert HookType.POST_FILE_EDIT == "post_file_edit"
+        assert HookType.POST_ERROR == "post_error"
+        assert HookType.SESSION_START == "session_start"
+        assert HookType.SESSION_END == "session_end"
+
+
+class TestHooksManagerListHooks:
+    """Test list_hooks method."""
+
+    @pytest.mark.asyncio
+    async def test_list_hooks_all(self):
+        """Test listing all registered hooks."""
+        manager = HooksManager()
+
+        async def handler(ctx: HookContext) -> HookResult:
+            return HookResult(success=True)
+
+        await manager.register_hook(
+            Hook(name="h1", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=handler, metadata={"tag": "a"})
+        )
+        await manager.register_hook(
+            Hook(name="h2", hook_type=HookType.PRE_CHECKPOINT, priority=20, handler=handler)
+        )
+
+        result = manager.list_hooks()
+
+        assert HookType.POST_CHECKPOINT in result
+        assert HookType.PRE_CHECKPOINT in result
+        assert len(result[HookType.POST_CHECKPOINT]) == 1
+        assert result[HookType.POST_CHECKPOINT][0]["name"] == "h1"
+        assert result[HookType.POST_CHECKPOINT][0]["metadata"] == {"tag": "a"}
+
+    @pytest.mark.asyncio
+    async def test_list_hooks_filtered(self):
+        """Test listing hooks filtered by type."""
+        manager = HooksManager()
+
+        async def handler(ctx: HookContext) -> HookResult:
+            return HookResult(success=True)
+
+        await manager.register_hook(
+            Hook(name="h1", hook_type=HookType.POST_CHECKPOINT, priority=10, handler=handler)
+        )
+        await manager.register_hook(
+            Hook(name="h2", hook_type=HookType.PRE_CHECKPOINT, priority=20, handler=handler)
+        )
+
+        result = manager.list_hooks(hook_type=HookType.POST_CHECKPOINT)
+
+        assert len(result) == 1
+        assert HookType.POST_CHECKPOINT in result
+        assert HookType.PRE_CHECKPOINT not in result
+
+    @pytest.mark.asyncio
+    async def test_list_hooks_empty(self):
+        """Test listing hooks when none are registered."""
+        manager = HooksManager()
+
+        result = manager.list_hooks()
+
+        assert result == {}
 
 
 if __name__ == "__main__":

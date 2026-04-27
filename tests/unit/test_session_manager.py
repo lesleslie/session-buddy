@@ -163,7 +163,7 @@ class TestSessionLifecycleManagerQualityScore:
                 }
 
                 with patch.object(manager.quality_scorer, "get_permissions_score", return_value=20):
-                    with patch.object(manager.quality_scorer, "calculate_quality_score", return_value=mock_score):
+                    with patch("session_buddy.server.calculate_quality_score", return_value=mock_score):
                         result = await manager.calculate_quality_score()
 
                 assert "total_score" in result
@@ -204,7 +204,7 @@ class TestSessionLifecycleManagerQualityScore:
         }
 
         with patch("os.getcwd", return_value=str(tmp_path)):
-            with patch.object(manager.quality_scorer, "calculate_quality_score", return_value=mock_score):
+            with patch("session_buddy.server.calculate_quality_score", return_value=mock_score):
                 result = await manager.calculate_quality_score()
 
                 # V2 provides structured breakdown with actual metrics
@@ -251,7 +251,7 @@ class TestSessionLifecycleManagerQualityScore:
         }
 
         with patch("os.getcwd", return_value=str(tmp_path)):
-            with patch.object(manager.quality_scorer, "calculate_quality_score", return_value=mock_score):
+            with patch("session_buddy.server.calculate_quality_score", return_value=mock_score):
                 # V2 generates recommendations from real metrics
                 result = await manager.calculate_quality_score()
 
@@ -542,13 +542,21 @@ class TestSessionLifecycleManagerSessionInitialization:
 
         manager = SessionLifecycleManager()
 
-        # Use a temporary directory that's outside the base directory
-        # This will trigger the path traversal validation error
+        # Create a real temp dir and a fake base directory.
+        # The temp dir won't be under the fake base, triggering the escape check.
         with tempfile.TemporaryDirectory() as temp_dir:
-            result = await manager.initialize_session(temp_dir)
+            fake_base = tempfile.mkdtemp()
+            try:
+                with patch("os.getcwd", return_value=fake_base):
+                    with patch("os.path.expanduser", return_value=fake_base):
+                        with patch("tempfile.gettempdir", return_value=fake_base):
+                            result = await manager.initialize_session(temp_dir)
 
-            assert result["success"] is False
-            assert "traversal not allowed" in result["error"].lower() or "escapes base directory" in result["error"].lower()
+                            assert result["success"] is False
+                            assert "escapes base directory" in result["error"].lower()
+            finally:
+                import shutil
+                shutil.rmtree(fake_base, ignore_errors=True)
 
 
 class TestSessionLifecycleManagerCheckpoint:

@@ -52,6 +52,7 @@ from session_buddy.reflection.search import (
 
 # Import storage operations
 from session_buddy.reflection.storage import (
+    get_reflection as _get_reflection_storage,
     store_conversation,
     store_reflection,
 )
@@ -370,7 +371,7 @@ class ReflectionDatabase:
 
         # Build metadata
         metadata: dict[str, Any] = {}
-        if project:
+        if project is not None:
             metadata["project"] = project
 
         # Store using storage module
@@ -431,16 +432,18 @@ class ReflectionDatabase:
         self,
         query: str,
         limit: int = 10,
-        min_score: float = 0.7,
         project: str | None = None,
+        min_score: float = 0.7,
+        tags: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Search reflections by text similarity.
 
         Args:
             query: Search query text
             limit: Maximum number of results
-            min_score: Minimum similarity score (0-1)
             project: Optional project filter
+            min_score: Minimum similarity score (0-1)
+            tags: Optional tag filter (only return reflections with any of these tags)
 
         Returns:
             List of search results with content, score, tags, etc.
@@ -450,6 +453,10 @@ class ReflectionDatabase:
             >>> for r in results:
             ...     print(f"{r['score']:.2f}: {r['content'][:50]}...")
         """
+        if query is None:
+            msg = "query cannot be None"
+            raise TypeError(msg)
+
         # Generate query embedding if available
         query_embedding = None
         if self.onnx_session:
@@ -459,7 +466,7 @@ class ReflectionDatabase:
                 query_embedding = None
 
         # Search using search module
-        return await search_reflections(
+        results = await search_reflections(
             self,
             query,
             query_embedding,
@@ -469,6 +476,190 @@ class ReflectionDatabase:
             self.is_temp_db,
             self.lock if self.is_temp_db else None,
         )
+
+        # Apply tag filter if specified
+        if tags:
+            results = [
+                r for r in results
+                if any(tag in r.get("tags", []) for tag in tags)
+            ]
+
+        return results
+
+    async def get_reflection(
+        self, reflection_id: str | None
+    ) -> dict[str, Any] | None:
+        """Get a reflection by ID.
+
+        Args:
+            reflection_id: The reflection ID to look up
+
+        Returns:
+            Reflection dict or None if not found (or if ID is invalid/None)
+
+        Example:
+            >>> refl = await db.get_reflection("abc123")
+            >>> if refl:
+            ...     print(refl["content"])
+        """
+        if reflection_id is None:
+            return None
+
+        return await _get_reflection_storage(
+            self,
+            reflection_id,
+            self.is_temp_db,
+            self.lock if self.is_temp_db else None,
+        )
+
+    async def update_reflection(
+        self,
+        reflection_id: str,
+        content: str | None = None,
+        tags: list[str] | None = None,
+    ) -> bool:
+        """Update a reflection's content and/or tags.
+
+        Args:
+            reflection_id: The reflection ID to update
+            content: New content (raises TypeError if None)
+            tags: New tags list
+
+        Returns:
+            True if updated, False if not found
+
+        Raises:
+            TypeError: If content is explicitly None
+        """
+        if content is None:
+            msg = "content cannot be None"
+            raise TypeError(msg)
+
+        if not self._initialized:
+            msg = "Database not initialized"
+            raise RuntimeError(msg)
+
+        conn = self._get_conn()
+
+        def _update() -> bool:
+            # Check if reflection exists
+            result = conn.execute(
+                "SELECT id FROM reflections WHERE id = ?",
+                [reflection_id],
+            ).fetchone()
+            if not result:
+                return False
+
+            # Encode content for database
+            from session_buddy.reflection.storage import _encode_text_for_db
+
+            db_content = _encode_text_for_db(content)
+
+            if tags is not None:
+                conn.execute(
+                    "UPDATE reflections SET content = ?, tags = ?, timestamp = NOW() WHERE id = ?",
+                    [db_content, tags, reflection_id],
+                )
+            else:
+                # tags=None means clear tags to empty list
+                conn.execute(
+                    "UPDATE reflections SET content = ?, tags = ?, timestamp = NOW() WHERE id = ?",
+                    [db_content, [], reflection_id],
+                )
+            return True
+
+        if self.is_temp_db:
+            with self.lock:
+                return _update()
+        else:
+            return await asyncio.get_event_loop().run_in_executor(None, _update)
+
+    async def delete_reflection(self, reflection_id: str | None) -> bool:
+        """Delete a reflection by ID.
+
+        Args:
+            reflection_id: The reflection ID to delete (raises TypeError if None)
+
+        Returns:
+            True if deleted, False if not found
+
+        Raises:
+            TypeError: If reflection_id is None
+        """
+        if reflection_id is None:
+            msg = "reflection_id cannot be None"
+            raise TypeError(msg)
+
+        if not self._initialized:
+            msg = "Database not initialized"
+            raise RuntimeError(msg)
+
+        conn = self._get_conn()
+
+        def _delete() -> bool:
+            # Check if reflection exists
+            result = conn.execute(
+                "SELECT id FROM reflections WHERE id = ?",
+                [reflection_id],
+            ).fetchone()
+            if not result:
+                return False
+
+            conn.execute("DELETE FROM reflections WHERE id = ?", [reflection_id])
+
+            # Also clean up reflection_tags
+            with suppress(Exception):
+                conn.execute(
+                    "DELETE FROM reflection_tags WHERE reflection_id = ?",
+                    [reflection_id],
+                )
+
+            return True
+
+        if self.is_temp_db:
+            with self.lock:
+                return _delete()
+        else:
+            return await asyncio.get_event_loop().run_in_executor(None, _delete)
+
+    async def search_by_file(
+        self,
+        file_path: str,
+        limit: int = 5,
+        project: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Search conversations that mention a specific file path.
+
+        Also logs memory access for each result via the persistence module.
+
+        Args:
+            file_path: File path to search for
+            limit: Maximum number of results
+            project: Optional project filter
+
+        Returns:
+            List of conversations mentioning the file path
+        """
+        # Use search_conversations with the file path as query
+        results = await self.search_conversations(
+            query=file_path,
+            limit=limit,
+            project=project,
+        )
+
+        # Log memory access for each result
+        try:
+            from session_buddy.memory.persistence import log_memory_access
+
+            for result in results:
+                memory_id = result.get("id", "")
+                if memory_id:
+                    log_memory_access(memory_id, access_type="search")
+        except Exception:
+            # Logging is best-effort; don't fail the search if logging fails
+            pass
+
+        return results
 
     def close(self) -> None:
         """Close database connection (synchronous).

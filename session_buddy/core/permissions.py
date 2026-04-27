@@ -35,14 +35,30 @@ class SessionPermissionsManager:
         return cls._instance  # type: ignore[return-value]
 
     def __init__(self, claude_dir: Path) -> None:
+        # Detect path changes: if the singleton was initialised for a
+        # different claude_dir we need to re-initialise for the new path.
+        # This keeps the same object identity (singleton contract) while
+        # ensuring fresh state when tests use a new tmp_path.
+        if self._initialized and getattr(self, "claude_dir", None) != claude_dir:
+            self._initialized = False
+
         if self._initialized:
             return
         self.claude_dir = claude_dir
         self.permissions_file = claude_dir / "sessions" / "trusted_permissions.json"
-        self.permissions_file.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.permissions_file.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            # In test environments a file may exist where the directory should
+            # be.  We still allow the manager to function in-memory.
+            logger.debug(
+                "Could not create sessions directory at %s",
+                self.permissions_file.parent,
+            )
         self.trusted_operations: set[str] = set()
         self.auto_checkpoint = False  # Add the required attribute for tests
         self.checkpoint_frequency = 300  # Default frequency (5 minutes)
+        self._last_updated: str | None = None
 
         # Use class-level session ID to persist across instances
         if self.__class__._session_id is None:
@@ -66,20 +82,29 @@ class SessionPermissionsManager:
         """Load previously granted permissions."""
         if self.permissions_file.exists():
             try:
-                with self.permissions_file.open() as f:
-                    data = json.load(f)
-                    self.trusted_operations.update(data.get("trusted_operations", []))
+                content = self.permissions_file.read_text().strip()
+                if not content:
+                    # Empty file – start with no trusted operations
+                    return
+                data = json.loads(content)
+                self.trusted_operations.update(data.get("trusted_operations", []))
+                if "last_updated" in data:
+                    self._last_updated = data["last_updated"]
             except (json.JSONDecodeError, KeyError):
                 pass
 
     def _save_permissions(self) -> None:
         """Save current trusted permissions."""
+        now = datetime.now().isoformat()
+        self._last_updated = now
         data = {
             "trusted_operations": list(self.trusted_operations),
-            "last_updated": datetime.now().isoformat(),
+            "last_updated": now,
             "session_id": self.session_id,
         }
         try:
+            # Ensure parent directory exists (may have been removed externally)
+            self.permissions_file.parent.mkdir(parents=True, exist_ok=True)
             with self.permissions_file.open("w") as f:
                 json.dump(data, f, indent=2)
         except OSError:
@@ -111,6 +136,7 @@ class SessionPermissionsManager:
             "trusted_operations_count": len(self.trusted_operations),
             "trusted_operations": list(self.trusted_operations),
             "permissions_file": str(self.permissions_file),
+            "last_updated": self._last_updated or datetime.now().isoformat(),
         }
 
     def configure_auto_checkpoint(

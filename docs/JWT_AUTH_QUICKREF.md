@@ -218,7 +218,7 @@ python -m pytest tests/unit/test_mcp_auth.py -v
 - **Implementation**: `session_buddy/mcp/auth.py`
 - **Demo**: `examples/jwt_auth_demo.py`
 - **Tests**: `tests/unit/test_mcp_auth.py`
-- **Summary**: `docs/JWT_AUTH_IMPLEMENTATION_SUMMARY.md`
+- **Summary**: `docs/archive/completion-reports/JWT_AUTH_IMPLEMENTATION_SUMMARY.md`
 
 ## Support
 

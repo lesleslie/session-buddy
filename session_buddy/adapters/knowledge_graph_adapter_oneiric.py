@@ -18,6 +18,7 @@ Key Features:
 from __future__ import annotations
 
 import json
+import logging
 import typing as t
 import uuid
 from datetime import UTC, datetime
@@ -26,6 +27,8 @@ from session_buddy.adapters.knowledge_graph_adapter_phase3 import (
     Phase3RelationshipMixin,
 )
 from session_buddy.adapters.settings import KnowledgeGraphAdapterSettings
+
+logger = logging.getLogger(__name__)
 
 if t.TYPE_CHECKING:
     from pathlib import Path
@@ -107,8 +110,8 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         # Use unique database file per graph name to avoid DuckDB locking conflicts
         if db_path:
             self.db_path = str(db_path)
-        else:
-            # Add graph name suffix to database path for test isolation
+        elif settings is not None:
+            # Derive path from provided settings
             db_path_from_settings = self.settings.database_path
             graph_name = self.settings.graph_name
             if graph_name != "session_mgmt_graph" and not str(
@@ -121,6 +124,9 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
                 )
             else:
                 self.db_path = str(db_path_from_settings)
+        else:
+            # No path and no settings provided; will be resolved later
+            self.db_path = None
         self.conn: t.Any = None  # DuckDB connection (sync)
         self._duckpgq_installed = False
         self._initialized = False
@@ -218,8 +224,8 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
                 self.conn.execute(f"LOAD {extension}")
             self._duckpgq_installed = True
         except Exception as e:
-            msg = f"Failed to install DuckPGQ extension: {e}"
-            raise RuntimeError(msg) from e
+            self._duckpgq_installed = False
+            logger.warning(f"DuckPGQ extension unavailable (non-fatal): {e}")
 
         # Create schema (sync operations, complete quickly)
         await self._create_schema()

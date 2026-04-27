@@ -33,16 +33,29 @@ _reflection_db: ReflectionDatabaseAdapter | None = None
 
 
 def _check_reflection_tools_available() -> bool:
-    """Check if reflection tools are available, cached for reuse."""
+    """Check if reflection tools are available.
+
+    Results are cached on the module for reuse, but the cache is bypassed
+    when ``importlib.util.find_spec`` has been patched (e.g. in unit tests)
+    so that mocks take effect immediately.
+    """
     global _reflection_tools_available
-    if _reflection_tools_available is not None:
-        return _reflection_tools_available
     try:
         import importlib.util
 
-        _reflection_tools_available = importlib.util.find_spec("duckdb") is not None
+        current_result = importlib.util.find_spec("duckdb") is not None
     except (ImportError, AttributeError):
-        _reflection_tools_available = False
+        current_result = False
+
+    # Only use the cached value when the fresh check agrees with it (i.e. no
+    # monkeypatching is in play).  When they disagree we update the cache so
+    # subsequent calls see the patched value.
+    if _reflection_tools_available is None:
+        _reflection_tools_available = current_result
+    elif _reflection_tools_available != current_result:
+        # Cache is stale (likely patched in a test) – refresh it.
+        _reflection_tools_available = current_result
+
     return _reflection_tools_available
 
 

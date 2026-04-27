@@ -1104,7 +1104,7 @@ ______________________________________________________________________
 ### Related Documentation
 
 - [CLAUDE.md](/CLAUDE.md) - Overall project architecture
-- [PHASE2_SUMMARY.md](/docs/PHASE2_SUMMARY.md) - Phase 2.7 DI implementation details
+- [PHASE2_SUMMARY.md](/docs/archive/completion-reports/PHASE2_SUMMARY.md) - Phase 2.7 DI implementation details
 - [hooks_system.md](/docs/hooks_system.md) - Hooks system architecture
 
 ### Code Examples

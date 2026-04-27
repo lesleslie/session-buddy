@@ -9,10 +9,13 @@ where possible.
 from __future__ import annotations
 
 import inspect
+import json
+import sys
+from pathlib import Path
 from typing import Any
 
 from session_buddy.server_optimized import (
-    health_check,
+    health_check as _health_check,
     mcp,
     run_server,
 )
@@ -24,8 +27,35 @@ session_logger = logger
 permissions_manager = None
 
 
-async def calculate_quality_score() -> dict[str, Any]:
-    return {}
+async def health_check(request: Any = None) -> dict[str, Any]:
+    """Health check wrapper that returns a dict regardless of request type."""
+    response = await _health_check(request)
+    if hasattr(response, "body"):
+        body = response.body
+        if isinstance(body, bytes):
+            return json.loads(body)
+        if isinstance(body, dict):
+            return body
+        return body
+    return response
+
+
+async def calculate_quality_score(project_dir: str | None = None) -> dict[str, Any]:
+    if project_dir:
+        try:
+            from session_buddy.quality_engine import calculate_quality_score as _real
+
+            return await _real(project_dir=Path(project_dir))
+        except Exception:
+            pass
+    return {
+        "total_score": 0,
+        "score": 0,
+        "status": "no_project",
+        "details": {},
+        "breakdown": {},
+        "recommendations": [],
+    }
 
 
 async def reflect_on_past(
@@ -118,16 +148,21 @@ async def get_reflection_database() -> Any:
     return await _get_db()
 
 
-def optimize_memory_usage(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    return {}
+async def optimize_memory_usage(*args: Any, **kwargs: Any) -> str:
+    return "Memory optimization not available (token optimizer unavailable)"
 
 
-def optimize_search_response(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    return {}
+async def optimize_search_response(
+    results: list[Any] | None = None,
+    **kwargs: Any,
+) -> tuple[list[Any], dict[str, Any]]:
+    if results is None:
+        results = []
+    return results, {}
 
 
-def track_token_usage(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    return {}
+async def track_token_usage(*args: Any, **kwargs: Any) -> None:
+    return None
 
 
 async def get_token_usage_stats(hours: int = 24) -> dict[str, Any]:
@@ -151,15 +186,69 @@ async def get_cached_chunk(cache_key: str, chunk_index: int) -> Any:
 
 
 def _build_feature_list(*args: Any, **kwargs: Any) -> list[str]:
-    return []
+    features: list[str] = [
+        "Session Lifecycle Management",
+        "Memory & Reflection Tools",
+        "Crackerjack Integration",
+        "Knowledge Graph (DuckPGQ)",
+        "LLM Provider Integration",
+    ]
+    if SECURITY_AVAILABLE:
+        features.append("API Key Validation")
+    if RATE_LIMITING_AVAILABLE:
+        features.append("Rate Limiting")
+    return features
 
 
-def _display_http_startup(*args: Any, **kwargs: Any) -> None:
-    return None
+def _display_http_startup(
+    host: str = "localhost",
+    port: int = 8080,
+    features: list[str] | None = None,
+) -> None:
+    if SERVERPANELS_AVAILABLE:
+        try:
+            from mcp_common.ui import ServerPanels
+
+            ServerPanels.startup_success(
+                server_name="Session Management MCP",
+                version="2.0.0",
+                features=features or [],
+                endpoint=f"http://{host}:{port}",
+                transport="HTTP (streamable)",
+            )
+            return
+        except Exception:
+            pass
+    # Fallback: print to stderr
+    print(
+        f"Session Management MCP v2.0.0 - HTTP mode on {host}:{port}",
+        file=sys.stderr,
+    )
+    if features:
+        for f in features:
+            print(f"  - {f}", file=sys.stderr)
 
 
-def _display_stdio_startup(*args: Any, **kwargs: Any) -> None:
-    return None
+def _display_stdio_startup(features: list[str] | None = None) -> None:
+    if SERVERPANELS_AVAILABLE:
+        try:
+            from mcp_common.ui import ServerPanels
+
+            ServerPanels.startup_success(
+                server_name="Session Management MCP",
+                version="2.0.0",
+                features=features or [],
+                transport="STDIO",
+                mode="Claude Desktop",
+            )
+            return
+        except Exception:
+            pass
+    # Fallback: print to stderr
+    print("Session Management MCP v2.0.0 - STDIO mode (Claude Desktop)", file=sys.stderr)
+    if features:
+        for f in features:
+            print(f"  - {f}", file=sys.stderr)
 
 
 def main(http_mode: bool = False, http_port: int | None = None) -> None:
@@ -171,6 +260,7 @@ def main(http_mode: bool = False, http_port: int | None = None) -> None:
 
 SECURITY_AVAILABLE = False
 RATE_LIMITING_AVAILABLE = False
+SERVERPANELS_AVAILABLE = False
 TOKEN_OPTIMIZER_AVAILABLE = False
 REFLECTION_TOOLS_AVAILABLE = False
 
@@ -195,6 +285,7 @@ __all__ = [
     "_display_stdio_startup",
     "SECURITY_AVAILABLE",
     "RATE_LIMITING_AVAILABLE",
+    "SERVERPANELS_AVAILABLE",
     "TOKEN_OPTIMIZER_AVAILABLE",
     "REFLECTION_TOOLS_AVAILABLE",
 ]

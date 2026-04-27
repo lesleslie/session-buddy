@@ -6,8 +6,8 @@ These protocols define interfaces for dependency injection and testing.
 from typing import Any, Protocol
 
 from session_buddy.mcp.tools.intelligence.agent_analyzer import AgentRecommendation
-from .quality_metrics import QualityMetrics
-from .recommendation_engine import AgentEffectiveness
+from session_buddy.tools.quality_metrics import QualityMetrics
+from session_buddy.mcp.tools.advanced.recommendation_engine import AgentEffectiveness
 
 
 class QualityMetricsExtractorProtocol(Protocol):

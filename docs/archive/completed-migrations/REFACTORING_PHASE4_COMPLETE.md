@@ -315,4 +315,4 @@ ______________________________________________________________________
 **Related Documents:**
 
 - [Phase 4 Plan](../../REFACTORING_PHASE4_PLAN.md)
-- [Phase 3 Summary](../../REFACTORING_PHASE3_COMPLETE.md)
+- [Phase 3 Summary](../completion-reports/REFACTORING_PHASE3_COMPLETE.md)

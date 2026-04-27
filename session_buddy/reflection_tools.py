@@ -21,17 +21,56 @@ DEPRECATION NOTICE (Phase 2 - February 2025):
     This wrapper will be removed in a future release.
 """
 
+# Module-level singleton cache for the reflection database
+_reflection_db = None
+
+# Import the adapter class so tests and callers can patch it at the module level.
+try:
+    from session_buddy.adapters.reflection_adapter import (
+        ReflectionDatabaseAdapter,
+    )
+except ImportError:
+    ReflectionDatabaseAdapter = None  # type: ignore[assignment,misc]
+
 # Import the new modular implementation
+from session_buddy.reflection.database import (
+    ONNX_AVAILABLE,
+)
 from session_buddy.reflection.database import (
     ReflectionDatabase as _ReflectionDatabase,
 )
-from session_buddy.reflection.database import get_reflection_database
+from session_buddy.reflection.database import (
+    get_reflection_database as _get_reflection_database,
+)
 
 # Create alias for backward compatibility
 ReflectionDatabase = _ReflectionDatabase
 
+
+async def get_reflection_database(db_path=None):
+    """Get or create the reflection database singleton.
+
+    This async wrapper uses the ReflectionDatabaseAdapter so that callers
+    (and tests) can patch ``session_buddy.reflection_tools.ReflectionDatabaseAdapter``
+    to control behaviour.
+    """
+    global _reflection_db
+
+    if _reflection_db is not None:
+        return _reflection_db
+
+    # Instantiate via the adapter class so tests can mock it
+    if ReflectionDatabaseAdapter is None:
+        msg = "ReflectionDatabaseAdapter is not available"
+        raise ImportError(msg)
+
+    _reflection_db = ReflectionDatabaseAdapter(db_path=db_path)
+    return _reflection_db
+
+
 # Export for backward compatibility
 __all__ = [
     "ReflectionDatabase",
+    "ReflectionDatabaseAdapter",
     "get_reflection_database",
 ]

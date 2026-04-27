@@ -15,11 +15,14 @@ This is separate from the episodic memory (conversations) in ReflectionDatabase.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Self
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import duckdb
@@ -128,8 +131,8 @@ class KnowledgeGraphDatabase:
             self.conn.execute("LOAD duckpgq")
             self._duckpgq_installed = True
         except Exception as e:
-            msg = f"Failed to install DuckPGQ extension: {e}"
-            raise RuntimeError(msg) from e
+            self._duckpgq_installed = False
+            logger.warning(f"DuckPGQ extension unavailable (non-fatal): {e}")
 
         # Create schema
         await self._create_schema()
@@ -207,22 +210,22 @@ class KnowledgeGraphDatabase:
             "CREATE INDEX IF NOT EXISTS idx_relationships_to ON kg_relationships(to_entity)",
         )
 
-        # Create property graph using DuckPGQ
+        # Create property graph using DuckPGQ (only if extension is available)
         # This maps our tables to SQL/PGQ graph structure
-        try:
-            conn.execute("""
-                CREATE PROPERTY GRAPH IF NOT EXISTS knowledge_graph
-                VERTEX TABLES (kg_entities)
-                EDGE TABLES (
-                    kg_relationships
-                        SOURCE KEY (from_entity) REFERENCES kg_entities (id)
-                        DESTINATION KEY (to_entity) REFERENCES kg_entities (id)
-                )
-            """)
-        except Exception as e:
-            # Property graph might already exist, that's okay
-            if "already exists" not in str(e).lower():
-                raise
+        if self._duckpgq_installed:
+            try:
+                conn.execute("""
+                    CREATE PROPERTY GRAPH IF NOT EXISTS knowledge_graph
+                    VERTEX TABLES (kg_entities)
+                    EDGE TABLES (
+                        kg_relationships
+                            SOURCE KEY (from_entity) REFERENCES kg_entities (id)
+                            DESTINATION KEY (to_entity) REFERENCES kg_entities (id)
+                    )
+                """)
+            except Exception as e:
+                if "already exists" not in str(e).lower():
+                    raise
 
     async def create_entity(
         self,

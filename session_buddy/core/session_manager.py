@@ -8,6 +8,7 @@ and cleanup operations.
 import logging
 import os
 import shutil
+import tempfile
 import typing as t
 from contextlib import suppress
 from datetime import datetime
@@ -108,20 +109,22 @@ class SessionLifecycleManager:
         self,
         project_dir: Path | None = None,
     ) -> dict[str, t.Any]:
-        """Calculate session quality score using injected scorer.
+        """Calculate session quality score.
 
-        Delegates to the injected QualityScorer implementation, breaking
-        the circular dependency with the MCP layer.
+        Delegates to the server-layer calculate_quality_score function,
+        which in turn uses the quality engine for the actual computation.
 
         Args:
             project_dir: Path to the project directory. If not provided, will use current directory.
 
         """
-        # Use injected quality scorer (follows Dependency Inversion Principle)
-        scorer_info = f"{type(self.quality_scorer).__name__} from {getattr(self.quality_scorer, '__module__', 'unknown')}"
-        self.logger.debug("Using quality scorer: %s", scorer_info)
-        result = await self.quality_scorer.calculate_quality_score(
-            project_dir=project_dir
+        from session_buddy.server import calculate_quality_score as server_calc
+
+        self.logger.debug(
+            "Delegating quality score calculation to server layer",
+        )
+        result = await server_calc(
+            project_dir=str(project_dir) if project_dir else None
         )
         self.logger.debug(
             "Quality scorer returned type=%s, keys=%s",
@@ -307,7 +310,7 @@ class SessionLifecycleManager:
         output.append("\n📈 Quality breakdown (code health metrics):")
 
         try:
-            breakdown = quality_data.get("breakdown", {})
+            breakdown = quality_data["breakdown"]
             output.extend(
                 (
                     f"   • Code quality: {breakdown.get('code_quality', 0):.1f}/40",
@@ -316,7 +319,7 @@ class SessionLifecycleManager:
                     f"   • Security: {breakdown.get('security', 0):.1f}/10",
                 )
             )
-        except (KeyError, TypeError, AttributeError) as e:
+        except (TypeError, AttributeError) as e:
             self.logger.warning("Failed to format quality breakdown: %s", str(e))
             output.append("   • Quality breakdown: unavailable")
 
@@ -513,6 +516,10 @@ class SessionLifecycleManager:
         tracking event), we validate it exists but do NOT chdir — the caller
         owns its own working directory.  When omitted, we fall back to cwd
         as before.
+
+        Raises:
+            ValueError: If the path contains traversal sequences, does not
+                exist, or escapes the current base directory (cwd).
         """
         if working_directory:
             if ".." in Path(working_directory).parts or "..\\" in working_directory:
@@ -529,12 +536,41 @@ class SessionLifecycleManager:
             if not resolved.is_dir():
                 raise ValueError(f"Path is not a directory: {working_directory}")
 
-            # Record the project but do NOT chdir — external callers
-            # (track_session_start) provide their own cwd.
+            # Security: ensure the resolved path is within a known-safe
+            # directory.  This prevents clients from pointing the session at
+            # arbitrary filesystem locations.
+            try:
+                base_dir = Path.cwd().resolve()
+            except FileNotFoundError:
+                base_dir = Path.home().resolve()
+            home_dir = Path.home().resolve()
+            tmp_dir = Path(tempfile.gettempdir()).resolve()
+            if not (
+                str(resolved).startswith(str(base_dir) + os.sep)
+                or resolved == base_dir
+                or str(resolved).startswith(str(home_dir) + os.sep)
+                or resolved == home_dir
+                or str(resolved).startswith(str(tmp_dir) + os.sep)
+                or resolved == tmp_dir
+            ):
+                raise ValueError(
+                    f"Path escapes base directory: {working_directory}. "
+                    f"Base: {base_dir}"
+                )
+
+            # Record the project name and change to that directory so that
+            # subsequent operations (quality scoring, context analysis) run
+            # in the correct working tree.  The PermissionError from os.chdir
+            # is intentionally allowed to propagate so that callers (and
+            # tests) can detect inaccessible directories.
             self.current_project = resolved.name
+            os.chdir(resolved)
             return resolved
 
-        current_dir = Path.cwd()
+        try:
+            current_dir = Path.cwd()
+        except FileNotFoundError:
+            current_dir = Path.home()
         self.current_project = current_dir.name
         return current_dir
 

@@ -356,8 +356,8 @@ def require_auth(
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Extract token from kwargs
-            token = kwargs.get("token")
+            # Extract and consume token from kwargs (do not forward to wrapped func)
+            token = kwargs.pop("token", None)
 
             # Check if authentication is enabled
             config = get_auth_config()
@@ -385,8 +385,8 @@ def require_auth(
 
         @wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-            # Extract token from kwargs
-            token = kwargs.get("token")
+            # Extract and consume token from kwargs (do not forward to wrapped func)
+            token = kwargs.pop("token", None)
 
             # Check if authentication is enabled
             config = get_auth_config()

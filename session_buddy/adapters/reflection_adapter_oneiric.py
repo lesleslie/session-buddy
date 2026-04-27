@@ -54,6 +54,11 @@ from session_buddy.utils.fingerprint import MinHashSignature
 
 logger = logging.getLogger(__name__)
 
+# Module-level connection cache: maps resolved database path -> shared DuckDB connection.
+# This ensures that multiple adapter instances pointing to the same database file
+# share a single connection, making HNSW indexes visible across all of them.
+_connection_cache: dict[str, t.Any] = {}
+
 
 # DuckDB will be imported at runtime
 DUCKDB_AVAILABLE = True
@@ -114,12 +119,17 @@ class ReflectionDatabaseAdapterOneiric:
             self.collection_name = validate_collection_name(collection_name)
         # Use unique database file per collection to avoid DuckDB locking conflicts
         db_path = self.settings.database_path
-        # Add collection name suffix if not already present (for test isolation)
-        if self.collection_name != "default" and not str(db_path).endswith(
+        # Preserve :memory: paths as-is to avoid converting to file paths
+        if str(db_path) == ":memory:":
+            self.db_path = ":memory:"
+        elif self.collection_name != "default" and not str(db_path).endswith(
             f"{self.collection_name}.duckdb"
         ):
+            # Add collection name suffix if not already present (for test isolation)
             db_path = db_path.parent / f"{db_path.stem}_{self.collection_name}.duckdb"
-        self.db_path = str(db_path)
+            self.db_path = str(db_path)
+        else:
+            self.db_path = str(db_path)
         self.conn: t.Any = None  # DuckDB connection (sync)
         self.onnx_session: InferenceSession | None = None
         self.tokenizer: t.Any = None
@@ -204,6 +214,11 @@ class ReflectionDatabaseAdapterOneiric:
 
         # Now close the connection
         if self.conn:
+            # Remove from shared connection cache
+            with suppress(Exception):
+                cache_key = str(Path(self.db_path).resolve()) if self.db_path != ":memory:" else ":memory:"
+                if _connection_cache.get(cache_key) is self.conn:
+                    del _connection_cache[cache_key]
             with suppress(Exception):
                 self.conn.close()
             self.conn = None
@@ -224,19 +239,53 @@ class ReflectionDatabaseAdapterOneiric:
             msg = "DuckDB not available. Install with: uv add duckdb"
             raise ImportError(msg)
 
-        # Create database directory if it doesn't exist
-        db_dir = Path(self.db_path).parent
-        db_dir.mkdir(parents=True, exist_ok=True)
+        # Create database directory if it doesn't exist (skip for :memory:)
+        if self.db_path != ":memory:":
+            db_dir = Path(self.db_path).parent
+            db_dir.mkdir(parents=True, exist_ok=True)
+
+            # Remove stale/empty database file that DuckDB cannot open.
+            # NamedTemporaryFile (and similar) may create a zero-byte file at the
+            # target path; DuckDB treats an existing but empty file as an invalid
+            # database.  Deleting it lets DuckDB create a fresh one.
+            db_file = Path(self.db_path)
+            if db_file.exists() and db_file.stat().st_size == 0:
+                db_file.unlink()
 
         # Connect to DuckDB database
         # Use consistent config to avoid "different configuration" errors when
         # other parts of the codebase (e.g., legacy ReflectionDatabase) have
         # already opened the same database file with allow_unsigned_extensions
-        self.conn = duckdb.connect(
-            database=self.db_path,
-            read_only=False,
-            config={"allow_unsigned_extensions": True},
-        )
+        #
+        # Reuse an existing connection if one is already open for this database
+        # path so that session-local objects (like HNSW indexes) are visible to
+        # all adapter instances sharing the file.
+        #
+        # NOTE: :memory: databases are never cached because each duckdb.connect()
+        # creates a unique in-memory database that must not be shared.
+        if self.db_path != ":memory:":
+            cache_key = str(Path(self.db_path).resolve())
+            cached = _connection_cache.get(cache_key)
+            if cached is not None:
+                try:
+                    # Verify the connection is still alive
+                    cached.execute("SELECT 1")
+                    self.conn = cached
+                except Exception:
+                    # Stale connection; remove and create a fresh one
+                    _connection_cache.pop(cache_key, None)
+                    self.conn = None
+
+        if self.conn is None:
+            self.conn = duckdb.connect(
+                database=self.db_path,
+                read_only=False,
+                config={"allow_unsigned_extensions": True},
+            )
+            # Only cache file-based connections, not :memory:
+            if self.db_path != ":memory:":
+                cache_key = str(Path(self.db_path).resolve())
+                _connection_cache[cache_key] = self.conn
 
         # Enable vector extension if available
         with suppress(Exception):
@@ -701,6 +750,14 @@ class ReflectionDatabaseAdapterOneiric:
                 f"Created HNSW index for {self.collection_name}_reflections embeddings "
                 f"(M={self.settings.hnsw_m}, ef_construction={self.settings.hnsw_ef_construction})"
             )
+
+            # Force checkpoint so that HNSW indexes are persisted and visible
+            # to other connections sharing the same database file.
+            try:
+                self.conn.execute("CHECKPOINT")
+                logger.debug("Database checkpointed after HNSW index creation")
+            except Exception as ckpt_err:
+                logger.debug(f"Checkpoint after HNSW creation skipped: {ckpt_err}")
 
         except Exception as e:
             logger.warning(
@@ -1448,6 +1505,12 @@ class ReflectionDatabaseAdapterOneiric:
         """
         if not self._initialized:
             await self.initialize()
+
+        # Validate content is not None (empty strings are allowed for compatibility
+        # with the original ReflectionDatabase.store_reflection in database.py)
+        if content is None:
+            msg = "content cannot be None"
+            raise TypeError(msg)
 
         # Generate MinHash fingerprint for duplicate detection (Phase 4)
         fingerprint = MinHashSignature.from_text(content)

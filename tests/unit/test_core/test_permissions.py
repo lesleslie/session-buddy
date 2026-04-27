@@ -321,6 +321,7 @@ class TestPermissionsManagerErrorHandling:
     def test_permission_file_creation_error(self, tmp_path):
         """Test handling of permission file creation errors."""
         claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir(parents=True)
 
         # Create a file where the directory should be
         (claude_dir / "sessions").touch()

@@ -43,10 +43,11 @@ class RecommendationEngine:
     @classmethod
     async def _get_cached_result(cls, project: str, days: int) -> dict[str, Any] | None:
         """Get cached analysis result if available."""
-        from .history_cache import get_cache
+        from session_buddy.mcp.tools.infrastructure.history_cache import get_cache
 
         cache = get_cache()
-        return await cache.get(project, days)
+        cache_key = f"{project}:{days}"
+        return cache.get(cache_key)
 
     @classmethod
     def _filter_results_by_date(
@@ -79,10 +80,11 @@ class RecommendationEngine:
         result: dict[str, Any],
     ) -> None:
         """Cache analysis result."""
-        from .history_cache import get_cache
+        from session_buddy.mcp.tools.infrastructure.history_cache import get_cache
 
         cache = get_cache()
-        await cache.set(project, days, result)
+        cache_key = f"{project}:{days}"
+        cache.set(cache_key, result)
 
     @classmethod
     async def analyze_history(

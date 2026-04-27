@@ -128,7 +128,7 @@ class SessionBuddyShell(AdminShell):
     def _get_banner(self) -> str:
         """Get Session-Buddy-specific banner."""
         version = self._get_component_version()
-        cli_enabled = "Enabled" if self.config.cli_preprocessing_enabled else "Disabled"
+        cli_enabled = "Enabled" if getattr(self.config, "cli_preprocessing_enabled", False) else "Disabled"
 
         # Session tracking status (self-monitoring)
         session_tracking = "Enabled (self-monitoring)"
@@ -137,6 +137,12 @@ class SessionBuddyShell(AdminShell):
 Session-Buddy Admin Shell v{version}
 {"=" * 60}
 Session Management & Quality Monitoring
+
+Session Management:
+  ps()           - List all sessions
+  active()       - Show active sessions
+  quality()      - Show quality metrics
+  insights(n=10) - Show recent insights
 
 Session Tracking: {session_tracking}
   Shell sessions tracked via Session-Buddy MCP

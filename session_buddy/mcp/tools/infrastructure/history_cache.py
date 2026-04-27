@@ -75,7 +75,7 @@ def get_cache(ttl: float = 300.0) -> HistoryAnalysisCache:
     return _global_cache
 
 
-async def reset_cache() -> None:
+def reset_cache() -> None:
     """Reset global cache instance.
 
     Useful for testing or clearing all cached data.

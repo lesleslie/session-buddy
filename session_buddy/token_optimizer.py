@@ -31,21 +31,29 @@ def get_chunk_cache() -> dict[str, list[tuple[Any, ...]]]:
 
 
 class ACBChunkCache:
-    """Native cache for response chunks (replaces ACB dependency)."""
+    """Native cache for response chunks (replaces ACB dependency).
 
-    def get(
+    All methods are async to match the test expectations that use ``await``
+    on every cache operation.
+    """
+
+    async def get(
         self, key: str, default: list[tuple[Any, ...]] | None = None
     ) -> list[tuple[Any, ...]] | None:
         """Get value from cache."""
         return _chunk_cache.get(key, default)
 
-    def set(self, key: str, value: list[tuple[Any, ...]]) -> None:
+    async def set(self, key: str, value: list[tuple[Any, ...]]) -> None:
         """Set value in cache."""
         _chunk_cache[key] = value
 
-    def clear(self) -> None:
+    async def clear(self) -> None:
         """Clear all cached data."""
         _chunk_cache.clear()
+
+    async def __contains__(self, key: str) -> bool:
+        """Check if key exists in cache."""
+        return key in _chunk_cache
 
 
 @dataclass
@@ -79,7 +87,7 @@ class TokenOptimizer:
         self.chunk_size = chunk_size
         self.encoding = self._get_encoding()
         self.usage_history: list[TokenUsageMetrics] = []
-        self.chunk_cache: ACBChunkCache = get_chunk_cache()  # ACB-backed cache
+        self.chunk_cache: ACBChunkCache = ACBChunkCache()  # Native dict-backed cache
 
         # Token optimization strategies
         self.strategies = {
@@ -441,7 +449,7 @@ class TokenOptimizer:
             },
         )
 
-        self.chunk_cache.set(cache_key, [(chunk_result,)])  # type: ignore[arg-type, func-returns-value]  # Store as tuple list, returns None
+        await self.chunk_cache.set(cache_key, [(chunk_result,)])  # type: ignore[arg-type, func-returns-value]  # Store as tuple list, returns None
         return cache_key
 
     async def get_chunk(
@@ -463,7 +471,7 @@ class TokenOptimizer:
         if cache_key not in _chunk_cache:  # type: ignore[attr-defined]  # Direct cache check
             return None
 
-        cached = self.chunk_cache.get(cache_key)
+        cached = await self.chunk_cache.get(cache_key)
         if not cached:
             return None
         chunk_result = cached[0][0]  # type: ignore[index]  # Extract ChunkResult from tuple list

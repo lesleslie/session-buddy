@@ -71,12 +71,15 @@ class TestJWTManager:
         """Set up test fixtures."""
         # Set a test secret
         self.test_secret = "test-secret-key-for-demo-purposes-min-32-chars"
-        patcher = patch.dict("os.environ", {"SESSION_BUDDY_SECRET": self.test_secret})
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        self._patcher = patch.dict("os.environ", {"SESSION_BUDDY_SECRET": self.test_secret})
+        self._patcher.start()
 
         # Force reload of config
         auth._auth_config = None
+
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        self._patcher.stop()
 
     def test_jwt_manager_init(self):
         """Test JWTManager initialization."""
@@ -192,12 +195,15 @@ class TestValidateToken:
     def setup_method(self):
         """Set up test fixtures."""
         self.test_secret = "test-secret-key-for-demo-purposes-min-32-chars"
-        patcher = patch.dict("os.environ", {"SESSION_BUDDY_SECRET": self.test_secret})
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        self._patcher = patch.dict("os.environ", {"SESSION_BUDDY_SECRET": self.test_secret})
+        self._patcher.start()
 
         # Force reload of config
         auth._auth_config = None
+
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        self._patcher.stop()
 
     def test_validate_token_success(self):
         """Test successful token validation."""

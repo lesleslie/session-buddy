@@ -126,6 +126,12 @@ async def _semantic_search_conversations(
         # Filter by minimum score
         filtered = [row for row in results if float(row[6]) >= min_score]
 
+        # Fall back to text search if no results found via semantic search
+        if not filtered:
+            return await _text_search_conversations(
+                conn, query, limit, project, is_temp_db, lock
+            )
+
         return [
             {
                 "id": str(row[0]),
