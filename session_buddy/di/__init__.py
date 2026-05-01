@@ -58,7 +58,12 @@ def configure(*, force: bool = False) -> None:
 
     # Register type-safe path configuration
     paths = SessionPaths.from_home()
-    paths.ensure_directories()
+    try:
+        paths.ensure_directories()
+    except OSError:
+        fallback_home = Path(tempfile.gettempdir()) / "session-buddy-home"
+        paths = SessionPaths.from_home(fallback_home)
+        paths.ensure_directories()
     depends.set(SessionPaths, paths)
 
     # Register services with type-safe path access

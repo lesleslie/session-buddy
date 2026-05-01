@@ -34,13 +34,7 @@ except ImportError:
 
 # Import the new modular implementation
 from session_buddy.reflection.database import (
-    ONNX_AVAILABLE,
-)
-from session_buddy.reflection.database import (
     ReflectionDatabase as _ReflectionDatabase,
-)
-from session_buddy.reflection.database import (
-    get_reflection_database as _get_reflection_database,
 )
 
 # Create alias for backward compatibility

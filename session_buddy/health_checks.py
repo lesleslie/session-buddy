@@ -20,9 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from session_buddy.adapters.reflection_adapter_oneiric import (
-        ReflectionDatabaseAdapterOneiric,
-    )
+    pass
 
 
 class HealthStatus(StrEnum):
@@ -89,7 +87,10 @@ async def check_database_health() -> ComponentHealth:
     try:
         db = await get_initialized_reflection_database()
         # Allow tests to patch get_reflection_database without initializing in production.
-        if db is None and getattr(get_reflection_database, "__module__", "") == "unittest.mock":
+        if (
+            db is None
+            and getattr(get_reflection_database, "__module__", "") == "unittest.mock"
+        ):
             db = await get_reflection_database()  # type: ignore[misc]
         if db is None:
             return ComponentHealth(

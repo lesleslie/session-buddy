@@ -93,7 +93,9 @@ class PathValidator:
                     resolved == root or resolved.is_relative_to(root)
                     for root in allowed_root_paths
                 ):
-                    allowed_display = ", ".join(str(root) for root in allowed_root_paths)
+                    allowed_display = ", ".join(
+                        str(root) for root in allowed_root_paths
+                    )
                     if base_resolved is not None and ".." not in path.parts:
                         raise ValueError(
                             f"Path {resolved} escapes base directory {base_resolved}. "

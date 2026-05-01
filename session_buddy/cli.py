@@ -11,6 +11,8 @@ import asyncio
 import os
 import warnings
 
+import typer
+
 # Suppress transformers warnings about PyTorch/TensorFlow
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 warnings.filterwarnings("ignore", message=".*PyTorch.*TensorFlow.*Flax.*")
@@ -88,12 +90,33 @@ def create_session_buddy_cli() -> MCPServerCLIFactory:
     settings = SessionBuddySettings()
 
     # Create the CLI factory with start handler
-    return MCPServerCLIFactory(
+    cli_factory = MCPServerCLIFactory(
         server_name=settings.server_name,
         settings=settings,
         start_handler=start_server_handler,
         health_probe_handler=lambda: _run_health_probe(settings),
     )
+
+    app = cli_factory.create_app()
+
+    @app.callback(invoke_without_command=True)
+    def _root(
+        version: bool = typer.Option(
+            False,
+            "--version",
+            help="Show the Session Buddy version and exit.",
+        ),
+    ) -> None:
+        if version:
+            from session_buddy import __version__
+
+            typer.echo(f"session-buddy version {__version__}")
+            raise typer.Exit()
+
+    # Preserve the factory interface expected by callers while returning an
+    # object whose create_app() yields the augmented app.
+    cli_factory.create_app = lambda: app  # type: ignore[method-assign]
+    return cli_factory
 
 
 def main() -> None:

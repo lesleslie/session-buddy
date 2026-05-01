@@ -9,8 +9,8 @@ from __future__ import annotations
 import os
 import re
 import subprocess
-import threading
 import sys
+import threading
 from typing import Any
 
 _ORDER_LOCK = threading.Condition()
@@ -312,8 +312,4 @@ def _is_inline_python_code_argument(command: list[str], index: int) -> bool:
     if len(command) < 3:
         return False
 
-    return (
-        command[0] in {"python", "python3"}
-        and command[1] == "-c"
-        and index == 2
-    )
+    return command[0] in {"python", "python3"} and command[1] == "-c" and index == 2

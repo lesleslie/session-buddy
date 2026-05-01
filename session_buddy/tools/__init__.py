@@ -94,6 +94,7 @@ from session_buddy.subscribers.code_graph_subscriber import (
     register_code_graph_tools,
 )
 
+
 def _alias_submodule(alias: str, target: str) -> None:
     """Expose ``target`` as ``alias`` in ``sys.modules``."""
 
@@ -103,26 +104,75 @@ def _alias_submodule(alias: str, target: str) -> None:
     sys.modules[alias] = module
 
 
-_alias_submodule("session_buddy.tools.access_log_tools", "session_buddy.mcp.tools.infrastructure.access_log_tools")
-_alias_submodule("session_buddy.tools.agent_analyzer", "session_buddy.mcp.tools.intelligence.agent_analyzer")
-_alias_submodule("session_buddy.tools.bottleneck_tools", "session_buddy.mcp.tools.monitoring.bottleneck_tools")
-_alias_submodule("session_buddy.tools.crackerjack_tools", "session_buddy.mcp.tools.session.crackerjack_tools")
-_alias_submodule("session_buddy.tools.entity_extraction_tools", "session_buddy.mcp.tools.advanced.entity_extraction_tools")
-_alias_submodule("session_buddy.tools.feature_flags_tools", "session_buddy.mcp.tools.infrastructure.feature_flags_tools")
-_alias_submodule("session_buddy.tools.fingerprint_tools", "session_buddy.mcp.tools.advanced.fingerprint_tools")
-_alias_submodule("session_buddy.tools.protocols", "session_buddy.mcp.tools.infrastructure.protocols")
+_alias_submodule(
+    "session_buddy.tools.access_log_tools",
+    "session_buddy.mcp.tools.infrastructure.access_log_tools",
+)
+_alias_submodule(
+    "session_buddy.tools.agent_analyzer",
+    "session_buddy.mcp.tools.intelligence.agent_analyzer",
+)
+_alias_submodule(
+    "session_buddy.tools.bottleneck_tools",
+    "session_buddy.mcp.tools.monitoring.bottleneck_tools",
+)
+_alias_submodule(
+    "session_buddy.tools.crackerjack_tools",
+    "session_buddy.mcp.tools.session.crackerjack_tools",
+)
+_alias_submodule(
+    "session_buddy.tools.entity_extraction_tools",
+    "session_buddy.mcp.tools.advanced.entity_extraction_tools",
+)
+_alias_submodule(
+    "session_buddy.tools.feature_flags_tools",
+    "session_buddy.mcp.tools.infrastructure.feature_flags_tools",
+)
+_alias_submodule(
+    "session_buddy.tools.fingerprint_tools",
+    "session_buddy.mcp.tools.advanced.fingerprint_tools",
+)
+_alias_submodule(
+    "session_buddy.tools.protocols", "session_buddy.mcp.tools.infrastructure.protocols"
+)
 # health_tools is now a local module at session_buddy/tools/health_tools.py
 # (no alias needed)
-_alias_submodule("session_buddy.tools.history_cache", "session_buddy.mcp.tools.infrastructure.history_cache")
-_alias_submodule("session_buddy.tools.intelligence_tools", "session_buddy.mcp.tools.intelligence.intelligence_tools")
-_alias_submodule("session_buddy.tools.knowledge_graph_tools", "session_buddy.mcp.tools.collaboration.knowledge_graph_tools")
-_alias_submodule("session_buddy.tools.llm_tools", "session_buddy.mcp.tools.intelligence.llm_tools")
-_alias_submodule("session_buddy.tools.memory_tools", "session_buddy.mcp.tools.memory.memory_tools")
-_alias_submodule("session_buddy.tools.recommendation_engine", "session_buddy.mcp.tools.advanced.recommendation_engine")
-_alias_submodule("session_buddy.tools.search_tools", "session_buddy.mcp.tools.memory.search_tools")
-_alias_submodule("session_buddy.tools.session_tools", "session_buddy.mcp.tools.session.session_tools")
-_alias_submodule("session_buddy.tools.validated_memory_tools", "session_buddy.mcp.tools.memory.validated_memory_tools")
-_alias_submodule("session_buddy.tools.workflow_metrics_tools", "session_buddy.mcp.tools.monitoring.workflow_metrics_tools")
+_alias_submodule(
+    "session_buddy.tools.history_cache",
+    "session_buddy.mcp.tools.infrastructure.history_cache",
+)
+_alias_submodule(
+    "session_buddy.tools.intelligence_tools",
+    "session_buddy.mcp.tools.intelligence.intelligence_tools",
+)
+_alias_submodule(
+    "session_buddy.tools.knowledge_graph_tools",
+    "session_buddy.mcp.tools.collaboration.knowledge_graph_tools",
+)
+_alias_submodule(
+    "session_buddy.tools.llm_tools", "session_buddy.mcp.tools.intelligence.llm_tools"
+)
+_alias_submodule(
+    "session_buddy.tools.memory_tools", "session_buddy.mcp.tools.memory.memory_tools"
+)
+_alias_submodule(
+    "session_buddy.tools.recommendation_engine",
+    "session_buddy.mcp.tools.advanced.recommendation_engine",
+)
+_alias_submodule(
+    "session_buddy.tools.search_tools", "session_buddy.mcp.tools.memory.search_tools"
+)
+_alias_submodule(
+    "session_buddy.tools.session_tools", "session_buddy.mcp.tools.session.session_tools"
+)
+_alias_submodule(
+    "session_buddy.tools.validated_memory_tools",
+    "session_buddy.mcp.tools.memory.validated_memory_tools",
+)
+_alias_submodule(
+    "session_buddy.tools.workflow_metrics_tools",
+    "session_buddy.mcp.tools.monitoring.workflow_metrics_tools",
+)
 
 __all__ = [
     # Advanced

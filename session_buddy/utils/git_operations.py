@@ -182,6 +182,7 @@ def _optimize_git_repository(current_dir: Path) -> list[str]:
 # Re-export them here for backward compatibility
 from session_buddy.utils.git_worktrees import (  # noqa: F401
     WorktreeInfo,
+    _validate_prune_delay,
     create_checkpoint_commit,
     create_commit,
     get_git_status,
@@ -189,6 +190,5 @@ from session_buddy.utils.git_worktrees import (  # noqa: F401
     is_git_operation_in_progress,
     is_git_repository,
     schedule_automatic_git_gc,
-    _validate_prune_delay,
     stage_files,
 )

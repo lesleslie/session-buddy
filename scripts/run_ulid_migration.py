@@ -35,7 +35,7 @@ def backfill_conversations(conn):
         ulid = generate_ulid()
         conn.execute(
             "UPDATE conversations SET conversation_ulid = ?, conversation_ulid_generated_at = NOW() WHERE id = ?",
-            [ulid, conversation_id]
+            [ulid, conversation_id],
         )
 
     conn.commit()
@@ -52,7 +52,7 @@ def backfill_reflections(conn):
         ulid = generate_ulid()
         conn.execute(
             "UPDATE reflections SET reflection_ulid = ?, reflection_ulid_generated_at = NOW() WHERE id = ?",
-            [ulid, reflection_id]
+            [ulid, reflection_id],
         )
 
     conn.commit()
@@ -69,7 +69,7 @@ def backfill_code_graphs(conn):
         ulid = generate_ulid()
         conn.execute(
             "UPDATE code_graphs SET code_graph_ulid = ?, code_graph_ulid_generated_at = NOW() WHERE id = ?",
-            [ulid, graph_id]
+            [ulid, graph_id],
         )
 
     conn.commit()

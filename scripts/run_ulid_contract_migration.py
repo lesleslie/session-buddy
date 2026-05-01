@@ -43,13 +43,19 @@ def run_contract_migration():
         return
 
     # Read migration SQL
-    migration_sql_path = Path(__file__).parent / "session_buddy" / "storage" / "migrations" / "V6__ulid_contract__up.sql"
+    migration_sql_path = (
+        Path(__file__).parent
+        / "session_buddy"
+        / "storage"
+        / "migrations"
+        / "V6__ulid_contract__up.sql"
+    )
 
     if not migration_sql_path.exists():
         print(f"   ❌ Migration SQL not found: {migration_sql_path}")
         sys.exit(1)
 
-    with open(migration_sql_path, 'r') as f:
+    with open(migration_sql_path) as f:
         migration_sql = f.read()
 
     # Connect to database
@@ -59,9 +65,9 @@ def run_contract_migration():
         # Execute migration in transaction
         with conn:
             # Execute each statement
-            for statement in migration_sql.split(';'):
+            for statement in migration_sql.split(";"):
                 statement = statement.strip()
-                if statement and not statement.startswith('--'):
+                if statement and not statement.startswith("--"):
                     print(f"   Executing: {statement[:60]}...")
                     conn.execute(statement)
 

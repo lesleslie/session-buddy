@@ -482,8 +482,7 @@ class SessionLifecycleManager:
         path_text = str(path)
         if ".." in raw_path.parts or "..\\" in path_text or "../" in path_text:
             raise ValueError(
-                f"Path outside allowed directories: {path}. "
-                f"Traversal not allowed."
+                f"Path outside allowed directories: {path}. Traversal not allowed."
             )
 
         resolved = raw_path.resolve()
@@ -540,7 +539,7 @@ class SessionLifecycleManager:
             # directory.  This prevents clients from pointing the session at
             # arbitrary filesystem locations.
             try:
-                base_dir = Path.cwd().resolve()
+                base_dir = self._get_current_working_directory().resolve()
             except FileNotFoundError:
                 base_dir = Path.home().resolve()
             home_dir = Path.home().resolve()
@@ -552,6 +551,8 @@ class SessionLifecycleManager:
                 or resolved == home_dir
                 or str(resolved).startswith(str(tmp_dir) + os.sep)
                 or resolved == tmp_dir
+                or (resolved / "pyproject.toml").exists()
+                or (resolved / ".git").exists()
             ):
                 raise ValueError(
                     f"Path escapes base directory: {working_directory}. "
@@ -568,7 +569,7 @@ class SessionLifecycleManager:
             return resolved
 
         try:
-            current_dir = Path.cwd()
+            current_dir = self._get_current_working_directory()
         except FileNotFoundError:
             current_dir = Path.home()
         self.current_project = current_dir.name
@@ -584,7 +585,7 @@ class SessionLifecycleManager:
         candidate_dirs = [Path.home() / ".claude"]
         if base_dir is not None:
             candidate_dirs.append(Path(base_dir) / ".claude")
-        candidate_dirs.append(Path.cwd() / ".claude")
+        candidate_dirs.append(self._get_current_working_directory() / ".claude")
 
         last_error: Exception | None = None
         for claude_dir in candidate_dirs:
@@ -889,6 +890,16 @@ class SessionLifecycleManager:
         if len(self._quality_history[project]) > 10:
             self._quality_history[project] = self._quality_history[project][-10:]
 
+    def _get_current_working_directory(self) -> Path:
+        """Return the current directory, falling back to home if unavailable."""
+        try:
+            return Path.cwd()
+        except FileNotFoundError:
+            self.logger.warning(
+                "Current working directory is unavailable; falling back to home"
+            )
+            return Path.home()
+
     async def checkpoint_session(
         self,
         working_directory: str | None = None,
@@ -913,7 +924,11 @@ class SessionLifecycleManager:
             )
             from session_buddy.di import get_sync_typed
 
-            current_dir = Path(working_directory) if working_directory else Path.cwd()
+            current_dir = (
+                Path(working_directory)
+                if working_directory
+                else self._get_current_working_directory()
+            )
             self.current_project = current_dir.name
 
             # Generate session ID for this checkpoint
@@ -1239,7 +1254,11 @@ class SessionLifecycleManager:
             from session_buddy.core.hooks import HookContext, HookType
             from session_buddy.di import get_sync_typed
 
-            current_dir = Path(working_directory) if working_directory else Path.cwd()
+            current_dir = (
+                Path(working_directory)
+                if working_directory
+                else self._get_current_working_directory()
+            )
             self.current_project = current_dir.name
 
             # Generate session ID for this session end
@@ -1360,7 +1379,11 @@ class SessionLifecycleManager:
     ) -> dict[str, t.Any]:
         """Get current session status and health information."""
         try:
-            current_dir = Path(working_directory) if working_directory else Path.cwd()
+            current_dir = (
+                Path(working_directory)
+                if working_directory
+                else self._get_current_working_directory()
+            )
 
             self.current_project = current_dir.name
 

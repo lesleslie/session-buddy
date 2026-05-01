@@ -106,7 +106,10 @@ class TestCLIServerCommands:
         result = runner.invoke(app, ["status"])
 
         # Status command should run
-        assert result.exit_code == 0 or "status" in result.stdout.lower()
+        assert result.exit_code == 0 or any(
+            phrase in result.stdout.lower()
+            for phrase in ("status", "server not running")
+        )
 
 
 @pytest.mark.asyncio

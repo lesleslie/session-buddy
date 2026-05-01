@@ -122,12 +122,6 @@ class ReflectionDatabaseAdapterOneiric:
         # Preserve :memory: paths as-is to avoid converting to file paths
         if str(db_path) == ":memory:":
             self.db_path = ":memory:"
-        elif self.collection_name != "default" and not str(db_path).endswith(
-            f"{self.collection_name}.duckdb"
-        ):
-            # Add collection name suffix if not already present (for test isolation)
-            db_path = db_path.parent / f"{db_path.stem}_{self.collection_name}.duckdb"
-            self.db_path = str(db_path)
         else:
             self.db_path = str(db_path)
         self.conn: t.Any = None  # DuckDB connection (sync)
@@ -143,6 +137,7 @@ class ReflectionDatabaseAdapterOneiric:
         self._category_engine: CategoryEvolutionEngine | None = None
         self._cache_hits: int = 0
         self._cache_misses: int = 0
+        self._hnsw_available: bool = False
 
         # Query cache for performance optimization (Phase 1: Query Cache)
         self._query_cache: QueryCacheManager | None = None
@@ -216,7 +211,11 @@ class ReflectionDatabaseAdapterOneiric:
         if self.conn:
             # Remove from shared connection cache
             with suppress(Exception):
-                cache_key = str(Path(self.db_path).resolve()) if self.db_path != ":memory:" else ":memory:"
+                cache_key = (
+                    str(Path(self.db_path).resolve())
+                    if self.db_path != ":memory:"
+                    else ":memory:"
+                )
                 if _connection_cache.get(cache_key) is self.conn:
                     del _connection_cache[cache_key]
             with suppress(Exception):
@@ -693,6 +692,7 @@ class ReflectionDatabaseAdapterOneiric:
         """
         if not self.settings.enable_hnsw_index:
             logger.debug("HNSW indexing disabled in settings")
+            self._hnsw_available = False
             return
 
         try:
@@ -705,6 +705,7 @@ class ReflectionDatabaseAdapterOneiric:
                 f"VSS extension not available, HNSW indexing disabled: {e}. "
                 "Vector search will use array_cosine_similarity (slower)."
             )
+            self._hnsw_available = False
             return
 
         try:
@@ -750,6 +751,7 @@ class ReflectionDatabaseAdapterOneiric:
                 f"Created HNSW index for {self.collection_name}_reflections embeddings "
                 f"(M={self.settings.hnsw_m}, ef_construction={self.settings.hnsw_ef_construction})"
             )
+            self._hnsw_available = True
 
             # Force checkpoint so that HNSW indexes are persisted and visible
             # to other connections sharing the same database file.
@@ -760,6 +762,7 @@ class ReflectionDatabaseAdapterOneiric:
                 logger.debug(f"Checkpoint after HNSW creation skipped: {ckpt_err}")
 
         except Exception as e:
+            self._hnsw_available = False
             logger.warning(
                 f"Failed to create HNSW indexes: {e}. Falling back to array_cosine_similarity."
             )
@@ -1333,7 +1336,7 @@ class ReflectionDatabaseAdapterOneiric:
 
         """
         # Set HNSW ef_search parameter if indexes exist
-        if self.settings.enable_hnsw_index:
+        if self._hnsw_available:
             self.conn.execute(f"SET hnsw_ef_search = {self.settings.hnsw_ef_search}")
 
         vector_query = f"[{', '.join(map(str, query_embedding))}]"
@@ -1506,11 +1509,12 @@ class ReflectionDatabaseAdapterOneiric:
         if not self._initialized:
             await self.initialize()
 
-        # Validate content is not None (empty strings are allowed for compatibility
-        # with the original ReflectionDatabase.store_reflection in database.py)
         if content is None:
             msg = "content cannot be None"
             raise TypeError(msg)
+
+        if not content.strip():
+            raise ValueError("content cannot be empty")
 
         # Generate MinHash fingerprint for duplicate detection (Phase 4)
         fingerprint = MinHashSignature.from_text(content)

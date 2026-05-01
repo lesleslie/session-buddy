@@ -9,7 +9,7 @@ Phase: Week 1 Day 1 - Quick Win Coverage
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from session_buddy import health_checks
@@ -38,13 +38,15 @@ async def get_health_status(
     serialised: list[dict[str, Any]] = []
     for comp in components:
         if hasattr(comp, "__dict__"):
-            serialised.append({
-                "name": comp.name,
-                "status": str(comp.status),
-                "message": comp.message,
-                "latency_ms": comp.latency_ms,
-                **comp.metadata,
-            })
+            serialised.append(
+                {
+                    "name": comp.name,
+                    "status": str(comp.status),
+                    "message": comp.message,
+                    "latency_ms": comp.latency_ms,
+                    **comp.metadata,
+                }
+            )
         else:
             serialised.append(comp)  # type: ignore[arg-type]
 
@@ -70,7 +72,7 @@ async def get_health_status(
 
     result: dict[str, Any] = {
         "status": "healthy" if (is_ready if ready else is_alive) else "unhealthy",
-        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "timestamp": datetime.now(tz=UTC).isoformat(),
         "version": version,
         "uptime_seconds": round(time.time() - _SERVER_START_TIME, 3),
         "components": serialised,

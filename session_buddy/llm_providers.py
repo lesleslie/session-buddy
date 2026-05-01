@@ -8,7 +8,7 @@ from typing import Any
 
 from session_buddy.llm.models import LLMMessage, LLMResponse
 from session_buddy.llm.providers import GeminiProvider, OllamaProvider, OpenAIProvider
-from session_buddy.settings import get_llm_api_key, get_settings
+from session_buddy.settings import get_settings
 
 try:
     from mcp_common.security import APIKeyValidator
@@ -424,7 +424,9 @@ def _get_provider_api_key_and_env(provider: str) -> tuple[str | None, str | None
         return os.getenv("ANTHROPIC_API_KEY"), "ANTHROPIC_API_KEY"
     if provider == "gemini":
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        env_var_name = "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY"
+        env_var_name = (
+            "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY"
+        )
         return api_key, env_var_name
     if provider == "qwen":
         return os.getenv("QWEN_API_KEY"), "QWEN_API_KEY"
@@ -755,7 +757,9 @@ class LLMManager:
                 results[name] = {
                     "success": True,
                     "response_time_ms": (time.perf_counter() - start) * 1000,
-                    "model": getattr(response, "model", provider.config.get("default_model", "")),
+                    "model": getattr(
+                        response, "model", provider.config.get("default_model", "")
+                    ),
                     "error": "",
                 }
             except Exception as exc:

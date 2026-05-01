@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass
@@ -128,8 +129,12 @@ class SkillsTracker:
         return {
             "session_id": self.session_id,
             "total_invocations": len(self._invocations),
-            "completed_invocations": sum(1 for inv in self._invocations if inv.completed),
-            "abandoned_invocations": sum(1 for inv in self._invocations if not inv.completed),
+            "completed_invocations": sum(
+                1 for inv in self._invocations if inv.completed
+            ),
+            "abandoned_invocations": sum(
+                1 for inv in self._invocations if not inv.completed
+            ),
             "total_duration_seconds": total_duration,
         }
 
@@ -228,9 +233,7 @@ class SkillsTracker:
         lines.extend(["", "Recommendations by Phase"])
         if effectiveness:
             for item in effectiveness[:5]:
-                lines.append(
-                    f"- {item['workflow_phase']}: {item['skill_name']}"
-                )
+                lines.append(f"- {item['workflow_phase']}: {item['skill_name']}")
         else:
             lines.append("No recommendations available.")
 
@@ -252,8 +255,15 @@ class SkillsTracker:
         if not effectiveness:
             return "Skill Usage Heatmap\nNo workflow data available.\nLegend: higher usage = denser marks"
 
-        phases = sorted({item["workflow_phase"] for item in effectiveness if item["workflow_phase"]})
-        lines = ["Skill Usage Heatmap", "=" * 20, "Phase | " + " | ".join(phases), "Legend: higher usage = denser marks"]
+        phases = sorted(
+            {item["workflow_phase"] for item in effectiveness if item["workflow_phase"]}
+        )
+        lines = [
+            "Skill Usage Heatmap",
+            "=" * 20,
+            "Phase | " + " | ".join(phases),
+            "Legend: higher usage = denser marks",
+        ]
 
         for skill_name in sorted({item["skill_name"] for item in effectiveness}):
             row = [skill_name]
@@ -261,7 +271,8 @@ class SkillsTracker:
                 count = sum(
                     1
                     for item in effectiveness
-                    if item["skill_name"] == skill_name and item["workflow_phase"] == phase
+                    if item["skill_name"] == skill_name
+                    and item["workflow_phase"] == phase
                 )
                 row.append("##" if count else "..")
             lines.append(" | ".join(row))

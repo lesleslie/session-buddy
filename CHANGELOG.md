@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.4] - 2026-05-01
+
+### Added
+
+- Add code_call_chain and code_impact_analysis MCP tools
+- Delegate MCP auth to mcp_common.auth, keep full backward-compat API
+
+### Changed
+
+- Session-buddy (quality: 60/100) - 2026-04-21 05:11:16
+- Session-buddy (quality: 60/100) - 2026-04-21 21:25:27
+- Session-buddy (quality: 61/100) - 2026-04-24 13:09:06
+- Session-buddy (quality: 61/100) - 2026-04-24 13:17:04
+- Session-buddy (quality: 61/100) - 2026-04-24 15:36:12
+- Session-buddy (quality: 61/100) - 2026-04-24 15:46:45
+- Session-buddy (quality: 61/100) - 2026-04-26 21:17:07
+- Session-buddy (quality: 62/100) - 2026-04-21 06:50:45
+- Session-buddy (quality: 62/100) - 2026-04-21 20:36:13
+- Session-buddy (quality: 62/100) - 2026-04-21 21:01:47
+- Session-buddy (quality: 62/100) - 2026-04-21 21:18:01
+- Session-buddy (quality: 62/100) - 2026-04-21 21:24:17
+
 ## [0.16.0] - 2026-04-13
 
 ### Changed

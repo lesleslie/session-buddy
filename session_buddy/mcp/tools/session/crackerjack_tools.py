@@ -7,14 +7,14 @@ code analysis, and development workflow integration.
 
 from __future__ import annotations
 
-import logging
 import inspect
+import logging
 import operator
 import re
 import shlex
-from types import SimpleNamespace
 import typing as t
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.utils.instance_managers import (
@@ -755,10 +755,10 @@ async def _get_ai_recommendations_with_history(
     working_directory: str,
 ) -> tuple[str, list[Any], dict[str, Any]]:
     """Get AI recommendations adjusted by historical effectiveness."""
-    from session_buddy.mcp.tools.intelligence.agent_analyzer import AgentAnalyzer
     from session_buddy.mcp.tools.advanced.recommendation_engine import (
         RecommendationEngine,
     )
+    from session_buddy.mcp.tools.intelligence.agent_analyzer import AgentAnalyzer
 
     # Get base recommendations
     recommendations = AgentAnalyzer.analyze(

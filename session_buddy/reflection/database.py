@@ -53,6 +53,8 @@ from session_buddy.reflection.search import (
 # Import storage operations
 from session_buddy.reflection.storage import (
     get_reflection as _get_reflection_storage,
+)
+from session_buddy.reflection.storage import (
     store_conversation,
     store_reflection,
 )
@@ -480,15 +482,12 @@ class ReflectionDatabase:
         # Apply tag filter if specified
         if tags:
             results = [
-                r for r in results
-                if any(tag in r.get("tags", []) for tag in tags)
+                r for r in results if any(tag in r.get("tags", []) for tag in tags)
             ]
 
         return results
 
-    async def get_reflection(
-        self, reflection_id: str | None
-    ) -> dict[str, Any] | None:
+    async def get_reflection(self, reflection_id: str | None) -> dict[str, Any] | None:
         """Get a reflection by ID.
 
         Args:

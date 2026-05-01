@@ -128,7 +128,11 @@ class SessionBuddyShell(AdminShell):
     def _get_banner(self) -> str:
         """Get Session-Buddy-specific banner."""
         version = self._get_component_version()
-        cli_enabled = "Enabled" if getattr(self.config, "cli_preprocessing_enabled", False) else "Disabled"
+        cli_enabled = (
+            "Enabled"
+            if getattr(self.config, "cli_preprocessing_enabled", False)
+            else "Disabled"
+        )
 
         # Session tracking status (self-monitoring)
         session_tracking = "Enabled (self-monitoring)"

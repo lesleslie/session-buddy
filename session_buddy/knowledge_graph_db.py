@@ -66,7 +66,15 @@ class KnowledgeGraphDatabase:
         self.db_path = db_path or os.path.expanduser(
             "~/.claude/data/knowledge_graph.duckdb",
         )
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        try:
+            Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            fallback_base = Path(tempfile.gettempdir()) / "session-buddy-home"
+            fallback_path = (
+                fallback_base / ".claude" / "data" / "knowledge_graph.duckdb"
+            )
+            fallback_path.parent.mkdir(parents=True, exist_ok=True)
+            self.db_path = str(fallback_path)
 
         self.conn: duckdb.DuckDBPyConnection | None = None
         self._duckpgq_installed = False

@@ -12,9 +12,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from session_buddy.reflection.database import (
-    store_conversation,
-    store_reflection,
-    store_code_graph,
     ReflectionDatabase,
 )
 
@@ -30,7 +27,6 @@ async def run_migration():
     print("   Adding ULID columns to all tables...")
 
     # Initialize database (will create ULID columns if they don't exist)
-    from session_buddy.reflection.database import ReflectionDatabase
     db = ReflectionDatabase()
     await db.initialize()
 
@@ -55,7 +51,7 @@ async def run_migration():
 
     print()
     print("🎉 Migration Complete!")
-    print(f"   Total records migrated: 3 tables")
+    print("   Total records migrated: 3 tables")
     print()
     print("⏭️  Next Steps:")
     print("   1. Application code updated to use ULID for new records")

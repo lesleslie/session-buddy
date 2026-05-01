@@ -9,7 +9,8 @@ from functools import wraps
 from typing import Any
 
 from mcp_common.auth.config import AuthConfig as _CoreAuthConfig
-from mcp_common.auth.core import create_service_token, verify_token as _verify_token
+from mcp_common.auth.core import create_service_token
+from mcp_common.auth.core import verify_token as _verify_token
 from mcp_common.auth.exceptions import AuthError
 from mcp_common.auth.permissions import Permission
 
@@ -56,7 +57,9 @@ def validate_token(token: str) -> dict[str, Any] | None:
     if not cfg.enabled:
         return {"user_id": "anonymous", "auth": "disabled"}
     try:
-        payload = _verify_token(token, secret=cfg.secret, expected_audience="session-buddy")
+        payload = _verify_token(
+            token, secret=cfg.secret, expected_audience="session-buddy"
+        )
         return payload.raw
     except AuthError as exc:
         logger.warning("token validation failed: %s", exc)
@@ -80,7 +83,9 @@ def require_auth(
                 return "❌ Authentication failed: invalid or expired token"
             kwargs["user_id"] = payload.get("user_id", "unknown")
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -90,7 +95,9 @@ class CrossProjectAuth:
 
     def sign_message(self, message: dict[str, Any]) -> str:
         message_str = json.dumps(message, sort_keys=True)
-        return hmac.new(self.shared_secret.encode(), message_str.encode(), hashlib.sha256).hexdigest()
+        return hmac.new(
+            self.shared_secret.encode(), message_str.encode(), hashlib.sha256
+        ).hexdigest()
 
     def verify_message(self, message: dict[str, Any], signature: str) -> bool:
         return hmac.compare_digest(self.sign_message(message), signature)

@@ -11,6 +11,9 @@ from pathlib import Path
 from session_buddy.utils.path_validation import PathValidator
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
 def test_path_validator_allows_safe_directories():
     """Test PathValidator allows safe directory access."""
     validator = PathValidator()
@@ -147,7 +150,7 @@ def test_path_validator_with_real_project_structure():
     validator = PathValidator()
 
     # Test with current directory (should be safe)
-    cwd = Path.cwd()
+    cwd = REPO_ROOT
     result = validator.validate_user_path(cwd)
     assert result == cwd
 

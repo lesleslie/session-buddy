@@ -38,7 +38,6 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -262,7 +261,7 @@ class SessionStartEvent(BaseModel, JsonSchemaMixin):
     component_name: str = Field(
         ...,
         description="Component name (e.g., 'mahavishnu', 'session-buddy')",
-        pattern=r"^[a-zA-Z0-9_-]+$",
+        json_schema_extra={"pattern": "^[a-zA-Z0-9_-]+$"},
     )
     shell_type: str = Field(
         ...,

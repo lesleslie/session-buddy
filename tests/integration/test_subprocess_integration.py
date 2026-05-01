@@ -11,6 +11,9 @@ from pathlib import Path
 from session_buddy.utils.subprocess_executor import SafeSubprocess
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
 def test_safe_subprocess_real_command_execution():
     """Test SafeSubprocess.run_safe executes real commands correctly."""
     # Test with echo command
@@ -72,7 +75,8 @@ def test_safe_subprocess_with_git_command():
     """Test SafeSubprocess with git command (realistic use case)."""
     result = SafeSubprocess.run_safe(
         ["git", "status", "--short"],
-        allowed_commands={"git"}
+        allowed_commands={"git"},
+        cwd=REPO_ROOT,
     )
 
     # Git should execute successfully

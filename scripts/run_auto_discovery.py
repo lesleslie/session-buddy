@@ -156,7 +156,13 @@ async def main(args: argparse.Namespace) -> int:
     """Main workflow execution."""
     try:
         import importlib.util
-        if importlib.util.find_spec("session_buddy.adapters.knowledge_graph_adapter_oneiric") is None:
+
+        if (
+            importlib.util.find_spec(
+                "session_buddy.adapters.knowledge_graph_adapter_oneiric"
+            )
+            is None
+        ):
             raise ImportError("knowledge_graph_adapter_oneiric not found")
     except ImportError as e:
         print(f"❌ Failed to import knowledge graph adapter: {e}")

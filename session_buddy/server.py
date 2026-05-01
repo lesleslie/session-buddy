@@ -16,6 +16,8 @@ from typing import Any
 
 from session_buddy.server_optimized import (
     health_check as _health_check,
+)
+from session_buddy.server_optimized import (
     mcp,
     run_server,
 )
@@ -75,57 +77,25 @@ async def reflect_on_past(
 
     try:
         db = await get_reflection_database()
-        search_kwargs: dict[str, Any] = {"limit": limit, "min_score": min_score}
-        if project is not None:
-            search_kwargs["project"] = project
-
-        results = await db.search_conversations(query, **search_kwargs)
+        results = await db.search_conversations(
+            query, **_build_reflection_search_kwargs(limit, min_score, project)
+        )
         if not results:
             return f"🔍 No relevant conversations found for query: '{query}'"
 
         optimization_info: dict[str, Any] = {}
         if optimize_tokens and TOKEN_OPTIMIZER_AVAILABLE:
             try:
-                optimization_result = optimize_search_response(
-                    results,
+                results, optimization_info = await _optimize_reflection_results(
+                    results=results,
                     query=query,
                     max_tokens=max_tokens,
                 )
-                if inspect.isawaitable(optimization_result):
-                    optimization_result = await optimization_result
-                optimized_results, optimization_info = optimization_result
-                results = optimized_results
-                if isinstance(optimization_info, dict):
-                    token_savings = optimization_info.get("token_savings", {})
-                    if (
-                        isinstance(token_savings, dict)
-                        and "savings_percentage" in token_savings
-                    ):
-                        optimization_info = {
-                            **optimization_info,
-                            "token_savings": token_savings,
-                        }
             except Exception as exc:
                 session_logger.warning(f"Token optimization failed: {exc}")
                 optimization_info = {}
-        lines = [f"🔍 Found {len(results)} relevant conversations for '{query}'"]
-        if optimization_info:
-            token_savings = optimization_info.get("token_savings", {})
-            if isinstance(token_savings, dict):
-                savings_pct = token_savings.get("savings_percentage")
-                if savings_pct is not None:
-                    lines.append(f"⚡ Token optimization: {savings_pct}% saved")
 
-        for result in results:
-            if isinstance(result, dict):
-                content = result.get("content", "")
-                score = result.get("score")
-                if score is not None:
-                    lines.append(f"- [{score}] {content}")
-                else:
-                    lines.append(f"- {content}")
-            else:
-                lines.append(f"- {result}")
+        lines = _format_reflection_results(query, results, optimization_info)
 
         if optimize_tokens and TOKEN_OPTIMIZER_AVAILABLE:
             track_token_usage(
@@ -183,6 +153,67 @@ async def get_cached_chunk(cache_key: str, chunk_index: int) -> Any:
     from session_buddy.token_optimizer import get_cached_chunk as _get_cached_chunk
 
     return await _get_cached_chunk(cache_key, chunk_index)
+
+
+def _build_reflection_search_kwargs(
+    limit: int,
+    min_score: float,
+    project: str | None,
+) -> dict[str, Any]:
+    search_kwargs: dict[str, Any] = {"limit": limit, "min_score": min_score}
+    if project is not None:
+        search_kwargs["project"] = project
+    return search_kwargs
+
+
+async def _optimize_reflection_results(
+    results: list[Any],
+    query: str,
+    max_tokens: int,
+) -> tuple[list[Any], dict[str, Any]]:
+    optimization_result = optimize_search_response(
+        results,
+        query=query,
+        max_tokens=max_tokens,
+    )
+    if inspect.isawaitable(optimization_result):
+        optimization_result = await optimization_result
+
+    optimized_results, optimization_info = optimization_result
+    if isinstance(optimization_info, dict):
+        token_savings = optimization_info.get("token_savings", {})
+        if isinstance(token_savings, dict) and "savings_percentage" in token_savings:
+            optimization_info = {
+                **optimization_info,
+                "token_savings": token_savings,
+            }
+    return optimized_results, optimization_info
+
+
+def _format_reflection_results(
+    query: str,
+    results: list[Any],
+    optimization_info: dict[str, Any],
+) -> list[str]:
+    lines = [f"🔍 Found {len(results)} relevant conversations for '{query}'"]
+    token_savings = optimization_info.get("token_savings", {})
+    if isinstance(token_savings, dict):
+        savings_pct = token_savings.get("savings_percentage")
+        if savings_pct is not None:
+            lines.append(f"⚡ Token optimization: {savings_pct}% saved")
+
+    for result in results:
+        if isinstance(result, dict):
+            content = result.get("content", "")
+            score = result.get("score")
+            if score is not None:
+                lines.append(f"- [{score}] {content}")
+            else:
+                lines.append(f"- {content}")
+        else:
+            lines.append(f"- {result}")
+
+    return lines
 
 
 def _build_feature_list(*args: Any, **kwargs: Any) -> list[str]:
@@ -245,7 +276,9 @@ def _display_stdio_startup(features: list[str] | None = None) -> None:
         except Exception:
             pass
     # Fallback: print to stderr
-    print("Session Management MCP v2.0.0 - STDIO mode (Claude Desktop)", file=sys.stderr)
+    print(
+        "Session Management MCP v2.0.0 - STDIO mode (Claude Desktop)", file=sys.stderr
+    )
     if features:
         for f in features:
             print(f"  - {f}", file=sys.stderr)

@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -135,6 +136,7 @@ class SkillsStorage:
 
         # Connection cache (reuse connections)
         self._conn: sqlite3.Connection | None = None
+        self._lock = threading.RLock()
 
     # ========================================================================
     # Connection Management
@@ -153,21 +155,22 @@ class SkillsStorage:
             ...     # Use connection
             ...     # Automatically returned/committed
         """
-        if self._conn is None:
-            self._conn = sqlite3.connect(
-                self.db_path,
-                timeout=self.timeout,
-                check_same_thread=False,  # Allow multi-threaded access
-            )
-            self._conn.row_factory = sqlite3.Row
+        with self._lock:
+            if self._conn is None:
+                self._conn = sqlite3.connect(
+                    self.db_path,
+                    timeout=self.timeout,
+                    check_same_thread=False,  # Allow multi-threaded access
+                )
+                self._conn.row_factory = sqlite3.Row
 
-            # Configure connection (only once, outside of any transaction)
-            if self.enable_wal:
-                self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA foreign_keys=ON")
-            self._conn.execute("PRAGMA synchronous=NORMAL")
+                # Configure connection (only once, outside of any transaction)
+                if self.enable_wal:
+                    self._conn.execute("PRAGMA journal_mode=WAL")
+                self._conn.execute("PRAGMA foreign_keys=ON")
+                self._conn.execute("PRAGMA synchronous=NORMAL")
 
-        yield self._conn
+            yield self._conn
 
         # Note: Connection NOT closed here - managed externally
 
@@ -308,8 +311,12 @@ class SkillsStorage:
                 follow_up_actions=row["follow_up_actions"],
                 error_type=row["error_type"],
                 embedding=row["embedding"] if "embedding" in row.keys() else None,
-                workflow_phase=row["workflow_phase"] if "workflow_phase" in row.keys() else None,
-                workflow_step_id=row["workflow_step_id"] if "workflow_step_id" in row.keys() else None,
+                workflow_phase=row["workflow_phase"]
+                if "workflow_phase" in row.keys()
+                else None,
+                workflow_step_id=row["workflow_step_id"]
+                if "workflow_step_id" in row.keys()
+                else None,
             )
 
     def get_session_invocations(self, session_id: str) -> list[StoredInvocation]:
@@ -352,8 +359,12 @@ class SkillsStorage:
                     follow_up_actions=row["follow_up_actions"],
                     error_type=row["error_type"],
                     embedding=row["embedding"] if "embedding" in row.keys() else None,
-                    workflow_phase=row["workflow_phase"] if "workflow_phase" in row.keys() else None,
-                    workflow_step_id=row["workflow_step_id"] if "workflow_step_id" in row.keys() else None,
+                    workflow_phase=row["workflow_phase"]
+                    if "workflow_phase" in row.keys()
+                    else None,
+                    workflow_step_id=row["workflow_step_id"]
+                    if "workflow_step_id" in row.keys()
+                    else None,
                 )
                 for row in rows
             ]
@@ -1210,11 +1221,14 @@ class SkillsStorage:
             entry["invocation_count"] = int(entry["invocation_count"]) + 1
             try:
                 transition_duration = (
-                    datetime.fromisoformat(row["invoked_at"]) - datetime.fromisoformat(previous["invoked_at"])
+                    datetime.fromisoformat(row["invoked_at"])
+                    - datetime.fromisoformat(previous["invoked_at"])
                 ).total_seconds()
             except ValueError:
                 transition_duration = 0.0
-            entry["_total_transition_duration"] = float(entry["_total_transition_duration"]) + max(0.0, transition_duration)
+            entry["_total_transition_duration"] = float(
+                entry["_total_transition_duration"]
+            ) + max(0.0, transition_duration)
             previous_by_session[session_key] = row
 
         results: list[dict[str, object]] = []
@@ -1316,13 +1330,21 @@ class SkillsStorage:
                 completed=bool(row["completed"]),
                 duration_seconds=row["duration_seconds"],
                 user_query=row["user_query"],
-                alternatives_considered=row["alternatives_considered"] if "alternatives_considered" in row.keys() else None,
-                selection_rank=row["selection_rank"] if "selection_rank" in row.keys() else None,
-                follow_up_actions=row["follow_up_actions"] if "follow_up_actions" in row.keys() else None,
+                alternatives_considered=row["alternatives_considered"]
+                if "alternatives_considered" in row.keys()
+                else None,
+                selection_rank=row["selection_rank"]
+                if "selection_rank" in row.keys()
+                else None,
+                follow_up_actions=row["follow_up_actions"]
+                if "follow_up_actions" in row.keys()
+                else None,
                 error_type=row["error_type"] if "error_type" in row.keys() else None,
                 embedding=row["embedding"],
                 workflow_phase=row["workflow_phase"],
-                workflow_step_id=row["workflow_step_id"] if "workflow_step_id" in row.keys() else None,
+                workflow_step_id=row["workflow_step_id"]
+                if "workflow_step_id" in row.keys()
+                else None,
             )
 
             # Calculate semantic similarity

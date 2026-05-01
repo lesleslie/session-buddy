@@ -273,6 +273,7 @@ class AkoshaSyncConfig:
             >>> config.cloud_bucket
             'session-buddy-memories'
         """
+
         def _string(name: str, default: str) -> str:
             value = getattr(settings, name, default)
             if not isinstance(value, str) or not value.strip():
@@ -289,13 +290,21 @@ class AkoshaSyncConfig:
             value = getattr(settings, name, default)
             if not isinstance(value, int) or isinstance(value, bool):
                 value = getattr(settings, name.removeprefix("akosha_"), default)
-            return value if isinstance(value, int) and not isinstance(value, bool) else default
+            return (
+                value
+                if isinstance(value, int) and not isinstance(value, bool)
+                else default
+            )
 
         def _float(name: str, default: float) -> float:
             value = getattr(settings, name, default)
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 value = getattr(settings, name.removeprefix("akosha_"), default)
-            return value if isinstance(value, (int, float)) and not isinstance(value, bool) else default
+            return (
+                value
+                if isinstance(value, (int, float)) and not isinstance(value, bool)
+                else default
+            )
 
         force_method = _string("akosha_force_method", "auto")
         if force_method not in {"auto", "cloud", "http"}:

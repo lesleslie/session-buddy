@@ -380,6 +380,7 @@ class QueryCacheManager:
         def _update() -> None:
             if self._conn:
                 self._conn.execute(update_sql, [cache_key])
+
         _update()
 
     def put(
@@ -637,6 +638,7 @@ class QueryCacheManager:
                 result = self._conn.execute(delete_sql)
                 return result.rowcount
             return 0
+
         deleted_count = _cleanup()
 
         with self._stats_lock:

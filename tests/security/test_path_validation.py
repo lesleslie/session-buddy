@@ -8,13 +8,16 @@ from pathlib import Path
 from session_buddy.core.session_manager import SessionLifecycleManager
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
 def test_validate_user_path_normal():
     """Test normal path validation."""
     manager = SessionLifecycleManager()
 
     # Should allow normal paths
-    valid_path = manager._validate_working_directory(str(Path.cwd()))
-    assert valid_path == Path.cwd()
+    valid_path = manager._validate_working_directory(str(REPO_ROOT))
+    assert valid_path == REPO_ROOT
 
 
 def test_validate_user_path_home_directory():
@@ -73,9 +76,9 @@ def test_setup_working_directory_with_validation():
     manager = SessionLifecycleManager()
 
     # Should work with valid path
-    result = manager._setup_working_directory(str(Path.cwd()))
-    assert result == Path.cwd()
-    assert manager.current_project == Path.cwd().name
+    result = manager._setup_working_directory(str(REPO_ROOT))
+    assert result == REPO_ROOT
+    assert manager.current_project == REPO_ROOT.name
 
 
 def test_setup_working_directory_blocks_traversal():
