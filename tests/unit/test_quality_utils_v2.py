@@ -451,3 +451,61 @@ class TestTypeCoverageCalculation:
 
         # Low default
         assert result == 30.0
+
+
+class TestReadCoverageDotfile:
+    """Tests for _read_coverage_dotfile fallback."""
+
+    def test_returns_zero_when_no_dotfile(self, tmp_path: Path):
+        """Returns 0 when .coverage file does not exist."""
+        from session_buddy.utils.quality_utils_v2 import _read_coverage_dotfile
+
+        assert _read_coverage_dotfile(tmp_path) == 0
+
+    def test_returns_zero_on_corrupt_dotfile(self, tmp_path: Path):
+        """Returns 0 gracefully when .coverage file is not a valid SQLite DB."""
+        from session_buddy.utils.quality_utils_v2 import _read_coverage_dotfile
+
+        (tmp_path / ".coverage").write_bytes(b"not a coverage db")
+        assert _read_coverage_dotfile(tmp_path) == 0
+
+    def test_reads_real_dotfile(self, tmp_path: Path):
+        """Reads actual coverage percentage from a real .coverage file."""
+        from unittest.mock import MagicMock, patch
+
+        from session_buddy.utils.quality_utils_v2 import _read_coverage_dotfile
+
+        # Create a stub .coverage file so the existence check passes
+        (tmp_path / ".coverage").write_bytes(b"")
+
+        mock_cov = MagicMock()
+        mock_cov.report.return_value = 42.5
+
+        # Coverage is imported lazily inside the function, so patch via coverage module
+        with patch("coverage.Coverage", return_value=mock_cov):
+            result = _read_coverage_dotfile(tmp_path)
+
+        assert result == 42.5
+        mock_cov.load.assert_called_once()
+
+    def test_preferred_over_missing_json(self, tmp_path: Path):
+        """_get_crackerjack_metrics uses .coverage when coverage.json is absent."""
+        import asyncio
+        from unittest.mock import MagicMock, patch
+
+        from session_buddy.utils.quality_utils_v2 import _get_crackerjack_metrics
+
+        (tmp_path / ".coverage").write_bytes(b"")
+
+        mock_cov = MagicMock()
+        mock_cov.report.return_value = 55.0
+
+        with (
+            patch("session_buddy.utils.quality_scoring.CRACKERJACK_AVAILABLE", False),
+            patch("coverage.Coverage", return_value=mock_cov),
+        ):
+            metrics = asyncio.get_event_loop().run_until_complete(
+                _get_crackerjack_metrics(tmp_path)
+            )
+
+        assert metrics.get("code_coverage") == 55.0

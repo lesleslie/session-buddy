@@ -732,6 +732,31 @@ def _read_coverage_json(project_dir: Path) -> float:
     return 0
 
 
+def _read_coverage_dotfile(project_dir: Path) -> float:
+    """Read coverage percentage from .coverage (coverage.py SQLite database).
+
+    Most projects generate .coverage via --cov-report=html or no explicit report
+    flag, and never produce coverage.json. This fallback reads the raw .coverage
+    file using the coverage Python API so the scorer works for those projects.
+    """
+    coverage_file = project_dir / ".coverage"
+    if not coverage_file.exists():
+        return 0
+
+    with suppress(Exception):
+        import io
+
+        from coverage import Coverage
+
+        cov = Coverage(data_file=str(coverage_file))
+        cov.load()
+        buf = io.StringIO()
+        total = cov.report(file=buf, skip_empty=True)
+        return round(float(total), 2)
+
+    return 0
+
+
 def _create_fallback_metrics(coverage_pct: float) -> dict[str, Any]:
     """Create default metrics with coverage."""
     return {
@@ -753,8 +778,13 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
     if cached := _get_cached_metrics(cache_key):
         return cached
 
-    # Fetch fresh metrics
+    # Fetch fresh metrics — if Crackerjack is unavailable, fall through to coverage fallbacks
     if not CRACKERJACK_AVAILABLE:
+        coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(project_dir)
+        if coverage_pct:
+            fallback_metrics = _create_fallback_metrics(coverage_pct)
+            _metrics_cache[cache_key] = (fallback_metrics, datetime.now())
+            return fallback_metrics
         return {}
 
     with suppress(ImportError, RuntimeError, ValueError, AttributeError, OSError):
@@ -768,17 +798,19 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
         if metrics_history:
             metrics = _parse_metrics_history(metrics_history)
 
-            # If coverage is missing from Crackerjack, try coverage.json fallback
+            # If coverage is missing from Crackerjack, try coverage.json then .coverage
             if "code_coverage" not in metrics:
-                if coverage_pct := _read_coverage_json(project_dir):
+                coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(project_dir)
+                if coverage_pct:
                     metrics["code_coverage"] = coverage_pct
 
             # Cache the result
             _metrics_cache[cache_key] = (metrics, datetime.now())
             return metrics
 
-    # Complete fallback: No Crackerjack data at all, try coverage.json
-    if coverage_pct := _read_coverage_json(project_dir):
+    # Complete fallback: No Crackerjack data at all, try coverage.json then .coverage
+    coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(project_dir)
+    if coverage_pct:
         fallback_metrics = _create_fallback_metrics(coverage_pct)
         _metrics_cache[cache_key] = (fallback_metrics, datetime.now())
         return fallback_metrics
