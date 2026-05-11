@@ -511,11 +511,12 @@ class LLMManager:
 
     def _build_config(self) -> dict[str, Any]:
         settings = self.settings
-        default_provider = getattr(settings, "default_llm_provider", None)
+        llm_config = settings.llm_providers
+        default_provider = getattr(llm_config, "default_provider", None)
         if not isinstance(default_provider, str) or not default_provider.strip():
             default_provider = "zai"
 
-        fallback_providers = getattr(settings, "llm_fallback_chain", None)
+        fallback_providers = getattr(llm_config, "fallback_providers", None)
         if not isinstance(fallback_providers, list):
             fallback_providers = ["zai", "ollama"]
 
@@ -545,6 +546,18 @@ class LLMManager:
         if not isinstance(zai_default_model, str) or not zai_default_model.strip():
             zai_default_model = "glm-4.7"
 
+        ollama_config = settings.llm_providers
+        ollama_base_url = getattr(ollama_config, "ollama_base_url", None)
+        if not isinstance(ollama_base_url, str) or not ollama_base_url.strip():
+            ollama_base_url = "http://localhost:11434"
+
+        ollama_default_model = getattr(ollama_config, "ollama_default_model", None)
+        if (
+            not isinstance(ollama_default_model, str)
+            or not ollama_default_model.strip()
+        ):
+            ollama_default_model = "Qwen3-8B-8.2B-Q4_K_M"
+
         providers: dict[str, dict[str, Any]] = {
             "zai": {
                 "api_key": zai_api_key,
@@ -561,8 +574,8 @@ class LLMManager:
                 "default_model": os.getenv("GEMINI_DEFAULT_MODEL", "gemini-1.5-flash"),
             },
             "ollama": {
-                "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-                "default_model": os.getenv("OLLAMA_DEFAULT_MODEL", "llama2"),
+                "base_url": ollama_base_url,
+                "default_model": ollama_default_model,
             },
         }
         return {

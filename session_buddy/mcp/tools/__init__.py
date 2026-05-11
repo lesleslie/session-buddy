@@ -79,6 +79,7 @@ from .monitoring.workflow_metrics_tools import (
 from .session.admin_shell_tracking_tools import (
     register_admin_shell_tracking_tools,
 )
+from .session.channel_tracking_tools import register_channel_tracking_tools
 from .session.crackerjack_tools import (
     register_crackerjack_tools,
 )
@@ -124,6 +125,7 @@ __all__ = [
     "register_workflow_metrics_tools",
     # Session
     "register_admin_shell_tracking_tools",
+    "register_channel_tracking_tools",
     "register_crackerjack_tools",
     "register_hooks_tools",
     "register_migration_tools",

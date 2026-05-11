@@ -780,7 +780,9 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
 
     # Fetch fresh metrics — if Crackerjack is unavailable, fall through to coverage fallbacks
     if not CRACKERJACK_AVAILABLE:
-        coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(project_dir)
+        coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(
+            project_dir
+        )
         if coverage_pct:
             fallback_metrics = _create_fallback_metrics(coverage_pct)
             _metrics_cache[cache_key] = (fallback_metrics, datetime.now())
@@ -800,7 +802,9 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
 
             # If coverage is missing from Crackerjack, try coverage.json then .coverage
             if "code_coverage" not in metrics:
-                coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(project_dir)
+                coverage_pct = _read_coverage_json(
+                    project_dir
+                ) or _read_coverage_dotfile(project_dir)
                 if coverage_pct:
                     metrics["code_coverage"] = coverage_pct
 
@@ -809,7 +813,9 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
             return metrics
 
     # Complete fallback: No Crackerjack data at all, try coverage.json then .coverage
-    coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(project_dir)
+    coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(
+        project_dir
+    )
     if coverage_pct:
         fallback_metrics = _create_fallback_metrics(coverage_pct)
         _metrics_cache[cache_key] = (fallback_metrics, datetime.now())

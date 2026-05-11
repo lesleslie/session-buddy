@@ -20,7 +20,28 @@ import typing as t
 from pathlib import Path
 
 from mcp_common import MCPBaseSettings
-from pydantic import Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+class LLMProvidersConfig(BaseModel):
+    """LLM provider configuration."""
+
+    default_provider: t.Literal["zai", "openai", "gemini", "ollama"] = Field(
+        default="zai",
+        description="Primary LLM provider",
+    )
+    ollama_base_url: str = Field(
+        default="http://localhost:11434",
+        description="Ollama server base URL",
+    )
+    ollama_default_model: str = Field(
+        default="Qwen3-8B-8.2B-Q4_K_M",
+        description="Default Ollama model",
+    )
+    fallback_providers: list[str] = Field(
+        default_factory=lambda: ["zai", "ollama"],
+        description="Ordered list of LLM providers for fallback",
+    )
 
 
 class SessionMgmtSettings(MCPBaseSettings):
@@ -29,6 +50,12 @@ class SessionMgmtSettings(MCPBaseSettings):
     All configuration consolidated into a single flat structure
     for Oneiric/mcp-common compatibility and simplicity.
     """
+
+    # === LLM Provider Configuration ===
+    llm_providers: LLMProvidersConfig = Field(
+        default_factory=LLMProvidersConfig,
+        description="LLM provider configuration",
+    )
 
     # === Core MCP settings ===
     server_name: str = Field(

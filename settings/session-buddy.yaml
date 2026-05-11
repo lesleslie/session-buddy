@@ -2,6 +2,19 @@
 # This file contains the default configuration settings.
 # Create settings/local.yaml for local overrides (gitignored).
 
+# === LLM Provider Configuration ===
+llm_providers:
+  default_provider: "zai"
+  ollama_base_url: "http://localhost:11434"
+  ollama_default_model: "Qwen3-8B-8.2B-Q4_K_M"
+  fallback_providers:
+    - "zai"
+    - "ollama"
+
+# === LLM Provider URLs ===
+zai_base_url: "https://api.z.ai/api/coding/paas/v4"
+zai_default_model: "glm-4.7"
+
 # === MCP Base Settings ===
 server_name: "Session Buddy MCP"
 server_description: "Session management and tooling MCP server"

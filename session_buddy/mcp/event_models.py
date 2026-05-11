@@ -683,6 +683,83 @@ class ErrorResponse(BaseModel, JsonSchemaMixin):
     )
 
 
+class ChannelSessionEvent(BaseModel, JsonSchemaMixin):
+    """Channel-agnostic session event for multi-channel session tracking (v2.0).
+
+    Tracks session boundaries across Slack, Signal, terminal, and future channels.
+
+    Example:
+        >>> event = ChannelSessionEvent(
+        ...     event_id="550e8400-e29b-41d4-a716-446655440000",
+        ...     event_type="channel_session_start",
+        ...     channel_type="slack",
+        ...     channel_id="D0AR18B4WUU",
+        ...     sender_id="U01234ABCD",
+        ...     timestamp="2026-05-07T12:00:00+00:00",
+        ... )
+    """
+
+    event_version: str = Field(default="2.0", description="Event schema version")
+    event_id: str = Field(..., description="Unique event UUID")
+    event_type: str = Field(
+        ...,
+        description="Event type: channel_session_start | channel_session_end | channel_heartbeat",
+    )
+    channel_type: str = Field(
+        ..., description="Channel type: slack, signal, terminal, discord"
+    )
+    channel_id: str = Field(..., description="Channel / conversation / chat identifier")
+    sender_id: str = Field(..., description="User identifier within the channel")
+    session_scope: str = Field(
+        default="conversation", description="Scope: conversation, thread, day"
+    )
+    thread_id: str | None = Field(
+        default=None, description="Thread identifier for thread-scoped sessions"
+    )
+    component_name: str = Field(
+        default="nanobot", description="Component emitting the event"
+    )
+    timestamp: str = Field(..., description="ISO 8601 UTC timestamp")
+    workspace: str | None = Field(
+        default=None, description="Workspace name (e.g. Slack workspace)"
+    )
+    platform: str | None = Field(
+        default=None, description="Platform variant (slack-api, signal-cli)"
+    )
+    message_preview: str | None = Field(
+        default=None, description="First 200 chars of triggering message"
+    )
+    message_count: int = Field(
+        default=1, description="Number of messages in this event batch"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Channel-specific metadata"
+    )
+
+
+class ChannelSessionResult(BaseModel, JsonSchemaMixin):
+    """Result of a channel session tracking operation.
+
+    Example:
+        >>> result = ChannelSessionResult(
+        ...     session_id="chan_abc123",
+        ...     event_id="550e8400-e29b-41d4-a716-446655440000",
+        ...     status="tracked",
+        ... )
+    """
+
+    session_id: str | None = Field(
+        default=None, description="Assigned session identifier"
+    )
+    event_id: str = Field(..., description="Echoed event_id from the request")
+    status: str = Field(
+        ..., description="Result status: tracked, ended, heartbeat, error"
+    )
+    error: str | None = Field(
+        default=None, description="Error message if status is error"
+    )
+
+
 # JSON Schema exports for external validation
 
 

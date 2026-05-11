@@ -49,6 +49,7 @@ STANDARD_REGISTRATIONS: list[str] = MINIMAL_REGISTRATIONS + [
     "register_feature_flags_tools",
     "register_monitoring_tools",
     "register_access_log_tools",
+    "register_channel_tracking_tools",
 ]
 
 FULL_REGISTRATIONS: list[str] = STANDARD_REGISTRATIONS + [
