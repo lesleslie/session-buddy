@@ -333,3 +333,23 @@ class TestDharaChannelPublisher:
             token=None,
         )
         assert result["status"] == "tracked"
+
+
+class TestServerDharaWiring:
+    """Verify _make_dhara_publisher (re-exported by server.py) works correctly."""
+
+    def test_create_dhara_publisher_when_url_set(self, monkeypatch) -> None:
+        monkeypatch.setenv("SESSION_BUDDY_DHARA_URL", "http://dhara-test:8683")
+        from session_buddy.mcp.tools.session.channel_tracking_tools import (
+            DharaChannelPublisher,
+            _make_dhara_publisher,
+        )
+        pub = _make_dhara_publisher()
+        assert isinstance(pub, DharaChannelPublisher)
+        assert pub.dhara_url == "http://dhara-test:8683"
+
+    def test_no_publisher_when_url_unset(self, monkeypatch) -> None:
+        monkeypatch.delenv("SESSION_BUDDY_DHARA_URL", raising=False)
+        from session_buddy.mcp.tools.session.channel_tracking_tools import _make_dhara_publisher
+        pub = _make_dhara_publisher()
+        assert pub is None

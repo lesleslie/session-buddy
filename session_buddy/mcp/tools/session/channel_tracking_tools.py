@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -170,6 +171,14 @@ class _ChannelSessionStore:
 
 # Module-level singleton shared across all tool invocations
 _store = _ChannelSessionStore()
+
+
+def _make_dhara_publisher() -> DharaChannelPublisher | None:
+    """Return a DharaChannelPublisher if SESSION_BUDDY_DHARA_URL is set, else None."""
+    url = os.environ.get("SESSION_BUDDY_DHARA_URL", "").strip()
+    if not url:
+        return None
+    return DharaChannelPublisher(dhara_url=url)
 
 
 def register_channel_tracking_tools(

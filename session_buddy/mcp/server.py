@@ -25,6 +25,7 @@ from .tools.profiles import (
     MANDATORY_REGISTRATIONS,
     PROFILE_REGISTRATIONS,
 )
+from .tools.session.channel_tracking_tools import _make_dhara_publisher
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,9 @@ from .tools import (
 from .tools.discovery_tools import register_discovery_tools
 
 # Import Prometheus metrics tools
-from .tools.monitoring import register_prometheus_metrics_tools
+from .tools.monitoring.prometheus_metrics_tools import (
+    register_prometheus_metrics_tools,
+)
 
 # ---------------------------------------------------------------------------
 # Registry: map function name -> callable
@@ -132,7 +135,10 @@ for _name in _names_to_register:
         logger.warning("profile references unknown register function: %s", _name)
         _skipped.append(_name)
         continue
-    _fn(mcp)  # type: ignore[argument-type]
+    if _fn is register_channel_tracking_tools:
+        _fn(mcp, dhara_publisher=_make_dhara_publisher())  # type: ignore[argument-type]
+    else:
+        _fn(mcp)  # type: ignore[argument-type]
     _registered.append(_name)
 
 # Always register the discovery meta-tool
