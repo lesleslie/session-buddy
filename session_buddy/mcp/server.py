@@ -129,6 +129,11 @@ _names_to_register = list(dict.fromkeys(MANDATORY_REGISTRATIONS + _registration_
 _skipped: list[str] = []
 _registered: list[str] = []
 
+# Build the Dhara publisher once before the loop so the same instance is
+# reused for every iteration (avoids creating a new httpx.AsyncClient per
+# call and ensures idempotent wiring).
+_dhara_publisher = _make_dhara_publisher()
+
 for _name in _names_to_register:
     _fn = _ALL_REGISTERS.get(_name)
     if _fn is None:
@@ -136,7 +141,7 @@ for _name in _names_to_register:
         _skipped.append(_name)
         continue
     if _fn is register_channel_tracking_tools:
-        _fn(mcp, dhara_publisher=_make_dhara_publisher())  # type: ignore[argument-type]
+        _fn(mcp, dhara_publisher=_dhara_publisher)  # type: ignore[argument-type]
     else:
         _fn(mcp)  # type: ignore[argument-type]
     _registered.append(_name)

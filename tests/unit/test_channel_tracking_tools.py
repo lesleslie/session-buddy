@@ -229,8 +229,6 @@ class TestDharaChannelPublisher:
 
     @pytest.mark.asyncio
     async def test_publish_calls_record_time_series(self) -> None:
-        from unittest.mock import AsyncMock, MagicMock
-
         from session_buddy.mcp.tools.session.channel_tracking_tools import (
             DharaChannelPublisher,
         )
@@ -251,8 +249,6 @@ class TestDharaChannelPublisher:
 
     @pytest.mark.asyncio
     async def test_publish_swallows_http_errors(self) -> None:
-        from unittest.mock import AsyncMock
-
         import httpx
 
         from session_buddy.mcp.tools.session.channel_tracking_tools import (
@@ -297,9 +293,13 @@ class TestDharaChannelPublisher:
             timestamp="2026-05-14T00:00:00Z",
             token=None,
         )
-        # Yield to allow the fire-and-forget asyncio.create_task to execute
+        # Drain all pending tasks (including the fire-and-forget create_task)
+        # by gathering them; a single sleep(0) is not always sufficient when
+        # the coroutine itself needs more than one event-loop tick.
         import asyncio as _asyncio
-        await _asyncio.sleep(0)
+        _pending = [t for t in _asyncio.all_tasks() if t is not _asyncio.current_task()]
+        if _pending:
+            await _asyncio.gather(*_pending, return_exceptions=True)
         pub.publish.assert_awaited_once()
         call_args = pub.publish.call_args
         assert call_args.args[0] == "session_buddy.channel_event"

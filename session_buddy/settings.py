@@ -26,9 +26,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 class LLMProvidersConfig(BaseModel):
     """LLM provider configuration."""
 
-    default_provider: t.Literal["zai", "openai", "gemini", "ollama"] = Field(
-        default="zai",
-        description="Primary LLM provider",
+    default_provider: t.Literal["minimax", "zai", "openai", "gemini", "ollama"] = (
+        Field(default="minimax", description="Primary LLM provider")
     )
     ollama_base_url: str = Field(
         default="http://localhost:11434",
@@ -39,7 +38,7 @@ class LLMProvidersConfig(BaseModel):
         description="Default Ollama model",
     )
     fallback_providers: list[str] = Field(
-        default_factory=lambda: ["zai", "ollama"],
+        default_factory=lambda: ["minimax", "ollama"],
         description="Ordered list of LLM providers for fallback",
     )
 
@@ -361,6 +360,14 @@ class SessionMgmtSettings(MCPBaseSettings):
     )
 
     # === Integration Settings ===
+    dhara_url: str | None = Field(
+        default=None,
+        description=(
+            "Base URL for the Dhara persistent-storage MCP server "
+            "(e.g. http://localhost:8683). "
+            "Overrides the SESSION_BUDDY_DHARA_URL environment variable."
+        ),
+    )
     enable_crackerjack: bool = Field(
         default=True,
         description="Enable Crackerjack code quality integration",
@@ -442,12 +449,24 @@ class SessionMgmtSettings(MCPBaseSettings):
         default=None,
         description="Qwen API key (overrides QWEN_API_KEY)",
     )
+    minimax_api_key: str | None = Field(
+        default=None,
+        description="MiniMax API key (overrides MINIMAX_API_KEY)",
+    )
     zai_api_key: str | None = Field(
         default=None,
         description="ZAI API key (overrides ZAI_API_KEY)",
     )
 
     # === LLM Provider URLs ===
+    minimax_base_url: str = Field(
+        default="https://api.minimax.io/v1",
+        description="MiniMax OpenAI-compatible API endpoint",
+    )
+    minimax_default_model: str = Field(
+        default="MiniMax-M2.7",
+        description="Default MiniMax model for LLM operations",
+    )
     zai_base_url: str = Field(
         default="https://api.z.ai/api/coding/paas/v4",
         description="ZAI coding plan API endpoint",
@@ -459,11 +478,11 @@ class SessionMgmtSettings(MCPBaseSettings):
 
     # === LLM Fallback Chain ===
     default_llm_provider: str = Field(
-        default="zai",
-        description="Primary LLM provider (zai, openai, anthropic, gemini, ollama)",
+        default="minimax",
+        description="Primary LLM provider (minimax, zai, openai, anthropic, gemini, ollama)",
     )
     llm_fallback_chain: list[str] = Field(
-        default=["zai", "ollama"],
+        default=["minimax", "ollama"],
         description="Ordered list of LLM providers for fallback",
     )
 
@@ -835,6 +854,7 @@ def get_llm_api_key(provider: str) -> str | None:
         "anthropic": "anthropic_api_key",
         "gemini": "gemini_api_key",
         "qwen": "qwen_api_key",
+        "minimax": "minimax_api_key",
         "zai": "zai_api_key",
     }
     field = field_map.get(provider)
