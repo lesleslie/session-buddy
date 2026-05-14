@@ -16,6 +16,8 @@ variable.  When unset or invalid the default is ``FULL`` (all tools).
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from mcp_common.tools import ToolProfile
@@ -158,5 +160,26 @@ logger.info(
 
 if _skipped:
     logger.warning("skipped unknown registration functions: %s", _skipped)
+
+# ---------------------------------------------------------------------------
+# Wrap the existing lifespan so _dhara_publisher is closed on server shutdown.
+# ---------------------------------------------------------------------------
+
+_original_lifespan = mcp._lifespan  # type: ignore[attr-defined]
+
+
+@asynccontextmanager
+async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
+    async with _original_lifespan(app):
+        yield
+    # Close the Dhara publisher if one was wired
+    if _dhara_publisher is not None:
+        try:
+            await _dhara_publisher.aclose()
+        except Exception:
+            pass
+
+
+mcp._lifespan = _lifespan_with_dhara_cleanup  # type: ignore[attr-defined]
 
 __all__ = ["mcp"]

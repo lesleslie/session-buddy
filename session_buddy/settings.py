@@ -365,7 +365,7 @@ class SessionMgmtSettings(MCPBaseSettings):
         description=(
             "Base URL for the Dhara persistent-storage MCP server "
             "(e.g. http://localhost:8683). "
-            "Overrides the SESSION_BUDDY_DHARA_URL environment variable."
+            "Used when the SESSION_BUDDY_DHARA_URL environment variable is not set."
         ),
     )
     enable_crackerjack: bool = Field(
