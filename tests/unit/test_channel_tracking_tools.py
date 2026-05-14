@@ -214,3 +214,111 @@ class TestGetChannelSessionsTool:
     async def test_invalid_scope_returns_error(self) -> None:
         result = await self.tools["get_channel_sessions"](session_scope="bad")
         assert result["status"] == "error"
+
+
+# ── Phase 2 tests ───────────────────────────────────────────────
+
+class TestDharaChannelPublisher:
+    """Unit tests for DharaChannelPublisher."""
+
+    def test_publisher_init_stores_url(self) -> None:
+        from session_buddy.mcp.tools.session.channel_tracking_tools import DharaChannelPublisher
+        pub = DharaChannelPublisher(dhara_url="http://localhost:8683")
+        assert pub.dhara_url == "http://localhost:8683"
+
+    @pytest.mark.asyncio
+    async def test_publish_calls_record_time_series(self) -> None:
+        from session_buddy.mcp.tools.session.channel_tracking_tools import DharaChannelPublisher
+        from unittest.mock import AsyncMock, MagicMock
+        pub = DharaChannelPublisher(dhara_url="http://localhost:8683")
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+        pub._client = mock_client
+        await pub.publish("session_buddy.channel_event", "chan_abc", {"event_type": "channel_session_start"})
+        mock_client.post.assert_awaited_once()
+        call_args = mock_client.post.call_args
+        body = call_args.kwargs.get("json") or (call_args.args[1] if len(call_args.args) > 1 else None)
+        assert body is not None
+        assert body["name"] == "record_time_series"
+        assert body["arguments"]["metric_type"] == "session_buddy.channel_event"
+        assert body["arguments"]["entity_id"] == "chan_abc"
+
+    @pytest.mark.asyncio
+    async def test_publish_swallows_http_errors(self) -> None:
+        from session_buddy.mcp.tools.session.channel_tracking_tools import DharaChannelPublisher
+        import httpx
+        from unittest.mock import AsyncMock
+        pub = DharaChannelPublisher(dhara_url="http://localhost:8683")
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("refused"))
+        pub._client = mock_client
+        # Should not raise
+        await pub.publish("session_buddy.channel_event", "chan_abc", {"event_type": "channel_session_start"})
+
+    @pytest.mark.asyncio
+    async def test_track_tool_publishes_on_start(self) -> None:
+        """track_channel_session fires Dhara publish when dhara_publisher is injected."""
+        from session_buddy.mcp.tools.session.channel_tracking_tools import register_channel_tracking_tools, DharaChannelPublisher
+        from fastmcp import FastMCP
+        from unittest.mock import AsyncMock, MagicMock
+
+        pub = MagicMock(spec=DharaChannelPublisher)
+        pub.publish = AsyncMock()
+
+        mcp = FastMCP("test")
+        register_channel_tracking_tools(mcp, dhara_publisher=pub)
+
+        # Find the track_channel_session tool function via local_provider components
+        tool_fn = None
+        components = mcp._local_provider._components
+        for key, tool in components.items():
+            if "track_channel_session" in key or getattr(tool, "name", "") == "track_channel_session":
+                tool_fn = tool.fn
+                break
+        assert tool_fn is not None, "track_channel_session tool not found"
+
+        await tool_fn(
+            event_id="evt-001",
+            event_type="channel_session_start",
+            channel_type="slack",
+            channel_id="C123",
+            sender_id="U456",
+            timestamp="2026-05-14T00:00:00Z",
+            token=None,
+        )
+        # Yield to allow the fire-and-forget asyncio.create_task to execute
+        import asyncio as _asyncio
+        await _asyncio.sleep(0)
+        pub.publish.assert_awaited_once()
+        call_args = pub.publish.call_args
+        assert call_args.args[0] == "session_buddy.channel_event"
+
+    @pytest.mark.asyncio
+    async def test_track_tool_works_without_publisher(self) -> None:
+        """track_channel_session works normally when no dhara_publisher is given."""
+        from session_buddy.mcp.tools.session.channel_tracking_tools import register_channel_tracking_tools
+        from fastmcp import FastMCP
+
+        mcp = FastMCP("test")
+        register_channel_tracking_tools(mcp)  # no dhara_publisher
+
+        tool_fn = None
+        components = mcp._local_provider._components
+        for key, tool in components.items():
+            if "track_channel_session" in key or getattr(tool, "name", "") == "track_channel_session":
+                tool_fn = tool.fn
+                break
+        assert tool_fn is not None, "track_channel_session tool not found"
+
+        result = await tool_fn(
+            event_id="evt-002",
+            event_type="channel_session_start",
+            channel_type="slack",
+            channel_id="C123",
+            sender_id="U456",
+            timestamp="2026-05-14T00:00:00Z",
+            token=None,
+        )
+        assert result["status"] == "tracked"

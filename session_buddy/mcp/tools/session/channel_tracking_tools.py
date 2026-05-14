@@ -18,6 +18,7 @@ Storage:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -35,6 +36,46 @@ _VALID_EVENT_TYPES = frozenset(
 _VALID_SCOPES = frozenset({"conversation", "thread", "day"})
 
 logger = logging.getLogger(__name__)
+
+
+class DharaChannelPublisher:
+    """Fire-and-forget publisher for channel session events to Dhara time-series.
+
+    Uses Dhara's MCP HTTP transport (``POST /tools/call``) with the
+    ``record_time_series`` tool. All errors are swallowed so a Dhara outage
+    never blocks channel tracking.
+
+    Args:
+        dhara_url: Base URL of the Dhara MCP server (e.g. ``http://localhost:8683``).
+    """
+
+    def __init__(self, dhara_url: str) -> None:
+        import httpx
+
+        self.dhara_url = dhara_url.rstrip("/")
+        self._client = httpx.AsyncClient(timeout=5.0)
+
+    async def publish(
+        self,
+        metric_type: str,
+        entity_id: str,
+        record: dict[str, Any],
+    ) -> None:
+        """Record a time-series entry in Dhara. Errors are silently dropped."""
+        try:
+            await self._client.post(
+                f"{self.dhara_url}/tools/call",
+                json={
+                    "name": "record_time_series",
+                    "arguments": {
+                        "metric_type": metric_type,
+                        "entity_id": entity_id,
+                        "record": record,
+                    },
+                },
+            )
+        except Exception as exc:
+            logger.debug("Dhara channel publish failed (non-fatal): %s", exc)
 
 
 class _ChannelSessionStore:
@@ -121,7 +162,10 @@ class _ChannelSessionStore:
 _store = _ChannelSessionStore()
 
 
-def register_channel_tracking_tools(mcp_server: FastMCP) -> None:
+def register_channel_tracking_tools(
+    mcp_server: FastMCP,
+    dhara_publisher: DharaChannelPublisher | None = None,
+) -> None:
     """Register channel session tracking tools with the MCP server.
 
     Registers:
@@ -130,6 +174,9 @@ def register_channel_tracking_tools(mcp_server: FastMCP) -> None:
 
     Args:
         mcp_server: FastMCP server instance
+        dhara_publisher: Optional Dhara publisher for fire-and-forget
+            time-series recording of channel events.  When ``None``
+            (default) no Dhara publishing occurs.
     """
 
     @mcp_server.tool()
@@ -202,6 +249,23 @@ def register_channel_tracking_tools(mcp_server: FastMCP) -> None:
             else:  # channel_session_end
                 session_id = _store.end(event)
                 status = "ended" if session_id else "not_found"
+
+            # Phase 2: fire-and-forget Dhara time-series publish
+            if dhara_publisher is not None and session_id is not None:
+                asyncio.create_task(
+                    dhara_publisher.publish(
+                        "session_buddy.channel_event",
+                        session_id,
+                        {
+                            "event_type": event_type,
+                            "channel_type": channel_type,
+                            "channel_id": channel_id,
+                            "sender_id": sender_id,
+                            "timestamp": timestamp,
+                            "status": status,
+                        },
+                    )
+                )
 
             logger.info(
                 "channel_session event=%s channel=%s/%s sender=%s session=%s status=%s",
