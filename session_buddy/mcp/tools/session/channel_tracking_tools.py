@@ -77,6 +77,16 @@ class DharaChannelPublisher:
         except Exception as exc:
             logger.debug("Dhara channel publish failed (non-fatal): %s", exc)
 
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client."""
+        await self._client.aclose()
+
+    async def __aenter__(self) -> DharaChannelPublisher:
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        await self.aclose()
+
 
 class _ChannelSessionStore:
     """Lightweight in-memory store for active channel sessions."""
@@ -264,7 +274,8 @@ def register_channel_tracking_tools(
                             "timestamp": timestamp,
                             "status": status,
                         },
-                    )
+                    ),
+                    name=f"dhara_publish_{session_id}",
                 )
 
             logger.info(
