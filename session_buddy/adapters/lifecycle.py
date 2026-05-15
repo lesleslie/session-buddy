@@ -178,26 +178,14 @@ def cleanup_knowledge_graph_adapter() -> None:
 
 def init_storage_adapters() -> None:
     """Initialize storage adapters using Oneiric implementation."""
-    # Try to use Oneiric implementation first
-    with suppress(ImportError):
-        from session_buddy.adapters.storage_oneiric import (
-            configure_storage_buckets,
-            init_storage_registry,
-        )
-
-        # Synchronous initialization
-        init_storage_registry()
-        settings = get_storage_settings()
-        if settings.buckets:
-            configure_storage_buckets(settings.buckets)
-        return
-
-    # Fallback to ACB implementation
-    from session_buddy.adapters.storage_registry import (
+    # Oneiric-only implementation
+    from session_buddy.adapters.storage_oneiric import (
         configure_storage_buckets,
+        init_storage_registry,
         register_storage_adapter,
     )
 
+    init_storage_registry()
     settings = get_storage_settings()
     if settings.buckets:
         configure_storage_buckets(settings.buckets)
@@ -205,18 +193,8 @@ def init_storage_adapters() -> None:
 
 
 def health_storage_adapters() -> bool:
-    """Check health of storage adapters (supports both Oneiric and ACB implementations)."""
-    # Try Oneiric implementation first
-    with suppress(ImportError):
-        from session_buddy.adapters.storage_oneiric import get_storage_adapter
-
-        settings = get_storage_settings()
-        with suppress(Exception):
-            adapter = get_storage_adapter(settings.default_backend)
-            return adapter is not None
-
-    # Fallback to ACB implementation
-    from session_buddy.adapters.storage_registry import get_storage_adapter
+    """Check health of storage adapters."""
+    from session_buddy.adapters.storage_oneiric import get_storage_adapter
 
     settings = get_storage_settings()
     with suppress(Exception):
@@ -238,18 +216,7 @@ async def _cleanup_adapter(adapter: t.Any) -> bool:
 
 
 async def cleanup_storage_adapters() -> None:
-    # Try Oneiric implementation first
-    with suppress(ImportError):
-        from session_buddy.adapters.storage_oneiric import get_storage_adapter
-
-        settings = get_storage_settings()
-        with suppress(Exception):
-            adapter = get_storage_adapter(settings.default_backend)
-            if await _cleanup_adapter(adapter):
-                return
-
-    # Fallback to ACB implementation
-    from session_buddy.adapters.storage_registry import get_storage_adapter
+    from session_buddy.adapters.storage_oneiric import get_storage_adapter
 
     settings = get_storage_settings()
     with suppress(Exception):

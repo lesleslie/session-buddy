@@ -7,7 +7,7 @@ bucket-based API of the storage adapters and provides a session-centric interfac
 The adapter supports the Oneiric storage backends registered in the storage registry.
 
 Example:
-    >>> from session_buddy.adapters import SessionStorageAdapter
+    >>> from session_buddy.adapters.session_storage_adapter import SessionStorageAdapter
     >>> storage = SessionStorageAdapter(backend="file")
     >>> await storage.store_session("session_123", {"status": "active"})
     >>> state = await storage.load_session("session_123")
@@ -75,7 +75,7 @@ class SessionStorageAdapter:
 
         """
         if self._adapter is None:
-            from session_buddy.adapters.storage_registry import get_storage_adapter
+            from session_buddy.adapters.storage_oneiric import get_storage_adapter
 
             self._adapter = get_storage_adapter(self.backend)
 

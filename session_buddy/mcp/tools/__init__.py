@@ -5,7 +5,10 @@ This module exports all tool registration functions from subdirectories.
 
 # Advanced tools
 # Subscribers (cross-system integration)
-from ...subscribers import register_code_graph_tools
+# Health check tools
+from mcp_common.health import register_health_tools as register_health_tools_sb
+
+from ...subscribers.code_graph_subscriber import register_code_graph_tools
 from .advanced.conscious_agent_tools import register_conscious_agent_tools
 from .advanced.entity_extraction_tools import register_extraction_tools
 from .advanced.fingerprint_tools import (
@@ -29,9 +32,6 @@ from .collaboration.team_tools import register_team_tools
 from .conversation.conversation_tools import (
     register_conversation_tools,
 )
-
-# Health check tools
-from .health_tools import register_health_tools_sb
 
 # Infrastructure tools
 from .infrastructure.access_log_tools import (

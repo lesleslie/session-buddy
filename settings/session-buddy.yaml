@@ -4,14 +4,16 @@
 
 # === LLM Provider Configuration ===
 llm_providers:
-  default_provider: "zai"
+  default_provider: "minimax"
   ollama_base_url: "http://localhost:11434"
   ollama_default_model: "Qwen3-8B-8.2B-Q4_K_M"
   fallback_providers:
-    - "zai"
+    - "minimax"
     - "ollama"
 
 # === LLM Provider URLs ===
+minimax_base_url: "https://api.minimax.io/v1"
+minimax_default_model: "MiniMax-M2.7"
 zai_base_url: "https://api.z.ai/api/coding/paas/v4"
 zai_default_model: "glm-4.7"
 

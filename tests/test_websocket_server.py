@@ -174,6 +174,33 @@ async def test_client_receives_metrics(populated_storage: SkillsStorage) -> None
         await server.stop()
 
 
+@pytest.mark.asyncio
+async def test_metrics_subscriber_receives_snapshots(populated_storage: SkillsStorage) -> None:
+    """Test external metrics subscribers receive broadcast snapshots."""
+    server = RealTimeMetricsServer(
+        host="localhost",
+        port=8779,
+        db_path=populated_storage.db_path,
+        update_interval=0.5,
+    )
+
+    snapshots: list[dict[str, object]] = []
+
+    def capture_snapshot(payload: dict[str, object]) -> None:
+        snapshots.append(payload)
+
+    server.register_metrics_subscriber(capture_snapshot)
+
+    try:
+        await server.start()
+        await asyncio.sleep(0.75)
+        assert snapshots, "Expected at least one metrics snapshot"
+        assert snapshots[0]["type"] == "metrics_update"
+        assert "data" in snapshots[0]
+    finally:
+        await server.stop()
+
+
 # ============================================================================
 # Client Registration Tests
 # ============================================================================

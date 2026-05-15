@@ -39,6 +39,7 @@ def get_masked_api_key(provider: str = "openai") -> str:
         "anthropic": "anthropic_api_key",
         "gemini": "gemini_api_key",
         "qwen": "qwen_api_key",
+        "minimax": "minimax_api_key",
         "zai": "zai_api_key",
     }
     key_field = key_field_map.get(provider)
@@ -55,6 +56,8 @@ def get_masked_api_key(provider: str = "openai") -> str:
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     elif provider == "qwen":
         api_key = os.getenv("QWEN_API_KEY")
+    elif provider == "minimax":
+        api_key = os.getenv("MINIMAX_API_KEY")
     elif provider == "zai":
         api_key = os.getenv("ZAI_API_KEY")
     elif provider == "ollama":
@@ -88,6 +91,8 @@ def _get_provider_api_key_and_env(provider: str) -> tuple[str | None, str | None
             "GEMINI_API_KEY" if os.getenv("GEMINI_API_KEY") else "GOOGLE_API_KEY"
         )
         return api_key, env_var_name
+    if provider == "minimax":
+        return os.getenv("MINIMAX_API_KEY"), "MINIMAX_API_KEY"
     if provider == "zai":
         return os.getenv("ZAI_API_KEY"), "ZAI_API_KEY"
     return None, None
@@ -128,12 +133,13 @@ def _get_configured_providers() -> list[str]:
     providers: set[str] = set()
 
     # Check settings-based API keys first
-    for provider in ("zai", "openai", "gemini", "anthropic", "qwen"):
+    for provider in ("minimax", "zai", "openai", "gemini", "anthropic", "qwen"):
         if get_llm_api_key(provider):
             providers.add(provider)
 
     # Check environment variable fallbacks
     env_provider_map: dict[str, str] = {
+        "MINIMAX_API_KEY": "minimax",
         "ZAI_API_KEY": "zai",
         "OPENAI_API_KEY": "openai",
         "ANTHROPIC_API_KEY": "anthropic",

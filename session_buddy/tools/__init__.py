@@ -135,8 +135,6 @@ _alias_submodule(
 _alias_submodule(
     "session_buddy.tools.protocols", "session_buddy.mcp.tools.infrastructure.protocols"
 )
-# health_tools is now a local module at session_buddy/tools/health_tools.py
-# (no alias needed)
 _alias_submodule(
     "session_buddy.tools.history_cache",
     "session_buddy.mcp.tools.infrastructure.history_cache",

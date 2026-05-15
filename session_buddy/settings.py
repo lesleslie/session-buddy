@@ -26,8 +26,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 class LLMProvidersConfig(BaseModel):
     """LLM provider configuration."""
 
-    default_provider: t.Literal["minimax", "zai", "openai", "gemini", "ollama"] = (
-        Field(default="minimax", description="Primary LLM provider")
+    default_provider: t.Literal["minimax", "zai", "openai", "gemini", "ollama"] = Field(
+        default="minimax", description="Primary LLM provider"
     )
     ollama_base_url: str = Field(
         default="http://localhost:11434",

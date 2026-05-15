@@ -110,10 +110,10 @@ def messages():
 class TestZAIAsDefaultProvider:
     """Verify ZAI is configured as the primary/default LLM provider."""
 
-    def test_default_provider_is_zai(self, mock_provider_classes):
-        """LLMManager should default to ZAI provider."""
+    def test_default_provider_is_minimax(self, mock_provider_classes):
+        """LLMManager should default to MiniMax provider."""
         manager = LLMManager()
-        assert manager.config["default_provider"] == "zai"
+        assert manager.config["default_provider"] == "minimax"
 
     def test_fallback_providers_include_ollama(self, mock_provider_classes):
         """Fallback chain should include Ollama."""
@@ -123,27 +123,27 @@ class TestZAIAsDefaultProvider:
     def test_zai_provider_initialized(self, mock_provider_classes):
         """ZAI provider should be initialized in the manager."""
         manager = LLMManager()
-        assert "zai" in manager.providers
+        assert "minimax" in manager.providers
 
     def test_zai_uses_openai_provider_class(self, mock_provider_classes):
         """ZAI should use OpenAIProvider (OpenAI-compatible API)."""
         manager = LLMManager()
         # OpenAIProvider is used for both zai and openai providers
-        assert "zai" in manager.providers
+        assert "minimax" in manager.providers
         assert "openai" in manager.providers
 
-    def test_zai_config_has_correct_base_url(self, mock_provider_classes):
-        """ZAI config should use the coding plan endpoint."""
+    def test_minimax_config_has_correct_base_url(self, mock_provider_classes):
+        """MiniMax config should use the OpenAI-compatible endpoint."""
         manager = LLMManager()
-        zai_config = manager.config["providers"].get("zai", {})
-        assert "api.z.ai" in zai_config.get("base_url", "")
+        minimax_config = manager.config["providers"].get("minimax", {})
+        assert "api.minimax.io" in minimax_config.get("base_url", "")
 
-    def test_zai_config_has_glm_default_model(self, mock_provider_classes):
-        """ZAI config should default to a GLM model."""
+    def test_minimax_config_has_default_model(self, mock_provider_classes):
+        """MiniMax config should default to a MiniMax model."""
         manager = LLMManager()
-        zai_config = manager.config["providers"].get("zai", {})
-        model = zai_config.get("default_model", "")
-        assert "glm" in model.lower()
+        minimax_config = manager.config["providers"].get("minimax", {})
+        model = minimax_config.get("default_model", "")
+        assert "minimax" in model.lower()
 
 
 # ============================================================================
@@ -578,7 +578,7 @@ class TestProviderInfo:
         info = llm_manager.get_provider_info()
 
         assert "zai" in info["providers"]
-        assert info["config"]["default_provider"] == "zai"
+        assert info["config"]["default_provider"] == "minimax"
 
     def test_provider_info_shows_fallback_chain(self, llm_manager):
         """get_provider_info should show fallback chain."""

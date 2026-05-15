@@ -9,15 +9,15 @@ Phase 1, Day 1: Storage adapter foundation
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from session_buddy.adapters import (
+
+from session_buddy.adapters.session_storage_adapter import (
+    DEFAULT_SESSION_BUCKET,
     SessionStorageAdapter,
     get_default_storage_adapter,
 )
-from session_buddy.adapters.session_storage_adapter import DEFAULT_SESSION_BUCKET
 
 
 class TestSessionStorageAdapterInitialization:
@@ -301,7 +301,7 @@ class TestAdapterInitialization:
     def mock_get_storage_adapter(self):
         """Mock get_storage_adapter function."""
         with patch(
-            "session_buddy.adapters.storage_registry.get_storage_adapter"
+            "session_buddy.adapters.storage_oneiric.get_storage_adapter"
         ) as mock:
             mock_adapter = AsyncMock()
             mock_adapter.init = AsyncMock()

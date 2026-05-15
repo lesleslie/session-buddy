@@ -10,7 +10,7 @@ Architecture:
     New: serverless_mode.py → ServerlessStorageAdapter → SessionStorageAdapter → Oneiric storage
 
 Example:
-    >>> from session_buddy.adapters import ServerlessStorageAdapter
+    >>> from session_buddy.adapters.serverless_storage_adapter import ServerlessStorageAdapter
     >>> storage = ServerlessStorageAdapter(backend="file")
     >>> await storage.store_session(session_state, ttl_seconds=3600)
     True

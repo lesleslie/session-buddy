@@ -19,6 +19,7 @@ Example:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 from datetime import UTC, datetime
@@ -96,6 +97,7 @@ class RealTimeMetricsServer:
 
         # Client management
         self.clients: set[ServerConnection] = set()
+        self.metrics_subscribers: list[Any] = []
 
         # Storage backend
         self.storage = SkillsStorage(db_path=self.db_path)
@@ -145,6 +147,33 @@ class RealTimeMetricsServer:
             f"Client unregistered: {websocket.remote_address}, "
             f"remaining clients: {len(self.clients)}"
         )
+
+    def register_metrics_subscriber(self, subscriber: Any) -> None:
+        """Register a listener for broadcast metric snapshots.
+
+        The subscriber can be a sync callable or async callable that accepts
+        the broadcast payload dictionary.
+        """
+        if subscriber not in self.metrics_subscribers:
+            self.metrics_subscribers.append(subscriber)
+
+    def unregister_metrics_subscriber(self, subscriber: Any) -> None:
+        """Remove a previously registered metrics subscriber."""
+        with suppress(ValueError):
+            self.metrics_subscribers.remove(subscriber)
+
+    async def _publish_metrics_snapshot(self, payload: dict[str, Any]) -> None:
+        """Notify external subscribers about a metrics snapshot."""
+        if not self.metrics_subscribers:
+            return
+
+        for subscriber in list(self.metrics_subscribers):
+            try:
+                result = subscriber(payload)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception as exc:
+                logger.warning("Metrics subscriber failed: %s", exc)
 
     async def _authenticate_connection(
         self, websocket: ServerConnection
@@ -241,6 +270,8 @@ class RealTimeMetricsServer:
                         "anomalies": anomalies,
                     },
                 }
+
+                await self._publish_metrics_snapshot(message)
 
                 # Broadcast to all clients
                 if self.clients:

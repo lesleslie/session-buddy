@@ -466,27 +466,30 @@ storage:
 
 ### LLM Provider Configuration
 
-Session-Buddy uses ZAI GLM models as the primary LLM provider:
+Session-Buddy uses MiniMax as the primary cloud LLM provider:
 
-- **Primary provider**: `zai` (OpenAI-compatible API at `https://api.z.ai/api/coding/paas/v4`)
+- **Primary provider**: `minimax` (OpenAI-compatible API at `https://api.minimax.io/v1`)
 - **Fallback provider**: `ollama` (local at `http://localhost:11434`)
-- **Default model**: `glm-4.7` (general), `glm-4.5-air` (quick/haiku tasks)
-- **Provider chain**: `zai -> ollama`
+- **Default model**: `MiniMax-M2.7` (general), `MiniMax-M2.7-highspeed` (quick/background tasks)
+- **Provider chain**: `minimax -> ollama`
 
 **Configuration** (in `settings/session-buddy.yaml` or environment variables):
 
-- `zai_api_key` / `ZAI_API_KEY` — ZAI coding plan subscription key
-- `zai_base_url` — API endpoint (default: `https://api.z.ai/api/coding/paas/v4`)
-- `zai_default_model` — Default model (default: `glm-4.7`)
-- `default_llm_provider` — Primary provider (default: `zai`)
-- `llm_fallback_chain` — Fallback order (default: `["zai", "ollama"]`)
+- `minimax_api_key` / `MINIMAX_API_KEY` — MiniMax API key
+- `minimax_base_url` — API endpoint (default: `https://api.minimax.io/v1`)
+- `minimax_default_model` — Default model (default: `MiniMax-M2.7`)
+- `zai_api_key` / `ZAI_API_KEY` — optional ZAI compatibility key
+- `zai_base_url` — optional compatibility endpoint (default: `https://api.z.ai/api/coding/paas/v4`)
+- `zai_default_model` — optional compatibility model (default: `glm-4.7`)
+- `default_llm_provider` — Primary provider (default: `minimax`)
+- `llm_fallback_chain` — Fallback order (default: `["minimax", "ollama"]`)
 
 **Key files**:
 
 - `session_buddy/llm_providers.py` — LLMManager with multi-provider support
 - `session_buddy/llm/security.py` — API key validation and masking
-- `session_buddy/settings.py` — ZAI settings fields in SessionMgmtSettings
-- `tests/integration/test_zai_fallback_chain.py` — Integration tests for fallback chain
+- `session_buddy/settings.py` — MiniMax and ZAI settings fields in SessionMgmtSettings
+- `tests/integration/test_zai_fallback_chain.py` — Integration tests for provider fallback chain
 
 ### Token Optimization
 

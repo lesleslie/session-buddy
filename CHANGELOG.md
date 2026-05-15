@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-05-15
+
+### Added
+
+- Add DharaChannelPublisher for Phase 2 time-series publishing
+- Wire DharaChannelPublisher in server startup via SESSION_BUDDY_DHARA_URL
+
+### Fixed
+
+- Correct dhara_url docstring priority, close publisher on shutdown
+- DharaChannelPublisher aclose, named task, stable tests, declare httpx dep
+- Hoist dhara publisher out of loop, settings integration, robust test task drain
+
 ## [0.17.0] - 2026-05-10
 
 ### Fixed

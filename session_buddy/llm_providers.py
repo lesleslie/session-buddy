@@ -365,6 +365,7 @@ def get_masked_api_key(provider: str = "openai") -> str:
         "anthropic": "anthropic_api_key",
         "gemini": "gemini_api_key",
         "qwen": "qwen_api_key",
+        "minimax": "minimax_api_key",
         "zai": "zai_api_key",
     }
     key_field = key_field_map.get(provider)
@@ -386,6 +387,8 @@ def get_masked_api_key(provider: str = "openai") -> str:
         api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     elif provider == "qwen":
         api_key = os.getenv("QWEN_API_KEY")
+    elif provider == "minimax":
+        api_key = os.getenv("MINIMAX_API_KEY")
     elif provider == "zai":
         api_key = os.getenv("ZAI_API_KEY")
     elif provider == "ollama":
@@ -410,6 +413,7 @@ def _get_provider_api_key_and_env(provider: str) -> tuple[str | None, str | None
         "anthropic": "anthropic_api_key",
         "gemini": "gemini_api_key",
         "qwen": "qwen_api_key",
+        "minimax": "minimax_api_key",
         "zai": "zai_api_key",
     }
     field = field_map.get(provider)
@@ -430,6 +434,8 @@ def _get_provider_api_key_and_env(provider: str) -> tuple[str | None, str | None
         return api_key, env_var_name
     if provider == "qwen":
         return os.getenv("QWEN_API_KEY"), "QWEN_API_KEY"
+    if provider == "minimax":
+        return os.getenv("MINIMAX_API_KEY"), "MINIMAX_API_KEY"
     if provider == "zai":
         return os.getenv("ZAI_API_KEY"), "ZAI_API_KEY"
     return None, None
@@ -438,7 +444,7 @@ def _get_provider_api_key_and_env(provider: str) -> tuple[str | None, str | None
 def _get_configured_providers() -> list[str]:
     """Return all configured providers from settings and environment."""
     providers: set[str] = set()
-    for provider in ("zai", "openai", "gemini", "anthropic", "qwen"):
+    for provider in ("minimax", "zai", "openai", "gemini", "anthropic", "qwen"):
         api_key, _ = _get_provider_api_key_and_env(provider)
         if api_key:
             providers.add(provider)
@@ -509,16 +515,22 @@ class LLMManager:
         self.config = self._build_config()
         self.providers = self._build_providers()
 
-    def _build_config(self) -> dict[str, Any]:
+    def _build_config(self) -> dict[str, Any]:  # noqa: C901
         settings = self.settings
         llm_config = settings.llm_providers
         default_provider = getattr(llm_config, "default_provider", None)
         if not isinstance(default_provider, str) or not default_provider.strip():
-            default_provider = "zai"
+            default_provider = "minimax"
 
         fallback_providers = getattr(llm_config, "fallback_providers", None)
         if not isinstance(fallback_providers, list):
-            fallback_providers = ["zai", "ollama"]
+            fallback_providers = ["minimax", "ollama"]
+
+        minimax_api_key = _get_provider_api_key_and_env("minimax")[0]
+        if not isinstance(minimax_api_key, str):
+            minimax_api_key = getattr(settings, "minimax_api_key", None)
+            if not isinstance(minimax_api_key, str):
+                minimax_api_key = None
 
         zai_api_key = _get_provider_api_key_and_env("zai")[0]
         if not isinstance(zai_api_key, str):
@@ -537,6 +549,17 @@ class LLMManager:
             gemini_api_key = getattr(settings, "gemini_api_key", None)
             if not isinstance(gemini_api_key, str):
                 gemini_api_key = None
+
+        minimax_base_url = getattr(settings, "minimax_base_url", None)
+        if not isinstance(minimax_base_url, str) or not minimax_base_url.strip():
+            minimax_base_url = "https://api.minimax.io/v1"
+
+        minimax_default_model = getattr(settings, "minimax_default_model", None)
+        if (
+            not isinstance(minimax_default_model, str)
+            or not minimax_default_model.strip()
+        ):
+            minimax_default_model = "MiniMax-M2.7"
 
         zai_base_url = getattr(settings, "zai_base_url", None)
         if not isinstance(zai_base_url, str) or not zai_base_url.strip():
@@ -559,6 +582,13 @@ class LLMManager:
             ollama_default_model = "Qwen3-8B-8.2B-Q4_K_M"
 
         providers: dict[str, dict[str, Any]] = {
+            "minimax": {
+                "api_key": minimax_api_key,
+                "base_url": os.getenv("MINIMAX_BASE_URL", minimax_base_url),
+                "default_model": os.getenv(
+                    "MINIMAX_DEFAULT_MODEL", minimax_default_model
+                ),
+            },
             "zai": {
                 "api_key": zai_api_key,
                 "base_url": os.getenv("ZAI_BASE_URL", zai_base_url),
@@ -588,6 +618,7 @@ class LLMManager:
         provider_configs = self.config["providers"]
         providers: dict[str, Any] = {}
 
+        providers["minimax"] = OpenAIProvider(provider_configs["minimax"])
         providers["zai"] = OpenAIProvider(provider_configs["zai"])
         providers["openai"] = OpenAIProvider(provider_configs["openai"])
         providers["gemini"] = GeminiProvider(provider_configs["gemini"])

@@ -46,6 +46,7 @@ coverage.*
 nosetests.xml
 coverage.xml
 coverage.json
+docs/archive/test-artifacts/coverage__*.json
 *.cover
 *.py,cover
 .hypothesis/
