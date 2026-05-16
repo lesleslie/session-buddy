@@ -60,8 +60,8 @@ def get_masked_api_key(provider: str = "openai") -> str:
         api_key = os.getenv("MINIMAX_API_KEY")
     elif provider == "zai":
         api_key = os.getenv("ZAI_API_KEY")
-    elif provider == "ollama":
-        # Ollama is local, no API key needed
+    elif provider in ("ollama", "llama_server"):
+        # Local services, no API key needed
         return "N/A (local service)"
 
     if not api_key:
@@ -132,7 +132,10 @@ def _get_configured_providers() -> list[str]:
     """Get list of configured LLM providers."""
     providers: set[str] = set()
 
-    # Check settings-based API keys first
+    # Local providers are always "configured" (no API key required)
+    providers.update(("ollama", "llama_server"))
+
+    # Check settings-based API keys for cloud providers
     for provider in ("minimax", "zai", "openai", "gemini", "anthropic", "qwen"):
         if get_llm_api_key(provider):
             providers.add(provider)

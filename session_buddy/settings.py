@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 class LLMProvidersConfig(BaseModel):
     """LLM provider configuration."""
 
-    default_provider: t.Literal["minimax", "zai", "openai", "gemini", "ollama"] = Field(
+    default_provider: t.Literal["minimax", "zai", "openai", "gemini", "ollama", "llama_server"] = Field(
         default="minimax", description="Primary LLM provider"
     )
     ollama_base_url: str = Field(
@@ -34,11 +34,19 @@ class LLMProvidersConfig(BaseModel):
         description="Ollama server base URL",
     )
     ollama_default_model: str = Field(
-        default="Qwen3-8B-8.2B-Q4_K_M",
+        default="qwen2.5-coder:7b",
         description="Default Ollama model",
     )
+    llama_server_base_url: str = Field(
+        default="http://localhost:8081",
+        description="llama.cpp server base URL",
+    )
+    llama_server_default_model: str = Field(
+        default="qwen3.5",
+        description="Default llama-server model",
+    )
     fallback_providers: list[str] = Field(
-        default_factory=lambda: ["minimax", "ollama"],
+        default_factory=lambda: ["minimax", "llama_server", "ollama"],
         description="Ordered list of LLM providers for fallback",
     )
 
@@ -476,13 +484,23 @@ class SessionMgmtSettings(MCPBaseSettings):
         description="Default ZAI model for LLM operations",
     )
 
+    # === llama-server (llama.cpp) settings ===
+    llama_server_base_url: str = Field(
+        default="http://localhost:8081",
+        description="llama.cpp server base URL",
+    )
+    llama_server_model: str = Field(
+        default="qwen3.5",
+        description="Default model served by llama.cpp",
+    )
+
     # === LLM Fallback Chain ===
     default_llm_provider: str = Field(
         default="minimax",
-        description="Primary LLM provider (minimax, zai, openai, anthropic, gemini, ollama)",
+        description="Primary LLM provider (minimax, llama_server, ollama)",
     )
     llm_fallback_chain: list[str] = Field(
-        default=["minimax", "ollama"],
+        default=["minimax", "llama_server", "ollama"],
         description="Ordered list of LLM providers for fallback",
     )
 
