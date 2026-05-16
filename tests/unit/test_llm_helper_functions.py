@@ -421,7 +421,7 @@ class TestOllamaProviderHelperFunctions:
     @pytest.mark.asyncio
     async def test_check_with_aiohttp_success(self) -> None:
         """Should check availability using aiohttp and return True on success."""
-        from session_buddy.llm_providers import OllamaProvider
+        from session_buddy.llm.providers import OllamaProvider
 
         provider = OllamaProvider({"base_url": "http://localhost:11434"})
 
@@ -456,7 +456,7 @@ class TestOllamaProviderHelperFunctions:
     @pytest.mark.asyncio
     async def test_check_with_aiohttp_failure(self) -> None:
         """Should check availability using aiohttp and return False on failure."""
-        from session_buddy.llm_providers import OllamaProvider
+        from session_buddy.llm.providers import OllamaProvider
 
         provider = OllamaProvider({"base_url": "http://localhost:11434"})
 
@@ -487,7 +487,7 @@ class TestOllamaProviderHelperFunctions:
     @pytest.mark.asyncio
     async def test_check_with_aiohttp_connection_error(self) -> None:
         """Should return False when connection fails."""
-        from session_buddy.llm_providers import OllamaProvider
+        from session_buddy.llm.providers import OllamaProvider
 
         provider = OllamaProvider({"base_url": "http://localhost:11434"})
 
@@ -502,7 +502,7 @@ class TestOllamaProviderHelperFunctions:
 
     def test_extract_chunk_content_valid_json(self) -> None:
         """Should extract content from valid JSON chunk."""
-        from session_buddy.llm_providers import OllamaProvider
+        from session_buddy.llm.providers import OllamaProvider
 
         provider = OllamaProvider({"base_url": "http://localhost:11434"})
 
@@ -514,7 +514,7 @@ class TestOllamaProviderHelperFunctions:
 
     def test_extract_chunk_content_empty_line(self) -> None:
         """Should return None for empty line."""
-        from session_buddy.llm_providers import OllamaProvider
+        from session_buddy.llm.providers import OllamaProvider
 
         provider = OllamaProvider({"base_url": "http://localhost:11434"})
 
@@ -524,7 +524,7 @@ class TestOllamaProviderHelperFunctions:
 
     def test_extract_chunk_content_invalid_json(self) -> None:
         """Should return None for invalid JSON."""
-        from session_buddy.llm_providers import OllamaProvider
+        from session_buddy.llm.providers import OllamaProvider
 
         provider = OllamaProvider({"base_url": "http://localhost:11434"})
 
@@ -534,7 +534,7 @@ class TestOllamaProviderHelperFunctions:
 
     def test_extract_chunk_content_missing_message(self) -> None:
         """Should return None when message field is missing."""
-        from session_buddy.llm_providers import OllamaProvider
+        from session_buddy.llm.providers import OllamaProvider
 
         provider = OllamaProvider({"base_url": "http://localhost:11434"})
 
@@ -544,7 +544,8 @@ class TestOllamaProviderHelperFunctions:
 
     def test_prepare_stream_data_basic(self) -> None:
         """Should prepare streaming data with basic options."""
-        from session_buddy.llm_providers import LLMMessage, OllamaProvider
+        from session_buddy.llm.models import LLMMessage
+        from session_buddy.llm.providers import OllamaProvider
 
         provider = OllamaProvider({"base_url": "http://localhost:11434"})
         messages = [LLMMessage(role="user", content="Hello")]
@@ -558,7 +559,8 @@ class TestOllamaProviderHelperFunctions:
 
     def test_prepare_stream_data_with_max_tokens(self) -> None:
         """Should include num_predict when max_tokens provided."""
-        from session_buddy.llm_providers import LLMMessage, OllamaProvider
+        from session_buddy.llm.models import LLMMessage
+        from session_buddy.llm.providers import OllamaProvider
 
         provider = OllamaProvider({"base_url": "http://localhost:11434"})
         messages = [LLMMessage(role="user", content="Hello")]

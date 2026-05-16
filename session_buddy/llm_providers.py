@@ -2,12 +2,14 @@ import json
 import logging
 import os
 import time
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Any
 
+from mcp_common.llm import FallbackChain, LLMSettings
+
 from session_buddy.llm.models import LLMMessage, LLMResponse
-from session_buddy.llm.providers import GeminiProvider, OllamaProvider, OpenAIProvider
 from session_buddy.settings import get_settings
 
 try:
@@ -21,12 +23,9 @@ except ImportError:  # pragma: no cover - optional dependency
 
 __all__ = [
     "APIKeyValidator",
-    "GeminiProvider",
     "LLMManager",
     "LLMMessage",
     "LLMResponse",
-    "OllamaProvider",
-    "OpenAIProvider",
     "SECURITY_AVAILABLE",
     "get_masked_api_key",
     "validate_llm_api_keys_at_startup",
@@ -506,157 +505,72 @@ def validate_llm_api_keys_at_startup() -> dict[str, str]:
 
 
 class LLMManager:
-    """Compatibility manager for provider orchestration."""
+    """Thin wrapper around mcp_common FallbackChain for session-buddy LLM calls."""
 
     def __init__(self, config_path: str | Path | None = None) -> None:
         self.logger = logging.getLogger(__name__)
         self.config_path = Path(config_path) if config_path else None
-        self.settings = get_settings()
-        self.config = self._build_config()
-        self.providers = self._build_providers()
+        self._chain = self._build_chain()
 
-    def _build_config(self) -> dict[str, Any]:  # noqa: C901
-        settings = self.settings
-        llm_config = settings.llm_providers
-        default_provider = getattr(llm_config, "default_provider", None)
-        if not isinstance(default_provider, str) or not default_provider.strip():
-            default_provider = "minimax"
-
-        fallback_providers = getattr(llm_config, "fallback_providers", None)
-        if not isinstance(fallback_providers, list):
-            fallback_providers = ["minimax", "ollama"]
-
-        minimax_api_key = _get_provider_api_key_and_env("minimax")[0]
-        if not isinstance(minimax_api_key, str):
-            minimax_api_key = getattr(settings, "minimax_api_key", None)
-            if not isinstance(minimax_api_key, str):
-                minimax_api_key = None
-
-        zai_api_key = _get_provider_api_key_and_env("zai")[0]
-        if not isinstance(zai_api_key, str):
-            zai_api_key = getattr(settings, "zai_api_key", None)
-            if not isinstance(zai_api_key, str):
-                zai_api_key = None
-
-        openai_api_key = _get_provider_api_key_and_env("openai")[0]
-        if not isinstance(openai_api_key, str):
-            openai_api_key = getattr(settings, "openai_api_key", None)
-            if not isinstance(openai_api_key, str):
-                openai_api_key = None
-
-        gemini_api_key = _get_provider_api_key_and_env("gemini")[0]
-        if not isinstance(gemini_api_key, str):
-            gemini_api_key = getattr(settings, "gemini_api_key", None)
-            if not isinstance(gemini_api_key, str):
-                gemini_api_key = None
-
-        minimax_base_url = getattr(settings, "minimax_base_url", None)
-        if not isinstance(minimax_base_url, str) or not minimax_base_url.strip():
-            minimax_base_url = "https://api.minimax.io/v1"
-
-        minimax_default_model = getattr(settings, "minimax_default_model", None)
-        if (
-            not isinstance(minimax_default_model, str)
-            or not minimax_default_model.strip()
-        ):
-            minimax_default_model = "MiniMax-M2.7"
-
-        zai_base_url = getattr(settings, "zai_base_url", None)
-        if not isinstance(zai_base_url, str) or not zai_base_url.strip():
-            zai_base_url = "https://api.z.ai/api/coding/paas/v4"
-
-        zai_default_model = getattr(settings, "zai_default_model", None)
-        if not isinstance(zai_default_model, str) or not zai_default_model.strip():
-            zai_default_model = "glm-4.7"
-
-        ollama_config = settings.llm_providers
-        ollama_base_url = getattr(ollama_config, "ollama_base_url", None)
-        if not isinstance(ollama_base_url, str) or not ollama_base_url.strip():
-            ollama_base_url = "http://localhost:11434"
-
-        ollama_default_model = getattr(ollama_config, "ollama_default_model", None)
-        if (
-            not isinstance(ollama_default_model, str)
-            or not ollama_default_model.strip()
-        ):
-            ollama_default_model = "Qwen3-8B-8.2B-Q4_K_M"
-
-        providers: dict[str, dict[str, Any]] = {
-            "minimax": {
-                "api_key": minimax_api_key,
-                "base_url": os.getenv("MINIMAX_BASE_URL", minimax_base_url),
-                "default_model": os.getenv(
-                    "MINIMAX_DEFAULT_MODEL", minimax_default_model
-                ),
+    def _build_chain(self) -> FallbackChain:
+        llama_url = os.environ.get("LLAMA_SERVER_URL", "http://localhost:8081")
+        settings = LLMSettings(
+            providers={
+                "minimax": {
+                    "name": "minimax",
+                    "base_url": os.environ.get("MINIMAX_BASE_URL", "https://api.minimax.io/v1"),
+                    "api_key_env": "MINIMAX_API_KEY",
+                    "api_key": "${MINIMAX_API_KEY}",
+                    "require_auth": True,
+                    "task_routing": {
+                        "chat": "MiniMax-M2.7",
+                        "code_generation": "MiniMax-M2.7",
+                        "analysis": "MiniMax-M2.7",
+                        "summarization": "MiniMax-M2.7",
+                    },
+                    "timeout_seconds": 60,
+                },
+                "llama_server": {
+                    "name": "llama_server",
+                    "base_url": llama_url,
+                    "require_auth": False,
+                    "task_routing": {
+                        "chat": "qwen3.5",
+                        "code_generation": "qwen3.5",
+                        "analysis": "qwen3.5",
+                        "summarization": "qwen3.5",
+                    },
+                    "timeout_seconds": 120,
+                },
+                "ollama": {
+                    "name": "ollama",
+                    "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+                    "require_auth": False,
+                    "task_routing": {
+                        "chat": "qwen2.5-coder:7b",
+                        "code_generation": "qwen2.5-coder:7b",
+                        "analysis": "qwen2.5-coder:7b",
+                        "summarization": "qwen2.5-coder:7b",
+                    },
+                    "timeout_seconds": 120,
+                },
             },
-            "zai": {
-                "api_key": zai_api_key,
-                "base_url": os.getenv("ZAI_BASE_URL", zai_base_url),
-                "default_model": os.getenv("ZAI_DEFAULT_MODEL", zai_default_model),
-            },
-            "openai": {
-                "api_key": openai_api_key,
-                "base_url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-                "default_model": os.getenv("OPENAI_DEFAULT_MODEL", "gpt-4o-mini"),
-            },
-            "gemini": {
-                "api_key": gemini_api_key,
-                "default_model": os.getenv("GEMINI_DEFAULT_MODEL", "gemini-1.5-flash"),
-            },
-            "ollama": {
-                "base_url": ollama_base_url,
-                "default_model": ollama_default_model,
-            },
-        }
-        return {
-            "default_provider": default_provider,
-            "fallback_providers": list(fallback_providers),
-            "providers": providers,
-        }
-
-    def _build_providers(self) -> dict[str, Any]:
-        provider_configs = self.config["providers"]
-        providers: dict[str, Any] = {}
-
-        providers["minimax"] = OpenAIProvider(provider_configs["minimax"])
-        providers["zai"] = OpenAIProvider(provider_configs["zai"])
-        providers["openai"] = OpenAIProvider(provider_configs["openai"])
-        providers["gemini"] = GeminiProvider(provider_configs["gemini"])
-        providers["ollama"] = OllamaProvider(provider_configs["ollama"])
-        return providers
-
-    def _candidate_order(
-        self,
-        provider: str | None = None,
-        use_fallback: bool = True,
-    ) -> list[str]:
-        ordered: list[str] = []
-        if provider:
-            ordered.append(provider)
-        else:
-            ordered.append(self.config["default_provider"])
-
-        if use_fallback:
-            for fallback in self.config["fallback_providers"]:
-                if fallback not in ordered:
-                    ordered.append(fallback)
-            for name in self.providers:
-                if name not in ordered:
-                    ordered.append(name)
-        return ordered
+            fallback_chain=["minimax", "llama_server", "ollama"],
+        )
+        return FallbackChain.from_settings(settings)
 
     def list_providers(self) -> list[str]:
-        return list(self.providers.keys())
+        return [p.name for p in self._chain._providers]
 
     def _is_valid_provider(self, provider: str) -> bool:
-        return provider in self.providers
+        return provider in self.list_providers()
 
     async def get_available_providers(self) -> list[str]:
         available: list[str] = []
-        for name, provider in self.providers.items():
+        for provider in self._chain._providers:
             try:
-                if await provider.is_available():
-                    available.append(name)
+                if await provider.health_check():
+                    available.append(provider.name)
             except Exception:
                 continue
         return available
@@ -664,42 +578,37 @@ class LLMManager:
     async def generate(
         self,
         messages: list[LLMMessage],
-        provider: str | None = None,
+        provider: str | None = None,  # ignored — FallbackChain controls order
         model: str | None = None,
         temperature: float = 0.7,
         max_tokens: int | None = None,
-        use_fallback: bool = True,
+        use_fallback: bool = True,  # ignored — FallbackChain always falls back
+        task_type: str = "chat",
         **kwargs: Any,
     ) -> LLMResponse:
-        last_error: Exception | None = None
-        for name in self._candidate_order(provider, use_fallback):
-            provider_obj = self.providers.get(name)
-            if provider_obj is None:
-                continue
+        task: dict[str, Any] = {
+            "task_type": task_type,
+            "messages": [{"role": m.role, "content": m.content} for m in messages],
+            "temperature": temperature,
+        }
+        if model:
+            task["model"] = model
+        if max_tokens is not None:
+            task["max_tokens"] = max_tokens
 
-            try:
-                if not await provider_obj.is_available():
-                    continue
-                call_kwargs: dict[str, Any] = {}
-                if temperature != 0.7:
-                    call_kwargs["temperature"] = temperature
-                if max_tokens is not None:
-                    call_kwargs["max_tokens"] = max_tokens
-                call_kwargs.update(kwargs)
-                return await provider_obj.generate(
-                    messages,
-                    model,
-                    **call_kwargs,
-                )
-            except Exception as exc:
-                last_error = exc
-                if provider is not None and not use_fallback:
-                    break
+        try:
+            result = await self._chain.execute(task)
+        except Exception as exc:
+            raise RuntimeError("No available LLM providers") from exc
 
-        if last_error is not None and not use_fallback and provider is not None:
-            raise RuntimeError("No available LLM providers") from last_error
-
-        raise RuntimeError("No available LLM providers")
+        return LLMResponse(
+            content=result.get("content", ""),
+            model=result.get("model", ""),
+            provider=result.get("provider", ""),
+            usage=result.get("usage", {}),
+            finish_reason="stop",
+            timestamp=datetime.now().isoformat(),
+        )
 
     async def generate_text(
         self,
@@ -709,16 +618,16 @@ class LLMManager:
         temperature: float = 0.7,
         max_tokens: int | None = None,
         use_fallback: bool = True,
+        task_type: str = "chat",
     ) -> dict[str, Any]:
         messages = [LLMMessage(role="user", content=prompt)]
         try:
             response = await self.generate(
                 messages,
-                provider=provider,
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                use_fallback=use_fallback,
+                task_type=task_type,
             )
             return {
                 "success": True,
@@ -731,7 +640,7 @@ class LLMManager:
             return {
                 "success": False,
                 "content": "",
-                "provider": provider or self.config["default_provider"],
+                "provider": "unknown",
                 "model": model or "",
                 "error": str(exc),
             }
@@ -746,17 +655,30 @@ class LLMManager:
         use_fallback: bool = True,
     ) -> dict[str, Any]:
         llm_messages = [
-            LLMMessage(role=message["role"], content=message["content"])
-            for message in messages
+            LLMMessage(role=m["role"], content=m["content"]) for m in messages
         ]
-        return await self.generate_text(
-            prompt=llm_messages[-1].content if llm_messages else "",
-            provider=provider,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            use_fallback=use_fallback,
-        )
+        try:
+            response = await self.generate(
+                llm_messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return {
+                "success": True,
+                "content": response.content,
+                "provider": response.provider,
+                "model": response.model,
+                "error": "",
+            }
+        except Exception as exc:
+            return {
+                "success": False,
+                "content": "",
+                "provider": "unknown",
+                "model": model or "",
+                "error": str(exc),
+            }
 
     async def stream_generate(
         self,
@@ -766,70 +688,59 @@ class LLMManager:
         temperature: float = 0.7,
         max_tokens: int | None = None,
         use_fallback: bool = True,
+        task_type: str = "chat",
         **kwargs: Any,
     ):
-        for name in self._candidate_order(provider, use_fallback):
-            provider_obj = self.providers.get(name)
-            if provider_obj is None:
-                continue
-            try:
-                if not await provider_obj.is_available():
-                    continue
-                async for chunk in provider_obj.stream_generate(
-                    messages,
-                    model,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    **kwargs,
-                ):
-                    yield chunk
-                return
-            except Exception:
-                continue
-        raise RuntimeError("No available LLM providers")
+        """Yield non-streaming result as a single chunk (FallbackChain has no streaming)."""
+        try:
+            response = await self.generate(
+                messages,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                task_type=task_type,
+            )
+            yield response.content
+        except RuntimeError:
+            raise
 
     async def test_all_providers(self) -> dict[str, dict[str, Any]]:
         results: dict[str, dict[str, Any]] = {}
-        probe_messages = [LLMMessage(role="user", content="ping")]
-        for name, provider in self.providers.items():
+        probe_task: dict[str, Any] = {
+            "messages": [{"role": "user", "content": "ping"}],
+            "task_type": "chat",
+            "max_tokens": 10,
+        }
+        for provider in self._chain._providers:
             start = time.perf_counter()
             try:
-                available = await provider.is_available()
-                if not available:
-                    raise RuntimeError("Provider unavailable")
-                response = await provider.generate(probe_messages)
-                results[name] = {
+                result = await provider.execute(probe_task)
+                results[provider.name] = {
                     "success": True,
                     "response_time_ms": (time.perf_counter() - start) * 1000,
-                    "model": getattr(
-                        response, "model", provider.config.get("default_model", "")
-                    ),
+                    "model": result.get("model", ""),
                     "error": "",
                 }
             except Exception as exc:
-                results[name] = {
+                results[provider.name] = {
                     "success": False,
                     "response_time_ms": (time.perf_counter() - start) * 1000,
-                    "model": provider.config.get("default_model", ""),
+                    "model": "",
                     "error": str(exc),
                 }
         return results
 
     def get_provider_info(self) -> dict[str, Any]:
         providers: dict[str, Any] = {}
-        for name, provider in self.providers.items():
-            config = {}
-            for key, value in dict(getattr(provider, "config", {})).items():
-                if "key" in key.lower() and value:
-                    config[key] = get_masked_api_key(name)
-                else:
-                    config[key] = value
-            providers[name] = {
-                "config": config,
-                "models": provider.get_models(),
+        for provider in self._chain._providers:
+            config = provider._config
+            providers[provider.name] = {
+                "base_url": config.base_url,
+                "require_auth": config.require_auth,
+                "task_routing": config.task_routing or {},
             }
         return {
-            "config": self.config,
+            "fallback_chain": self.list_providers(),
             "providers": providers,
         }
 
