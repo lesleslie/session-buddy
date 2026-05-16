@@ -260,6 +260,8 @@ class TestProviderInfo:
         for _name, pinfo in info["providers"].items():
             for field_name in pinfo:
                 assert "key" not in field_name.lower(), f"Exposed key field: {field_name}"
+            url = pinfo.get("base_url", "")
+            assert "@" not in url, f"URL may contain embedded credentials: {url}"
 
 
 # ============================================================================

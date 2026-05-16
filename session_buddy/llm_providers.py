@@ -559,15 +559,19 @@ class LLMManager:
         )
         return FallbackChain.from_settings(settings)
 
+    @property
+    def _provider_list(self):  # type: ignore[no-untyped-def]
+        return self._chain._providers
+
     def list_providers(self) -> list[str]:
-        return [p.name for p in self._chain._providers]
+        return [p.name for p in self._provider_list]
 
     def _is_valid_provider(self, provider: str) -> bool:
         return provider in self.list_providers()
 
     async def get_available_providers(self) -> list[str]:
         available: list[str] = []
-        for provider in self._chain._providers:
+        for provider in self._provider_list:
             try:
                 if await provider.health_check():
                     available.append(provider.name)
@@ -711,7 +715,7 @@ class LLMManager:
             "task_type": "chat",
             "max_tokens": 10,
         }
-        for provider in self._chain._providers:
+        for provider in self._provider_list:
             start = time.perf_counter()
             try:
                 result = await provider.execute(probe_task)
@@ -732,7 +736,7 @@ class LLMManager:
 
     def get_provider_info(self) -> dict[str, Any]:
         providers: dict[str, Any] = {}
-        for provider in self._chain._providers:
+        for provider in self._provider_list:
             config = provider._config
             providers[provider.name] = {
                 "base_url": config.base_url,
