@@ -152,7 +152,8 @@ tests/archived/
 .cache/
 
 # XDG - State directories
-.claude/
+.claude/*
+!.claude/settings.json
 .session-buddy/
 .skylos/
 .crackerjack/

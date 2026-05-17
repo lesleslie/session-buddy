@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.claude/handoff/**)",
+      "Read(./.claude/backups/**)"
+    ]
+  }
+}

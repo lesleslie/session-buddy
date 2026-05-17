@@ -13,14 +13,24 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
-import duckdb
-import numpy as np
 import pytest
 from fastmcp import FastMCP
 # Migration Phase 2.7: Use ReflectionDatabaseAdapter (ACB-based)
 from session_buddy.adapters.reflection_adapter import (
     ReflectionDatabaseAdapter as ReflectionDatabase,
 )
+
+try:
+    import duckdb
+except Exception:  # pragma: no cover - import fallback for broken wheels
+    class _DuckDBUnavailable:
+        class DuckDBPyConnection:  # type: ignore[empty-body]
+            pass
+
+        def connect(self, *args: Any, **kwargs: Any) -> Any:
+            raise RuntimeError("duckdb is unavailable in the test environment")
+
+    duckdb = _DuckDBUnavailable()
 
 # Configure DI container BEFORE any other imports
 # This ensures SessionLogger and other dependencies are available
@@ -680,6 +690,8 @@ async def shared_reflection_db() -> AsyncGenerator[ReflectionDatabase]:
 @pytest.fixture
 def mock_onnx_session() -> Mock:
     """Provide mock ONNX session for embedding tests."""
+    import numpy as np
+
     mock_session = Mock()
     # Mock returns a 384-dimensional vector
     rng = np.random.default_rng(42)
@@ -760,8 +772,10 @@ async def async_client() -> AsyncGenerator[Mock]:
 
 
 @pytest.fixture
-def sample_embedding() -> np.ndarray:
+def sample_embedding() -> Any:
     """Provide sample embedding vector for testing."""
+    import numpy as np
+
     # Create a consistent sample embedding
     rng = np.random.default_rng(42)
     return rng.random((384,)).astype(np.float32)
@@ -777,7 +791,10 @@ def mock_embeddings_disabled():
 @pytest.fixture
 async def duckdb_connection() -> AsyncGenerator[duckdb.DuckDBPyConnection]:
     """Provide in-memory DuckDB connection for testing."""
-    conn = duckdb.connect(":memory:")
+    try:
+        conn = duckdb.connect(":memory:")
+    except Exception as exc:  # pragma: no cover - environment-specific fallback
+        pytest.skip(f"duckdb is unavailable: {exc}")
 
     try:
         yield conn

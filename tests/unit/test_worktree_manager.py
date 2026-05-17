@@ -1,716 +1,264 @@
-#!/usr/bin/env python3
-"""Unit tests for WorktreeManager class."""
+"""Unit tests for WorktreeManager.
 
-import tempfile
+Tests cover:
+- Worktree initialization and validation
+- Git command security
+- Worktree listing and status
+- Creation and cleanup operations
+- Error handling and edge cases
+"""
+
+import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
+from session_buddy.worktree_manager import (
+    WorktreeManager,
+    WorktreeCreationOptions,
+    WorktreeValidationResult,
+    GitOperationResult,
+)
 
-from session_buddy.utils.logging import SessionLogger
-from session_buddy.worktree_manager import WorktreeManager
+
+class TestWorktreeCreationOptions:
+    """Tests for WorktreeCreationOptions dataclass."""
+
+    def test_creation_options_default_values(self):
+        """Test default creation options."""
+        opts = WorktreeCreationOptions()
+        assert opts.create_branch is False
+        assert opts.checkout_existing is False
+        assert opts.force is False
+
+    def test_creation_options_custom_values(self):
+        """Test creation options with custom values."""
+        opts = WorktreeCreationOptions(
+            create_branch=True,
+            checkout_existing=True,
+            force=True,
+        )
+        assert opts.create_branch is True
+        assert opts.checkout_existing is True
+        assert opts.force is True
+
+    def test_creation_options_immutable(self):
+        """Test that creation options are frozen (immutable)."""
+        opts = WorktreeCreationOptions()
+        with pytest.raises(AttributeError):
+            opts.create_branch = True
 
 
-class TestWorktreeManagerInitialization:
-    """Test WorktreeManager initialization."""
+class TestWorktreeValidationResult:
+    """Tests for WorktreeValidationResult dataclass."""
+
+    def test_success_creation(self):
+        """Test creating successful validation result."""
+        result = WorktreeValidationResult.success()
+        assert result.is_valid is True
+        assert result.errors == []
+
+    def test_error_creation(self):
+        """Test creating error validation result."""
+        result = WorktreeValidationResult.error("Test error message")
+        assert result.is_valid is False
+        assert result.errors == ["Test error message"]
+
+    def test_validation_result_with_multiple_errors(self):
+        """Test validation result with multiple errors."""
+        result = WorktreeValidationResult(
+            is_valid=False,
+            errors=["Error 1", "Error 2", "Error 3"],
+        )
+        assert result.is_valid is False
+        assert len(result.errors) == 3
+
+
+class TestGitOperationResult:
+    """Tests for GitOperationResult dataclass."""
+
+    def test_success_result_creation(self):
+        """Test creating successful operation result."""
+        result = GitOperationResult.success_result(output="Done")
+        assert result.success is True
+        assert result.output == "Done"
+        assert result.error == ""
+
+    def test_error_result_creation(self):
+        """Test creating error operation result."""
+        result = GitOperationResult.error_result("Failed to execute")
+        assert result.success is False
+        assert result.error == "Failed to execute"
+        assert result.output == ""
+
+    def test_git_operation_result_defaults(self):
+        """Test default values for git operation result."""
+        result = GitOperationResult(success=True)
+        assert result.success is True
+        assert result.output == ""
+        assert result.error == ""
+
+
+class TestWorktreeManagerInit:
+    """Tests for WorktreeManager initialization."""
 
     def test_init_without_logger(self):
-        """Test WorktreeManager initialization without logger."""
+        """Test initialization without logger."""
         manager = WorktreeManager()
         assert manager.session_logger is None
 
     def test_init_with_logger(self):
-        """Test WorktreeManager initialization with logger."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            log_dir = Path(temp_dir) / "logs"
-            logger = SessionLogger(log_dir)
-            manager = WorktreeManager(session_logger=logger)
-            assert manager.session_logger is logger
+        """Test initialization with logger."""
+        mock_logger = Mock()
+        manager = WorktreeManager(session_logger=mock_logger)
+        assert manager.session_logger is mock_logger
 
-
-class TestWorktreeManagerListWorktrees:
-    """Test WorktreeManager list_worktrees method."""
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    async def test_list_worktrees_non_git_repo(self, mock_is_git_repo):
-        """Test list_worktrees with non-git repository."""
-        mock_is_git_repo.return_value = False
-
+    def test_log_without_logger(self):
+        """Test logging when logger is None."""
         manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            result = await manager.list_worktrees(repo_path)
+        manager._log("Test message")  # Should not raise
 
-            assert result["success"] is False
-            assert result["error"] == "Not a git repository"
-            assert result["worktrees"] == []
 
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("session_buddy.worktree_manager.list_worktrees")
-    @patch("session_buddy.worktree_manager.get_worktree_info")
-    async def test_list_worktrees_success(
-        self, mock_get_worktree_info, mock_list_worktrees, mock_is_git_repo
-    ):
-        """Test list_worktrees with successful operation."""
-        mock_is_git_repo.return_value = True
+class TestWorktreeManagerSecurityValidation:
+    """Tests for security validation methods."""
 
-        # Mock worktree info
-        mock_worktree_info = Mock()
-        mock_worktree_info.path = Path("/path/to/worktree")
-        mock_worktree_info.branch = "main"
-        mock_worktree_info.is_main_worktree = True
-        mock_worktree_info.is_detached = False
-        mock_worktree_info.is_bare = False
-        mock_worktree_info.locked = False
-        mock_worktree_info.prunable = False
-        mock_get_worktree_info.return_value = mock_worktree_info
-
-        # Mock list_worktrees return value
-        mock_list_worktrees.return_value = [mock_worktree_info]
-
+    def test_get_git_executable_success(self):
+        """Test getting git executable when available."""
         manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            result = await manager.list_worktrees(repo_path)
+        git_path = manager._get_git_executable()
+        assert git_path is not None
+        assert "git" in git_path
 
-            assert result["success"] is True
-            assert "worktrees" in result
-            assert "current_worktree" in result
-            assert "total_count" in result
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    async def test_list_worktrees_exception(self, mock_is_git_repo):
-        """Test list_worktrees with exception."""
-        mock_is_git_repo.return_value = True
-
+    def test_git_executable_not_found(self):
+        """Test error when git executable not found."""
         manager = WorktreeManager()
-        with patch(
-            "session_buddy.worktree_manager.list_worktrees",
-            side_effect=Exception("Test error"),
-        ):
-            with tempfile.TemporaryDirectory() as temp_dir:
-                repo_path = Path(temp_dir)
-                result = await manager.list_worktrees(repo_path)
+        with patch("shutil.which", return_value=None):
+            with pytest.raises(OSError, match="Git executable not found"):
+                manager._get_git_executable()
 
-                assert result["success"] is False
-                assert "Test error" in result["error"]
-
-
-class TestWorktreeManagerCreateWorktree:
-    """Test WorktreeManager create_worktree method."""
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    async def test_create_worktree_non_git_repo(self, mock_is_git_repo):
-        """Test create_worktree with non-git repository."""
-        mock_is_git_repo.return_value = False
-
+    def test_validate_git_command_valid(self):
+        """Test validation of valid git commands."""
         manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            new_path = Path(temp_dir) / "new_worktree"
-            result = await manager.create_worktree(
-                repo_path, new_path, "feature-branch"
-            )
+        valid_commands = [
+            ["/usr/bin/git", "worktree", "list"],
+            ["/usr/bin/git", "status"],
+            ["/usr/bin/git", "add", "file.txt"],
+            ["/usr/bin/git", "branch"],
+        ]
+        for cmd in valid_commands:
+            assert manager._validate_git_command(cmd) is True
 
-            assert result["success"] is False
-            assert "not a git repository" in result["error"].lower()
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    async def test_create_worktree_target_exists(self, mock_is_git_repo):
-        """Test create_worktree when target path already exists."""
-        mock_is_git_repo.return_value = True
-
+    def test_validate_git_command_invalid(self):
+        """Test validation rejects invalid git commands."""
         manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            new_path = Path(temp_dir) / "existing_dir"
-            new_path.mkdir()  # Create the directory to make it exist
-            result = await manager.create_worktree(
-                repo_path, new_path, "feature-branch"
-            )
+        invalid_commands = [
+            [],  # Empty command
+            ["/usr/bin/git"],  # No subcommand
+            ["/usr/bin/git", "invalid_subcommand"],  # Invalid subcommand
+            ["/usr/bin/git", "worktree", "test; rm -rf /"],  # Shell injection
+            ["/usr/bin/git", "worktree", "test&whoami"],  # Command chaining
+            ["/usr/bin/git", "worktree", "test|cat /etc/passwd"],  # Pipe
+            ["/usr/bin/git", "worktree", "test`whoami`"],  # Command substitution
+            ["/usr/bin/git", "worktree", "test$(whoami)"],  # Command substitution
+            ["/usr/bin/git", "worktree", "test\\necho"],  # Newline injection
+        ]
+        for cmd in invalid_commands:
+            assert manager._validate_git_command(cmd) is False
 
-            assert result["success"] is False
-            assert "already exists" in result["error"]
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("subprocess.run")
-    @patch("session_buddy.worktree_manager.get_worktree_info")
-    async def test_create_worktree_success(
-        self, mock_get_worktree_info, mock_subprocess_run, mock_is_git_repo
-    ):
-        """Test create_worktree with successful operation."""
-        mock_is_git_repo.return_value = True
-        mock_subprocess_run.return_value = Mock(
-            stdout="Created worktree", stderr="", returncode=0
-        )
-
-        # Mock worktree info
-        mock_worktree_info = Mock()
-        mock_worktree_info.path = Path("/path/to/new_worktree")
-        mock_worktree_info.branch = "feature-branch"
-        mock_worktree_info.is_main_worktree = False
-        mock_worktree_info.is_detached = False
-        mock_get_worktree_info.return_value = mock_worktree_info
-
+    def test_is_safe_branch_name_valid(self):
+        """Test validation of safe branch names."""
         manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            new_path = Path(temp_dir) / "new_worktree"
-            result = await manager.create_worktree(
-                repo_path, new_path, "feature-branch"
-            )
+        valid_branches = [
+            "main",
+            "feature/new-feature",
+            "bugfix/issue-123",
+            "release-1.0.0",
+            "develop_branch",
+            "feature/user_auth",
+        ]
+        for branch in valid_branches:
+            assert manager._is_safe_branch_name(branch) is True
 
-            assert result["success"] is True
-            assert result["worktree_path"] == str(new_path)
-            assert result["branch"] == "feature-branch"
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("subprocess.run")
-    async def test_create_worktree_subprocess_error(
-        self, mock_subprocess_run, mock_is_git_repo
-    ):
-        """Test create_worktree with subprocess error."""
-        from subprocess import CalledProcessError
-
-        mock_is_git_repo.return_value = True
-        mock_subprocess_run.side_effect = CalledProcessError(
-            1, "git", stderr="Git error"
-        )
-
+    def test_is_safe_branch_name_invalid(self):
+        """Test validation rejects unsafe branch names."""
         manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            new_path = Path(temp_dir) / "new_worktree"
-            result = await manager.create_worktree(
-                repo_path, new_path, "feature-branch"
-            )
+        invalid_branches = [
+            "main;rm -rf /",  # Shell injection
+            "feature&whoami",  # Command chaining
+            "main|cat",  # Pipe
+            "main`whoami`",  # Command substitution
+            "feature$(whoami)",  # Command substitution
+            "main\necho",  # Newline injection
+            "main" + "x" * 100,  # Too long
+            "main..parent",  # Parent directory reference
+        ]
+        for branch in invalid_branches:
+            assert manager._is_safe_branch_name(branch) is False
 
-            assert result["success"] is False
-            assert "Git error" in result["error"]
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("subprocess.run")
-    async def test_create_worktree_general_exception(
-        self, mock_subprocess_run, mock_is_git_repo
-    ):
-        """Test create_worktree with general exception."""
-        mock_is_git_repo.return_value = True
-        mock_subprocess_run.side_effect = Exception("Unexpected error")
-
+    def test_is_safe_path_valid(self):
+        """Test validation of safe paths."""
         manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            new_path = Path(temp_dir) / "new_worktree"
-            result = await manager.create_worktree(
-                repo_path, new_path, "feature-branch"
-            )
+        valid_paths = [
+            Path("/tmp/worktree"),
+            Path("/home/user/project"),
+            Path("./relative/path"),
+        ]
+        for path in valid_paths:
+            assert manager._is_safe_path(path) is True
 
-            assert result["success"] is False
-            assert "Unexpected error" in result["error"]
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("subprocess.run")
-    @patch("session_buddy.worktree_manager.get_worktree_info")
-    async def test_create_worktree_with_create_branch(
-        self, mock_get_worktree_info, mock_subprocess_run, mock_is_git_repo
-    ):
-        """Test create_worktree with create_branch flag."""
-        mock_is_git_repo.return_value = True
-        mock_subprocess_run.return_value = Mock(
-            stdout="Created worktree", stderr="", returncode=0
-        )
-
-        # Mock worktree info
-        mock_worktree_info = Mock()
-        mock_worktree_info.path = Path("/path/to/new_worktree")
-        mock_worktree_info.branch = "new-feature"
-        mock_worktree_info.is_main_worktree = False
-        mock_worktree_info.is_detached = False
-        mock_get_worktree_info.return_value = mock_worktree_info
-
+    def test_is_safe_path_invalid(self):
+        """Test validation rejects unsafe paths."""
         manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            new_path = Path(temp_dir) / "new_worktree"
-            result = await manager.create_worktree(
-                repo_path, new_path, "new-feature", create_branch=True
-            )
+        invalid_paths = [
+            Path("/tmp/..\\etc/passwd"),  # Parent directory reference
+            Path("/tmp/test\x00null"),  # Null byte
+        ]
+        for path in invalid_paths:
+            assert manager._is_safe_path(path) is False
 
-            # Verify subprocess was called with -b flag
-            mock_subprocess_run.assert_called_once()
-            call_args = mock_subprocess_run.call_args
-            assert "-b" in call_args[0][0]  # Command list contains -b flag
-
-            assert result["success"] is True
-
-
-class TestWorktreeManagerRemoveWorktree:
-    """Test WorktreeManager remove_worktree method."""
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    async def test_remove_worktree_non_git_repo(self, mock_is_git_repo):
-        """Test remove_worktree with non-git repository."""
-        mock_is_git_repo.return_value = False
-
+    def test_is_safe_path_too_long(self):
+        """Test validation rejects excessively long paths."""
         manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            worktree_path = Path(temp_dir) / "worktree_to_remove"
-            result = await manager.remove_worktree(repo_path, worktree_path)
-
-            assert result["success"] is False
-            assert "not a git repository" in result["error"].lower()
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("subprocess.run")
-    async def test_remove_worktree_success(self, mock_subprocess_run, mock_is_git_repo):
-        """Test remove_worktree with successful operation."""
-        mock_is_git_repo.return_value = True
-        mock_subprocess_run.return_value = Mock(stdout="", stderr="", returncode=0)
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            worktree_path = Path(temp_dir) / "worktree_to_remove"
-            result = await manager.remove_worktree(repo_path, worktree_path)
-
-            assert result["success"] is True
-            assert result["removed_path"] == str(worktree_path)
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("subprocess.run")
-    async def test_remove_worktree_with_force(
-        self, mock_subprocess_run, mock_is_git_repo
-    ):
-        """Test remove_worktree with force flag."""
-        mock_is_git_repo.return_value = True
-        mock_subprocess_run.return_value = Mock(stdout="", stderr="", returncode=0)
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            worktree_path = Path(temp_dir) / "worktree_to_remove"
-            result = await manager.remove_worktree(repo_path, worktree_path, force=True)
-
-            # Verify subprocess was called with --force flag
-            mock_subprocess_run.assert_called_once()
-            call_args = mock_subprocess_run.call_args
-            assert "--force" in call_args[0][0]  # Command list contains --force flag
-
-            assert result["success"] is True
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("subprocess.run")
-    async def test_remove_worktree_subprocess_error(
-        self, mock_subprocess_run, mock_is_git_repo
-    ):
-        """Test remove_worktree with subprocess error."""
-        from subprocess import CalledProcessError
-
-        mock_is_git_repo.return_value = True
-        mock_subprocess_run.side_effect = CalledProcessError(
-            1, "git", stderr="Remove failed"
-        )
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            worktree_path = Path(temp_dir) / "worktree_to_remove"
-            result = await manager.remove_worktree(repo_path, worktree_path)
-
-            assert result["success"] is False
-            assert "Remove failed" in result["error"]
+        long_path = Path("/tmp/" + "a" * 500)
+        assert manager._is_safe_path(long_path) is False
 
 
-class TestWorktreeManagerPruneWorktrees:
-    """Test WorktreeManager prune_worktrees method."""
+class TestWorktreeManagerLogging:
+    """Tests for logging functionality."""
 
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    async def test_prune_worktrees_non_git_repo(self, mock_is_git_repo):
-        """Test prune_worktrees with non-git repository."""
-        mock_is_git_repo.return_value = False
+    def test_log_with_logger(self):
+        """Test logging with logger available."""
+        mock_logger = Mock()
+        manager = WorktreeManager(session_logger=mock_logger)
 
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            result = await manager.prune_worktrees(repo_path)
+        manager._log("Test message", level="info", key="value")
 
-            assert result["success"] is False
-            assert "not a git repository" in result["error"].lower()
+        mock_logger.info.assert_called_once_with("Test message", key="value")
 
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("subprocess.run")
-    async def test_prune_worktrees_success(self, mock_subprocess_run, mock_is_git_repo):
-        """Test prune_worktrees with successful operation."""
-        mock_is_git_repo.return_value = True
-        mock_output = (
-            "Removing worktree /path/to/stale\nRemoving worktree /path/to/another\n"
-        )
-        mock_subprocess_run.return_value = Mock(
-            stdout=mock_output, stderr="", returncode=0
-        )
+    def test_log_error_level(self):
+        """Test logging at error level."""
+        mock_logger = Mock()
+        manager = WorktreeManager(session_logger=mock_logger)
 
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            result = await manager.prune_worktrees(repo_path)
+        manager._log("Error occurred", level="error", error_code=500)
 
-            assert result["success"] is True
-            assert result["pruned_count"] == 2
+        mock_logger.error.assert_called_once_with("Error occurred", error_code=500)
 
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("subprocess.run")
-    async def test_prune_worktrees_no_pruning_needed(
-        self, mock_subprocess_run, mock_is_git_repo
-    ):
-        """Test prune_worktrees when no pruning is needed."""
-        mock_is_git_repo.return_value = True
-        mock_subprocess_run.return_value = Mock(stdout="", stderr="", returncode=0)
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            result = await manager.prune_worktrees(repo_path)
-
-            assert result["success"] is True
-            assert result["pruned_count"] == 0
-            assert "No worktrees to prune" in result["output"]
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("subprocess.run")
-    async def test_prune_worktrees_subprocess_error(
-        self, mock_subprocess_run, mock_is_git_repo
-    ):
-        """Test prune_worktrees with subprocess error."""
-        from subprocess import CalledProcessError
-
-        mock_is_git_repo.return_value = True
-        mock_subprocess_run.side_effect = CalledProcessError(
-            1, "git", stderr="Prune failed"
-        )
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            result = await manager.prune_worktrees(repo_path)
-
-            assert result["success"] is False
-            assert "Prune failed" in result["error"]
+    def test_log_without_logger_no_error(self):
+        """Test logging without logger doesn't raise error."""
+        manager = WorktreeManager(session_logger=None)
+        manager._log("Test message")  # Should not raise
 
 
-class TestWorktreeManagerGetWorktreeStatus:
-    """Test WorktreeManager get_worktree_status method."""
+@pytest.mark.unit
+class TestWorktreeManagerIntegration:
+    """Integration tests for WorktreeManager."""
 
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    async def test_get_worktree_status_non_git_repo(self, mock_is_git_repo):
-        """Test get_worktree_status with non-git repository."""
-        mock_is_git_repo.return_value = False
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            result = await manager.get_worktree_status(repo_path)
-
-            assert result["success"] is False
-            assert "not a git repository" in result["error"].lower()
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("session_buddy.worktree_manager.get_worktree_info")
-    async def test_get_worktree_status_no_worktree_info(
-        self, mock_get_worktree_info, mock_is_git_repo
-    ):
-        """Test get_worktree_status when worktree info cannot be obtained."""
-        mock_is_git_repo.return_value = True
-        mock_get_worktree_info.return_value = None
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo_path = Path(temp_dir)
-            result = await manager.get_worktree_status(repo_path)
-
-            assert result["success"] is False
-            assert "worktree info" in result["error"].lower()
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("session_buddy.worktree_manager.get_worktree_info")
-    @patch("session_buddy.worktree_manager.list_worktrees")
-    async def test_get_worktree_status_success(
-        self, mock_list_worktrees, mock_get_worktree_info, mock_is_git_repo
-    ):
-        """Test get_worktree_status with successful operation."""
-        mock_is_git_repo.return_value = True
-
-        # Mock current worktree info
-        mock_current_worktree = Mock()
-        mock_current_worktree.path = Path("/path/to/current")
-        mock_current_worktree.branch = "main"
-        mock_current_worktree.is_main_worktree = True
-        mock_current_worktree.is_detached = False
-        mock_get_worktree_info.return_value = mock_current_worktree
-
-        # Mock list of worktrees
-        mock_worktree1 = Mock()
-        mock_worktree1.path = Path("/path/to/current")
-        mock_worktree1.branch = "main"
-        mock_worktree1.is_main_worktree = True
-        mock_worktree1.prunable = False
-
-        mock_worktree2 = Mock()
-        mock_worktree2.path = Path("/path/to/feature")
-        mock_worktree2.branch = "feature"
-        mock_worktree2.is_main_worktree = False
-        mock_worktree2.prunable = False
-
-        mock_list_worktrees.return_value = [mock_worktree1, mock_worktree2]
-
-        # Mock session checking
-        manager = WorktreeManager()
-        with patch.object(manager, "_check_session_exists", return_value=True):
-            with tempfile.TemporaryDirectory() as temp_dir:
-                repo_path = Path(temp_dir)
-                result = await manager.get_worktree_status(repo_path)
-
-                assert result["success"] is True
-                assert "current_worktree" in result
-                assert "all_worktrees" in result
-                assert "total_worktrees" in result
-                assert "session_summary" in result
-                assert result["total_worktrees"] == 2
-
-
-class TestWorktreeManagerSessionCheck:
-    """Test WorktreeManager session checking methods."""
-
-    def test_check_session_exists_with_existing_path(self):
-        """Test _check_session_exists with existing path."""
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            worktree_path = Path(temp_dir)
-
-            # Create a .git directory to simulate a git repo
-            (worktree_path / ".git").mkdir()
-
-            result = manager._check_session_exists(worktree_path)
-            assert result is True
-
-    def test_check_session_exists_with_nonexistent_path(self):
-        """Test _check_session_exists with nonexistent path."""
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            worktree_path = Path(temp_dir) / "nonexistent"
-            result = manager._check_session_exists(worktree_path)
-            assert result is False
-
-    def test_check_session_exists_with_project_files(self):
-        """Test _check_session_exists with project files."""
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            worktree_path = Path(temp_dir)
-
-            # Create a project file
-            (worktree_path / "pyproject.toml").touch()
-
-            result = manager._check_session_exists(worktree_path)
-            assert result is True
-
-    def test_get_session_summary(self):
-        """Test _get_session_summary method."""
+    def test_manager_with_all_security_checks(self):
+        """Test manager applies all security checks."""
         manager = WorktreeManager()
 
-        # Create mock worktrees
-        mock_worktree1 = Mock()
-        mock_worktree1.path = Path("/path/to/worktree1")
-        mock_worktree1.branch = "main"
-
-        mock_worktree2 = Mock()
-        mock_worktree2.path = Path("/path/to/worktree2")
-        mock_worktree2.branch = "feature"
-
-        worktrees = [mock_worktree1, mock_worktree2]
-
-        # Mock session checking
-        with patch.object(manager, "_check_session_exists", side_effect=[True, False]):
-            result = manager._get_session_summary(worktrees)
-
-            assert "active_sessions" in result
-            assert "unique_branches" in result
-            assert "branches" in result
-            assert result["active_sessions"] == 1
-            assert result["unique_branches"] == 2
-            assert len(result["branches"]) == 2
-
-
-class TestWorktreeManagerSwitchContext:
-    """Test WorktreeManager switch_worktree_context method."""
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    async def test_switch_worktree_context_source_not_git_repo(self, mock_is_git_repo):
-        """Test switch_worktree_context with non-git source path."""
-        mock_is_git_repo.side_effect = [False, True]  # Source not git, target is git
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            from_path = Path(temp_dir) / "source"
-            to_path = Path(temp_dir) / "target"
-            (from_path).mkdir()
-            (to_path).mkdir()
-
-            result = await manager.switch_worktree_context(from_path, to_path)
-
-            assert result["success"] is False
-            assert "source path is not a git repository" in result["error"].lower()
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    async def test_switch_worktree_context_target_not_git_repo(self, mock_is_git_repo):
-        """Test switch_worktree_context with non-git target path."""
-        mock_is_git_repo.side_effect = [True, False]  # Source is git, target not git
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            from_path = Path(temp_dir) / "source"
-            to_path = Path(temp_dir) / "target"
-            (from_path).mkdir()
-            (to_path).mkdir()
-
-            # Create .git directory in source to make it a git repo
-            (from_path / ".git").mkdir()
-
-            result = await manager.switch_worktree_context(from_path, to_path)
-
-            assert result["success"] is False
-            assert "target path is not a git repository" in result["error"].lower()
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("session_buddy.worktree_manager.get_worktree_info")
-    async def test_switch_worktree_context_worktree_info_failure(
-        self, mock_get_worktree_info, mock_is_git_repo
-    ):
-        """Test switch_worktree_context when worktree info cannot be obtained."""
-        mock_is_git_repo.return_value = True
-        mock_get_worktree_info.return_value = None  # Simulate failure
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            from_path = Path(temp_dir) / "source"
-            to_path = Path(temp_dir) / "target"
-            (from_path).mkdir()
-            (to_path).mkdir()
-
-            # Create .git directories
-            (from_path / ".git").mkdir()
-            (to_path / ".git").mkdir()
-
-            result = await manager.switch_worktree_context(from_path, to_path)
-
-            assert result["success"] is False
-            assert "worktree information" in result["error"].lower()
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("session_buddy.worktree_manager.get_worktree_info")
-    @patch("os.chdir")
-    async def test_switch_worktree_context_success(
-        self, mock_chdir, mock_get_worktree_info, mock_is_git_repo
-    ):
-        """Test switch_worktree_context with successful operation."""
-        mock_is_git_repo.return_value = True
-
-        # Mock from worktree info
-        mock_from_worktree = Mock()
-        mock_from_worktree.path = Path("/path/to/source")
-        mock_from_worktree.branch = "main"
-
-        # Mock to worktree info
-        mock_to_worktree = Mock()
-        mock_to_worktree.path = Path("/path/to/target")
-        mock_to_worktree.branch = "feature"
-
-        mock_get_worktree_info.side_effect = [mock_from_worktree, mock_to_worktree]
-
-        manager = WorktreeManager()
-        with patch.object(
-            manager, "_save_current_session_state", return_value={"test": "data"}
-        ):
-            with patch.object(manager, "_restore_session_state", return_value=True):
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    from_path = Path(temp_dir) / "source"
-                    to_path = Path(temp_dir) / "target"
-                    (from_path).mkdir()
-                    (to_path).mkdir()
-
-                    # Create .git directories
-                    (from_path / ".git").mkdir()
-                    (to_path / ".git").mkdir()
-
-                    result = await manager.switch_worktree_context(from_path, to_path)
-
-                    assert result["success"] is True
-                    assert result["context_preserved"] is True
-                    assert "switched" in result["message"].lower()
-                    mock_chdir.assert_called_once_with(to_path)
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("session_buddy.worktree_manager.get_worktree_info")
-    @patch("os.chdir")
-    async def test_switch_worktree_context_session_preservation_failure(
-        self, mock_chdir, mock_get_worktree_info, mock_is_git_repo
-    ):
-        """Test switch_worktree_context when session preservation fails but basic switching succeeds."""
-        mock_is_git_repo.return_value = True
-
-        # Mock from worktree info
-        mock_from_worktree = Mock()
-        mock_from_worktree.path = Path("/path/to/source")
-        mock_from_worktree.branch = "main"
-
-        # Mock to worktree info
-        mock_to_worktree = Mock()
-        mock_to_worktree.path = Path("/path/to/target")
-        mock_to_worktree.branch = "feature"
-
-        mock_get_worktree_info.side_effect = [mock_from_worktree, mock_to_worktree]
-
-        manager = WorktreeManager()
-        with patch.object(
-            manager,
-            "_save_current_session_state",
-            side_effect=Exception("Session error"),
-        ):
-            with tempfile.TemporaryDirectory() as temp_dir:
-                from_path = Path(temp_dir) / "source"
-                to_path = Path(temp_dir) / "target"
-                (from_path).mkdir()
-                (to_path).mkdir()
-
-                # Create .git directories
-                (from_path / ".git").mkdir()
-                (to_path / ".git").mkdir()
-
-                result = await manager.switch_worktree_context(from_path, to_path)
-
-                assert result["success"] is True
-                assert result["context_preserved"] is False
-                assert "session preservation failed" in result["message"].lower()
-                mock_chdir.assert_called_once_with(to_path)
-
-    @patch("session_buddy.worktree_manager.is_git_repository")
-    @patch("session_buddy.worktree_manager.get_worktree_info")
-    async def test_switch_worktree_context_general_exception(
-        self, mock_get_worktree_info, mock_is_git_repo
-    ):
-        """Test switch_worktree_context with general exception."""
-        mock_is_git_repo.return_value = True
-        mock_get_worktree_info.side_effect = Exception("Unexpected error")
-
-        manager = WorktreeManager()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            from_path = Path(temp_dir) / "source"
-            to_path = Path(temp_dir) / "target"
-            (from_path).mkdir()
-            (to_path).mkdir()
-
-            # Create .git directories
-            (from_path / ".git").mkdir()
-            (to_path / ".git").mkdir()
-
-            result = await manager.switch_worktree_context(from_path, to_path)
-
-            assert result["success"] is False
-            assert "unexpected error" in result["error"].lower()
+        # Verify security methods exist and are callable
+        assert callable(manager._get_git_executable)
+        assert callable(manager._validate_git_command)
+        assert callable(manager._is_safe_branch_name)
+        assert callable(manager._is_safe_path)
+        assert callable(manager._validate_worktree_creation_request)

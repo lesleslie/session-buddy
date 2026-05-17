@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-05-17
+
+### Added
+
+- llm: Add llama_server tier; update default fallback chain to minimax→llama_server→ollama
+
+### Changed
+
+- Consolidate LLMManager to delegate directly to mcp_common FallbackChain
+
+### Fixed
+
+- Address multi-agent review findings in LLMManager consolidation
+
 ## [0.18.0] - 2026-05-15
 
 ### Added

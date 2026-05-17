@@ -518,7 +518,9 @@ class LLMManager:
             providers={
                 "minimax": {
                     "name": "minimax",
-                    "base_url": os.environ.get("MINIMAX_BASE_URL", "https://api.minimax.io/v1"),
+                    "base_url": os.environ.get(
+                        "MINIMAX_BASE_URL", "https://api.minimax.io/v1"
+                    ),
                     "api_key_env": "MINIMAX_API_KEY",
                     "api_key": "${MINIMAX_API_KEY}",
                     "require_auth": True,
@@ -544,7 +546,9 @@ class LLMManager:
                 },
                 "ollama": {
                     "name": "ollama",
-                    "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+                    "base_url": os.environ.get(
+                        "OLLAMA_BASE_URL", "http://localhost:11434/v1"
+                    ),
                     "require_auth": False,
                     "task_routing": {
                         "chat": "qwen2.5-coder:7b",

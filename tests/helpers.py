@@ -12,10 +12,20 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
-import duckdb
-import numpy as np
 import pytest
 from session_buddy.reflection_tools import ReflectionDatabase
+
+try:
+    import duckdb
+except Exception:  # pragma: no cover - import fallback for broken wheels
+    class _DuckDBUnavailable:
+        class DuckDBPyConnection:  # type: ignore[empty-body]
+            pass
+
+        def connect(self, *args: Any, **kwargs: Any) -> Any:
+            raise RuntimeError("duckdb is unavailable in the test environment")
+
+    duckdb = _DuckDBUnavailable()
 
 
 class TestDataFactory:
@@ -634,6 +644,8 @@ class MockingHelper:
     @staticmethod
     def mock_embedding_system():
         """Create comprehensive mock for embedding system."""
+        import numpy as np
+
         mocks = {}
 
         # Mock ONNX session
@@ -653,8 +665,10 @@ class MockingHelper:
         return mocks
 
     @staticmethod
-    def mock_onnx_session_with_specific_return(return_value: np.ndarray | None = None):
+    def mock_onnx_session_with_specific_return(return_value: Any | None = None):
         """Create ONNX session mock with specific return value."""
+        import numpy as np
+
         mock_onnx = Mock()
         if return_value is None:
             rng = np.random.default_rng(42)
@@ -799,8 +813,10 @@ class AssertionHelper:
             raise AssertionError(msg)
 
     @staticmethod
-    def assert_embedding_shape(embedding: np.ndarray, expected_dim: int = 384) -> None:
+    def assert_embedding_shape(embedding: Any, expected_dim: int = 384) -> None:
         """Assert embedding has correct shape."""
+        import numpy as np
+
         assert embedding.shape == (expected_dim,), (
             f"Expected shape ({expected_dim},), got {embedding.shape}"
         )

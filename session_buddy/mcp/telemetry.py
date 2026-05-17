@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import atexit
 import logging
 import os
+import sys
 from collections.abc import Mapping
 from typing import Any
 
@@ -33,6 +35,8 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 
 logger = logging.getLogger(__name__)
 _TRACING_CONFIGURED = False
+_TRACER_PROVIDER: TracerProvider | None = None
+_SHUTDOWN_REGISTERED = False
 
 
 def attach_otel_middleware(
@@ -73,7 +77,7 @@ def configure_otel_tracing(
     resource_attributes: Mapping[str, str] | None = None,
 ) -> bool:
     """Configure the OpenTelemetry tracer provider for Session-Buddy."""
-    global _TRACING_CONFIGURED
+    global _TRACING_CONFIGURED, _TRACER_PROVIDER, _SHUTDOWN_REGISTERED
     if _TRACING_CONFIGURED:
         return True
 
@@ -81,16 +85,19 @@ def configure_otel_tracing(
         logger.debug("OpenTelemetry SDK not available; skipping tracing setup")
         return False
 
+    if endpoint is None and "pytest" in sys.modules:
+        logger.debug("Pytest detected without explicit OTEL endpoint; skipping")
+        return False
+
     otel_protocol = (
         protocol or os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL") or "grpc"
     ).lower()
     otel_endpoint = endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     if not otel_endpoint:
-        otel_endpoint = (
-            "http://localhost:4318"
-            if otel_protocol.startswith("http")
-            else "http://localhost:4317"
+        logger.debug(
+            "OpenTelemetry endpoint not configured; skipping tracing setup",
         )
+        return False
 
     resource_data: dict[str, str] = {
         "service.name": service_name,
@@ -112,6 +119,10 @@ def configure_otel_tracing(
 
     provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
+    _TRACER_PROVIDER = provider
+    if not _SHUTDOWN_REGISTERED:
+        atexit.register(shutdown_otel_tracing)
+        _SHUTDOWN_REGISTERED = True
     logger.info(
         "Configured Session-Buddy OpenTelemetry tracing",
         extra={
@@ -126,7 +137,25 @@ def configure_otel_tracing(
     return True
 
 
+def shutdown_otel_tracing() -> bool:
+    """Shut down the configured OpenTelemetry tracer provider if present."""
+    global _TRACING_CONFIGURED, _TRACER_PROVIDER
+    provider = _TRACER_PROVIDER
+    _TRACER_PROVIDER = None
+    _TRACING_CONFIGURED = False
+
+    if provider is None:
+        return False
+
+    shutdown = getattr(provider, "shutdown", None)
+    if callable(shutdown):
+        shutdown()
+        return True
+    return False
+
+
 __all__ = [
     "attach_otel_middleware",
     "configure_otel_tracing",
+    "shutdown_otel_tracing",
 ]
