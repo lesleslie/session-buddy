@@ -246,31 +246,31 @@ class TestParserIntegration:
     def test_multiple_pattern_types(self):
         """Test parsing multiple pattern types."""
         parser = NaturalLanguageParser()
-        
+
         # Verify patterns can be accessed
         time_pats = parser.time_patterns
         recur_pats = parser.recurrence_patterns
-        
+
         assert isinstance(time_pats, dict)
         assert isinstance(recur_pats, dict)
 
     def test_pattern_consistency(self):
         """Test pattern consistency across types."""
         parser = NaturalLanguageParser()
-        
+
         # All patterns should be in dictionaries
         for key, value in parser.time_patterns.items():
             assert isinstance(key, (str, tuple))
-        
+
         for key, value in parser.recurrence_patterns.items():
             assert isinstance(key, (str, tuple))
 
     def test_parser_reusability(self):
         """Test that parser can be reused multiple times."""
         parser = NaturalLanguageParser()
-        
+
         # Should be able to access patterns multiple times
         pats1 = parser.time_patterns
         pats2 = parser.time_patterns
-        
+
         assert pats1 is pats2  # Same object

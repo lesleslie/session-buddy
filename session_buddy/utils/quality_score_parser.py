@@ -13,14 +13,12 @@ from typing import Any
 
 def _extract_score_from_content(content: str) -> float | None:
     """Extract score from reflection content."""
-    with suppress(ValueError, TypeError, AttributeError):
+    with suppress(ValueError, TypeError, AttributeError, IndexError):
         # Parse common quality score formats
         if "quality score:" in content:
             # Extract score after "quality score:"
-            parts = content.split("quality score:")
-            if len(parts) > 1:
-                score_text = parts[1].split()[0]  # Get first word after
-                return _parse_score_text(score_text)
+            score_text = content.split("quality score:", maxsplit=1)[1].split()[0]
+            return _parse_score_text(score_text)
     return None
 
 

@@ -9,14 +9,12 @@ Phase: Week 6 Day 2 - Security Testing
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from session_buddy.core.permissions import SessionPermissionsManager
 
-if TYPE_CHECKING:
-    from pathlib import Path
+from session_buddy.core.permissions import SessionPermissionsManager
 
 
 @pytest.fixture(autouse=True)
@@ -185,6 +183,13 @@ class TestPermissionGranting:
         # Should not increase count (set behavior)
         assert len(permissions_manager.trusted_operations) == initial_count
 
+    def test_trust_operation_rejects_none(
+        self, permissions_manager: SessionPermissionsManager
+    ) -> None:
+        """Should reject None as an operation name."""
+        with pytest.raises(TypeError, match="cannot be None"):
+            permissions_manager.trust_operation(None)  # type: ignore[arg-type]
+
 
 class TestPermissionRevocation:
     """Test permission revocation and security resets."""
@@ -223,6 +228,17 @@ class TestPermissionRevocation:
 
         # Should not raise exception
         permissions_manager.revoke_all_permissions()
+
+        assert len(permissions_manager.trusted_operations) == 0
+
+    def test_revoke_all_permissions_handles_unwritable_file(
+        self, permissions_manager: SessionPermissionsManager
+    ) -> None:
+        """Should ignore file cleanup failures during revocation."""
+        permissions_manager.trust_operation("op1")
+
+        with patch.object(Path, "unlink", side_effect=OSError("permission denied")):
+            permissions_manager.revoke_all_permissions()
 
         assert len(permissions_manager.trusted_operations) == 0
 
@@ -266,6 +282,15 @@ class TestAuditCapabilities:
 
         # Should be a list (JSON-serializable)
         assert isinstance(status["trusted_operations"], list)
+
+    def test_get_permission_status_uses_current_timestamp_when_unset(
+        self, permissions_manager: SessionPermissionsManager
+    ) -> None:
+        """Should synthesize a timestamp when no persistence has occurred."""
+        status = permissions_manager.get_permission_status()
+
+        assert isinstance(status["last_updated"], str)
+        assert status["last_updated"]
 
 
 class TestPersistenceAndLoading:
@@ -337,6 +362,22 @@ class TestPersistenceAndLoading:
 
         assert len(manager.trusted_operations) == 0
 
+    def test_load_permissions_handles_empty_file(
+        self, temp_permissions_dir: Path
+    ) -> None:
+        """Should ignore empty permissions files without error."""
+        SessionPermissionsManager.reset_singleton()
+
+        permissions_file = (
+            temp_permissions_dir / "sessions" / "trusted_permissions.json"
+        )
+        permissions_file.parent.mkdir(parents=True, exist_ok=True)
+        permissions_file.write_text("")
+
+        manager = SessionPermissionsManager(temp_permissions_dir)
+
+        assert len(manager.trusted_operations) == 0
+
 
 class TestSecurityBoundaries:
     """Test security boundary enforcement."""
@@ -387,6 +428,19 @@ class TestSecurityBoundaries:
             # (Python's json.dump doesn't control file permissions)
             assert isinstance(mode, int)  # Just verify stat works
 
+    def test_auto_checkpoint_disabled_does_not_change_frequency(
+        self, permissions_manager: SessionPermissionsManager
+    ) -> None:
+        """Should leave the checkpoint frequency unchanged when disabled."""
+        result = permissions_manager.configure_auto_checkpoint(
+            enabled=False,
+            frequency=120,
+        )
+
+        assert result is True
+        assert permissions_manager.auto_checkpoint is False
+        assert permissions_manager.checkpoint_frequency == 300
+
 
 class TestConcurrencyAndThreadSafety:
     """Test thread safety considerations."""
@@ -406,3 +460,12 @@ class TestConcurrencyAndThreadSafety:
         """Should use set for O(1) authorization checks."""
         # Verify trusted_operations is a set for performance
         assert isinstance(permissions_manager.trusted_operations, set)
+
+    def test_trust_operation_handles_persistence_failure(
+        self, permissions_manager: SessionPermissionsManager
+    ) -> None:
+        """Should keep in-memory trust state when persistence fails."""
+        with patch.object(Path, "open", side_effect=OSError("permission denied")):
+            assert permissions_manager.trust_operation("volatile_operation") is True
+
+        assert permissions_manager.is_operation_trusted("volatile_operation") is True

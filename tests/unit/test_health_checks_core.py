@@ -10,9 +10,10 @@ Tests component-level health checks including:
 
 from __future__ import annotations
 
-import importlib.util
+import builtins
 import sys
 import tempfile
+import types
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -191,6 +192,29 @@ class TestCheckDatabaseHealth:
             assert health.status == HealthStatus.UNHEALTHY
             assert "error" in health.message.lower()
 
+    @pytest.mark.asyncio
+    async def test_database_health_uses_mocked_accessor_fallback(self) -> None:
+        """Test fallback path when the initialized accessor returns None."""
+        mock_db = AsyncMock()
+        mock_db.get_stats = AsyncMock(return_value={"conversations_count": 7})
+
+        with patch(
+            "session_buddy.health_checks.REFLECTION_AVAILABLE", True
+        ), patch(
+            "session_buddy.health_checks.get_initialized_reflection_database",
+            new_callable=AsyncMock,
+            return_value=None,
+        ), patch(
+            "session_buddy.health_checks.get_reflection_database",
+            new_callable=AsyncMock,
+            return_value=mock_db,
+        ):
+            health = await check_database_health()
+
+            assert health.name == "database"
+            assert health.status == HealthStatus.HEALTHY
+            assert health.metadata["conversations"] == 7
+
 
 class TestCheckFileSystemHealth:
     """Test check_file_system_health function."""
@@ -327,6 +351,24 @@ class TestCheckDependenciesHealth:
             health = await check_dependencies_health()
             assert "crackerjack" in str(health.metadata)
 
+    @pytest.mark.asyncio
+    async def test_dependencies_health_uses_loaded_quality_utils_module(self) -> None:
+        """Test dependency detection when the compatibility shim is already loaded."""
+        fake_quality_utils = types.ModuleType("session_buddy.utils.quality_utils_v2")
+        fake_quality_utils.CRACKERJACK_AVAILABLE = True
+
+        with patch.dict(
+            sys.modules,
+            {"session_buddy.utils.quality_utils_v2": fake_quality_utils},
+            clear=False,
+        ), patch("importlib.util.find_spec", return_value=MagicMock()):
+            health = await check_dependencies_health()
+
+            assert health.name == "dependencies"
+            assert health.status == HealthStatus.HEALTHY
+            assert "crackerjack" in health.metadata["available"]
+            assert "multi_project" in health.metadata["available"]
+
 
 class TestCheckPythonEnvironmentHealth:
     """Test check_python_environment_health function."""
@@ -363,6 +405,46 @@ class TestCheckPythonEnvironmentHealth:
         """Test Python environment check runs and completes."""
         health = await check_python_environment_health()
         assert isinstance(health, ComponentHealth)
+
+    @pytest.mark.asyncio
+    async def test_python_env_health_rejects_old_version(self) -> None:
+        """Test that Python versions below 3.13 are rejected."""
+
+        class FakeVersionInfo:
+            major = 3
+            minor = 12
+            micro = 4
+
+            def __lt__(self, other: tuple[int, int]) -> bool:
+                return (self.major, self.minor) < other
+
+        with patch(
+            "session_buddy.health_checks.sys.version_info",
+            FakeVersionInfo(),
+        ):
+            health = await check_python_environment_health()
+
+            assert health.name == "python_env"
+            assert health.status == HealthStatus.UNHEALTHY
+            assert "3.13+" in health.message
+
+    @pytest.mark.asyncio
+    async def test_python_env_health_reports_missing_import(self) -> None:
+        """Test that missing critical imports are reported."""
+        original_import = builtins.__import__
+
+        def mock_import(name: str, *args: object, **kwargs: object):
+            if name == "enum":
+                raise ImportError("missing enum")
+            return original_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=mock_import):
+            health = await check_python_environment_health()
+
+        assert health.name == "python_env"
+        assert health.status == HealthStatus.UNHEALTHY
+        assert "missing critical imports" in health.message.lower()
+        assert "enum" in health.message
 
 
 class TestGetInitializedReflectionDatabase:

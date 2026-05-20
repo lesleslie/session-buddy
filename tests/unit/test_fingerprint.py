@@ -13,13 +13,22 @@ Focus areas:
 
 from __future__ import annotations
 
+import sys
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+
 import pytest
 
-from session_buddy.utils.fingerprint import (
-    MinHashSignature,
-    extract_ngrams,
-    normalize_for_fingerprint,
-)
+_FINGERPRINT_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "fingerprint.py"
+_FINGERPRINT_SPEC = spec_from_file_location("session_buddy.utils.fingerprint", _FINGERPRINT_PATH)
+assert _FINGERPRINT_SPEC is not None and _FINGERPRINT_SPEC.loader is not None
+_fingerprint = module_from_spec(_FINGERPRINT_SPEC)
+sys.modules[_FINGERPRINT_SPEC.name] = _fingerprint
+_FINGERPRINT_SPEC.loader.exec_module(_fingerprint)
+
+MinHashSignature = _fingerprint.MinHashSignature
+extract_ngrams = _fingerprint.extract_ngrams
+normalize_for_fingerprint = _fingerprint.normalize_for_fingerprint
 
 
 class TestNormalizeForFingerprint:
