@@ -631,7 +631,7 @@ async def _handle_auto_store_reflection(
         from session_buddy.utils.reflection_utils import generate_auto_store_tags
 
         try:
-            db = get_reflection_database()  # Sync function, no await
+            db = await get_reflection_database()
             await db.initialize()  # Must initialize before use
 
             # Create meaningful checkpoint summary
@@ -990,7 +990,7 @@ async def _pre_compact_sync_impl() -> dict[str, Any]:
 
         # Store the reflection with pre-compact tags
         try:
-            db = get_reflection_database()
+            db = await get_reflection_database()
             await db.initialize()
 
             tags = generate_auto_store_tags(
