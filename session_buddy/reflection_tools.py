@@ -33,6 +33,9 @@ except ImportError:
     ReflectionDatabaseAdapter = None  # type: ignore[assignment,misc]
 
 # Import the new modular implementation
+from pathlib import Path
+
+from session_buddy.adapters.settings import ReflectionAdapterSettings
 from session_buddy.reflection.database import (
     ReflectionDatabase as _ReflectionDatabase,
 )
@@ -58,7 +61,7 @@ async def get_reflection_database(db_path=None):
         msg = "ReflectionDatabaseAdapter is not available"
         raise ImportError(msg)
 
-    _reflection_db = ReflectionDatabaseAdapter(db_path=db_path)
+    _reflection_db = ReflectionDatabaseAdapter() if db_path is None else ReflectionDatabaseAdapter(settings=ReflectionAdapterSettings(database_path=db_path if isinstance(db_path, (str, Path)) else Path(db_path)))
     return _reflection_db
 
 
