@@ -581,7 +581,7 @@ class InterruptionManager:
 
                 # Restore context
                 context_dict = snapshot_data["context"]
-                context = SessionContext(**context_dict[str, Any])
+                context = SessionContext(**context_dict)
                 context.recovery_attempts += 1
 
                 self.current_context = context
@@ -724,7 +724,11 @@ class InterruptionManager:
             ):
                 focus_duration = event_data.get("focus_duration", 0)
                 if focus_duration >= self.save_threshold:
-                    asyncio.create_task(self.preserve_context())
+                    try:
+                        loop = asyncio.get_running_loop()
+                        loop.create_task(self.preserve_context())
+                    except RuntimeError:
+                        pass  # No running event loop
 
             # Log the interruption
             event_id = f"int_{int(time.time() * 1000)}"
@@ -747,7 +751,11 @@ class InterruptionManager:
             )
 
             # Store in database
-            asyncio.create_task(self._store_interruption(interruption))
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._store_interruption(interruption))
+            except RuntimeError:
+                pass  # No running event loop
 
             # Update current context
             if self.current_context:

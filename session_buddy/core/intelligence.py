@@ -953,7 +953,7 @@ class IntelligenceEngine:
                 "last_used": skill.last_used.isoformat() if skill.last_used else None,
             }
             for skill in self.skill_library.values()
-            if skill.success_rate >= min_success_rate
+            if skill.success_rate is not None and skill.success_rate >= min_success_rate
         ]
 
         # Sort by success_rate * invocations

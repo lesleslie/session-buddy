@@ -119,8 +119,9 @@ class TimeSeriesAnalyzer:
                     WHERE skill_name = ?
                     AND datetime(invoked_at) >= datetime('now', '-{hours} hours')
                     GROUP BY skill_name, hour_timestamp
-                    ORDER BY hour_timestamp ASC
-                    """
+                    ORDER BY skill_name, hour_timestamp ASC
+                    """,
+                    (skill_name,),
                 )
             else:
                 cursor.execute(
@@ -177,11 +178,22 @@ class TimeSeriesAnalyzer:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            # Map metric name to column
-            metric_column = {
+            # Map metric name to column (only allow known metrics to prevent SQL injection)
+            valid_metrics = {
                 "completion_rate": "AVG(CASE WHEN completed = 1 THEN 1.0 ELSE 0.0 END)",
                 "avg_duration_seconds": "AVG(duration_seconds)",
-            }.get(metric, metric)
+                "invocation_count": "COUNT(*)",
+            }
+            if metric not in valid_metrics:
+                return TrendAnalysis(
+                    trend="invalid_metric",
+                    slope=0.0,
+                    start_value=0.0,
+                    end_value=0.0,
+                    change_percent=0.0,
+                    confidence=1.0,
+                )
+            metric_column = valid_metrics[metric]
 
             cursor.execute(
                 f"""

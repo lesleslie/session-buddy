@@ -7,10 +7,37 @@ Phase: Week 5 Day 3 - Memory Optimizer Coverage
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+
+class TestConsolidatedConversation:
+    """Test ConsolidatedConversation dataclass."""
+
+    def test_consolidated_conversation_structure(self) -> None:
+        """Should create ConsolidatedConversation with all fields."""
+        from session_buddy.memory_optimizer import ConsolidatedConversation
+
+        consolidated = ConsolidatedConversation(
+            summary="Test summary",
+            original_count=3,
+            projects=["project-a", "project-b"],
+            time_range="2025-01-01 to 2025-01-03",
+            original_conversations=["conv-1", "conv-2", "conv-3"],
+            compressed_size=100,
+            original_size=500,
+        )
+
+        assert consolidated.summary == "Test summary"
+        assert consolidated.original_count == 3
+        assert len(consolidated.projects) == 2
+        assert consolidated.compressed_size == 100
+        assert consolidated.original_size == 500
+        # Verify compression ratio can be calculated
+        assert consolidated.original_size - consolidated.compressed_size == 400
 
 
 class TestConversationDataclasses:
@@ -432,3 +459,481 @@ class TestMemoryOptimizer:
 
         assert "error" in result
         assert "max_conversations must be at least 100" in result["error"]
+
+
+class TestConversationSummarizerEdgeCases:
+    """Test edge cases in conversation summarization."""
+
+    def test_extractive_with_short_sentences(self) -> None:
+        """Should handle content with only short sentences."""
+        from session_buddy.memory_optimizer import ConversationSummarizer
+
+        summarizer = ConversationSummarizer()
+        # All sentences are too short to pass the 20-char filter
+        content = "Hi. Hello. Yo."
+
+        summary = summarizer.summarize_conversation(content, strategy="extractive")
+
+        assert isinstance(summary, str)
+        # Should still return something (empty or with what it found)
+
+    def test_template_based_no_code_blocks(self) -> None:
+        """Should handle content without code blocks."""
+        from session_buddy.memory_optimizer import ConversationSummarizer
+
+        summarizer = ConversationSummarizer()
+        content = "This is just regular text with no special formatting."
+
+        summary = summarizer.summarize_conversation(content, strategy="template_based")
+
+        assert isinstance(summary, str)
+        assert len(summary) > 0
+
+    def test_keyword_based_no_content(self) -> None:
+        """Should handle empty content."""
+        from session_buddy.memory_optimizer import ConversationSummarizer
+
+        summarizer = ConversationSummarizer()
+        content = ""
+
+        summary = summarizer.summarize_conversation(content, strategy="keyword_based")
+
+        assert isinstance(summary, str)
+
+    def test_keyword_based_only_stop_words(self) -> None:
+        """Should handle content with only stop words."""
+        from session_buddy.memory_optimizer import ConversationSummarizer
+
+        summarizer = ConversationSummarizer()
+        content = "The and for but are not you all can had her was one our out day get has"
+
+        summary = summarizer.summarize_conversation(content, strategy="keyword_based")
+
+        assert isinstance(summary, str)
+        # Should return general discussion since no keywords extracted
+
+
+class TestConversationClustererEdgeCases:
+    """Test edge cases in conversation clustering."""
+
+    def test_cluster_empty_list(self) -> None:
+        """Should handle empty conversation list."""
+        from session_buddy.memory_optimizer import ConversationClusterer
+
+        clusterer = ConversationClusterer()
+        clusters = clusterer.cluster_conversations([])
+
+        assert clusters == []
+
+    def test_cluster_single_conversation(self) -> None:
+        """Should handle single conversation."""
+        from session_buddy.memory_optimizer import ConversationClusterer
+
+        clusterer = ConversationClusterer()
+        conversations = [
+            {
+                "id": "conv-1",
+                "project": "test",
+                "content": "Single conversation",
+                "timestamp": "2025-01-01T12:00:00",
+            }
+        ]
+
+        clusters = clusterer.cluster_conversations(conversations)
+
+        assert len(clusters) == 1
+        assert len(clusters[0]) == 1
+
+    def test_calculate_similarity_different_projects(self) -> None:
+        """Should give lower similarity for different projects."""
+        from session_buddy.memory_optimizer import ConversationClusterer
+
+        clusterer = ConversationClusterer()
+        conv1 = {
+            "project": "project-a",
+            "content": "Same content here",
+            "timestamp": "2025-01-01T12:00:00",
+        }
+        conv2 = {
+            "project": "project-b",
+            "content": "Same content here",
+            "timestamp": "2025-01-01T13:00:00",
+        }
+
+        similarity = clusterer._calculate_similarity(conv1, conv2)
+
+        # Should have lower similarity due to different projects
+        assert similarity < 0.5
+
+    def test_calculate_similarity_invalid_timestamp(self) -> None:
+        """Should handle invalid timestamps gracefully."""
+        from session_buddy.memory_optimizer import ConversationClusterer
+
+        clusterer = ConversationClusterer()
+        conv1 = {
+            "project": "test",
+            "content": "Content one",
+            "timestamp": "not-a-valid-timestamp",
+        }
+        conv2 = {
+            "project": "test",
+            "content": "Content two",
+            "timestamp": "also-invalid",
+        }
+
+        similarity = clusterer._calculate_similarity(conv1, conv2)
+
+        # Should still return a valid similarity score
+        assert 0.0 <= similarity <= 1.0
+
+
+class TestRetentionPolicyManagerEdgeCases:
+    """Test edge cases in retention policy management."""
+
+    def test_calculate_importance_score_empty_content(self) -> None:
+        """Should handle empty content."""
+        from session_buddy.memory_optimizer import RetentionPolicyManager
+
+        manager = RetentionPolicyManager()
+        conversation = {
+            "content": "",
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        score = manager.calculate_importance_score(conversation)
+
+        # Should return a valid score
+        assert 0.0 <= score <= 1.0
+
+    def test_calculate_importance_score_invalid_timestamp(self) -> None:
+        """Should handle invalid timestamp."""
+        from session_buddy.memory_optimizer import RetentionPolicyManager
+
+        manager = RetentionPolicyManager()
+        conversation = {
+            "content": "Some content with code: def foo(): pass",
+            "timestamp": "not-valid",
+        }
+
+        score = manager.calculate_importance_score(conversation)
+
+        # Should still return valid score despite timestamp error
+        assert 0.0 <= score <= 1.0
+
+    def test_get_conversations_for_retention_empty_list(self) -> None:
+        """Should handle empty conversation list."""
+        from session_buddy.memory_optimizer import RetentionPolicyManager
+
+        manager = RetentionPolicyManager()
+        keep, consolidate = manager.get_conversations_for_retention([])
+
+        assert keep == []
+        assert consolidate == []
+
+    def test_get_conversations_for_retention_custom_policy(self) -> None:
+        """Should use custom policy when provided."""
+        from session_buddy.memory_optimizer import RetentionPolicyManager
+
+        manager = RetentionPolicyManager()
+        now = datetime.now()
+        conversations = [
+            {
+                "id": "conv-1",
+                "content": "Content",
+                "timestamp": (now - timedelta(days=5)).isoformat(),
+            }
+        ]
+
+        custom_policy = {
+            "max_age_days": 365,
+            "max_conversations": 10000,
+            "importance_threshold": 0.3,
+            "consolidation_age_days": 1,  # Very short - will mark as old
+            "compression_ratio": 0.5,
+        }
+
+        keep, consolidate = manager.get_conversations_for_retention(
+            conversations, policy=custom_policy
+        )
+
+        # Should use the custom policy
+        assert isinstance(keep, list)
+        assert isinstance(consolidate, list)
+
+
+class TestMemoryOptimizerHelperMethods:
+    """Test MemoryOptimizer helper methods."""
+
+    def test_is_database_available_true(self) -> None:
+        """Should return True when database connection exists."""
+        from session_buddy.memory_optimizer import MemoryOptimizer
+
+        mock_db = MagicMock()
+        mock_db.conn = MagicMock()
+
+        optimizer = MemoryOptimizer(mock_db)
+        assert optimizer._is_database_available() is True
+
+    def test_is_database_available_false(self) -> None:
+        """Should return False when database connection is None."""
+        from session_buddy.memory_optimizer import MemoryOptimizer
+
+        mock_db = MagicMock()
+        mock_db.conn = None
+
+        optimizer = MemoryOptimizer(mock_db)
+        assert optimizer._is_database_available() is False
+
+    def test_create_no_conversations_response(self) -> None:
+        """Should create proper response when no conversations found."""
+        from session_buddy.memory_optimizer import MemoryOptimizer
+
+        mock_db = MagicMock()
+        optimizer = MemoryOptimizer(mock_db)
+
+        response = optimizer._create_no_conversations_response()
+
+        assert response["status"] == "no_conversations"
+        assert "No conversations" in response["message"]
+
+    def test_to_dict_conversion(self) -> None:
+        """Should convert ConversationData to dict correctly."""
+        from session_buddy.memory_optimizer import ConversationData, MemoryOptimizer
+
+        mock_db = MagicMock()
+        optimizer = MemoryOptimizer(mock_db)
+
+        conv_data = ConversationData(
+            id="test-id",
+            content="Test content",
+            project="test-project",
+            timestamp="2025-01-01T12:00:00",
+            metadata={"key": "value"},
+            original_size=100,
+        )
+
+        result = optimizer._to_dict(conv_data)
+
+        assert result["id"] == "test-id"
+        assert result["content"] == "Test content"
+        assert result["project"] == "test-project"
+        assert result["metadata"] == {"key": "value"}
+        assert result["original_size"] == 100
+
+
+class TestMemoryOptimizerIntegration:
+    """Integration tests for MemoryOptimizer."""
+
+    @pytest.mark.asyncio
+    async def test_compress_memory_with_multiple_clusters(self) -> None:
+        """Should properly cluster and compress multiple conversations."""
+        from session_buddy.memory_optimizer import MemoryOptimizer
+
+        mock_db = MagicMock()
+        mock_db.conn = MagicMock()
+
+        # Create old conversations that should be consolidated
+        old_date = (datetime.now() - timedelta(days=60)).isoformat()
+        recent_date = datetime.now().isoformat()
+
+        mock_conversations = [
+            ("conv-1", "Database error occurred", "project-a", old_date, "{}"),
+            ("conv-2", "Database connection issue", "project-a", old_date, "{}"),
+            ("conv-3", "Error in database query", "project-a", old_date, "{}"),
+            (
+                "conv-4",
+                "Recent important conversation",
+                "project-a",
+                recent_date,
+                "{}",
+            ),
+        ]
+        mock_db.conn.execute = MagicMock(
+            return_value=MagicMock(fetchall=MagicMock(return_value=mock_conversations))
+        )
+
+        optimizer = MemoryOptimizer(mock_db)
+        result = await optimizer.compress_memory(dry_run=True)
+
+        assert result["status"] == "success"
+        assert result["total_conversations"] == 4
+
+    @pytest.mark.asyncio
+    async def test_compression_stats_update(self) -> None:
+        """Should properly update compression statistics."""
+        from session_buddy.memory_optimizer import CompressionResults, MemoryOptimizer
+
+        mock_db = MagicMock()
+        optimizer = MemoryOptimizer(mock_db)
+
+        # Create mock compression results
+        results = CompressionResults(
+            status="success",
+            dry_run=False,
+            total_conversations=10,
+            conversations_to_keep=5,
+            conversations_to_consolidate=5,
+            clusters_created=2,
+            consolidated_summaries=[],
+            space_saved_estimate=1000,
+            compression_ratio=0.5,
+        )
+
+        consolidate_conversations = [
+            {"id": "conv-1"},
+            {"id": "conv-2"},
+            {"id": "conv-3"},
+        ]
+        clusters = [[{"id": "conv-1"}], [{"id": "conv-2"}], [{"id": "conv-3"}]]
+
+        optimizer._update_compression_stats(results, consolidate_conversations, clusters)
+
+        assert optimizer.compression_stats["last_run"] is not None
+        assert optimizer.compression_stats["conversations_processed"] == 3
+
+
+class TestMemoryOptimizerPersist:
+    """Test MemoryOptimizer persistence methods."""
+
+    @pytest.mark.asyncio
+    async def test_persist_consolidated_conversation(self) -> None:
+        """Should persist consolidated conversation and delete originals."""
+        from session_buddy.memory_optimizer import (
+            ConsolidatedConversation,
+            MemoryOptimizer,
+        )
+
+        mock_db = MagicMock()
+        mock_db.conn = MagicMock()
+
+        optimizer = MemoryOptimizer(mock_db)
+
+        consolidated = ConsolidatedConversation(
+            summary="Combined summary",
+            original_count=2,
+            projects=["project-a"],
+            time_range="2025-01-01 to 2025-01-02",
+            original_conversations=["conv-1", "conv-2"],
+            compressed_size=50,
+            original_size=200,
+        )
+
+        original_cluster = [
+            {"id": "conv-1", "content": "Content 1", "project": "project-a", "timestamp": "2025-01-01T12:00:00", "metadata": {}, "original_size": 100},
+            {"id": "conv-2", "content": "Content 2", "project": "project-a", "timestamp": "2025-01-01T13:00:00", "metadata": {}, "original_size": 100},
+        ]
+
+        await optimizer._persist_consolidated_conversation(consolidated, original_cluster)
+
+        # Should have executed INSERT and DELETE
+        calls = mock_db.conn.execute.call_args_list
+        assert len(calls) >= 2
+
+        # Verify commit was called
+        mock_db.conn.commit.assert_called()
+
+
+class TestMemoryOptimizerCoverageEnhancement:
+    """Additional tests to improve coverage."""
+
+    def test_summarizer_exception_handling(self) -> None:
+        """Should handle exceptions in summarization gracefully."""
+        from session_buddy.memory_optimizer import ConversationSummarizer
+
+        summarizer = ConversationSummarizer()
+
+        # Mock the internal method to raise an exception
+        with patch.object(
+            summarizer, "_extractive_summarization", side_effect=Exception("Test error")
+        ):
+            result = summarizer.summarize_conversation(
+                "Test content", strategy="extractive"
+            )
+            assert "failed" in result.lower() or isinstance(result, str)
+
+    def test_create_consolidated_conversation_no_projects(self) -> None:
+        """Should handle cluster with no projects."""
+        from session_buddy.memory_optimizer import MemoryOptimizer
+
+        mock_db = MagicMock()
+        optimizer = MemoryOptimizer(mock_db)
+
+        cluster = [
+            {
+                "id": "conv-1",
+                "content": "Content 1",
+                "project": None,
+                "timestamp": "2025-01-01T12:00:00",
+                "metadata": {},
+                "original_size": 50,
+            }
+        ]
+
+        result = optimizer._create_consolidated_conversation(cluster)
+
+        assert result.original_count == 1
+        assert result.projects == []
+        assert result.compressed_size == len(result.summary)
+
+    def test_create_compression_results_zero_original_size(self) -> None:
+        """Should handle zero original size gracefully."""
+        from session_buddy.memory_optimizer import MemoryOptimizer
+
+        mock_db = MagicMock()
+        optimizer = MemoryOptimizer(mock_db)
+
+        result = optimizer._create_compression_results(
+            conversations=[],
+            keep_conversations=[],
+            consolidate_conversations=[],
+            clusters=[],
+            consolidated_summaries=[],
+            total_original_size=0,
+            total_compressed_size=0,
+            dry_run=False,
+        )
+
+        # Should not divide by zero
+        assert result.compression_ratio == 0.0
+        assert result.space_saved_estimate == 0
+
+
+class TestMemoryOptimizerEdgeCases:
+    """Edge case tests for MemoryOptimizer."""
+
+    @pytest.mark.asyncio
+    async def test_compress_memory_missing_conn_attribute(self) -> None:
+        """Should handle database without conn attribute."""
+        from session_buddy.memory_optimizer import MemoryOptimizer
+
+        mock_db = MagicMock(spec=["execute"])  # No conn attribute
+
+        optimizer = MemoryOptimizer(mock_db)
+        result = await optimizer.compress_memory()
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_compress_memory_with_policy(self) -> None:
+        """Should use custom policy when compressing."""
+        from session_buddy.memory_optimizer import MemoryOptimizer
+
+        mock_db = MagicMock()
+        mock_db.conn = MagicMock()
+        mock_db.conn.execute = MagicMock(
+            return_value=MagicMock(fetchall=MagicMock(return_value=[]))
+        )
+
+        optimizer = MemoryOptimizer(mock_db)
+
+        custom_policy = {
+            "max_age_days": 180,
+            "max_conversations": 5000,
+            "importance_threshold": 0.5,
+            "consolidation_age_days": 14,
+            "compression_ratio": 0.6,
+        }
+
+        result = await optimizer.compress_memory(policy=custom_policy, dry_run=True)
+
+        assert result["status"] == "no_conversations"

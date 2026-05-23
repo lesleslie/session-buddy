@@ -393,7 +393,7 @@ class AdvancedSearchEngine:
         """Rebuild the search index from conversations and reflections."""
         # Ensure database tables exist before indexing
         if self.reflection_db.conn:
-            await self.reflection_db._ensure_tables()
+            self.reflection_db._create_tables()
             self._ensure_advanced_search_tables()
 
         # Index conversations
@@ -476,7 +476,12 @@ class AdvancedSearchEngine:
 
     def _parse_conversation_metadata(self, metadata_json: str | None) -> dict[str, Any]:
         """Parse conversation metadata JSON safely."""
-        return json.loads(metadata_json) if metadata_json else {}
+        if not metadata_json:
+            return {}
+        try:
+            return json.loads(metadata_json)
+        except (json.JSONDecodeError, ValueError):
+            return {}
 
     def _build_indexed_content(self, content: str, project: str | None) -> str:
         """Build indexed content with project and technical terms."""
@@ -517,27 +522,31 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return
 
-        self.reflection_db.conn.execute(
-            """
-            INSERT INTO search_index
-            (id, content_type, content_id, indexed_content, search_metadata, last_indexed)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT (id) DO UPDATE SET
-            content_type = EXCLUDED.content_type,
-            content_id = EXCLUDED.content_id,
-            indexed_content = EXCLUDED.indexed_content,
-            search_metadata = EXCLUDED.search_metadata,
-            last_indexed = EXCLUDED.last_indexed
-            """,
-            [
-                f"conv_{conv_id}",
-                "conversation",
-                conv_id,
-                indexed_content,
-                json.dumps(search_metadata),
-                datetime.now(UTC),
-            ],
-        )
+        try:
+            self.reflection_db.conn.execute(
+                """
+                INSERT INTO search_index
+                (id, content_type, content_id, indexed_content, search_metadata, last_indexed)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET
+                content_type = EXCLUDED.content_type,
+                content_id = EXCLUDED.content_id,
+                indexed_content = EXCLUDED.indexed_content,
+                search_metadata = EXCLUDED.search_metadata,
+                last_indexed = EXCLUDED.last_indexed
+                """,
+                [
+                    f"conv_{conv_id}",
+                    "conversation",
+                    conv_id,
+                    indexed_content,
+                    json.dumps(search_metadata),
+                    datetime.now(UTC),
+                ],
+            )
+        except Exception:
+            # Table doesn't exist yet, will be created during index rebuild
+            return
 
     def _commit_conversation_index(self) -> None:
         """Commit the conversation indexing transaction."""
@@ -647,27 +656,31 @@ class AdvancedSearchEngine:
             usedforsecurity=False,
         ).hexdigest()
 
-        self.reflection_db.conn.execute(
-            """
-            INSERT INTO search_facets
-            (id, content_type, content_id, facet_name, facet_value, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT (id) DO UPDATE SET
-            content_type = EXCLUDED.content_type,
-            content_id = EXCLUDED.content_id,
-            facet_name = EXCLUDED.facet_name,
-            facet_value = EXCLUDED.facet_value,
-            created_at = EXCLUDED.created_at
-            """,
-            [
-                facet_id,
-                "search_facet",
-                f"{facet_name}_{facet_value}",
-                facet_name,
-                facet_value,
-                datetime.now(UTC).isoformat(),
-            ],
-        )
+        try:
+            self.reflection_db.conn.execute(
+                """
+                INSERT INTO search_facets
+                (id, content_type, content_id, facet_name, facet_value, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT (id) DO UPDATE SET
+                content_type = EXCLUDED.content_type,
+                content_id = EXCLUDED.content_id,
+                facet_name = EXCLUDED.facet_name,
+                facet_value = EXCLUDED.facet_value,
+                created_at = EXCLUDED.created_at
+                """,
+                [
+                    facet_id,
+                    "search_facet",
+                    f"{facet_name}_{facet_value}",
+                    facet_name,
+                    facet_value,
+                    datetime.now(UTC).isoformat(),
+                ],
+            )
+        except Exception:
+            # Table doesn't exist yet, will be created during index rebuild
+            return
 
     def _process_facet_query(self, facet_name: str, sql: str) -> None:
         """Process a single facet query."""
@@ -689,17 +702,21 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return
 
-        # Clear existing facets
-        self.reflection_db.conn.execute("DELETE FROM search_facets")
+        try:
+            # Clear existing facets
+            self.reflection_db.conn.execute("DELETE FROM search_facets")
 
-        # Process each facet query
-        facet_queries = self._get_facet_queries()
-        for facet_name, sql in facet_queries.items():
-            self._process_facet_query(facet_name, sql)
+            # Process each facet query
+            facet_queries = self._get_facet_queries()
+            for facet_name, sql in facet_queries.items():
+                self._process_facet_query(facet_name, sql)
 
-        # Commit all changes
-        if self.reflection_db.conn:
-            self.reflection_db.conn.commit()
+            # Commit all changes
+            if self.reflection_db.conn:
+                self.reflection_db.conn.commit()
+        except Exception:
+            # Table doesn't exist yet, will be created during index rebuild
+            return
 
     def _build_search_query(
         self,
