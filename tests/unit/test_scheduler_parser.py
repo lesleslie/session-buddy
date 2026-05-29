@@ -207,7 +207,7 @@ class TestSpecialTimes:
             "noon PST",
         ]
         for expr in tz_exprs:
-            assert "T" not in expr or ":" in expr  # Either no time or has colon
+            assert parser._validate_input(expr) == expr.lower()
 
 
 @pytest.mark.unit
@@ -274,3 +274,86 @@ class TestParserIntegration:
         pats2 = parser.time_patterns
 
         assert pats1 is pats2  # Same object
+
+
+def test_validate_input_and_blank_expression() -> None:
+    parser = NaturalLanguageParser()
+
+    assert parser._validate_input("") is None
+    assert parser._validate_input("   ") is None
+    assert parser._validate_input("  In 5 Minutes  ") == "in 5 minutes"
+    assert parser.parse_time_expression("") is None
+
+
+def test_relative_parsing_and_recurrence(monkeypatch: pytest.MonkeyPatch) -> None:
+    from session_buddy.utils.scheduler import time_parser
+
+    class FakeDateTime(datetime):
+        @classmethod
+        def now(cls) -> datetime:
+            return datetime(2026, 1, 5, 10, 0, 0)
+
+    monkeypatch.setattr(time_parser, "datetime", FakeDateTime)
+
+    parser = NaturalLanguageParser()
+    base_time = datetime(2026, 1, 5, 10, 0, 0)
+
+    assert parser.parse_time_expression("in 5 minutes", base_time=base_time) == (
+        base_time + timedelta(minutes=5)
+    )
+    assert parser.parse_time_expression("in 2 hours", base_time=base_time) == (
+        base_time + timedelta(hours=2)
+    )
+    assert parser.parse_recurrence("every day") == "FREQ=DAILY"
+    assert parser.parse_recurrence("every 15 minutes") == "FREQ=MINUTELY;INTERVAL=15"
+    assert parser.parse_recurrence("") is None
+
+
+def test_specific_time_weekday_and_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
+    from session_buddy.utils.scheduler import time_parser
+
+    class FakeDateTime(datetime):
+        @classmethod
+        def now(cls) -> datetime:
+            return datetime(2026, 1, 5, 10, 30, 0)
+
+    monkeypatch.setattr(time_parser, "datetime", FakeDateTime)
+
+    parser = NaturalLanguageParser()
+    now = datetime(2026, 1, 5, 10, 30, 0)
+
+    specific_match = parser._try_pattern_match(
+        r"at (\d{1,2}):?(\d{2})?\s*(am|pm)?", "at 9am"
+    )
+    assert specific_match is not None
+    specific = parser._parse_specific_time(specific_match)
+    assert specific.hour == 9
+    assert specific.minute == 0
+
+    tomorrow_match = parser._try_pattern_match(
+        r"tomorrow( at (\d{1,2}):?(\d{2})?)?(am|pm)?", "tomorrow"
+    )
+    assert tomorrow_match is not None
+    tomorrow = parser._parse_tomorrow(tomorrow_match)
+    assert tomorrow.hour == 9
+
+    weekday_match = parser._try_pattern_match(
+        r"(monday|tuesday|wednesday|thursday|friday|saturday|sunday) at (\d{1,2}):?(\d{2})?\s*(am|pm)?",
+        "monday at 3pm",
+    )
+    assert weekday_match is not None
+    weekday = parser._parse_weekday_time(weekday_match)
+    assert weekday.hour == 15
+
+    assert parser._get_weekday_number("friday") == 4
+    assert parser._parse_hour_minute("12", None, "am") == (0, 0)
+    assert parser._parse_hour_minute("3", "15", "pm") == (15, 15)
+    assert parser._calculate_days_ahead(0, now, 9, 0) == 7
+    assert parser._calculate_days_ahead(4, now, 9, 0) == 4
+    assert parser._convert_result_to_datetime(timedelta(minutes=30), now) == (
+        now + timedelta(minutes=30)
+    )
+    assert parser._convert_result_to_datetime(
+        FakeDateTime(2026, 1, 5, 10, 30, 0), now
+    ) == FakeDateTime(2026, 1, 5, 10, 30, 0)
+    assert parser._convert_result_to_datetime(object(), now) is None

@@ -120,7 +120,7 @@ class SessionTracker:
         # Initialize metrics if available and enabled
         if self.enable_metrics:
             try:
-                self.metrics = get_metrics()
+                self.metrics = get_metrics()  # type: ignore[assignment]
                 self.logger.debug("SessionMetrics initialized for SessionTracker")
             except Exception as e:
                 self.logger.warning(
@@ -217,9 +217,7 @@ class SessionTracker:
 
             # Generate session ID from event data
             # Format: {component_name}-{timestamp_YYYYMMDD-HHMMSS}
-            timestamp = datetime.fromisoformat(
-                event.timestamp.replace("Z", "+00:00")
-            ).strftime("%Y%m%d-%H%M%S")
+            timestamp = datetime.fromisoformat(event.timestamp).strftime("%Y%m%d-%H%M%S")
             session_id = f"{event.component_name}-{timestamp}"
 
             # Record session start metrics
@@ -261,7 +259,7 @@ class SessionTracker:
             )
 
         except Exception as e:
-            error_msg = f"Session start failed: {str(e)}"
+            error_msg = f"Session start failed: {e}"
 
             # Record metrics for exception
             if self.enable_metrics and self.metrics:
@@ -276,7 +274,7 @@ class SessionTracker:
                 except Exception as metrics_error:
                     self.logger.warning(
                         "Failed to record exception metrics: %s",
-                        str(metrics_error),
+                        metrics_error,
                     )
 
             self.logger.exception(
@@ -413,7 +411,7 @@ class SessionTracker:
             )
 
         except Exception as e:
-            error_msg = f"Session end failed: {str(e)}"
+            error_msg = f"Session end failed: {e}"
 
             # Record metrics for exception
             if self.enable_metrics and self.metrics:
@@ -428,7 +426,7 @@ class SessionTracker:
                 except Exception as metrics_error:
                     self.logger.warning(
                         "Failed to record exception metrics: %s",
-                        str(metrics_error),
+                        metrics_error,
                     )
 
             self.logger.exception(

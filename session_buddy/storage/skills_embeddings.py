@@ -133,7 +133,7 @@ def cosine_similarity(
     norm1 = np.linalg.norm(embedding1)
     norm2 = np.linalg.norm(embedding2)
 
-    if norm1 == 0 or norm2 == 0:
+    if 0 in (norm1, norm2):
         return 0.0
 
     return float(dot_product / (norm1 * norm2))
@@ -277,19 +277,13 @@ class SkillsEmbeddingService:
         """
         try:
             # Use reflection embedding system
-            result = generate_reflection_embedding(text)
+            embedding_list = generate_reflection_embedding(text)
 
-            if result is None or "embedding" not in result:
+            if embedding_list is None:
                 return None
 
-            # Extract embedding
-            embedding = result["embedding"]
-
-            # Convert to numpy array if needed
-            if isinstance(embedding, list):
-                embedding = np.array(embedding, dtype=np.float32)
-
-            return embedding
+            # Convert to numpy array
+            return np.array(embedding_list, dtype=np.float32)
 
         except Exception as e:
             logger.error(f"Embedding generation failed for '{text[:50]}...': {e}")

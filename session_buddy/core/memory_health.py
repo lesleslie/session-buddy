@@ -147,7 +147,7 @@ class MemoryHealthAnalyzer:
         if self._conn is None:
             # Connect to reflection database
             db_file = f"{self.db_path}/reflections.db"
-            self._conn = duckdb.connect(db_file)  # type: ignore[attr-defined]
+            self._conn = duckdb.connect(db_file)
         return self._conn
 
     async def initialize(self) -> None:

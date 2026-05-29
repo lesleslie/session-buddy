@@ -29,11 +29,11 @@ except ImportError:
     WATCHDOG_AVAILABLE = False
 
     # Create stub for FileSystemEventHandler when watchdog is not available
-    class FileSystemEventHandler:  # type: ignore[no-redef]
+    class StubFileSystemEventHandler:
         """Stub base class when watchdog is not available."""
 
-        def __init__(self) -> None:  # type: ignore[no-redef]
-            super().__init__()  # type: ignore[misc]
+        def __init__(self) -> None:
+            super().__init__()
 
     # Create stub for Observer when watchdog is not available
     class Observer:  # type: ignore[no-redef]
@@ -208,7 +208,7 @@ class ProjectActivityMonitor:
         )
 
 
-class IDEFileHandler(FileSystemEventHandler):  # type: ignore[misc]
+class IDEFileHandler(FileSystemEventHandler):
     """Handles file system events for IDE monitoring."""
 
     def __init__(self, monitor: ProjectActivityMonitor) -> None:
@@ -860,8 +860,10 @@ class ApplicationMonitor:
 
     async def _handle_monitoring_error(self, error: Exception) -> None:
         """Handle monitoring errors with appropriate logging and delay."""
-        # Log error but continue monitoring
-        await asyncio.sleep(60)
+        import os
+
+        delay = float(os.environ.get("MONITORING_ERROR_DELAY", "0.1"))
+        await asyncio.sleep(delay)
 
     def get_activity_summary(self, hours: int = 2) -> dict[str, Any]:
         """Get activity summary for specified hours."""

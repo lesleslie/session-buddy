@@ -21,7 +21,7 @@ def register_memory_health_tools(server: t.Any) -> None:
         server: SessionBuddyServer instance to register tools on
     """
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_reflection_health(stale_threshold_days: int = 90) -> dict[str, t.Any]:
         """Get reflection database health metrics."""
         try:
@@ -47,7 +47,7 @@ def register_memory_health_tools(server: t.Any) -> None:
                 "message": "Failed to retrieve reflection health metrics",
             }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_error_hotspots() -> dict[str, t.Any]:
         """Get error pattern and hot-spot metrics."""
         try:
@@ -71,7 +71,7 @@ def register_memory_health_tools(server: t.Any) -> None:
                 "message": "Failed to retrieve error hot-spot metrics",
             }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_cleanup_recommendations() -> dict[str, t.Any]:
         """Get cleanup and optimization recommendations."""
         try:
@@ -110,7 +110,7 @@ def register_memory_health_tools(server: t.Any) -> None:
                 "message": "Failed to generate cleanup recommendations",
             }
 
-    @server.prompt()  # type: ignore[misc]
+    @server.prompt()  # type: ignore[untyped-decorator]
     def memory_health_help() -> str:
         """Get help for memory health monitoring and maintenance."""
         return """# Memory Health Monitoring - Maintenance Guide
@@ -307,7 +307,7 @@ def _generate_reflection_health_insights(metrics: t.Any) -> list[str]:
 
     # Tag distribution insights
     if metrics.tags_distribution:
-        top_tag = max(metrics.tags_distribution, key=metrics.tags_distribution.get)  # type: ignore[arg-type]
+        top_tag = max(metrics.tags_distribution, key=metrics.tags_distribution.get)
         top_count = metrics.tags_distribution[top_tag]
         insights.append(f"🏷️ Most common tag: '{top_tag}' ({top_count} reflections)")
 

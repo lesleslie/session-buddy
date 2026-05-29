@@ -54,7 +54,7 @@ async def search_conversations(
         ...     print(f"{r['score']:.2f}: {r['content'][:50]}...")
     """
     # Get connection if db is ReflectionDatabase instance
-    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
 
     # Use semantic search if embedding available
     if query_embedding is not None:
@@ -222,9 +222,9 @@ async def _text_search_conversations(
             "id": str(row[0]),
             "content": _decode_text_from_db(row[1]),
             "score": 0.0,  # No similarity score for text search
-            "timestamp": row[3],  # type: ignore[misc]  # Tuple index
-            "project": row[2],  # type: ignore[misc]  # Tuple index
-            "metadata": json.loads(row[4]) if row[4] else {},  # type: ignore[misc]  # Tuple index
+            "timestamp": row[3],
+            "project": row[2],
+            "metadata": json.loads(row[4]) if row[4] else {},
         }
         for row in filtered[:limit]
     ]
@@ -263,7 +263,7 @@ async def search_reflections(
         ...     print(f"{r['score']:.2f}: {r['content'][:50]}...")
     """
     # Get connection if db is ReflectionDatabase instance
-    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
 
     # Use semantic search if embedding available
     if query_embedding is not None:
@@ -428,10 +428,10 @@ async def _text_search_reflections(
             "id": str(row[0]),
             "content": _decode_text_from_db(row[1]),
             "score": 0.0,  # No similarity score for text search
-            "timestamp": row[4],  # type: ignore[misc]  # Tuple index
-            "project": row[2],  # type: ignore[misc]  # Tuple index
-            "tags": row[3] or [],  # type: ignore[misc]  # Tuple index
-            "metadata": json.loads(row[5]) if row[5] else {},  # type: ignore[misc]  # Tuple index
+            "timestamp": row[4],
+            "project": row[2],
+            "tags": row[3] or [],
+            "metadata": json.loads(row[5]) if row[5] else {},
         }
         for row in filtered[:limit]
     ]

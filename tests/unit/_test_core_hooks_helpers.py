@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+# NOTE: This file provides mock helpers for tests that need to isolate
+# hooks.py from its dependencies. It intentionally runs at collection time
+# to set up sys.modules state before test_hooks_system.py runs.
+# This mock pollution is why this file must ONLY be imported by tests
+# that specifically need it, and NOT by other tests in the suite.
+
 import importlib.util
 import sys
 import types
@@ -10,19 +16,33 @@ import pytest
 
 
 def _load_hooks_module():
+    # Only mock the specific submodules that need controlling.
+    # Do NOT mock session_buddy.core itself - that blocks real imports
+    # like SessionLifecycleManager that other tests depend on.
     for name in (
-        "session_buddy.core",
         "session_buddy.core.causal_chains",
         "session_buddy.core.intelligence",
         "session_buddy.core.workflow_metrics",
     ):
         sys.modules.pop(name, None)
 
-    core_pkg = types.ModuleType("session_buddy.core")
-    core_pkg.__path__ = []  # type: ignore[attr-defined]
-    sys.modules["session_buddy.core"] = core_pkg
-
     causal_module = types.ModuleType("session_buddy.core.causal_chains")
+
+    # Required classes for test_hooks_system.py and test_intelligence.py
+    class ErrorEvent:
+        def __init__(self, error_message: str = "", context: dict | None = None):
+            self.error_message = error_message
+            self.context = context or {}
+
+    class FixAttempt:
+        def __init__(self, fix_type: str = "", outcome: str = ""):
+            self.fix_type = fix_type
+            self.outcome = outcome
+
+    class CausalChain:
+        def __init__(self, chain_id: str = "", events: list | None = None):
+            self.chain_id = chain_id
+            self.events = events or []
 
     class CausalChainTracker:
         def __init__(self, logger=None):
@@ -34,10 +54,24 @@ def _load_hooks_module():
         async def record_error_event(self, **kwargs):
             return "chain-1"
 
+    causal_module.ErrorEvent = ErrorEvent  # type: ignore[attr-defined]
+    causal_module.FixAttempt = FixAttempt  # type: ignore[attr-defined]
+    causal_module.CausalChain = CausalChain  # type: ignore[attr-defined]
     causal_module.CausalChainTracker = CausalChainTracker  # type: ignore[attr-defined]
     sys.modules["session_buddy.core.causal_chains"] = causal_module
 
     intelligence_module = types.ModuleType("session_buddy.core.intelligence")
+
+    # Required classes for test_intelligence.py
+    class PatternInstance:
+        def __init__(self, pattern_type: str = "", context: dict | None = None):
+            self.pattern_type = pattern_type
+            self.context = context or {}
+
+    class WorkflowSuggestion:
+        def __init__(self, suggestion: str = "", confidence: float = 0.0):
+            self.suggestion = suggestion
+            self.confidence = confidence
 
     class IntelligenceEngine:
         def __init__(self):
@@ -51,7 +85,20 @@ def _load_hooks_module():
             self.checkpoints.append(checkpoint)
             return ["pattern-1"]
 
+    # Mock LearnedSkill class for tests that need it
+    class LearnedSkill:
+        def __init__(self, skill_name: str, pattern_type: str, success_rate: float = 0.0):
+            self.skill_name = skill_name
+            self.pattern_type = pattern_type
+            self.success_rate = success_rate
+
     intelligence_module.IntelligenceEngine = IntelligenceEngine  # type: ignore[attr-defined]
+    intelligence_module.LearnedSkill = LearnedSkill  # type: ignore[attr-defined]
+    intelligence_module.PatternInstance = PatternInstance  # type: ignore[attr-defined]
+    intelligence_module.WorkflowSuggestion = WorkflowSuggestion  # type: ignore[attr-defined]
+    intelligence_module.safe_json_parse = lambda x: (True, None)  # type: ignore[attr-defined]
+    intelligence_module._get_default_value = lambda *args, **kwargs: None  # type: ignore[attr-defined]
+    intelligence_module._validate_json_result = lambda *args, **kwargs: None  # type: ignore[attr-defined]
     sys.modules["session_buddy.core.intelligence"] = intelligence_module
 
     workflow_metrics_module = types.ModuleType("session_buddy.core.workflow_metrics")
@@ -67,7 +114,14 @@ def _load_hooks_module():
         async def collect_session_metrics(self, **kwargs):
             self.calls.append(kwargs)
 
+    # Mock WorkflowMetrics class for tests that need it
+    class WorkflowMetrics:
+        def __init__(self, session_id: str = "", quality_score: float = 0.0):
+            self.session_id = session_id
+            self.quality_score = quality_score
+
     workflow_metrics_module.Engine = Engine  # type: ignore[attr-defined]
+    workflow_metrics_module.WorkflowMetrics = WorkflowMetrics  # type: ignore[attr-defined]
     workflow_metrics_module.get_workflow_metrics_engine = lambda: Engine()  # type: ignore[attr-defined]
     sys.modules["session_buddy.core.workflow_metrics"] = workflow_metrics_module
 

@@ -22,7 +22,7 @@ def register_workflow_metrics_tools(server: Any) -> None:
         server: SessionBuddyServer instance to register tools on
     """
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_workflow_metrics(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -52,7 +52,7 @@ def register_workflow_metrics_tools(server: Any) -> None:
                 "message": "Failed to retrieve workflow metrics",
             }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_session_analytics(
         limit: int = 20, sort_by: str = "duration"
     ) -> dict[str, t.Any]:
@@ -143,7 +143,7 @@ def register_workflow_metrics_tools(server: Any) -> None:
                 "message": "Failed to retrieve session analytics",
             }
 
-    @server.prompt()  # type: ignore[misc]
+    @server.prompt()  # type: ignore[untyped-decorator]
     def workflow_metrics_help() -> str:
         """Get help for workflow metrics and monitoring."""
         return """# Workflow Metrics - Monitoring Guide

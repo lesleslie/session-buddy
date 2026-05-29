@@ -133,7 +133,7 @@ async def _optimize_reflection_database() -> str:
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()  # type: ignore[misc]
+        db = await get_reflection_database()
         await db.get_stats()
         db_size_before = (
             Path(db.db_path).stat().st_size if Path(db.db_path).exists() else 0
@@ -200,7 +200,7 @@ async def _store_context_summary(conversation_summary: dict[str, Any]) -> None:
     with suppress(ImportError, RuntimeError, OSError, ValueError, AttributeError):
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()  # type: ignore[misc]
+        db = await get_reflection_database()
         summary_text = f"Session context: {', '.join(conversation_summary.get('key_topics', [])[:3])}"
         if conversation_summary.get("decisions_made"):
             summary_text += (
@@ -351,7 +351,7 @@ async def summarize_current_conversation() -> dict[str, Any]:
         try:
             from session_buddy.reflection_tools import get_reflection_database
 
-            db = await get_reflection_database()  # type: ignore[misc]  # type: ignore[misc]
+            db = await get_reflection_database()
             await _process_recent_reflections(db, summary)
             _add_current_session_context(summary)
             _ensure_summary_defaults(summary)
@@ -399,7 +399,7 @@ async def _get_conversation_statistics() -> dict[str, int]:
     with suppress(ImportError, RuntimeError, OSError, ValueError, AttributeError):
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()  # type: ignore[misc]
+        db = await get_reflection_database()
         stats = await db.get_stats()
         conv_stats["total_conversations"] = stats.get("conversations_count", 0)
 
@@ -463,7 +463,7 @@ async def analyze_conversation_flow() -> dict[str, Any]:
         try:
             from session_buddy.reflection_tools import get_reflection_database
 
-            db = await get_reflection_database()  # type: ignore[misc]  # type: ignore[misc]
+            db = await get_reflection_database()
 
             # Search recent reflections for patterns
             recent_reflections = await db.search_reflections(
@@ -697,12 +697,12 @@ async def _analyze_reflection_based_intelligence() -> list[str]:
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()  # type: ignore[misc]
+        db = await get_reflection_database()
         recent_reflections = await db.search_reflections("checkpoint", limit=3)
 
         if recent_reflections:
             recent_scores = _extract_quality_scores(recent_reflections)
-            return _generate_quality_trend_recommendations(recent_scores)  # type: ignore[no-any-return]
+            return _generate_quality_trend_recommendations(recent_scores)
 
     except ImportError:
         return []
@@ -730,7 +730,7 @@ async def generate_session_intelligence() -> dict[str, Any]:
         }
 
     except Exception as e:
-        return _get_intelligence_error_result(e)  # type: ignore[no-any-return]
+        return _get_intelligence_error_result(e)
 
 
 def _ensure_default_recommendations(priority_actions: list[str]) -> list[str]:
@@ -754,7 +754,7 @@ async def _perform_quality_analysis() -> tuple[str, list[str], bool]:
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()  # type: ignore[misc]
+        db = await get_reflection_database()
         recent_reflections = await db.search_reflections("quality score", limit=5)
         quality_scores = _extract_quality_scores(recent_reflections)
 
@@ -832,7 +832,7 @@ async def _analyze_memory_recommendations(results: list[str]) -> None:
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()  # type: ignore[misc]
+        db = await get_reflection_database()
         stats = await db.get_stats()
         conv_count = stats.get("conversations_count", 0)
 

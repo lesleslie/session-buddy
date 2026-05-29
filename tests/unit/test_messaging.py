@@ -7,11 +7,43 @@ ensuring consistent formatting, error handling, and edge case coverage.
 
 from __future__ import annotations
 
+import importlib.util
+import sys
+import types
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from session_buddy.utils.messages import ToolMessages
+
+
+def _load_messages_module():
+    repo_root = Path(__file__).resolve().parents[2]
+
+    if "session_buddy" not in sys.modules:
+        package = types.ModuleType("session_buddy")
+        package.__path__ = [str(repo_root / "session_buddy")]  # type: ignore[attr-defined]
+        sys.modules["session_buddy"] = package
+
+    utils_package_name = "session_buddy.utils"
+    if utils_package_name not in sys.modules:
+        utils_package = types.ModuleType(utils_package_name)
+        utils_package.__path__ = [str(repo_root / "session_buddy" / "utils")]  # type: ignore[attr-defined]
+        sys.modules[utils_package_name] = utils_package
+
+    module_path = repo_root / "session_buddy" / "utils" / "messages.py"
+    spec = importlib.util.spec_from_file_location(
+        "session_buddy.utils.messages",
+        module_path,
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+ToolMessages = _load_messages_module().ToolMessages
 
 
 class TestToolMessagesBasicFormatting:

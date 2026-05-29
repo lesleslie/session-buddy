@@ -131,7 +131,7 @@ class AnthropicProvider(LLMProvider):
             self.logger.exception(f"Anthropic generation failed: {e}")
             raise
 
-    async def stream_generate(  # type: ignore[override]
+    async def stream_generate(
         self,
         messages: list[LLMMessage],
         model: str | None = None,

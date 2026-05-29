@@ -80,7 +80,7 @@ def _get_session_manager() -> SessionLifecycleManager:
         True
     """
     with suppress(Exception):
-        manager = get_sync_typed(SessionLifecycleManager)  # type: ignore[no-any-return]
+        manager = get_sync_typed(SessionLifecycleManager)  # type: ignore[no-any-return,assignment]
         if isinstance(manager, SessionLifecycleManager):
             return manager
 
@@ -107,7 +107,7 @@ def _get_session_tracker() -> SessionTracker:
         # Try to get from container if already registered
         from session_buddy.di import depends
 
-        tracker = depends.get(SessionTracker, None)
+        tracker = depends.get(SessionTracker, None)  # type: ignore[arg-type]
         if tracker is not None:
             return tracker
 
@@ -197,13 +197,13 @@ def register_admin_shell_tracking_tools(mcp_server: FastMCP) -> None:
             return result.model_dump()
 
         except Exception as e:
-            error_msg = f"Session start tracking failed: {str(e)}"
+            error_msg = f"Session start tracking failed: {e}"
             logger.exception(
                 "Session start tracking exception: component=%s, shell_type=%s, pid=%d, error=%s",
                 component_name,
                 shell_type,
                 pid,
-                str(e),
+                e,
             )
             # Return error result
             return SessionStartResult(
@@ -249,11 +249,11 @@ def register_admin_shell_tracking_tools(mcp_server: FastMCP) -> None:
             return result.model_dump()
 
         except Exception as e:
-            error_msg = f"Session end tracking failed: {str(e)}"
+            error_msg = f"Session end tracking failed: {e}"
             logger.exception(
                 "Session end tracking exception: session_id=%s, error=%s",
                 session_id,
-                str(e),
+                e,
             )
             # Return error result
             return SessionEndResult(

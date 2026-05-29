@@ -130,8 +130,8 @@ def _get_session_logger():
 
 Based on web search, similar parameter-related issues exist:
 
-1. **[Issue #932](https://github.com/jlowin/fastmcp/issues/932)** - LLM-to-MCP Parameter Error: JSON Arguments Encapsulated as String Cause Validation Failure
-1. **[Issue #1252](https://github.com/jlowin/fastmcp/issues/1252)** - Returning CallToolResult from `on_call_tool` yields "'CallToolResult' object has no attribute 'to_mcp_result'"
+1. **[Issue #932](https://github.com/PrefectHQ/fastmcp/issues/932)** - LLM-to-MCP Parameter Error: JSON Arguments Encapsulated as String Cause Validation Failure
+1. **[Issue #1252](https://github.com/PrefectHQ/fastmcp/issues/1252)** - Returning CallToolResult from `on_call_tool` yields "'CallToolResult' object has no attribute 'to_mcp_result'"
 1. **[Issue #381](https://github.com/modelcontextprotocol/python-sdk/issues/381)** - Fastmcp tool parameter parsing type error
 
 ### What Needs to be Fixed

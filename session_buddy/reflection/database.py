@@ -32,7 +32,7 @@ try:
     ONNX_AVAILABLE = True
 except ImportError:
     ONNX_AVAILABLE = False
-    ort = None  # type: ignore[no-redef]
+    ort = None
 
 logger = logging.getLogger(__name__)
 
@@ -263,14 +263,14 @@ class ReflectionDatabase:
                     )
                     initialize_schema(self._shared_conn)
                 self.local.conn = self._shared_conn
-            return self._shared_conn  # type: ignore[return-value]
+            return self._shared_conn
 
         # For normal environments, use thread-local storage
         if not hasattr(self.local, "conn") or self.local.conn is None:
             self.local.conn = duckdb.connect(
                 self.db_path, config={"allow_unsigned_extensions": True}
             )
-        return self.local.conn  # type: ignore[return-value]
+        return self.local.conn  # type: ignore
 
     async def get_embedding(self, text: str) -> list[float]:
         """Get embedding for text using ONNX model.
@@ -647,16 +647,13 @@ class ReflectionDatabase:
         )
 
         # Log memory access for each result
-        try:
+        with suppress(Exception):
             from session_buddy.memory.persistence import log_memory_access
 
             for result in results:
                 memory_id = result.get("id", "")
                 if memory_id:
                     log_memory_access(memory_id, access_type="search")
-        except Exception:
-            # Logging is best-effort; don't fail the search if logging fails
-            pass
 
         return results
 

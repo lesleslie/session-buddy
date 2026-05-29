@@ -23,7 +23,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal, cast
 
 from session_buddy.utils.error_management import _get_logger
 
@@ -171,7 +171,7 @@ class AkoshaSyncConfig:
     Smaller chunks = better progress tracking but more overhead.
     """
 
-    def __getattribute__(self, name: str):  # type: ignore[override]
+    def __getattribute__(self, name: str) -> dict[str, Any]:
         if name == "__dict__":
             raw = super().__getattribute__("__dict__").copy()
             # Keep explicit False values available to tests, but hide the
@@ -182,8 +182,8 @@ class AkoshaSyncConfig:
                 raw.pop("enable_compression", None)
             if raw.get("enable_deduplication") is True:
                 raw.pop("enable_deduplication", None)
-            return raw
-        return super().__getattribute__(name)
+            return raw  # type: ignore[no-any-return]
+        return super().__getattribute__(name)  # type: ignore[no-any-return]
 
     # ==========================================================================
     # Computed Properties
@@ -306,9 +306,10 @@ class AkoshaSyncConfig:
                 else default
             )
 
-        force_method = _string("akosha_force_method", "auto")
-        if force_method not in {"auto", "cloud", "http"}:
-            force_method = "auto"
+        force_method_raw = _string("akosha_force_method", "auto")
+        if force_method_raw not in {"auto", "cloud", "http"}:
+            force_method_raw = "auto"
+        force_method = cast(Literal["auto", "cloud", "http"], force_method_raw)
 
         return cls(
             # Cloud settings

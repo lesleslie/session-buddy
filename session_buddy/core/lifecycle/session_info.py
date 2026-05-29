@@ -35,7 +35,7 @@ class SessionInfo:
     @classmethod
     def from_dict(cls, data: dict[str, str]) -> SessionInfo:
         """Create from dictionary with validation."""
-        return cls(  # type: ignore[call-arg]
+        return cls(
             session_id=data.get("session_id", ""),
             ended_at=data.get("ended_at", ""),
             quality_score=data.get("quality_score", ""),

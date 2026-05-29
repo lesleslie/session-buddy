@@ -666,15 +666,20 @@ async def _reset_reflection_database_impl() -> str:
 # ============================================================================
 
 
-def register_memory_tools(mcp_server: Any) -> None:
-    """Register all memory management tools with the MCP server."""
+def _register_core_memory_tools(mcp: Any) -> None:
+    """Register core memory tools.
 
-    @mcp_server.tool()  # type: ignore[misc]
+    Args:
+        mcp: FastMCP server instance
+
+    """
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def store_reflection(content: str, tags: list[str] | None = None) -> str:
         """Store an important insight or reflection for future reference."""
         return await _store_reflection_impl(content, tags)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def quick_search(
         query: str,
         min_score: float = 0.7,
@@ -683,7 +688,7 @@ def register_memory_tools(mcp_server: Any) -> None:
         """Quick search that returns only the count and top result for fast overview."""
         return await _quick_search_impl(query, min_score, project)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def search_summary(
         query: str,
         limit: int = 10,
@@ -693,7 +698,7 @@ def register_memory_tools(mcp_server: Any) -> None:
         """Get aggregated insights from search results without individual result details."""
         return await _search_summary_impl(query, min_score, project)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def search_by_file(
         file_path: str,
         limit: int = 10,
@@ -703,7 +708,7 @@ def register_memory_tools(mcp_server: Any) -> None:
         """Search for conversations that analyzed a specific file."""
         return await _search_by_file_impl(file_path, limit, project)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def search_by_concept(
         concept: str,
         include_files: bool = True,
@@ -714,12 +719,17 @@ def register_memory_tools(mcp_server: Any) -> None:
         """Search for conversations about a specific development concept."""
         return await _search_by_concept_impl(concept, include_files, limit, project)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def reflection_stats(project: str | None = None) -> str:
         """Get statistics about the reflection database."""
         return await _reflection_stats_impl()
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:
         """Reset the reflection database connection to fix lock issues."""
         return await _reset_reflection_database_impl()
+
+
+def register_memory_tools(mcp: Any) -> None:
+    """Register all memory management tools with the MCP server."""
+    _register_core_memory_tools(mcp)

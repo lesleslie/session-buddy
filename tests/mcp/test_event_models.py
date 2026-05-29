@@ -4,12 +4,18 @@ This test suite validates the Pydantic models used for session lifecycle
 event tracking received from admin shells via MCP.
 """
 
+from __future__ import annotations
+
+import json
+
 import pytest
 from pydantic import ValidationError
 
 from session_buddy.mcp.event_models import (
     EnvironmentInfo,
     ErrorResponse,
+    ChannelSessionEvent,
+    ChannelSessionResult,
     SessionEndEvent,
     SessionEndResult,
     SessionStartEvent,
@@ -213,6 +219,82 @@ class TestSessionStartEvent:
             )
         assert "less than or equal to 4194304" in str(exc_info.value)
 
+    def test_invalid_event_type_rejected(self, valid_user, valid_environment):
+        """Test that SessionStartEvent rejects the wrong event_type."""
+        with pytest.raises(ValidationError) as exc_info:
+            SessionStartEvent(
+                event_version="1.0",
+                event_id="550e8400-e29b-41d4-a716-446655440000",
+                event_type="session_end",
+                component_name="mahavishnu",
+                shell_type="MahavishnuShell",
+                timestamp="2026-02-06T12:34:56.789Z",
+                pid=12345,
+                user=valid_user,
+                hostname="server01",
+                environment=valid_environment,
+            )
+
+        assert "Invalid event_type for SessionStartEvent" in str(exc_info.value)
+
+    def test_structurally_invalid_timestamp_rejected(
+        self, valid_user, valid_environment
+    ):
+        """Test that malformed timestamps with a T still fail validation."""
+        with pytest.raises(ValidationError) as exc_info:
+            SessionStartEvent(
+                event_version="1.0",
+                event_id="550e8400-e29b-41d4-a716-446655440000",
+                component_name="mahavishnu",
+                shell_type="MahavishnuShell",
+                timestamp="2026-02-06T12:34",
+                pid=12345,
+                user=valid_user,
+                hostname="server01",
+                environment=valid_environment,
+            )
+
+        assert "Invalid ISO 8601 timestamp" in str(exc_info.value)
+
+    def test_missing_t_timestamp_rejected(self, valid_user, valid_environment):
+        """Test that timestamps missing the T separator are rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            SessionStartEvent(
+                event_version="1.0",
+                event_id="550e8400-e29b-41d4-a716-446655440000",
+                component_name="mahavishnu",
+                shell_type="MahavishnuShell",
+                timestamp="2026-02-06 12:34:56Z",
+                pid=12345,
+                user=valid_user,
+                hostname="server01",
+                environment=valid_environment,
+            )
+
+        assert "missing time component" in str(exc_info.value)
+
+    def test_validate_consistency_directly(self, valid_user, valid_environment):
+        """Test the model_validator branch via model_construct."""
+        event = SessionStartEvent.model_construct(
+            event_version="1.0",
+            event_id="550e8400-e29b-41d4-a716-446655440000",
+            event_type="session_end",
+            component_name="mahavishnu",
+            shell_type="MahavishnuShell",
+            timestamp="2026-02-06T12:34:56.789Z",
+            pid=12345,
+            user=valid_user,
+            hostname="server01",
+            environment=valid_environment,
+        )
+
+        with pytest.raises(ValueError, match="session_start"):
+            event.validate_consistency()
+
+    def test_validate_event_type_helper_returns_value(self) -> None:
+        """Test the valid branch of the field validator helper directly."""
+        assert SessionStartEvent.validate_event_type("session_start") == "session_start"
+
 
 class TestSessionEndEvent:
     """Test SessionEndEvent model validation."""
@@ -234,6 +316,31 @@ class TestSessionEndEvent:
                 timestamp="not-a-timestamp"
             )
         assert "Invalid ISO 8601 timestamp" in str(exc_info.value)
+
+    def test_invalid_event_type_rejected(self):
+        """Test that SessionEndEvent rejects the wrong event_type."""
+        with pytest.raises(ValidationError) as exc_info:
+            SessionEndEvent(
+                event_type="session_start",
+                session_id="sess_abc123",
+                timestamp="2026-02-06T13:45:00.000Z",
+            )
+
+        assert "Invalid event_type for SessionEndEvent" in str(exc_info.value)
+
+    def test_structurally_invalid_timestamp_rejected(self):
+        """Test that malformed timestamps with a T still fail validation."""
+        with pytest.raises(ValidationError) as exc_info:
+            SessionEndEvent(
+                session_id="sess_abc123",
+                timestamp="2026-02-06T13:45",
+            )
+
+        assert "Invalid ISO 8601 timestamp" in str(exc_info.value)
+
+    def test_validate_event_type_helper_returns_value(self) -> None:
+        """Test the valid branch of the field validator helper directly."""
+        assert SessionEndEvent.validate_event_type("session_end") == "session_end"
 
 
 class TestSessionStartResult:
@@ -259,6 +366,28 @@ class TestSessionStartResult:
         assert result.session_id is None
         assert result.status == "error"
         assert result.error == "Database connection failed"
+
+    def test_validate_consistency_directly(self) -> None:
+        """Test the model_validator helper directly on a constructed model."""
+        result = SessionStartResult.model_construct(
+            session_id="sess_abc123",
+            status="tracked",
+            error="unexpected",
+        )
+
+        with pytest.raises(ValueError, match="error must be None"):
+            result.validate_consistency()
+
+    def test_validate_consistency_requires_session_id(self) -> None:
+        """Test the tracked branch that requires a session_id."""
+        result = SessionStartResult.model_construct(
+            session_id=None,
+            status="tracked",
+            error=None,
+        )
+
+        with pytest.raises(ValueError, match="session_id required"):
+            result.validate_consistency()
 
     def test_status_validation(self):
         """Test that invalid status is rejected."""
@@ -429,3 +558,85 @@ class TestJsonSchema:
         assert "properties" in schema
         assert "session_id" in schema["properties"]
         assert "status" in schema["properties"]
+
+
+class TestJsonSchemaMixinHelpers:
+    """Test JsonSchemaMixin helper methods directly."""
+
+    def test_validate_json_from_string(self) -> None:
+        """validate_json should accept a JSON string payload."""
+        event = SessionStartEvent.validate_json(
+            json.dumps(
+                {
+                    "event_version": "1.0",
+                    "event_id": "550e8400-e29b-41d4-a716-446655440000",
+                    "component_name": "mahavishnu",
+                    "shell_type": "MahavishnuShell",
+                    "timestamp": "2026-02-06T12:34:56.789Z",
+                    "pid": 12345,
+                    "user": {"username": "john", "home": "/home/john"},
+                    "hostname": "server01",
+                    "environment": {
+                        "python_version": "3.13.0",
+                        "platform": "Linux-6.5.0-x86_64",
+                        "cwd": "/home/john/projects/mahavishnu",
+                    },
+                }
+            )
+        )
+
+        assert isinstance(event, SessionStartEvent)
+        assert event.component_name == "mahavishnu"
+
+    def test_validate_json_safe_returns_error(self) -> None:
+        """validate_json_safe should return an error tuple for invalid data."""
+        event, error = SessionStartEvent.validate_json_safe(
+            {
+                "event_version": "1.0",
+                "event_id": "not-a-valid-uuid",
+                "component_name": "mahavishnu",
+            }
+        )
+
+        assert event is None
+        assert error is not None
+
+    def test_json_schema_includes_metadata(self) -> None:
+        """json_schema should add the shared schema metadata fields."""
+        schema = SessionStartEvent.json_schema()
+
+        assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+        assert schema["event_version"] == "1.0"
+
+
+class TestChannelSessionModels:
+    """Test channel session models that extend the shared schema mixin."""
+
+    def test_channel_session_event_defaults(self) -> None:
+        """ChannelSessionEvent should populate its default fields."""
+        event = ChannelSessionEvent(
+            event_id="550e8400-e29b-41d4-a716-446655440000",
+            event_type="channel_session_start",
+            channel_type="slack",
+            channel_id="D0123456789",
+            sender_id="U0123456789",
+            timestamp="2026-05-07T12:00:00+00:00",
+        )
+
+        assert event.event_version == "2.0"
+        assert event.session_scope == "conversation"
+        assert event.component_name == "nanobot"
+        assert event.message_count == 1
+        assert event.metadata == {}
+
+    def test_channel_session_result_defaults(self) -> None:
+        """ChannelSessionResult should allow optional session_id and error."""
+        result = ChannelSessionResult(
+            event_id="550e8400-e29b-41d4-a716-446655440000",
+            status="tracked",
+        )
+
+        assert result.session_id is None
+        assert result.event_id == "550e8400-e29b-41d4-a716-446655440000"
+        assert result.status == "tracked"
+        assert result.error is None

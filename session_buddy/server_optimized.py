@@ -63,7 +63,7 @@ except ImportError:
             def run(self, *args: Any, **kwargs: Any) -> None:
                 pass
 
-        FastMCP = MockFastMCP  # type: ignore[no-redef]
+        FastMCP = MockFastMCP
         MCP_AVAILABLE = False
     else:
         sys.exit(1)
@@ -196,19 +196,19 @@ from session_buddy.tools import (
 
 # Core session management tools
 # Type ignore: mcp is MockFastMCP|FastMCP union in tests, both have compatible interface
-register_session_tools(mcp)  # type: ignore[argument-type]
+register_session_tools(mcp)
 
 # Memory and reflection tools
-register_memory_tools(mcp)  # type: ignore[argument-type]
+register_memory_tools(mcp)
 
 # Fingerprint tools (Phase 4: N-gram Fingerprinting)
-register_fingerprint_tools(mcp)  # type: ignore[argument-type]
+register_fingerprint_tools(mcp)
 
 # Category evolution tools (Phase 5: Category Evolution)
-register_category_tools(mcp)  # type: ignore[argument-type]
+register_category_tools(mcp)
 
 # MCP prompts for slash command support
-register_prompt_tools(mcp)  # type: ignore[argument-type]
+register_prompt_tools(mcp)
 
 
 @mcp.tool()
@@ -611,6 +611,17 @@ def run_server(host: str = "127.0.0.1", port: int = 8678) -> None:
         host: Host to bind to (default: 127.0.0.1)
         port: Port to bind to (default: 8678)
     """
+    # Configure structured logging via Oneiric (Console / string tracebacks)
+    from oneiric.core.logging import LoggingConfig, configure_logging
+
+    configure_logging(
+        LoggingConfig(
+            level="INFO",
+            emit_json=False,  # Console output for local service readability
+            traceback_style="string",  # Human-readable tracebacks (not dict)
+        )
+    )
+
     try:
         logger.info("Starting optimized session-buddy server")
 

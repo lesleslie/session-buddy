@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from session_buddy.mcp.server import SessionBuddyServer
+    from session_buddy.mcp.server import SessionBuddyServer  # type: ignore[attr-defined]
 
 logger = logging.getLogger(__name__)
 
@@ -239,7 +239,7 @@ def register_intent_detection_tools(server: SessionBuddyServer) -> None:
         server: SessionBuddyServer instance to register tools on
     """
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def detect_intent(
         user_message: str, confidence_threshold: float = 0.7
     ) -> dict[str, Any]:
@@ -250,7 +250,7 @@ def register_intent_detection_tools(server: SessionBuddyServer) -> None:
             logger.error(f"Intent detection failed: {e}")
             return _format_intent_error(str(e))
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_intent_suggestions(
         user_message: str, limit: int = 5
     ) -> dict[str, Any]:
@@ -261,7 +261,7 @@ def register_intent_detection_tools(server: SessionBuddyServer) -> None:
             logger.error(f"Intent suggestions failed: {e}")
             return _format_suggestions_error(str(e))
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def list_supported_intents() -> dict[str, Any]:
         """List all supported intent patterns and their tools."""
         try:

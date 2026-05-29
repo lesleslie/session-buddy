@@ -16,7 +16,7 @@ from session_buddy.di.container import depends
 
 def get_reflection_settings() -> ReflectionAdapterSettings:
     with suppress(Exception):
-        settings = get_sync_typed(ReflectionAdapterSettings)  # type: ignore[no-any-return]
+        settings = get_sync_typed(ReflectionAdapterSettings)
         if isinstance(settings, ReflectionAdapterSettings):
             return settings
     settings = ReflectionAdapterSettings.from_settings()
@@ -26,7 +26,7 @@ def get_reflection_settings() -> ReflectionAdapterSettings:
 
 def get_knowledge_graph_settings() -> KnowledgeGraphAdapterSettings:
     with suppress(Exception):
-        settings = get_sync_typed(KnowledgeGraphAdapterSettings)  # type: ignore[no-any-return]
+        settings = get_sync_typed(KnowledgeGraphAdapterSettings)
         if isinstance(settings, KnowledgeGraphAdapterSettings):
             return settings
     settings = KnowledgeGraphAdapterSettings.from_settings()
@@ -36,7 +36,7 @@ def get_knowledge_graph_settings() -> KnowledgeGraphAdapterSettings:
 
 def get_storage_settings() -> StorageAdapterSettings:
     with suppress(Exception):
-        settings = get_sync_typed(StorageAdapterSettings)  # type: ignore[no-any-return]
+        settings = get_sync_typed(StorageAdapterSettings)
         if isinstance(settings, StorageAdapterSettings):
             return settings
     settings = StorageAdapterSettings.from_settings()
@@ -46,7 +46,7 @@ def get_storage_settings() -> StorageAdapterSettings:
 
 def get_cache_settings() -> CacheAdapterSettings:
     with suppress(Exception):
-        settings = get_sync_typed(CacheAdapterSettings)  # type: ignore[no-any-return]
+        settings = get_sync_typed(CacheAdapterSettings)
         if isinstance(settings, CacheAdapterSettings):
             return settings
     settings = CacheAdapterSettings()

@@ -1,0 +1,143 @@
+"""OTel trace query tools for Session-Buddy.
+
+This module provides MCP tools for querying OTel traces by system_id and
+attribute filters (time range, task_class). Used by the Bodai feedback loop
+so Session-Buddy can poll traces from all Bodai components.
+
+Uses ReflectionDatabaseAdapterOneiric search_conversations with attribute-based
+filtering in Python. HNSW vector index is NOT used for this query.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from session_buddy.utils.error_management import _get_logger
+
+logger = _get_logger()
+
+
+async def query_local_traces(  # noqa: C901
+    system_id: str,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    task_class: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Query OTel traces by system_id and optional attribute filters.
+
+    Fetches traces for a given system_id within an optional time range,
+    and optionally filtered by task.class attribute. Uses the global
+    ReflectionDatabaseAdapterOneiric instance (same as Akosha) for storage.
+
+    Args:
+        system_id: Source system identifier (e.g., 'mahavishnu', 'akosha')
+        start_time: ISO8601 start time (optional)
+        end_time: ISO8601 end time (optional)
+        task_class: Task classification tag to filter on (optional)
+        limit: Maximum number of traces to return (default 100)
+
+    Returns:
+        List of trace records matching the filter criteria
+    """
+    try:
+        from session_buddy.adapters.reflection_adapter_oneiric import (
+            get_reflection_database,
+        )
+
+        # Get the shared reflection database (same storage as Akosha)
+        db = await get_reflection_database()
+
+        # Fetch all conversations for this system using text search
+        # We use a broad search and filter in Python since we don't have
+        # a dedicated OTel traces table yet
+        results = await db.search_conversations(
+            query=system_id,
+            limit=limit,
+            threshold=0.0,  # Get all results, filter below
+        )
+
+        # Apply attribute-based filters in Python
+        filtered = []
+        for result in results:
+            metadata = result.get("metadata", {})
+            attributes = metadata.get("attributes", {})
+
+            # Filter by system_id (ensure exact match)
+            # Check both direct field and metadata.system_id
+            result_system_id = result.get("system_id") or metadata.get("system_id")
+            if result_system_id and result_system_id != system_id:
+                continue
+
+            # Filter by time range
+            if start_time or end_time:
+                ts = result.get("timestamp") or result.get("created_at")
+                if ts:
+                    if isinstance(ts, str):
+                        try:
+                            ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                        except ValueError:
+                            pass
+                    if start_time:
+                        start_dt = datetime.fromisoformat(
+                            start_time.replace("Z", "+00:00")
+                        )
+                        if ts < start_dt:
+                            continue
+                    if end_time:
+                        end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+                        if ts > end_dt:
+                            continue
+
+            # Filter by task_class
+            if task_class:
+                task_classes = attributes.get("task.class") or attributes.get(
+                    "task_class"
+                )
+                if isinstance(task_classes, list):
+                    if task_class not in task_classes:
+                        continue
+                elif task_classes != task_class:
+                    if metadata.get("task_class") != task_class:
+                        continue
+
+            filtered.append(
+                {
+                    "conversation_id": result.get("id")
+                    or result.get("conversation_id"),
+                    "content": result.get("content"),
+                    "timestamp": str(
+                        result.get("timestamp") or result.get("created_at", "")
+                    ),
+                    "metadata": metadata,
+                    "attributes": attributes,
+                }
+            )
+
+        logger.info(f"query_local_traces: system={system_id}, matched={len(filtered)}")
+        return filtered
+
+    except Exception as e:
+        logger.exception(f"Error querying traces: {e}")
+        return []
+
+
+def register_otel_trace_tools(mcp_server: Any) -> None:
+    """Register OTel trace query tools with MCP server.
+
+    Args:
+        mcp_server: FastMCP server instance
+
+    Example:
+        >>> from session_buddy.mcp.server import mcp
+        >>> register_otel_trace_tools(mcp)
+    """
+    mcp_server.tool()(query_local_traces)
+    logger.info("Registered OTel trace query tools")
+
+
+__all__ = [
+    "query_local_traces",
+    "register_otel_trace_tools",
+]

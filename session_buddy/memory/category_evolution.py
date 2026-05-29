@@ -1450,7 +1450,7 @@ class CategoryEvolutionEngine:
             List of snapshot row tuples
         """
         conn = self._db_adapter.conn
-        return conn.execute(
+        return list(conn.execute(
             """
             SELECT
                 id, category, before_subcategory_count, before_silhouette,
@@ -1462,8 +1462,8 @@ class CategoryEvolutionEngine:
             ORDER BY timestamp DESC
             LIMIT ?
             """,
-            [category_value, limit],
-        ).fetchall()
+            (category_value, limit),
+        ))
 
     def _build_snapshot_dict(self, row: tuple[Any, ...]) -> dict[str, Any]:
         """Build a snapshot dictionary from a database row.

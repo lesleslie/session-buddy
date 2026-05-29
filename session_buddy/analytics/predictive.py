@@ -149,7 +149,7 @@ class SkillSuccessPredictor:
         # Feature 6: session_length_minutes
         try:
             session_start = datetime.fromisoformat(session_context.session_start_time)
-            session_length_minutes = float((now - session_start).total_seconds() / 60)
+            session_length_minutes = (now - session_start).total_seconds() / 60
         except (ValueError, TypeError):
             session_length_minutes = 0.0
 
@@ -382,7 +382,7 @@ class SkillSuccessPredictor:
             },
         }
 
-        return explanations
+        return explanations  # type: ignore[return-value]
 
 
 def get_predictor(db_path: Path | None = None) -> SkillSuccessPredictor:

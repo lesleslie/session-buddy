@@ -92,7 +92,7 @@ async def extract_and_store_memory(
 
 
 def register_extraction_tools(mcp: FastMCP) -> None:
-    @mcp.tool()  # type: ignore[no-untyped-call]
+    @mcp.tool()
     async def extract_and_store_memory_tool(
         user_input: str,
         ai_output: str,

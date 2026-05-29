@@ -152,7 +152,7 @@ class BottleneckDetector:
     def _get_conn(self) -> Any:
         """Get or create database connection."""
         if self._conn is None:
-            self._conn = duckdb.connect(self.db_path)  # type: ignore[attr-defined]
+            self._conn = duckdb.connect(self.db_path)
         return self._conn
 
     async def initialize(self) -> None:

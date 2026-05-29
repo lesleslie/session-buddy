@@ -2,8 +2,8 @@
 
 Tests cover:
 - ABTestConfig dataclass
-- TestOutcome dataclass
-- TestAnalysisResult dataclass
+- ABTestOutcome dataclass
+- ABTestAnalysisResult dataclass
 - ABTestFramework class (all public methods)
 - get_ab_framework helper function
 
@@ -29,8 +29,8 @@ import pytest
 from session_buddy.analytics.ab_testing import (
     ABTestConfig,
     ABTestFramework,
-    TestAnalysisResult,
-    TestOutcome,
+    ABTestAnalysisResult,
+    ABTestOutcome,
     get_ab_framework,
 )
 
@@ -208,16 +208,16 @@ class TestABTestConfig:
 
 
 # =============================================================================
-# TestOutcome Dataclass Tests
+# ABTestOutcome Dataclass Tests
 # =============================================================================
 
 
-class TestTestOutcome:
-    """Tests for TestOutcome dataclass."""
+class TestABTestOutcome:
+    """Tests for ABTestOutcome dataclass."""
 
     def test_outcome_minimal(self) -> None:
         """Test outcome with only required fields."""
-        outcome = TestOutcome(
+        outcome = ABTestOutcome(
             skill_name="pytest-run",
             completed=True,
         )
@@ -229,7 +229,7 @@ class TestTestOutcome:
 
     def test_outcome_full(self) -> None:
         """Test outcome with all fields."""
-        outcome = TestOutcome(
+        outcome = ABTestOutcome(
             skill_name="code-review",
             completed=True,
             duration_seconds=120.5,
@@ -243,7 +243,7 @@ class TestTestOutcome:
 
     def test_outcome_failed(self) -> None:
         """Test outcome for failed skill invocation."""
-        outcome = TestOutcome(
+        outcome = ABTestOutcome(
             skill_name="deploy",
             completed=False,
             duration_seconds=45.0,
@@ -254,7 +254,7 @@ class TestTestOutcome:
 
     def test_outcome_with_rating_only(self) -> None:
         """Test outcome with user rating but no duration."""
-        outcome = TestOutcome(
+        outcome = ABTestOutcome(
             skill_name="test-run",
             completed=True,
             user_rating=5.0,
@@ -265,16 +265,16 @@ class TestTestOutcome:
 
 
 # =============================================================================
-# TestAnalysisResult Dataclass Tests
+# ABTestAnalysisResult Dataclass Tests
 # =============================================================================
 
 
-class TestTestAnalysisResult:
-    """Tests for TestAnalysisResult dataclass."""
+class TestABTestAnalysisResult:
+    """Tests for ABTestAnalysisResult dataclass."""
 
     def test_result_winner_treatment(self) -> None:
         """Test result when treatment wins."""
-        result = TestAnalysisResult(
+        result = ABTestAnalysisResult(
             control_metrics={"sample_size": 100, "completion_rate": 0.7},
             treatment_metrics={"sample_size": 100, "completion_rate": 0.85},
             statistical_significance=0.02,
@@ -289,7 +289,7 @@ class TestTestAnalysisResult:
 
     def test_result_winner_control(self) -> None:
         """Test result when control wins."""
-        result = TestAnalysisResult(
+        result = ABTestAnalysisResult(
             control_metrics={"sample_size": 100, "completion_rate": 0.8},
             treatment_metrics={"sample_size": 100, "completion_rate": 0.65},
             statistical_significance=0.01,
@@ -302,7 +302,7 @@ class TestTestAnalysisResult:
 
     def test_result_inconclusive(self) -> None:
         """Test result when test is inconclusive."""
-        result = TestAnalysisResult(
+        result = ABTestAnalysisResult(
             control_metrics={"sample_size": 50, "completion_rate": 0.75},
             treatment_metrics={"sample_size": 50, "completion_rate": 0.77},
             statistical_significance=0.35,
@@ -491,7 +491,7 @@ class TestABTestFramework:
         test_id = framework.create_test(sample_config)
         framework.assign_user_to_group(test_id, "user1")
 
-        outcome = TestOutcome(
+        outcome = ABTestOutcome(
             skill_name="pytest-run",
             completed=True,
             duration_seconds=30.0,
@@ -506,7 +506,7 @@ class TestABTestFramework:
         test_id = framework.create_test(sample_config)
         framework.assign_user_to_group(test_id, "user1")
 
-        outcome = TestOutcome(
+        outcome = ABTestOutcome(
             skill_name="code-review",
             completed=True,
             duration_seconds=45.0,
@@ -535,7 +535,7 @@ class TestABTestFramework:
         test_id = framework.create_test(sample_config)
         # Don't assign user
 
-        outcome = TestOutcome(skill_name="test", completed=True)
+        outcome = ABTestOutcome(skill_name="test", completed=True)
 
         with pytest.raises(ValueError, match="not assigned"):
             framework.record_outcome(test_id, "unassigned_user", outcome)
@@ -547,9 +547,9 @@ class TestABTestFramework:
         framework.assign_user_to_group(test_id, "user1")
 
         outcomes = [
-            TestOutcome(skill_name="skill_a", completed=True, duration_seconds=10.0),
-            TestOutcome(skill_name="skill_b", completed=True, duration_seconds=20.0),
-            TestOutcome(skill_name="skill_c", completed=False, duration_seconds=5.0),
+            ABTestOutcome(skill_name="skill_a", completed=True, duration_seconds=10.0),
+            ABTestOutcome(skill_name="skill_b", completed=True, duration_seconds=20.0),
+            ABTestOutcome(skill_name="skill_c", completed=False, duration_seconds=5.0),
         ]
 
         for outcome in outcomes:
@@ -1744,7 +1744,7 @@ class TestABTestLifecycle:
 
         # 4. Record outcomes for all users
         for user_id in user_ids:
-            outcome = TestOutcome(
+            outcome = ABTestOutcome(
                 skill_name="lifecycle_skill",
                 completed=True,
                 duration_seconds=45.0,
@@ -1784,7 +1784,7 @@ class TestABTestLifecycle:
             for i in range(10):
                 user_id = f"test{test_id}_user_{i}"
                 framework.assign_user_to_group(test_id, user_id)
-                outcome = TestOutcome(skill_name="test_skill", completed=True)
+                outcome = ABTestOutcome(skill_name="test_skill", completed=True)
                 framework.record_outcome(test_id, user_id, outcome)
 
         # Analyze all tests

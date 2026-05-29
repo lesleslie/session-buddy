@@ -354,7 +354,7 @@ ______________________________________________________________________
 
 **Now**: Use Session-Buddy MCP tool
 
-**Migration**: See [CONFIG_SYNC_MIGRATION_GUIDE.md](https://github.com/your-repo/mahavishnu/docs/CONFIG_SYNC_MIGRATION_GUIDE.md) in Mahavishnu docs
+**Migration**: See [CONFIG_SYNC_MIGRATION_GUIDE.md](https://github.com/lesleslie/mahavishnu/docs/CONFIG_SYNC_MIGRATION_GUIDE.md) in Mahavishnu docs
 
 ______________________________________________________________________
 
@@ -439,8 +439,8 @@ ______________________________________________________________________
 
 ## See Also
 
-- **Migration Guide**: [Mahavishnu CONFIG_SYNC_MIGRATION_GUIDE.md](https://github.com/your-repo/mahavishnu/docs/CONFIG_SYNC_MIGRATION_GUIDE.md)
-- **Migration Plan**: [Mahavishnu CONFIG_SYNC_MIGRATION_PLAN.md](https://github.com/your-repo/mahavishnu/docs/CONFIG_SYNC_MIGRATION_PLAN.md)
+- **Migration Guide**: [Mahavishnu CONFIG_SYNC_MIGRATION_GUIDE.md](https://github.com/lesleslie/mahavishnu/docs/CONFIG_SYNC_MIGRATION_GUIDE.md)
+- **Migration Plan**: [Mahavishnu CONFIG_SYNC_MIGRATION_PLAN.md](https://github.com/lesleslie/mahavishnu/docs/CONFIG_SYNC_MIGRATION_PLAN.md)
 - **LLM Providers**: [Session-Buddy API Reference](./reference/API_REFERENCE.md)
 
 ______________________________________________________________________

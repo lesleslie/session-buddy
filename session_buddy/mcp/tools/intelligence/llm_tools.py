@@ -466,8 +466,7 @@ def register_llm_tools(mcp: FastMCP) -> None:
                 )
 
             if result.get("commands_synced", 0) > 0:
-                output.append(f"✅ Commands: {result['commands_synced']} converted")
-                output.append("")
+                output.extend([f"✅ Commands: {result['commands_synced']} converted", ""])
 
             if result.get("plugins_found", 0) > 0:
                 output.extend(
@@ -487,7 +486,6 @@ def register_llm_tools(mcp: FastMCP) -> None:
                 )
                 for error in result["errors"]:
                     output.append(f"   ❌ {error}")
-                output.append("")
 
             output.append("✨ Sync completed successfully!")
 

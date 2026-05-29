@@ -69,6 +69,48 @@ def test_extract_technical_terms(monkeypatch) -> None:
     assert {"filetype:py", "filetype:md", "filetype:txt"}.issubset(set(terms))
 
 
+def test_extract_technical_terms_truncates_to_twenty(monkeypatch) -> None:
+    monkeypatch.setitem(
+        utilities.SAFE_PATTERNS,
+        "python_code",
+        _PatternStub(search_result=True),
+    )
+    monkeypatch.setitem(
+        utilities.SAFE_PATTERNS,
+        "javascript_code",
+        _PatternStub(search_result=True),
+    )
+    monkeypatch.setitem(
+        utilities.SAFE_PATTERNS,
+        "sql_code",
+        _PatternStub(search_result=True),
+    )
+    monkeypatch.setitem(
+        utilities.SAFE_PATTERNS,
+        "error_keywords",
+        _PatternStub(search_result=True),
+    )
+    monkeypatch.setitem(
+        utilities.SAFE_PATTERNS,
+        "function_definition",
+        _PatternStub(findall_result=[f"fn{i}" for i in range(10)]),
+    )
+    monkeypatch.setitem(
+        utilities.SAFE_PATTERNS,
+        "class_definition",
+        _PatternStub(findall_result=[f"C{i}" for i in range(10)]),
+    )
+    monkeypatch.setitem(
+        utilities.SAFE_PATTERNS,
+        "file_extension",
+        _PatternStub(findall_result=[f"e{i}" for i in range(10)]),
+    )
+
+    terms = utilities.extract_technical_terms("ignored content")
+
+    assert len(terms) == 20
+
+
 def test_truncate_content() -> None:
     assert utilities.truncate_content("abc", 5) == "abc"
     assert utilities.truncate_content("abcdef", 3) == "abc..."

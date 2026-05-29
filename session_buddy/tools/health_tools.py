@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from session_buddy import health_checks
+from session_buddy.health_checks import ComponentHealth
 
 # Module-level constant for uptime calculation
 _SERVER_START_TIME: float = time.time()
@@ -32,12 +33,15 @@ async def get_health_status(
         Dictionary with status, timestamp, version, uptime_seconds,
         components, and probe-specific keys (alive/ready, metadata).
     """
-    components: list[dict[str, Any]] = await health_checks.get_all_health_checks()
+    components: list[ComponentHealth | dict[str, Any]] = await health_checks.get_all_health_checks()  # type: ignore[assignment]
 
     # Convert ComponentHealth dataclasses to dicts if needed
     serialised: list[dict[str, Any]] = []
     for comp in components:
-        if hasattr(comp, "__dict__"):
+        if isinstance(comp, dict):
+            serialised.append(comp)
+        else:
+            # ComponentHealth instance
             serialised.append(
                 {
                     "name": comp.name,
@@ -47,8 +51,6 @@ async def get_health_status(
                     **comp.metadata,
                 }
             )
-        else:
-            serialised.append(comp)  # type: ignore[arg-type]
 
     # Determine overall health
     statuses = [c.get("status", "healthy") for c in serialised]

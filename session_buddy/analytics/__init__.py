@@ -6,10 +6,10 @@ component usage, system performance, and advanced predictive analytics.
 
 # Phase 4: Advanced analytics
 from session_buddy.analytics.ab_testing import (
+    ABTestAnalysisResult,
     ABTestConfig,
     ABTestFramework,
-    TestAnalysisResult,
-    TestOutcome,
+    ABTestOutcome,
     get_ab_framework,
 )
 from session_buddy.analytics.collaborative_filtering import (
@@ -61,8 +61,8 @@ __all__ = [
     # Phase 4: A/B testing
     "ABTestFramework",
     "ABTestConfig",
-    "TestOutcome",
-    "TestAnalysisResult",
+    "ABTestOutcome",
+    "ABTestAnalysisResult",
     "get_ab_framework",
     # Phase 4: Time-series analysis
     "TimeSeriesAnalyzer",

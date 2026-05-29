@@ -332,6 +332,24 @@ class TestSessionMgmtSettingsPaths:
         assert "~" not in str(expanded)
         assert expanded.is_absolute()
 
+    def test_string_path_inputs_are_expanded(self) -> None:
+        """Test that string inputs go through the path expansion validator."""
+        from session_buddy.settings import SessionMgmtSettings
+
+        settings = SessionMgmtSettings(
+            data_dir="~/my/data",
+            log_dir="~/my/logs",
+            database_path="~/my/db.duckdb",
+            log_file_path="~/my/logs/app.log",
+            global_workspace_path="~/my/workspace",
+        )
+
+        assert settings.data_dir.is_absolute()
+        assert settings.log_dir.is_absolute()
+        assert settings.database_path.is_absolute()
+        assert settings.log_file_path.is_absolute()
+        assert settings.global_workspace_path.is_absolute()
+
 
 class TestSessionMgmtSettingsDatabase:
     """Test SessionMgmtSettings database configuration."""
@@ -626,6 +644,20 @@ class TestSessionMgmtSettingsSessionManagement:
         with pytest.raises(pydantic.ValidationError):
             SessionMgmtSettings(commit_message_template="invalid template without timestamp")
 
+    def test_commit_message_template_validator_accepts_valid_value(self) -> None:
+        """Test the validator directly on a valid template."""
+        from session_buddy.settings import SessionMgmtSettings
+
+        template = "checkpoint: Session checkpoint - {timestamp}"
+        assert SessionMgmtSettings.validate_commit_template(template) == template
+
+    def test_commit_message_template_validator_rejects_invalid_value(self) -> None:
+        """Test the validator directly on an invalid template."""
+        from session_buddy.settings import SessionMgmtSettings
+
+        with pytest.raises(ValueError, match="must contain {timestamp}"):
+            SessionMgmtSettings.validate_commit_template("checkpoint without placeholder")
+
     def test_enable_permission_system_default_true(self) -> None:
         """Test that permission system is enabled by default."""
         from session_buddy.settings import SessionMgmtSettings
@@ -876,6 +908,12 @@ class TestSessionMgmtSettingsGitMaintenance:
             settings = SessionMgmtSettings(git_gc_prune_delay=delay)
             assert settings.git_gc_prune_delay == delay
 
+    def test_git_gc_prune_delay_validator_accepts_valid_values(self) -> None:
+        """Test the validator directly on valid values."""
+        from session_buddy.settings import SessionMgmtSettings
+
+        assert SessionMgmtSettings.validate_prune_delay("2.weeks") == "2.weeks"
+
     def test_git_gc_prune_delay_invalid_formats_rejected(self) -> None:
         """Test invalid git gc prune delay formats are rejected."""
         import pydantic
@@ -903,6 +941,22 @@ class TestSessionMgmtSettingsGitMaintenance:
             SessionMgmtSettings(git_gc_prune_delay="now")
             assert len(w) == 1
             assert "data loss" in str(w[0].message).lower()
+
+    def test_git_gc_prune_delay_validator_rejects_invalid_values(self) -> None:
+        """Test the validator directly on invalid values."""
+        from session_buddy.settings import SessionMgmtSettings
+
+        with pytest.raises(ValueError, match="Invalid git_gc_prune_delay"):
+            SessionMgmtSettings.validate_prune_delay("bad-value")
+
+    def test_git_gc_prune_delay_validator_warns_on_now(self) -> None:
+        """Test the validator directly on 'now'."""
+        from session_buddy.settings import SessionMgmtSettings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            assert SessionMgmtSettings.validate_prune_delay("now") == "now"
+            assert len(w) == 1
 
 
 class TestSessionMgmtSettingsPrometheus:
@@ -1336,6 +1390,22 @@ class TestLegacyDebugFlag:
         settings = SessionMgmtSettings.model_validate(data)
         assert settings.enable_debug_mode is False
 
+    def test_non_dict_passthrough(self) -> None:
+        """Test that non-dict values are returned unchanged."""
+        from session_buddy.settings import SessionMgmtSettings
+
+        marker = object()
+        assert SessionMgmtSettings.map_legacy_debug_flag(marker) is marker
+
+    def test_debug_flag_maps_to_enable_debug_mode(self) -> None:
+        """Test the validator directly on legacy debug input."""
+        from session_buddy.settings import SessionMgmtSettings
+
+        data = {"debug": 1}
+        result = SessionMgmtSettings.map_legacy_debug_flag(data)
+        assert result["enable_debug_mode"] is True
+        assert result["debug"] == 1
+
 
 class TestGetSettings:
     """Test get_settings() global function."""
@@ -1447,6 +1517,20 @@ class TestGetDatabasePath:
             result = settings_module.get_database_path()
             assert "~" not in str(result)
 
+    def test_get_database_path_with_string_values(self) -> None:
+        """Test get_database_path handles raw string settings values."""
+        from session_buddy import settings as settings_module
+        from unittest.mock import Mock
+
+        mock_settings = Mock()
+        mock_settings.database_path = "relative/db.duckdb"
+        mock_settings.data_dir = "/tmp/data"
+
+        with patch.object(settings_module, "_settings", mock_settings):
+            result = settings_module.get_database_path()
+
+        assert result == Path("/tmp/data/relative/db.duckdb")
+
 
 class TestGetLogFilePath:
     """Test get_log_file_path() function."""
@@ -1486,6 +1570,19 @@ class TestGetLogFilePath:
         with patch.object(settings_module, "_settings", settings):
             result = settings_module.get_log_file_path()
             assert "~" not in str(result)
+
+    def test_get_log_file_path_with_string_values(self) -> None:
+        """Test get_log_file_path rejects raw string settings values."""
+        from session_buddy import settings as settings_module
+        from unittest.mock import Mock
+
+        mock_settings = Mock()
+        mock_settings.log_file_path = "relative/app.log"
+        mock_settings.log_dir = "/tmp/logs"
+
+        with patch.object(settings_module, "_settings", mock_settings):
+            with pytest.raises(AttributeError):
+                settings_module.get_log_file_path()
 
 
 class TestGetLLMAPIKey:

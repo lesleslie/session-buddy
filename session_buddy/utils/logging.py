@@ -107,7 +107,7 @@ def get_session_logger() -> SessionLogger:
     with suppress(KeyError, AttributeError, RuntimeError, TypeError):
         # RuntimeError: when adapter requires async
         # TypeError: when DI has type confusion between string keys and classes
-        logger = get_sync_typed(SessionLogger)  # type: ignore[no-any-return]
+        logger = get_sync_typed(SessionLogger)
         if isinstance(logger, SessionLogger):
             return logger
 

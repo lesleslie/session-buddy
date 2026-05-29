@@ -403,7 +403,7 @@ async def pool_manager_status() -> dict[str, Any]:
 def _register_pool_execution_tools(mcp: FastMCP) -> None:
     """Register pool task execution tools."""
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def create_pool(
         pool_id: str | None = None,
     ) -> str:
@@ -413,7 +413,7 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
             return f"✅ Created pool {result['pool_id']} with {result['workers_count']} workers"
         return f"❌ Failed to create pool: {result.get('error', 'Unknown error')}"
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def execute_on_pool(
         pool_id: str,
         prompt: str,
@@ -431,7 +431,7 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
             return f"✅ Task executed on pool {pool_id} by worker {result.get('worker_id', 'unknown')}"
         return f"❌ Failed to execute task: {result.get('error', 'Unknown error')}"
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def execute_batch_on_pool(
         pool_id: str,
         prompts: list[str],
@@ -449,7 +449,7 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
             return f"✅ Executed {result['results_count']} tasks on pool {pool_id}"
         return f"❌ Failed to execute batch: {result.get('error', 'Unknown error')}"
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def route_to_pool(
         prompt: str,
         context: dict[str, Any] | None = None,
@@ -471,7 +471,7 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
 def _register_pool_monitoring_tools(mcp: FastMCP) -> None:
     """Register pool monitoring and status tools."""
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def list_pools() -> str:
         """List all worker pools."""
         result = await pool_list()
@@ -481,7 +481,7 @@ def _register_pool_monitoring_tools(mcp: FastMCP) -> None:
         )
         return f"📊 Pools ({result['pools_count']} total):\n{pools_info}"
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def get_pool_status(pool_id: str) -> str:
         """Get detailed status of a specific pool."""
         result = await pool_status(pool_id)
@@ -498,7 +498,7 @@ def _register_pool_monitoring_tools(mcp: FastMCP) -> None:
             )
         return f"❌ Failed to get pool status: {result.get('error', 'Unknown error')}"
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def check_pool_health(pool_id: str | None = None) -> str:
         """Get health status of pools."""
         result = await pool_health(pool_id)
@@ -524,7 +524,7 @@ def _register_pool_monitoring_tools(mcp: FastMCP) -> None:
 def _register_pool_management_tools(mcp: FastMCP) -> None:
     """Register pool lifecycle management tools."""
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def delete_pool(pool_id: str, timeout: float = 5.0) -> str:
         """Delete a worker pool."""
         result = await pool_delete(pool_id, timeout)
@@ -534,7 +534,7 @@ def _register_pool_management_tools(mcp: FastMCP) -> None:
             return f"⚠️ Pool {pool_id} not found"
         return f"❌ Failed to delete pool: {result.get('error', 'Unknown error')}"
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def get_pool_manager_status() -> str:
         """Get status of the pool manager."""
         result = await pool_manager_status()

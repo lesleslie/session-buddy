@@ -20,7 +20,8 @@ try:
     DUCKDB_AVAILABLE = True
 except ImportError:
     DUCKDB_AVAILABLE = False
-    duckdb: t.Any = None  # type: ignore[assignment, no-redef]
+    _duckdb_stub: t.Any = None
+    duckdb = _duckdb_stub
 
 from .logging import get_session_logger
 

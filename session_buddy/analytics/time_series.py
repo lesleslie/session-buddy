@@ -10,7 +10,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 from scipy import stats
@@ -186,7 +186,7 @@ class TimeSeriesAnalyzer:
             }
             if metric not in valid_metrics:
                 return TrendAnalysis(
-                    trend="invalid_metric",
+                    trend="insufficient_data",
                     slope=0.0,
                     start_value=0.0,
                     end_value=0.0,
@@ -236,7 +236,12 @@ class TimeSeriesAnalyzer:
         y = np.array(values)
 
         # Perform linear regression
-        slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+        regression_result = stats.linregress(x, y)
+        slope = regression_result.slope
+        intercept = regression_result.intercept
+        r_value = regression_result.rvalue
+        p_value = regression_result.pvalue
+        std_err = regression_result.stderr
 
         # Calculate start and end values
         start_value = float(y[0])
@@ -270,11 +275,11 @@ class TimeSeriesAnalyzer:
                 else:
                     trend = "declining"
         else:
-            # Not statistically significant
+            # Not statistically significant - stable trend
             trend = "stable"
 
         return TrendAnalysis(
-            trend=trend,
+            trend=trend,  # type: ignore[arg-type]
             slope=float(slope),
             start_value=start_value,
             end_value=end_value,
@@ -397,7 +402,7 @@ class TimeSeriesAnalyzer:
         skill_name: str,
         metric: str = "completion_rate",
         hours: int = 168,  # 7 days
-    ) -> dict[str, list]:
+    ) -> dict[str, object]:
         """Get data formatted for time-series plotting.
 
         Args:
@@ -410,11 +415,11 @@ class TimeSeriesAnalyzer:
         """
         hourly = self.aggregate_hourly_metrics(skill_name=skill_name, hours=hours)
 
-        metric_values = {
+        metric_values: list[object] = {
             "completion_rate": [h.completion_rate for h in hourly],
             "avg_duration_seconds": [h.avg_duration_seconds for h in hourly],
             "invocation_count": [h.invocation_count for h in hourly],
-        }.get(metric, [])
+        }.get(metric, [])  # type: ignore[assignment]
 
         return {
             "timestamps": [h.timestamp for h in hourly],

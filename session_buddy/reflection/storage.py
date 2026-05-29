@@ -14,7 +14,7 @@ import logging
 import time
 import typing
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 if TYPE_CHECKING:
     import duckdb
@@ -36,7 +36,7 @@ class SupportsGetConn(Protocol):
 
 def has_get_conn(obj: Any) -> bool:
     """Check if object has _get_conn method."""
-    return hasattr(obj, "_get_conn")  # type: ignore[attr-defined]
+    return hasattr(obj, "_get_conn")
 
 
 def _encode_text_for_db(text: str) -> str:
@@ -108,8 +108,8 @@ def _parse_metadata(metadata_str: str | None) -> dict[str, Any]:
         return {}
 
     try:
-        return json.loads(metadata_str)
-    except Exception:  # type: ignore[no-any-return]
+        return cast(dict[str, Any], json.loads(metadata_str))
+    except Exception:
         logger.warning(f"Failed to parse metadata: {metadata_str[:100]}...")
         return {}
 
@@ -171,7 +171,7 @@ async def store_conversation(
     db_content = _encode_text_for_db(content)
 
     # Get connection if db is ReflectionDatabase instance
-    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
     conversation_columns = _table_columns(conn, "conversations")
     include_ulid = "conversation_ulid" in conversation_columns
 
@@ -270,7 +270,7 @@ async def store_reflection(
     tags_list = tags or []
 
     # Get connection if db is ReflectionDatabase instance
-    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
     reflection_columns = _table_columns(conn, "reflections")
     include_ulid = "reflection_ulid" in reflection_columns
 
@@ -344,7 +344,7 @@ async def get_conversation(
         ...     print(conv["content"])
     """
     # Get connection if db is ReflectionDatabase instance
-    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
 
     def _get() -> dict[str, Any] | None:
         result = conn.execute(
@@ -360,13 +360,13 @@ async def get_conversation(
             return None
 
         return {
-            "id": result[0],  # type: ignore[misc]
-            "content": _decode_text_from_db(result[1]),  # type: ignore[misc]
-            "embedding": result[2],  # type: ignore[misc]
-            "project": result[3],  # type: ignore[misc]
-            "timestamp": result[4],  # type: ignore[misc]
-            "metadata": _parse_metadata(result[5]),  # type: ignore[misc]
-            "reflection_ulid": result[6] if len(result) > 6 else None,  # type: ignore[misc]
+            "id": result[0],
+            "content": _decode_text_from_db(result[1]),
+            "embedding": result[2],
+            "project": result[3],
+            "timestamp": result[4],
+            "metadata": _parse_metadata(result[5]),
+            "reflection_ulid": result[6] if len(result) > 6 else None,
         }
 
     if is_temp_db and lock:
@@ -405,7 +405,7 @@ async def get_reflection(
 
     """
     # Get connection if db is ReflectionDatabase instance
-    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
 
     def _get() -> dict[str, Any] | None:
         # Check available columns to handle schemas with/without reflection_ulid
@@ -435,14 +435,14 @@ async def get_reflection(
             return None
 
         return {
-            "id": result[0],  # type: ignore[misc]
-            "content": _decode_text_from_db(result[1]),  # type: ignore[misc]
-            "embedding": result[2],  # type: ignore[misc]
-            "project": result[3],  # type: ignore[misc]
-            "tags": result[4] or [],  # type: ignore[misc]
-            "timestamp": result[5],  # type: ignore[misc]
-            "metadata": _parse_metadata(result[6]),  # type: ignore[misc]
-            "reflection_ulid": result[7] if has_ulid and len(result) > 7 else None,  # type: ignore[misc]
+            "id": result[0],
+            "content": _decode_text_from_db(result[1]),
+            "embedding": result[2],
+            "project": result[3],
+            "tags": result[4] or [],
+            "timestamp": result[5],
+            "metadata": _parse_metadata(result[6]),
+            "reflection_ulid": result[7] if has_ulid and len(result) > 7 else None,
         }
 
     if is_temp_db and lock:
@@ -501,7 +501,7 @@ async def store_code_graph(
     metadata_json = _serialize_metadata(metadata or {})
 
     # Get connection if db is ReflectionDatabase instance
-    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
 
     # Insert into database
     def _store() -> None:
@@ -554,7 +554,7 @@ async def get_code_graph(
     import json
 
     # Get connection if db is ReflectionDatabase instance
-    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
 
     def _get() -> dict[str, Any] | None:
         result = conn.execute(
@@ -570,11 +570,11 @@ async def get_code_graph(
             return None
 
         return {
-            "repo_path": result[0],  # type: ignore[misc]
-            "commit_hash": result[1],  # type: ignore[misc]
-            "nodes_count": result[2],  # type: ignore[misc]
-            "graph_data": json.loads(result[3]) if result[3] else {},  # type: ignore[misc]
-            "metadata": json.loads(result[4]) if result[4] else {},  # type: ignore[misc]
+            "repo_path": result[0],
+            "commit_hash": result[1],
+            "nodes_count": result[2],
+            "graph_data": json.loads(result[3]) if result[3] else {},
+            "metadata": json.loads(result[4]) if result[4] else {},
         }
 
     if is_temp_db and lock:
@@ -605,7 +605,7 @@ async def list_code_graphs(
         Dict with list of code graphs
     """
     # Get connection if db is ReflectionDatabase instance
-    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()  # type: ignore[union-attr]
+    conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
 
     def _query() -> list[dict[str, Any]]:
         if repo_path:
@@ -632,9 +632,9 @@ async def list_code_graphs(
 
         return [
             {
-                "repo_path": row[0],  # type: ignore[misc]
-                "commit_hash": row[1],  # type: ignore[misc]
-                "nodes_count": row[2],  # type: ignore[misc]
+                "repo_path": row[0],
+                "commit_hash": row[1],
+                "nodes_count": row[2],
             }
             for row in result
         ]

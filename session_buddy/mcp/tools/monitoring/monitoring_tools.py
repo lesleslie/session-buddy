@@ -563,7 +563,7 @@ async def _get_interruption_history_impl(user_id: str, hours: int = 24) -> str:
 def register_monitoring_tools(mcp: FastMCP) -> None:
     """Register all monitoring and interruption management tools."""
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def start_app_monitoring(project_paths: list[str] | None = None) -> str:
         """Start monitoring IDE activity and browser documentation usage."""
         import json
@@ -576,58 +576,58 @@ def register_monitoring_tools(mcp: FastMCP) -> None:
                 project_paths = None
         return await _start_app_monitoring_impl(project_paths)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def stop_app_monitoring() -> str:
         """Stop all application monitoring."""
         return await _stop_app_monitoring_impl()
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def get_activity_summary(hours: int = 2) -> str:
         """Get activity summary for the specified number of hours."""
         return await _get_activity_summary_impl(hours)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def get_context_insights(hours: int = 1) -> str:
         """Get contextual insights from recent activity."""
         return await _get_context_insights_impl(hours)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def get_active_files(minutes: int = 60) -> str:
         """Get list of actively edited files in recent minutes."""
         return await _get_active_files_impl(minutes)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def start_interruption_monitoring(
         session_id: str, user_id: str = "default_user"
     ) -> str:
         """Start monitoring for interruptions and context switches."""
         return await _start_interruption_monitoring_impl(session_id, user_id)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def stop_interruption_monitoring() -> str:
         """Stop interruption monitoring."""
         return await _stop_interruption_monitoring_impl()
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def create_session_context(
         session_id: str, context_data: dict[str, Any]
     ) -> str:
         """Create a new session context snapshot."""
         return await _create_session_context_impl(session_id, context_data)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def preserve_current_context(
         session_id: str, reason: str = "manual_checkpoint"
     ) -> str:
         """Preserve current development context before an interruption."""
         return await _preserve_current_context_impl(session_id, reason)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def restore_session_context(session_id: str) -> str:
         """Restore a previously saved session context."""
         return await _restore_session_context_impl(session_id)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def get_interruption_history(user_id: str, hours: int = 24) -> str:
         """Get history of interruptions for debugging and analysis."""
         return await _get_interruption_history_impl(user_id, hours)

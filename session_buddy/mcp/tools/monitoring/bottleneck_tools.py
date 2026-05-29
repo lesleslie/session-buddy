@@ -21,7 +21,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
         server: SessionBuddyServer instance to register tools on
     """
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def detect_quality_bottlenecks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -50,7 +50,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
                 "message": "Failed to detect quality bottlenecks",
             }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def detect_velocity_bottlenecks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -79,7 +79,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
                 "message": "Failed to detect velocity bottlenecks",
             }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def detect_session_pattern_bottlenecks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -108,7 +108,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
                 "message": "Failed to detect session pattern bottlenecks",
             }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_bottleneck_insights(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -137,7 +137,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
                 "message": "Failed to generate bottleneck insights",
             }
 
-    @server.prompt()  # type: ignore[misc]
+    @server.prompt()  # type: ignore[untyped-decorator]
     def bottleneck_help() -> str:
         """Get help for bottleneck detection and analysis.""" ""
         return """# Bottleneck Detection - Workflow Optimization Guide

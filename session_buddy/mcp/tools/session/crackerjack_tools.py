@@ -1604,8 +1604,8 @@ def register_crackerjack_tools(mcp: Any) -> None:
 
     for name, fn in tool_functions.items():
         mcp.tool()(fn)
-        sig = inspect.signature(fn)
-        properties = {param_name: {} for param_name in sig.parameters}
+        sig = inspect.signature(t.cast(t.Callable[..., Any], fn))
+        properties: dict[str, dict[str, Any]] = {param_name: {} for param_name in sig.parameters}
         compat_tools[name] = SimpleNamespace(
             function=fn,
             parameters={"properties": properties},

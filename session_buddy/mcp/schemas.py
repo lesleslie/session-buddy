@@ -104,14 +104,14 @@ class SchemaRegistry:
             )
 
         model_class = self._models[model_name]
-        schema = model_class.model_json_schema()
+        schema = model_class.model_json_schema()  # type: ignore[attr-defined,no-any-return]
 
         # Add schema metadata
         schema["$schema"] = JSON_SCHEMA_DRAFT
         schema["event_version"] = self.version
         schema["title"] = model_name
 
-        return schema
+        return schema  # type: ignore[no-any-return]
 
     def export_all(self) -> dict[str, dict[str, Any]]:
         """Export all registered model schemas.

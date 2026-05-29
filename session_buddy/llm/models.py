@@ -34,12 +34,12 @@ class StreamChunk:
     @classmethod
     def content_chunk(cls, content: str, provider: str = "") -> StreamChunk:
         """Create content chunk."""
-        return cls(content=content, provider=provider)  # type: ignore[call-arg]
+        return cls(content=content, provider=provider)
 
     @classmethod
     def error_chunk(cls, error: str) -> StreamChunk:
         """Create error chunk."""
-        return cls(content="", is_error=True, metadata={"error": error})  # type: ignore[call-arg]
+        return cls(content="", is_error=True, metadata={"error": error})
 
 
 @dataclass

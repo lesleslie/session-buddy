@@ -26,7 +26,7 @@ class PathValidator:
     def __init__(self) -> None:
         self.allowed_directories: set[Path] = set()
 
-    def validate_user_path(
+    def validate_user_path(  # noqa: C901
         self,
         path: str | Path,
         allow_traversal: bool = False,
@@ -58,68 +58,98 @@ class PathValidator:
             - Symlinks are resolved and validated
             - Path must exist and be a directory
         """
-        # Type conversion
+        path = self._prepare_path(path)
+        path_str = str(path)
+
+        self._validate_path_length(path_str)
+        resolved = path.resolve()
+
+        self._validate_traversal_access(resolved, allow_traversal, base_dir)
+        self._validate_path_requirements(resolved)
+
+        return path.absolute()
+
+    def _prepare_path(self, path: str | Path) -> Path:
+        """Convert and validate path string input."""
         if isinstance(path, str):
-            # SECURITY: Block null bytes (Windows path bypass)
-            if "\x00" in path:
-                raise ValueError("Null bytes not allowed in path")
-
+            self._check_null_bytes(path)
             path = Path(path)
+        self._check_null_bytes(path)
+        return path
 
-        if "\x00" in str(path):
+    def _check_null_bytes(self, path: str | Path) -> None:
+        """Check for null bytes and raise ValueError if found."""
+        path_str = str(path)
+        if "\x00" in path_str:
             raise ValueError("Null bytes not allowed in path")
 
-        # SECURITY: Length check to prevent overflow
-        path_str = str(path)
+    def _validate_path_length(self, path_str: str) -> None:
+        """Validate path length against maximum."""
         if len(path_str) > PathValidator.MAX_PATH_LENGTH:
             raise ValueError(
                 f"Path too long: {len(path_str)} characters. "
                 f"Maximum is {PathValidator.MAX_PATH_LENGTH}"
             )
 
-        # Resolve to absolute (this also follows symlinks)
-        resolved = path.resolve()
-
-        # SECURITY: Traversal prevention
+    def _validate_traversal_access(
+        self,
+        resolved: Path,
+        allow_traversal: bool,
+        base_dir: Path | None,
+    ) -> None:
+        """Validate traversal access against allowed directories."""
         if not allow_traversal:
-            allowed_roots: set[Path] = set(self.allowed_directories)
-            if base_dir is not None:
-                allowed_roots.add(base_dir.resolve())
+            self._check_allowed_roots(resolved, base_dir)
 
-            if allowed_roots:
-                allowed_root_paths = [root.resolve() for root in allowed_roots]
-                base_resolved = base_dir.resolve() if base_dir is not None else None
-                if not any(
-                    resolved == root or resolved.is_relative_to(root)
-                    for root in allowed_root_paths
-                ):
-                    allowed_display = ", ".join(
-                        str(root) for root in allowed_root_paths
-                    )
-                    if base_resolved is not None and ".." not in path.parts:
-                        raise ValueError(
-                            f"Path {resolved} escapes base directory {base_resolved}. "
-                            f"Traversal not allowed."
-                        )
-                    raise ValueError(
-                        f"Path {resolved} is outside allowed directories: {allowed_display}"
-                    )
+    def _check_allowed_roots(self, resolved: Path, base_dir: Path | None) -> None:
+        """Check if resolved path is within allowed root directories."""
+        allowed_roots: set[Path] = self.allowed_directories.copy()
+        if base_dir is not None:
+            allowed_roots.add(base_dir.resolve())
 
-        # SECURITY: Existence check
+        if not allowed_roots:
+            return
+
+        allowed_root_paths = [root.resolve() for root in allowed_roots]
+        base_resolved = base_dir.resolve() if base_dir is not None else None
+
+        if any(
+            resolved == root or resolved.is_relative_to(root)
+            for root in allowed_root_paths
+        ):
+            return
+
+        self._raise_traversal_error(resolved, base_resolved, allowed_root_paths)
+
+    def _raise_traversal_error(
+        self,
+        resolved: Path,
+        base_resolved: Path | None,
+        allowed_root_paths: list[Path],
+    ) -> None:
+        """Raise appropriate traversal error based on path state."""
+        allowed_display = ", ".join(str(root) for root in allowed_root_paths)
+        if base_resolved is not None and ".." not in resolved.parts:
+            raise ValueError(
+                f"Path {resolved} escapes base directory {base_resolved}. "
+                f"Traversal not allowed."
+            )
+        raise ValueError(
+            f"Path {resolved} is outside allowed directories: {allowed_display}"
+        )
+
+    def _validate_path_requirements(self, resolved: Path) -> None:
+        """Validate path exists and meets requirements."""
         if not resolved.exists():
             raise ValueError(f"Path does not exist: {resolved}")
 
-        # SECURITY: Block direct access to device files explicitly.
         if resolved.as_posix().startswith("/dev/"):
             raise ValueError(
                 f"Path {resolved} is outside allowed directories and not permitted"
             )
 
-        # SECURITY: Must be a directory
         if not resolved.is_dir():
             raise ValueError(f"Path is not a directory: {resolved}")
-
-        return path.absolute()
 
     @staticmethod
     def validate_git_path(path: str | Path) -> Path:

@@ -132,7 +132,7 @@ class TokenOptimizer:
             )
             optimization_info = info
         else:
-            optimized_results = results  # type: ignore[assignment]
+            optimized_results = results
             optimization_info["strategy"] = "none"
 
         # Track optimization metrics
@@ -449,7 +449,7 @@ class TokenOptimizer:
             },
         )
 
-        await self.chunk_cache.set(cache_key, [(chunk_result,)])  # type: ignore[arg-type, func-returns-value]  # Store as tuple list, returns None
+        await self.chunk_cache.set(cache_key, [(chunk_result,)])  # Store as tuple list, returns None
         return cache_key
 
     async def get_chunk(
@@ -468,13 +468,13 @@ class TokenOptimizer:
 
         """
         # Check if key exists in cache
-        if cache_key not in _chunk_cache:  # type: ignore[attr-defined]  # Direct cache check
+        if cache_key not in _chunk_cache:  # Direct cache check
             return None
 
         cached = await self.chunk_cache.get(cache_key)
         if not cached:
             return None
-        chunk_result = cached[0][0]  # type: ignore[index]  # Extract ChunkResult from tuple list
+        chunk_result = cached[0][0]  # Extract ChunkResult from tuple list
 
         if chunk_result and 1 <= chunk_index <= len(chunk_result.chunks):
             chunk_data = json.loads(chunk_result.chunks[chunk_index - 1])

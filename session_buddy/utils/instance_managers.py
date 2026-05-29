@@ -39,7 +39,7 @@ async def get_app_monitor() -> ApplicationMonitor | None:
         return None
 
     with suppress(Exception):
-        monitor = get_sync_typed(ApplicationMonitor)  # type: ignore[no-any-return]
+        monitor = get_sync_typed(ApplicationMonitor)
         if isinstance(monitor, ApplicationMonitor):
             return monitor
 
@@ -65,7 +65,7 @@ async def get_llm_manager() -> LLMManager | None:
         return None
 
     with suppress(Exception):
-        manager = get_sync_typed(LLMManager)  # type: ignore[no-any-return]
+        manager = get_sync_typed(LLMManager)
         if isinstance(manager, LLMManager):
             return manager
 
@@ -91,7 +91,7 @@ async def get_serverless_manager() -> ServerlessSessionManager | None:
         return None
 
     with suppress(Exception):
-        manager = get_sync_typed(ServerlessSessionManager)  # type: ignore[no-any-return]
+        manager = get_sync_typed(ServerlessSessionManager)
         if isinstance(manager, ServerlessSessionManager):
             return manager
 
@@ -155,7 +155,7 @@ async def get_interruption_manager() -> InterruptionManager | None:
         return None
 
     with suppress(Exception):
-        manager = get_sync_typed(InterruptionManager)  # type: ignore[no-any-return]
+        manager = get_sync_typed(InterruptionManager)
         if isinstance(manager, InterruptionManager):
             return manager
 

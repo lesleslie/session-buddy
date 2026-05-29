@@ -4,6 +4,8 @@ import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
+import pytest
+
 _FINGERPRINT_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "fingerprint.py"
 _FINGERPRINT_SPEC = spec_from_file_location("session_buddy.utils.fingerprint", _FINGERPRINT_PATH)
 assert _FINGERPRINT_SPEC is not None and _FINGERPRINT_SPEC.loader is not None
@@ -42,3 +44,11 @@ def test_from_bytes_roundtrip_uses_exact_size() -> None:
     reconstructed = MinHashSignature.from_bytes(data)
 
     assert reconstructed.signature == signature.signature
+
+
+def test_empty_and_invalid_signature_inputs() -> None:
+    with pytest.raises(ValueError, match="Signature length"):
+        MinHashSignature(signature=[1, 2, 3], num_hashes=128)
+
+    empty = MinHashSignature.from_ngrams([])
+    assert empty.signature == [0] * 128

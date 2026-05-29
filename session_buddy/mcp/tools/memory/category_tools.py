@@ -61,7 +61,7 @@ async def _fetch_category_memories(
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()  # type: ignore[misc]
+        db = await get_reflection_database()
 
         # Search for reflections with the category tag
         # Use a broad search to get memories, then filter by category tag
@@ -301,7 +301,7 @@ async def assign_memory_subcategory(
     try:
         from session_buddy.reflection_tools import get_reflection_database
 
-        db = await get_reflection_database()  # type: ignore[misc]
+        db = await get_reflection_database()
         embedding = await db._generate_embedding(content)
     except Exception as e:
         import logging

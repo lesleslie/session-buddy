@@ -469,7 +469,7 @@ class TeamKnowledgeManager:
         if tags:
             tag_conditions = []
             for tag in tags:
-                params.append(f"%{tag}%")  # type: ignore[func-returns-value]
+                params.append(f"%{tag}%")
                 tag_conditions.append("tags LIKE ?")
             where_conditions.append(f"({' OR '.join(tag_conditions)})")
 

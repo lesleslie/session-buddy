@@ -49,14 +49,14 @@ def get_prometheus_tools_logger() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
-def _collect_session_start_total(metrics, summary):
+def _collect_session_start_total(metrics: Any, summary: dict[str, Any]) -> None:
     for metric in metrics.session_start_total.collect():
         for sample in metric.samples:
             if sample.name.endswith("_total"):
                 summary["total_sessions_started"] += int(sample.value)
 
 
-def _collect_session_end_total(metrics, summary):
+def _collect_session_end_total(metrics: Any, summary: dict[str, Any]) -> None:
     for metric in metrics.session_end_total.collect():
         for sample in metric.samples:
             if sample.name.endswith("_total"):
@@ -67,7 +67,7 @@ def _collect_session_end_total(metrics, summary):
                 pass  # Already counted in total
 
 
-def _collect_active_sessions(metrics, summary):
+def _collect_active_sessions(metrics: Any, summary: dict[str, Any]) -> None:
     for metric in metrics.active_sessions.collect():
         for sample in metric.samples:
             labels = sample.labels or {}
@@ -75,7 +75,7 @@ def _collect_active_sessions(metrics, summary):
             summary["active_sessions"][component] = int(sample.value)
 
 
-def _collect_session_quality_score(metrics, summary):
+def _collect_session_quality_score(metrics: Any, summary: dict[str, Any]) -> None:
     for metric in metrics.session_quality_score.collect():
         for sample in metric.samples:
             labels = sample.labels or {}
@@ -83,14 +83,14 @@ def _collect_session_quality_score(metrics, summary):
             summary["quality_scores"][component] = float(sample.value)
 
 
-def _collect_mcp_event_emit_success_total(metrics, summary):
+def _collect_mcp_event_emit_success_total(metrics: Any, summary: dict[str, Any]) -> None:
     for metric in metrics.mcp_event_emit_success_total.collect():
         for sample in metric.samples:
             if sample.name.endswith("_total"):
                 summary["mcp_events_success"] += int(sample.value)
 
 
-def _collect_mcp_event_emit_failure_total(metrics, summary):
+def _collect_mcp_event_emit_failure_total(metrics: Any, summary: dict[str, Any]) -> None:
     for metric in metrics.mcp_event_emit_failure_total.collect():
         for sample in metric.samples:
             if sample.name.endswith("_total"):
@@ -120,20 +120,18 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
             Returns error message indicating metrics are not available.
             """
             return "Error: Prometheus metrics module not available. Install prometheus_client to enable metrics."
+    else:
+        @mcp.tool()
+        async def get_prometheus_metrics() -> str:
+            """Export all Session-Buddy metrics in Prometheus text format."""
+            try:
+                metrics = get_metrics()
+                metrics_data = metrics.export_metrics()
+                return metrics_data.decode("utf-8")
 
-        return
-
-    @mcp.tool()
-    async def get_prometheus_metrics() -> str:
-        """Export all Session-Buddy metrics in Prometheus text format."""
-        try:
-            metrics = get_metrics()
-            metrics_data = metrics.export_metrics()
-            return metrics_data.decode("utf-8")
-
-        except Exception as e:
-            logger.error("Failed to export Prometheus metrics: %s", str(e))
-            return f"# Error exporting metrics: {str(e)}"
+            except Exception as e:
+                logger.error("Failed to export Prometheus metrics: %s", e)
+                return f"# Error exporting metrics: {e}"
 
     @mcp.tool()
     async def list_session_metrics() -> dict[str, Any]:
@@ -247,7 +245,7 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
             return summary
 
         except Exception as e:
-            logger.error("Failed to get metrics summary: %s", str(e))
+            logger.error("Failed to get metrics summary: %s", e)
             return {
                 "error": str(e),
                 "total_sessions_started": 0,

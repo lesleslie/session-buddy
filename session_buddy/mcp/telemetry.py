@@ -25,12 +25,12 @@ try:
 
     _OTEL_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional runtime dependency
-    trace = None  # type: ignore[assignment]
-    OTLPGrpcSpanExporter = None  # type: ignore[assignment]
-    OTLPHTTPSpanExporter = None  # type: ignore[assignment]
-    Resource = None  # type: ignore[assignment]
-    TracerProvider = None  # type: ignore[assignment]
-    BatchSpanProcessor = None  # type: ignore[assignment]
+    trace = None  # type: ignore[assignment,misc]
+    OTLPGrpcSpanExporter = None  # type: ignore[assignment,misc]
+    OTLPHTTPSpanExporter = None  # type: ignore[assignment,misc]
+    Resource = None  # type: ignore[assignment,misc]
+    TracerProvider = None  # type: ignore[assignment,misc]
+    BatchSpanProcessor = None  # type: ignore[assignment,misc]
     _OTEL_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ def configure_otel_tracing(
     provider = TracerProvider(resource=resource)
 
     if otel_protocol.startswith("http"):
-        exporter = OTLPHTTPSpanExporter(endpoint=otel_endpoint)
+        exporter: Any = OTLPHTTPSpanExporter(endpoint=otel_endpoint)
     else:
         exporter = OTLPGrpcSpanExporter(endpoint=otel_endpoint, insecure=True)
 

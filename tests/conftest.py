@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Global test configuration and fixtures for session-mgmt-mcp tests."""
 
+from __future__ import annotations
+
 pytest_plugins = ["tests.helpers"]
 
 import asyncio
@@ -15,10 +17,6 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastmcp import FastMCP
-# Migration Phase 2.7: Use ReflectionDatabaseAdapter (ACB-based)
-from session_buddy.adapters.reflection_adapter import (
-    ReflectionDatabaseAdapter as ReflectionDatabase,
-)
 
 try:
     import duckdb
@@ -52,6 +50,15 @@ if not hasattr(_di_configured, 'configured'):
 
         warnings.warn(f"DI configuration failed during conftest import: {e}", stacklevel=2)
         _di_configured.configured = False
+
+
+def _get_reflection_database_class() -> type[Any]:
+    """Import the reflection database adapter lazily for test fixtures."""
+    from session_buddy.adapters.reflection_adapter import (
+        ReflectionDatabaseAdapter as ReflectionDatabase,
+    )
+
+    return ReflectionDatabase
 
 
 # =====================================
@@ -121,6 +128,26 @@ except ImportError:
         @staticmethod
         def create():
             return {"valid_token": "test-token", "operation": "read"}
+
+
+# =====================================
+# Database Cleanup Helper
+# =====================================
+async def _cleanup_db(db: Any) -> None:
+    """Clean up database adapter properly.
+
+    Args:
+        db: Database adapter instance (ReflectionDatabase or similar)
+    """
+    if db is None:
+        return
+    try:
+        if hasattr(db, 'aclose'):
+            await db.aclose()
+        elif hasattr(db, 'close'):
+            db.close()
+    except Exception:
+        pass  # Suppress cleanup errors to avoid masking test failures
 
 
 # =====================================
@@ -255,15 +282,11 @@ async def fast_temp_db(tmp_path) -> AsyncGenerator[ReflectionDatabase]:
         enable_embeddings=False,  # Disable embeddings for faster tests
     )
 
+    ReflectionDatabase = _get_reflection_database_class()
     db = ReflectionDatabase(settings=settings)
     await db.initialize()
     yield db
-    with suppress(Exception):
-        close = getattr(db, "aclose", None)
-        if callable(close):
-            await close()
-        else:
-            db.close()
+    await _cleanup_db(db)
 
 
 @pytest.fixture
@@ -491,7 +514,12 @@ def reset_di_container():
     # Test runs here
     yield
 
-    # Clean up AFTER test as well for consistency
+    # Reset DI configured flag FIRST (before re-cleanup)
+    # This ensures configure() will properly re-register on next use
+    import session_buddy.di as di_module
+    di_module._configured = False
+
+    # Clean up AFTER test for consistency
     # Skip cleanup if we're in a multiprocessing worker to avoid conflicts
     if not os.environ.get('PYTEST_XDIST_WORKER'):
         _cleanup_container()
@@ -575,17 +603,14 @@ async def reflection_db(temp_db_path: str) -> AsyncGenerator[ReflectionDatabase]
         enable_embeddings=False,  # Disable embeddings for faster tests
     )
 
+    ReflectionDatabase = _get_reflection_database_class()
     db = ReflectionDatabase(settings=settings)
 
     try:
         await db.initialize()
         yield db
     finally:
-        close = getattr(db, "aclose", None)
-        if callable(close):
-            await close()
-        else:
-            db.close()
+        await _cleanup_db(db)
 
 
 @pytest.fixture
@@ -657,6 +682,7 @@ async def shared_reflection_db() -> AsyncGenerator[ReflectionDatabase]:
         enable_embeddings=False,  # Disable embeddings for faster tests
     )
 
+    ReflectionDatabase = _get_reflection_database_class()
     db = ReflectionDatabase(settings=settings)
     await db.initialize()
 
@@ -673,11 +699,7 @@ async def shared_reflection_db() -> AsyncGenerator[ReflectionDatabase]:
 
         yield db
     finally:
-        close = getattr(db, "aclose", None)
-        if callable(close):
-            await close()
-        else:
-            db.close()
+        await _cleanup_db(db)
         # Cleanup
         try:
             db_path_obj = Path(db_path)
@@ -1020,7 +1042,7 @@ async def temp_working_dir():
 
 
 # Settings mock fixture to avoid configuration loading issues
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def mock_settings(tmp_path):
     """Mock settings to avoid loading actual configuration.
 
@@ -1163,6 +1185,16 @@ def mock_settings(tmp_path):
             yield mock_settings_instance
         finally:
             settings_module._settings = previous_settings
+
+
+@pytest.fixture
+def real_settings():
+    """Provide real settings for tests that need actual configuration.
+
+    Use this fixture when testing real settings behavior instead of mocks.
+    """
+    from session_buddy.settings import get_settings
+    return get_settings()
 
 
 @pytest.fixture

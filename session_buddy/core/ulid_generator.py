@@ -18,7 +18,7 @@ def generate_ulid() -> str:
     try:
         from druva import generate as generate_ulid_impl
 
-        return generate_ulid_impl()
+        return str(generate_ulid_impl())
     except ImportError:
         # Use timestamp-based fallback
 

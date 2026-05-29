@@ -88,6 +88,46 @@ class TestSessionTrackerInitialization:
         assert tracker.logger is not None
         assert tracker.logger.name == "session_buddy.mcp.session_tracker"
 
+    def test_init_metrics_disabled_explicitly(self, mock_lifecycle_manager):
+        """Test metrics remain disabled when explicitly requested."""
+        tracker = SessionTracker(mock_lifecycle_manager, enable_metrics=False)
+
+        assert tracker.enable_metrics is False
+        assert tracker.metrics is None
+
+    def test_init_metrics_available(self, mock_lifecycle_manager):
+        """Test metrics initialization when metrics are available."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        mock_metrics = MagicMock()
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: mock_metrics)
+
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        assert tracker.enable_metrics is True
+        assert tracker.metrics is mock_metrics
+
+    def test_init_metrics_disabled_when_get_metrics_fails(
+        self, mock_lifecycle_manager
+    ):
+        """Test metrics are disabled when get_metrics raises."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(
+                tracker_module,
+                "get_metrics",
+                lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+            )
+
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        assert tracker.enable_metrics is False
+        assert tracker.metrics is None
+
 
 class TestHandleSessionStart:
     """Tests for handle_session_start method."""
@@ -198,6 +238,184 @@ class TestHandleSessionStart:
         assert result.status == "tracked"
         assert result.session_id == "test-component-20260206-123456"
 
+    @pytest.mark.asyncio
+    async def test_handle_session_start_records_metrics(
+        self, mock_lifecycle_manager, sample_session_start_event
+    ):
+        """Test successful start records metrics and quality score."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        mock_metrics = MagicMock()
+        mock_lifecycle_manager.initialize_session.return_value = {
+            "success": True,
+            "quality_score": 88,
+        }
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: mock_metrics)
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        result = await tracker.handle_session_start(sample_session_start_event)
+
+        assert result.status == "tracked"
+        mock_metrics.record_session_start.assert_called_once()
+        mock_metrics.set_session_quality_score.assert_called_once_with(
+            component_name="mahavishnu",
+            quality_score=88.0,
+        )
+
+    @pytest.mark.asyncio
+    async def test_handle_session_start_without_metrics(
+        self, mock_lifecycle_manager, sample_session_start_event
+    ):
+        """Test successful start when metrics are disabled."""
+        mock_lifecycle_manager.initialize_session.return_value = {
+            "success": True,
+            "quality_score": 88,
+        }
+        tracker = SessionTracker(mock_lifecycle_manager, enable_metrics=False)
+
+        result = await tracker.handle_session_start(sample_session_start_event)
+
+        assert result.status == "tracked"
+        assert tracker.metrics is None
+
+    @pytest.mark.asyncio
+    async def test_handle_session_start_failure_without_metrics(
+        self, mock_lifecycle_manager, sample_session_start_event
+    ):
+        """Test failed start when metrics are disabled."""
+        mock_lifecycle_manager.initialize_session.return_value = {
+            "success": False,
+            "error": "Directory not found",
+        }
+        tracker = SessionTracker(mock_lifecycle_manager, enable_metrics=False)
+
+        result = await tracker.handle_session_start(sample_session_start_event)
+
+        assert result.status == "error"
+        assert result.error == "Directory not found"
+
+    @pytest.mark.asyncio
+    async def test_handle_session_start_failed_metrics_path(
+        self, mock_lifecycle_manager, sample_session_start_event, caplog
+    ):
+        """Test failed start records error metrics."""
+        import logging
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        mock_metrics = MagicMock()
+        mock_lifecycle_manager.initialize_session.return_value = {
+            "success": False,
+            "error": "Directory not found",
+        }
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: mock_metrics)
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+            with caplog.at_level(logging.ERROR):
+                result = await tracker.handle_session_start(sample_session_start_event)
+
+        assert result.status == "error"
+        mock_metrics.record_session_start.assert_called_once()
+        mock_metrics.record_session_end.assert_called_once()
+        assert mock_metrics.record_session_end.call_args.kwargs["component_name"] == "mahavishnu"
+        assert mock_metrics.record_session_end.call_args.kwargs["status"] == "error"
+        assert mock_metrics.record_session_end.call_args.kwargs["duration_seconds"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_handle_session_start_failed_metrics_warning(
+        self, mock_lifecycle_manager, sample_session_start_event
+    ):
+        """Test failed start when metrics recording raises."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        class FlakyMetrics:
+            def record_session_start(self, **kwargs: object) -> None:
+                return None
+
+            def record_session_end(self, **kwargs: object) -> None:
+                raise RuntimeError("metrics boom")
+
+        mock_lifecycle_manager.initialize_session.return_value = {
+            "success": False,
+            "error": "Directory not found",
+        }
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: FlakyMetrics())
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        result = await tracker.handle_session_start(sample_session_start_event)
+
+        assert result.status == "error"
+
+    @pytest.mark.asyncio
+    async def test_handle_session_start_metrics_exception_is_swallowed(
+        self, mock_lifecycle_manager, sample_session_start_event
+    ):
+        """Test metrics errors during start are logged but do not fail the call."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        class ExplodingMetrics:
+            def record_session_start(self, **kwargs: object) -> None:
+                raise RuntimeError("metrics boom")
+
+            def record_session_end(self, **kwargs: object) -> None:
+                raise RuntimeError("metrics boom")
+
+        mock_lifecycle_manager.initialize_session.return_value = {
+            "success": True,
+            "quality_score": 88,
+        }
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: ExplodingMetrics())
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        result = await tracker.handle_session_start(sample_session_start_event)
+
+        assert result.status == "tracked"
+
+    @pytest.mark.asyncio
+    async def test_handle_session_start_exception_metrics_warning(
+        self, mock_lifecycle_manager, sample_session_start_event
+    ):
+        """Test exception path when failure metrics recording also raises."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        class ExplodingMetrics:
+            def record_mcp_event_emit_failure(self, **kwargs: object) -> None:
+                raise RuntimeError("metrics boom")
+
+        mock_lifecycle_manager.initialize_session.side_effect = RuntimeError("Unexpected error")
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: ExplodingMetrics())
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        result = await tracker.handle_session_start(sample_session_start_event)
+
+        assert result.status == "error"
+
+    @pytest.mark.asyncio
+    async def test_handle_session_start_exception_without_metrics(
+        self, mock_lifecycle_manager, sample_session_start_event
+    ):
+        """Test exception path when metrics are disabled."""
+        mock_lifecycle_manager.initialize_session.side_effect = RuntimeError("Unexpected error")
+        tracker = SessionTracker(mock_lifecycle_manager, enable_metrics=False)
+
+        result = await tracker.handle_session_start(sample_session_start_event)
+
+        assert result.status == "error"
+
 
 class TestHandleSessionEnd:
     """Tests for handle_session_end method."""
@@ -293,6 +511,174 @@ class TestHandleSessionEnd:
         result = await session_tracker.handle_session_end(sample_session_end_event)
 
         assert result.status == "ended"
+
+    @pytest.mark.asyncio
+    async def test_handle_session_end_without_metrics(
+        self, mock_lifecycle_manager, sample_session_end_event
+    ):
+        """Test successful end when metrics are disabled."""
+        mock_lifecycle_manager.end_session.return_value = {
+            "success": True,
+            "summary": {},
+        }
+        tracker = SessionTracker(mock_lifecycle_manager, enable_metrics=False)
+
+        result = await tracker.handle_session_end(sample_session_end_event)
+
+        assert result.status == "ended"
+        assert tracker.metrics is None
+
+    @pytest.mark.asyncio
+    async def test_handle_session_end_failure_without_metrics(
+        self, mock_lifecycle_manager, sample_session_end_event
+    ):
+        """Test failed end when metrics are disabled."""
+        mock_lifecycle_manager.end_session.return_value = {
+            "success": False,
+            "error": "Session not found",
+        }
+        tracker = SessionTracker(mock_lifecycle_manager, enable_metrics=False)
+
+        result = await tracker.handle_session_end(sample_session_end_event)
+
+        assert result.status == "error"
+        assert result.error == "Session not found"
+
+    @pytest.mark.asyncio
+    async def test_handle_session_end_records_metrics(
+        self, mock_lifecycle_manager, sample_session_end_event
+    ):
+        """Test successful end records metrics and quality score."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        mock_metrics = MagicMock()
+        mock_lifecycle_manager.end_session.return_value = {
+            "success": True,
+            "summary": {"final_quality_score": 91},
+        }
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: mock_metrics)
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        result = await tracker.handle_session_end(sample_session_end_event)
+
+        assert result.status == "ended"
+        mock_metrics.record_session_end.assert_called_once()
+        mock_metrics.set_session_quality_score.assert_called_once_with(
+            component_name="mahavishnu",
+            quality_score=91.0,
+        )
+
+    @pytest.mark.asyncio
+    async def test_handle_session_end_metrics_warning_on_success(
+        self, mock_lifecycle_manager, sample_session_end_event
+    ):
+        """Test successful end when metrics recording raises."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        class FlakyMetrics:
+            def record_session_end(self, **kwargs: object) -> None:
+                raise RuntimeError("metrics boom")
+
+        mock_lifecycle_manager.end_session.return_value = {
+            "success": True,
+            "summary": {"final_quality_score": 91},
+        }
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: FlakyMetrics())
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        result = await tracker.handle_session_end(sample_session_end_event)
+
+        assert result.status == "ended"
+
+    @pytest.mark.asyncio
+    async def test_handle_session_end_failure_metrics_warning(
+        self, mock_lifecycle_manager, sample_session_end_event
+    ):
+        """Test failure path when end-session metrics recording raises."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        class FlakyMetrics:
+            def record_session_end(self, **kwargs: object) -> None:
+                raise RuntimeError("metrics boom")
+
+        mock_lifecycle_manager.end_session.return_value = {
+            "success": False,
+            "error": "Session not found",
+        }
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: FlakyMetrics())
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        result = await tracker.handle_session_end(sample_session_end_event)
+
+        assert result.status == "error"
+
+    @pytest.mark.asyncio
+    async def test_handle_session_end_exception_metrics_path(
+        self, mock_lifecycle_manager, sample_session_end_event
+    ):
+        """Test exception path records failure metrics."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        class ExplodingMetrics:
+            def record_session_end(self, **kwargs: object) -> None:
+                raise RuntimeError("metrics boom")
+
+            def record_mcp_event_emit_failure(self, **kwargs: object) -> None:
+                raise RuntimeError("metrics boom")
+
+        mock_lifecycle_manager.end_session.side_effect = RuntimeError("Unexpected error")
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: ExplodingMetrics())
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        result = await tracker.handle_session_end(sample_session_end_event)
+
+        assert result.status == "error"
+
+    @pytest.mark.asyncio
+    async def test_handle_session_end_exception_metrics_warning(
+        self, mock_lifecycle_manager, sample_session_end_event
+    ):
+        """Test exception path when failure metrics recording raises."""
+        from session_buddy.mcp import session_tracker as tracker_module
+
+        class ExplodingMetrics:
+            def record_mcp_event_emit_failure(self, **kwargs: object) -> None:
+                raise RuntimeError("metrics boom")
+
+        mock_lifecycle_manager.end_session.side_effect = RuntimeError("Unexpected error")
+
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setattr(tracker_module, "METRICS_AVAILABLE", True)
+            monkeypatch.setattr(tracker_module, "get_metrics", lambda: ExplodingMetrics())
+            tracker = SessionTracker(mock_lifecycle_manager)
+
+        result = await tracker.handle_session_end(sample_session_end_event)
+
+        assert result.status == "error"
+
+    @pytest.mark.asyncio
+    async def test_handle_session_end_exception_without_metrics(
+        self, mock_lifecycle_manager, sample_session_end_event
+    ):
+        """Test exception path when metrics are disabled."""
+        mock_lifecycle_manager.end_session.side_effect = RuntimeError("Unexpected error")
+        tracker = SessionTracker(mock_lifecycle_manager, enable_metrics=False)
+
+        result = await tracker.handle_session_end(sample_session_end_event)
+
+        assert result.status == "error"
 
 
 class TestIntegration:

@@ -1,0 +1,29 @@
+# Lychee link checker configuration
+# Inherits from crackerjack defaults but adds localhost exclusions
+
+timeout = 10
+retry_wait_time = 2
+max_retries = 2
+user_agent = "Mozilla/5.0 (compatible; linkcheckmd)"
+require_https = false
+include_verbatim = false
+root_dir = "."
+accept = [200, 204, 206, 301, 302, 304, 403, 404, 429, 502, 503, 521]
+accept_timeouts = true
+
+# Paths to skip when scanning for links
+exclude_path = [
+  "docs",
+  ".venv",
+  ".cache",
+  "node_modules",
+]
+
+exclude = [
+  # Local services (not running in CI)
+  "http://localhost",
+  "http://127.0.0.1",
+  "http://0.0.0.0",
+  # Example/placeholder URLs used in docs
+  "https://github.com/your-repo/",
+]

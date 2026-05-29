@@ -32,9 +32,10 @@ class MCPCodeFormatter(CodeFormatter):
     async def format_file(self, file_path: Path, timeout: int = 30) -> bool:
         """Format a file using crackerjack.
 
-        This method imports and calls the actual run_crackerjack_command
-        function from server.py, ensuring we get the full formatting
-        functionality while maintaining layer separation.
+        This method is a placeholder - the run_crackerjack_command function
+        does not exist in server.py. This returns False to indicate formatting
+        is not available, allowing tests to proceed without hanging on
+        import attempts.
 
         Args:
             file_path: Path to the file to format
@@ -43,20 +44,6 @@ class MCPCodeFormatter(CodeFormatter):
         Returns:
             True if formatting succeeded, False otherwise
         """
-        # Import here to avoid circular dependency at module load time
-        # This is safe because we're in the MCP layer
-        try:
-            from session_buddy.mcp.server import run_crackerjack_command
-
-            await run_crackerjack_command(
-                ["lint", "--fix", str(file_path)], timeout=timeout
-            )
-            return True
-        except ImportError:
-            logger.warning(
-                "MCP server run_crackerjack_command not available, formatting skipped"
-            )
-            return False
-        except Exception as e:
-            logger.warning("Code formatting failed for %s: %s", file_path, e)
-            return False
+        # Formatting is not currently implemented - run_crackerjack_command
+        # does not exist in server.py. Return False to skip formatting.
+        return False

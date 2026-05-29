@@ -53,6 +53,7 @@ from .intelligence.llm_tools import register_llm_tools
 from .memory.akosha_tools import register_akosha_tools
 from .memory.category_tools import register_category_tools
 from .memory.memory_tools import register_memory_tools
+from .memory.otel_trace_tools import register_otel_trace_tools
 from .memory.search_tools import register_search_tools
 from .memory.validated_memory_tools import (
     register_validated_memory_tools,
@@ -115,6 +116,7 @@ __all__ = [
     "register_akosha_tools",
     "register_category_tools",
     "register_memory_tools",
+    "register_otel_trace_tools",
     "register_search_tools",
     "register_validated_memory_tools",
     # Monitoring

@@ -377,7 +377,7 @@ async def _configure_serverless_storage_impl(
 def register_serverless_tools(mcp: FastMCP) -> None:
     """Register all serverless session management tools."""
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def create_serverless_session(
         user_id: str,
         project_id: str,
@@ -389,12 +389,12 @@ def register_serverless_tools(mcp: FastMCP) -> None:
             user_id, project_id, session_data, ttl_hours
         )
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def get_serverless_session(session_id: str) -> str:
         """Get serverless session state from external storage."""
         return await _get_serverless_session_impl(session_id)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def update_serverless_session(
         session_id: str,
         session_data: dict[str, Any],
@@ -405,12 +405,12 @@ def register_serverless_tools(mcp: FastMCP) -> None:
             session_id, session_data, extend_ttl_hours
         )
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def delete_serverless_session(session_id: str) -> str:
         """Delete a serverless session from external storage."""
         return await _delete_serverless_session_impl(session_id)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def list_serverless_sessions(
         user_id: str | None = None,
         project_id: str | None = None,
@@ -421,17 +421,17 @@ def register_serverless_tools(mcp: FastMCP) -> None:
             user_id, project_id, include_expired
         )
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def cleanup_serverless_sessions() -> str:
         """Clean up expired serverless sessions from storage."""
         return await _cleanup_serverless_sessions_impl()
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def test_serverless_storage() -> str:
         """Test all configured storage backends (Redis, S3, local)."""
         return await _test_serverless_storage_impl()
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()
     async def configure_serverless_storage(
         backend: str,
         config: dict[str, Any],

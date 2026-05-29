@@ -490,6 +490,7 @@ ______________________________________________________________________
 - [ ] **Metrics endpoint accessible**
 
   ```bash
+# lychee: ignore
   curl http://localhost:9090/metrics
 
   # Should return Prometheus-formatted metrics

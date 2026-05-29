@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import duckdb
@@ -131,7 +131,7 @@ class WorkflowMetricsStore:
     def _get_conn(self) -> Any:
         """Get or create database connection."""
         if self._conn is None:
-            self._conn = duckdb.connect(self.db_path)  # type: ignore[attr-defined]
+            self._conn = duckdb.connect(self.db_path)
             self._ensure_tables()
         return self._conn
 
@@ -245,11 +245,13 @@ class WorkflowMetricsStore:
 
         if start_date:
             where_clauses.append("started_at >= ?")
-            params.append(start_date)
+            # DuckDB stores TIMESTAMP without timezone, so strip tzinfo
+            params.append(start_date.replace(tzinfo=None) if start_date.tzinfo else start_date)
 
         if end_date:
             where_clauses.append("started_at <= ?")
-            params.append(end_date)
+            # DuckDB stores TIMESTAMP without timezone, so strip tzinfo
+            params.append(end_date.replace(tzinfo=None) if end_date.tzinfo else end_date)
 
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
@@ -425,10 +427,11 @@ class WorkflowMetricsStore:
         """
         conn = self._get_conn()
 
+        # Use LATERAL unnest for DuckDB compatibility (avoid unnest in subquery)
         result = conn.execute(
             f"""
-            SELECT unnest(tools_used) as tool, COUNT(*) as usage_count
-            FROM session_metrics
+            SELECT tool, COUNT(*) as usage_count
+            FROM session_metrics, LATERAL unnest(tools_used) AS t(tool)
             {where_sql}
             GROUP BY tool
             ORDER BY usage_count DESC
@@ -648,7 +651,7 @@ class WorkflowMetricsEngine:
             Aggregated workflow metrics
         """
         end_date = datetime.now(UTC)
-        start_date = end_date.replace(day=end_date.day - days_back)
+        start_date = end_date - timedelta(days=days_back)
 
         return await self.store.get_workflow_metrics(
             project_path=project_path,

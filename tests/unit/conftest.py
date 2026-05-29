@@ -18,7 +18,12 @@ def unmock_settings():
     patches SessionMgmtSettings at module level. We need to restore
     the real class so that unit tests can test actual settings behavior.
     """
-    import session_buddy.settings as settings_module
+    import sys
+
+    settings_module = sys.modules.get("session_buddy.settings")
+    if settings_module is None:
+        yield
+        return
 
     # Get the real SessionMgmtSettings from the settings module itself
     real_class = settings_module.SessionMgmtSettings
@@ -28,16 +33,12 @@ def unmock_settings():
 
     if is_mock:
         # Need to import and restore the real class
-        # We import the real class directly from the module source
         import importlib
-        import sys
 
-        # Remove cached version of module if any
-        if 'session_buddy.settings' in sys.modules:
-            del sys.modules['session_buddy.settings']
-
-        # Re-import to get fresh real class
-        from session_buddy.settings import SessionMgmtSettings as FreshClass
+        # Reload the existing module so the mocked attribute is replaced with
+        # the real class without forcing a second NumPy extension import.
+        FreshModule = importlib.reload(settings_module)
+        FreshClass = FreshModule.SessionMgmtSettings
         settings_module.SessionMgmtSettings = FreshClass
         settings_module._settings = None
 

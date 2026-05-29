@@ -22,6 +22,7 @@ import asyncio
 import inspect
 import json
 import logging
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -106,7 +107,7 @@ class RealTimeMetricsServer:
         self.authenticator = get_authenticator()
 
         # Server state
-        self._server: websockets.asyncio.server.Serve | None = None
+        self._server: websockets.server.WebSocketServer | None = None
         self._broadcast_task: asyncio.Task[None] | None = None
         self._running = False
 
@@ -127,9 +128,9 @@ class RealTimeMetricsServer:
         """
         self.clients.add(websocket)
         # Initialize subscription to all skills
-        websocket.subscription_skill = None  # None = all skills
+        websocket.subscription_skill = None  # type: ignore[assignment]
         logger.info(
-            f"Client registered: {websocket.remote_address}, "
+            f"Client registered: {websocket.remote_address}, "  # type: ignore[attr-defined]
             f"total clients: {len(self.clients)}"
         )
 
@@ -144,7 +145,7 @@ class RealTimeMetricsServer:
         """
         self.clients.discard(websocket)
         logger.info(
-            f"Client unregistered: {websocket.remote_address}, "
+            f"Client unregistered: {websocket.remote_address}, "  # type: ignore[attr-defined]
             f"remaining clients: {len(self.clients)}"
         )
 
@@ -167,7 +168,7 @@ class RealTimeMetricsServer:
         if not self.metrics_subscribers:
             return
 
-        for subscriber in list(self.metrics_subscribers):
+        for subscriber in self.metrics_subscribers.copy():
             try:
                 result = subscriber(payload)
                 if inspect.isawaitable(result):
@@ -193,7 +194,7 @@ class RealTimeMetricsServer:
         try:
             # Wait for authentication message
             auth_message = await asyncio.wait_for(
-                websocket.recv(),
+                websocket.recv(),  # type: ignore[attr-defined]
                 timeout=5.0,
             )
 
@@ -209,22 +210,22 @@ class RealTimeMetricsServer:
 
             if payload:
                 logger.info(
-                    f"Client authenticated: {websocket.remote_address}, "
+                    f"Client authenticated: {websocket.remote_address}, "  # type: ignore[attr-defined]
                     f"user={payload.get('user_id')}"
                 )
                 return payload
             else:
                 logger.warning(
-                    f"Authentication failed: Invalid token from {websocket.remote_address}"
+                    f"Authentication failed: Invalid token from {websocket.remote_address}"  # type: ignore[attr-defined]
                 )
                 return None
 
         except TimeoutError:
-            logger.warning(f"Authentication timeout: {websocket.remote_address}")
+            logger.warning(f"Authentication timeout: {websocket.remote_address}")  # type: ignore[attr-defined]
             return None
         except json.JSONDecodeError:
             logger.warning(
-                f"Authentication failed: Invalid JSON from {websocket.remote_address}"
+                f"Authentication failed: Invalid JSON from {websocket.remote_address}"  # type: ignore[attr-defined]
             )
             return None
         except Exception as e:
@@ -279,15 +280,16 @@ class RealTimeMetricsServer:
                     for client in self.clients:
                         try:
                             # Filter by subscription if set
-                            if (
-                                hasattr(client, "subscription_skill")
-                                and client.subscription_skill
-                            ):
+                            client_subscription: str | None = getattr(  # type: ignore[assignment]
+                                client, "subscription_skill", None
+                            )
+                            if client_subscription:
                                 # Client subscribed to specific skill
+                                top_skills_list = message["data"]["top_skills"]  # type: ignore[index]
                                 skill_data = [
                                     s
-                                    for s in message["data"]["top_skills"]
-                                    if s["skill_name"] == client.subscription_skill
+                                    for s in top_skills_list
+                                    if s["skill_name"] == client_subscription
                                 ]
                                 if skill_data:
                                     filtered_message = message.copy()
@@ -295,14 +297,14 @@ class RealTimeMetricsServer:
                                         "top_skills": skill_data,
                                         "anomalies": [],
                                     }
-                                    await client.send(json.dumps(filtered_message))
+                                    await client.send(json.dumps(filtered_message))  # type: ignore[attr-defined]
                             else:
                                 # Client subscribed to all skills
-                                await client.send(json.dumps(message))
+                                await client.send(json.dumps(message))  # type: ignore[attr-defined]
 
                         except ConnectionClosed:
                             logger.debug(
-                                f"Client disconnected: {client.remote_address}"
+                                f"Client disconnected: {client.remote_address}"  # type: ignore[attr-defined]
                             )
                             disconnected.add(client)
                         except Exception as e:
@@ -392,13 +394,13 @@ class RealTimeMetricsServer:
                 await self.handle_subscription(websocket, skill_name)
 
             elif msg_type == "unsubscribe":
-                websocket.subscription_skill = None
+                websocket.subscription_skill = None  # type: ignore[assignment]
                 logger.info(
-                    f"Client {websocket.remote_address} unsubscribed from all skills"
+                    f"Client {websocket.remote_address} unsubscribed from all skills"  # type: ignore[attr-defined]
                 )
 
             elif msg_type == "ping":
-                await websocket.send(json.dumps({"type": "pong"}))
+                await websocket.send(json.dumps({"type": "pong"}))  # type: ignore[attr-defined]
 
             else:
                 logger.warning(f"Unknown message type: {msg_type}")
@@ -420,16 +422,16 @@ class RealTimeMetricsServer:
         Example:
             >>> await server.handle_subscription(websocket, "pytest-run")
         """
-        websocket.subscription_skill = skill_name
+        websocket.subscription_skill = skill_name  # type: ignore[assignment]
         if skill_name:
             logger.info(
-                f"Client {websocket.remote_address} subscribed to skill: {skill_name}"
+                f"Client {websocket.remote_address} subscribed to skill: {skill_name}"  # type: ignore[attr-defined]
             )
         else:
-            logger.info(f"Client {websocket.remote_address} subscribed to all skills")
+            logger.info(f"Client {websocket.remote_address} subscribed to all skills")  # type: ignore[attr-defined]
 
         # Send confirmation
-        await websocket.send(
+        await websocket.send(  # type: ignore[attr-defined]
             json.dumps(
                 {
                     "type": "subscription_confirmed",
@@ -464,16 +466,16 @@ class RealTimeMetricsServer:
                 return
 
             # Attach user to websocket for later reference
-            websocket.user = user
+            websocket.user = user  # type: ignore[assignment]
 
         self.register_client(websocket)
 
-        user_id = user.get("user_id") if user else "anonymous"
-        logger.info(f"Client connected: {websocket.remote_address} (user: {user_id})")
+        user_id = user.get("user_id") if user else "anonymous"  # type: ignore[union-attr]
+        logger.info(f"Client connected: {websocket.remote_address} (user: {user_id})")  # type: ignore[attr-defined]
 
         try:
             # Send welcome message
-            await websocket.send(
+            await websocket.send(  # type: ignore[attr-defined]
                 json.dumps(
                     {
                         "type": "connected",
@@ -485,11 +487,11 @@ class RealTimeMetricsServer:
             )
 
             # Handle incoming messages
-            async for message in websocket:
+            async for message in websocket:  # type: ignore[iterable]
                 await self.handle_client_message(websocket, message)
 
         except ConnectionClosed:
-            logger.info(f"Client disconnected: {websocket.remote_address}")
+            logger.info(f"Client disconnected: {websocket.remote_address}")  # type: ignore[attr-defined]
         except Exception as e:
             logger.error(f"Error in client handler: {e}", exc_info=True)
         finally:
@@ -557,7 +559,7 @@ class RealTimeMetricsServer:
 
         # Close all client connections
         for client in list(self.clients):
-            await client.close()
+            await client.close()  # type: ignore[attr-defined]
         self.clients.clear()
 
         # Close storage

@@ -187,8 +187,7 @@ def generate_auto_store_tags(
     elif reason == CheckpointReason.MANUAL_CHECKPOINT:
         tags.append("user-initiated")
     elif reason == CheckpointReason.PRE_COMPACT:
-        tags.append("context-preserved")
-        tags.append("before-compaction")
+        tags.extend(("context-preserved", "before-compaction"))
     elif reason in {
         CheckpointReason.QUALITY_IMPROVEMENT,
         CheckpointReason.QUALITY_DEGRADATION,

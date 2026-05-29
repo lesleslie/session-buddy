@@ -12,6 +12,7 @@ it stays constant regardless of which profile is active.
 from __future__ import annotations
 
 import logging
+import operator
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -253,6 +254,37 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
 }
 
 
+async def discover_tools(query: str) -> dict[str, Any]:
+    """Search for available MCP tools by name or capability."""
+    query_lower = query.lower().strip()
+    if not query_lower:
+        return {
+            "found": 0,
+            "tools": [],
+            "hint": "Provide a search query to discover available tools.",
+        }
+
+    results = [
+        {"name": tool_name, "description": description}
+        for tool_name, description in ALL_TOOLS_REGISTRY.items()
+        if query_lower in tool_name.lower() or query_lower in description.lower()
+    ]
+
+    results.sort(key=operator.itemgetter("name"))
+
+    logger.debug("discover_tools query=%r matched=%d", query_lower, len(results))
+
+    return {
+        "found": len(results),
+        "tools": results[:25],
+        "hint": (
+            "Set SESSION_BUDDY_TOOL_PROFILE=full and restart to enable all tools."
+        )
+        if results
+        else "No matching tools found. Try broader search terms.",
+    }
+
+
 def register_discovery_tools(mcp: Any) -> None:
     """Register the tool discovery meta-tool.
 
@@ -262,33 +294,4 @@ def register_discovery_tools(mcp: Any) -> None:
     Args:
         mcp: The FastMCP server instance.
     """
-
-    @mcp.tool()
-    async def discover_tools(query: str) -> dict[str, Any]:
-        """Search for available MCP tools by name or capability."""
-        query_lower = query.lower().strip()
-        if not query_lower:
-            return {
-                "found": 0,
-                "tools": [],
-                "hint": "Provide a search query to discover available tools.",
-            }
-
-        results: list[dict[str, str]] = []
-        for tool_name, description in ALL_TOOLS_REGISTRY.items():
-            if query_lower in tool_name.lower() or query_lower in description.lower():
-                results.append({"name": tool_name, "description": description})
-
-        results.sort(key=lambda r: r["name"])
-
-        logger.debug("discover_tools query=%r matched=%d", query_lower, len(results))
-
-        return {
-            "found": len(results),
-            "tools": results[:25],
-            "hint": (
-                "Set SESSION_BUDDY_TOOL_PROFILE=full and restart to enable all tools."
-            )
-            if results
-            else "No matching tools found. Try broader search terms.",
-        }
+    mcp.tool()(discover_tools)

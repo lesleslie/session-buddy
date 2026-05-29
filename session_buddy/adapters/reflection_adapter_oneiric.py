@@ -25,7 +25,6 @@ if t.TYPE_CHECKING:
     import duckdb
     import numpy as np
     from onnxruntime import InferenceSession
-    from transformers import AutoTokenizer
 
 # Runtime imports (available at runtime but optional for type checking)
 try:
@@ -36,15 +35,18 @@ except ImportError:
     NUMPY_AVAILABLE = False
 
 # Embedding system imports
+_TransformersTokenizer: type | None = None
 try:
     import onnxruntime as ort
-    from transformers import AutoTokenizer
+    from transformers import AutoTokenizer as _TransformersTokenizer
 
     ONNX_AVAILABLE = True
 except ImportError:
     ONNX_AVAILABLE = False
-    ort = None  # type: ignore[no-redef]
-    AutoTokenizer = None  # type: ignore[no-redef]
+    ort = None
+
+# Use the tokenizer from transformers if available, otherwise None
+AutoTokenizer: type | None = _TransformersTokenizer
 
 from session_buddy.adapters.settings import ReflectionAdapterSettings
 from session_buddy.cache.query_cache import QueryCacheManager
@@ -60,6 +62,30 @@ logger = logging.getLogger(__name__)
 _connection_cache: dict[str, t.Any] = {}
 
 
+class _CachedConnection:
+    """Wrapper for cached connections with reference counting.
+
+    Tracks how many adapter instances share a connection and only closes
+    when the last one calls close().
+    """
+
+    def __init__(self, conn: t.Any, cache_key: str) -> None:
+        self.conn = conn
+        self.cache_key = cache_key
+        self.ref_count = 1
+
+    def release(self) -> None:
+        """Decrement reference count; close connection if no more references."""
+        self.ref_count -= 1
+        if self.ref_count <= 0:
+            with suppress(Exception):
+                self.conn.close()
+            _connection_cache.pop(self.cache_key, None)
+
+
+_typed_connection_cache: dict[str, _CachedConnection] = {}
+
+
 # DuckDB will be imported at runtime
 DUCKDB_AVAILABLE = True
 try:
@@ -68,9 +94,9 @@ except ImportError:
     DUCKDB_AVAILABLE = False
     if t.TYPE_CHECKING:
         # Type stub for type checking when duckdb is not installed
-        import types
+        import types as _duckdb_types
 
-        duckdb = types.SimpleNamespace()  # type: ignore[misc,assignment]
+        _duckdb_stub: t.Any = _duckdb_types.SimpleNamespace()
 
 
 class ReflectionDatabaseAdapterOneiric:
@@ -121,12 +147,12 @@ class ReflectionDatabaseAdapterOneiric:
             # Validate collection name to prevent SQL injection
             self.collection_name = validate_collection_name(collection_name)
         # Use unique database file per collection to avoid DuckDB locking conflicts
-        db_path = self.settings.database_path
+        settings_db_path = self.settings.database_path
         # Preserve :memory: paths as-is to avoid converting to file paths
-        if str(db_path) == ":memory:":
+        if str(settings_db_path) == ":memory:":
             self.db_path = ":memory:"
         else:
-            self.db_path = str(db_path)
+            self.db_path = str(settings_db_path)
         self.conn: t.Any = None  # DuckDB connection (sync)
         self.onnx_session: InferenceSession | None = None
         self.tokenizer: t.Any = None
@@ -237,15 +263,12 @@ class ReflectionDatabaseAdapterOneiric:
 
         # Now close the connection
         if self.conn:
-            # Remove from shared connection cache
-            with suppress(Exception):
-                cache_key = (
-                    str(Path(self.db_path).resolve())
-                    if self.db_path != ":memory:"
-                    else ":memory:"
-                )
-                if _connection_cache.get(cache_key) is self.conn:
-                    del _connection_cache[cache_key]
+            # Release from shared connection cache with reference counting
+            if self.db_path != ":memory:":
+                cache_key = str(Path(self.db_path).resolve())
+                cached = _typed_connection_cache.get(cache_key)
+                if cached is not None:
+                    cached.release()  # Decrements ref_count, closes if last reference
             with suppress(Exception):
                 self.conn.close()
             self.conn = None
@@ -292,15 +315,17 @@ class ReflectionDatabaseAdapterOneiric:
         # creates a unique in-memory database that must not be shared.
         if self.db_path != ":memory:":
             cache_key = str(Path(self.db_path).resolve())
-            cached = _connection_cache.get(cache_key)
+            cached = _typed_connection_cache.get(cache_key)
             if cached is not None:
                 try:
                     # Verify the connection is still alive
-                    cached.execute("SELECT 1")
-                    self.conn = cached
+                    cached.conn.execute("SELECT 1")
+                    self.conn = cached.conn
+                    cached.ref_count += 1  # Another adapter reusing this connection
                 except Exception:
                     # Stale connection; remove and create a fresh one
-                    _connection_cache.pop(cache_key, None)
+                    cached.release()
+                    _typed_connection_cache.pop(cache_key, None)
                     self.conn = None
 
         if self.conn is None:
@@ -312,7 +337,9 @@ class ReflectionDatabaseAdapterOneiric:
             # Only cache file-based connections, not :memory:
             if self.db_path != ":memory:":
                 cache_key = str(Path(self.db_path).resolve())
-                _connection_cache[cache_key] = self.conn
+                _typed_connection_cache[cache_key] = _CachedConnection(
+                    self.conn, cache_key
+                )
 
         # Enable vector extension if available
         with suppress(Exception):
@@ -747,8 +774,8 @@ class ReflectionDatabaseAdapterOneiric:
             # Create HNSW index for conversations table
             self.conn.execute(
                 f"""
-                CREATE INDEX IF NOT EXISTS {self._index('conv_embeddings_hnsw')}
-                ON {self._table('conversations')}
+                CREATE INDEX IF NOT EXISTS {self._index("conv_embeddings_hnsw")}
+                ON {self._table("conversations")}
                 USING HNSW (embedding)
                 WITH (
                     metric = '{self.settings.distance_metric}',
@@ -765,8 +792,8 @@ class ReflectionDatabaseAdapterOneiric:
             # Create HNSW index for reflections table
             self.conn.execute(
                 f"""
-                CREATE INDEX IF NOT EXISTS {self._index('refl_embeddings_hnsw')}
-                ON {self._table('reflections')}
+                CREATE INDEX IF NOT EXISTS {self._index("refl_embeddings_hnsw")}
+                ON {self._table("reflections")}
                 USING HNSW (embedding)
                 WITH (
                     metric = '{self.settings.distance_metric}',
@@ -807,7 +834,7 @@ class ReflectionDatabaseAdapterOneiric:
         model_name = "Xenova/all-MiniLM-L6-v2"
 
         # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)  # type: ignore[attr-defined]
 
         # Load ONNX model from onnx/ subdirectory
         try:
@@ -997,8 +1024,8 @@ class ReflectionDatabaseAdapterOneiric:
         if not hasattr(self, "_calibration_min"):
             # Use fixed calibration data for all-MiniLM-L6-v2 model
             # These values represent typical min/max across the embedding space
-            self._calibration_min = np.full((384,), -0.15, dtype=np.float32)
-            self._calibration_max = np.full((384,), 0.15, dtype=np.float32)
+            self._calibration_min: np.ndarray = np.full((384,), -0.15, dtype=np.float32)
+            self._calibration_max: np.ndarray = np.full((384,), 0.15, dtype=np.float32)
 
         return self._calibration_min, self._calibration_max
 
@@ -1134,7 +1161,7 @@ class ReflectionDatabaseAdapterOneiric:
             existing_row = self.conn.execute(
                 f"""
                 SELECT 1
-                FROM {self._table('conversations')}
+                FROM {self._table("conversations")}
                 WHERE id = ?
                 LIMIT 1
                 """,
@@ -1143,7 +1170,7 @@ class ReflectionDatabaseAdapterOneiric:
             if existing_row:
                 conv_id = str(uuid.uuid4())
         now = datetime.now(UTC)
-        metadata_json = json.dumps(metadata or {})
+        metadata_json = json.dumps(metadata)
 
         # Generate embedding if enabled
         embedding = None
@@ -1157,7 +1184,7 @@ class ReflectionDatabaseAdapterOneiric:
         if embedding:
             self.conn.execute(
                 f"""
-                INSERT INTO {self._table('conversations')}
+                INSERT INTO {self._table("conversations")}
                 (id, content, metadata, created_at, updated_at, embedding, fingerprint)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
@@ -1180,7 +1207,7 @@ class ReflectionDatabaseAdapterOneiric:
         else:
             self.conn.execute(
                 f"""
-                INSERT INTO {self._table('conversations')}
+                INSERT INTO {self._table("conversations")}
                 (id, content, metadata, created_at, updated_at, fingerprint)
                 VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
@@ -1293,7 +1320,7 @@ class ReflectionDatabaseAdapterOneiric:
         result = self.conn.execute(
             f"""
             SELECT id, content, metadata, created_at, updated_at
-            FROM {self._table('conversations')}
+            FROM {self._table("conversations")}
             WHERE id IN ('{id_list}')
             ORDER BY updated_at DESC
             """
@@ -1373,7 +1400,7 @@ class ReflectionDatabaseAdapterOneiric:
             SELECT
                 id, content, metadata, created_at, updated_at,
                 array_cosine_similarity(embedding, '{vector_query}'::FLOAT[{self.embedding_dim}]) as score
-            FROM {self._table('conversations')}
+            FROM {self._table("conversations")}
             WHERE embedding IS NOT NULL
             ORDER BY score DESC
             LIMIT ?
@@ -1413,7 +1440,7 @@ class ReflectionDatabaseAdapterOneiric:
         result = self.conn.execute(
             f"""
             SELECT id, content, metadata, created_at, updated_at
-            FROM {self._table('conversations')}
+            FROM {self._table("conversations")}
             WHERE content LIKE ?
             ORDER BY updated_at DESC
             LIMIT ?
@@ -1578,7 +1605,7 @@ class ReflectionDatabaseAdapterOneiric:
         if embedding:
             self.conn.execute(
                 f"""
-                INSERT INTO {self._table('reflections')}
+                INSERT INTO {self._table("reflections")}
                 (id, content, tags, embedding, created_at, updated_at, insight_type, fingerprint)
                 VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
                 """,
@@ -1595,7 +1622,7 @@ class ReflectionDatabaseAdapterOneiric:
         else:
             self.conn.execute(
                 f"""
-                INSERT INTO {self._table('reflections')}
+                INSERT INTO {self._table("reflections")}
                 (id, content, tags, created_at, updated_at, insight_type, fingerprint)
                 VALUES (?, ?, ?, ?, ?, NULL, ?)
                 """,
@@ -1624,7 +1651,7 @@ class ReflectionDatabaseAdapterOneiric:
                 # Store subcategory with reflection
                 self.conn.execute(
                     f"""
-                    UPDATE {self._table('reflections')}
+                    UPDATE {self._table("reflections")}
                     SET subcategory = ?
                     WHERE id = ?
                     """,
@@ -1723,7 +1750,7 @@ class ReflectionDatabaseAdapterOneiric:
         result = self.conn.execute(
             f"""
             SELECT id, content, tags, created_at, updated_at
-            FROM {self._table('reflections')}
+            FROM {self._table("reflections")}
             WHERE id IN ('{id_list}')
                 AND insight_type IS NULL
             ORDER BY created_at DESC
@@ -1819,7 +1846,7 @@ class ReflectionDatabaseAdapterOneiric:
             f"""
             SELECT id, content, tags, created_at, updated_at,
                    array_cosine_similarity(embedding::FLOAT[384], ?::FLOAT[384]) as similarity
-            FROM {self._table('reflections')}
+            FROM {self._table("reflections")}
             WHERE embedding IS NOT NULL
                 AND insight_type IS NULL
             ORDER BY similarity DESC
@@ -1853,7 +1880,7 @@ class ReflectionDatabaseAdapterOneiric:
         results = self.conn.execute(
             f"""
             SELECT id, content, tags, created_at, updated_at
-            FROM {self._table('reflections')}
+            FROM {self._table("reflections")}
             WHERE insight_type IS NULL
                 AND (content LIKE ? OR list_contains(tags, ?))
             ORDER BY created_at DESC
@@ -1889,7 +1916,7 @@ class ReflectionDatabaseAdapterOneiric:
         result = self.conn.execute(
             f"""
             SELECT id, content, tags, created_at, updated_at
-            FROM {self._table('reflections')}
+            FROM {self._table("reflections")}
             WHERE id = ?
             """,
             (reflection_id,),
@@ -1943,13 +1970,9 @@ class ReflectionDatabaseAdapterOneiric:
         # Drop foreign key constraints first, then tables
         try:
             # Drop reflections table first (has foreign key to conversations)
-            self.conn.execute(
-                f"DROP TABLE IF EXISTS {self._table('reflections')}"
-            )
+            self.conn.execute(f"DROP TABLE IF EXISTS {self._table('reflections')}")
             # Then drop conversations table
-            self.conn.execute(
-                f"DROP TABLE IF EXISTS {self._table('conversations')}"
-            )
+            self.conn.execute(f"DROP TABLE IF EXISTS {self._table('conversations')}")
         except Exception:
             # If there are issues, try dropping with CASCADE
             self.conn.execute(
@@ -2049,7 +2072,7 @@ class ReflectionDatabaseAdapterOneiric:
         if embedding:
             self.conn.execute(
                 f"""
-                INSERT INTO {self._table('reflections')}
+                INSERT INTO {self._table("reflections")}
                 (id, content, tags, metadata, embedding, created_at, updated_at,
                  insight_type, usage_count, confidence_score)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -2070,7 +2093,7 @@ class ReflectionDatabaseAdapterOneiric:
         else:
             self.conn.execute(
                 f"""
-                INSERT INTO {self._table('reflections')}
+                INSERT INTO {self._table("reflections")}
                 (id, content, tags, metadata, created_at, updated_at,
                  insight_type, usage_count, confidence_score)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -2155,7 +2178,7 @@ class ReflectionDatabaseAdapterOneiric:
                 id, content, tags, metadata, created_at, updated_at,
                 insight_type, usage_count, last_used_at, confidence_score,
                 array_cosine_similarity(embedding::FLOAT[384], ?::FLOAT[384]) as similarity
-            FROM {self._table('reflections')}
+            FROM {self._table("reflections")}
             WHERE
                 embedding IS NOT NULL
                 AND insight_type IS NOT NULL
@@ -2219,7 +2242,7 @@ class ReflectionDatabaseAdapterOneiric:
                 SELECT
                     id, content, tags, metadata, created_at, updated_at,
                     insight_type, usage_count, last_used_at, confidence_score
-                FROM {self._table('reflections')}
+                FROM {self._table("reflections")}
                 WHERE
                     insight_type IS NOT NULL
                     AND json_extract(metadata, '$.quality_score') >= ?
@@ -2234,7 +2257,7 @@ class ReflectionDatabaseAdapterOneiric:
                 SELECT
                     id, content, tags, metadata, created_at, updated_at,
                     insight_type, usage_count, last_used_at, confidence_score
-                FROM {self._table('reflections')}
+                FROM {self._table("reflections")}
                 WHERE
                     insight_type IS NOT NULL
                     AND (content LIKE ? OR list_contains(tags, ?))
@@ -2291,7 +2314,7 @@ class ReflectionDatabaseAdapterOneiric:
             # Check if insight exists first
             check_result = self.conn.execute(
                 f"""
-                SELECT COUNT(*) FROM {self._table('reflections')}
+                SELECT COUNT(*) FROM {self._table("reflections")}
                 WHERE id = ? AND insight_type IS NOT NULL
                 """,
                 (insight_id,),
@@ -2303,7 +2326,7 @@ class ReflectionDatabaseAdapterOneiric:
             # Atomic increment prevents race condition
             self.conn.execute(
                 f"""
-                UPDATE {self._table('reflections')}
+                UPDATE {self._table("reflections")}
                 SET
                     usage_count = usage_count + 1,
                     last_used_at = ?,
@@ -2335,7 +2358,7 @@ class ReflectionDatabaseAdapterOneiric:
         total_result = self.conn.execute(
             f"""
             SELECT COUNT(*)
-            FROM {self._table('reflections')}
+            FROM {self._table("reflections")}
             WHERE insight_type IS NOT NULL
             """
         ).fetchone()
@@ -2345,7 +2368,7 @@ class ReflectionDatabaseAdapterOneiric:
         quality_result = self.conn.execute(
             f"""
             SELECT AVG(CAST(json_extract(metadata, '$.quality_score') AS REAL))
-            FROM {self._table('reflections')}
+            FROM {self._table("reflections")}
             WHERE
                 insight_type IS NOT NULL
                 AND json_extract(metadata, '$.quality_score') IS NOT NULL
@@ -2357,7 +2380,7 @@ class ReflectionDatabaseAdapterOneiric:
         usage_result = self.conn.execute(
             f"""
             SELECT AVG(usage_count)
-            FROM {self._table('reflections')}
+            FROM {self._table("reflections")}
             WHERE insight_type IS NOT NULL
             """
         ).fetchone()
@@ -2367,7 +2390,7 @@ class ReflectionDatabaseAdapterOneiric:
         type_results = self.conn.execute(
             f"""
             SELECT insight_type, COUNT(*) as count
-            FROM {self._table('reflections')}
+            FROM {self._table("reflections")}
             WHERE insight_type IS NOT NULL
             GROUP BY insight_type
             ORDER BY count DESC

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 from mcp_common.tools import ToolProfile
@@ -59,6 +59,7 @@ from .tools import (
     register_memory_health_tools,
     register_migration_tools,
     register_monitoring_tools,
+    register_otel_trace_tools,
     register_phase3_knowledge_graph_tools,
     register_phase4_tools,  # Phase 4 Skills Analytics
     register_pool_tools,
@@ -88,6 +89,7 @@ _ALL_REGISTERS: dict[str, Any] = {
     "register_admin_shell_tracking_tools": register_admin_shell_tracking_tools,
     "register_channel_tracking_tools": register_channel_tracking_tools,
     "register_akosha_tools": register_akosha_tools,
+    "register_otel_trace_tools": register_otel_trace_tools,
     "register_bottleneck_tools": register_bottleneck_tools,
     "register_cache_tools": register_cache_tools,
     "register_code_analysis_tools": register_code_analysis_tools,
@@ -143,13 +145,13 @@ for _name in _names_to_register:
         _skipped.append(_name)
         continue
     if _fn is register_channel_tracking_tools:
-        _fn(mcp, dhara_publisher=_dhara_publisher)  # type: ignore[argument-type]
+        _fn(mcp, dhara_publisher=_dhara_publisher)
     else:
-        _fn(mcp)  # type: ignore[argument-type]
+        _fn(mcp)
     _registered.append(_name)
 
 # Always register the discovery meta-tool
-register_discovery_tools(mcp)  # type: ignore[argument-type]
+register_discovery_tools(mcp)
 
 logger.info(
     "tool profile=%s registered=%d skipped=%d discovery=enabled",
@@ -165,7 +167,7 @@ if _skipped:
 # Wrap the existing lifespan so _dhara_publisher is closed on server shutdown.
 # ---------------------------------------------------------------------------
 
-_original_lifespan = mcp._lifespan  # type: ignore[attr-defined]
+_original_lifespan = mcp._lifespan
 
 
 @asynccontextmanager
@@ -174,12 +176,10 @@ async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
         yield
     # Close the Dhara publisher if one was wired
     if _dhara_publisher is not None:
-        try:
+        with suppress(Exception):
             await _dhara_publisher.aclose()
-        except Exception:
-            pass
 
 
-mcp._lifespan = _lifespan_with_dhara_cleanup  # type: ignore[attr-defined]
+mcp._lifespan = _lifespan_with_dhara_cleanup
 
 __all__ = ["mcp"]

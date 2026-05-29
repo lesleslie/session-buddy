@@ -7,7 +7,6 @@ This module provides the enhanced semantic relationship methods for Phase 3:
 - Transitive relationship discovery
 
 These methods can be mixed into KnowledgeGraphDatabaseAdapterOneiric.
-
 """
 
 from __future__ import annotations
@@ -15,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 import typing as t
+from contextlib import suppress
 
 if t.TYPE_CHECKING:
     pass
@@ -60,8 +60,8 @@ class Phase3RelationshipMixin:
         Relationship Type Hierarchy (15+ types):
 
         Similarity-based (priority 1):
-        - very_similar_to: similarity ≥ 0.85 (high confidence)
-        - similar_to: similarity ≥ 0.75 (medium confidence)
+        - very_similar_to: similarity >= 0.85 (high confidence)
+        - similar_to: similarity >= 0.75 (medium confidence)
         - related_to: default/fallback (low confidence)
 
         Pattern-based (priority 2):
@@ -128,17 +128,17 @@ class Phase3RelationshipMixin:
     # ========================================================================
 
     # Regex patterns for relationship extraction
-    _RELATIONSHIP_PATTERNS: dict[str, re.Pattern[str]] = {
-        r"\buses\s+(\w+)": "uses",
-        r"\bextends\s+(\w+)": "extends",
-        r"\bdepends\s+on\s+(\w+)": "depends_on",
-        r"\bpart\s+of\s+(\w+)": "part_of",
-        r"\bimplements\s+(\w+)": "implements",
-        r"\brequires\s+(\w+)": "requires",
-        r"\bconnects?\s+to\s+(\w+)": "connects_to",
-        r"\binherits\s+from\s+(\w+)": "extends",
-        r"\bintegrates\s+with\s+(\w+)": "connects_to",
-        r"\bbuilds?\s+on\s+(\w+)": "extends",
+    _RELATIONSHIP_PATTERNS: dict[str, str] = {
+        "uses": r"\buses\s+(\w+)",
+        "extends": r"\bextends\s+(\w+)",
+        "depends_on": r"\bdepends\s+on\s+(\w+)",
+        "part_of": r"\bpart\s+of\s+(\w+)",
+        "implements": r"\bimplements\s+(\w+)",
+        "requires": r"\brequires\s+(\w+)",
+        "connects_to": r"\bconnects?\s+to\s+(\w+)",
+        "inherits_from": r"\binherits\s+from\s+(\w+)",
+        "integrates_with": r"\bintegrates\s+with\s+(\w+)",
+        "builds_on": r"\bbuilds?\s+on\s+(\w+)",
     }
 
     def _extract_pattern_from_text(
@@ -247,7 +247,7 @@ class Phase3RelationshipMixin:
         min_confidence: str = "medium",
         limit: int = 100,
     ) -> dict[str, int]:
-        """Discover transitive relationships (A→B→C implies A→C).
+        """Discover transitive relationships (A->B->C implies A->C).
 
         For example:
             - session-buddy uses FastMCP
@@ -256,7 +256,7 @@ class Phase3RelationshipMixin:
 
         Args:
             max_depth: Maximum chain length (default: 3)
-            min_confidence: Minimum confidence level ("low"/"medium"/high")
+            min_confidence: Minimum confidence level ("low"/"medium"/"high")
             limit: Maximum relationships to create
 
         Returns:
@@ -267,7 +267,7 @@ class Phase3RelationshipMixin:
             >>> print(result)
             {"created": 45, "skipped": 12, "duplicate": 8}
         """
-        conn = self._get_conn()
+        conn = self._get_conn()  # type: ignore[attr-defined]
 
         # Confidence ranking for min comparison
         confidence_rank = {"low": 1, "medium": 2, "high": 3}
@@ -351,7 +351,7 @@ class Phase3RelationshipMixin:
 
                     # Create transitive relationship
                     try:
-                        await self.create_relation(
+                        await self.create_relation(  # type: ignore[attr-defined]
                             from_entity=from_entity,
                             to_entity=to_entity,
                             relation_type=transitive_type,
@@ -471,7 +471,7 @@ class Phase3RelationshipMixin:
             # Creates entity and extracts relationship: session-buddy -> uses -> FastMCP
         """
         # Create entity first
-        entity = await self.create_entity(
+        entity = await self.create_entity(  # type: ignore[attr-defined]
             name=name,
             entity_type=entity_type,
             observations=observations,
@@ -492,11 +492,11 @@ class Phase3RelationshipMixin:
 
             # Try to create discovered relationships
             for rel in discovered:
-                try:
+                with suppress(Exception):
                     # Resolve target entity by name
-                    target_entity = await self.find_entity_by_name(rel["to_name"])
+                    target_entity = await self.find_entity_by_name(rel["to_name"])  # type: ignore[attr-defined]
                     if target_entity:
-                        await self.create_relation(
+                        await self.create_relation(  # type: ignore[attr-defined]
                             from_entity=entity["id"],
                             to_entity=target_entity["id"],
                             relation_type=rel["relation_type"],
@@ -506,11 +506,8 @@ class Phase3RelationshipMixin:
                                 "evidence": rel["evidence"],
                             },
                         )
-                except Exception:
-                    # Silently skip if target entity doesn't exist yet
-                    pass
 
-        return entity
+        return entity  # type: ignore[no-any-return]
 
 
 # Export the mixin for easy importing

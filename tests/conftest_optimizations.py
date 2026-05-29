@@ -5,6 +5,8 @@ This module provides optimized fixtures that reduce test setup time and
 improve test execution speed through better resource management and caching.
 """
 
+from __future__ import annotations
+
 import asyncio
 import shutil
 import tempfile
@@ -15,9 +17,15 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from session_buddy.adapters.reflection_adapter import (
-    ReflectionDatabaseAdapter as ReflectionDatabase,
-)
+
+
+def _get_reflection_database_class() -> type[Any]:
+    """Import the reflection database adapter lazily for test fixtures."""
+    from session_buddy.adapters.reflection_adapter import (
+        ReflectionDatabaseAdapter as ReflectionDatabase,
+    )
+
+    return ReflectionDatabase
 
 # ==============================================================================
 # OPTIMIZED FIXTURES - Scope optimization for better performance
@@ -114,6 +122,7 @@ async def fast_temp_db(temp_test_dir: Path) -> AsyncGenerator[ReflectionDatabase
         enable_embeddings=False,  # Disable embeddings for faster tests
     )
 
+    ReflectionDatabase = _get_reflection_database_class()
     db = ReflectionDatabase(settings=settings)
     await db.initialize()
 

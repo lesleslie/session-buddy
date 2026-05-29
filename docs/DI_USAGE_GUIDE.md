@@ -1118,7 +1118,7 @@ ______________________________________________________________________
 
 - [Dependency Inversion Principle](https://en.wikipedia.org/wiki/Dependency_inversion_principle)
 - [Inversion of Control Containers](https://martinfowler.com/articles/injection.html)
-- [Oneiric Framework Documentation](https://github.com/your-repo/oneiric)
+- [Oneiric Framework Documentation](https://github.com/lesleslie/oneiric)
 
 ______________________________________________________________________
 

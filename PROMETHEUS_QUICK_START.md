@@ -17,7 +17,9 @@ exporter = PrometheusExporter(port=9090)
 # Start HTTP server
 exporter.start()
 
-# Metrics now available at http://localhost:9090/metrics
+# Metrics now available at
+# lychee: ignore
+http://localhost:9090/metrics
 ```
 
 ### 2. Record Metrics
@@ -45,9 +47,11 @@ exporter.update_active_sessions(5)
 
 ```bash
 # Check metrics endpoint
+# lychee: ignore
 curl http://localhost:9090/metrics
 
 # Or visit in browser
+# lychee: ignore
 open http://localhost:9090/metrics
 ```
 
@@ -118,7 +122,8 @@ cd /Users/les/Projects/session-buddy
 python session_buddy/realtime/metrics_exporter.py
 ```
 
-Visit http://localhost:9090/metrics to see live metrics.
+# lychee: ignore
+http://localhost:9090/metrics
 
 ## Prometheus Configuration
 
@@ -283,7 +288,8 @@ For issues or questions:
 
 1. Check the test script: `python test_prometheus_metrics.py`
 1. Verify Prometheus config: `promtool check config prometheus.yml`
-1. Test endpoint manually: `curl http://localhost:9090/metrics`
+# lychee: ignore
+curl http://localhost:9090/metrics
 1. Review logs for errors
 
 ______________________________________________________________________

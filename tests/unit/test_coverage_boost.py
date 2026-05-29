@@ -24,6 +24,13 @@ def test_logging_utils_coverage():
     assert logging_utils is not None
 
 
+def test_file_utils_coverage():
+    """Test file_utils compatibility shim to improve coverage."""
+    from session_buddy.utils import file_utils
+
+    assert file_utils is not None
+
+
 def test_protocols_coverage():
     """Test protocols module to improve coverage."""
     # Import to trigger coverage

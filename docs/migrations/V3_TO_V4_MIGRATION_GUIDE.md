@@ -211,6 +211,7 @@ from session_buddy.realtime import PrometheusExporter
 exporter = PrometheusExporter(port=9090)
 exporter.start()
 
+# lychee: ignore
 # Metrics at http://localhost:9090/metrics
 ```
 

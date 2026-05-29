@@ -479,7 +479,7 @@ class SessionLifecycleManager:
         raw_path = Path(path)
 
         # Block obvious traversal attempts before touching the filesystem.
-        path_text = str(path)
+        path_text = path
         if ".." in raw_path.parts or "..\\" in path_text or "../" in path_text:
             raise ValueError(
                 f"Path outside allowed directories: {path}. Traversal not allowed."
@@ -1333,7 +1333,7 @@ class SessionLifecycleManager:
                     metadata={
                         "quality_score": quality_score,
                         "insights_extracted": insights_extracted,
-                        "handoff_path": str(handoff_path) if handoff_path else None,
+                        "handoff_path": handoff_path or None,
                     },
                     checkpoint_data={
                         "quality_score": quality_score,
@@ -1354,9 +1354,7 @@ class SessionLifecycleManager:
                 insights_extracted,
             )
 
-            summary["handoff_documentation"] = (
-                str(handoff_path) if handoff_path else None
-            )
+            summary["handoff_documentation"] = handoff_path or None
             summary["insights_extracted"] = insights_extracted
 
             # Add conversation storage result to summary

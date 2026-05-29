@@ -436,7 +436,7 @@ class TestCrackerjackRun:
         """Should suggest alternatives for unknown commands."""
         from session_buddy.mcp.tools.session.crackerjack_tools import crackerjack_run
 
-        result = await crackerjack_run(command="formating")  # typo
+        result = await crackerjack_run(command="formatting")  # typo
 
         assert "❌" in result
         assert "Did you mean" in result

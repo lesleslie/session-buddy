@@ -83,6 +83,46 @@ def test_process_recent_reflections_populates_summary() -> None:
     assert summary["next_steps"] == ["write tests", "update docs"]
 
 
+def test_process_recent_reflections_truncates_results() -> None:
+    class FakeDb:
+        async def search_reflections(self, _kind: str, limit: int = 5):
+            assert limit == 5
+            return [
+                {
+                    "content": (
+                        "Project context: a, b. Excellent. Priority: one."
+                    ),
+                },
+                {
+                    "content": (
+                        "Project context: c, d. Excellent. Priority: two."
+                    ),
+                },
+                {
+                    "content": (
+                        "Project context: e, f. Good progress. Priority: three."
+                    ),
+                },
+                {
+                    "content": (
+                        "Project context: g, h. Good progress. Priority: four."
+                    ),
+                },
+            ]
+
+    summary = create_empty_summary()
+
+    asyncio.run(process_recent_reflections(FakeDb(), summary))
+
+    assert len(summary["key_topics"]) <= 5
+    assert summary["decisions_made"] == [
+        "Maintaining productive workflow patterns",
+        "Maintaining productive workflow patterns",
+        "Steady development progress confirmed",
+    ]
+    assert summary["next_steps"] == ["one", "two", "three"]
+
+
 def test_process_recent_reflections_handles_empty_results() -> None:
     class EmptyDb:
         async def search_reflections(self, _kind: str, limit: int = 5):

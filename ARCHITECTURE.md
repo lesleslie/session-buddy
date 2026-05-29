@@ -402,10 +402,12 @@ analytics:
 intelligence:
   enabled: true
   embedding_model: "nomic-embed-text"
+  # lychee: ignore
   ollama_base_url: "http://localhost:11434"
 
 sync:
   akosha_enabled: false
+# lychee: ignore
   akosha_url: "http://localhost:8682/mcp"
   cloud_enabled: false
   cloud_provider: "aws"  # aws | gcp | azure
@@ -563,6 +565,7 @@ await mcp.call_tool("add_message", {
 ```yaml
 sync:
   akosha_enabled: true
+# lychee: ignore
   akosha_url: "http://localhost:8682/mcp"
   sync_interval: 300  # seconds
 ```
@@ -916,28 +919,28 @@ ______________________________________________________________________
 
 - Purpose: Workflow orchestration
 - Protocol: MCP
-- URL: http://localhost:8680/mcp
+- URL: http://localhost:8680/mcp<!-- lychee: ignore -->
 - Required: Standard mode (for session delegation)
 
 **Akosha** (Analytics):
 
 - Purpose: Advanced analytics
 - Protocol: MCP/HTTP
-- URL: http://localhost:8682/mcp
+- URL: http://localhost:8682/mcp<!-- lychee: ignore -->
 - Required: Optional (for cross-project analytics)
 
 **Crackerjack** (Quality Control):
 
 - Purpose: Testing and QC
 - Protocol: MCP
-- URL: http://localhost:8676/mcp
+- URL: http://localhost:8676/mcp<!-- lychee: ignore -->
 - Required: Optional (for quality tracking)
 
 **Ollama** (LLM):
 
 - Purpose: Embedding generation
 - Protocol: HTTP
-- URL: http://localhost:11434
+- URL: http://localhost:11434<!-- lychee: ignore -->
 - Required: Optional (for intelligence features)
 
 **PostgreSQL** (Database):

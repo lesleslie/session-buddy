@@ -18,10 +18,11 @@ Example:
 
 from __future__ import annotations
 
+import operator
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from session_buddy.core.skills_tracker import SkillsTracker
@@ -226,7 +227,7 @@ class CrackerjackIntegration:
         self,
         phase_name: str,
         limit: int = 5,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Get recommended skills for a specific crackerjack phase.
 
         Uses workflow-aware recommendations to find skills that work well
@@ -290,7 +291,7 @@ class CrackerjackIntegration:
             ]
         )
 
-        for phase_name in ["fast_hooks", "tests", "comprehensive_hooks", "ai_fix"]:
+        for phase_name in ("fast_hooks", "tests", "comprehensive_hooks", "ai_fix"):
             metrics = self.phase_metrics[phase_name]
             workflow_phase = self.PHASE_MAPPING[phase_name]
 
@@ -313,11 +314,10 @@ class CrackerjackIntegration:
                     lines.append(f"    - {tool}")
 
             if metrics.common_failures:
-                lines.append("")
-                lines.append("  Common Failures:")
+                lines.extend(["", "  Common Failures:"])
                 for error, count in sorted(
                     metrics.common_failures.items(),
-                    key=lambda x: x[1],
+                    key=operator.itemgetter(1),
                     reverse=True,
                 )[:5]:
                     lines.append(f"    - {error}: {count}x")
@@ -349,7 +349,7 @@ class CrackerjackIntegration:
             ]
         )
 
-        for phase_name in ["fast_hooks", "tests", "comprehensive_hooks", "ai_fix"]:
+        for phase_name in ("fast_hooks", "tests", "comprehensive_hooks", "ai_fix"):
             recommendations = self.get_recommended_skills(phase_name, limit=3)
 
             lines.append(f"\n{phase_name.upper()}:")
@@ -366,7 +366,7 @@ class CrackerjackIntegration:
 
         return "\n".join(lines)
 
-    def get_phase_summary(self, phase_name: str) -> dict:
+    def get_phase_summary(self, phase_name: str) -> dict[str, Any]:
         """Get summary dictionary for a specific phase.
 
         Args:
@@ -392,6 +392,6 @@ class CrackerjackIntegration:
             "completion_rate": metrics.completion_rate(),
             "total_duration_seconds": metrics.total_duration_seconds,
             "avg_duration_seconds": metrics.avg_duration_seconds(),
-            "tools_used": list(metrics.tools_used),
+            "tools_used": metrics.tools_used.copy(),
             "common_failures": metrics.common_failures.copy(),
         }

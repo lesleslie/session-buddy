@@ -34,7 +34,7 @@ from prometheus_client import Counter, Gauge, Histogram, generate_latest
 from prometheus_client.registry import CollectorRegistry
 
 try:
-    from prometheus_client.exposition import choose_formatter
+    from prometheus_client.exposition import choose_formatter  # type: ignore[attr-defined]
 except ImportError:
     # prometheus_client < 0.20.0
     from prometheus_client.exposition import (
@@ -376,7 +376,7 @@ class SessionMetrics:
             self.registry.unregister(collector)
 
         # Reinitialize all metrics
-        self.__init__(registry=self.registry)
+        self.__init__(registry=self.registry)  # type: ignore[misc]
 
         self.logger.debug("All metrics cleared")
 
@@ -507,9 +507,8 @@ def track_operation_duration(
         if hasattr(func, "__annotations__") and "return" in func.__annotations__:
             # Async function
             return async_wrapper  # type: ignore[return-value]
-        else:
-            # Sync function
-            return sync_wrapper  # type: ignore[return-value]
+        # Sync function
+        return sync_wrapper  # type: ignore[return-value]
 
     return decorator
 

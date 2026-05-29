@@ -13,14 +13,15 @@ from __future__ import annotations
 
 import json
 import logging
+import operator
 import sqlite3
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator
 
 if TYPE_CHECKING:
     pass
@@ -143,7 +144,7 @@ class SkillsStorage:
     # ========================================================================
 
     @contextmanager
-    def _get_connection(self) -> sqlite3.Connection:
+    def _get_connection(self) -> Generator[sqlite3.Connection, None, None]:
         """Get database connection with proper configuration.
 
         Yields:
@@ -184,7 +185,7 @@ class SkillsStorage:
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
         """Context manager exit - close connection."""
         self.close()
 
@@ -272,7 +273,7 @@ class SkillsStorage:
                 ),
             )
 
-            return cursor.lastrowid
+            return int(cursor.lastrowid or 0)
 
     def get_invocation(self, invocation_id: int) -> StoredInvocation | None:
         """Get a specific invocation by ID.
@@ -513,7 +514,7 @@ class SkillsStorage:
     # ========================================================================
 
     @contextmanager
-    def _transaction(self) -> sqlite3.Connection:
+    def _transaction(self) -> Generator[sqlite3.Connection, None, None]:
         """Execute operations in a transaction with retry logic.
 
         Yields:
@@ -545,10 +546,8 @@ class SkillsStorage:
                 else:
                     # Rollback and raise
                     with self._get_connection() as conn:
-                        try:
+                        with suppress(Exception):
                             conn.execute("ROLLBACK")
-                        except Exception:
-                            pass  # Already rolled back
                     raise TransactionError(
                         f"Transaction failed after {attempt + 1} attempts: {e}",
                         cause=e,
@@ -556,10 +555,8 @@ class SkillsStorage:
             except Exception:
                 # Rollback and re-raise
                 with self._get_connection() as conn:
-                    try:
+                    with suppress(Exception):
                         conn.execute("ROLLBACK")
-                    except Exception:
-                        pass  # Already rolled back
                 raise
 
     # ========================================================================
@@ -893,7 +890,7 @@ class SkillsStorage:
                 continue
 
         # Sort by similarity descending
-        results.sort(key=lambda x: x[1], reverse=True)
+        results.sort(key=operator.itemgetter(1), reverse=True)
 
         # Return top N results
         return results[:limit]
@@ -957,7 +954,7 @@ class SkillsStorage:
                 )
 
         # Convert to sorted list
-        sorted_skills = sorted(skill_scores.items(), key=lambda x: x[1], reverse=True)
+        sorted_skills = sorted(skill_scores.items(), key=operator.itemgetter(1), reverse=True)
 
         return sorted_skills[:limit]
 
@@ -1061,7 +1058,7 @@ class SkillsStorage:
 
             return sorted(
                 results,
-                key=lambda item: item["completion_rate"],
+                key=operator.itemgetter("completion_rate"),
                 reverse=True,
             )
 
@@ -1136,7 +1133,7 @@ class SkillsStorage:
                     )
 
             return sorted(
-                bottlenecks, key=lambda x: x["bottleneck_score"], reverse=True
+                bottlenecks, key=operator.itemgetter("bottleneck_score"), reverse=True
             )
 
     def get_workflow_phase_transitions(
@@ -1218,7 +1215,7 @@ class SkillsStorage:
                     "_total_transition_duration": 0.0,
                 },
             )
-            entry["invocation_count"] = int(entry["invocation_count"]) + 1
+            entry["invocation_count"] = int(entry["invocation_count"]) + 1  # type: ignore[call-overload]
             try:
                 transition_duration = (
                     datetime.fromisoformat(row["invoked_at"])
@@ -1227,18 +1224,18 @@ class SkillsStorage:
             except ValueError:
                 transition_duration = 0.0
             entry["_total_transition_duration"] = float(
-                entry["_total_transition_duration"]
+                entry["_total_transition_duration"]  # type: ignore[arg-type]
             ) + max(0.0, transition_duration)
             previous_by_session[session_key] = row
 
         results: list[dict[str, object]] = []
         for entry in transitions.values():
-            count = int(entry["invocation_count"])
-            total_duration = float(entry.pop("_total_transition_duration", 0.0))
+            count = int(entry["invocation_count"])  # type: ignore[call-overload]
+            total_duration = float(entry.pop("_total_transition_duration", 0.0))  # type: ignore[arg-type]
             entry["avg_transition_duration"] = total_duration / count if count else 0.0
             results.append(entry)
 
-        return sorted(results, key=lambda item: item["invocation_count"], reverse=True)
+        return sorted(results, key=operator.itemgetter("invocation_count"), reverse=True)
 
     def search_by_query_workflow_aware(
         self,
@@ -1382,7 +1379,7 @@ class SkillsStorage:
             results.append((invocation, combined_score))
 
         # Sort by combined score (descending)
-        results.sort(key=lambda x: x[1], reverse=True)
+        results.sort(key=operator.itemgetter(1), reverse=True)
 
         return results[:limit]
 
@@ -1821,7 +1818,7 @@ class SkillsStorage:
                     similar_users.append((other_user_id, jaccard))
 
                 # Sort by Jaccard similarity descending
-                similar_users.sort(key=lambda x: x[1], reverse=True)
+                similar_users.sort(key=operator.itemgetter(1), reverse=True)
 
                 return similar_users[:limit]
 

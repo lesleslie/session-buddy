@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import operator
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -50,6 +51,8 @@ class SkillsTracker:
             self._load_metrics()
 
     def _load_metrics(self) -> None:
+        if self.metrics_file is None:
+            return
         raw = self.metrics_file.read_text().strip()
         if not raw:
             return
@@ -120,7 +123,7 @@ class SkillsTracker:
         return complete
 
     def get_session_skills(self) -> list[SkillInvocation]:
-        return list(self._invocations)
+        return self._invocations.copy()
 
     def get_session_summary(self) -> dict[str, Any]:
         total_duration = sum(
@@ -255,18 +258,18 @@ class SkillsTracker:
         if not effectiveness:
             return "Skill Usage Heatmap\nNo workflow data available.\nLegend: higher usage = denser marks"
 
-        phases = sorted(
-            {item["workflow_phase"] for item in effectiveness if item["workflow_phase"]}
+        phases: list[str] = sorted(
+            {str(item["workflow_phase"]) for item in effectiveness if item.get("workflow_phase")}
         )
-        lines = [
+        lines: list[str] = [
             "Skill Usage Heatmap",
             "=" * 20,
             "Phase | " + " | ".join(phases),
             "Legend: higher usage = denser marks",
         ]
 
-        for skill_name in sorted({item["skill_name"] for item in effectiveness}):
-            row = [skill_name]
+        for skill_name in sorted({str(item["skill_name"]) for item in effectiveness}):
+            row: list[str] = [skill_name]
             for phase in phases:
                 count = sum(
                     1
@@ -281,13 +284,13 @@ class SkillsTracker:
 
 
 def _compute_skill(
-    self, db_path: Path | None = None, session_id: str | None = None
+    self: Any, db_path: Path | None = None, session_id: str | None = None
 ) -> str:
-    return _compute_to_phase(self, db_path, session_id)
+    result = _compute_to_phase(self, db_path, session_id)
+    return result if result is not None else ""
 
 
-def _section_1_skill_effectiveness_by_phase(storage, lines):
-    phases = {}
+def _section_1_skill_effectiveness_by_phase(storage: Any, lines: list[str]) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
     lines.extend(
         [
             "-" * 70,
@@ -303,7 +306,7 @@ def _section_1_skill_effectiveness_by_phase(storage, lines):
 
     if effectiveness:
         # Group by phase
-        phases: dict[str, list[dict]] = {}
+        phases: dict[str, list[dict[str, Any]]] = {}
         for skill in effectiveness:
             phase = skill["workflow_phase"]
             if phase not in phases:
@@ -311,13 +314,10 @@ def _section_1_skill_effectiveness_by_phase(storage, lines):
             phases[phase].append(skill)
 
         for phase, skills in sorted(phases.items()):
-            lines.append(f"\n📍 Phase: {phase.upper()}")
-            lines.append("   " + "-" * 65)
-            lines.append(f"   {'Skill':<30} {'Rate':>8} {'Avg Time':>10} {'Total':>8}")
-            lines.append("   " + "-" * 65)
+            lines.extend([f"\n📍 Phase: {phase.upper()}", "   " + "-" * 65, f"   {'Skill':<30} {'Rate':>8} {'Avg Time':>10} {'Total':>8}", "   " + "-" * 65])
 
             for skill in sorted(
-                skills, key=lambda s: s["completion_rate"], reverse=True
+                skills, key=operator.itemgetter("completion_rate"), reverse=True
             )[:5]:
                 lines.append(
                     f"   {skill['skill_name']:<30} "
@@ -330,15 +330,13 @@ def _section_1_skill_effectiveness_by_phase(storage, lines):
     return effectiveness, phases
 
 
-def _section_2_bottleneck_identification(storage, lines):
+def _section_2_bottleneck_identification(storage: Any, lines: list[str]) -> None:
     lines.extend(["", "", "-" * 70, "2. Workflow Bottlenecks", "-" * 70, ""])
 
     bottlenecks = storage.identify_workflow_bottlenecks(min_abandonment_rate=0.2)
 
     if bottlenecks:
-        lines.append("")
-        lines.append("Phases with high abandonment rates (potential bottlenecks):")
-        lines.append("")
+        lines.extend(["", "Phases with high abandonment rates (potential bottlenecks):", ""])
 
         for bottleneck in bottlenecks[:5]:
             phase = bottleneck["workflow_phase"]
@@ -361,18 +359,16 @@ def _section_2_bottleneck_identification(storage, lines):
         lines.append("✅ No significant bottlenecks detected!")
 
 
-def _section_3_phase_transition_diagram(session_id, storage, lines):
+def _section_3_phase_transition_diagram(session_id: str | None, storage: Any, lines: list[str]) -> None:
     lines.extend(["", "", "-" * 70, "3. Workflow Phase Transitions", "-" * 70, ""])
 
     transitions = storage.get_workflow_phase_transitions(session_id=session_id)
 
     if transitions:
-        lines.append("")
-        lines.append("Most common phase transitions:")
-        lines.append("")
+        lines.extend(["", "Most common phase transitions:", ""])
 
         # Create ASCII flow diagram
-        for i, transition in enumerate(transitions[:8]):
+        for transition in transitions[:8]:
             from_phase = transition["from_phase"]
             to_phase = transition["to_phase"]
             count = transition["invocation_count"]
@@ -383,13 +379,11 @@ def _section_3_phase_transition_diagram(session_id, storage, lines):
         lines.append("No phase transition data available yet.")
 
 
-def _section_4_phasespecific_recommendations(lines, effectiveness, phases):
+def _section_4_phasespecific_recommendations(lines: list[str], effectiveness: list[dict[str, Any]], phases: dict[str, list[dict[str, Any]]]) -> None:
     lines.extend(["", "", "-" * 70, "4. Recommendations by Phase", "-" * 70, ""])
 
     if effectiveness:
-        lines.append("")
-        lines.append("Top-performing skills for each phase:")
-        lines.append("")
+        lines.extend(["", "Top-performing skills for each phase:", ""])
 
         for phase in sorted(phases.keys()):
             phase_skills = [
@@ -399,7 +393,9 @@ def _section_4_phasespecific_recommendations(lines, effectiveness, phases):
             ]
 
             if phase_skills:
-                best_skill = max(phase_skills, key=lambda s: s["completion_rate"])
+                best_skill = max(
+                    phase_skills, key=operator.itemgetter("completion_rate")
+                )
                 lines.append(
                     f"  🎯 {phase.upper()}: Use {best_skill['skill_name']} "
                     f"({best_skill['completion_rate']:.1f}% success rate)"
@@ -409,12 +405,12 @@ def _section_4_phasespecific_recommendations(lines, effectiveness, phases):
 
     lines.extend(["", "", "=" * 70])
 
-    return "\n".join(lines)
+    return None
 
 
 def _compute_to_phase(
-    self, db_path: Path | None = None, session_id: str | None = None
-) -> str:
+    self: Any, db_path: Path | None = None, session_id: str | None = None
+) -> str | None:
     """Generate workflow correlation report with visualizations.
 
     Creates a comprehensive report showing:
@@ -447,7 +443,7 @@ def _compute_to_phase(
         "Workflow Correlation Report",
         "=" * 70,
         "",
-        f"Session: {session_id if session_id else 'All Sessions'}",
+        f"Session: {session_id or 'All Sessions'}",
         f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         "",
     ]
@@ -463,3 +459,5 @@ def _compute_to_phase(
 
     # Section 4: Phase-Specific Recommendations
     _section_4_phasespecific_recommendations(lines, effectiveness, phases)
+
+    return "\n".join(lines)

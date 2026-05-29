@@ -6,27 +6,75 @@ Tests subprocess-based git operations with realistic repository scenarios.
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
+import sys
+import types
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import Mock, patch
 
 import pytest
-from session_buddy.utils.git_worktrees import (
-    WorktreeInfo,
-    _validate_prune_delay,
-    create_checkpoint_commit,
-    create_commit,
-    get_git_root,
-    get_git_status,
-    get_staged_files,
-    get_worktree_info,
-    is_git_operation_in_progress,
-    is_git_repository,
-    is_git_worktree,
-    list_worktrees,
-    schedule_automatic_git_gc,
-    stage_files,
-)
+
+
+def _load_git_worktrees_module():
+    repo_root = Path(__file__).resolve().parents[2]
+
+    if "session_buddy" not in sys.modules:
+        package = types.ModuleType("session_buddy")
+        package.__path__ = [str(repo_root / "session_buddy")]  # type: ignore[attr-defined]
+        sys.modules["session_buddy"] = package
+    else:
+        package = sys.modules["session_buddy"]
+
+    utils_package_name = "session_buddy.utils"
+    if utils_package_name not in sys.modules:
+        utils_package = types.ModuleType(utils_package_name)
+        utils_package.__path__ = [str(repo_root / "session_buddy" / "utils")]  # type: ignore[attr-defined]
+        sys.modules[utils_package_name] = utils_package
+    else:
+        utils_package = sys.modules[utils_package_name]
+
+    setattr(package, "utils", utils_package)
+
+    module_path = repo_root / "session_buddy" / "utils" / "git_worktrees.py"
+    spec = importlib.util.spec_from_file_location(
+        "session_buddy.utils.git_worktrees",
+        module_path,
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    setattr(utils_package, "git_worktrees", module)
+    spec.loader.exec_module(module)
+    return module
+
+
+git_worktrees = _load_git_worktrees_module()
+WorktreeInfo = git_worktrees.WorktreeInfo
+_add_worktree_context_output = git_worktrees._add_worktree_context_output
+_check_for_changes = git_worktrees._check_for_changes
+_format_untracked_files = git_worktrees._format_untracked_files
+_matches_safe_pattern = git_worktrees._matches_safe_pattern
+_optimize_git_repository = git_worktrees._optimize_git_repository
+_parse_worktree_entry = git_worktrees._parse_worktree_entry
+_parse_worktree_list_output = git_worktrees._parse_worktree_list_output
+_perform_staging_and_commit = git_worktrees._perform_staging_and_commit
+_process_worktree_line = git_worktrees._process_worktree_line
+_validate_numeric_range = git_worktrees._validate_numeric_range
+_validate_prune_delay = git_worktrees._validate_prune_delay
+create_checkpoint_commit = git_worktrees.create_checkpoint_commit
+create_commit = git_worktrees.create_commit
+get_git_root = git_worktrees.get_git_root
+get_git_status = git_worktrees.get_git_status
+get_staged_files = git_worktrees.get_staged_files
+get_worktree_info = git_worktrees.get_worktree_info
+is_git_operation_in_progress = git_worktrees.is_git_operation_in_progress
+is_git_repository = git_worktrees.is_git_repository
+is_git_worktree = git_worktrees.is_git_worktree
+list_worktrees = git_worktrees.list_worktrees
+schedule_automatic_git_gc = git_worktrees.schedule_automatic_git_gc
+stage_files = git_worktrees.stage_files
 from tests.fixtures import (
     tmp_git_repo,
     tmp_git_repo_with_changes,
@@ -37,7 +85,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@pytest.mark.asyncio
 class TestGitRepositoryDetection:
     """Test git repository detection functions."""
 
@@ -57,6 +104,10 @@ class TestGitRepositoryDetection:
         """is_git_worktree returns False for main repository."""
         assert is_git_worktree(tmp_git_repo) is False
 
+    def test_is_git_worktree_accepts_string_path(self, tmp_git_repo: Path):
+        """is_git_worktree accepts string paths."""
+        assert is_git_worktree(str(tmp_git_repo)) is False
+
     def test_get_git_root_with_valid_repo(self, tmp_git_repo: Path):
         """get_git_root returns repository root path."""
         root = get_git_root(tmp_git_repo)
@@ -67,8 +118,15 @@ class TestGitRepositoryDetection:
         """get_git_root returns None for non-git directory."""
         assert get_git_root(tmp_path) is None
 
+    def test_get_git_root_handles_called_process_error(self, tmp_git_repo: Path):
+        """get_git_root returns None when git lookup fails."""
+        with patch(
+            "session_buddy.utils.git_worktrees.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, ["git"]),
+        ):
+            assert get_git_root(tmp_git_repo) is None
 
-@pytest.mark.asyncio
+
 class TestGitStatusOperations:
     """Test git status and file tracking."""
 
@@ -115,8 +173,18 @@ class TestGitStatusOperations:
         assert modified == []
         assert untracked == []
 
+    def test_get_git_status_handles_called_process_error(self, tmp_git_repo: Path):
+        """get_git_status returns empty lists when git status fails."""
+        with patch(
+            "session_buddy.utils.git_worktrees.subprocess.run",
+            side_effect=subprocess.CalledProcessError(1, ["git"]),
+        ):
+            modified, untracked = get_git_status(tmp_git_repo)
 
-@pytest.mark.asyncio
+        assert modified == []
+        assert untracked == []
+
+
 class TestGitStagingOperations:
     """Test git staging and commit preparation."""
 
@@ -146,6 +214,19 @@ class TestGitStagingOperations:
         success = stage_files(tmp_path, ["file.txt"])
         assert success is False
 
+    def test_stage_files_handles_called_process_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_git_repo: Path
+    ) -> None:
+        """stage_files returns False when git add fails."""
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.subprocess.run",
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                subprocess.CalledProcessError(1, ["git", "add", "-A"])
+            ),
+        )
+
+        assert stage_files(tmp_git_repo, ["file.txt"]) is False
+
     def test_get_staged_files_with_staged_changes(self, tmp_git_repo: Path):
         """get_staged_files returns list of staged files."""
         # Create and stage file
@@ -167,8 +248,20 @@ class TestGitStagingOperations:
         staged = get_staged_files(tmp_git_repo)
         assert staged == []
 
+    def test_get_staged_files_handles_called_process_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_git_repo: Path
+    ) -> None:
+        """get_staged_files returns an empty list when git diff fails."""
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.subprocess.run",
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                subprocess.CalledProcessError(1, ["git", "diff"])
+            ),
+        )
 
-@pytest.mark.asyncio
+        assert get_staged_files(tmp_git_repo) == []
+
+
 class TestGitCommitOperations:
     """Test git commit creation."""
 
@@ -222,7 +315,6 @@ class TestGitCommitOperations:
         assert len(commit_hash) == 8
 
 
-@pytest.mark.asyncio
 class TestCheckpointCommitCreation:
     """Test automatic checkpoint commit creation."""
 
@@ -298,7 +390,6 @@ class TestCheckpointCommitCreation:
         assert "75/100" in commit_msg
 
 
-@pytest.mark.asyncio
 class TestWorktreeOperations:
     """Test git worktree detection and management."""
 
@@ -312,6 +403,50 @@ class TestWorktreeOperations:
         assert info.branch  # Should have a branch name
         assert info.is_main_worktree is True
         assert info.is_detached is False
+
+    def test_get_worktree_info_handles_detached_head(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """get_worktree_info formats detached HEAD state correctly."""
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.is_git_repository",
+            lambda _directory: True,
+        )
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.is_git_worktree",
+            lambda _directory: True,
+        )
+
+        def fake_run(command: list[str], **kwargs: object) -> Mock:
+            if command == ["git", "branch", "--show-current"]:
+                return Mock(stdout="", returncode=0)
+            if command == ["git", "rev-parse", "--short", "HEAD"]:
+                return Mock(stdout="abc1234\n", returncode=0)
+            if command == ["git", "rev-parse", "--show-toplevel"]:
+                return Mock(stdout=f"{tmp_path}\n", returncode=0)
+            raise AssertionError(f"Unexpected command: {command}")
+
+        monkeypatch.setattr("session_buddy.utils.git_worktrees.subprocess.run", fake_run)
+
+        info = get_worktree_info(tmp_path)
+
+        assert info is not None
+        assert info.is_detached is True
+        assert info.branch == "HEAD (abc1234)"
+        assert info.is_main_worktree is False
+
+    def test_get_worktree_info_handles_called_process_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_git_repo: Path
+    ) -> None:
+        """get_worktree_info returns None when git lookups fail."""
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.subprocess.run",
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                subprocess.CalledProcessError(1, ["git"])
+            ),
+        )
+
+        assert get_worktree_info(tmp_git_repo) is None
 
     def test_get_worktree_info_with_non_repo(self, tmp_path: Path):
         """get_worktree_info returns None for non-git directory."""
@@ -330,8 +465,29 @@ class TestWorktreeOperations:
         worktrees = list_worktrees(tmp_path)
         assert worktrees == []
 
+    def test_list_worktrees_returns_empty_when_runner_fails(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_git_repo: Path
+    ) -> None:
+        """list_worktrees returns an empty list when git worktree list fails."""
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees._run_git_worktree_list",
+            lambda _directory: None,
+        )
 
-@pytest.mark.asyncio
+        assert list_worktrees(tmp_git_repo) == []
+
+    def test_list_worktrees_returns_empty_when_runner_fails(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_git_repo: Path
+    ) -> None:
+        """list_worktrees returns an empty list when git worktree list fails."""
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees._run_git_worktree_list",
+            lambda _directory: None,
+        )
+
+        assert list_worktrees(tmp_git_repo) == []
+
+
 class TestGitOperationsEdgeCases:
     """Test edge cases and error handling."""
 
@@ -385,7 +541,6 @@ class TestGitOperationsEdgeCases:
         assert any("file with spaces.txt" in f for f in untracked)
 
 
-@pytest.mark.asyncio
 class TestGitMaintenanceOperations:
     """Test automatic git maintenance (gc) functionality."""
 
@@ -518,7 +673,6 @@ class TestGitMaintenanceOperations:
         assert kwargs["stderr"] is not None
 
 
-@pytest.mark.asyncio
 class TestPruneDelayValidation:
     """Test prune delay validation to prevent command injection."""
 
@@ -574,6 +728,291 @@ class TestPruneDelayValidation:
             is_valid, _error = _validate_prune_delay(delay)
             assert is_valid is True, f"Should accept case variation: {delay}"
 
+    def test_validate_numeric_range_and_safe_pattern_helpers(self):
+        """Helper validation functions handle the expected boundary cases."""
+        assert _validate_numeric_range(1) == (True, "")
+        assert _validate_numeric_range(1000) == (True, "")
+        assert _validate_numeric_range(0) == (
+            False,
+            "Value too small: 0. Must be at least 1.",
+        )
+        assert _validate_numeric_range(1001) == (
+            False,
+            "Value too large: 1001. Maximum allowed is 1000.",
+        )
+
+        assert _matches_safe_pattern("now") == (True, "")
+        assert _matches_safe_pattern("2.weeks") == (True, "")
+        assert _matches_safe_pattern("bad") == (False, "")
+        assert _matches_safe_pattern("9999.weeks") == (
+            False,
+            "Value too large: 9999. Maximum allowed is 1000.",
+        )
+
+    def test_matches_safe_pattern_handles_value_error(self, monkeypatch: pytest.MonkeyPatch):
+        """_matches_safe_pattern handles invalid numeric conversions."""
+        import re
+
+        class FakeMatch:
+            def group(self, _index: int) -> str:
+                return "oops"
+
+        monkeypatch.setattr(
+            re,
+            "match",
+            lambda pattern, value, flags=0: FakeMatch()
+            if "\\d+" in pattern and value == "1.weeks"
+            else None,
+        )
+        assert _matches_safe_pattern("1.weeks") == (False, "Invalid numeric value in: 1.weeks")
+
+    def test_process_worktree_line_and_parse_output(self, tmp_path: Path):
+        """Worktree parsing helpers produce structured entries."""
+        current: dict[str, object] = {}
+        _process_worktree_line(f"worktree {tmp_path}", current)
+        _process_worktree_line("HEAD abc123", current)
+        _process_worktree_line("branch refs/heads/main", current)
+        _process_worktree_line("bare", current)
+        _process_worktree_line("detached", current)
+        _process_worktree_line("locked", current)
+        _process_worktree_line("prunable", current)
+
+        assert current == {
+            "path": str(tmp_path),
+            "head": "abc123",
+            "branch": "refs/heads/main",
+            "bare": True,
+            "detached": True,
+            "locked": True,
+            "prunable": True,
+        }
+
+        output = "\n".join(
+            [
+                f"worktree {tmp_path}",
+                "HEAD abc123",
+                "branch refs/heads/main",
+                "",
+            ]
+        )
+        parsed = _parse_worktree_list_output(output)
+        assert len(parsed) == 1
+        assert parsed[0].branch == "refs/heads/main"
+
+        detached = _parse_worktree_list_output(
+            "\n".join(
+                [
+                    f"worktree {tmp_path / 'wt'}",
+                    "HEAD abc123",
+                    "detached",
+                    "locked",
+                    "prunable",
+                ]
+            ),
+        )
+        assert detached[0].is_detached is True
+        assert detached[0].locked is True
+
+    def test_parse_worktree_entry_and_context_output(self, tmp_path: Path):
+        """Worktree entry formatting and context output cover both branches."""
+        entry = _parse_worktree_entry(
+            {
+                "path": str(tmp_path),
+                "branch": "refs/heads/main",
+                "bare": True,
+                "detached": False,
+                "locked": True,
+                "prunable": False,
+            }
+        )
+        assert entry.path == tmp_path
+        assert entry.branch == "refs/heads/main"
+        assert entry.is_main_worktree is True
+        assert entry.is_bare is True
+
+        output: list[str] = []
+        _add_worktree_context_output(None, output)
+        assert output == []
+
+        output = []
+        _add_worktree_context_output(
+            WorktreeInfo(path=tmp_path, branch="feature", is_main_worktree=True),
+            output,
+        )
+        _add_worktree_context_output(
+            WorktreeInfo(path=tmp_path, branch="feature", is_main_worktree=False),
+            output,
+        )
+        assert output == [
+            "📝 Main repository on branch 'feature'",
+            f"🌿 Worktree on branch 'feature' at {tmp_path}",
+        ]
+
+        missing = _parse_worktree_entry({})
+        assert missing.branch == "unknown"
+        assert missing.is_main_worktree is True
+
+    def test_format_untracked_files_truncates_list(self):
+        """Untracked file formatting limits the display list."""
+        output = _format_untracked_files([f"file_{i}.txt" for i in range(12)])
+
+        assert output[0] == "🆕 Untracked files found:"
+        assert "file_0.txt" in output[1]
+        assert output[-2].startswith("⚠️ Please manually review")
+        assert any("... and 2 more" in line for line in output)
+
+    def test_format_untracked_files_short_list(self):
+        """Untracked file formatting omits truncation for short lists."""
+        output = _format_untracked_files(["one.txt", "two.txt"])
+        assert not any("more" in line for line in output)
+
+    def test_check_for_changes_clean_and_dirty(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Change detection handles clean and dirty working trees."""
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.get_worktree_info",
+            lambda _directory: None,
+        )
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.get_git_status",
+            lambda _directory: ([], []),
+        )
+        modified, untracked, output = _check_for_changes(tmp_path)
+        assert modified == []
+        assert untracked == []
+        assert any("clean" in line.lower() for line in output)
+
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.get_worktree_info",
+            lambda _directory: WorktreeInfo(
+                path=tmp_path,
+                branch="feature",
+                is_main_worktree=False,
+            ),
+        )
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.get_git_status",
+            lambda _directory: (["modified.txt"], ["new.txt"]),
+        )
+        modified, untracked, output = _check_for_changes(tmp_path)
+        assert modified == ["modified.txt"]
+        assert untracked == ["new.txt"]
+        assert any("Worktree on branch" in line for line in output)
+
+    def test_check_for_changes_non_repo(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Change detection handles non-repo inputs."""
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.is_git_repository",
+            lambda _directory: False,
+        )
+        modified, untracked, output = _check_for_changes(tmp_path)
+        assert modified == []
+        assert untracked == []
+        assert output == ["✅ Working directory is clean - no changes to commit"]
+
+    def test_perform_staging_and_commit_failure_paths(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """Staging and commit failures return explicit messages."""
+        stage_fail = Mock(returncode=1, stderr="stage error")
+        commit_fail = Mock(returncode=1, stderr="commit error")
+        hash_ok = Mock(returncode=0, stdout="abcdef123456\n")
+
+        runs = [stage_fail, commit_fail, hash_ok]
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.subprocess.run",
+            lambda *args, **kwargs: runs.pop(0),
+        )
+
+        success, result, output = _perform_staging_and_commit(tmp_path, "proj", 77)
+        assert success is False
+        assert result == "staging failed"
+        assert any("stage error" in line for line in output)
+
+        runs = [Mock(returncode=0), commit_fail, hash_ok]
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.subprocess.run",
+            lambda *args, **kwargs: runs.pop(0),
+        )
+
+        success, result, output = _perform_staging_and_commit(tmp_path, "proj", 77)
+        assert success is False
+        assert result == "commit failed"
+        assert any("commit error" in line for line in output)
+
+    def test_optimize_git_repository_branches(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """Optimization helper handles repo, busy, and non-repo branches."""
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.is_git_repository",
+            lambda _directory: False,
+        )
+        assert _optimize_git_repository(tmp_path) == [
+            "⚠️  Not a git repository, skipping optimization"
+        ]
+
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.is_git_repository",
+            lambda _directory: True,
+        )
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.is_git_operation_in_progress",
+            lambda _directory: True,
+        )
+        assert _optimize_git_repository(tmp_path) == [
+            "⚠️  Git operation in progress, skipping optimization"
+        ]
+
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.is_git_operation_in_progress",
+            lambda _directory: False,
+        )
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.schedule_automatic_git_gc",
+            lambda **kwargs: (True, "scheduled"),
+        )
+        assert _optimize_git_repository(tmp_path) == ["scheduled"]
+
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.schedule_automatic_git_gc",
+            lambda **kwargs: (False, "failed"),
+        )
+        assert _optimize_git_repository(tmp_path) == ["❌ failed"]
+
+    def test_optimize_git_repository_exception(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """Optimization helper handles scheduling exceptions."""
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.is_git_repository",
+            lambda _directory: True,
+        )
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.is_git_operation_in_progress",
+            lambda _directory: False,
+        )
+        monkeypatch.setattr(
+            "session_buddy.utils.git_worktrees.schedule_automatic_git_gc",
+            lambda **kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+        with pytest.raises(RuntimeError, match="boom"):
+            _optimize_git_repository(tmp_path)
+
+    def test_schedule_automatic_git_gc_failure(self, tmp_git_repo: Path):
+        """schedule_automatic_git_gc returns failure on unexpected errors."""
+        with patch(
+            "session_buddy.utils.git_worktrees.subprocess.run",
+            return_value=Mock(returncode=0, stdout=""),
+        ), patch(
+            "session_buddy.utils.subprocess_executor.SafeSubprocess.popen_safe",
+            side_effect=RuntimeError("boom"),
+        ):
+            success, message = schedule_automatic_git_gc(
+                tmp_git_repo, prune_delay="now", auto_threshold=6700
+            )
+        assert success is False
+        assert "boom" in message
+
     def test_schedule_automatic_git_gc_rejects_invalid_delay(
         self, tmp_git_repo: Path
     ):
@@ -598,3 +1037,27 @@ class TestPruneDelayValidation:
 
             assert success is True
             assert "1.month" in message
+
+    def test_schedule_automatic_git_gc_with_string_path(
+        self, tmp_git_repo: Path
+    ):
+        """schedule_automatic_git_gc accepts string paths."""
+        with patch(
+            "session_buddy.utils.git_worktrees.subprocess.run",
+            return_value=Mock(returncode=0, stdout=""),
+        ), patch(
+            "session_buddy.utils.subprocess_executor.SafeSubprocess.popen_safe",
+            return_value=Mock(),
+        ):
+            success, message = schedule_automatic_git_gc(
+                str(tmp_git_repo), prune_delay="now", auto_threshold=6700
+            )
+        assert success is True
+        assert "Scheduled git gc" in message
+
+    def test_validate_numeric_range_invalid(self):
+        """_validate_numeric_range rejects out-of-range values."""
+        assert _validate_numeric_range(1001) == (
+            False,
+            "Value too large: 1001. Maximum allowed is 1000.",
+        )

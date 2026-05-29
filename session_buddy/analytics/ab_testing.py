@@ -11,7 +11,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 from scipy import stats
@@ -50,7 +50,7 @@ class ABTestConfig:
 
 
 @dataclass
-class TestOutcome:
+class ABTestOutcome:
     """Outcome of a single skill invocation in an A/B test.
 
     Attributes:
@@ -67,7 +67,7 @@ class TestOutcome:
 
 
 @dataclass
-class TestAnalysisResult:
+class ABTestAnalysisResult:
     """Results of A/B test analysis.
 
     Attributes:
@@ -102,7 +102,7 @@ class ABTestFramework:
         ... )
         >>> test_id = framework.create_test(config, assignment_ratio=0.5)
         >>> group = framework.assign_user_to_group(test_id, "user123")
-        >>> framework.record_outcome(test_id, "user123", TestOutcome(
+        >>> framework.record_outcome(test_id, "user123", ABTestOutcome(
         ...     skill_name="pytest-run",
         ...     completed=True,
         ...     duration_seconds=45.0,
@@ -172,7 +172,7 @@ class ABTestFramework:
                 ),
             )
 
-            return cursor.lastrowid
+            return int(cursor.lastrowid or 0)
 
     def assign_user_to_group(
         self,
@@ -212,12 +212,12 @@ class ABTestFramework:
             if row is None:
                 raise ValueError(f"Test {test_id} not found")
 
-            if row["status"] != "running":
-                raise ValueError(
-                    f"Test {test_id} is not running (status: {row['status']})"
-                )
-
+            # Extract values before connection closes (sqlite3.Row holds conn ref)
             assignment_ratio = row["assignment_ratio"]
+            status = row["status"]
+
+        if status != "running":
+            raise ValueError(f"Test {test_id} is not running (status: {status})")
 
         # Deterministic assignment using hash
         hash_value = int(
@@ -225,7 +225,7 @@ class ABTestFramework:
         )
         hash_float = (hash_value % 10000) / 10000.0  # Normalize to [0, 1)
 
-        group = "control" if hash_float < assignment_ratio else "treatment"
+        group: Literal["control", "treatment"] = "control" if hash_float < assignment_ratio else "treatment"
 
         # Store assignment
         with sqlite3.connect(self.db_path) as conn:
@@ -246,7 +246,7 @@ class ABTestFramework:
         self,
         test_id: int,
         user_id: str,
-        outcome: TestOutcome,
+        outcome: ABTestOutcome,
     ) -> None:
         """Record outcome of a skill invocation.
 
@@ -294,7 +294,7 @@ class ABTestFramework:
                 ),
             )
 
-    def analyze_results(self, test_id: int) -> TestAnalysisResult:
+    def analyze_results(self, test_id: int) -> ABTestAnalysisResult:
         """Analyze A/B test results with statistical testing.
 
         Performs t-test comparing control vs treatment group metrics.
@@ -303,7 +303,7 @@ class ABTestFramework:
             test_id: Test identifier
 
         Returns:
-            TestAnalysisResult with metrics and recommendation
+            ABTestAnalysisResult with metrics and recommendation
 
         Raises:
             ValueError: If test not found or insufficient data
@@ -331,6 +331,7 @@ class ABTestFramework:
             if row is None:
                 raise ValueError(f"Test {test_id} not found")
 
+            # Extract values before connection closes (sqlite3.Row holds conn ref)
             row["test_name"]
             row["control_strategy"]
             row["treatment_strategy"]
@@ -375,7 +376,7 @@ class ABTestFramework:
             control_metrics["sample_size"] < min_sample_size
             or treatment_metrics["sample_size"] < min_sample_size
         ):
-            return TestAnalysisResult(
+            return ABTestAnalysisResult(
                 control_metrics=control_metrics,
                 treatment_metrics=treatment_metrics,
                 statistical_significance=1.0,
@@ -391,15 +392,14 @@ class ABTestFramework:
 
         # Determine winner
         if p_value < 0.05:  # Statistically significant
-            if (
-                treatment_metrics["completion_rate"]
-                > control_metrics["completion_rate"]
-            ):
+            control_rate = float(control_metrics["completion_rate"])  # type: ignore[arg-type]
+            treatment_rate = float(treatment_metrics["completion_rate"])  # type: ignore[arg-type]
+            if treatment_rate > control_rate:
                 winner = "treatment"
                 recommendation = (
                     f"Ship treatment strategy (p={p_value:.4f}). "
                     f"Treatment improves completion rate by "
-                    f"{(treatment_metrics['completion_rate'] - control_metrics['completion_rate']) * 100:.1f}pp."
+                    f"{(treatment_rate - control_rate) * 100:.1f}pp."
                 )
             else:
                 winner = "control"
@@ -414,11 +414,11 @@ class ABTestFramework:
                 "Continue testing or increase sample size."
             )
 
-        return TestAnalysisResult(
+        return ABTestAnalysisResult(
             control_metrics=control_metrics,
             treatment_metrics=treatment_metrics,
             statistical_significance=p_value,
-            winner=winner,
+            winner=cast(Literal["control", "treatment", "inconclusive"], winner),
             recommendation=recommendation,
         )
 

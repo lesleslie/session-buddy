@@ -191,7 +191,7 @@ def _register_quality_scorer(force: bool) -> None:
         # Fallback to default implementation if MCP layer not available
         from session_buddy.core.quality_scoring import DefaultQualityScorer
 
-        quality_scorer = DefaultQualityScorer()
+        quality_scorer = DefaultQualityScorer()  # type: ignore[assignment]
 
     depends.set(QualityScorer, quality_scorer)
 
@@ -226,7 +226,7 @@ def _register_code_formatter(force: bool) -> None:
     except ImportError:
         from session_buddy.core.hooks import DefaultCodeFormatter
 
-        code_formatter = DefaultCodeFormatter()
+        code_formatter = DefaultCodeFormatter()  # type: ignore[assignment]
 
     depends.set(CodeFormatter, code_formatter)
 

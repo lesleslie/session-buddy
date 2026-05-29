@@ -47,7 +47,7 @@ class TestSystemResilience:
         from session_buddy.reflection_tools import ReflectionDatabase
 
         # Create database with embeddings disabled
-        with patch("session_buddy.reflection_tools.ONNX_AVAILABLE", False):
+        with patch("session_buddy.reflection.embeddings.ONNX_AVAILABLE", False):
             async with DatabaseTestHelper.temp_reflection_db() as db:
                 # Should still be able to store conversations without embeddings
                 conv_id = await db.store_conversation(
@@ -130,7 +130,7 @@ class TestSystemResilience:
         from session_buddy.reflection_tools import ReflectionDatabase
 
         # Test with missing dependencies
-        with patch("session_buddy.reflection_tools.ONNX_AVAILABLE", False):
+        with patch("session_buddy.reflection.embeddings.ONNX_AVAILABLE", False):
             # Should still initialize without error
             async with DatabaseTestHelper.temp_reflection_db() as db:
                 # Basic functionality should still work
@@ -214,7 +214,7 @@ class TestErrorRecovery:
         from session_buddy.reflection_tools import ReflectionDatabase
 
         # Simulate ONNX not available (embeddings disabled)
-        with patch("session_buddy.reflection_tools.ONNX_AVAILABLE", False):
+        with patch("session_buddy.reflection.embeddings.ONNX_AVAILABLE", False):
             async with DatabaseTestHelper.temp_reflection_db() as db:
                 # System should still work without semantic search
                 conv_id = await db.store_conversation(

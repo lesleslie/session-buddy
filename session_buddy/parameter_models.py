@@ -686,7 +686,7 @@ def validate_mcp_params(
 
         if isinstance(e, ValidationError):
             error_messages = []
-            for error in e.errors():  # type: ignore[attr-defined]
+            for error in e.errors():
                 field = error.get("loc", ["unknown"])[-1]
                 msg = error.get("msg", "validation error")
                 error_messages.append(f"{field}: {msg}")

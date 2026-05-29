@@ -761,7 +761,7 @@ def _register_core_search_tools(mcp: Any) -> None:
 
     """
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def _optimize_search_results(
         results: list[dict[str, Any]],
         optimize_tokens: bool,
@@ -772,7 +772,7 @@ def _register_core_search_tools(mcp: Any) -> None:
             results, optimize_tokens, max_tokens, query
         )
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def store_reflection(
         content: str, tags: list[str] | str | None = None
     ) -> str:
@@ -780,7 +780,7 @@ def _register_core_search_tools(mcp: Any) -> None:
         parsed_tags = _parse_tags_parameter(tags)
         return await _store_reflection_impl(content, parsed_tags)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def quick_search(
         query: str, project: str | None = None, min_score: float = 0.7, limit: int = 5
     ) -> str:
@@ -788,13 +788,13 @@ def _register_core_search_tools(mcp: Any) -> None:
         # but the underlying implementation may not use this parameter directly
         return await _quick_search_impl(query, project, min_score)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def search_summary(
         query: str, project: str | None = None, min_score: float = 0.7
     ) -> str:
         return await _search_summary_impl(query, project, min_score)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def get_more_results(
         query: str, offset: int = 3, limit: int = 3, project: str | None = None
     ) -> str:
@@ -809,13 +809,13 @@ def _register_specialized_search_tools(mcp: Any) -> None:
 
     """
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def search_by_file(
         file_path: str, limit: int = 10, project: str | None = None
     ) -> str:
         return await _search_by_file_impl(file_path, limit, project)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def search_by_concept(
         concept: str,
         include_files: bool = True,
@@ -824,15 +824,15 @@ def _register_specialized_search_tools(mcp: Any) -> None:
     ) -> str:
         return await _search_by_concept_impl(concept, include_files, limit, project)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:
         return await _reset_reflection_database_impl()
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def reflection_stats() -> str:
         return await _reflection_stats_impl()
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def search_code(
         query: str,
         pattern_type: str | None = None,
@@ -841,7 +841,7 @@ def _register_specialized_search_tools(mcp: Any) -> None:
     ) -> str:
         return await _search_code_impl(query, pattern_type, limit, project)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def search_errors(
         query: str,
         error_type: str | None = None,
@@ -850,7 +850,7 @@ def _register_specialized_search_tools(mcp: Any) -> None:
     ) -> str:
         return await _search_errors_impl(query, error_type, limit, project)
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def search_temporal(
         time_expression: str,
         query: str | None = None,
@@ -868,7 +868,7 @@ def _register_progressive_search_tools(mcp: Any) -> None:
 
     """
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def progressive_search(
         query: str,
         project: str | None = None,
@@ -882,7 +882,7 @@ def _register_progressive_search_tools(mcp: Any) -> None:
             query, project, min_score, max_results, max_tiers, enable_early_stop
         )
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def configure_tiers(
         categories_min_score: float | None = None,
         categories_max_results: int | None = None,
@@ -909,7 +909,7 @@ def _register_progressive_search_tools(mcp: Any) -> None:
             sufficiency_high_quality_threshold,
         )
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def tier_stats() -> dict[str, Any]:
         """Get progressive search tier statistics and current configuration.
 

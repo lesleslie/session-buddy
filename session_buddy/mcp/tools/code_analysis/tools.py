@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -22,10 +23,10 @@ async def _code_ingest_file_impl(
         result = await extractor.extract_and_store(
             Path(file_path), project=project, language=language
         )
-        return {"status": "success", **result}
+        return {"status": "success"} | result
     except Exception as e:
         logger.error(f"Failed to ingest file: {e}")
-        return {"status": "error", "error": str(e), "file_path": file_path}
+        return {"status": "error", "error": e, "file_path": file_path}
 
 
 async def _code_ingest_directory_impl(
@@ -42,10 +43,10 @@ async def _code_ingest_directory_impl(
         result = await extractor.extract_directory(
             Path(directory), pattern=pattern, project=project, max_files=max_files
         )
-        return {"status": "success", **result}
+        return {"status": "success"} | result
     except Exception as e:
         logger.error(f"Failed to ingest directory: {e}")
-        return {"status": "error", "error": str(e), "directory": directory}
+        return {"status": "error", "error": e, "directory": directory}
 
 
 async def _code_search_symbols_impl(
@@ -122,12 +123,10 @@ async def _code_get_symbol_graph_impl(
             entity_id = entity.get("id")
             relationships = []
             if entity_id:
-                try:
-                    relationships = await kg.get_entity_relationships(
+                with suppress(Exception):
+                    relationships = await kg.get_relationships(
                         entity_id, max_depth=min(depth, 3)
                     )
-                except Exception:
-                    pass
             return {
                 "status": "success",
                 "symbol": {

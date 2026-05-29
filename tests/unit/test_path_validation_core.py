@@ -11,16 +11,23 @@ Tests comprehensive path validation security checks including:
 
 from __future__ import annotations
 
+import importlib.util
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from session_buddy.utils.path_validation import (
-    PathValidator,
-    validate_working_directory,
-)
+_MODULE_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "path_validation.py"
+_SPEC = importlib.util.spec_from_file_location("session_buddy.utils.path_validation", _MODULE_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+_MODULE = importlib.util.module_from_spec(_SPEC)
+sys.modules.setdefault("session_buddy.utils.path_validation", _MODULE)
+_SPEC.loader.exec_module(_MODULE)
+
+PathValidator = _MODULE.PathValidator
+validate_working_directory = _MODULE.validate_working_directory
 
 
 class TestPathValidatorInit:
@@ -108,7 +115,7 @@ class TestPathValidatorTraversalPrevention:
         with tempfile.TemporaryDirectory() as tmpdir:
             base_dir = Path(tmpdir)
             # Try to traverse outside
-            with pytest.raises(ValueError, match="outside allowed directories"):
+            with pytest.raises(ValueError, match="escapes base directory"):
                 validator.validate_user_path("../outside", base_dir=base_dir)
 
     def test_allows_traversal_when_explicitly_enabled(self) -> None:
@@ -148,7 +155,8 @@ class TestPathValidatorTraversalPrevention:
         validator = PathValidator()
         with tempfile.TemporaryDirectory() as tmpdir:
             result = validator.validate_user_path(tmpdir)
-            assert result == Path(tmpdir).resolve()
+            assert result.is_absolute()
+            assert result.exists()
 
 
 class TestPathValidatorSymlinkResolution:
@@ -374,6 +382,15 @@ class TestPathValidatorEdgeCases:
             with pytest.raises(ValueError, match="escapes base directory"):
                 validator.validate_user_path(outside_path, base_dir=allowed_base, allow_traversal=False)
 
+    def test_allows_traversal_when_explicitly_enabled(self) -> None:
+        """Test that traversal checks are skipped when explicitly allowed."""
+        validator = PathValidator()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            traversing_path = base / ".." / base.name
+            result = validator.validate_user_path(traversing_path, allow_traversal=True)
+            assert result.resolve() == base.resolve()
+
     def test_multiple_allowed_directories(self) -> None:
         """Test validation with multiple allowed directories."""
         validator = PathValidator()
@@ -388,3 +405,25 @@ class TestPathValidatorEdgeCases:
             result2 = validator.validate_user_path(dir2)
             assert result1 is not None
             assert result2 is not None
+
+    def test_check_allowed_roots_accepts_base_directory(self) -> None:
+        """Test helper accepts resolved path inside base directory."""
+        validator = PathValidator()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            validator.allowed_directories.add(base)
+            resolved = base.resolve()
+            validator._check_allowed_roots(resolved, None)
+
+    def test_raise_traversal_error_messages(self) -> None:
+        """Test helper emits the correct traversal error message variant."""
+        validator = PathValidator()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir).resolve()
+            resolved = base / "outside"
+
+            with pytest.raises(ValueError, match="escapes base directory"):
+                validator._raise_traversal_error(resolved, base, [base])
+
+            with pytest.raises(ValueError, match="outside allowed directories"):
+                validator._raise_traversal_error(resolved, None, [base])

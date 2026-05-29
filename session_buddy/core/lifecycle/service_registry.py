@@ -318,7 +318,7 @@ def _ensure_session_paths() -> SessionPaths:
     from session_buddy.di.container import depends
 
     with suppress(Exception):
-        paths = get_sync_typed(SessionPaths)  # type: ignore[no-any-return]
+        paths = get_sync_typed(SessionPaths)
         if isinstance(paths, SessionPaths):
             return paths
 

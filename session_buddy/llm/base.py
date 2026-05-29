@@ -36,7 +36,7 @@ class LLMProvider(ABC):
         """Generate a response from the LLM."""
 
     @abstractmethod
-    async def stream_generate(  # type: ignore[override]
+    async def stream_generate(
         self,
         messages: list[LLMMessage],
         model: str | None = None,

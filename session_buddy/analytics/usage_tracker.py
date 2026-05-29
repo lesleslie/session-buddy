@@ -300,7 +300,7 @@ class UsageTracker:
             )
             score -= weights.diversity_weight * diversity_penalty
 
-        return max(0.0, min(1.0, score))  # Clamp to [0, 1]
+        return max(0.0, min(1.0, float(score)))  # Clamp to [0, 1]
 
     def get_success_threshold(self) -> float:
         """Get minimum similarity score for useful results based on usage.

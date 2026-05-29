@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from onnxruntime import InferenceSession
-    from transformers.tokenization_utils_base import (
-        SentencePieceBackend,
-        TokenizersBackend,
-    )
+
+    # Use Any for type annotations that are only used at runtime
+    TokenizersBackend: Any = None
+    SentencePieceBackend: Any = None
 
 # Lazy imports to avoid triggering transformers warnings on module load
 ONNX_AVAILABLE = None  # Will be determined on first use
@@ -252,7 +252,8 @@ def _sync_generate_embedding(
     normalized = mean_pooled / norms
 
     # Convert to float32 to match DuckDB FLOAT type
-    return normalized[0].astype(np.float32).tolist()
+    result: list[float] = normalized[0].astype(np.float32).tolist()
+    return result
 
 
 async def generate_embedding(

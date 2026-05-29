@@ -16,6 +16,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -724,11 +725,9 @@ class InterruptionManager:
             ):
                 focus_duration = event_data.get("focus_duration", 0)
                 if focus_duration >= self.save_threshold:
-                    try:
+                    with suppress(RuntimeError):
                         loop = asyncio.get_running_loop()
                         loop.create_task(self.preserve_context())
-                    except RuntimeError:
-                        pass  # No running event loop
 
             # Log the interruption
             event_id = f"int_{int(time.time() * 1000)}"
@@ -751,11 +750,9 @@ class InterruptionManager:
             )
 
             # Store in database
-            try:
+            with suppress(RuntimeError):
                 loop = asyncio.get_running_loop()
                 loop.create_task(self._store_interruption(interruption))
-            except RuntimeError:
-                pass  # No running event loop
 
             # Update current context
             if self.current_context:
@@ -782,7 +779,7 @@ class InterruptionManager:
                         json.dumps(interruption.source_context),
                         json.dumps(interruption.target_context),
                         interruption.duration,
-                        json.dumps(interruption.recovery_data or {}),
+                        json.dumps(interruption.recovery_data),
                         interruption.auto_saved,
                         interruption.user_id,
                         interruption.project_id,

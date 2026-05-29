@@ -26,7 +26,7 @@ class SessionPermissionsManager:
     _session_id: str | None = None
     _initialized: bool = False
 
-    def __new__(cls, claude_dir: Path) -> Self:  # type: ignore[misc]
+    def __new__(cls, claude_dir: Path) -> Self:
         """Singleton pattern to ensure consistent session ID across tool calls."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)

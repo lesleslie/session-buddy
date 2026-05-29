@@ -22,7 +22,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
         server: SessionBuddyServer instance to register tools on
     """
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_session_length_distribution(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -51,7 +51,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
                 "message": "Failed to retrieve session length distribution",
             }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_temporal_patterns(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -80,7 +80,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
                 "message": "Failed to retrieve temporal patterns",
             }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_activity_correlations(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -109,7 +109,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
                 "message": "Failed to retrieve activity correlations",
             }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_session_streaks(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -138,7 +138,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
                 "message": "Failed to retrieve session streaks",
             }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_productivity_insights(
         project_path: str | None = None, days_back: int = 30
     ) -> dict[str, t.Any]:
@@ -167,7 +167,7 @@ def register_session_analytics_tools(server: t.Any) -> None:
                 "message": "Failed to generate productivity insights",
             }
 
-    @server.prompt()  # type: ignore[misc]
+    @server.prompt()  # type: ignore[untyped-decorator]
     def session_analytics_help() -> str:
         """Get help for session analytics and pattern detection."""
         return """# Session Analytics - Comprehensive Guide
@@ -449,7 +449,7 @@ def _generate_temporal_patterns_insights(patterns: t.Any) -> list[str]:
         if total > 0:
             top_period = max(
                 patterns.time_of_day_distribution,
-                key=patterns.time_of_day_distribution.get,  # type: ignore[arg-type]
+                key=patterns.time_of_day_distribution.get,
             )
             top_pct = patterns.time_of_day_distribution[top_period] / total * 100
             insights.append(

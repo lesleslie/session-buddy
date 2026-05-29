@@ -8,6 +8,8 @@ where possible.
 
 from __future__ import annotations
 
+from contextlib import suppress
+
 import inspect
 import json
 import sys
@@ -44,12 +46,10 @@ async def health_check(request: Any = None) -> dict[str, Any]:
 
 async def calculate_quality_score(project_dir: str | None = None) -> dict[str, Any]:
     if project_dir:
-        try:
+        with suppress(Exception):
             from session_buddy.quality_engine import calculate_quality_score as _real
 
             return await _real(project_dir=Path(project_dir))
-        except Exception:
-            pass
     return {
         "total_score": 0,
         "score": 0,
@@ -183,10 +183,7 @@ async def _optimize_reflection_results(
     if isinstance(optimization_info, dict):
         token_savings = optimization_info.get("token_savings", {})
         if isinstance(token_savings, dict) and "savings_percentage" in token_savings:
-            optimization_info = {
-                **optimization_info,
-                "token_savings": token_savings,
-            }
+            optimization_info = optimization_info | {"token_savings": token_savings}
     return optimized_results, optimization_info
 
 
@@ -237,7 +234,7 @@ def _display_http_startup(
     features: list[str] | None = None,
 ) -> None:
     if SERVERPANELS_AVAILABLE:
-        try:
+        with suppress(Exception):
             from mcp_common.ui import ServerPanels
 
             ServerPanels.startup_success(
@@ -248,8 +245,6 @@ def _display_http_startup(
                 transport="HTTP (streamable)",
             )
             return
-        except Exception:
-            pass
     # Fallback: print to stderr
     print(
         f"Session Management MCP v2.0.0 - HTTP mode on {host}:{port}",
@@ -262,7 +257,7 @@ def _display_http_startup(
 
 def _display_stdio_startup(features: list[str] | None = None) -> None:
     if SERVERPANELS_AVAILABLE:
-        try:
+        with suppress(Exception):
             from mcp_common.ui import ServerPanels
 
             ServerPanels.startup_success(
@@ -273,8 +268,6 @@ def _display_stdio_startup(features: list[str] | None = None) -> None:
                 mode="Claude Desktop",
             )
             return
-        except Exception:
-            pass
     # Fallback: print to stderr
     print(
         "Session Management MCP v2.0.0 - STDIO mode (Claude Desktop)", file=sys.stderr

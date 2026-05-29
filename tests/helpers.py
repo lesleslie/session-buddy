@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Shared test utilities and helpers for session-mgmt-mcp tests."""
 
+from __future__ import annotations
+
 import asyncio
 import os
 import tempfile
@@ -13,7 +15,12 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from session_buddy.reflection_tools import ReflectionDatabase
+
+
+def _get_reflection_database_class() -> type[Any]:
+    from session_buddy.reflection_tools import ReflectionDatabase
+
+    return ReflectionDatabase
 
 try:
     import duckdb
@@ -561,8 +568,9 @@ class DatabaseTestHelper:
 
     @staticmethod
     @asynccontextmanager
-    async def temp_reflection_db() -> AsyncGenerator[ReflectionDatabase]:
+    async def temp_reflection_db() -> AsyncGenerator[Any]:
         """Create temporary ReflectionDatabase for testing."""
+        ReflectionDatabase = _get_reflection_database_class()
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "test.duckdb"
 
@@ -575,7 +583,7 @@ class DatabaseTestHelper:
 
     @staticmethod
     async def populate_test_data(
-        db: ReflectionDatabase,
+        db: Any,
         num_conversations: int = 5,
         num_reflections: int = 3,
     ) -> dict[str, list[str]]:
@@ -622,7 +630,7 @@ class DatabaseTestHelper:
 
     @staticmethod
     async def measure_query_performance(
-        db: ReflectionDatabase,
+        db: Any,
         query_func,
         *args,
         **kwargs,

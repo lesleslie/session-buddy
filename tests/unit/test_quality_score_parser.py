@@ -50,6 +50,11 @@ def test_analyze_quality_trend_branches() -> None:
     assert improving is False
     assert insights == ["Not enough data to analyze trend"]
 
+    trend, insights, improving = _analyze_quality_trend([70, 71, 72, 73, 74])
+    assert trend == "stable"
+    assert improving is True
+    assert insights == ["Initial quality baseline established"]
+
     trend, insights, improving = _analyze_quality_trend(
         [80, 81, 79, 80, 81, 80, 81, 79, 80, 81]
     )
@@ -79,6 +84,9 @@ def test_generate_quality_trend_recommendations_branches() -> None:
     critical = _generate_quality_trend_recommendations([40, 42, 39])
     assert critical[0].startswith("🚨 Critical")
     assert any("pair programming" in item.lower() for item in critical)
+
+    declining = _generate_quality_trend_recommendations([80, 70, 60])
+    assert any("declining trend" in item.lower() for item in declining)
 
     caution = _generate_quality_trend_recommendations([60, 62, 64])
     assert caution[0].startswith("⚠️ Quality below target")

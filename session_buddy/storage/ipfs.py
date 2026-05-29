@@ -129,7 +129,7 @@ class IPFSStorage:
                 await self._pin_cid(cid)
 
             logger.debug(f"Stored memory with CID: {cid}")
-            return cid
+            return str(cid)
 
         except Exception as e:
             logger.error(f"Failed to store memory in IPFS: {e}")
@@ -163,7 +163,7 @@ class IPFSStorage:
             if response.status_code != 200:
                 raise Exception(f"IPFS retrieval failed: {response.text}")
 
-            memory_data = response.json()
+            memory_data: dict[str, Any] = response.json()
 
             logger.debug(f"Retrieved memory CID: {cid}")
             return memory_data

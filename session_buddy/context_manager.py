@@ -551,7 +551,7 @@ class AutoContextLoader:
         """Get a human-readable summary of current context."""
         context = self.context_detector.detect_current_context(working_dir)
 
-        summary_parts = []
+        summary_parts: list[str] = []
         summary_parts.extend(
             (
                 f"📁 Project: {context['project_name']}",

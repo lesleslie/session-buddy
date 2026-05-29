@@ -13,6 +13,7 @@ Features:
 from __future__ import annotations
 
 import logging
+import operator
 import typing as t
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -160,7 +161,7 @@ class ASCIIVisualizer:
 
         # Calculate column widths
         col_widths = [
-            max(len(str(headers[i])), max(len(str(row[i])) for row in rows))
+            max(len(headers[i]), max(len(row[i]) for row in rows))
             for i in range(len(headers))
         ]
 
@@ -190,11 +191,11 @@ class ASCIIVisualizer:
             row_parts = []
             for i, (cell, width) in enumerate(zip(row, col_widths)):
                 if align[i] == "right":
-                    row_parts.append(f"{str(cell):>{width}}")
+                    row_parts.append(f"{cell:>{width}}")
                 elif align[i] == "center":
-                    row_parts.append(f"{str(cell):^{width}}")
+                    row_parts.append(f"{cell:^{width}}")
                 else:
-                    row_parts.append(f"{str(cell):<{width}}")
+                    row_parts.append(f"{cell:<{width}}")
             lines.append(" | ".join(row_parts))
 
         return lines
@@ -224,7 +225,7 @@ class SessionAnalytics:
         ```
     """
 
-    def __init__(self, database_path: Path | None = None, conn=None) -> None:
+    def __init__(self, database_path: Path | None = None, conn: t.Any = None) -> None:
         """Initialize session analytics.
 
         Args:
@@ -234,7 +235,7 @@ class SessionAnalytics:
         self.database_path = database_path
         self._conn = conn
 
-    def _get_connection(self):
+    def _get_connection(self) -> t.Any:
         """Get database connection, creating if needed.
 
         Returns:
@@ -247,7 +248,7 @@ class SessionAnalytics:
             import duckdb
 
             # Use consistent config to avoid "different configuration" errors
-            db_config = {"allow_unsigned_extensions": True}
+            db_config: dict[str, str | bool | int | float | list[str]] = {"allow_unsigned_extensions": True}
             if self.database_path:
                 conn = duckdb.connect(str(self.database_path), config=db_config)
             else:
@@ -749,17 +750,14 @@ class SessionAnalytics:
         visualizer = ASCIIVisualizer()
         output: list[str] = []
 
-        output.append("=" * 80)
-        output.append("SESSION STATISTICS")
-        output.append("=" * 80)
-        output.append("")
+        output.extend(["=" * 80, "SESSION STATISTICS", "=" * 80, ""])
 
         # Prepare data for bar chart
         chart_data = [(s.component_name, s.total_sessions) for s in stats]
 
         output.append("Total Sessions by Component:")
         output.extend(visualizer.bar_chart(chart_data, width=max_width))
-        output.append("")
+        output.extend(["", ""])
 
         # Table view
         headers = ["Component", "Sessions", "Avg Duration", "Active", "Error Rate"]
@@ -799,16 +797,13 @@ class SessionAnalytics:
         visualizer = ASCIIVisualizer()
         output: list[str] = []
 
-        output.append("=" * 80)
-        output.append("COMPONENT USAGE")
-        output.append("=" * 80)
-        output.append("")
+        output.extend(["=" * 80, "COMPONENT USAGE", "=" * 80, ""])
 
         # Bar chart for session counts
         chart_data = [(c.component_name, c.session_count) for c in components]
         output.append("Sessions by Component:")
         output.extend(visualizer.bar_chart(chart_data, width=max_width))
-        output.append("")
+        output.extend(["", ""])
 
         # Table view
         headers = [
@@ -855,10 +850,7 @@ class SessionAnalytics:
 
         output: list[str] = []
 
-        output.append("=" * 80)
-        output.append(f"SESSION TIME SERIES (by {bucket_size})")
-        output.append("=" * 80)
-        output.append("")
+        output.extend(["=" * 80, f"SESSION TIME SERIES (by {bucket_size})", "=" * 80, ""])
 
         # Group sessions by time bucket
         buckets: dict[str, int] = collections.defaultdict(int)
@@ -896,8 +888,7 @@ class SessionAnalytics:
         sparkline = visualizer.sparkline(values)
 
         output.append("Activity Sparkline:")
-        output.append(sparkline)
-        output.append("")
+        output.extend((sparkline, ""))
 
         # Table view
         headers = ["Time", "Sessions"]
@@ -927,10 +918,7 @@ def create_session_summary_report(
     """
     lines: list[str] = []
 
-    lines.append("=" * 80)
-    lines.append("SESSION-BUDDY ANALYTICS REPORT")
-    lines.append("=" * 80)
-    lines.append("")
+    lines.extend(["=" * 80, "SESSION-BUDDY ANALYTICS REPORT", "=" * 80, ""])
 
     # Summary statistics
     total_sessions = sum(s.total_sessions for s in stats)
@@ -941,21 +929,10 @@ def create_session_summary_report(
         else 0
     )
 
-    lines.append("SUMMARY:")
-    lines.append(f"  Total Sessions: {total_sessions}")
-    lines.append(f"  Components Analyzed: {len(stats)}")
-    lines.append(f"  Total Errors: {total_errors}")
-    lines.append(f"  Average Error Rate: {avg_error_rate:.2f}%")
-    lines.append("")
+    lines.extend(["SUMMARY:", f"  Total Sessions: {total_sessions}", f"  Components Analyzed: {len(stats)}", f"  Total Errors: {total_errors}", f"  Average Error Rate: {avg_error_rate:.2f}%", ""])
 
     # Top components
-    lines.append("TOP COMPONENTS (by session count):")
-    for i, comp in enumerate(components[:5], 1):
-        lines.append(
-            f"  {i}. {comp.component_name}: {comp.session_count} sessions "
-            f"(avg quality: {comp.avg_quality_score:.1f}/100)"
-        )
-    lines.append("")
+    lines.extend(["TOP COMPONENTS (by session count):", ""])
 
     # Components with high error rates
     high_error = [
@@ -973,8 +950,6 @@ def create_session_summary_report(
                 lines.append(f"    Most common: {data['most_common_error']}")
         lines.append("")
 
-    lines.append("=" * 80)
-    lines.append("End of Report")
-    lines.append("=" * 80)
+    lines.extend(["=" * 80, "End of Report", "=" * 80])
 
     return "\n".join(lines)

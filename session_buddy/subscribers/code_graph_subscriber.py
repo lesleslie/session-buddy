@@ -7,6 +7,7 @@ indexed code graphs in Session-Buddy's reflection database.
 from __future__ import annotations
 
 import logging
+import operator
 import typing as t
 from datetime import UTC
 from typing import TYPE_CHECKING, Any
@@ -39,7 +40,7 @@ def _build_node_map(nodes: list[Any]) -> dict[str, dict[str, Any]]:
     node_map: dict[str, dict[str, Any]] = {}
     for node in nodes:
         if isinstance(node, dict):
-            node_id = node.get("id", node.get("name", ""))
+            node_id: str = node.get("id", node.get("name", "")) or ""
             node_map[node_id] = node
         elif isinstance(node, str):
             node_map[node] = {"id": node, "name": node}
@@ -52,7 +53,7 @@ def _find_target_node_id(
     bare_name = symbol_name.split("|||")[-1] if "|||" in symbol_name else symbol_name
     for node_id, node_info in node_map.items():
         node_name = node_info.get("name", node_id)
-        if node_name == symbol_name or node_name == bare_name:
+        if node_name in (symbol_name, bare_name):
             return node_id
     return None
 
@@ -100,7 +101,7 @@ def _is_graph_stale(indexed_at: str | None) -> tuple[bool, str | None]:
     from datetime import datetime
 
     try:
-        indexed_dt = datetime.fromisoformat(indexed_at.replace("Z", "+00:00"))
+        indexed_dt = datetime.fromisoformat(indexed_at)
         age_hours = (datetime.now(UTC) - indexed_dt).total_seconds() / 3600
         stale = age_hours > 24
         return stale, indexed_at if stale else None
@@ -112,9 +113,9 @@ def _normalize_call_edges(edges: list[Any]) -> list[tuple[str, str, str]]:
     call_edges: list[tuple[str, str, str]] = []
     for edge in edges:
         if isinstance(edge, dict):
-            source = edge.get("source", edge.get("from", ""))
-            target = edge.get("target", edge.get("to", ""))
-            edge_type = edge.get("type", edge.get("relation", "calls"))
+            source: str = edge.get("source", edge.get("from", ""))  # type: ignore[assignment]
+            target: str = edge.get("target", edge.get("to", ""))  # type: ignore[assignment]
+            edge_type: str = edge.get("type", edge.get("relation", "calls"))  # type: ignore[assignment]
             call_edges.append((source, target, edge_type))
         elif isinstance(edge, (list, tuple)) and len(edge) >= 2:
             edge_type = edge[2] if len(edge) > 2 else "calls"
@@ -180,7 +181,7 @@ def _traverse_call_chain(
                         "direction": "callee",
                         "depth": depth + 1,
                         "edge_type": edge_type,
-                        "path": _build_path_str(current, target_info, node_map),
+                        "path": _build_path_str(target_info, target, node_map),
                     }
                 )
 
@@ -202,10 +203,10 @@ def _collect_dependents(
     callers_of: dict[str, list[str]] = {}
     for edge in edges:
         if isinstance(edge, dict):
-            source = edge.get("source", edge.get("from", ""))
-            target = edge.get("target", edge.get("to", ""))
+            source: str = edge.get("source", edge.get("from", ""))  # type: ignore[assignment]
+            target: str = edge.get("target", edge.get("to", ""))  # type: ignore[assignment]
         elif isinstance(edge, (list, tuple)) and len(edge) >= 2:
-            source, target = edge[0], edge[1]
+            source, target = str(edge[0]), str(edge[1])
         else:
             continue
         callers_of.setdefault(target, []).append(source)
@@ -267,7 +268,7 @@ def _collect_dependents(
 def _register_code_graph_storage_tool(mcp: Any) -> None:
     """Register code graph storage tool."""
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def store_code_graph_from_mahavishnu(
         repo_path: str,
         commit_hash: str,
@@ -427,7 +428,7 @@ def _query_code_graphs_list(
 def _register_code_graph_retrieval_tool(mcp: Any) -> None:
     """Register code graph retrieval tool."""
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def get_code_graph(
         repo_path: str,
         commit_hash: str,
@@ -455,17 +456,17 @@ def _register_code_graph_retrieval_tool(mcp: Any) -> None:
                 reflection_db
                 if hasattr(reflection_db, "execute")
                 else t.cast(Any, reflection_db)._get_conn()
-            )  # type: ignore[union-attr]
+            )
 
             import asyncio
 
-            def _query() -> list[dict[str, Any]]:
+            def _query() -> dict[str, Any] | None:
                 return _query_code_graph(conn, repo_path, commit_hash)
 
             lock = _get_lock(reflection_db)
             if lock:
                 with lock:
-                    graph_record = _query()  # type: ignore[no-untyped-call]
+                    graph_record = _query()
             else:
                 loop = asyncio.get_event_loop()
                 graph_record = await loop.run_in_executor(None, _query)
@@ -492,7 +493,7 @@ def _register_code_graph_retrieval_tool(mcp: Any) -> None:
 def _register_code_graph_list_tool(mcp: Any) -> None:
     """Register code graph listing tool."""
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def list_code_graphs(
         repo_path: str | None = None,
         limit: int = 100,
@@ -516,7 +517,7 @@ def _register_code_graph_list_tool(mcp: Any) -> None:
                 reflection_db
                 if hasattr(reflection_db, "execute")
                 else t.cast(Any, reflection_db)._get_conn()
-            )  # type: ignore[union-attr]
+            )
 
             import asyncio
 
@@ -526,7 +527,7 @@ def _register_code_graph_list_tool(mcp: Any) -> None:
             lock = _get_lock(reflection_db)
             if lock:
                 with lock:
-                    graphs = _query()  # type: ignore[no-untyped-call]
+                    graphs = _query()
             else:
                 loop = asyncio.get_event_loop()
                 graphs = await loop.run_in_executor(None, _query)
@@ -550,7 +551,7 @@ def _register_code_graph_list_tool(mcp: Any) -> None:
 def _register_code_call_chain_tool(mcp: Any) -> None:
     """Register the code_call_chain query tool."""
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def code_call_chain(
         symbol_name: str,
         direction: str = "both",
@@ -653,7 +654,7 @@ def _register_code_call_chain_tool(mcp: Any) -> None:
 def _register_code_impact_analysis_tool(mcp: Any) -> None:
     """Register the code_impact_analysis query tool."""
 
-    @mcp.tool()  # type: ignore[misc]
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def code_impact_analysis(
         symbol_name: str,
         repo_path: str | None = None,

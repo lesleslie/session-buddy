@@ -22,9 +22,11 @@ DEPRECATION NOTICE (Phase 2 - February 2025):
 """
 
 # Module-level singleton cache for the reflection database
-_reflection_db = None
+_reflection_db: "ReflectionDatabaseAdapter | None" = None
 
 # Import the adapter class so tests and callers can patch it at the module level.
+# Use conditional import to handle the case where the adapter might not be available
+# during early initialization phases.
 try:
     from session_buddy.adapters.reflection_adapter import (
         ReflectionDatabaseAdapter,
@@ -36,6 +38,7 @@ except ImportError:
 from pathlib import Path
 
 from session_buddy.adapters.settings import ReflectionAdapterSettings
+from session_buddy.settings import get_database_path
 from session_buddy.reflection.database import (
     ReflectionDatabase as _ReflectionDatabase,
 )
@@ -44,7 +47,7 @@ from session_buddy.reflection.database import (
 ReflectionDatabase = _ReflectionDatabase
 
 
-async def get_reflection_database(db_path=None):
+async def get_reflection_database(db_path: str | Path | None = None) -> ReflectionDatabaseAdapter:
     """Get or create the reflection database singleton.
 
     This async wrapper uses the ReflectionDatabaseAdapter so that callers
@@ -61,7 +64,15 @@ async def get_reflection_database(db_path=None):
         msg = "ReflectionDatabaseAdapter is not available"
         raise ImportError(msg)
 
-    _reflection_db = ReflectionDatabaseAdapter() if db_path is None else ReflectionDatabaseAdapter(settings=ReflectionAdapterSettings(database_path=db_path if isinstance(db_path, (str, Path)) else Path(db_path)))
+    _reflection_db = (
+        ReflectionDatabaseAdapter()
+        if db_path is None
+        else ReflectionDatabaseAdapter(
+            settings=ReflectionAdapterSettings(
+                database_path=Path(db_path) if isinstance(db_path, str) else db_path
+            )
+        )
+    )
     return _reflection_db
 
 
@@ -70,4 +81,8 @@ __all__ = [
     "ReflectionDatabase",
     "ReflectionDatabaseAdapter",
     "get_reflection_database",
+    "generate_embedding",
 ]
+
+# Import generate_embedding from the new modular implementation
+from session_buddy.reflection.embeddings import generate_embedding

@@ -616,7 +616,7 @@ def register_validated_memory_tools(mcp_server: Any) -> None:
     while using the same utility-based refactoring patterns as other tools.
     """
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def store_reflection_validated(**params: Any) -> str:
         """Store a reflection with validated parameters.
 
@@ -625,17 +625,17 @@ def register_validated_memory_tools(mcp_server: Any) -> None:
         """
         return await _store_reflection_validated_impl(**params)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def quick_search_validated(**params: Any) -> str:
         """Quick search with validated parameters."""
         return await _quick_search_validated_impl(**params)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def search_by_file_validated(**params: Any) -> str:
         """Search by file with validated parameters."""
         return await _search_by_file_validated_impl(**params)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def search_by_concept_validated(**params: Any) -> str:
         """Search by concept with validated parameters."""
         return await _search_by_concept_validated_impl(**params)

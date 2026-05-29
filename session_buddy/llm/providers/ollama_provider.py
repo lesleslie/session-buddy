@@ -26,7 +26,7 @@ try:
 
     HTTP_ADAPTER_AVAILABLE = True
 except Exception:
-    HTTPClientAdapter = None  # type: ignore[assignment]
+    HTTPClientAdapter = None
     HTTP_ADAPTER_AVAILABLE = False
 
 
@@ -81,7 +81,7 @@ class OllamaProvider(LLMProvider):
                 "aiohttp package not installed and HTTPClientAdapter not available. "
                 "Install with: pip install aiohttp or configure mcp-common HTTPClientAdapter"
             )
-            raise ImportError(msg)  # type: ignore[no-any-return]
+            raise ImportError(msg)
 
     def _convert_messages(self, messages: list[LLMMessage]) -> list[dict[str, str]]:
         """Convert LLMMessage objects to Ollama format."""

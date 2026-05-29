@@ -733,7 +733,7 @@ class SessionMgmtSettings(MCPBaseSettings):
     # === Field Validators ===
     @model_validator(mode="before")
     @classmethod
-    def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:  # type: ignore[operator]
+    def map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
         """
         Map legacy 'debug' flag to 'enable_debug_mode'.
 

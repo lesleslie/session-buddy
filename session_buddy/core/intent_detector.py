@@ -196,10 +196,10 @@ class IntentDetector:
 
                     # Cosine similarity: dot product of normalized vectors
                     similarity = float(
-                        np.dot(query_embedding, example_embedding)
+                        np.dot(query_embedding, example_embedding)  # type: ignore[arg-type]
                         / (
-                            np.linalg.norm(query_embedding)
-                            * np.linalg.norm(example_embedding)
+                            np.linalg.norm(query_embedding)  # type: ignore[arg-type]
+                            * np.linalg.norm(example_embedding)  # type: ignore[arg-type]
                         )
                     )
 
@@ -282,16 +282,16 @@ class IntentDetector:
 
         if semantic and pattern and semantic.confidence > pattern.confidence:
             result = semantic
-            result.alternatives = [pattern.tool_name]  # type: ignore[attr-defined]
+            result.alternatives = [pattern.tool_name]
         elif semantic and pattern:
             result = pattern
-            result.alternatives = [semantic.tool_name]  # type: ignore[attr-defined]
+            result.alternatives = [semantic.tool_name]
         else:
             # Handle case where one is None
             result = semantic or pattern
 
         if result:
-            result.disambiguation_needed = True  # type: ignore[attr-defined]
+            result.disambiguation_needed = True
 
         return result
 

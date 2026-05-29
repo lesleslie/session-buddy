@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncGenerator
 
 from mcp_common.llm import FallbackChain, LLMSettings
 
@@ -17,7 +17,7 @@ try:
 
     SECURITY_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
-    APIKeyValidator = None  # type: ignore[assignment]
+    APIKeyValidator = None  # type: ignore[assignment,misc]
     SECURITY_AVAILABLE = False
 
 
@@ -36,22 +36,24 @@ __all__ = [
 ]
 
 
-def _load_json_safely_impl(path: Path, *, self=None) -> dict[str, Any]:
+def _load_json_safely_impl(path: Path, *, self: Any = None) -> dict[str, Any]:
     """Load JSON file safely, returning empty dict if not exists."""
     try:
         if path.exists():
-            return json.loads(path.read_text())
+            return json.loads(path.read_text())  # type: ignore[no-any-return]
     except (json.JSONDecodeError, OSError) as e:
-        self.logger.error(f"Failed to load {path}: {e}")
+        if self:
+            self.logger.error(f"Failed to load {path}: {e}")
     return {}
 
 
-def _save_json_atomically_impl(path: Path, data: dict[str, Any], *, self=None) -> None:
+def _save_json_atomically_impl(path: Path, data: dict[str, Any], *, self: Any = None) -> None:
     """Save JSON file atomically to prevent corruption."""
     temp_path = path.with_suffix(".tmp")
     temp_path.write_text(json.dumps(data, indent=2))
     temp_path.replace(path)
-    self.logger.debug(f"Saved {path} atomically")
+    if self:
+        self.logger.debug(f"Saved {path} atomically")
 
 
 def _merge_mcp_servers_impl(
@@ -59,10 +61,10 @@ def _merge_mcp_servers_impl(
     qwen: dict[str, Any],
     skip_servers_list: list[str] | None = None,
     *,
-    self=None,
-    skip_servers=None,
-    source=None,
-    destination=None,
+    self: Any = None,
+    skip_servers: list[str] | None = None,
+    source: str | None = None,
+    destination: str | None = None,
 ) -> dict[str, Any]:
     """Merge MCP servers from both configs.
 
@@ -76,6 +78,8 @@ def _merge_mcp_servers_impl(
         skip_servers_list = skip_servers
     claude_mcp = claude.get("mcpServers", {})
     qwen_mcp = qwen.get("mcpServers", {})
+    if skip_servers_list is None:
+        skip_servers_list = []
     if source == "claude":
         filtered_source_mcp = {
             name: config
@@ -151,15 +155,15 @@ def _markdown_to_qwen_markdown_impl(md_content: str, command_name: str) -> str:
 
 def _sync_commands_source_to_dest_impl(
     *,
-    self=None,
-    source=None,
-    CLAUDE_COMMANDS_DIR=None,
-    markdown_to_qwen_markdown=None,
-    QWEN_COMMANDS_DIR=None,
-    destination=None,
+    self: Any = None,
+    source: str | None = None,
+    CLAUDE_COMMANDS_DIR: Path | None = None,
+    markdown_to_qwen_markdown: Any = None,
+    QWEN_COMMANDS_DIR: Path | None = None,
+    destination: str | None = None,
 ) -> dict[str, Any]:
     """Sync commands from source to destination."""
-    stats = {"commands_synced": 0, "commands_skipped": 0, "errors": []}
+    stats: dict[str, Any] = {"commands_synced": 0, "commands_skipped": 0, "errors": []}
     try:
         if source == "claude":
             src_dir = CLAUDE_COMMANDS_DIR
@@ -167,6 +171,8 @@ def _sync_commands_source_to_dest_impl(
         else:
             src_dir = QWEN_COMMANDS_DIR
             dst_dir = CLAUDE_COMMANDS_DIR
+        if src_dir is None or dst_dir is None:
+            return stats
         dst_dir.mkdir(parents=True, exist_ok=True)
         md_files = list(src_dir.glob("**/*.md"))
         self.logger.debug(f"Found {len(md_files)} command files in {source}")
@@ -200,7 +206,7 @@ def _sync_commands_source_to_dest_impl(
 
 
 async def _helper_functions(
-    self,
+    self: Any,
     source: str = "claude",
     destination: str = "qwen",
     sync_types: list[str] | None = None,
@@ -285,7 +291,7 @@ async def _helper_functions(
         dst_config = load_json_safely(CLAUDE_CONFIG)
         dst_config_path = CLAUDE_CONFIG
 
-    stats = {
+    stats: dict[str, Any] = {
         "mcp_servers": 0,
         "mcp_servers_skipped": 0,
         "plugins_found": 0,
@@ -333,7 +339,7 @@ async def _helper_functions(
                 enabled_plugins = claude_settings.get("enabledPlugins", {})
                 stats["plugins_found"] = len(enabled_plugins)
 
-                plugin_names = []
+                plugin_names: list[str] = []
                 for plugin_id in enabled_plugins.keys():
                     name = plugin_id.split("@")[0]
                     plugin_names.append(name)
@@ -698,7 +704,7 @@ class LLMManager:
         use_fallback: bool = True,
         task_type: str = "chat",
         **kwargs: Any,
-    ):
+    ) -> AsyncGenerator[str, None]:
         """Yield non-streaming result as a single chunk (FallbackChain has no streaming)."""
         try:
             response = await self.generate(

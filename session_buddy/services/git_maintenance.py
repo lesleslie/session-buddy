@@ -53,7 +53,7 @@ logger = structlog.get_logger(__name__)
 class TrackedProcess:
     """Information about a tracked git gc process."""
 
-    popen: Popen
+    popen: "Popen"  # type: ignore[type-arg]
     start_time: datetime
     repository: Path
     prune_delay: str
@@ -92,7 +92,7 @@ class GitProcessTracker:
 
     def track_process(
         self,
-        popen: Popen,
+        popen: Popen[Any],
         repository: Path,
         prune_delay: str,
         threshold: int,

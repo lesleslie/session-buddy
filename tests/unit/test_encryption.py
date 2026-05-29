@@ -157,6 +157,20 @@ class TestDataEncryption:
         encrypted = encryption.encrypt_dict(data)
         assert encrypted["public"] == "visible"
 
+    def test_encrypt_dict_skips_complex_types(self, encryption):
+        """Test that encrypt_dict leaves lists and dicts unchanged."""
+        data = {
+            "content": ["nested", "list"],
+            "api_key": {"value": "secret"},
+            "public": "visible",
+        }
+
+        encrypted = encryption.encrypt_dict(data)
+
+        assert encrypted["content"] == ["nested", "list"]
+        assert encrypted["api_key"] == {"value": "secret"}
+        assert encrypted["public"] == "visible"
+
     def test_decrypt_dict_default_fields(self, encryption):
         """Test decrypting dict with default fields."""
         data = {"content": "secret", "public": "visible"}
@@ -186,6 +200,14 @@ class TestDataEncryption:
         # Should not raise error
         result = encryption.decrypt_dict(data)
         assert result["already_plain"] == "not encrypted"
+
+    def test_decrypt_dict_skips_non_bytes_values(self, encryption):
+        """Test that decrypt_dict leaves non-bytes fields untouched."""
+        data = {"content": "already plain", "api_key": 123}
+
+        result = encryption.decrypt_dict(data)
+
+        assert result == data
 
     def test_generate_key(self, encryption):
         """Test generating a new Fernet key."""
@@ -279,6 +301,11 @@ class TestIsEncrypted:
         assert is_encrypted(123) is False
         assert is_encrypted(None) is False
 
+    def test_short_and_invalid_base64_inputs(self):
+        """Test edge cases for heuristic detection."""
+        assert is_encrypted(b"short") is False
+        assert is_encrypted(b"!@#$%^&*()_+INVALIDTOKEN!!!!!") is False
+
 
 class TestGetEncryption:
     """Test get_encryption singleton function."""
@@ -316,6 +343,16 @@ class TestGetEncryption:
                 os.environ["SESSION_ENCRYPTION_KEY"] = old_key
             elif "SESSION_ENCRYPTION_KEY" in os.environ:
                 del os.environ["SESSION_ENCRYPTION_KEY"]
+
+    def test_reuses_existing_instance(self, test_key):
+        """Test cached singleton is returned without reinitialization."""
+        old_instance = encryption_module._encryption_instance
+        try:
+            encryption_module._encryption_instance = DataEncryption(key=test_key)
+            instance = get_encryption()
+            assert instance is encryption_module._encryption_instance
+        finally:
+            encryption_module._encryption_instance = old_instance
 
 
 class TestIntegration:

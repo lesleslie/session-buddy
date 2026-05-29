@@ -140,6 +140,7 @@ In `settings/session-buddy.yaml`:
 ```yaml
 sync:
   akosha_enabled: true
+# lychee: ignore
   akosha_url: "http://localhost:8682/mcp"
   sync_interval: 300  # seconds (5 minutes)
 ```
@@ -148,6 +149,7 @@ Or via environment variables:
 
 ```bash
 export SESSION_BUDDY_AKOSHA_ENABLED=true
+# lychee: ignore
 export SESSION_BUDDY_AKOSHA_URL="http://localhost:8682/mcp"
 ```
 
@@ -193,6 +195,7 @@ curl http://localhost:8682/health
 echo $SESSION_BUDDY_AKOSHA_URL
 
 # Test connectivity
+# lychee: ignore
 curl http://localhost:8682/mcp
 
 # Restart Session-Buddy with debug logging
@@ -234,6 +237,7 @@ In `settings/session-buddy.yaml`:
 ```yaml
 integrations:
   crackerjack_enabled: true
+# lychee: ignore
   crackerjack_url: "http://localhost:8676/mcp"
 ```
 
@@ -301,6 +305,7 @@ In `settings/session-buddy.yaml`:
 intelligence:
   enabled: true
   embedding_model: "nomic-embed-text"
+# lychee: ignore
   ollama_base_url: "http://localhost:11434"
 ```
 
@@ -330,6 +335,7 @@ ollama pull nomic-embed-text
 ollama list
 
 # Test embedding generation
+# lychee: ignore
 curl http://localhost:11434/api/embeddings -d '{
   "model": "nomic-embed-text",
   "prompt": "test"
@@ -352,6 +358,7 @@ ollama list | grep nomic
 ollama pull nomic-embed-text
 
 # Test Ollama API
+# lychee: ignore
 curl http://localhost:11434/api/tags
 
 # Disable intelligence features if Ollama unavailable
@@ -632,7 +639,8 @@ ______________________________________________________________________
 | Akosha | `curl http://localhost:8682/health` | `{"status": "ok"}` |
 | Crackerjack | `crackerjack health` | `Status: healthy` |
 | PostgreSQL | `pg_isready` | `localhost:5432 - accepting connections` |
-| Ollama | `curl http://localhost:11434/api/tags` | JSON with models list |
+| Ollama | `# lychee: ignore
+curl http://localhost:11434/api/tags` | JSON with models list |
 
 ______________________________________________________________________
 
@@ -823,6 +831,7 @@ curl http://localhost:8682/health
 pg_isready
 
 # Ollama
+# lychee: ignore
 curl http://localhost:11434/api/tags
 ```
 

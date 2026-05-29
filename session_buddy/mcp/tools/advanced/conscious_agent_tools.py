@@ -15,7 +15,7 @@ _agent: ConsciousAgent | None = None
 
 
 def register_conscious_agent_tools(mcp: FastMCP) -> None:
-    @mcp.tool()  # type: ignore[no-untyped-call]
+    @mcp.tool()
     async def start_conscious_agent(interval_hours: int = 6) -> dict[str, t.Any]:
         """Start background Conscious Agent if enabled by flags."""
         flags = get_feature_flags()
@@ -30,7 +30,7 @@ def register_conscious_agent_tools(mcp: FastMCP) -> None:
         await _agent.start()
         return {"status": "started", "interval_hours": interval_hours}
 
-    @mcp.tool()  # type: ignore[no-untyped-call]
+    @mcp.tool()
     async def stop_conscious_agent() -> dict[str, t.Any]:
         """Stop background Conscious Agent if running."""
         global _agent
@@ -40,7 +40,7 @@ def register_conscious_agent_tools(mcp: FastMCP) -> None:
         _agent = None
         return {"status": "stopped"}
 
-    @mcp.tool()  # type: ignore[no-untyped-call]
+    @mcp.tool()
     async def force_conscious_analysis() -> dict[str, t.Any]:
         """Force a one-time analysis run."""
         global _agent

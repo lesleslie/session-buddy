@@ -249,8 +249,7 @@ def _register_search_conversations_tool(mcp_server: FastMCP) -> None:
                 # Truncate content for display
                 content = result.get("content", "")
                 preview = content[:200] + "..." if len(content) > 200 else content
-                lines.append(f"   📝 {preview}")
-                lines.append("")
+                lines.extend((f"   📝 {preview}", ""))
 
             return "\n".join(lines)
 

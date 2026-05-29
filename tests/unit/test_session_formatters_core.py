@@ -58,6 +58,14 @@ def test_worktree_formatters_cover_primary_branches() -> None:
         "\nu Project maturity: 7/10"
     ]
     assert sh._format_git_worktree_header() == "\nr Git Worktree Information:"
+    assert "Duration: 15min" in sh._format_metrics_summary(
+        {
+            "duration_minutes": 15,
+            "success_rate": 87.5,
+            "total_checkpoints": 3,
+        }
+    )
+    assert "Success rate: 0.0%" in sh._format_metrics_summary({})
 
 
 def test_reminder_and_status_formatters_cover_lists() -> None:
@@ -111,6 +119,9 @@ def test_reminder_and_status_formatters_cover_lists() -> None:
         {"a": 1, "b": 2},
         7,
     )
+    assert sh._format_worktree_status({"locked": False, "prunable": True, "exists": True, "has_session": False}) == "🗑️ prunable"
+    assert sh._format_worktree_status({"locked": False, "prunable": False, "exists": False, "has_session": False}) == "❌ missing"
+    assert sh._format_worktree_status({"locked": True, "prunable": False, "exists": True, "has_session": True}) == "🔒 locked, 🧠 has session"
 
 
 def test_statistics_and_summary_sections_cover_truncation() -> None:
@@ -156,6 +167,14 @@ def test_statistics_and_summary_sections_cover_truncation() -> None:
         {"locked": False, "prunable": False, "exists": True, "has_session": False}
     ) == "✓ normal"
     assert "Multi-Worktree Summary" in "\n".join(sh._format_session_summary(result))
+    assert sh._format_project_activity_section(
+        {
+            "alpha": {"conversation_count": 1, "last_activity": "now"},
+            "beta": {"conversation_count": 2, "last_activity": "later"},
+        }
+    )[-1] == ""
+    assert "pattern-5" in "\n".join(sh._format_common_patterns_section(common_patterns))
+    assert "pattern-6" not in "\n".join(sh._format_common_patterns_section(common_patterns))
 
 
 def test_feature_and_setup_helpers_respect_flags_and_context(
@@ -296,6 +315,24 @@ def test_setup_and_list_helpers_cover_remaining_branches(
     assert "locked" in sh._format_worktree_status(
         {"locked": True, "prunable": True, "exists": False, "has_session": True}
     )
+    assert sh._format_worktree_status({"locked": False, "prunable": False, "exists": True, "has_session": False}) == "✓ normal"
+
+    assert sh._format_basic_worktree_info(
+        {
+            "branch": "main",
+            "path": "/repo",
+            "has_session": True,
+            "is_detached": True,
+        },
+        Path("/repo"),
+    )[0] == "📂 Repository: repo"
+    assert sh._format_session_info(
+        {"id": "session-2", "status": "idle"}
+    ) == [
+        "📊 Session Information:",
+        "  ID: session-2",
+        "  Status: idle",
+    ]
 
 
 def test_feature_flag_helpers_cover_disabled_paths(

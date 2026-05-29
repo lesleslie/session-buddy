@@ -475,7 +475,7 @@ async def _get_multi_project_coordinator() -> t.Any:
 
         # Type ignore: get_reflection_database returns ReflectionDatabaseAdapter
         # which is compatible with ReflectionDatabaseProtocol
-        db = await get_reflection_database()  # type: ignore[arg-type]
+        db = await get_reflection_database()
         return MultiProjectCoordinator(db)
     except Exception:
         return None
@@ -625,7 +625,7 @@ async def _get_advanced_search_engine() -> t.Any:
 
         # Type ignore: get_reflection_database returns ReflectionDatabaseAdapter
         # which is compatible with AdvancedSearchEngine's expected type
-        db = await get_reflection_database()  # type: ignore[arg-type]
+        db = await get_reflection_database()
         return AdvancedSearchEngine(db)  # type: ignore[arg-type]
     except Exception:
         return None

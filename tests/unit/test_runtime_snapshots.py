@@ -57,3 +57,26 @@ def test_update_telemetry_counter(tmp_path: Path) -> None:
 
     assert snapshot.orchestrator_pid == 101
     assert snapshot.counters.get("health_probes") == 1
+
+
+def test_runtime_telemetry_snapshot_as_dict_and_parse_helper() -> None:
+    from session_buddy.utils.runtime_snapshots import (
+        RuntimeTelemetrySnapshot,
+        _parse_iso_datetime,
+    )
+
+    snapshot = RuntimeTelemetrySnapshot(
+        orchestrator_pid=7,
+        started_at="2026-05-17T12:00:00+00:00",
+        updated_at="2026-05-17T12:01:00+00:00",
+        uptime_seconds=12.5,
+        counters={"updates": 3},
+    )
+
+    data = snapshot.as_dict()
+    data["counters"]["updates"] = 99
+
+    assert snapshot.counters["updates"] == 3
+    assert _parse_iso_datetime(None) is None
+    assert _parse_iso_datetime("not-a-timestamp") is None
+    assert _parse_iso_datetime("2026-05-17T12:00:00+00:00") is not None

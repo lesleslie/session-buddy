@@ -361,8 +361,7 @@ class CloudSyncMethod(SyncMethod):
         loop = asyncio.get_event_loop()
 
         def _read_sync() -> bytes:
-            with open(db_path, "rb") as f:
-                data = f.read()
+            data = db_path.read_bytes()
 
             if self.config.enable_compression:
                 return gzip.compress(data)
@@ -384,7 +383,7 @@ class CloudSyncMethod(SyncMethod):
 
         def _compute_sync() -> str:
             sha256 = hashlib.sha256()
-            with open(file_path, "rb") as f:
+            with file_path.open("rb") as f:
                 for chunk in iter(lambda: f.read(8192), b""):
                     sha256.update(chunk)
             return sha256.hexdigest()

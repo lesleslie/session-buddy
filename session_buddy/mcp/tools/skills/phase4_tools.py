@@ -103,7 +103,7 @@ async def get_real_time_metrics(
             "success": False,
             "top_skills": [],
             "timestamp": datetime.now().isoformat(),
-            "message": f"Error: {str(e)}",
+            "message": f"Error: {e}",
         }
 
 
@@ -177,7 +177,7 @@ async def detect_anomalies(
             "success": False,
             "anomalies": [],
             "timestamp": datetime.now().isoformat(),
-            "message": f"Error: {str(e)}",
+            "message": f"Error: {e}",
         }
 
 
@@ -264,7 +264,7 @@ async def get_skill_trend(
             "change_percent": 0.0,
             "confidence": 1.0,
             "timestamp": datetime.now().isoformat(),
-            "error": str(e),
+            "error": e,
         }
 
 
@@ -356,7 +356,7 @@ async def get_collaborative_recommendations(
             "user_id": user_id,
             "recommendations": [],
             "timestamp": datetime.now().isoformat(),
-            "message": f"Error: {str(e)}",
+            "message": f"Error: {e}",
         }
 
 
@@ -425,7 +425,7 @@ async def get_community_baselines(
             "success": False,
             "baselines": [],
             "timestamp": datetime.now().isoformat(),
-            "message": f"Error: {str(e)}",
+            "message": f"Error: {e}",
         }
 
 
@@ -556,5 +556,5 @@ async def get_skill_dependencies(
             "skill_name": skill_name,
             "dependencies": [],
             "timestamp": datetime.now().isoformat(),
-            "message": f"Error: {str(e)}",
+            "message": f"Error: {e}",
         }

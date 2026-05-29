@@ -1,5 +1,6 @@
 """Collaborative filtering engine for skill recommendations.
 
+from __future__ import annotations
 This module provides user-based collaborative filtering to recommend skills
 based on what similar users used successfully. Uses Jaccard similarity for
 user similarity calculation and combines with skill completion rates for
@@ -15,9 +16,8 @@ Example:
     ...     print(f"{rec['skill_name']}: {rec['score']:.2f}")
 """
 
-from __future__ import annotations
-
 import hashlib
+import operator
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -87,7 +87,7 @@ class CollaborativeFilteringEngine:
     # ========================================================================
 
     @contextmanager
-    def _get_connection(self) -> sqlite3.Connection:
+    def _get_connection(self) -> sqlite3.Connection:  # type: ignore[type-arg, misc]
         """Get database connection with proper configuration.
 
         Yields:
@@ -377,7 +377,7 @@ class CollaborativeFilteringEngine:
             # Step 4: Sort by score and return top N
             recommendations = sorted(
                 skill_candidates.values(),
-                key=lambda x: x["score"],
+                key=operator.itemgetter("score"),
                 reverse=True,
             )
 

@@ -17,7 +17,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 DATEUTIL_AVAILABLE = importlib.util.find_spec("dateutil") is not None
 CRONTAB_AVAILABLE = importlib.util.find_spec("python_crontab") is not None
@@ -266,9 +266,9 @@ class ReminderScheduler:
             await self._execute_notification_callbacks(reminder_id, reminder_data)
 
             # Handle recurring reminders or mark as executed
-            recurrence_pattern = (
+            recurrence_pattern: str | None = (
                 reminder_data.get("recurrence_pattern")
-                or reminder_data.get("recurrence_rule")  # type: ignore[arg-type]
+                or reminder_data.get("recurrence_rule")
             )
             if recurrence_pattern:
                 return await self._handle_recurring_reminder(
@@ -478,12 +478,14 @@ class ReminderScheduler:
     ) -> datetime | None:
         """Calculate simple recurrence occurrences (daily, weekly, monthly)."""
         if recurrence_rule.startswith("FREQ=DAILY"):
-            return last_time + timedelta(days=1)  # type: ignore[no-any-return]
+            return last_time + timedelta(days=1)
         if recurrence_rule.startswith("FREQ=WEEKLY"):
-            return last_time + timedelta(weeks=1)  # type: ignore[no-any-return]
-        if recurrence_rule.startswith("FREQ=MONTHLY"):
-            return last_time + relativedelta(months=1)  # type: ignore[no-any-return]
-        return None
+            result = last_time + timedelta(weeks=1)
+        elif recurrence_rule.startswith("FREQ=MONTHLY"):
+            result = last_time + relativedelta(months=1)
+        else:
+            return None
+        return result
 
     def _calculate_interval_occurrence(
         self,
@@ -497,11 +499,11 @@ class ReminderScheduler:
             interval = recurrence.interval
 
             if freq == "HOURLY":
-                return last_time + timedelta(hours=interval)  # type: ignore[no-any-return]
+                return last_time + timedelta(hours=interval)
             if freq == "MINUTELY":
-                return last_time + timedelta(minutes=interval)  # type: ignore[no-any-return]
+                return last_time + timedelta(minutes=interval)
             if freq == "DAILY":
-                return last_time + timedelta(days=interval)  # type: ignore[no-any-return]
+                return last_time + timedelta(days=interval)
         return None
 
     def _check_dateutil_availability(self) -> bool:

@@ -12,6 +12,7 @@ These tools extend the base knowledge_graph_tools.py functionality.
 from __future__ import annotations
 
 import json
+import operator
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.utils.error_management import _get_logger
@@ -233,12 +234,12 @@ async def _get_relationship_confidence_stats_impl() -> str:
         ]
 
         # Show type breakdown by confidence
-        for conf in ["high", "medium", "low"]:
+        for conf in ("high", "medium", "low"):
             if type_by_confidence[conf]:
                 lines.extend(["", f"🔵 {conf.capitalize()} Confidence Types:"])
                 sorted_types = sorted(
                     type_by_confidence[conf].items(),
-                    key=lambda x: x[1],
+                    key=operator.itemgetter(1),
                     reverse=True,
                 )
                 for rel_type, count in sorted_types[:5]:  # Top 5
@@ -276,7 +277,7 @@ async def _execute_kg_operation(
 def register_phase3_knowledge_graph_tools(mcp_server: Any) -> None:
     """Register Phase 3 knowledge graph MCP tools with the server."""
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def discover_transitive_relationships(
         max_depth: int = 3,
         min_confidence: str = "medium",
@@ -287,7 +288,7 @@ def register_phase3_knowledge_graph_tools(mcp_server: Any) -> None:
             max_depth, min_confidence, limit
         )
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def extract_pattern_relationships(
         entity_name: str,
         pattern_types: list[str] | None = None,
@@ -298,7 +299,7 @@ def register_phase3_knowledge_graph_tools(mcp_server: Any) -> None:
             entity_name, pattern_types, auto_create
         )
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def get_relationship_confidence_stats() -> str:
         """Get statistics about relationship confidence distribution."""
         return await _get_relationship_confidence_stats_impl()

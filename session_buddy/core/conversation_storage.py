@@ -57,14 +57,12 @@ async def capture_conversation_context(
     lines: list[str] = []
 
     # Header
-    lines.append(f"# Conversation Context: {checkpoint_type.upper()}")
-    lines.append(f"Project: {manager.current_project or 'Unknown'}")
-    lines.append(f"Timestamp: {datetime.now().isoformat()}")
+    lines.extend([f"# Conversation Context: {checkpoint_type.upper()}", f"Project: {manager.current_project or 'Unknown'}", f"Timestamp: {datetime.now().isoformat()}", ""])
 
     if quality_score is not None:
         lines.append(f"Quality Score: {quality_score}/100")
 
-    lines.append("")
+    lines.extend(["", ""])
 
     # Quality history if available
     if manager.current_project and manager._quality_history.get(
@@ -72,12 +70,11 @@ async def capture_conversation_context(
     ):
         scores = manager._quality_history[manager.current_project]
         if scores:
-            lines.append("## Quality History")
-            lines.append(f"Recent scores: {', '.join(map(str, scores[-5:]))}")
+            lines.extend(["## Quality History", f"Recent scores: {', '.join(map(str, scores[-5:]))}"])
             if len(scores) > 1:
                 trend = "improving" if scores[-1] > scores[0] else "stable"
                 lines.append(f"Trend: {trend}")
-            lines.append("")
+            lines.extend(["", ""])
 
     # Session context if available
     if manager.session_context:
@@ -89,7 +86,7 @@ async def capture_conversation_context(
                 lines.append(f"{key}: {len(value)} items")
             elif isinstance(value, dict):
                 lines.append(f"{key}: {len(value)} keys")
-        lines.append("")
+        lines.extend(["", ""])
 
     # Additional metadata
     if metadata:
@@ -97,7 +94,7 @@ async def capture_conversation_context(
         for key, value in metadata.items():
             if isinstance(value, (str, int, float, bool)):
                 lines.append(f"{key}: {value}")
-        lines.append("")
+        lines.extend(["", ""])
 
     return "\n".join(lines)
 

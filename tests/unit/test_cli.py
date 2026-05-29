@@ -6,6 +6,7 @@ Tests CLI commands using the MCPServerCLIFactory-based implementation.
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -104,3 +105,70 @@ class TestServerManagement:
         result = cli_runner.invoke(app, ["health"])
         # Health command may fail due to runtime issues but should not have import errors
         assert result.exit_code in [0, 1, 2]
+
+
+class TestCliInternals:
+    def test_read_running_pid_missing_file(self, tmp_path: Path) -> None:
+        from session_buddy.cli import _read_running_pid
+        from mcp_common import MCPServerSettings
+
+        settings = MCPServerSettings(server_name="session-buddy", cache_root=tmp_path)
+
+        assert _read_running_pid(settings) is None
+
+    def test_read_running_pid_valid_and_invalid_files(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        from session_buddy.cli import _read_running_pid
+        from mcp_common import MCPServerSettings
+
+        settings = MCPServerSettings(server_name="session-buddy", cache_root=tmp_path)
+        pid_path = settings.pid_path()
+        pid_path.parent.mkdir(parents=True, exist_ok=True)
+
+        pid_path.write_text("12345\n")
+        assert _read_running_pid(settings) == 12345
+
+        pid_path.write_text("not-a-pid")
+        assert _read_running_pid(settings) is None
+
+    @patch("session_buddy.cli.update_telemetry_counter")
+    @patch("session_buddy.cli.get_health_status")
+    def test_run_health_probe_updates_telemetry_and_snapshot(
+        self,
+        mock_get_health_status: MagicMock,
+        mock_update_telemetry_counter: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        from mcp_common import MCPServerSettings
+        from session_buddy.cli import _run_health_probe
+
+        settings = MCPServerSettings(server_name="session-buddy", cache_root=tmp_path)
+        pid_path = settings.pid_path()
+        pid_path.parent.mkdir(parents=True, exist_ok=True)
+        pid_path.write_text("4321")
+
+        async def fake_health_status(*args: object, **kwargs: object) -> dict[str, str]:
+            return {"status": "ok"}
+
+        mock_get_health_status.side_effect = fake_health_status
+
+        snapshot = _run_health_probe(settings)
+
+        assert snapshot.orchestrator_pid == 4321
+        assert snapshot.watchers_running is True
+        assert snapshot.activity_state == {"health": {"status": "ok"}}
+        mock_update_telemetry_counter.assert_called_once_with(
+            settings,
+            name="health_probes",
+            pid=4321,
+        )
+
+    def test_cli_version_flag_prints_version(self, cli_runner: CliRunner) -> None:
+        cli = create_session_buddy_cli()
+        app = cli.create_app()
+
+        result = cli_runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+        assert "session-buddy version" in result.output

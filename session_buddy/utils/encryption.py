@@ -162,7 +162,7 @@ class DataEncryption:
         except Exception as e:
             raise DecryptionError(f"Decryption failed: {e}") from e
 
-    def encrypt_dict(self, data: dict, fields: list[str] | None = None) -> dict:
+    def encrypt_dict(self, data: dict, fields: list[str] | None = None) -> dict:  # type: ignore[type-arg]
         """Encrypt specific fields in a dictionary.
 
         Args:
@@ -210,7 +210,7 @@ class DataEncryption:
 
         return result
 
-    def decrypt_dict(self, data: dict, fields: list[str] | None = None) -> dict:
+    def decrypt_dict(self, data: dict, fields: list[str] | None = None) -> dict:  # type: ignore[type-arg]
         """Decrypt specific fields in a dictionary.
 
         Args:

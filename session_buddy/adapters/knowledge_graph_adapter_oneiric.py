@@ -46,7 +46,7 @@ except ImportError:
         # Type stub for type checking when duckdb is not installed
         import types
 
-        duckdb = types.SimpleNamespace()  # type: ignore[misc,assignment]
+        duckdb = types.SimpleNamespace()  # type: ignore[assignment]
 
 # Embedding system imports
 try:
@@ -126,8 +126,9 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
                 self.db_path = str(db_path_from_settings)
         else:
             # No path and no settings provided; will be resolved later
-            self.db_path = None
+            self.db_path = ""
         self.conn: t.Any = None  # DuckDB connection (sync)
+        self._duckdb_path: str | None = None  # Explicit annotation for db_path type
         self._duckpgq_installed = False
         self._initialized = False
         self._embedding_initialized = False

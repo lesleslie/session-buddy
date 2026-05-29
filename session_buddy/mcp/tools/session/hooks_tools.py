@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from fastmcp import FastMCP
 
 
-def _get_hooks_manager():
+def _get_hooks_manager():  # type: ignore[no-untyped-def]
     """Get or create HooksManager instance.
 
     Note:
@@ -55,7 +55,7 @@ def register_hooks_tools(server: FastMCP) -> None:
     from session_buddy.core.causal_chains import CausalChainTracker
     from session_buddy.core.hooks import HookType
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def list_hooks(
         hook_type: str | None = None,
     ) -> dict[str, Any]:
@@ -89,7 +89,7 @@ def register_hooks_tools(server: FastMCP) -> None:
             "message": f"Found {total_hooks} registered hooks",
         }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def query_similar_errors(
         error_message: str, limit: int = 5
     ) -> dict[str, Any]:
@@ -137,7 +137,7 @@ def register_hooks_tools(server: FastMCP) -> None:
             ),
         }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def record_fix_success(
         error_message: str,
         action_taken: str,
@@ -182,7 +182,7 @@ def register_hooks_tools(server: FastMCP) -> None:
             ),
         }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def get_causal_chain(
         chain_id: str,
     ) -> dict[str, Any]:
@@ -234,7 +234,7 @@ def register_hooks_tools(server: FastMCP) -> None:
             },
         }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def enable_hook(hook_name: str, hook_type: str) -> dict[str, Any]:
         """Enable a specific hook."""
         # This would require hooks_manager to have a enable_hook method
@@ -245,7 +245,7 @@ def register_hooks_tools(server: FastMCP) -> None:
             "message": "This feature will be added in a future update",
         }
 
-    @server.tool()  # type: ignore[misc]
+    @server.tool()  # type: ignore[untyped-decorator]
     async def disable_hook(hook_name: str, hook_type: str) -> dict[str, Any]:
         """Disable a specific hook."""
         # This would require hooks_manager to have a disable_hook method

@@ -844,7 +844,7 @@ async def _analyze_graph_connectivity_impl() -> str:
 def register_knowledge_graph_tools(mcp_server: Any) -> None:
     """Register all knowledge graph MCP tools with the server."""
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def create_entity(
         name: str,
         entity_type: str,
@@ -854,12 +854,12 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
         """Create an entity (node) in the knowledge graph."""
         return await _create_entity_impl(name, entity_type, observations, properties)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def add_observation(entity_name: str, observation: str) -> str:
         """Add an observation (fact) to an existing entity."""
         return await _add_observation_impl(entity_name, observation)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def create_relation(
         from_entity: str,
         to_entity: str,
@@ -871,7 +871,7 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
             from_entity, to_entity, relation_type, properties
         )
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def search_entities(
         query: str,
         entity_type: str | None = None,
@@ -880,7 +880,7 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
         """Search for entities by name or observations."""
         return await _search_entities_impl(query, entity_type, limit)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def get_entity_relationships(
         entity_name: str,
         relation_type: str | None = None,
@@ -891,7 +891,7 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
             entity_name, relation_type, direction
         )
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def find_path(
         from_entity: str,
         to_entity: str,
@@ -900,12 +900,12 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
         """Find paths between two entities using DuckPGQ's SQL/PGQ graph queries."""
         return await _find_path_impl(from_entity, to_entity, max_depth)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def get_knowledge_graph_stats() -> str:
         """Get statistics about the knowledge graph."""
         return await _get_knowledge_graph_stats_impl()
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def extract_entities_from_context(
         context: str,
         auto_create: bool = False,
@@ -913,13 +913,13 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
         """Extract entities from conversation context using pattern matching."""
         return await _extract_entities_from_context_impl(context, auto_create)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def batch_create_entities(entities: list[dict[str, Any]]) -> str:
         """Bulk create multiple entities in one operation."""
         return await _batch_create_entities_impl(entities)
 
     # Phase 2: Auto-discovery tools
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def generate_embeddings(
         entity_type: str | None = None,
         batch_size: int = 50,
@@ -928,7 +928,7 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
         """Generate embeddings for entities missing them."""
         return await _generate_embeddings_impl(entity_type, batch_size, overwrite)
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def discover_relationships(
         entity_type: str | None = None,
         threshold: float = 0.75,
@@ -940,7 +940,7 @@ def register_knowledge_graph_tools(mcp_server: Any) -> None:
             entity_type, threshold, limit, batch_size
         )
 
-    @mcp_server.tool()  # type: ignore[misc]
+    @mcp_server.tool()  # type: ignore[untyped-decorator]
     async def analyze_graph_connectivity() -> str:
         """Analyze graph connectivity and health metrics."""
         return await _analyze_graph_connectivity_impl()

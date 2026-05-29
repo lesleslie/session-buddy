@@ -23,7 +23,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import operator
 import time
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -93,7 +95,7 @@ class HttpSyncMethod(SyncMethod):
         """Load last sync timestamps from state file."""
         try:
             if self._sync_state_file.exists():
-                with open(self._sync_state_file) as f:
+                with self._sync_state_file.open() as f:
                     self._last_sync_timestamp = json.load(f)
         except Exception as e:
             logger.debug(f"Could not load sync state: {e}")
@@ -103,7 +105,7 @@ class HttpSyncMethod(SyncMethod):
         """Save last sync timestamps to state file."""
         try:
             self._sync_state_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._sync_state_file, "w") as f:
+            with self._sync_state_file.open("w") as f:
                 json.dump(self._last_sync_timestamp, f, indent=2)
         except Exception as e:
             logger.warning(f"Could not save sync state: {e}")
@@ -167,15 +169,7 @@ class HttpSyncMethod(SyncMethod):
 
         logger.info(f"Starting HTTP sync to Akosha: {akosha_url}")
 
-        # Track sync statistics
-        stats = {
-            "memories_uploaded": 0,
-            "reflections_uploaded": 0,
-            "entities_uploaded": 0,
-            "relationships_uploaded": 0,
-            "bytes_transferred": 0,
-            "errors": [],
-        }
+        stats = self._init_sync_stats()
 
         try:
             async with httpx.AsyncClient(
@@ -186,46 +180,12 @@ class HttpSyncMethod(SyncMethod):
                     pool=10.0,
                 )
             ) as client:
-                # Step 1: Sync conversations (memories)
-                memories_result = await self._sync_conversations(
-                    client=client,
-                    akosha_url=akosha_url,
-                    batch_size=batch_size,
-                    incremental=incremental,
+                await self._sync_with_client(
+                    client, akosha_url, batch_size, incremental,
+                    upload_reflections, upload_knowledge_graph, stats
                 )
-                stats["memories_uploaded"] = memories_result["count"]
-                stats["bytes_transferred"] += memories_result["bytes"]
-                stats["errors"].extend(memories_result.get("errors", []))
 
-                # Step 2: Sync reflections if enabled
-                if upload_reflections:
-                    reflections_result = await self._sync_reflections(
-                        client=client,
-                        akosha_url=akosha_url,
-                        batch_size=batch_size,
-                        incremental=incremental,
-                    )
-                    stats["reflections_uploaded"] = reflections_result["count"]
-                    stats["bytes_transferred"] += reflections_result["bytes"]
-                    stats["errors"].extend(reflections_result.get("errors", []))
-
-                # Step 3: Sync knowledge graph if enabled
-                if upload_knowledge_graph:
-                    kg_result = await self._sync_knowledge_graph(
-                        client=client,
-                        akosha_url=akosha_url,
-                        batch_size=batch_size,
-                        incremental=incremental,
-                    )
-                    stats["entities_uploaded"] = kg_result["entities_count"]
-                    stats["relationships_uploaded"] = kg_result["relationships_count"]
-                    stats["bytes_transferred"] += kg_result["bytes"]
-                    stats["errors"].extend(kg_result.get("errors", []))
-
-            # Update sync state on success
-            current_time = datetime.now(UTC).isoformat()
-            self._last_sync_timestamp["last_sync"] = current_time
-            self._save_sync_state()
+            self._update_sync_state()
 
             duration = time.monotonic() - start_time
 
@@ -237,17 +197,7 @@ class HttpSyncMethod(SyncMethod):
                 f"{stats['bytes_transferred']} bytes in {duration:.2f}s"
             )
 
-            return {
-                "method": "http",
-                "success": True,
-                "memories_uploaded": stats["memories_uploaded"],
-                "reflections_uploaded": stats["reflections_uploaded"],
-                "entities_uploaded": stats["entities_uploaded"],
-                "relationships_uploaded": stats["relationships_uploaded"],
-                "bytes_transferred": stats["bytes_transferred"],
-                "duration_seconds": duration,
-                "errors": stats["errors"] if stats["errors"] else None,
-            }
+            return self._build_sync_result(stats, duration)
 
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP sync failed with status {e.response.status_code}: {e}")
@@ -270,6 +220,82 @@ class HttpSyncMethod(SyncMethod):
                 method="http",
                 original=e,
             ) from e
+
+    def _init_sync_stats(self) -> dict[str, Any]:
+        """Initialize sync statistics dictionary."""
+        errors: list[dict[str, Any]] = []
+        return {
+            "memories_uploaded": 0,
+            "reflections_uploaded": 0,
+            "entities_uploaded": 0,
+            "relationships_uploaded": 0,
+            "bytes_transferred": 0,
+            "errors": errors,
+        }
+
+    async def _sync_with_client(
+        self,
+        client: httpx.AsyncClient,
+        akosha_url: str,
+        batch_size: int,
+        incremental: bool,
+        upload_reflections: bool,
+        upload_knowledge_graph: bool,
+        stats: dict[str, Any],
+    ) -> None:
+        """Execute all sync operations with HTTP client."""
+        memories_result = await self._sync_conversations(
+            client=client,
+            akosha_url=akosha_url,
+            batch_size=batch_size,
+            incremental=incremental,
+        )
+        stats["memories_uploaded"] = memories_result["count"]
+        stats["bytes_transferred"] += memories_result["bytes"]
+        stats["errors"].extend(memories_result.get("errors", []))
+
+        if upload_reflections:
+            reflections_result = await self._sync_reflections(
+                client=client,
+                akosha_url=akosha_url,
+                batch_size=batch_size,
+                incremental=incremental,
+            )
+            stats["reflections_uploaded"] = reflections_result["count"]
+            stats["bytes_transferred"] += reflections_result["bytes"]
+            stats["errors"].extend(reflections_result.get("errors", []))
+
+        if upload_knowledge_graph:
+            kg_result = await self._sync_knowledge_graph(
+                client=client,
+                akosha_url=akosha_url,
+                batch_size=batch_size,
+                incremental=incremental,
+            )
+            stats["entities_uploaded"] = kg_result["entities_count"]
+            stats["relationships_uploaded"] = kg_result["relationships_count"]
+            stats["bytes_transferred"] += kg_result["bytes"]
+            stats["errors"].extend(kg_result.get("errors", []))
+
+    def _update_sync_state(self) -> None:
+        """Update sync state on successful completion."""
+        current_time = datetime.now(UTC).isoformat()
+        self._last_sync_timestamp["last_sync"] = current_time
+        self._save_sync_state()
+
+    def _build_sync_result(self, stats: dict[str, Any], duration: float) -> dict[str, Any]:
+        """Build final sync result dictionary."""
+        return {
+            "method": "http",
+            "success": True,
+            "memories_uploaded": stats["memories_uploaded"],
+            "reflections_uploaded": stats["reflections_uploaded"],
+            "entities_uploaded": stats["entities_uploaded"],
+            "relationships_uploaded": stats["relationships_uploaded"],
+            "bytes_transferred": stats["bytes_transferred"],
+            "duration_seconds": duration,
+            "errors": stats["errors"] if len(stats["errors"]) > 0 else None,
+        }
 
     async def _sync_conversations(
         self,
@@ -361,28 +387,27 @@ class HttpSyncMethod(SyncMethod):
             results = conn.execute(query, params).fetchall()
             conn.close()
 
-            conversations = []
-            for row in results:
-                conversations.append(
-                    {
-                        "id": row[0],
-                        "content": row[1],
-                        "embedding": list(row[2]) if row[2] else None,
-                        "category": row[3],
-                        "subcategory": row[4],
-                        "importance_score": row[5],
-                        "memory_tier": row[6],
-                        "access_count": row[7],
-                        "last_accessed": row[8],
-                        "project": row[9],
-                        "namespace": row[10],
-                        "timestamp": row[11],
-                        "session_id": row[12],
-                        "user_id": row[13],
-                        "searchable_content": row[14],
-                        "reasoning": row[15],
-                    }
-                )
+            conversations = [
+                {
+                    "id": row[0],
+                    "content": row[1],
+                    "embedding": list(row[2]) if row[2] else None,
+                    "category": row[3],
+                    "subcategory": row[4],
+                    "importance_score": row[5],
+                    "memory_tier": row[6],
+                    "access_count": row[7],
+                    "last_accessed": row[8],
+                    "project": row[9],
+                    "namespace": row[10],
+                    "timestamp": row[11],
+                    "session_id": row[12],
+                    "user_id": row[13],
+                    "searchable_content": row[14],
+                    "reasoning": row[15],
+                }
+                for row in results
+            ]
 
             return conversations
 
@@ -542,25 +567,24 @@ class HttpSyncMethod(SyncMethod):
             results = conn.execute(query, params).fetchall()
             conn.close()
 
-            reflections = []
-            for row in results:
-                reflections.append(
-                    {
-                        "id": row[0],
-                        "content": row[1],
-                        "embedding": list(row[2]) if row[2] else None,
-                        "category": row[3],
-                        "importance_score": row[4],
-                        "memory_tier": row[5],
-                        "tags": list(row[6]) if row[6] else [],
-                        "related_entities": list(row[7]) if row[7] else [],
-                        "timestamp": row[8],
-                        "project": row[9],
-                        "namespace": row[10],
-                        "access_count": row[11],
-                        "last_accessed": row[12],
-                    }
-                )
+            reflections = [
+                {
+                    "id": row[0],
+                    "content": row[1],
+                    "embedding": list(row[2]) if row[2] else None,
+                    "category": row[3],
+                    "importance_score": row[4],
+                    "memory_tier": row[5],
+                    "tags": list(row[6]) if row[6] else [],
+                    "related_entities": list(row[7]) if row[7] else [],
+                    "timestamp": row[8],
+                    "project": row[9],
+                    "namespace": row[10],
+                    "access_count": row[11],
+                    "last_accessed": row[12],
+                }
+                for row in results
+            ]
 
             return reflections
 
@@ -739,21 +763,20 @@ class HttpSyncMethod(SyncMethod):
             results = conn.execute(query, params).fetchall()
             conn.close()
 
-            entities = []
-            for row in results:
-                entities.append(
-                    {
-                        "id": row[0],
-                        "name": row[1],
-                        "entity_type": row[2],
-                        "observations": list(row[3]) if row[3] else [],
-                        "properties": json.loads(row[4]) if row[4] else {},
-                        "created_at": row[5],
-                        "updated_at": row[6],
-                        "metadata": json.loads(row[7]) if row[7] else {},
-                        "embedding": list(row[8]) if row[8] else None,
-                    }
-                )
+            entities = [
+                {
+                    "id": row[0],
+                    "name": row[1],
+                    "entity_type": row[2],
+                    "observations": list(row[3]) if row[3] else [],
+                    "properties": json.loads(row[4]) if row[4] else {},
+                    "created_at": row[5],
+                    "updated_at": row[6],
+                    "metadata": json.loads(row[7]) if row[7] else {},
+                    "embedding": list(row[8]) if row[8] else None,
+                }
+                for row in results
+            ]
 
             return entities
 
@@ -807,20 +830,19 @@ class HttpSyncMethod(SyncMethod):
             results = conn.execute(query, params).fetchall()
             conn.close()
 
-            relationships = []
-            for row in results:
-                relationships.append(
-                    {
-                        "id": row[0],
-                        "from_entity": row[1],
-                        "to_entity": row[2],
-                        "relation_type": row[3],
-                        "properties": json.loads(row[4]) if row[4] else {},
-                        "created_at": row[5],
-                        "updated_at": row[6],
-                        "metadata": json.loads(row[7]) if row[7] else {},
-                    }
-                )
+            relationships = [
+                {
+                    "id": row[0],
+                    "from_entity": row[1],
+                    "to_entity": row[2],
+                    "relation_type": row[3],
+                    "properties": json.loads(row[4]) if row[4] else {},
+                    "created_at": row[5],
+                    "updated_at": row[6],
+                    "metadata": json.loads(row[7]) if row[7] else {},
+                }
+                for row in results
+            ]
 
             return relationships
 
@@ -1011,12 +1033,14 @@ class HttpSyncMethod(SyncMethod):
                 result = response.json()
 
                 # Extract result from MCP response
-                if "result" in result:
-                    return result["result"]
-                if "error" in result:
-                    return {"status": "failed", "error": result["error"]}
+                result_data: dict[str, Any] = result
+                if "result" in result_data:
+                    result_val: Any = result_data["result"]
+                    return result_val  # type: ignore[no-any-return]
+                if "error" in result_data:
+                    return {"status": "failed", "error": result_data["error"]}
 
-                return result
+                return result_data
 
             except httpx.HTTPStatusError:
                 if attempt >= MAX_RETRIES - 1:

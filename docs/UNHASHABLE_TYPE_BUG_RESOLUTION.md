@@ -208,9 +208,9 @@ If upstream fixes take too long:
 
 ### FastMCP GitHub Issues
 
-- [Issue #932](https://github.com/jlowin/fastmcp/issues/932) - LLM-to-MCP Parameter Error
-- [Issue #1252](https://github.com/jlowin/fastmcp/issues/1252) - CallToolResult Error
-- [Issue #224](https://github.com/jlowin/fastmcp/issues/224) - Optional Parameters
+- [Issue #932](https://github.com/PrefectHQ/fastmcp/issues/932) - LLM-to-MCP Parameter Error
+- [Issue #1252](https://github.com/PrefectHQ/fastmcp/issues/1252) - CallToolResult Error
+- [Issue #224](https://github.com/PrefectHQ/fastmcp/issues/224) - Optional Parameters
 
 ### Documentation References
 

@@ -253,9 +253,7 @@ class MemorySyncClient:
                 try:
                     # Parse ISO format timestamp
                     if isinstance(created_at, str):
-                        memory_time = datetime.fromisoformat(
-                            created_at.replace("Z", "+00:00")
-                        )
+                        memory_time = datetime.fromisoformat(created_at)
                     elif isinstance(created_at, datetime):
                         memory_time = created_at
                     else:
@@ -359,7 +357,7 @@ class AkoshaSync:
 
             except Exception as e:
                 logger.error(f"Failed to sync from {url}: {e}")
-                errors_list = cast(list, self.stats["errors"])
+                errors_list = cast("list[dict[str, Any]]", self.stats["errors"])
                 errors_list.append({"url": url, "error": str(e)})
 
         logger.info(
@@ -411,7 +409,7 @@ class AkoshaSync:
                     logger.error(
                         f"Failed to sync memory {memory.get('id', 'unknown')}: {e}"
                     )
-                    errors_list = cast(list, self.stats["errors"])
+                    errors_list = cast("list[dict[str, Any]]", self.stats["errors"])
                     errors_list.append(
                         {
                             "url": base_url,
@@ -484,7 +482,7 @@ class AkoshaSync:
         text: str,
         embedding: Any,
         source: str,
-    ) -> None:
+    ) -> dict[str, Any]:
         """Store memory with embedding in AkOSHA.
 
         Args:

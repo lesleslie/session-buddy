@@ -56,7 +56,7 @@ async def _close_adapter_method(requests: t.Any, logger: t.Any) -> bool:
     if hasattr(requests, "close") and callable(requests.close):
         maybe_await = requests.close()
         if hasattr(maybe_await, "__await__"):
-            await maybe_await  # type: ignore[func-returns-value]
+            await maybe_await
         logger.debug("Requests adapter cleanup completed successfully")
         return True
     return False
@@ -103,7 +103,7 @@ async def cleanup_http_clients() -> None:
         if callable(cleanup):
             maybe_await = cleanup()
             if hasattr(maybe_await, "__await__"):
-                await maybe_await  # type: ignore[func-returns-value]
+                await maybe_await
             logger.debug("HTTP client adapter cleanup completed successfully")
             return
 

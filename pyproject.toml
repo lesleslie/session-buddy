@@ -117,6 +117,7 @@ markers = [
     "chaos: marks test as chaos engineering test",
     "ai_generated: marks test as AI-generated test",
     "breakthrough: marks test as breakthrough frontier test",
+    "parallel_safe: mark test as safe for parallel execution",
 ]
 
 [tool.coverage.run]
@@ -194,42 +195,25 @@ ignore-words-list = "crate,uptodate,nd,nin"
 
 [tool.creosote]
 paths = [
-    "session-buddy",
+    "session_buddy",
 ]
 deps-file = "pyproject.toml"
 exclude-deps = [
+    # Optional/missing imports - all use try/except ImportError patterns
+    "aiofiles",     # team_knowledge uses importlib find_spec, not direct import
+    "aiohttp",     # ollama_provider fallback, may not be used if HTTPClientAdapter available
+    "dhara",        # settings.py has optional URL field, may not connect
+    "onnxruntime",  # reflection/embeddings.py try/except ImportError, optional
+    "opentelemetry-api",      # opentelemetry_sdk imports via try/except
+    "opentelemetry-exporter-otlp-proto-grpc",  # try/except optional
+    "opentelemetry-exporter-otlp-proto-http",   # try/except optional
+    "opentelemetry-sdk",      # try/except optional
+    "psutil",       # app_monitor, interruption_manager use try/except ImportError
+    "rich",         # quality_engine.py only uses in f-string for output formatting
+    "tiktoken",     # token_optimizer.py uses try/except ImportError
+    "transformers", # reflection/embeddings.py only if ONNX available, try/except
+    # Only keep hatchling - the only dependency from pyproject.toml that's in exclude-deps
     "hatchling",
-    "pytest",
-    "pytest-asyncio",
-    "pytest-cov",
-    "pytest-mock",
-    "pytest-xdist",
-    "pytest-timeout",
-    "pytest-benchmark",
-    "ruff",
-    "pyright",
-    "bandit",
-    "creosote",
-    "codespell",
-    "refurb",
-    "complexipy",
-    # Optional dependencies used conditionally or in TYPE_CHECKING
-    "aiofiles",
-    "aiohttp",
-    "duckdb",
-    "fastmcp",
-    "onnxruntime",
-    "psutil",
-    "rich",
-    "scipy",
-    "scikit-learn",
-    "structlog",
-    "tiktoken",
-    "transformers",
-    "typer",
-    # Transitive dependencies with known vulnerabilities (no fix available)
-    # protobuf GHSA-7gcm-g887-7qv7: JSON parsing depth issue, not exploitable in this context
-    "protobuf",
 ]
 
 [tool.refurb]

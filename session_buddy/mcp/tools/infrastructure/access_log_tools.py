@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 def register_access_log_tools(mcp: FastMCP) -> None:
-    @mcp.tool()  # type: ignore[no-untyped-call]
+    @mcp.tool()
     async def access_log_stats(
         hours: int = 24,
         top_n: int = 10,

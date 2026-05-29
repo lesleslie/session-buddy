@@ -420,6 +420,7 @@ from session_buddy.storage.akosha_config import AkoshaSyncConfig
 
 config = AkoshaSyncConfig(
     cloud_bucket="",  # No cloud storage
+# lychee: ignore
     cloud_endpoint="http://localhost:8682/mcp",
 )
 

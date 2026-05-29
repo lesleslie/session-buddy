@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -319,9 +320,9 @@ class KnowledgeGraphDatabase:
 
         # Type annotations for clarity - result is tuple from fetchone()
         entity_id_str: str = str(result[0])
-        name: str = str(result[1])  # type: ignore[misc]
-        entity_type: str = str(result[2])  # type: ignore[misc]
-        observations: list[str] = list(result[3]) if result[3] else []  # type: ignore[misc]
+        name: str = str(result[1])
+        entity_type: str = str(result[2])
+        observations: list[str] = list(result[3]) if result[3] else []
         properties_json: str | None = result[4] if len(result) > 4 else None
         created_at_raw = result[5] if len(result) > 5 else None
         updated_at_raw = result[6] if len(result) > 6 else None
@@ -371,9 +372,9 @@ class KnowledgeGraphDatabase:
 
         # Type annotations for clarity - result is tuple from fetchone()
         entity_id: str = str(result[0])
-        entity_name: str = str(result[1])  # type: ignore[misc]
-        entity_type_str: str = str(result[2])  # type: ignore[misc]
-        observations: list[str] = list(result[3]) if result[3] else []  # type: ignore[misc]
+        entity_name: str = str(result[1])
+        entity_type_str: str = str(result[2])
+        observations: list[str] = list(result[3]) if result[3] else []
         properties_json: str | None = result[4] if len(result) > 4 else None
         created_at_raw = result[5] if len(result) > 5 else None
         updated_at_raw = result[6] if len(result) > 6 else None

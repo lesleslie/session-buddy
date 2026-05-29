@@ -7,17 +7,19 @@ To apply this patch, add these methods to the adapter class and update
 the _infer_relationship_type method.
 
 """
+from __future__ import annotations
 
 import json
 import re
 import typing as t
+from contextlib import suppress
 
 if t.TYPE_CHECKING:
     pass
 
 
 def phase3_infer_relationship_type(
-    self,
+    self: t.Any,
     from_entity: dict[str, t.Any],
     to_entity: dict[str, t.Any],
     similarity: float,
@@ -77,7 +79,7 @@ def phase3_infer_relationship_type(
 
 
 # Regex patterns for relationship extraction
-_RELATIONSHIP_PATTERNS: dict[str, re.Pattern[str]] = {
+_RELATIONSHIP_PATTERNS: dict[str, str] = {
     r"\buses\s+(\w+)": "uses",
     r"\bextends\s+(\w+)": "extends",
     r"\bdepends\s+on\s+(\w+)": "depends_on",
@@ -110,7 +112,7 @@ def _extract_pattern_from_text(
 
 
 def _extract_relationships_from_observations(
-    self,
+    self: t.Any,
     entity_id: str,
     entity_name: str,
     observations: list[str],
@@ -144,7 +146,7 @@ def _extract_relationships_from_observations(
 
 
 async def discover_transitive_relationships(
-    self,
+    self: t.Any,
     max_depth: int = 3,
     min_confidence: str = "medium",
     limit: int = 100,
@@ -274,7 +276,7 @@ def _infer_transitive_type(types: list[str]) -> str:
 
 
 async def create_entity_with_patterns(
-    self,
+    self: t.Any,
     name: str,
     entity_type: str,
     observations: list[str] | None = None,
@@ -306,7 +308,7 @@ async def create_entity_with_patterns(
         )
 
         for rel in discovered:
-            try:
+            with suppress(Exception):
                 target_entity = await self.find_entity_by_name(rel["to_name"])
                 if target_entity:
                     await self.create_relation(
@@ -319,10 +321,8 @@ async def create_entity_with_patterns(
                             "evidence": rel["evidence"],
                         },
                     )
-            except Exception:
-                pass
 
-    return entity
+    return entity  # type: ignore[no-any-return]
 
 
 # Export all functions

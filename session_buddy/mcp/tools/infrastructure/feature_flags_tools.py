@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 def register_feature_flags_tools(mcp: FastMCP) -> None:
-    @mcp.tool()  # type: ignore[no-untyped-call]
+    @mcp.tool()
     async def feature_flags_status() -> dict[str, Any]:
         """Return current feature flag values."""
         flags = get_feature_flags()
@@ -25,7 +25,7 @@ def register_feature_flags_tools(mcp: FastMCP) -> None:
             "enable_filesystem_extraction": flags.enable_filesystem_extraction,
         }
 
-    @mcp.tool()  # type: ignore[no-untyped-call]
+    @mcp.tool()
     async def rollout_plan() -> dict[str, Any]:
         """Return a staged enablement plan for features (read-only guidance)."""
         return {

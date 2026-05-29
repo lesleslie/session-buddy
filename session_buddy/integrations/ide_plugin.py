@@ -23,12 +23,15 @@ Example:
 from __future__ import annotations
 
 import re
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from session_buddy.storage.skills_storage import SkillsStorage
+
+from session_buddy.storage.skills_embeddings import pack_embedding
 
 
 # Keyboard shortcuts for common skills (IDE-specific)
@@ -109,7 +112,7 @@ class IDESuggestion:
     estimated_duration_seconds: float | None = None
     workflow_phase: str | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "skill_name": self.skill_name,
@@ -244,22 +247,18 @@ class IDEPluginProtocol:
         recommendations = []
 
         # Try semantic search first
-        try:
-            from session_buddy.storage.skills_embeddings import (
-                get_embedding_service,
-                pack_embedding,
-            )
+        with suppress(Exception):
+            from session_buddy.storage.skills_embeddings import get_embedding_service
 
             embedding_service = get_embedding_service()
             embedding_service.initialize()
-
             query_embedding = embedding_service.generate_embedding(query)
 
             if query_embedding:
                 packed = pack_embedding(query_embedding)
 
                 results = self.storage.search_by_query_workflow_aware(
-                    packed_embedding=packed,
+                    query_embedding=packed,
                     workflow_phase=workflow_phase,
                     limit=limit * 2,  # Get more, then filter
                     min_similarity=0.3,
@@ -275,9 +274,6 @@ class IDEPluginProtocol:
                             context,
                         )
                         recommendations.append(suggestion)
-        except Exception:
-            # Embeddings unavailable, fall back to pattern matching
-            pass
 
         # Fallback: Pattern-based recommendations
         if not recommendations:
@@ -330,8 +326,8 @@ class IDEPluginProtocol:
         # Build query
         if parts:
             return " ".join(parts)
-        else:
-            return "code quality and testing"
+
+        return "code quality and testing"
 
     def _infer_workflow_phase(self, context: IDEContext) -> str:
         """Infer Oneiric workflow phase from context.
@@ -348,7 +344,7 @@ class IDEPluginProtocol:
         if context.has_selection():
             # User has selected code, likely refactoring
             selection = context.selected_code.strip().lower()
-            if any(kw in selection for kw in ["import", "from"]):
+            if any(kw in selection for kw in ("import", "from")):
                 return "setup"
             return "execution"
 
@@ -375,7 +371,7 @@ class IDEPluginProtocol:
         language_patterns = self.LANGUAGE_PATTERNS.get(context.language, {})
 
         # Get code snippet around cursor
-        code_to_check = context.selected_code or ""
+        code_to_check = context.selected_code
 
         # Check pattern mappings
         for pattern, skill_names in self.PATTERN_MAPPINGS.items():
@@ -389,7 +385,7 @@ class IDEPluginProtocol:
                     recommendations.append(suggestion)
 
         # Add language-specific recommendations
-        for category, skills in language_patterns.items():
+        for skills in language_patterns.values():
             for skill_name in skills:
                 if skill_name not in {r.skill_name for r in recommendations}:
                     suggestion = self._generate_suggestion(
@@ -418,7 +414,7 @@ class IDEPluginProtocol:
             IDESuggestion object
         """
         # Get skill metrics for duration estimate
-        metrics = self.storage.get_skill_metrics(skill_name)
+        metrics = self.storage.get_metrics(skill_name)
 
         estimated_duration = None
         if metrics:

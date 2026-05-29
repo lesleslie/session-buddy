@@ -14,6 +14,7 @@ Commands:
 from __future__ import annotations
 
 import asyncio
+import operator
 from pathlib import Path
 
 import typer
@@ -62,7 +63,7 @@ def analytics_sessions(
     """
     days = parse_days_option(days)
 
-    async def run():
+    async def run() -> None:
         analytics = SessionAnalytics()
         stats = await analytics.get_session_stats(days=days, component=component)
 
@@ -99,7 +100,7 @@ def analytics_duration(
     """
     days = parse_days_option(days)
 
-    async def run():
+    async def run() -> None:
         analytics = SessionAnalytics()
         durations = await analytics.get_average_session_duration(
             days=days, component=component
@@ -122,7 +123,7 @@ def analytics_duration(
             typer.echo("")
 
             for component_name, avg_duration in sorted(
-                durations.items(), key=lambda x: x[1], reverse=True
+                durations.items(), key=operator.itemgetter(1), reverse=True
             ):
                 hours = int(avg_duration // 3600)
                 minutes = int((avg_duration % 3600) // 60)
@@ -164,7 +165,7 @@ def analytics_components(
         typer.echo("Error: limit must be between 1 and 100", err=True)
         raise typer.Exit(1)
 
-    async def run():
+    async def run() -> None:
         analytics = SessionAnalytics()
         components = await analytics.get_most_active_components(days=days, limit=limit)
 
@@ -201,7 +202,7 @@ def analytics_errors(
     """
     days = parse_days_option(days)
 
-    async def run():
+    async def run() -> None:
         analytics = SessionAnalytics()
         error_rates = await analytics.get_session_error_rate(
             days=days, component=component
@@ -225,7 +226,9 @@ def analytics_errors(
 
             # Sort by error rate (highest first)
             for component_name, stats in sorted(
-                error_rates.items(), key=lambda x: x[1]["error_rate"], reverse=True
+                error_rates.items(),
+                key=operator.itemgetter(1),
+                reverse=True,
             ):
                 typer.echo(f"  {component_name}:")
                 typer.echo(f"    Error Rate:    {stats['error_rate']:.2f}%")
@@ -253,7 +256,7 @@ def analytics_active(
         session-buddy analytics active
     """
 
-    async def run():
+    async def run() -> None:
         analytics = SessionAnalytics()
         active = await analytics.get_active_sessions()
 
@@ -310,7 +313,7 @@ def analytics_report(
     """
     days = parse_days_option(days)
 
-    async def run():
+    async def run() -> None:
         analytics = SessionAnalytics()
 
         typer.echo(f"Generating analytics report for last {days} days...", err=True)

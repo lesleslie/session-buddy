@@ -117,7 +117,7 @@ class NaturalLanguageParser:
         """Process a pattern handler with exception handling."""
         with contextlib.suppress(TypeError, ValueError, RuntimeError, AttributeError):
             if callable(handler):
-                return handler(match)  # type: ignore[no-untyped-call]
+                return handler(match)
         return None
 
     def _convert_result_to_datetime(

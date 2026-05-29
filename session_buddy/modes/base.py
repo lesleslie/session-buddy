@@ -64,7 +64,7 @@ class ModeConfig:
         Returns:
             Dictionary representation of the config
         """
-        return {
+        base = {
             "mode": self.name,
             "database_path": self.database_path,
             "storage_backend": self.storage_backend,
@@ -78,8 +78,8 @@ class ModeConfig:
             "enable_auto_store": self.enable_auto_store,
             "enable_crackerjack": self.enable_crackerjack,
             "enable_git_integration": self.enable_git_integration,
-            **self.additional_settings,
         }
+        return base | self.additional_settings
 
 
 class OperationMode(ABC):

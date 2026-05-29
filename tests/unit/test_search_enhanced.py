@@ -849,10 +849,10 @@ class TestTemporalSearchParser:
     def test_parse_time_expression_unparseable(
         self, temporal_parser: TemporalSearchParser
     ) -> None:
-        """Test parsing unparseable time expression."""
+        """Test parsing unparsable time expression."""
         result = temporal_parser.parse_time_expression("maybe next century")
 
-        # Returns empty TimeRange for unparseable expressions
+        # Returns empty TimeRange for unparsable expressions
         assert result.start is None or result.end is None
 
     def test_parse_time_expression_uppercase(
@@ -1371,7 +1371,7 @@ class TestAsyncSearch:
     async def test_search_temporal_unparseable_expression(
         self, enhanced_search_engine: EnhancedSearchEngine
     ) -> None:
-        """Test search_temporal with unparseable time expression."""
+        """Test search_temporal with unparsable time expression."""
         results = await enhanced_search_engine.search_temporal(
             "maybe never"
         )

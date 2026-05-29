@@ -155,7 +155,7 @@ def _insert_entities(
     for ent in entities:
         if not isinstance(ent, ExtractedEntity):
             # When validated from JSON, Pydantic ensures type; guard anyway
-            ent = ExtractedEntity.model_validate(ent)  # type: ignore[assignment]
+            ent = ExtractedEntity.model_validate(ent)
         ent_id = _new_id("ent")
         conn.execute(
             """
@@ -180,7 +180,7 @@ def _insert_relationships(
     relationship_ids: list[str] = []
     for rel in relationships:
         if not isinstance(rel, EntityRelationship):
-            rel = EntityRelationship.model_validate(rel)  # type: ignore[assignment]
+            rel = EntityRelationship.model_validate(rel)
         from_id = value_to_id.get(rel.from_entity)
         to_id = value_to_id.get(rel.to_entity)
         if not (from_id and to_id):

@@ -1133,17 +1133,16 @@ Timestamp: {health_info["timestamp"]}
                 output.append(f"📊 Quality score: {result['quality_score']}/100")
 
             if result.get("reflection_stored"):
-                output.append(
-                    f"💾 Reflection stored: {result.get('reflection_id', 'unknown')}"
-                )
-                output.append(f"🏷️ Tags: {', '.join(result.get('tags', []))}")
+                output.extend((
+                    f"💾 Reflection stored: {result.get('reflection_id', 'unknown')}",
+                    f"🏷️ Tags: {', '.join(result.get('tags', []))}",
+                ))
             else:
                 output.append("⚠️ Reflection storage skipped")
 
             output.append("\n✅ Context preserved before compaction")
             return "\n".join(output)
-        else:
-            return f"❌ Pre-compact sync failed: {result.get('error', 'unknown error')}"
+        return f"❌ Pre-compact sync failed: {result.get('error', 'unknown error')}"
 
     compat_tools = {
         name: SimpleNamespace(function=tool, fn=tool, parameters={"properties": {}})
@@ -1162,6 +1161,6 @@ Timestamp: {health_info["timestamp"]}
     async def get_tools() -> dict[str, Any]:
         return compat_tools
 
-    mcp_server.get_tools = get_tools
-    mcp_server.tools = compat_tools
-    mcp_server._tools = compat_tools
+    mcp_server.get_tools = get_tools  # type: ignore[attr-defined]
+    mcp_server.tools = compat_tools  # type: ignore[attr-defined]
+    mcp_server._tools = compat_tools  # type: ignore[attr-defined]

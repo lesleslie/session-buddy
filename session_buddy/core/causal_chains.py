@@ -546,8 +546,11 @@ class CausalChainTracker:
         from session_buddy.reflection_tools import generate_embedding
 
         embedding = await generate_embedding(text)
+        if embedding is None:
+            msg = "Embedding generation returned None"
+            raise ValueError(msg)
 
         # Cache for future use
         self._embedding_cache[text] = embedding
 
-        return embedding  # type: ignore[no-any-return]
+        return embedding

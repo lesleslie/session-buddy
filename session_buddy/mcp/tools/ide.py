@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import operator
 import re
 import time
 import typing as t
@@ -244,18 +245,17 @@ class PyCharmMCPAdapter:
                 pattern=pattern,
                 file_pattern=file_pattern,
             )
-            search_results = []
-            for item in results[: self._max_results]:
-                search_results.append(
-                    SearchResult(
-                        file_path=item.get("file_path", ""),
-                        line_number=item.get("line", 0),
-                        column=item.get("column", 0),
-                        match_text=item.get("match", ""),
-                        context_before=item.get("context_before"),
-                        context_after=item.get("context_after"),
-                    )
+            search_results = [
+                SearchResult(
+                    file_path=item.get("file_path", ""),
+                    line_number=item.get("line", 0),
+                    column=item.get("column", 0),
+                    match_text=item.get("match", ""),
+                    context_before=item.get("context_before"),
+                    context_after=item.get("context_after"),
                 )
+                for item in results[: self._max_results]
+            ]
             return search_results
 
         except TimeoutError:
@@ -446,18 +446,17 @@ def register_ide_tools(mcp: FastMCP) -> None:
             problems = await adapter.get_file_problems(file_path, errors_only)
 
             # Convert to ToolIssue-compatible format
-            issues = []
-            for prob in problems:
-                issues.append(
-                    {
-                        "file_path": file_path,
-                        "line_number": prob.get("line", 0),
-                        "column": prob.get("column", 0),
-                        "message": prob.get("message", ""),
-                        "severity": prob.get("severity", "ERROR").upper(),
-                        "category": prob.get("category", "GENERAL"),
-                    }
-                )
+            issues = [
+                {
+                    "file_path": file_path,
+                    "line_number": prob.get("line", 0),
+                    "column": prob.get("column", 0),
+                    "message": prob.get("message", ""),
+                    "severity": prob.get("severity", "ERROR").upper(),
+                    "category": prob.get("category", "GENERAL"),
+                }
+                for prob in problems
+            ]
 
             return json.dumps(
                 {
@@ -488,18 +487,17 @@ def register_ide_tools(mcp: FastMCP) -> None:
             results = await adapter.search_regex(pattern, file_pattern)
 
             # Convert to serializable format
-            matches = []
-            for result in results:
-                matches.append(
-                    {
-                        "file_path": result.file_path,
-                        "line_number": result.line_number,
-                        "column": result.column,
-                        "match_text": result.match_text,
-                        "context_before": result.context_before,
-                        "context_after": result.context_after,
-                    }
-                )
+            matches = [
+                {
+                    "file_path": result.file_path,
+                    "line_number": result.line_number,
+                    "column": result.column,
+                    "match_text": result.match_text,
+                    "context_before": result.context_before,
+                    "context_after": result.context_after,
+                }
+                for result in results
+            ]
 
             return json.dumps(
                 {
@@ -556,17 +554,16 @@ def register_ide_tools(mcp: FastMCP) -> None:
             usages = await adapter.find_usages(symbol_name)
 
             # Convert to serializable format
-            usage_list = []
-            for usage in usages:
-                usage_list.append(
-                    {
-                        "file_path": usage.get("file_path", ""),
-                        "line_number": usage.get("line", 0),
-                        "column": usage.get("column", 0),
-                        "type": usage.get("type", "reference"),
-                        "symbol": usage.get("symbol", symbol_name),
-                    }
-                )
+            usage_list = [
+                {
+                    "file_path": usage.get("file_path", ""),
+                    "line_number": usage.get("line", 0),
+                    "column": usage.get("column", 0),
+                    "type": usage.get("type", "reference"),
+                    "symbol": usage.get("symbol", symbol_name),
+                }
+                for usage in usages
+            ]
 
             return json.dumps(
                 {
@@ -592,11 +589,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
         try:
             health = await adapter.health_check()
             return json.dumps(
-                {
-                    "success": True,
-                    "healthy": health["mcp_available"],
-                    **health,
-                }
+                {"success": True, "healthy": health["mcp_available"]} | health
             )
 
         except Exception as e:

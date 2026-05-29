@@ -23,8 +23,12 @@ def _load_git_operations_module():
     git_worktrees.create_commit = lambda *args, **kwargs: (True, "hash")  # type: ignore[attr-defined]
     git_worktrees.get_git_status = lambda *args, **kwargs: ([], [])  # type: ignore[attr-defined]
     git_worktrees.get_staged_files = lambda *args, **kwargs: []  # type: ignore[attr-defined]
+    git_worktrees.get_worktree_info = lambda *args, **kwargs: None  # type: ignore[attr-defined]
     git_worktrees.is_git_operation_in_progress = lambda *args, **kwargs: False  # type: ignore[attr-defined]
     git_worktrees.is_git_repository = lambda *args, **kwargs: True  # type: ignore[attr-defined]
+    git_worktrees.is_git_worktree = lambda *args, **kwargs: False  # type: ignore[attr-defined]
+    git_worktrees.list_worktrees = lambda *args, **kwargs: []  # type: ignore[attr-defined]
+    git_worktrees.get_git_root = lambda *args, **kwargs: None  # type: ignore[attr-defined]
     git_worktrees.schedule_automatic_git_gc = lambda *args, **kwargs: (True, "scheduled")  # type: ignore[attr-defined]
     git_worktrees.stage_files = lambda *args, **kwargs: True  # type: ignore[attr-defined]
     sys.modules["session_buddy.utils.git_worktrees"] = git_worktrees

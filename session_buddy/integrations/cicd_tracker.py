@@ -24,10 +24,11 @@ Example:
 from __future__ import annotations
 
 import json
+import operator
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from session_buddy.storage.skills_storage import SkillsStorage
@@ -71,7 +72,7 @@ class CIPipelineContext:
         """Get short (7-character) commit SHA."""
         return self.git_commit[:7]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "pipeline_name": self.pipeline_name,
@@ -184,18 +185,26 @@ class CICDTracker:
         ],
     }
 
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(
+        self,
+        db_path: str | Path,
+        storage: SkillsStorage | None = None,
+    ) -> None:
         """Initialize CI/CD tracker.
 
         Args:
             db_path: Path to skills database file
+            storage: Optional SkillsStorage instance (for testing)
         """
         self.db_path = Path(db_path)
 
-        # Import here to avoid circular dependency
-        from session_buddy.storage.skills_storage import SkillsStorage
+        if storage is not None:
+            self.storage = storage
+        else:
+            # Import here to avoid circular dependency
+            from session_buddy.storage.skills_storage import SkillsStorage
 
-        self.storage: SkillsStorage = SkillsStorage(db_path=self.db_path)
+            self.storage = SkillsStorage(db_path=self.db_path)
 
         # Track metrics per stage
         self.stage_metrics: dict[str, PipelineStageMetrics] = {}
@@ -300,21 +309,16 @@ class CICDTracker:
         session_id = f"{context.pipeline_name}-{context.build_number}"
 
         # Create skill invocation record
-        from session_buddy.storage.skills_storage import SkillInvocation
-
-        invocation = SkillInvocation(
+        self.storage.store_invocation(
             skill_name=skill_name,
             invoked_at=datetime.now().isoformat(),
             session_id=session_id,
             workflow_phase=self.STAGE_MAPPING[stage_name],
-            user_query=f"CI/CD stage: {stage_name}",
             completed=completed,
             duration_seconds=duration_seconds,
+            user_query=f"CI/CD stage: {stage_name}",
             error_type=error_message,
         )
-
-        # Store in database
-        self.storage.store_invocation(invocation)
 
         # Store pipeline context as metadata
         self._store_pipeline_context(
@@ -377,7 +381,7 @@ class CICDTracker:
         self,
         pipeline_name: str,
         days: int = 7,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get analytics for a pipeline over a time window.
 
         Provides comprehensive analytics including:
@@ -401,7 +405,7 @@ class CICDTracker:
 
         # Query database for pipeline runs in time window
         # This is a simplified implementation
-        analytics = {
+        analytics: dict[str, Any] = {
             "pipeline_name": pipeline_name,
             "time_window_days": days,
             "from_date": cutoff_date.isoformat(),
@@ -418,14 +422,14 @@ class CICDTracker:
 
         for stage_name, metrics in self.stage_metrics.items():
             if metrics.total_runs > 0:
-                stage_data = {
+                stage_data: dict[str, Any] = {
                     "stage_name": stage_name,
                     "workflow_phase": metrics.workflow_phase,
                     "total_runs": metrics.total_runs,
                     "successful_runs": metrics.successful_runs,
                     "success_rate": metrics.success_rate(),
                     "avg_duration_seconds": metrics.avg_duration_seconds(),
-                    "skills_used": list(metrics.skills_used),
+                    "skills_used": metrics.skills_used.copy(),
                 }
 
                 if metrics.common_failures:
@@ -441,23 +445,22 @@ class CICDTracker:
             analytics["overall_success_rate"] = (total_successful / total_runs) * 100
 
         # Identify bottlenecks (stages with low success rate)
-        bottlenecks = []
-        for stage_name, stage_data in analytics["stage_analytics"].items():
-            if stage_data["success_rate"] < 80.0:
-                bottlenecks.append(
-                    {
-                        "stage": stage_name,
-                        "success_rate": stage_data["success_rate"],
-                        "avg_duration": stage_data["avg_duration_seconds"],
-                        "severity": "high"
-                        if stage_data["success_rate"] < 50
-                        else "medium",
-                    }
-                )
+        bottlenecks = [
+            {
+                "stage": stage_name,
+                "success_rate": stage_data["success_rate"],
+                "avg_duration": stage_data["avg_duration_seconds"],
+                "severity": "high"
+                if stage_data["success_rate"] < 50
+                else "medium",
+            }
+            for stage_name, stage_data in analytics["stage_analytics"].items()
+            if stage_data["success_rate"] < 80.0
+        ]
 
         analytics["bottlenecks"] = sorted(
             bottlenecks,
-            key=lambda x: x["success_rate"],
+            key=operator.itemgetter("success_rate"),
         )
 
         # Generate recommendations
@@ -469,8 +472,8 @@ class CICDTracker:
 
     def _generate_pipeline_recommendations(
         self,
-        analytics: dict,
-    ) -> list[dict]:
+        analytics: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """Generate recommendations based on pipeline analytics.
 
         Args:
@@ -481,7 +484,7 @@ class CICDTracker:
         """
         recommendations = []
 
-        # Check for high failure rates
+        # Check for high failure rates and slow stages
         for stage_name, stage_data in analytics["stage_analytics"].items():
             if stage_data["success_rate"] < 70.0:
                 recommendations.append(
@@ -495,10 +498,7 @@ class CICDTracker:
                         ),
                     }
                 )
-
-        # Check for slow stages
-        for stage_name, stage_data in analytics["stage_analytics"].items():
-            if stage_data["avg_duration_seconds"] > 300:  # 5 minutes
+            elif stage_data["avg_duration_seconds"] > 300:  # 5 minutes
                 recommendations.append(
                     {
                         "priority": "medium",
@@ -534,7 +534,7 @@ class CICDTracker:
 
         return recommendations
 
-    def get_stage_summary(self, stage_name: str) -> dict:
+    def get_stage_summary(self, stage_name: str) -> dict[str, Any]:
         """Get summary dictionary for a specific stage.
 
         Args:
@@ -561,7 +561,7 @@ class CICDTracker:
             "success_rate": metrics.success_rate(),
             "total_duration_seconds": metrics.total_duration_seconds,
             "avg_duration_seconds": metrics.avg_duration_seconds(),
-            "skills_used": list(metrics.skills_used),
+            "skills_used": metrics.skills_used.copy(),
             "common_failures": metrics.common_failures.copy(),
         }
 
@@ -610,7 +610,7 @@ class CICDTracker:
             ]
         )
 
-        for stage_name in ["build", "test", "lint", "security", "deploy", "publish"]:
+        for stage_name in ("build", "test", "lint", "security", "deploy", "publish"):
             if stage_name in analytics["stage_analytics"]:
                 stage_data = analytics["stage_analytics"][stage_name]
 
@@ -632,11 +632,10 @@ class CICDTracker:
                         lines.append(f"    - {skill}")
 
                 if "common_failures" in stage_data:
-                    lines.append("")
-                    lines.append("  Common Failures:")
+                    lines.extend(("", "  Common Failures:"))
                     for error, count in sorted(
                         stage_data["common_failures"].items(),
-                        key=lambda x: x[1],
+                        key=operator.itemgetter(1),
                         reverse=True,
                     )[:5]:
                         lines.append(f"    - {error}: {count}x")
@@ -654,8 +653,7 @@ class CICDTracker:
         )
 
         if analytics["bottlenecks"]:
-            lines.append("Stages requiring attention:")
-            lines.append("")
+            lines.extend(("Stages requiring attention:", ""))
 
             for bottleneck in analytics["bottlenecks"]:
                 stage = bottleneck["stage"]

@@ -41,12 +41,12 @@ class WorktreeValidationResult:
     @classmethod
     def success(cls) -> "WorktreeValidationResult":
         """Create successful validation result."""
-        return cls(is_valid=True)  # type: ignore[call-arg]
+        return cls(is_valid=True)
 
     @classmethod
     def error(cls, error: str) -> "WorktreeValidationResult":
         """Create error validation result."""
-        return cls(is_valid=False, errors=[error])  # type: ignore[call-arg]
+        return cls(is_valid=False, errors=[error])
 
 
 @dataclass
@@ -60,12 +60,12 @@ class GitOperationResult:
     @classmethod
     def success_result(cls, output: str = "") -> "GitOperationResult":
         """Create successful operation result."""
-        return cls(success=True, output=output)  # type: ignore[call-arg]
+        return cls(success=True, output=output)
 
     @classmethod
     def error_result(cls, error: str) -> "GitOperationResult":
         """Create error operation result."""
-        return cls(success=False, error=error)  # type: ignore[call-arg]
+        return cls(success=False, error=error)
 
 
 class WorktreeManager:

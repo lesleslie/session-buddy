@@ -250,7 +250,7 @@ class KGExtractor:
         """
         files = list(directory.glob(pattern))[:max_files]
 
-        results = {
+        results: dict[str, int | list[dict[str, str]]] = {
             "total_files": len(files),
             "successful": 0,
             "failed": 0,
