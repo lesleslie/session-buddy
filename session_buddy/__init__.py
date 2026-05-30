@@ -4,22 +4,34 @@ Provides comprehensive session management, conversation memory,
 and quality monitoring for Claude Code projects.
 """
 
-from contextlib import suppress
+from __future__ import annotations
 
-# Phase 2 Decomposition: New modular architecture
-# These imports expose the decomposed server components
-with suppress(ImportError):
-    from .advanced_features import (
-        AdvancedFeaturesHub,
-    )
-    from .core.permissions import (
-        SessionPermissionsManager,
-    )
-    # QualityScoreResult is not directly exposed from quality_engine as it doesn't exist
-    # MCPServerCore does not exist in server_core
-from .utils.logging import SessionLogger
+from importlib import import_module
+from typing import Any
 
 __version__ = "0.7.4"
+
+_LAZY_EXPORTS: dict[str, tuple[str, str]] = {
+    "AdvancedFeaturesHub": ("session_buddy.advanced_features", "AdvancedFeaturesHub"),
+    "SessionPermissionsManager": (
+        "session_buddy.core.permissions",
+        "SessionPermissionsManager",
+    ),
+    "SessionLogger": ("session_buddy.utils.logging", "SessionLogger"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        module_name, attr_name = _LAZY_EXPORTS[name]
+    except KeyError as exc:
+        raise AttributeError(name) from exc
+
+    module = import_module(module_name)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
+
 
 __all__ = [
     # Advanced features

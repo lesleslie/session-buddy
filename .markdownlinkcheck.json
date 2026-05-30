@@ -6,8 +6,8 @@
     "dist/**",
     ".git/**",
     "docs/ZUBAN_FIX_SUMMARY.md",
-    "docs/archive/**",         # Ignore archived docs with broken relative links
-    "docs/CLAUDE_QWEN_CONFIG_SYNC.md",  # Contains placeholder URLs for migration docs
+    "docs/archive/**",
+    "docs/CLAUDE_QWEN_CONFIG_SYNC.md",
     ".claude/commands/**",
     "coverage_report/**",
     "htmlcov/**",

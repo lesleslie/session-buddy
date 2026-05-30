@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import importlib.util
 import os
 import sys
@@ -265,6 +266,22 @@ async def test_get_interruption_manager_creates_singleton(
 
     assert isinstance(result, DummyInterruptionManager)
     assert cached is result
+
+
+@pytest.mark.asyncio
+async def test_get_interruption_manager_import_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_import = builtins.__import__
+
+    def fake_import(name: str, globals=None, locals=None, fromlist=(), level=0):
+        if name == "session_buddy.interruption_manager":
+            raise ImportError("missing")
+        return original_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    assert await instance_managers.get_interruption_manager() is None
 
 
 @pytest.mark.asyncio

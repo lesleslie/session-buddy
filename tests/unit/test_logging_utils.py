@@ -3,13 +3,52 @@
 Tests the SessionLogger class and structured logging functionality.
 """
 
+import importlib.util
 import json
 import logging
+import sys
+import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from session_buddy.utils.logging_utils import SessionLogger
+
+_LOGGING_UTILS_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "session_buddy"
+    / "utils"
+    / "logging_utils.py"
+)
+_LOGGING_UTILS_SPEC = importlib.util.spec_from_file_location(
+    "session_buddy.utils.logging_utils",
+    _LOGGING_UTILS_PATH,
+)
+assert _LOGGING_UTILS_SPEC is not None and _LOGGING_UTILS_SPEC.loader is not None
+
+_LOGGING_MODULE_PATH = (
+    Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "logging.py"
+)
+_LOGGING_MODULE_SPEC = importlib.util.spec_from_file_location(
+    "session_buddy.utils.logging",
+    _LOGGING_MODULE_PATH,
+)
+assert _LOGGING_MODULE_SPEC is not None and _LOGGING_MODULE_SPEC.loader is not None
+_LOGGING_MODULE = importlib.util.module_from_spec(_LOGGING_MODULE_SPEC)
+sys.modules[_LOGGING_MODULE_SPEC.name] = _LOGGING_MODULE
+_LOGGING_MODULE_SPEC.loader.exec_module(_LOGGING_MODULE)
+
+if "session_buddy.utils" not in sys.modules:
+    _utils_package = types.ModuleType("session_buddy.utils")
+    _utils_package.__path__ = []  # type: ignore[attr-defined]
+    _utils_package.logging = _LOGGING_MODULE  # type: ignore[attr-defined]
+    sys.modules["session_buddy.utils"] = _utils_package
+else:
+    setattr(sys.modules["session_buddy.utils"], "logging", _LOGGING_MODULE)
+
+_LOGGING_UTILS_MODULE = importlib.util.module_from_spec(_LOGGING_UTILS_SPEC)
+sys.modules[_LOGGING_UTILS_SPEC.name] = _LOGGING_UTILS_MODULE
+_LOGGING_UTILS_SPEC.loader.exec_module(_LOGGING_UTILS_MODULE)
+SessionLogger = _LOGGING_UTILS_MODULE.SessionLogger
 
 
 @pytest.fixture

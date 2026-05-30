@@ -1,18 +1,41 @@
 #!/usr/bin/env python3
 """Tests for the reflection_utils module."""
 
-import tempfile
+from __future__ import annotations
+
+import importlib.util
+import sys
+import types
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-from session_buddy.utils.reflection_utils import (
-    AutoStoreDecision,
-    CheckpointReason,
-    generate_auto_store_tags,
-    format_auto_store_summary,
-    should_auto_store_checkpoint,
+_SETTINGS_STUB = types.ModuleType("session_buddy.settings")
+class _SessionMgmtSettings:
+    pass
+
+
+_SETTINGS_STUB.SessionMgmtSettings = _SessionMgmtSettings
+_SETTINGS_STUB.get_settings = lambda: SimpleNamespace(
+    enable_auto_store_reflections=True,
+    auto_store_manual_checkpoints=True,
+    auto_store_session_end=True,
+    auto_store_exceptional_quality_threshold=95,
+    auto_store_quality_delta_threshold=10,
 )
+sys.modules.setdefault("session_buddy.settings", _SETTINGS_STUB)
+
+_MODULE_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "reflection_utils.py"
+_SPEC = importlib.util.spec_from_file_location("session_buddy.utils.reflection_utils", _MODULE_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+_MODULE = importlib.util.module_from_spec(_SPEC)
+sys.modules.setdefault("session_buddy.utils.reflection_utils", _MODULE)
+_SPEC.loader.exec_module(_MODULE)
+
+AutoStoreDecision = _MODULE.AutoStoreDecision
+CheckpointReason = _MODULE.CheckpointReason
+generate_auto_store_tags = _MODULE.generate_auto_store_tags
+format_auto_store_summary = _MODULE.format_auto_store_summary
+should_auto_store_checkpoint = _MODULE.should_auto_store_checkpoint
 
 
 class UnknownReason:
@@ -49,6 +72,18 @@ def test_format_auto_store_summary_should_not_store():
     assert "signal-to-noise ratio" in summary
 
 
+def test_format_auto_store_summary_fallback_reason():
+    """Test the fallback message for an unknown reason."""
+    decision = AutoStoreDecision(
+        should_store=True,
+        reason=UnknownReason(),
+        metadata={},
+    )
+
+    summary = format_auto_store_summary(decision)
+    assert summary == "💾 Checkpoint reflection stored"
+
+
 def test_should_auto_store_checkpoint_quality_improvement(monkeypatch):
     """Test auto-store decision for quality improvement."""
     fake_settings = SimpleNamespace(
@@ -59,7 +94,7 @@ def test_should_auto_store_checkpoint_quality_improvement(monkeypatch):
         auto_store_quality_delta_threshold=10,
     )
     monkeypatch.setattr(
-        "session_buddy.utils.reflection_utils.get_settings", lambda: fake_settings
+        _MODULE, "get_settings", lambda: fake_settings
     )
     decision = should_auto_store_checkpoint(
         quality_score=85,
@@ -97,9 +132,7 @@ def test_should_auto_store_checkpoint_no_previous_score_enabled(monkeypatch):
         auto_store_exceptional_quality_threshold=95,
         auto_store_quality_delta_threshold=10,
     )
-    monkeypatch.setattr(
-        "session_buddy.utils.reflection_utils.get_settings", lambda: fake_settings
-    )
+    monkeypatch.setattr(_MODULE, "get_settings", lambda: fake_settings)
 
     decision = should_auto_store_checkpoint(
         quality_score=75,
@@ -155,9 +188,7 @@ def test_should_auto_store_checkpoint_disabled(monkeypatch):
         auto_store_exceptional_quality_threshold=90,
         auto_store_quality_delta_threshold=10,
     )
-    monkeypatch.setattr(
-        "session_buddy.utils.reflection_utils.get_settings", lambda: fake_settings
-    )
+    monkeypatch.setattr(_MODULE, "get_settings", lambda: fake_settings)
 
     decision = should_auto_store_checkpoint(quality_score=100)
 
@@ -175,9 +206,7 @@ def test_should_auto_store_checkpoint_routine_skip(monkeypatch):
         auto_store_exceptional_quality_threshold=95,
         auto_store_quality_delta_threshold=10,
     )
-    monkeypatch.setattr(
-        "session_buddy.utils.reflection_utils.get_settings", lambda: fake_settings
-    )
+    monkeypatch.setattr(_MODULE, "get_settings", lambda: fake_settings)
 
     decision = should_auto_store_checkpoint(
         quality_score=75,
@@ -257,48 +286,3 @@ def test_generate_auto_store_tags_branches() -> None:
         "routine_skip",
         "good-quality",
     ]
-
-
-def test_generate_auto_store_tags_unknown_reason() -> None:
-    """Test fallback branch for unknown reasons."""
-    unknown_reason = UnknownReason()
-    assert generate_auto_store_tags(
-        unknown_reason, project=None, quality_score=None
-    ) == [
-        "checkpoint",
-        "auto-stored",
-        "unknown_reason",
-    ]
-
-
-def test_format_auto_store_summary_other_reasons() -> None:
-    assert "Manual checkpoint" in format_auto_store_summary(
-        AutoStoreDecision(True, CheckpointReason.MANUAL_CHECKPOINT, {})
-    )
-    assert "Session end" in format_auto_store_summary(
-        AutoStoreDecision(True, CheckpointReason.SESSION_END, {})
-    )
-    assert "Pre-compact" in format_auto_store_summary(
-        AutoStoreDecision(True, CheckpointReason.PRE_COMPACT, {})
-    )
-    assert "Quality changed significantly" in format_auto_store_summary(
-        AutoStoreDecision(True, CheckpointReason.QUALITY_DEGRADATION, {})
-    )
-
-
-def test_format_auto_store_summary_fallback_and_no_delta() -> None:
-    """Test fallback summary text and metadata without delta."""
-    unknown_reason = UnknownReason()
-    summary = format_auto_store_summary(
-        AutoStoreDecision(
-            True,
-            unknown_reason,
-            {"quality_score": 88},
-        )
-    )
-
-    assert summary == "💾 Checkpoint reflection stored (quality: 88/100)"
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])

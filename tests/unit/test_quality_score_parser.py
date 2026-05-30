@@ -38,6 +38,7 @@ def test_extract_quality_scores_prefers_content_then_metadata() -> None:
         {"content": "quality score: 90/100", "metadata": {"quality_score": 10}},
         {"content": "no score", "metadata": {"quality_score": 80}},
         {"content": "quality score: not-a-score", "metadata": {"quality_score": 70}},
+        {"content": "still no score", "metadata": {"quality_score": 120}},
         {"content": 123, "metadata": {"quality_score": 60}},
     ]
 
@@ -87,6 +88,10 @@ def test_generate_quality_trend_recommendations_branches() -> None:
 
     declining = _generate_quality_trend_recommendations([80, 70, 60])
     assert any("declining trend" in item.lower() for item in declining)
+
+    short_history = _generate_quality_trend_recommendations([50, 55])
+    assert short_history[0].startswith("🚨 Critical")
+    assert all("trend" not in item.lower() for item in short_history)
 
     caution = _generate_quality_trend_recommendations([60, 62, 64])
     assert caution[0].startswith("⚠️ Quality below target")

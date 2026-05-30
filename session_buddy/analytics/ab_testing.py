@@ -225,7 +225,9 @@ class ABTestFramework:
         )
         hash_float = (hash_value % 10000) / 10000.0  # Normalize to [0, 1)
 
-        group: Literal["control", "treatment"] = "control" if hash_float < assignment_ratio else "treatment"
+        group: Literal["control", "treatment"] = (
+            "control" if hash_float < assignment_ratio else "treatment"
+        )
 
         # Store assignment
         with sqlite3.connect(self.db_path) as conn:

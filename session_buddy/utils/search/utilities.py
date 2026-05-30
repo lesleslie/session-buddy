@@ -114,7 +114,7 @@ def parse_timeframe(timeframe: str) -> TimeRange:
 
     # Year-month: '2024-01'
     if len(timeframe) == 7 and "-" in timeframe:
-        try:
+        with suppress(ValueError):
             year, month = map(int, timeframe.split("-"))
             start = datetime(year, month, 1, tzinfo=UTC)
             # Calculate next month
@@ -123,8 +123,6 @@ def parse_timeframe(timeframe: str) -> TimeRange:
             else:
                 end = datetime(year, month + 1, 1, tzinfo=UTC)
             return TimeRange(start=start, end=end)
-        except ValueError:
-            pass  # Fall through to default
 
     # Default: last 7 days
     end = datetime.now(UTC)

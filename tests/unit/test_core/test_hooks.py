@@ -2,12 +2,15 @@
 """Unit tests for HooksManager class."""
 
 import asyncio
+import sys
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from session_buddy.core.hooks import (
+    DefaultCodeFormatter,
     Hook,
     HookContext,
     HookResult,
@@ -129,6 +132,93 @@ class TestHooksManagerRegistration:
         assert len(hooks) == 1
         assert hooks[0].priority == 50
 
+    @pytest.mark.asyncio
+    async def test_default_code_formatter_is_no_op(self):
+        """Test the fallback code formatter returns success."""
+        formatter = DefaultCodeFormatter()
+        assert await formatter.format_file(Path("example.py")) is True
+
+    @pytest.mark.asyncio
+    async def test_initialize_registers_default_hooks(self, monkeypatch: pytest.MonkeyPatch):
+        """Test initialize wires up tracker, engine, and built-in hooks."""
+        manager = HooksManager()
+
+        fake_tracker = MagicMock()
+        fake_tracker.initialize = AsyncMock()
+
+        fake_engine = MagicMock()
+        fake_engine.initialize = AsyncMock()
+
+        class FakeTracker:
+            def __init__(self, logger):
+                self.logger = logger
+
+            async def initialize(self):
+                await fake_tracker.initialize()
+
+        class FakeEngine:
+            def __init__(self):
+                pass
+
+            async def initialize(self):
+                await fake_engine.initialize()
+
+        monkeypatch.setitem(
+            sys.modules,
+            "session_buddy.core.causal_chains",
+            SimpleNamespace(CausalChainTracker=FakeTracker),
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "session_buddy.core.intelligence",
+            SimpleNamespace(IntelligenceEngine=FakeEngine),
+        )
+
+        await manager.initialize()
+
+        assert manager._causal_tracker is not None
+        assert manager._intelligence_engine is not None
+        assert HookType.POST_FILE_EDIT in manager._hooks
+        assert HookType.PRE_CHECKPOINT in manager._hooks
+        assert HookType.POST_CHECKPOINT in manager._hooks
+        assert HookType.POST_ERROR in manager._hooks
+        fake_tracker.initialize.assert_awaited_once()
+        fake_engine.initialize.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_initialize_handles_intelligence_engine_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Test intelligence engine initialization failure fallback."""
+        manager = HooksManager()
+
+        class FakeTracker:
+            def __init__(self, logger):
+                self.logger = logger
+
+            async def initialize(self):
+                return None
+
+        class FakeEngine:
+            def __init__(self):
+                raise RuntimeError("boom")
+
+        monkeypatch.setitem(
+            sys.modules,
+            "session_buddy.core.causal_chains",
+            SimpleNamespace(CausalChainTracker=FakeTracker),
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "session_buddy.core.intelligence",
+            SimpleNamespace(IntelligenceEngine=FakeEngine),
+        )
+
+        await manager.initialize()
+
+        assert manager._causal_tracker is not None
+        assert manager._intelligence_engine is None
+
 
 class TestHooksManagerExecution:
     """Test hook execution."""
@@ -218,6 +308,51 @@ class TestHooksManagerExecution:
         results = await manager.execute_hooks(HookType.POST_CHECKPOINT, _make_context())
 
         assert results == []
+
+    @pytest.mark.asyncio
+    async def test_execute_hooks_disabled_and_error_handler_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Test disabled hooks are skipped and error handler failures are logged."""
+        manager = HooksManager()
+
+        async def failing_handler(ctx: HookContext) -> HookResult:
+            raise ValueError("Hook failed")
+
+        async def bad_error_handler(exc: Exception) -> None:
+            raise RuntimeError("error handler failed")
+
+        disabled_called = False
+
+        async def disabled_handler(ctx: HookContext) -> HookResult:
+            nonlocal disabled_called
+            disabled_called = True
+            return HookResult(success=True)
+
+        await manager.register_hook(
+            Hook(
+                name="failing",
+                hook_type=HookType.POST_CHECKPOINT,
+                priority=10,
+                handler=failing_handler,
+                error_handler=bad_error_handler,
+            )
+        )
+        await manager.register_hook(
+            Hook(
+                name="disabled",
+                hook_type=HookType.POST_CHECKPOINT,
+                priority=20,
+                handler=disabled_handler,
+                enabled=False,
+            )
+        )
+
+        results = await manager.execute_hooks(HookType.POST_CHECKPOINT, _make_context())
+
+        assert len(results) == 1
+        assert results[0].success is False
+        assert disabled_called is False
 
 
 class TestHooksManagerErrorHandling:
@@ -486,6 +621,200 @@ class TestHooksManagerContextModification:
         assert context.metadata["value"] == 2  # h1 set to 1, h2 added 1
         assert context.metadata["final"] == 4  # h3 doubled it
         assert context.metadata["initial"] is True
+
+    @pytest.mark.asyncio
+    async def test_auto_format_handler_paths(self):
+        """Test auto format handler no-op, success, and exception paths."""
+        manager = HooksManager(formatter=DefaultCodeFormatter())
+
+        no_file = HookContext(
+            hook_type=HookType.POST_FILE_EDIT,
+            session_id="s",
+            timestamp=datetime.now(UTC),
+        )
+        assert (await manager._auto_format_handler(no_file)).success is True
+
+        not_py = HookContext(
+            hook_type=HookType.POST_FILE_EDIT,
+            session_id="s",
+            timestamp=datetime.now(UTC),
+            file_path="/tmp/test.txt",
+        )
+        assert (await manager._auto_format_handler(not_py)).success is True
+
+        formatter = MagicMock()
+        formatter.format_file = AsyncMock(return_value=False)
+        manager = HooksManager(formatter=formatter)
+        py_context = HookContext(
+            hook_type=HookType.POST_FILE_EDIT,
+            session_id="s",
+            timestamp=datetime.now(UTC),
+            file_path="/tmp/test.py",
+        )
+        assert (await manager._auto_format_handler(py_context)).success is False
+        formatter.format_file.assert_awaited_once()
+
+        async def boom(*args, **kwargs):
+            raise RuntimeError("format failed")
+
+        formatter = MagicMock()
+        formatter.format_file = AsyncMock(side_effect=boom)
+        manager = HooksManager(formatter=formatter)
+        result = await manager._auto_format_handler(py_context)
+        assert result.success is False
+        assert "format failed" in result.error
+
+    @pytest.mark.asyncio
+    async def test_quality_validation_branches(self):
+        """Test quality validation low and high score paths."""
+        manager = HooksManager()
+        low = HookContext(
+            hook_type=HookType.PRE_CHECKPOINT,
+            session_id="s",
+            timestamp=datetime.now(UTC),
+            checkpoint_data={"quality_score": 59},
+        )
+        high = HookContext(
+            hook_type=HookType.PRE_CHECKPOINT,
+            session_id="s",
+            timestamp=datetime.now(UTC),
+            checkpoint_data={"quality_score": 60},
+        )
+
+        low_result = await manager._quality_validation_handler(low)
+        high_result = await manager._quality_validation_handler(high)
+
+        assert low_result.success is False
+        assert "Quality too low" in low_result.error
+        assert high_result.success is True
+        assert high_result.modified_context == {"validated_quality": 60}
+
+    @pytest.mark.asyncio
+    async def test_pattern_learning_paths(self, monkeypatch: pytest.MonkeyPatch):
+        """Test pattern learning when engine is absent, successful, and failing."""
+        manager = HooksManager()
+        context = HookContext(
+            hook_type=HookType.POST_CHECKPOINT,
+            session_id="s",
+            timestamp=datetime.now(UTC),
+            checkpoint_data={"quality_score": 90},
+        )
+
+        assert (await manager._pattern_learning_handler(context)).success is True
+
+        class FakeEngine:
+            def __init__(self, result=None, boom=False):
+                self.result = result or []
+                self.boom = boom
+
+            async def learn_from_checkpoint(self, checkpoint):
+                if self.boom:
+                    raise RuntimeError("learn failed")
+                return self.result
+
+        manager._intelligence_engine = FakeEngine(result=["p1", "p2"])
+        assert (await manager._pattern_learning_handler(context)).success is True
+
+        manager._intelligence_engine = FakeEngine(result=[])
+        assert (await manager._pattern_learning_handler(context)).success is True
+
+        manager._intelligence_engine = FakeEngine(boom=True)
+        assert (await manager._pattern_learning_handler(context)).success is True
+
+    @pytest.mark.asyncio
+    async def test_causal_chain_handler_paths(self):
+        """Test causal chain handler no-op, success, and failure paths."""
+        manager = HooksManager()
+        base = HookContext(
+            hook_type=HookType.POST_ERROR,
+            session_id="s",
+            timestamp=datetime.now(UTC),
+        )
+        assert (await manager._causal_chain_handler(base)).success is True
+
+        class FakeTracker:
+            async def record_error_event(self, error, context, session_id):
+                return "chain-123"
+
+        manager._causal_tracker = FakeTracker()
+        error_ctx = HookContext(
+            hook_type=HookType.POST_ERROR,
+            session_id="s",
+            timestamp=datetime.now(UTC),
+            error_info={"error_message": "boom", "context": {"x": 1}},
+        )
+        ok = await manager._causal_chain_handler(error_ctx)
+        assert ok.success is True
+        assert ok.causal_chain_id == "chain-123"
+
+        class BoomTracker:
+            async def record_error_event(self, error, context, session_id):
+                raise RuntimeError("tracker failed")
+
+        manager._causal_tracker = BoomTracker()
+        failed = await manager._causal_chain_handler(error_ctx)
+        assert failed.success is False
+        assert "tracker failed" in failed.error
+
+    @pytest.mark.asyncio
+    async def test_workflow_metrics_paths(self, monkeypatch: pytest.MonkeyPatch):
+        """Test workflow metrics handler success and fallback paths."""
+        manager = HooksManager()
+        context = HookContext(
+            hook_type=HookType.POST_CHECKPOINT,
+            session_id="s",
+            timestamp=datetime.now(UTC),
+            checkpoint_data={},
+        )
+        context_with_start = HookContext(
+            hook_type=HookType.POST_CHECKPOINT,
+            session_id="s",
+            timestamp=datetime.now(UTC),
+            checkpoint_data={
+                "session_start_time": datetime.now(UTC),
+                "working_directory": "/tmp/work",
+            },
+        )
+
+        class FakeEngine:
+            def __init__(self):
+                self.initialized = False
+                self.calls = []
+
+            async def initialize(self):
+                self.initialized = True
+
+            async def collect_session_metrics(self, **kwargs):
+                self.calls.append(kwargs)
+
+        fake_engine = FakeEngine()
+        monkeypatch.setitem(
+            sys.modules,
+            "session_buddy.core.workflow_metrics",
+            SimpleNamespace(get_workflow_metrics_engine=lambda: fake_engine),
+        )
+
+        result = await manager._workflow_metrics_handler(context)
+        assert result.success is True
+        assert fake_engine.initialized is True
+        assert fake_engine.calls[0]["session_id"] == "s"
+        assert fake_engine.calls[0]["started_at"] == fake_engine.calls[0]["checkpoint_data"].get("timestamp", fake_engine.calls[0]["started_at"])
+
+        fake_engine.calls.clear()
+        result = await manager._workflow_metrics_handler(context_with_start)
+        assert result.success is True
+        assert fake_engine.calls[0]["started_at"] == context_with_start.checkpoint_data["session_start_time"]
+
+        class BoomEngine(FakeEngine):
+            async def collect_session_metrics(self, **kwargs):
+                raise RuntimeError("metrics failed")
+
+        monkeypatch.setitem(
+            sys.modules,
+            "session_buddy.core.workflow_metrics",
+            SimpleNamespace(get_workflow_metrics_engine=lambda: BoomEngine()),
+        )
+        assert (await manager._workflow_metrics_handler(context)).success is True
 
 
 class TestHookResult:

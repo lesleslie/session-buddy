@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import operator
 import re
 import time
 import typing as t

@@ -21,4 +21,3 @@ def test_profile_constants_and_active_profile() -> None:
     assert PROFILE_REGISTRATIONS[ToolProfile.STANDARD] == STANDARD_REGISTRATIONS
     assert PROFILE_REGISTRATIONS[ToolProfile.FULL] == FULL_REGISTRATIONS
     assert get_active_profile.__defaults__ == ("SESSION_BUDDY_TOOL_PROFILE",)
-

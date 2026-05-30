@@ -11,4 +11,3 @@ def test_session_buddy_json_type_aliases() -> None:
     assert data["count"] == 2
     assert data["nested"] == {"flag": True}
     assert JsonValue is not None
-

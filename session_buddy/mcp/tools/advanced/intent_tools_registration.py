@@ -10,7 +10,9 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from session_buddy.mcp.server import SessionBuddyServer  # type: ignore[attr-defined]
+    from session_buddy.mcp.server import (
+        SessionBuddyServer,  # type: ignore[attr-defined]
+    )
 
 logger = logging.getLogger(__name__)
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime, UTC
+import types
 
 import pytest
 
@@ -342,6 +343,15 @@ class TestQueryRewriter:
         assert stats["cache_hit_rate"] == 0.0
         assert stats["cache_size"] == 0
 
+    def test_detect_ambiguity_wrapper_uses_threshold(self, rewriter):
+        """Test the wrapper forwards the explicit confidence threshold."""
+        with patch.object(rewriter.detector, "detect_ambiguity") as mock_detect:
+            mock_detect.return_value = MagicMock()
+
+            rewriter.detect_ambiguity("what did I learn?", min_confidence=0.8)
+
+        mock_detect.assert_called_once_with("what did I learn?", 0.8)
+
     def test_get_stats_with_data(self, rewriter):
         """Test statistics calculation with actual data."""
         # Add some test data to stats
@@ -516,6 +526,87 @@ class TestQueryRewriter:
         # Should return as-is without processing
         assert result.was_rewritten is False
         assert result.rewritten_query == "   "
+
+    @pytest.mark.asyncio
+    async def test_llm_expand_query_happy_path(self, rewriter, mock_context, monkeypatch):
+        """Test the direct LLM expansion path with context and response cleanup."""
+        fake_llm = MagicMock()
+        fake_llm.call_llm = AsyncMock(return_value="Expanded query: session buddy async patterns")
+        fake_depends = types.SimpleNamespace(get_sync=MagicMock(return_value=fake_llm))
+
+        import session_buddy.di as di_pkg
+
+        monkeypatch.setattr(di_pkg, "depends", fake_depends, raising=False)
+        monkeypatch.setattr(rewriter, "_get_llm_provider", AsyncMock(return_value="openai"))
+
+        rewritten = await rewriter._llm_expand_query(mock_context.query, mock_context)
+
+        assert rewritten == "session buddy async patterns"
+        fake_llm.call_llm.assert_awaited_once()
+        args = fake_llm.call_llm.await_args.kwargs
+        assert args["provider"] == "openai"
+        assert args["temperature"] == 0.3
+        assert args["max_tokens"] == 150
+        assert "Recent conversations:" in args["messages"][1]["content"]
+        assert "Project: session-buddy" in args["messages"][1]["content"]
+        assert "Recent files: session_buddy/server.py" in args["messages"][1]["content"]
+
+    def test_extract_rewritten_query_double_quoted_with_prefix(self, rewriter):
+        """Test stripping quotes and the standard prefix from an LLM response."""
+        assert (
+            rewriter._extract_rewritten_query('"Expanded query: use async fixtures"')
+            == "use async fixtures"
+        )
+
+    def test_extract_rewritten_query_single_quoted_with_prefix(self, rewriter):
+        """Test the single-quote branch and alternate prefix cleanup."""
+        assert (
+            rewriter._extract_rewritten_query("'Rewritten query: build clearer tests'")
+            == "build clearer tests"
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_llm_provider_returns_first_provider(self, rewriter, monkeypatch):
+        """Test selecting the first available provider."""
+        fake_llm = MagicMock()
+        fake_llm.list_providers.return_value = ["openai", "anthropic"]
+        fake_depends = types.SimpleNamespace(get_sync=MagicMock(return_value=fake_llm))
+
+        import session_buddy.di as di_pkg
+
+        monkeypatch.setattr(di_pkg, "depends", fake_depends, raising=False)
+
+        provider = await rewriter._get_llm_provider()
+
+        assert provider == "openai"
+
+    @pytest.mark.asyncio
+    async def test_get_llm_provider_returns_none_when_missing(self, rewriter, monkeypatch):
+        """Test the no-provider branch when the DI container returns nothing."""
+        fake_depends = types.SimpleNamespace(get_sync=MagicMock(return_value=None))
+
+        import session_buddy.di as di_pkg
+
+        monkeypatch.setattr(di_pkg, "depends", fake_depends, raising=False)
+
+        provider = await rewriter._get_llm_provider()
+
+        assert provider is None
+
+    @pytest.mark.asyncio
+    async def test_get_llm_provider_returns_none_for_empty_provider_list(self, rewriter, monkeypatch):
+        """Test the empty-provider-list branch."""
+        fake_llm = MagicMock()
+        fake_llm.list_providers.return_value = []
+        fake_depends = types.SimpleNamespace(get_sync=MagicMock(return_value=fake_llm))
+
+        import session_buddy.di as di_pkg
+
+        monkeypatch.setattr(di_pkg, "depends", fake_depends, raising=False)
+
+        provider = await rewriter._get_llm_provider()
+
+        assert provider is None
 
     def test_compute_cache_key_consistency(self, rewriter, mock_context):
         """Test that cache keys are computed consistently."""

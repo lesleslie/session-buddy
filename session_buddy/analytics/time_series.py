@@ -10,7 +10,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from scipy import stats
@@ -238,10 +238,7 @@ class TimeSeriesAnalyzer:
         # Perform linear regression
         regression_result = stats.linregress(x, y)
         slope = regression_result.slope
-        intercept = regression_result.intercept
-        r_value = regression_result.rvalue
         p_value = regression_result.pvalue
-        std_err = regression_result.stderr
 
         # Calculate start and end values
         start_value = float(y[0])

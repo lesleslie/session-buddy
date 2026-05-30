@@ -259,7 +259,11 @@ class SkillsTracker:
             return "Skill Usage Heatmap\nNo workflow data available.\nLegend: higher usage = denser marks"
 
         phases: list[str] = sorted(
-            {str(item["workflow_phase"]) for item in effectiveness if item.get("workflow_phase")}
+            {
+                str(item["workflow_phase"])
+                for item in effectiveness
+                if item.get("workflow_phase")
+            }
         )
         lines: list[str] = [
             "Skill Usage Heatmap",
@@ -290,7 +294,9 @@ def _compute_skill(
     return result if result is not None else ""
 
 
-def _section_1_skill_effectiveness_by_phase(storage: Any, lines: list[str]) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+def _section_1_skill_effectiveness_by_phase(
+    storage: Any, lines: list[str]
+) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
     lines.extend(
         [
             "-" * 70,
@@ -314,7 +320,14 @@ def _section_1_skill_effectiveness_by_phase(storage: Any, lines: list[str]) -> t
             phases[phase].append(skill)
 
         for phase, skills in sorted(phases.items()):
-            lines.extend([f"\n📍 Phase: {phase.upper()}", "   " + "-" * 65, f"   {'Skill':<30} {'Rate':>8} {'Avg Time':>10} {'Total':>8}", "   " + "-" * 65])
+            lines.extend(
+                [
+                    f"\n📍 Phase: {phase.upper()}",
+                    "   " + "-" * 65,
+                    f"   {'Skill':<30} {'Rate':>8} {'Avg Time':>10} {'Total':>8}",
+                    "   " + "-" * 65,
+                ]
+            )
 
             for skill in sorted(
                 skills, key=operator.itemgetter("completion_rate"), reverse=True
@@ -336,7 +349,9 @@ def _section_2_bottleneck_identification(storage: Any, lines: list[str]) -> None
     bottlenecks = storage.identify_workflow_bottlenecks(min_abandonment_rate=0.2)
 
     if bottlenecks:
-        lines.extend(["", "Phases with high abandonment rates (potential bottlenecks):", ""])
+        lines.extend(
+            ["", "Phases with high abandonment rates (potential bottlenecks):", ""]
+        )
 
         for bottleneck in bottlenecks[:5]:
             phase = bottleneck["workflow_phase"]
@@ -359,7 +374,9 @@ def _section_2_bottleneck_identification(storage: Any, lines: list[str]) -> None
         lines.append("✅ No significant bottlenecks detected!")
 
 
-def _section_3_phase_transition_diagram(session_id: str | None, storage: Any, lines: list[str]) -> None:
+def _section_3_phase_transition_diagram(
+    session_id: str | None, storage: Any, lines: list[str]
+) -> None:
     lines.extend(["", "", "-" * 70, "3. Workflow Phase Transitions", "-" * 70, ""])
 
     transitions = storage.get_workflow_phase_transitions(session_id=session_id)
@@ -379,7 +396,11 @@ def _section_3_phase_transition_diagram(session_id: str | None, storage: Any, li
         lines.append("No phase transition data available yet.")
 
 
-def _section_4_phasespecific_recommendations(lines: list[str], effectiveness: list[dict[str, Any]], phases: dict[str, list[dict[str, Any]]]) -> None:
+def _section_4_phasespecific_recommendations(
+    lines: list[str],
+    effectiveness: list[dict[str, Any]],
+    phases: dict[str, list[dict[str, Any]]],
+) -> None:
     lines.extend(["", "", "-" * 70, "4. Recommendations by Phase", "-" * 70, ""])
 
     if effectiveness:

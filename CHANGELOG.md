@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.3] - 2026-05-30
+
+### Changed
+
+- Session-buddy (quality: 61/100) - 2026-05-22 07:57:08
+- Session-buddy (quality: 63/100) - 2026-05-22 03:51:39
+- Session-buddy (quality: 63/100) - 2026-05-23 02:18:51
+- Session-buddy (quality: 63/100) - 2026-05-29 03:26:56
+
+### Fixed
+
+- reflection: Use settings pattern instead of deprecated db_path kwarg
+
+### Testing
+
+- session-buddy: Add tests for 3 uncovered adapters
+
 ## [0.19.0] - 2026-05-17
 
 ### Added

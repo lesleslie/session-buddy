@@ -12,7 +12,7 @@ from mcp_common.cli.health import (
     write_runtime_health,
 )
 
-if t.TYPE_CHECKING:
+if t.TYPE_CHECKING:  # pragma: no cover
     from pathlib import Path
 
 

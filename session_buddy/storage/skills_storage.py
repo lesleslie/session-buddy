@@ -17,11 +17,12 @@ import operator
 import sqlite3
 import threading
 import time
+from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass
@@ -144,7 +145,7 @@ class SkillsStorage:
     # ========================================================================
 
     @contextmanager
-    def _get_connection(self) -> Generator[sqlite3.Connection, None, None]:
+    def _get_connection(self) -> Generator[sqlite3.Connection]:
         """Get database connection with proper configuration.
 
         Yields:
@@ -514,7 +515,7 @@ class SkillsStorage:
     # ========================================================================
 
     @contextmanager
-    def _transaction(self) -> Generator[sqlite3.Connection, None, None]:
+    def _transaction(self) -> Generator[sqlite3.Connection]:
         """Execute operations in a transaction with retry logic.
 
         Yields:
@@ -954,7 +955,9 @@ class SkillsStorage:
                 )
 
         # Convert to sorted list
-        sorted_skills = sorted(skill_scores.items(), key=operator.itemgetter(1), reverse=True)
+        sorted_skills = sorted(
+            skill_scores.items(), key=operator.itemgetter(1), reverse=True
+        )
 
         return sorted_skills[:limit]
 
@@ -1235,7 +1238,9 @@ class SkillsStorage:
             entry["avg_transition_duration"] = total_duration / count if count else 0.0
             results.append(entry)
 
-        return sorted(results, key=operator.itemgetter("invocation_count"), reverse=True)
+        return sorted(
+            results, key=operator.itemgetter("invocation_count"), reverse=True
+        )
 
     def search_by_query_workflow_aware(
         self,

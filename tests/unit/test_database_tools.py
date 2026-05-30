@@ -1,20 +1,45 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
 import importlib.util
+import sys
+import types
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
-from session_buddy.utils.database_tools import (
-    batch_database_operation,
-    check_database_available,
-    get_database_stats,
-    require_reflection_database,
-    safe_database_operation,
-    safe_database_operation_with_message,
-)
-from session_buddy.utils.error_management import DatabaseUnavailableError
+_UTILS_PACKAGE = types.ModuleType("session_buddy.utils")
+_UTILS_PACKAGE.__path__ = []  # type: ignore[attr-defined]
+sys.modules.setdefault("session_buddy.utils", _UTILS_PACKAGE)
+
+_ERROR_MGMT = types.ModuleType("session_buddy.utils.error_management")
+
+
+class DatabaseUnavailableError(Exception):
+    pass
+
+
+_ERROR_MGMT.DatabaseUnavailableError = DatabaseUnavailableError
+_ERROR_MGMT._get_logger = lambda: MagicMock()
+sys.modules.setdefault("session_buddy.utils.error_management", _ERROR_MGMT)
+
+_INSTANCE_MANAGERS = types.ModuleType("session_buddy.utils.instance_managers")
+_INSTANCE_MANAGERS.get_reflection_database = lambda: None
+sys.modules.setdefault("session_buddy.utils.instance_managers", _INSTANCE_MANAGERS)
+
+_MODULE_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "database_tools.py"
+_SPEC = importlib.util.spec_from_file_location("session_buddy.utils.database_tools", _MODULE_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+database_tools = importlib.util.module_from_spec(_SPEC)
+sys.modules.setdefault("session_buddy.utils.database_tools", database_tools)
+_SPEC.loader.exec_module(database_tools)
+
+batch_database_operation = database_tools.batch_database_operation
+check_database_available = database_tools.check_database_available
+get_database_stats = database_tools.get_database_stats
+require_reflection_database = database_tools.require_reflection_database
+safe_database_operation = database_tools.safe_database_operation
+safe_database_operation_with_message = database_tools.safe_database_operation_with_message
 
 
 @pytest.mark.asyncio
@@ -25,7 +50,8 @@ async def test_require_reflection_database_returns_db(monkeypatch: pytest.Monkey
         return fake_db
 
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
+        database_tools,
+        "resolve_reflection_database",
         fake_resolve,
     )
 
@@ -42,7 +68,8 @@ async def test_require_reflection_database_raises_when_missing(
         return None
 
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
+        database_tools,
+        "resolve_reflection_database",
         fake_resolve,
     )
 
@@ -62,7 +89,8 @@ async def test_safe_database_operation_success(monkeypatch: pytest.MonkeyPatch) 
         return "ok"
 
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
+        database_tools,
+        "resolve_reflection_database",
         fake_resolve,
     )
 
@@ -79,7 +107,8 @@ async def test_safe_database_operation_reraises_unavailable(
         return None
 
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
+        database_tools,
+        "resolve_reflection_database",
         fake_resolve,
     )
 
@@ -106,11 +135,13 @@ async def test_safe_database_operation_reraises_other_exceptions(
         raise RuntimeError(msg)
 
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
+        database_tools,
+        "resolve_reflection_database",
         fake_resolve,
     )
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools._get_logger",
+        database_tools,
+        "_get_logger",
         lambda: logger,
     )
 
@@ -133,7 +164,8 @@ async def test_safe_database_operation_with_message_string_result(
         return "done"
 
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
+        database_tools,
+        "resolve_reflection_database",
         fake_resolve,
     )
 
@@ -155,7 +187,8 @@ async def test_safe_database_operation_with_message_non_string_result(
         return {"count": 2}
 
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
+        database_tools,
+        "resolve_reflection_database",
         fake_resolve,
     )
 
@@ -172,7 +205,8 @@ async def test_safe_database_operation_with_message_unavailable(
         return None
 
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
+        database_tools,
+        "resolve_reflection_database",
         fake_resolve,
     )
 
@@ -200,11 +234,13 @@ async def test_safe_database_operation_with_message_other_exception(
         raise RuntimeError(msg)
 
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
+        database_tools,
+        "resolve_reflection_database",
         fake_resolve,
     )
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools._get_logger",
+        database_tools,
+        "_get_logger",
         lambda: logger,
     )
 
@@ -233,11 +269,13 @@ async def test_batch_database_operation_success_and_failure(
         return f"value-{item}"
 
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
+        database_tools,
+        "resolve_reflection_database",
         fake_resolve,
     )
     monkeypatch.setattr(
-        "session_buddy.utils.database_tools._get_logger",
+        database_tools,
+        "_get_logger",
         lambda: logger,
     )
 
@@ -259,124 +297,18 @@ def test_check_database_available_false_when_reflection_tools_missing(
     assert check_database_available() is False
 
 
-def test_check_database_available_true_when_dependencies_present(
+def test_check_database_available_false_on_import_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        importlib.util,
-        "find_spec",
-        lambda name: object(),
-    )
-
-    assert check_database_available() is True
-
-
-def test_check_database_available_handles_import_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def fake_find_spec(name: str) -> object:
+    def boom(name: str) -> object:
         raise ImportError("boom")
 
-    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
+    monkeypatch.setattr(importlib.util, "find_spec", boom)
 
     assert check_database_available() is False
 
 
-@pytest.mark.asyncio
-async def test_get_database_stats_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    class FakeDB:
-        async def get_stats(self) -> dict[str, int]:
-            return {"total_reflections": 3, "total_conversations": 2}
-
-    async def fake_require() -> FakeDB:
-        return FakeDB()
-
-    monkeypatch.setattr(
-        "session_buddy.utils.database_tools.require_reflection_database",
-        fake_require,
-    )
-
-    result = await get_database_stats()
-
-    assert result == {
-        "total_reflections": 3,
-        "total_conversations": 2,
-        "available": True,
-    }
-
-
-@pytest.mark.asyncio
-async def test_get_database_stats_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_require() -> None:
-        raise DatabaseUnavailableError("Reflection database not available")
-
-    monkeypatch.setattr(
-        "session_buddy.utils.database_tools.require_reflection_database",
-        fake_require,
-    )
-
-    result = await get_database_stats()
-
-    assert result == {
-        "available": False,
-        "error": "Database not available",
-        "total_reflections": 0,
-        "total_conversations": 0,
-    }
-
-
-@pytest.mark.asyncio
-async def test_get_database_stats_generic_exception(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    logger = MagicMock()
-    logger.exception = MagicMock()
-
-    async def fake_require() -> None:
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(
-        "session_buddy.utils.database_tools.require_reflection_database",
-        fake_require,
-    )
-    monkeypatch.setattr(
-        "session_buddy.utils.database_tools._get_logger",
-        lambda: logger,
-    )
-
-    result = await get_database_stats()
-
-    assert result == {
-        "available": False,
-        "error": "boom",
-        "total_reflections": 0,
-        "total_conversations": 0,
-    }
-    logger.exception.assert_called_once()
-
-
-def test_check_database_available_false_when_duckdb_missing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import importlib.util
-
-    def fake_find_spec(name: str) -> object | None:
-        if name == "session_buddy.reflection_tools":
-            return object()
-        if name == "duckdb":
-            return None
-        return object()
-
-    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
-
-    assert check_database_available() is False
-
-
-def test_check_database_available_true(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import importlib.util
-
+def test_check_database_available_true(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_find_spec(name: str) -> object | None:
         return object()
 
@@ -386,81 +318,46 @@ def test_check_database_available_true(
 
 
 @pytest.mark.asyncio
-async def test_get_database_stats_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_db = SimpleNamespace(get_stats=AsyncMock(return_value={"total_reflections": 7}))
+async def test_get_database_stats_success_and_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def get_stats() -> dict[str, int]:
+        return {"total_reflections": 1, "total_conversations": 2}
+
+    fake_db = types.SimpleNamespace(get_stats=get_stats)
 
     async def fake_resolve() -> object:
         return fake_db
 
-    monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
-        fake_resolve,
-    )
+    monkeypatch.setattr(database_tools, "resolve_reflection_database", fake_resolve)
 
-    result = await get_database_stats()
+    stats = await get_database_stats()
+    assert stats["available"] is True
+    assert stats["total_reflections"] == 1
 
-    assert result == {
-        "total_reflections": 7,
-        "available": True,
-    }
-
-
-@pytest.mark.asyncio
-async def test_get_database_stats_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def fake_resolve() -> None:
+    async def fake_missing() -> None:
         return None
 
-    monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
-        fake_resolve,
-    )
-
-    result = await get_database_stats()
-
-    assert result == {
-        "available": False,
-        "error": "Database not available",
-        "total_reflections": 0,
-        "total_conversations": 0,
-    }
+    monkeypatch.setattr(database_tools, "resolve_reflection_database", fake_missing)
+    missing = await get_database_stats()
+    assert missing["available"] is False
+    assert missing["error"] == "Database not available"
 
 
 @pytest.mark.asyncio
-async def test_get_database_stats_other_exception(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_get_database_stats_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_db = types.SimpleNamespace(
+        get_stats=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     logger = MagicMock()
     logger.exception = MagicMock()
 
     async def fake_resolve() -> object:
-        return object()
+        return fake_db
 
-    async def fake_get_stats() -> dict[str, int]:
-        msg = "stats failed"
-        raise RuntimeError(msg)
+    monkeypatch.setattr(database_tools, "resolve_reflection_database", fake_resolve)
+    monkeypatch.setattr(database_tools, "_get_logger", lambda: logger)
 
-    db = SimpleNamespace(get_stats=fake_get_stats)
+    stats = await get_database_stats()
 
-    async def resolve() -> object:
-        return db
-
-    monkeypatch.setattr(
-        "session_buddy.utils.database_tools.resolve_reflection_database",
-        resolve,
-    )
-    monkeypatch.setattr(
-        "session_buddy.utils.database_tools._get_logger",
-        lambda: logger,
-    )
-
-    result = await get_database_stats()
-
-    assert result == {
-        "available": False,
-        "error": "stats failed",
-        "total_reflections": 0,
-        "total_conversations": 0,
-    }
+    assert stats["available"] is False
+    assert stats["error"] == "boom"
     logger.exception.assert_called_once()

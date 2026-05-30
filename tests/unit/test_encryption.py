@@ -1,29 +1,44 @@
 """Tests for Session-Buddy encryption utilities."""
 
+from __future__ import annotations
+
+import importlib.util
 import os
+import sys
+import types
+from pathlib import Path
+
 import pytest
 from cryptography.fernet import Fernet
 
-import session_buddy.utils.encryption as encryption_module
-from session_buddy.utils.encryption import (
-    DataEncryption,
-    DecryptionError,
-    KeyNotFoundError,
-    EncryptionError,
-    generate_encryption_key,
-    is_encrypted,
-    get_encryption,
-)
+_UTILS_PACKAGE = types.ModuleType("session_buddy.utils")
+_UTILS_PACKAGE.__path__ = []  # type: ignore[attr-defined]
+sys.modules.setdefault("session_buddy.utils", _UTILS_PACKAGE)
+
+_MODULE_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "encryption.py"
+_SPEC = importlib.util.spec_from_file_location("session_buddy.utils.encryption", _MODULE_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+encryption_module = importlib.util.module_from_spec(_SPEC)
+sys.modules.setdefault("session_buddy.utils.encryption", encryption_module)
+_SPEC.loader.exec_module(encryption_module)
+
+DataEncryption = encryption_module.DataEncryption
+DecryptionError = encryption_module.DecryptionError
+KeyNotFoundError = encryption_module.KeyNotFoundError
+EncryptionError = encryption_module.EncryptionError
+generate_encryption_key = encryption_module.generate_encryption_key
+is_encrypted = encryption_module.is_encrypted
+get_encryption = encryption_module.get_encryption
 
 
 @pytest.fixture
-def test_key():
+def test_key() -> str:
     """Generate a test encryption key."""
     return Fernet.generate_key().decode()
 
 
 @pytest.fixture
-def encryption(test_key):
+def encryption(test_key: str) -> DataEncryption:
     """Create DataEncryption instance with test key."""
     return DataEncryption(key=test_key)
 
@@ -31,19 +46,15 @@ def encryption(test_key):
 class TestDataEncryption:
     """Test DataEncryption class."""
 
-    def test_initialization_with_key(self, test_key):
-        """Test initialization with provided key."""
+    def test_initialization_with_key(self, test_key: str) -> None:
         enc = DataEncryption(key=test_key)
         assert enc.cipher is not None
 
-    def test_initialization_with_password(self):
-        """Test initialization with password (key derivation)."""
+    def test_initialization_with_password(self) -> None:
         enc = DataEncryption(password="test_password")
         assert enc.cipher is not None
 
-    def test_initialization_without_key_raises_error(self):
-        """Test that initialization without key raises error."""
-        # Ensure env var is not set
+    def test_initialization_without_key_raises_error(self) -> None:
         if "SESSION_ENCRYPTION_KEY" in os.environ:
             del os.environ["SESSION_ENCRYPTION_KEY"]
 
@@ -52,8 +63,7 @@ class TestDataEncryption:
 
         assert "SESSION_ENCRYPTION_KEY" in str(exc_info.value)
 
-    def test_initialization_from_env(self, test_key):
-        """Test initialization from environment variable."""
+    def test_initialization_from_env(self, test_key: str) -> None:
         os.environ["SESSION_ENCRYPTION_KEY"] = test_key
         try:
             enc = DataEncryption()
@@ -61,35 +71,44 @@ class TestDataEncryption:
         finally:
             del os.environ["SESSION_ENCRYPTION_KEY"]
 
-    def test_encrypt_string(self, encryption):
-        """Test encrypting a string."""
+    def test_encrypt_string(self, encryption: DataEncryption) -> None:
         plaintext = "sensitive data"
         encrypted = encryption.encrypt(plaintext)
 
         assert isinstance(encrypted, bytes)
         assert encrypted != plaintext.encode()
 
-    def test_encrypt_bytes(self, encryption):
-        """Test encrypting bytes."""
+    def test_encrypt_bytes(self, encryption: DataEncryption) -> None:
         plaintext = b"sensitive data"
         encrypted = encryption.encrypt(plaintext)
 
         assert isinstance(encrypted, bytes)
         assert encrypted != plaintext
 
-    def test_encrypt_unicode(self, encryption):
-        """Test encrypting unicode characters."""
+    def test_encrypt_error_raises_encryption_error(
+        self,
+        encryption: DataEncryption,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            encryption.cipher,
+            "encrypt",
+            lambda data: (_ for _ in ()).throw(RuntimeError("encrypt boom")),
+        )
+
+        with pytest.raises(EncryptionError, match="Encryption failed: encrypt boom"):
+            encryption.encrypt("data")
+
+    def test_encrypt_unicode(self, encryption: DataEncryption) -> None:
         plaintext = "Hello 世界 🌍"
         encrypted = encryption.encrypt(plaintext)
 
         assert isinstance(encrypted, bytes)
 
-        # Verify decryption works
         decrypted = encryption.decrypt(encrypted)
         assert decrypted == plaintext
 
-    def test_decrypt_string(self, encryption):
-        """Test decrypting to string."""
+    def test_decrypt_string(self, encryption: DataEncryption) -> None:
         plaintext = "sensitive data"
         encrypted = encryption.encrypt(plaintext)
         decrypted = encryption.decrypt(encrypted)
@@ -97,16 +116,14 @@ class TestDataEncryption:
         assert isinstance(decrypted, str)
         assert decrypted == plaintext
 
-    def test_decrypt_bytes(self, encryption):
-        """Test decrypting bytes to string."""
+    def test_decrypt_bytes(self, encryption: DataEncryption) -> None:
         plaintext = b"sensitive data"
         encrypted = encryption.encrypt(plaintext)
         decrypted = encryption.decrypt(encrypted)
 
         assert decrypted == "sensitive data"
 
-    def test_decrypt_wrong_key_raises_error(self, test_key):
-        """Test that decrypting with wrong key raises error."""
+    def test_decrypt_wrong_key_raises_error(self, test_key: str) -> None:
         enc1 = DataEncryption(key=test_key)
         enc2 = DataEncryption(key=Fernet.generate_key().decode())
 
@@ -116,32 +133,43 @@ class TestDataEncryption:
         with pytest.raises(DecryptionError):
             enc2.decrypt(encrypted)
 
-    def test_decrypt_invalid_token_raises_error(self, encryption):
-        """Test that decrypting invalid token raises error."""
+    def test_decrypt_invalid_token_raises_error(self, encryption: DataEncryption) -> None:
         invalid_token = b"not_a_valid_fernet_token"
 
         with pytest.raises(DecryptionError):
             encryption.decrypt(invalid_token)
 
-    def test_encrypt_dict_default_fields(self, encryption):
-        """Test encrypting dict with default sensitive fields."""
+    def test_decrypt_generic_error_raises_decryption_error(
+        self,
+        encryption: DataEncryption,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            encryption.cipher,
+            "decrypt",
+            lambda data: (_ for _ in ()).throw(RuntimeError("decrypt boom")),
+        )
+
+        with pytest.raises(DecryptionError, match="Decryption failed: decrypt boom"):
+            encryption.decrypt(b"ciphertext")
+
+    def test_encrypt_dict_default_fields(self, encryption: DataEncryption) -> None:
         data = {
             "content": "sensitive content",
             "api_key": "secret_key",
-            "public": "visible data"
+            "public": "visible data",
         }
 
         encrypted = encryption.encrypt_dict(data)
 
         assert isinstance(encrypted["content"], bytes)
         assert isinstance(encrypted["api_key"], bytes)
-        assert encrypted["public"] == "visible data"  # Not encrypted
+        assert encrypted["public"] == "visible data"
 
-    def test_encrypt_dict_custom_fields(self, encryption):
-        """Test encrypting dict with custom fields."""
+    def test_encrypt_dict_custom_fields(self, encryption: DataEncryption) -> None:
         data = {
             "custom_field": "secret",
-            "other_field": "not secret"
+            "other_field": "not secret",
         }
 
         encrypted = encryption.encrypt_dict(data, fields=["custom_field"])
@@ -149,16 +177,21 @@ class TestDataEncryption:
         assert isinstance(encrypted["custom_field"], bytes)
         assert encrypted["other_field"] == "not secret"
 
-    def test_encrypt_dict_handles_missing_fields(self, encryption):
-        """Test that encrypt_dict handles missing fields gracefully."""
+    def test_encrypt_dict_bytes_field(self, encryption: DataEncryption) -> None:
+        data = {"token": b"secret-bytes", "public": "visible"}
+
+        encrypted = encryption.encrypt_dict(data, fields=["token"])
+
+        assert isinstance(encrypted["token"], bytes)
+        assert encrypted["public"] == "visible"
+
+    def test_encrypt_dict_handles_missing_fields(self, encryption: DataEncryption) -> None:
         data = {"public": "visible"}
 
-        # Should not raise error
         encrypted = encryption.encrypt_dict(data)
         assert encrypted["public"] == "visible"
 
-    def test_encrypt_dict_skips_complex_types(self, encryption):
-        """Test that encrypt_dict leaves lists and dicts unchanged."""
+    def test_encrypt_dict_skips_complex_types(self, encryption: DataEncryption) -> None:
         data = {
             "content": ["nested", "list"],
             "api_key": {"value": "secret"},
@@ -171,21 +204,16 @@ class TestDataEncryption:
         assert encrypted["api_key"] == {"value": "secret"}
         assert encrypted["public"] == "visible"
 
-    def test_decrypt_dict_default_fields(self, encryption):
-        """Test decrypting dict with default fields."""
+    def test_decrypt_dict_default_fields(self, encryption: DataEncryption) -> None:
         data = {"content": "secret", "public": "visible"}
 
-        # Encrypt
         encrypted = encryption.encrypt_dict(data)
-
-        # Decrypt
         decrypted = encryption.decrypt_dict(encrypted)
 
         assert decrypted["content"] == "secret"
         assert decrypted["public"] == "visible"
 
-    def test_decrypt_dict_custom_fields(self, encryption):
-        """Test decrypting dict with custom fields."""
+    def test_decrypt_dict_custom_fields(self, encryption: DataEncryption) -> None:
         data = {"custom": "secret"}
 
         encrypted = encryption.encrypt_dict(data, fields=["custom"])
@@ -193,59 +221,48 @@ class TestDataEncryption:
 
         assert decrypted["custom"] == "secret"
 
-    def test_decrypt_dict_handles_unencrypted_fields(self, encryption):
-        """Test that decrypt_dict skips unencrypted fields."""
+    def test_decrypt_dict_handles_unencrypted_fields(self, encryption: DataEncryption) -> None:
         data = {"already_plain": "not encrypted"}
 
-        # Should not raise error
         result = encryption.decrypt_dict(data)
         assert result["already_plain"] == "not encrypted"
 
-    def test_decrypt_dict_skips_non_bytes_values(self, encryption):
-        """Test that decrypt_dict leaves non-bytes fields untouched."""
+    def test_decrypt_dict_skips_non_bytes_values(self, encryption: DataEncryption) -> None:
         data = {"content": "already plain", "api_key": 123}
 
         result = encryption.decrypt_dict(data)
 
         assert result == data
 
-    def test_generate_key(self, encryption):
-        """Test generating a new Fernet key."""
+    def test_generate_key(self, encryption: DataEncryption) -> None:
         key = encryption.generate_key()
 
         assert isinstance(key, str)
-        assert len(key) == 44  # 32 bytes in base64
+        assert len(key) == 44
 
-        # Key should be valid Fernet key
         fernet = Fernet(key)
         assert fernet is not None
 
-    def test_rotate_key(self, encryption, test_key):
-        """Test rotating encryption keys."""
-        # Create new key
+    def test_rotate_key(self, encryption: DataEncryption, test_key: str) -> None:
         new_key = Fernet.generate_key().decode()
         new_encryption = DataEncryption(key=new_key)
 
-        # Encrypt with old key
         plaintext = "secret data"
         encrypted = encryption.encrypt(plaintext)
 
-        # Rotate to new key
         rotated = encryption.rotate_key(encrypted, new_encryption.cipher)
 
-        # Decrypt with new key
         decrypted = new_encryption.decrypt(rotated)
         assert decrypted == plaintext
 
-    def test_roundtrip_encryption(self, encryption):
-        """Test that encrypt/decrypt roundtrip works."""
+    def test_roundtrip_encryption(self, encryption: DataEncryption) -> None:
         test_cases = [
             "simple text",
             "with numbers 123",
             "special chars !@#$%",
             "unicode 世界 🌍",
             "multi\nline\ntext",
-            "very long text " * 100
+            "very long text " * 100,
         ]
 
         for plaintext in test_cases:
@@ -257,52 +274,43 @@ class TestDataEncryption:
 class TestGenerateEncryptionKey:
     """Test generate_encryption_key function."""
 
-    def test_generate_key(self):
-        """Test key generation."""
+    def test_generate_key(self) -> None:
         key = generate_encryption_key()
 
         assert isinstance(key, str)
         assert len(key) == 44
 
-        # Should be valid Fernet key
         fernet = Fernet(key)
         encrypted = fernet.encrypt(b"test")
         assert fernet.decrypt(encrypted) == b"test"
 
-    def test_generate_unique_keys(self):
-        """Test that each generated key is unique."""
+    def test_generate_unique_keys(self) -> None:
         keys = [generate_encryption_key() for _ in range(10)]
 
-        assert len(set(keys)) == 10  # All unique
+        assert len(set(keys)) == 10
 
 
 class TestIsEncrypted:
     """Test is_encrypted function."""
 
-    def test_fernet_encrypted_data(self, encryption):
-        """Test that Fernet-encrypted data is detected."""
+    def test_fernet_encrypted_data(self, encryption: DataEncryption) -> None:
         encrypted = encryption.encrypt("test")
         assert is_encrypted(encrypted) is True
 
-    def test_plain_bytes(self):
-        """Test that plain bytes are not detected as encrypted."""
+    def test_plain_bytes(self) -> None:
         assert is_encrypted(b"plain text") is False
         assert is_encrypted(b"") is False
 
-    def test_wrong_version_byte(self):
-        """Test data with wrong version byte."""
-        # Fernet starts with 128 (0x80)
+    def test_wrong_version_byte(self) -> None:
         wrong_version = b"\x00" + b"s" * 63
         assert is_encrypted(wrong_version) is False
 
-    def test_non_bytes_input(self):
-        """Test that non-bytes input returns False."""
+    def test_non_bytes_input(self) -> None:
         assert is_encrypted("string") is False
         assert is_encrypted(123) is False
         assert is_encrypted(None) is False
 
-    def test_short_and_invalid_base64_inputs(self):
-        """Test edge cases for heuristic detection."""
+    def test_short_and_invalid_base64_inputs(self) -> None:
         assert is_encrypted(b"short") is False
         assert is_encrypted(b"!@#$%^&*()_+INVALIDTOKEN!!!!!") is False
 
@@ -310,8 +318,7 @@ class TestIsEncrypted:
 class TestGetEncryption:
     """Test get_encryption singleton function."""
 
-    def test_singleton_behavior(self, test_key):
-        """Test that get_encryption returns same instance."""
+    def test_singleton_behavior(self, test_key: str) -> None:
         os.environ["SESSION_ENCRYPTION_KEY"] = test_key
 
         try:
@@ -322,14 +329,11 @@ class TestGetEncryption:
         finally:
             del os.environ["SESSION_ENCRYPTION_KEY"]
 
-    def test_raises_without_env_key(self):
-        """Test that get_encryption raises error without key."""
-        # Save current state
+    def test_raises_without_env_key(self) -> None:
         old_key = os.environ.get("SESSION_ENCRYPTION_KEY")
         old_instance = encryption_module._encryption_instance
 
         try:
-            # Reset singleton and env
             encryption_module._encryption_instance = None
             if "SESSION_ENCRYPTION_KEY" in os.environ:
                 del os.environ["SESSION_ENCRYPTION_KEY"]
@@ -337,15 +341,13 @@ class TestGetEncryption:
             with pytest.raises(KeyNotFoundError):
                 get_encryption()
         finally:
-            # Restore state
             encryption_module._encryption_instance = old_instance
             if old_key:
                 os.environ["SESSION_ENCRYPTION_KEY"] = old_key
             elif "SESSION_ENCRYPTION_KEY" in os.environ:
                 del os.environ["SESSION_ENCRYPTION_KEY"]
 
-    def test_reuses_existing_instance(self, test_key):
-        """Test cached singleton is returned without reinitialization."""
+    def test_reuses_existing_instance(self, test_key: str) -> None:
         old_instance = encryption_module._encryption_instance
         try:
             encryption_module._encryption_instance = DataEncryption(key=test_key)
@@ -358,61 +360,47 @@ class TestGetEncryption:
 class TestIntegration:
     """Integration tests for encryption workflow."""
 
-    def test_session_encryption_workflow(self, encryption):
-        """Test typical session encryption workflow."""
-        # Simulate session data
+    def test_session_encryption_workflow(self, encryption: DataEncryption) -> None:
         session_data = {
             "session_id": "abc123",
             "content": "User asked about API implementation",
             "reflection": "Discussed REST vs GraphQL",
-            "api_key": "sk_test_12345",  # Sensitive
+            "api_key": "sk_test_12345",
             "timestamp": "2026-02-02T12:00:00Z",
-            "user_id": "user_456"
+            "user_id": "user_456",
         }
 
-        # Encrypt sensitive fields
         encrypted_data = encryption.encrypt_dict(session_data)
 
-        # Verify sensitive fields are encrypted
         assert isinstance(encrypted_data["content"], bytes)
         assert isinstance(encrypted_data["reflection"], bytes)
         assert isinstance(encrypted_data["api_key"], bytes)
 
-        # Verify non-sensitive fields are intact
         assert encrypted_data["session_id"] == "abc123"
         assert encrypted_data["timestamp"] == "2026-02-02T12:00:00Z"
 
-        # Decrypt all fields
         decrypted_data = encryption.decrypt_dict(encrypted_data)
 
-        # Verify all fields match original
         assert decrypted_data["session_id"] == session_data["session_id"]
         assert decrypted_data["content"] == session_data["content"]
         assert decrypted_data["reflection"] == session_data["reflection"]
         assert decrypted_data["api_key"] == session_data["api_key"]
         assert decrypted_data["timestamp"] == session_data["timestamp"]
 
-    def test_key_rotation_workflow(self):
-        """Test key rotation for existing encrypted data."""
-        # Old key
+    def test_key_rotation_workflow(self) -> None:
         old_key = Fernet.generate_key().decode()
         old_enc = DataEncryption(key=old_key)
 
-        # Encrypt data with old key
         data = "sensitive session content"
         encrypted = old_enc.encrypt(data)
 
-        # Generate new key
         new_key = Fernet.generate_key().decode()
         new_enc = DataEncryption(key=new_key)
 
-        # Rotate
         rotated = old_enc.rotate_key(encrypted, new_enc.cipher)
 
-        # Verify new key can decrypt
         decrypted = new_enc.decrypt(rotated)
         assert decrypted == data
 
-        # Verify old key cannot decrypt rotated data
         with pytest.raises(DecryptionError):
             old_enc.decrypt(rotated)

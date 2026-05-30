@@ -277,9 +277,7 @@ async def discover_tools(query: str) -> dict[str, Any]:
     return {
         "found": len(results),
         "tools": results[:25],
-        "hint": (
-            "Set SESSION_BUDDY_TOOL_PROFILE=full and restart to enable all tools."
-        )
+        "hint": ("Set SESSION_BUDDY_TOOL_PROFILE=full and restart to enable all tools.")
         if results
         else "No matching tools found. Try broader search terms.",
     }

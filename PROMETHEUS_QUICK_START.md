@@ -123,6 +123,7 @@ python session_buddy/realtime/metrics_exporter.py
 ```
 
 # lychee: ignore
+
 http://localhost:9090/metrics
 
 ## Prometheus Configuration
@@ -288,8 +289,11 @@ For issues or questions:
 
 1. Check the test script: `python test_prometheus_metrics.py`
 1. Verify Prometheus config: `promtool check config prometheus.yml`
+
 # lychee: ignore
+
 curl http://localhost:9090/metrics
+
 1. Review logs for errors
 
 ______________________________________________________________________

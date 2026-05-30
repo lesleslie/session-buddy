@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
+import pytest
 from session_buddy.core import SessionLifecycleManager
 from session_buddy.core.permissions import SessionPermissionsManager
 from session_buddy.di import SessionPaths, configure, reset
 from session_buddy.di.container import depends
 from session_buddy.utils.logging import SessionLogger
-
-if TYPE_CHECKING:
-    import pytest
 
 
 def test_configure_registers_singletons(
@@ -81,3 +78,82 @@ def test_reset_restores_default_instances(
 
     monkeypatch.setenv("HOME", str(original_home))
     reset()
+
+
+def test_service_container_branches() -> None:
+    from session_buddy.di.container import ServiceContainer
+
+    container = ServiceContainer()
+
+    assert container._key_name("literal") == "literal"
+
+    class DemoKey:
+        pass
+
+    assert container._key_name(DemoKey) == f"{DemoKey.__module__}.{DemoKey.__qualname__}"
+
+    class StringableKey:
+        def __str__(self) -> str:
+            return "stringable-key"
+
+    assert container._key_name(StringableKey()) == "stringable-key"
+
+    container.set("cached", {"value": 1})
+    assert container.get_sync("cached") == {"value": 1}
+    assert container.get("cached") == {"value": 1}
+
+    container.reset()
+
+    with pytest.raises(KeyError, match="Service not registered"):
+        container.get_sync("missing")
+
+    class AwaitableResult:
+        def __await__(self):
+            if False:
+                yield None
+            return {"async": True}
+
+    container.register_factory("async", lambda: AwaitableResult())
+
+    with pytest.raises(RuntimeError, match="Async factory registered for sync get"):
+        container.get_sync("async")
+
+    container.register_factory("sync", lambda: {"sync": True})
+    assert container.get_sync("sync") == {"sync": True}
+
+
+@pytest.mark.asyncio
+async def test_service_container_async_get_and_reset() -> None:
+    from session_buddy.di.container import ServiceContainer
+
+    container = ServiceContainer()
+
+    async def async_factory():
+        return {"async": True}
+
+    container.register_factory("async", async_factory)
+    result = await container.get_async("async")
+    assert result == {"async": True}
+    assert await container.get_async("async") is result
+
+    container.set("cached", {"value": 2})
+    assert await container.get_async("cached") == {"value": 2}
+
+    container.reset()
+
+    with pytest.raises(KeyError, match="Service not registered"):
+        await container.get_async("missing")
+
+
+@pytest.mark.asyncio
+async def test_service_container_async_get_with_sync_factory() -> None:
+    from session_buddy.di.container import ServiceContainer
+
+    container = ServiceContainer()
+
+    container.register_factory("sync-factory", lambda: {"sync": True})
+
+    result = await container.get_async("sync-factory")
+
+    assert result == {"sync": True}
+    assert await container.get_async("sync-factory") is result

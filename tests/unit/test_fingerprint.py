@@ -208,6 +208,12 @@ class TestMinHashSignature:
         # All signatures should be identical
         assert all(s == signatures[0] for s in signatures)
 
+    def test_repr(self) -> None:
+        sig = MinHashSignature.from_text("python async patterns")
+        rep = repr(sig)
+        assert "MinHashSignature" in rep
+        assert "num_hashes=128" in rep
+
 
 class TestMinHashProperties:
     """Test MinHash algorithm properties."""

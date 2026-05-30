@@ -63,3 +63,17 @@ def test_get_quality_scorer_singleton_and_setter(monkeypatch) -> None:
     set_quality_scorer(custom)
 
     assert get_quality_scorer() is custom
+
+
+def test_quality_scorer_abstract_base_methods_are_noops() -> None:
+    class SuperCallingScorer(_quality_scoring.QualityScorer):
+        async def calculate_quality_score(self, project_dir=None):
+            return await super().calculate_quality_score(project_dir)
+
+        def get_permissions_score(self) -> int:
+            return super().get_permissions_score()
+
+    scorer = SuperCallingScorer()
+
+    assert asyncio.run(scorer.calculate_quality_score()) is None
+    assert scorer.get_permissions_score() is None

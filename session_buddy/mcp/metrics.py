@@ -34,7 +34,9 @@ from prometheus_client import Counter, Gauge, Histogram, generate_latest
 from prometheus_client.registry import CollectorRegistry
 
 try:
-    from prometheus_client.exposition import choose_formatter  # type: ignore[attr-defined]
+    from prometheus_client.exposition import (
+        choose_formatter,  # type: ignore[attr-defined]
+    )
 except ImportError:
     # prometheus_client < 0.20.0
     from prometheus_client.exposition import (

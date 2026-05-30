@@ -47,4 +47,3 @@ def test_get_authenticator_enabled(monkeypatch) -> None:
     assert authenticator is not None
     token = authenticator.create_token({"user_id": "x"})
     assert auth.verify_token(token) is not None
-

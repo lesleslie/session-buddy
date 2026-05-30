@@ -1133,10 +1133,12 @@ Timestamp: {health_info["timestamp"]}
                 output.append(f"📊 Quality score: {result['quality_score']}/100")
 
             if result.get("reflection_stored"):
-                output.extend((
-                    f"💾 Reflection stored: {result.get('reflection_id', 'unknown')}",
-                    f"🏷️ Tags: {', '.join(result.get('tags', []))}",
-                ))
+                output.extend(
+                    (
+                        f"💾 Reflection stored: {result.get('reflection_id', 'unknown')}",
+                        f"🏷️ Tags: {', '.join(result.get('tags', []))}",
+                    )
+                )
             else:
                 output.append("⚠️ Reflection storage skipped")
 

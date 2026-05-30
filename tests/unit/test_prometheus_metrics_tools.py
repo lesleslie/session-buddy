@@ -91,4 +91,3 @@ async def test_prometheus_metrics_tools_cover_available_and_unavailable_paths(
     assert "session_lifecycle_metrics" in listing
     assert "mcp_event_metrics" in listing
     assert "system_health_metrics" in listing
-

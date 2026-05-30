@@ -7,6 +7,7 @@ Tests CLI commands using the MCPServerCLIFactory-based implementation.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -108,6 +109,33 @@ class TestServerManagement:
 
 
 class TestCliInternals:
+    @patch("builtins.print")
+    def test_start_server_handler_invokes_run_server(
+        self,
+        mock_print: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from session_buddy import cli as cli_module
+
+        class FakeSettings:
+            http_port = 1234
+            websocket_port = 4321
+
+        mock_run_server = MagicMock()
+        monkeypatch.setattr(cli_module, "SessionBuddySettings", FakeSettings)
+        monkeypatch.setitem(
+            __import__("sys").modules,
+            "session_buddy.server_optimized",
+            SimpleNamespace(run_server=mock_run_server),
+        )
+
+        cli_module.start_server_handler()
+
+        mock_print.assert_any_call("🚀 Starting Session Management MCP Server...")
+        mock_print.assert_any_call("HTTP Port: 1234")
+        mock_print.assert_any_call("WebSocket Port: 4321")
+        mock_run_server.assert_called_once_with(host="127.0.0.1", port=1234)
+
     def test_read_running_pid_missing_file(self, tmp_path: Path) -> None:
         from session_buddy.cli import _read_running_pid
         from mcp_common import MCPServerSettings
@@ -172,3 +200,17 @@ class TestCliInternals:
         result = cli_runner.invoke(app, ["--version"])
         assert result.exit_code == 0
         assert "session-buddy version" in result.output
+
+    def test_main_invokes_created_cli_app(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from session_buddy import cli as cli_module
+
+        app = MagicMock()
+        factory = SimpleNamespace(create_app=MagicMock(return_value=app))
+        create_cli = MagicMock(return_value=factory)
+        monkeypatch.setattr(cli_module, "create_session_buddy_cli", create_cli)
+
+        cli_module.main()
+
+        create_cli.assert_called_once_with()
+        factory.create_app.assert_called_once_with()
+        app.assert_called_once_with()

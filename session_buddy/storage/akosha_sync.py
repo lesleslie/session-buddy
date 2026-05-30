@@ -23,9 +23,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import operator
 import time
-from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -181,8 +179,13 @@ class HttpSyncMethod(SyncMethod):
                 )
             ) as client:
                 await self._sync_with_client(
-                    client, akosha_url, batch_size, incremental,
-                    upload_reflections, upload_knowledge_graph, stats
+                    client,
+                    akosha_url,
+                    batch_size,
+                    incremental,
+                    upload_reflections,
+                    upload_knowledge_graph,
+                    stats,
                 )
 
             self._update_sync_state()
@@ -283,7 +286,9 @@ class HttpSyncMethod(SyncMethod):
         self._last_sync_timestamp["last_sync"] = current_time
         self._save_sync_state()
 
-    def _build_sync_result(self, stats: dict[str, Any], duration: float) -> dict[str, Any]:
+    def _build_sync_result(
+        self, stats: dict[str, Any], duration: float
+    ) -> dict[str, Any]:
         """Build final sync result dictionary."""
         return {
             "method": "http",

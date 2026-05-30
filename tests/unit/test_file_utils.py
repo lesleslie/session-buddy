@@ -22,6 +22,15 @@ _MODULE = importlib.util.module_from_spec(_SPEC)
 sys.modules.setdefault("session_buddy.utils.filesystem", _MODULE)
 _SPEC.loader.exec_module(_MODULE)
 
+_FILE_UTILS_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "file_utils.py"
+_FILE_UTILS_SPEC = importlib.util.spec_from_file_location(
+    "session_buddy.utils.file_utils", _FILE_UTILS_PATH
+)
+assert _FILE_UTILS_SPEC is not None and _FILE_UTILS_SPEC.loader is not None
+_FILE_UTILS_MODULE = importlib.util.module_from_spec(_FILE_UTILS_SPEC)
+sys.modules.setdefault("session_buddy.utils.file_utils", _FILE_UTILS_MODULE)
+_FILE_UTILS_SPEC.loader.exec_module(_FILE_UTILS_MODULE)
+
 _cleanup_session_logs = _MODULE._cleanup_session_logs
 _cleanup_temp_files = _MODULE._cleanup_temp_files
 _cleanup_uv_cache = _MODULE._cleanup_uv_cache
@@ -32,6 +41,10 @@ _format_cleanup_results = _MODULE._format_cleanup_results
 _process_cleanup_patterns = _MODULE._process_cleanup_patterns
 _process_single_pattern = _MODULE._process_single_pattern
 validate_claude_directory = _MODULE.validate_claude_directory
+
+file_utils_cleanup_session_logs = _FILE_UTILS_MODULE._cleanup_session_logs
+file_utils_cleanup_temp_files = _FILE_UTILS_MODULE._cleanup_temp_files
+file_utils_cleanup_uv_cache = _FILE_UTILS_MODULE._cleanup_uv_cache
 
 
 class TestCleanupPatterns:
@@ -55,6 +68,15 @@ class TestCleanupPatterns:
         """Test that cleanup patterns list is not empty."""
         result = _get_cleanup_patterns()
         assert len(result) > 0
+
+
+class TestFileUtilsShim:
+    """Test that the compatibility shim re-exports filesystem helpers."""
+
+    def test_reexports_match_filesystem(self) -> None:
+        assert file_utils_cleanup_session_logs is _cleanup_session_logs
+        assert file_utils_cleanup_temp_files is _cleanup_temp_files
+        assert file_utils_cleanup_uv_cache is _cleanup_uv_cache
 
 
 class TestCleanupSessionLogs:

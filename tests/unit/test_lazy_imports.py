@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
+import sys
+import types
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -13,8 +17,24 @@ class _DummyLogger:
         self.info = Mock()
 
 
+_UTILS_PACKAGE = types.ModuleType("session_buddy.utils")
+_UTILS_PACKAGE.__path__ = []  # type: ignore[attr-defined]
+sys.modules.setdefault("session_buddy.utils", _UTILS_PACKAGE)
+
+_LOGGING_STUB = types.ModuleType("session_buddy.utils.logging")
+_LOGGING_STUB.get_session_logger = lambda: _DummyLogger()
+sys.modules.setdefault("session_buddy.utils.logging", _LOGGING_STUB)
+
+_MODULE_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "lazy_imports.py"
+_SPEC = importlib.util.spec_from_file_location("session_buddy.utils.lazy_imports", _MODULE_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+_MODULE = importlib.util.module_from_spec(_SPEC)
+sys.modules.setdefault("session_buddy.utils.lazy_imports", _MODULE)
+_SPEC.loader.exec_module(_MODULE)
+
+
 def test_get_logger_uses_session_logger_and_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    from session_buddy.utils import lazy_imports
+    lazy_imports = _MODULE
 
     logger = _DummyLogger()
     monkeypatch.setattr(lazy_imports, "_logger", None)
@@ -35,10 +55,18 @@ def test_get_logger_uses_session_logger_and_fallback(monkeypatch: pytest.MonkeyP
 
 
 def test_lazy_import_success_and_failure_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    from session_buddy.utils import lazy_imports
+    lazy_imports = _MODULE
 
     logger = _DummyLogger()
     monkeypatch.setattr(lazy_imports, "_logger", logger)
+
+    fresh_loader = lazy_imports.LazyImport("fresh")
+    monkeypatch.setattr(
+        lazy_imports.importlib,
+        "import_module",
+        lambda name: SimpleNamespace(answer=42),
+    )
+    assert bool(fresh_loader) is True
 
     module = SimpleNamespace(answer=42)
     monkeypatch.setattr(lazy_imports.importlib, "import_module", lambda name: module)
@@ -67,7 +95,7 @@ def test_lazy_import_success_and_failure_paths(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_lazy_loader_and_decorators(monkeypatch: pytest.MonkeyPatch) -> None:
-    from session_buddy.utils import lazy_imports
+    lazy_imports = _MODULE
 
     logger = _DummyLogger()
     monkeypatch.setattr(lazy_imports, "_logger", logger)
@@ -93,11 +121,16 @@ def test_lazy_loader_and_decorators(monkeypatch: pytest.MonkeyPatch) -> None:
     def required(value: int) -> int:
         return value + 1
 
+    @lazy_imports.optional_dependency("ok", fallback_result="fallback")
+    def optional_ok() -> str:
+        return "used"
+
     @lazy_imports.optional_dependency("missing", fallback_result="fallback")
     def optional() -> str:
         return "should not run"
 
     assert required(1) == 2
+    assert optional_ok() == "used"
     assert optional() == "fallback"
 
     with pytest.raises(ImportError, match="requires missing"):
@@ -109,7 +142,7 @@ def test_lazy_loader_and_decorators(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_mock_module_and_embedding_mock(monkeypatch: pytest.MonkeyPatch) -> None:
-    from session_buddy.utils import lazy_imports
+    lazy_imports = _MODULE
 
     module = lazy_imports.MockModule("demo")
     with pytest.raises(ImportError, match="Mock function encode called"):
@@ -127,7 +160,7 @@ def test_mock_module_and_embedding_mock(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_dependency_status_and_logging(monkeypatch: pytest.MonkeyPatch) -> None:
-    from session_buddy.utils import lazy_imports
+    lazy_imports = _MODULE
 
     logger = _DummyLogger()
     monkeypatch.setattr(lazy_imports, "_logger", logger)
@@ -175,7 +208,7 @@ def test_dependency_status_and_logging(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_missing_dependency_logging_and_fallback_attribute(monkeypatch: pytest.MonkeyPatch) -> None:
-    from session_buddy.utils import lazy_imports
+    lazy_imports = _MODULE
 
     logger = _DummyLogger()
     monkeypatch.setattr(lazy_imports, "_logger", logger)

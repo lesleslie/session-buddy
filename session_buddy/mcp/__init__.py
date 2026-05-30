@@ -1,24 +1,8 @@
-"""Session Buddy MCP Server Components.
+"""Session Buddy MCP Server Components."""
 
-This module contains the MCP (Model Context Protocol) server implementation,
-including FastMCP setup, tool registration, and server lifecycle management.
+from __future__ import annotations
 
-The server provides 70+ tools across 8 functional domains:
-- Session management (5 tools)
-- Memory & search (4 tools)
-- Monitoring & analytics (4 tools)
-- Team collaboration (2 tools)
-- LLM & intelligence (3 tools)
-- Infrastructure (4 tools)
-- Advanced features (7 tools)
-- Utilities (3 tools)
-
-Example:
-    >>> from session_buddy.mcp.server import mcp
-    >>> # Server is initialized and tools are registered automatically
-"""
-
-from contextlib import suppress
+from importlib import import_module
 from typing import Any
 
 from session_buddy.mcp.event_models import (
@@ -36,32 +20,36 @@ from session_buddy.mcp.event_models import (
 )
 from session_buddy.mcp.telemetry import attach_otel_middleware, configure_otel_tracing
 
-mcp: Any | None = None
-SessionTracker: Any | None = None
+_LAZY_EXPORTS: dict[str, tuple[str, str]] = {
+    "mcp": ("session_buddy.mcp.server", "mcp"),
+    "SessionTracker": ("session_buddy.mcp.session_tracker", "SessionTracker"),
+}
 
-with suppress(Exception):
-    from session_buddy.mcp.server import mcp  # noqa: F401
 
-with suppress(Exception):
-    from session_buddy.mcp.session_tracker import SessionTracker  # noqa: F401
+def __getattr__(name: str) -> Any:
+    try:
+        module_name, attr_name = _LAZY_EXPORTS[name]
+    except KeyError as exc:
+        raise AttributeError(name) from exc
+
+    module = import_module(module_name)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value
+
 
 __all__ = [
     "mcp",
-    # Session tracking
     "SessionTracker",
-    # Telemetry
     "attach_otel_middleware",
     "configure_otel_tracing",
-    # Event models
     "SessionStartEvent",
     "SessionEndEvent",
     "UserInfo",
     "EnvironmentInfo",
-    # Result models
     "SessionStartResult",
     "SessionEndResult",
     "ErrorResponse",
-    # JSON Schema helpers
     "get_session_start_event_schema",
     "get_session_end_event_schema",
     "get_session_start_result_schema",

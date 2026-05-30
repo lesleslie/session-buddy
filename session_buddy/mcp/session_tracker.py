@@ -217,7 +217,9 @@ class SessionTracker:
 
             # Generate session ID from event data
             # Format: {component_name}-{timestamp_YYYYMMDD-HHMMSS}
-            timestamp = datetime.fromisoformat(event.timestamp).strftime("%Y%m%d-%H%M%S")
+            timestamp = datetime.fromisoformat(event.timestamp).strftime(
+                "%Y%m%d-%H%M%S"
+            )
             session_id = f"{event.component_name}-{timestamp}"
 
             # Record session start metrics

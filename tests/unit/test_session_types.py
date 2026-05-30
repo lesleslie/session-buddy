@@ -26,4 +26,3 @@ def test_session_type_dataclasses_store_values() -> None:
     assert condition.params == [start]
     assert recurrence.frequency == "daily"
     assert recurrence.interval == 3
-

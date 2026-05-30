@@ -7,6 +7,7 @@ To apply this patch, add these methods to the adapter class and update
 the _infer_relationship_type method.
 
 """
+
 from __future__ import annotations
 
 import json

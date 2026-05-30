@@ -7,7 +7,6 @@ indexed code graphs in Session-Buddy's reflection database.
 from __future__ import annotations
 
 import logging
-import operator
 import typing as t
 from datetime import UTC
 from typing import TYPE_CHECKING, Any

@@ -1,13 +1,30 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
+import importlib.util
+import sys
 import types
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
 import pytest
 
-import session_buddy.utils.database_pool as database_pool
+_UTILS_PACKAGE = types.ModuleType("session_buddy.utils")
+_UTILS_PACKAGE.__path__ = []  # type: ignore[attr-defined]
+sys.modules.setdefault("session_buddy.utils", _UTILS_PACKAGE)
+
+_LOGGING_STUB = types.ModuleType("session_buddy.utils.logging")
+_LOGGING_STUB.get_session_logger = lambda: MagicMock()
+sys.modules.setdefault("session_buddy.utils.logging", _LOGGING_STUB)
+
+_MODULE_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "database_pool.py"
+_SPEC = importlib.util.spec_from_file_location("session_buddy.utils.database_pool", _MODULE_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+database_pool = importlib.util.module_from_spec(_SPEC)
+sys.modules.setdefault("session_buddy.utils.database_pool", database_pool)
+_SPEC.loader.exec_module(database_pool)
 
 
 class FakeCursor:
@@ -40,12 +57,29 @@ def fake_duckdb(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(database_pool, "DUCKDB_AVAILABLE", True)
 
 
-def test_create_connection_raises_when_duckdb_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_create_connection_raises_when_duckdb_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     monkeypatch.setattr(database_pool, "DUCKDB_AVAILABLE", False)
     pool = database_pool.DatabaseConnectionPool(str(tmp_path / "db.duckdb"))
 
     with pytest.raises(ImportError, match="DuckDB not available"):
         pool._create_connection()
+
+
+def test_module_loads_with_duckdb_available(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    fake_duckdb = types.SimpleNamespace(connect=lambda *args, **kwargs: FakeConnection())
+    monkeypatch.setitem(sys.modules, "duckdb", fake_duckdb)
+
+    module_path = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "database_pool.py"
+    spec = importlib.util.spec_from_file_location("session_buddy.utils.database_pool_duckdb", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    assert module.DUCKDB_AVAILABLE is True
 
 
 def test_create_connection_sets_pragmas(fake_duckdb: None, tmp_path: Path) -> None:
@@ -59,6 +93,23 @@ def test_create_connection_sets_pragmas(fake_duckdb: None, tmp_path: Path) -> No
         ("PRAGMA memory_limit='1GB'", None),
         ("PRAGMA temp_directory='/tmp'", None),
     ]
+
+
+def test_create_connection_logs_and_reraises_on_error(
+    fake_duckdb: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = database_pool.DatabaseConnectionPool(str(tmp_path / "db.duckdb"))
+    logger = MagicMock()
+    logger.exception = MagicMock()
+    monkeypatch.setattr(database_pool, "_get_logger", lambda: logger)
+    monkeypatch.setattr(database_pool.duckdb, "connect", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    with pytest.raises(RuntimeError, match="boom"):
+        pool._create_connection()
+
+    logger.exception.assert_called_once_with("Failed to create database connection: boom")
 
 
 def test_get_logger_falls_back_when_session_logger_fails(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -151,6 +202,29 @@ def test_return_connection_closes_when_pool_full(fake_duckdb: None, tmp_path: Pa
 
     assert conn2.closed is True
     assert conn2 not in pool._pool
+
+
+def test_return_connection_logs_excess_close_error(
+    fake_duckdb: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = database_pool.DatabaseConnectionPool(str(tmp_path / "db.duckdb"), max_connections=1)
+    conn = FakeConnection()
+    pool._active_connections[id(conn)] = conn
+    pool._pool.append(FakeConnection())
+    logger = MagicMock()
+    logger.warning = MagicMock()
+    monkeypatch.setattr(database_pool, "_get_logger", lambda: logger)
+
+    def boom_close() -> None:
+        raise RuntimeError("close boom")
+
+    conn.close = boom_close  # type: ignore[method-assign]
+
+    pool.return_connection(conn)
+
+    assert logger.warning.called
 
 
 @pytest.mark.asyncio
@@ -303,6 +377,35 @@ def test_get_stats_and_close_all(fake_duckdb: None, tmp_path: Path) -> None:
     assert conn2.closed is True
     assert pool._pool == []
     assert pool._active_connections == {}
+
+
+def test_close_all_logs_errors_and_shuts_down_executor(
+    fake_duckdb: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pool = database_pool.DatabaseConnectionPool(str(tmp_path / "db.duckdb"), max_connections=3)
+    pooled = FakeConnection()
+    active = FakeConnection()
+    pool._pool.append(pooled)
+    pool._active_connections[id(active)] = active
+    pool._executor = ThreadPoolExecutor(max_workers=1)
+    logger = MagicMock()
+    logger.warning = MagicMock()
+    logger.info = MagicMock()
+    monkeypatch.setattr(database_pool, "_get_logger", lambda: logger)
+
+    def boom_close() -> None:
+        raise RuntimeError("close boom")
+
+    pooled.close = boom_close  # type: ignore[method-assign]
+    active.close = boom_close  # type: ignore[method-assign]
+
+    pool.close_all()
+
+    assert logger.warning.call_count == 2
+    assert logger.info.call_count == 1
+    assert pool._executor is None
 
 
 def test_close_all_is_idempotent(fake_duckdb: None, tmp_path: Path) -> None:

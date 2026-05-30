@@ -2,10 +2,11 @@ import json
 import logging
 import os
 import time
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from mcp_common.llm import FallbackChain, LLMSettings
 
@@ -47,7 +48,9 @@ def _load_json_safely_impl(path: Path, *, self: Any = None) -> dict[str, Any]:
     return {}
 
 
-def _save_json_atomically_impl(path: Path, data: dict[str, Any], *, self: Any = None) -> None:
+def _save_json_atomically_impl(
+    path: Path, data: dict[str, Any], *, self: Any = None
+) -> None:
     """Save JSON file atomically to prevent corruption."""
     temp_path = path.with_suffix(".tmp")
     temp_path.write_text(json.dumps(data, indent=2))
@@ -704,7 +707,7 @@ class LLMManager:
         use_fallback: bool = True,
         task_type: str = "chat",
         **kwargs: Any,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[str]:
         """Yield non-streaming result as a single chunk (FallbackChain has no streaming)."""
         try:
             response = await self.generate(

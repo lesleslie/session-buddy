@@ -25,4 +25,3 @@ def test_quality_utils_v2_aliases_quality_scoring_module() -> None:
 
     assert module is scoring
     assert sys.modules["session_buddy.utils.quality_utils_v2"] is scoring
-

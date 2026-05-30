@@ -2,18 +2,57 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import importlib.util
+import sys
+import types
 from datetime import datetime
-from typing import Any
+from pathlib import Path
 
-import pytest
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-from session_buddy.utils.scheduler.models import (
-    NaturalReminder,
-    ReminderStatus,
-    ReminderType,
-    SchedulingContext,
+session_buddy_pkg = sys.modules.get("session_buddy")
+if session_buddy_pkg is None:
+    session_buddy_pkg = types.ModuleType("session_buddy")
+    session_buddy_pkg.__path__ = [str(PROJECT_ROOT / "session_buddy")]
+    sys.modules["session_buddy"] = session_buddy_pkg
+
+di_stub = types.ModuleType("session_buddy.di")
+di_stub._configured = False
+
+
+class _SessionPaths:
+    pass
+
+
+di_stub.SessionPaths = _SessionPaths
+sys.modules["session_buddy.di"] = di_stub
+
+utils_pkg = sys.modules.get("session_buddy.utils")
+if utils_pkg is None:
+    utils_pkg = types.ModuleType("session_buddy.utils")
+    utils_pkg.__path__ = [str(PROJECT_ROOT / "session_buddy" / "utils")]
+    sys.modules["session_buddy.utils"] = utils_pkg
+
+scheduler_pkg = sys.modules.get("session_buddy.utils.scheduler")
+if scheduler_pkg is None:
+    scheduler_pkg = types.ModuleType("session_buddy.utils.scheduler")
+    scheduler_pkg.__path__ = [str(PROJECT_ROOT / "session_buddy" / "utils" / "scheduler")]
+    sys.modules["session_buddy.utils.scheduler"] = scheduler_pkg
+
+spec = importlib.util.spec_from_file_location(
+    "session_buddy.utils.scheduler.models",
+    PROJECT_ROOT / "session_buddy" / "utils" / "scheduler" / "models.py",
 )
+if spec is None or spec.loader is None:
+    raise RuntimeError("Unable to load session_buddy.utils.scheduler.models")
+models = importlib.util.module_from_spec(spec)
+sys.modules["session_buddy.utils.scheduler.models"] = models
+spec.loader.exec_module(models)
+
+NaturalReminder = models.NaturalReminder
+ReminderStatus = models.ReminderStatus
+ReminderType = models.ReminderType
+SchedulingContext = models.SchedulingContext
 
 
 class TestReminderType:
@@ -92,12 +131,12 @@ class TestNaturalReminder:
         assert reminder.expression == "do something"
         assert reminder.scheduled_time == now
         assert reminder.action == "notify"
-        assert reminder.status == ReminderStatus.PENDING  # default
+        assert reminder.status == ReminderStatus.PENDING
         assert reminder.created_at is not None
-        assert reminder.executed_at is None  # default
-        assert reminder.failure_reason is None  # default
-        assert reminder.recurrence_pattern is None  # default
-        assert reminder.metadata == {}  # default
+        assert reminder.executed_at is None
+        assert reminder.failure_reason is None
+        assert reminder.recurrence_pattern is None
+        assert reminder.metadata == {}
 
     def test_all_fields_populated(self):
         """Verify all fields can be set with custom values."""

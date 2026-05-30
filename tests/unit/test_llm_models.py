@@ -52,4 +52,3 @@ def test_stream_chunk_and_message_and_response_defaults() -> None:
     assert preset_message.timestamp == "2026-01-01T10:00:00"
     assert preset_message.metadata == {"source": "test"}
     assert response.metadata == {}
-

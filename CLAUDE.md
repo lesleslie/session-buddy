@@ -470,8 +470,11 @@ Session-Buddy uses MiniMax as the primary cloud LLM provider:
 
 - **Primary provider**: `minimax` (OpenAI-compatible API at `https://api.minimax.io/v1`)
 - **Fallback provider**: `ollama` (local at
+
 # lychee: ignore
+
 `http://localhost:11434`)
+
 - **Default model**: `MiniMax-M2.7` (general), `MiniMax-M2.7-highspeed` (quick/background tasks)
 - **Provider chain**: `minimax -> ollama`
 

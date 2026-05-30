@@ -1,18 +1,78 @@
-"""Unit tests for search utilities module.
-
-Tests functions in session_buddy.utils.search.utilities:
-- extract_technical_terms
-- truncate_content
-- ensure_timezone
-- parse_timeframe_single
-- parse_timeframe
-"""
+"""Unit tests for search utilities module."""
 
 from __future__ import annotations
 
+import importlib.util
+import re
+import sys
+import types
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
-import pytest
+
+def _ensure_package(name: str) -> types.ModuleType:
+    module = sys.modules.get(name)
+    if module is None:
+        module = types.ModuleType(name)
+        module.__path__ = []  # type: ignore[attr-defined]
+        sys.modules[name] = module
+    return module
+
+
+def _load_module(module_name: str, path: Path) -> types.ModuleType:
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load {module_name} from {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+_ensure_package("session_buddy")
+di_stub = types.ModuleType("session_buddy.di")
+di_stub._configured = False
+
+
+class _SessionPaths:
+    pass
+
+
+di_stub.SessionPaths = _SessionPaths
+sys.modules["session_buddy.di"] = di_stub
+_ensure_package("session_buddy.utils")
+_ensure_package("session_buddy.utils.search")
+
+session_types = _load_module(
+    "session_buddy.session_types",
+    PROJECT_ROOT / "session_buddy" / "session_types.py",
+)
+
+regex_stub = types.ModuleType("session_buddy.utils.regex_patterns")
+regex_stub.SAFE_PATTERNS = {
+    "python_code": re.compile(r"\bdef\s+[A-Za-z_]\w*\b"),
+    "javascript_code": re.compile(r"\bfunction\b|\brequire\s*\("),
+    "sql_code": re.compile(r"\bSELECT\b", re.IGNORECASE),
+    "error_keywords": re.compile(r"\b(?:Error|Exception|Traceback)\b"),
+    "function_definition": re.compile(r"\bdef\s+([A-Za-z_]\w*)"),
+    "class_definition": re.compile(r"\bclass\s+([A-Za-z_]\w*)"),
+    "file_extension": re.compile(r"\.([A-Za-z0-9]{1,10})\b"),
+}
+sys.modules["session_buddy.utils.regex_patterns"] = regex_stub
+
+utilities = _load_module(
+    "session_buddy.utils.search.utilities",
+    PROJECT_ROOT / "session_buddy" / "utils" / "search" / "utilities.py",
+)
+
+extract_technical_terms = utilities.extract_technical_terms
+truncate_content = utilities.truncate_content
+ensure_timezone = utilities.ensure_timezone
+parse_timeframe_single = utilities.parse_timeframe_single
+parse_timeframe = utilities.parse_timeframe
+TimeRange = session_types.TimeRange
 
 
 class TestExtractTechnicalTerms:
@@ -20,8 +80,6 @@ class TestExtractTechnicalTerms:
 
     def test_extract_python_code(self):
         """Test extraction of Python code patterns."""
-        from session_buddy.utils.search.utilities import extract_technical_terms
-
         content = """
         def calculate_sum(a: int, b: int) -> int:
             return a + b
@@ -37,8 +95,6 @@ class TestExtractTechnicalTerms:
 
     def test_extract_javascript_code(self):
         """Test extraction of JavaScript patterns."""
-        from session_buddy.utils.search.utilities import extract_technical_terms
-
         content = """
         function hello() {
             console.log("Hello");
@@ -52,8 +108,6 @@ class TestExtractTechnicalTerms:
 
     def test_extract_sql_code(self):
         """Test extraction of SQL patterns."""
-        from session_buddy.utils.search.utilities import extract_technical_terms
-
         content = "SELECT * FROM users WHERE id = 1"
         terms = extract_technical_terms(content)
 
@@ -61,8 +115,6 @@ class TestExtractTechnicalTerms:
 
     def test_extract_file_extensions(self):
         """Test extraction of file extensions."""
-        from session_buddy.utils.search.utilities import extract_technical_terms
-
         content = """
         import os
         from pathlib import Path
@@ -73,24 +125,18 @@ class TestExtractTechnicalTerms:
         """
         terms = extract_technical_terms(content)
 
-        # Should detect file extensions
         ext_terms = [t for t in terms if t.startswith("filetype:")]
         assert any("py" in t for t in ext_terms)
 
     def test_extract_no_code(self):
         """Test extraction with no code patterns."""
-        from session_buddy.utils.search.utilities import extract_technical_terms
-
         content = "This is plain text without any code patterns"
         terms = extract_technical_terms(content)
 
-        # Should not have many terms
         assert len(terms) <= 20
 
     def test_extract_term_limit(self):
         """Test that terms are limited to 20."""
-        from session_buddy.utils.search.utilities import extract_technical_terms
-
         content = """
         class Class1: pass
         class Class2: pass
@@ -113,8 +159,6 @@ class TestTruncateContent:
 
     def test_truncate_short_content(self):
         """Test truncation of short content."""
-        from session_buddy.utils.search.utilities import truncate_content
-
         content = "short text"
         result = truncate_content(content, max_length=100)
 
@@ -123,18 +167,14 @@ class TestTruncateContent:
 
     def test_truncate_long_content(self):
         """Test truncation of long content."""
-        from session_buddy.utils.search.utilities import truncate_content
-
         content = "a" * 600
         result = truncate_content(content, max_length=500)
 
         assert result.endswith("...")
-        assert len(result) == 503  # 500 + "..."
+        assert len(result) == 503
 
     def test_truncate_at_exact_length(self):
         """Test truncation when content equals max_length."""
-        from session_buddy.utils.search.utilities import truncate_content
-
         content = "a" * 500
         result = truncate_content(content, max_length=500)
 
@@ -142,8 +182,6 @@ class TestTruncateContent:
 
     def test_truncate_custom_max_length(self):
         """Test truncation with custom max_length."""
-        from session_buddy.utils.search.utilities import truncate_content
-
         content = "hello world test"
         result = truncate_content(content, max_length=5)
 
@@ -156,8 +194,6 @@ class TestEnsureTimezone:
 
     def test_ensure_timezone_naive(self):
         """Test adding timezone to naive datetime."""
-        from session_buddy.utils.search.utilities import ensure_timezone
-
         naive_dt = datetime(2024, 1, 15, 10, 30, 0)
         result = ensure_timezone(naive_dt)
 
@@ -165,8 +201,6 @@ class TestEnsureTimezone:
 
     def test_ensure_timezone_aware(self):
         """Test that aware datetime is unchanged."""
-        from session_buddy.utils.search.utilities import ensure_timezone
-
         aware_dt = datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
         result = ensure_timezone(aware_dt)
 
@@ -174,8 +208,6 @@ class TestEnsureTimezone:
 
     def test_ensure_timezone_preserves_time(self):
         """Test that time values are preserved."""
-        from session_buddy.utils.search.utilities import ensure_timezone
-
         naive_dt = datetime(2024, 6, 15, 14, 30, 45)
         result = ensure_timezone(naive_dt)
 
@@ -192,61 +224,48 @@ class TestParseTimeframeSingle:
 
     def test_parse_days(self):
         """Test parsing days timeframe."""
-        from session_buddy.utils.search.utilities import parse_timeframe_single
-
         result = parse_timeframe_single("7d")
         assert result is not None
 
-        # Should be approximately 7 days ago
         now = datetime.now(UTC)
         diff = now - result
         assert 6 <= diff.days <= 7
 
     def test_parse_hours(self):
         """Test parsing hours timeframe."""
-        from session_buddy.utils.search.utilities import parse_timeframe_single
-
         result = parse_timeframe_single("3h")
         assert result is not None
 
         now = datetime.now(UTC)
         diff = now - result
-        assert diff.total_seconds() >= 3 * 3600 - 60  # 3 hours minus 1 minute margin
-        assert diff.total_seconds() <= 3 * 3600 + 60  # 3 hours plus 1 minute margin
+        assert diff.total_seconds() >= 3 * 3600 - 60
+        assert diff.total_seconds() <= 3 * 3600 + 60
 
     def test_parse_weeks(self):
         """Test parsing weeks timeframe."""
-        from session_buddy.utils.search.utilities import parse_timeframe_single
-
         result = parse_timeframe_single("2w")
         assert result is not None
 
         now = datetime.now(UTC)
         diff = now - result
-        assert 13 <= diff.days <= 15  # ~2 weeks
+        assert 13 <= diff.days <= 15
 
     def test_parse_months(self):
         """Test parsing months timeframe."""
-        from session_buddy.utils.search.utilities import parse_timeframe_single
-
         result = parse_timeframe_single("3m")
         assert result is not None
 
         now = datetime.now(UTC)
         diff = now - result
-        assert diff.days >= 85  # ~3 months (30 days each)
+        assert diff.days >= 85
 
     def test_parse_invalid_format(self):
         """Test parsing invalid format."""
-        from session_buddy.utils.search.utilities import parse_timeframe_single
-
         result = parse_timeframe_single("invalid")
         assert result is None
 
     def test_parse_empty_string(self):
         """Test parsing empty string."""
-        from session_buddy.utils.search.utilities import parse_timeframe_single
-
         result = parse_timeframe_single("")
         assert result is None
 
@@ -256,8 +275,6 @@ class TestParseTimeframe:
 
     def test_parse_range_format(self):
         """Test parsing date range format."""
-        from session_buddy.utils.search.utilities import parse_timeframe
-
         result = parse_timeframe("2024-01-01..2024-01-31")
 
         assert result.start.year == 2024
@@ -268,8 +285,6 @@ class TestParseTimeframe:
 
     def test_parse_relative_days(self):
         """Test parsing relative days format."""
-        from session_buddy.utils.search.utilities import parse_timeframe
-
         result = parse_timeframe("7d")
 
         assert result.start < result.end
@@ -278,8 +293,6 @@ class TestParseTimeframe:
 
     def test_parse_year_only(self):
         """Test parsing year only format."""
-        from session_buddy.utils.search.utilities import parse_timeframe
-
         result = parse_timeframe("2024")
 
         assert result.start.year == 2024
@@ -289,8 +302,6 @@ class TestParseTimeframe:
 
     def test_parse_year_month(self):
         """Test parsing year-month format."""
-        from session_buddy.utils.search.utilities import parse_timeframe
-
         result = parse_timeframe("2024-03")
 
         assert result.start.year == 2024
@@ -301,8 +312,6 @@ class TestParseTimeframe:
 
     def test_parse_year_month_december(self):
         """Test parsing December correctly."""
-        from session_buddy.utils.search.utilities import parse_timeframe
-
         result = parse_timeframe("2024-12")
 
         assert result.start.year == 2024
@@ -311,10 +320,16 @@ class TestParseTimeframe:
         assert result.end.year == 2025
         assert result.end.month == 1
 
+    def test_parse_invalid_year_month_fallback(self):
+        """Test invalid year-month strings fall back to the default range."""
+        result = parse_timeframe("2024-13")
+
+        assert result.start < result.end
+        diff = result.end - result.start
+        assert diff.days == 7
+
     def test_parse_default_fallback(self):
         """Test default fallback to 7 days."""
-        from session_buddy.utils.search.utilities import parse_timeframe
-
         result = parse_timeframe("unknown")
 
         assert result.start < result.end
@@ -327,8 +342,6 @@ class TestTimeRangeIntegration:
 
     def test_time_range_creation(self):
         """Test TimeRange object creation."""
-        from session_buddy.session_types import TimeRange
-
         start = datetime(2024, 1, 1, tzinfo=UTC)
         end = datetime(2024, 1, 31, tzinfo=UTC)
 
@@ -339,9 +352,6 @@ class TestTimeRangeIntegration:
 
     def test_parse_timeframe_returns_time_range(self):
         """Test that parse_timeframe returns TimeRange."""
-        from session_buddy.session_types import TimeRange
-        from session_buddy.utils.search.utilities import parse_timeframe
-
         result = parse_timeframe("2024-01")
 
         assert isinstance(result, TimeRange)

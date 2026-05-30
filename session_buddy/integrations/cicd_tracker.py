@@ -450,9 +450,7 @@ class CICDTracker:
                 "stage": stage_name,
                 "success_rate": stage_data["success_rate"],
                 "avg_duration": stage_data["avg_duration_seconds"],
-                "severity": "high"
-                if stage_data["success_rate"] < 50
-                else "medium",
+                "severity": "high" if stage_data["success_rate"] < 50 else "medium",
             }
             for stage_name, stage_data in analytics["stage_analytics"].items()
             if stage_data["success_rate"] < 80.0

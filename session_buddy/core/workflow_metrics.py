@@ -246,12 +246,16 @@ class WorkflowMetricsStore:
         if start_date:
             where_clauses.append("started_at >= ?")
             # DuckDB stores TIMESTAMP without timezone, so strip tzinfo
-            params.append(start_date.replace(tzinfo=None) if start_date.tzinfo else start_date)
+            params.append(
+                start_date.replace(tzinfo=None) if start_date.tzinfo else start_date
+            )
 
         if end_date:
             where_clauses.append("started_at <= ?")
             # DuckDB stores TIMESTAMP without timezone, so strip tzinfo
-            params.append(end_date.replace(tzinfo=None) if end_date.tzinfo else end_date)
+            params.append(
+                end_date.replace(tzinfo=None) if end_date.tzinfo else end_date
+            )
 
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 

@@ -83,14 +83,18 @@ def _collect_session_quality_score(metrics: Any, summary: dict[str, Any]) -> Non
             summary["quality_scores"][component] = float(sample.value)
 
 
-def _collect_mcp_event_emit_success_total(metrics: Any, summary: dict[str, Any]) -> None:
+def _collect_mcp_event_emit_success_total(
+    metrics: Any, summary: dict[str, Any]
+) -> None:
     for metric in metrics.mcp_event_emit_success_total.collect():
         for sample in metric.samples:
             if sample.name.endswith("_total"):
                 summary["mcp_events_success"] += int(sample.value)
 
 
-def _collect_mcp_event_emit_failure_total(metrics: Any, summary: dict[str, Any]) -> None:
+def _collect_mcp_event_emit_failure_total(
+    metrics: Any, summary: dict[str, Any]
+) -> None:
     for metric in metrics.mcp_event_emit_failure_total.collect():
         for sample in metric.samples:
             if sample.name.endswith("_total"):
@@ -121,6 +125,7 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
             """
             return "Error: Prometheus metrics module not available. Install prometheus_client to enable metrics."
     else:
+
         @mcp.tool()
         async def get_prometheus_metrics() -> str:
             """Export all Session-Buddy metrics in Prometheus text format."""

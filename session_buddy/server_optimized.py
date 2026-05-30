@@ -5,6 +5,8 @@ This is the refactored, modular version of the session management server.
 It's organized into focused modules for better maintainability and performance.
 """
 
+import asyncio  # noqa: TC003 — runtime use (sleep, create_task), not just type annotations
+import itertools
 import os
 import sys
 from collections.abc import AsyncGenerator, Callable
@@ -93,6 +95,77 @@ lifecycle_manager = SessionLifecycleManager()
 # Global connection info for notification display
 _connection_info = None
 
+# Module-level task reference so shutdown can cancel the heartbeat loop
+_heartbeat_task: asyncio.Task[None] | None = None
+
+DHARA_DEFAULT_URL = "http://localhost:8683"
+
+
+async def _register_to_dhara_once(dhara_url: str, key: str, mcp_url: str) -> bool:
+    """Single attempt to write component_endpoint/{name} -> mcp_url to Dhara.
+
+    Returns True on success, False on failure.
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                f"{dhara_url}/tools/call",
+                json={"name": "put", "arguments": {"key": key, "value": mcp_url}},
+            )
+            response.raise_for_status()
+            return True
+    except Exception:
+        return False
+
+
+async def _register_component_to_dhara(mcp_url: str) -> None:
+    """Register Session-Buddy's MCP endpoint to Dhara with retry + periodic heartbeat.
+
+    Key: component_endpoint/session-buddy
+    Value: MCP server URL string
+
+    Phase 1 (startup): retries with exponential backoff (1s, 2s, 4s, 8s, 16s)
+    until registration succeeds.
+    Phase 2 (heartbeat): re-registers every 5 minutes to keep the TTL fresh.
+    Akosha's FitnessAnalyzer is the consumer of this key.
+    """
+    dhara_url = os.getenv("SESSION_BUDDY_DHARA_URL", DHARA_DEFAULT_URL)
+    key = "component_endpoint/session-buddy"
+
+    # Phase 1: exponential-backoff retry until registration succeeds
+    for attempt in itertools.count():
+        if await _register_to_dhara_once(dhara_url, key, mcp_url):
+            logger.info(
+                "Phase 0: registered session-buddy endpoint to Dhara: %s -> %s",
+                key,
+                mcp_url,
+            )
+            break
+        wait = min(2**attempt, 32)
+        logger.debug(
+            "Phase 0: registration attempt %d failed, retrying in %ds",
+            attempt + 1,
+            wait,
+        )
+        await asyncio.sleep(wait)
+    else:
+        logger.warning(
+            "Phase 0: exhausted retries for %s — heartbeat will continue",
+            key,
+        )
+
+    # Phase 2: periodic heartbeat
+    async def heartbeat() -> None:
+        while True:
+            await asyncio.sleep(300)  # 5 minutes
+            if not await _register_to_dhara_once(dhara_url, key, mcp_url):
+                logger.debug("Phase 0 heartbeat: failed to refresh %s", key)
+
+    global _heartbeat_task
+    _heartbeat_task = asyncio.create_task(heartbeat())
+
 
 # Lifespan handler for automatic session management
 @asynccontextmanager
@@ -129,6 +202,9 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
             logger.warning(f"Auto-init failed (non-critical): {e}")
     else:
         logger.debug("Non-git directory - skipping auto-initialization")
+
+    # Phase 0: register this component's MCP endpoint to Dhara
+    await _register_component_to_dhara("http://127.0.0.1:8678/mcp")
 
     yield  # Server runs normally
 

@@ -67,4 +67,3 @@ def test_standard_mode_configuration_and_environment_checks(
         mp.setattr(Path, "touch", lambda *_args, **_kwargs: (_ for _ in ()).throw(PermissionError("nope")))
         errors = mode.validate_environment()
         assert errors and "not writable" in errors[0]
-

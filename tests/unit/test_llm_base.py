@@ -47,4 +47,3 @@ def test_llm_provider_base_initialization() -> None:
     assert provider.config == {"api_key": "x"}
     assert provider.name == "dummy"
     assert provider.logger.name == "llm_providers.dummy"
-

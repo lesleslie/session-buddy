@@ -1,23 +1,40 @@
 from __future__ import annotations
 
+import importlib.util
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 
+_COMPACTION_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "session_buddy"
+    / "utils"
+    / "quality"
+    / "compaction.py"
+)
+_COMPACTION_SPEC = importlib.util.spec_from_file_location(
+    "session_buddy.utils.quality.compaction",
+    _COMPACTION_PATH,
+)
+assert _COMPACTION_SPEC is not None and _COMPACTION_SPEC.loader is not None
+_COMPACTION_MODULE = importlib.util.module_from_spec(_COMPACTION_SPEC)
+sys.modules[_COMPACTION_SPEC.name] = _COMPACTION_MODULE
+_COMPACTION_SPEC.loader.exec_module(_COMPACTION_MODULE)
+
+
 def test_reason_helpers() -> None:
-    from session_buddy.utils.quality.compaction import (
-        get_default_compaction_reason,
-        get_fallback_compaction_reason,
-    )
+    get_default_compaction_reason = _COMPACTION_MODULE.get_default_compaction_reason
+    get_fallback_compaction_reason = _COMPACTION_MODULE.get_fallback_compaction_reason
 
     assert "manageable" in get_default_compaction_reason().lower()
     assert "precaution" in get_fallback_compaction_reason().lower()
 
 
 def test_count_significant_files_ignores_hidden_and_limits(tmp_path: Path) -> None:
-    from session_buddy.utils.quality.compaction import count_significant_files
+    count_significant_files = _COMPACTION_MODULE.count_significant_files
 
     (tmp_path / ".hidden.py").write_text("print('hidden')")
     for index in range(3):
@@ -28,7 +45,7 @@ def test_count_significant_files_ignores_hidden_and_limits(tmp_path: Path) -> No
 
 
 def test_count_significant_files_stops_after_threshold(tmp_path: Path) -> None:
-    from session_buddy.utils.quality.compaction import count_significant_files
+    count_significant_files = _COMPACTION_MODULE.count_significant_files
 
     for index in range(60):
         (tmp_path / f"file_{index}.py").write_text("print('ok')")
@@ -37,7 +54,7 @@ def test_count_significant_files_stops_after_threshold(tmp_path: Path) -> None:
 
 
 def test_check_git_activity_branches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from session_buddy.utils.quality import compaction
+    compaction = _COMPACTION_MODULE
 
     assert compaction.check_git_activity(tmp_path) is None
 
@@ -72,11 +89,9 @@ def test_check_git_activity_branches(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 
 
 def test_compaction_heuristics() -> None:
-    from session_buddy.utils.quality.compaction import (
-        evaluate_git_activity_heuristic,
-        evaluate_large_project_heuristic,
-        evaluate_python_project_heuristic,
-    )
+    evaluate_git_activity_heuristic = _COMPACTION_MODULE.evaluate_git_activity_heuristic
+    evaluate_large_project_heuristic = _COMPACTION_MODULE.evaluate_large_project_heuristic
+    evaluate_python_project_heuristic = _COMPACTION_MODULE.evaluate_python_project_heuristic
 
     assert evaluate_large_project_heuristic(51) == (
         True,
@@ -99,9 +114,7 @@ def test_compaction_heuristics() -> None:
 
 
 def test_evaluate_python_project_heuristic(tmp_path: Path) -> None:
-    from session_buddy.utils.quality.compaction import (
-        evaluate_python_project_heuristic,
-    )
+    evaluate_python_project_heuristic = _COMPACTION_MODULE.evaluate_python_project_heuristic
 
     assert evaluate_python_project_heuristic(tmp_path) == (False, "")
 

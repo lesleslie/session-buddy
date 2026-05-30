@@ -1,11 +1,42 @@
 from __future__ import annotations
 
+import importlib.util
+import sys
+import types
+from pathlib import Path
 import re
+
+_UTILS_PACKAGE = types.ModuleType("session_buddy.utils")
+_UTILS_PACKAGE.__path__ = []  # type: ignore[attr-defined]
+sys.modules.setdefault("session_buddy.utils", _UTILS_PACKAGE)
+
+
+class _ValidatedPattern:
+    def __init__(self, **kwargs: object) -> None:
+        self.__dict__.update(kwargs)
+
+
+_CRACKERJACK_PACKAGE = types.ModuleType("crackerjack")
+_CRACKERJACK_PACKAGE.__path__ = []  # type: ignore[attr-defined]
+_CRACKERJACK_SERVICES = types.ModuleType("crackerjack.services")
+_CRACKERJACK_SERVICES.__path__ = []  # type: ignore[attr-defined]
+_CRACKERJACK_REGEX = types.ModuleType("crackerjack.services.regex_patterns")
+_CRACKERJACK_REGEX.ValidatedPattern = _ValidatedPattern
+sys.modules.setdefault("crackerjack", _CRACKERJACK_PACKAGE)
+sys.modules.setdefault("crackerjack.services", _CRACKERJACK_SERVICES)
+sys.modules.setdefault("crackerjack.services.regex_patterns", _CRACKERJACK_REGEX)
+
+_MODULE_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "regex_patterns.py"
+_SPEC = importlib.util.spec_from_file_location("session_buddy.utils.regex_patterns", _MODULE_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+_MODULE = importlib.util.module_from_spec(_SPEC)
+sys.modules.setdefault("session_buddy.utils.regex_patterns", _MODULE)
+_SPEC.loader.exec_module(_MODULE)
+
+SAFE_PATTERNS = _MODULE.SAFE_PATTERNS
 
 
 def test_safe_patterns_have_expected_keys() -> None:
-    from session_buddy.utils.regex_patterns import SAFE_PATTERNS
-
     expected = {
         "python_code_block",
         "generic_code_block",
@@ -26,8 +57,6 @@ def test_safe_patterns_have_expected_keys() -> None:
 
 
 def test_safe_patterns_apply_to_sample_strings() -> None:
-    from session_buddy.utils.regex_patterns import SAFE_PATTERNS
-
     python_code = SAFE_PATTERNS["python_code_block"]
     python_traceback = SAFE_PATTERNS["python_traceback"]
     python_exception = SAFE_PATTERNS["python_exception"]

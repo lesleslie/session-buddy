@@ -17,7 +17,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 DATEUTIL_AVAILABLE = importlib.util.find_spec("dateutil") is not None
 CRONTAB_AVAILABLE = importlib.util.find_spec("python_crontab") is not None
@@ -266,10 +266,9 @@ class ReminderScheduler:
             await self._execute_notification_callbacks(reminder_id, reminder_data)
 
             # Handle recurring reminders or mark as executed
-            recurrence_pattern: str | None = (
-                reminder_data.get("recurrence_pattern")
-                or reminder_data.get("recurrence_rule")
-            )
+            recurrence_pattern: str | None = reminder_data.get(
+                "recurrence_pattern"
+            ) or reminder_data.get("recurrence_rule")
             if recurrence_pattern:
                 return await self._handle_recurring_reminder(
                     reminder_id,

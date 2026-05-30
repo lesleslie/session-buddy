@@ -449,7 +449,9 @@ class TokenOptimizer:
             },
         )
 
-        await self.chunk_cache.set(cache_key, [(chunk_result,)])  # Store as tuple list, returns None
+        await self.chunk_cache.set(
+            cache_key, [(chunk_result,)]
+        )  # Store as tuple list, returns None
         return cache_key
 
     async def get_chunk(

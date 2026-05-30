@@ -10,7 +10,7 @@ from __future__ import annotations
 import typing as t
 from typing import Any, TypeVar
 
-if t.TYPE_CHECKING:
+if t.TYPE_CHECKING:  # pragma: no cover - typing-only imports
     from collections.abc import Awaitable, Callable
 
 T = TypeVar("T")

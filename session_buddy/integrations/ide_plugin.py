@@ -33,7 +33,6 @@ if TYPE_CHECKING:
 
 from session_buddy.storage.skills_embeddings import pack_embedding
 
-
 # Keyboard shortcuts for common skills (IDE-specific)
 SKILL_SHORTCUTS: dict[str, str] = {
     # Testing

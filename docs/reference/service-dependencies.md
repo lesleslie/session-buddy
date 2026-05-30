@@ -639,8 +639,7 @@ ______________________________________________________________________
 | Akosha | `curl http://localhost:8682/health` | `{"status": "ok"}` |
 | Crackerjack | `crackerjack health` | `Status: healthy` |
 | PostgreSQL | `pg_isready` | `localhost:5432 - accepting connections` |
-| Ollama | `# lychee: ignore
-curl http://localhost:11434/api/tags` | JSON with models list |
+| Ollama | `# lychee: ignore curl http://localhost:11434/api/tags` | JSON with models list |
 
 ______________________________________________________________________
 

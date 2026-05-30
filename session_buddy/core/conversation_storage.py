@@ -57,7 +57,14 @@ async def capture_conversation_context(
     lines: list[str] = []
 
     # Header
-    lines.extend([f"# Conversation Context: {checkpoint_type.upper()}", f"Project: {manager.current_project or 'Unknown'}", f"Timestamp: {datetime.now().isoformat()}", ""])
+    lines.extend(
+        [
+            f"# Conversation Context: {checkpoint_type.upper()}",
+            f"Project: {manager.current_project or 'Unknown'}",
+            f"Timestamp: {datetime.now().isoformat()}",
+            "",
+        ]
+    )
 
     if quality_score is not None:
         lines.append(f"Quality Score: {quality_score}/100")
@@ -70,7 +77,12 @@ async def capture_conversation_context(
     ):
         scores = manager._quality_history[manager.current_project]
         if scores:
-            lines.extend(["## Quality History", f"Recent scores: {', '.join(map(str, scores[-5:]))}"])
+            lines.extend(
+                [
+                    "## Quality History",
+                    f"Recent scores: {', '.join(map(str, scores[-5:]))}",
+                ]
+            )
             if len(scores) > 1:
                 trend = "improving" if scores[-1] > scores[0] else "stable"
                 lines.append(f"Trend: {trend}")

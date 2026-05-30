@@ -38,7 +38,6 @@ except ImportError:
 from pathlib import Path
 
 from session_buddy.adapters.settings import ReflectionAdapterSettings
-from session_buddy.settings import get_database_path
 from session_buddy.reflection.database import (
     ReflectionDatabase as _ReflectionDatabase,
 )
@@ -47,7 +46,9 @@ from session_buddy.reflection.database import (
 ReflectionDatabase = _ReflectionDatabase
 
 
-async def get_reflection_database(db_path: str | Path | None = None) -> ReflectionDatabaseAdapter:
+async def get_reflection_database(
+    db_path: str | Path | None = None,
+) -> ReflectionDatabaseAdapter:
     """Get or create the reflection database singleton.
 
     This async wrapper uses the ReflectionDatabaseAdapter so that callers

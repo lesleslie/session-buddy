@@ -13,7 +13,6 @@ Features:
 from __future__ import annotations
 
 import logging
-import operator
 import typing as t
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -248,7 +247,9 @@ class SessionAnalytics:
             import duckdb
 
             # Use consistent config to avoid "different configuration" errors
-            db_config: dict[str, str | bool | int | float | list[str]] = {"allow_unsigned_extensions": True}
+            db_config: dict[str, str | bool | int | float | list[str]] = {
+                "allow_unsigned_extensions": True
+            }
             if self.database_path:
                 conn = duckdb.connect(str(self.database_path), config=db_config)
             else:
@@ -850,7 +851,9 @@ class SessionAnalytics:
 
         output: list[str] = []
 
-        output.extend(["=" * 80, f"SESSION TIME SERIES (by {bucket_size})", "=" * 80, ""])
+        output.extend(
+            ["=" * 80, f"SESSION TIME SERIES (by {bucket_size})", "=" * 80, ""]
+        )
 
         # Group sessions by time bucket
         buckets: dict[str, int] = collections.defaultdict(int)
@@ -929,7 +932,16 @@ def create_session_summary_report(
         else 0
     )
 
-    lines.extend(["SUMMARY:", f"  Total Sessions: {total_sessions}", f"  Components Analyzed: {len(stats)}", f"  Total Errors: {total_errors}", f"  Average Error Rate: {avg_error_rate:.2f}%", ""])
+    lines.extend(
+        [
+            "SUMMARY:",
+            f"  Total Sessions: {total_sessions}",
+            f"  Components Analyzed: {len(stats)}",
+            f"  Total Errors: {total_errors}",
+            f"  Average Error Rate: {avg_error_rate:.2f}%",
+            "",
+        ]
+    )
 
     # Top components
     lines.extend(["TOP COMPONENTS (by session count):", ""])

@@ -16,7 +16,6 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from fastmcp import FastMCP
 
 try:
     import duckdb
@@ -29,28 +28,6 @@ except Exception:  # pragma: no cover - import fallback for broken wheels
             raise RuntimeError("duckdb is unavailable in the test environment")
 
     duckdb = _DuckDBUnavailable()
-
-# Configure DI container BEFORE any other imports
-# This ensures SessionLogger and other dependencies are available
-from session_buddy.di import configure as configure_di
-from session_buddy.di.container import depends
-
-# Initialize DI container for tests - force registration to bypass async checks
-# Only initialize once to avoid conflicts in multiprocessing
-import threading
-_di_configured = threading.local()
-
-if not hasattr(_di_configured, 'configured'):
-    try:
-        configure_di(force=True)
-        _di_configured.configured = True
-    except Exception as e:
-        # If DI configuration fails during import, we'll retry in the fixture
-        import warnings
-
-        warnings.warn(f"DI configuration failed during conftest import: {e}", stacklevel=2)
-        _di_configured.configured = False
-
 
 def _get_reflection_database_class() -> type[Any]:
     """Import the reflection database adapter lazily for test fixtures."""
