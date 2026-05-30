@@ -263,11 +263,10 @@ class TestRegisterComponentToDhara:
                     assert asyncio.create_task.called is True
 
     @pytest.mark.asyncio
-    @pytest.mark.timeout(150)  # 6 retries with real sleep = ~63s
-    async def test_logs_warning_when_retries_exhausted(
+    async def test_retries_until_success(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Should log warning when all retries are exhausted."""
+        """Should retry until registration succeeds and then start heartbeat."""
         import asyncio
 
         from session_buddy import server_optimized as so
@@ -275,8 +274,13 @@ class TestRegisterComponentToDhara:
         monkeypatch.setenv("SESSION_BUDDY_DHARA_URL", "http://localhost:8683")
         monkeypatch.setattr(asyncio, "create_task", MagicMock())
 
+        attempt_count = 0
+
         async def mock_register_once(*args: object, **kwargs: object) -> bool:
-            return False  # always fail
+            nonlocal attempt_count
+            attempt_count += 1
+            # Succeeds on 3rd attempt
+            return attempt_count >= 3
 
         with patch.object(so.logger, "info"):
             with patch.object(so.logger, "debug"):
@@ -287,43 +291,9 @@ class TestRegisterComponentToDhara:
                 ):
                     so._heartbeat_task = None
 
-                    with patch.object(so.logger, "warning") as mock_warning:
-                        await so._register_component_to_dhara(
-                            "http://127.0.0.1:8678/mcp"
-                        )
+                    await so._register_component_to_dhara("http://127.0.0.1:8678/mcp")
 
-                        mock_warning.assert_called_once()
-                        assert "exhausted retries" in mock_warning.call_args[0][0]
-
-    @pytest.mark.asyncio
-    @pytest.mark.timeout(150)  # 6 retries with real sleep = ~63s
-    async def test_heartbeat_started_after_exhausted_retries(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Heartbeat task should be created even when retries are exhausted."""
-        import asyncio
-
-        from session_buddy import server_optimized as so
-
-        monkeypatch.setenv("SESSION_BUDDY_DHARA_URL", "http://localhost:8683")
-        monkeypatch.setattr(asyncio, "create_task", MagicMock())
-
-        async def mock_register_once(*args: object, **kwargs: object) -> bool:
-            return False  # always fail
-
-        with patch.object(so.logger, "info"):
-            with patch.object(so.logger, "debug"):
-                with patch(
-                    "session_buddy.server_optimized._register_to_dhara_once",
-                    new_callable=AsyncMock,
-                    side_effect=mock_register_once,
-                ):
-                    so._heartbeat_task = None
-
-                    with patch.object(so.logger, "warning"):
-                        await so._register_component_to_dhara(
-                            "http://127.0.0.1:8678/mcp"
-                        )
-
-                        # Heartbeat is started even when retries are exhausted
-                        assert asyncio.create_task.called is True
+                    # Should have tried 3 times before succeeding
+                    assert attempt_count == 3
+                    # Heartbeat task should have been started
+                    assert asyncio.create_task.called is True
