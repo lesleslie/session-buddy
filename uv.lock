@@ -4043,7 +4043,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.19.4"
+version = "0.19.5"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

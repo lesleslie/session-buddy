@@ -138,22 +138,21 @@ async def _register_component_to_dhara(mcp_url: str) -> None:
     for attempt in itertools.count():
         if await _register_to_dhara_once(dhara_url, key, mcp_url):
             logger.info(
-                "Phase 0: registered session-buddy endpoint to Dhara: %s -> %s",
-                key,
-                mcp_url,
+                "Phase 0: registered session-buddy endpoint to Dhara",
+                context={"key": key, "mcp_url": mcp_url},
             )
             break
         wait = min(2**attempt, 32)
         logger.debug(
             "Phase 0: registration attempt %d failed, retrying in %ds",
-            attempt + 1,
-            wait,
+            attempt=attempt + 1,
+            wait=wait,
         )
         await asyncio.sleep(wait)
     else:
         logger.warning(
             "Phase 0: exhausted retries for %s — heartbeat will continue",
-            key,
+            key=key,
         )
 
     # Phase 2: periodic heartbeat
@@ -161,7 +160,7 @@ async def _register_component_to_dhara(mcp_url: str) -> None:
         while True:
             await asyncio.sleep(300)  # 5 minutes
             if not await _register_to_dhara_once(dhara_url, key, mcp_url):
-                logger.debug("Phase 0 heartbeat: failed to refresh %s", key)
+                logger.debug("Phase 0 heartbeat: failed to refresh %s", key=key)
 
     global _heartbeat_task
     _heartbeat_task = asyncio.create_task(heartbeat())
@@ -704,10 +703,12 @@ def run_server(host: str = "127.0.0.1", port: int = 8678) -> None:
         # Log the modular structure
         logger.info(
             "Modular components loaded",
-            session_tools=True,
-            memory_tools=True,
-            git_operations=True,
-            logging_utils=True,
+            context={
+                "session_tools": True,
+                "memory_tools": True,
+                "git_operations": True,
+                "logging_utils": True,
+            },
         )
 
         if MCP_AVAILABLE:
