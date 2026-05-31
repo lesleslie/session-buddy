@@ -166,46 +166,68 @@ async def _register_component_to_dhara(mcp_url: str) -> None:
     _heartbeat_task = asyncio.create_task(heartbeat())
 
 
+async def _delayed_session_init(current_dir: Path) -> None:
+    """Background task for session initialization after MCP handshake completes.
+
+    Runs AFTER yield so the server is already accepting connections. This prevents
+    race conditions where multiple simultaneous MCP handshakes block each other.
+    """
+    try:
+        # Only auto-initialize for git repositories
+        if is_git_repository(current_dir):
+            try:
+                git_root = get_git_root(current_dir)
+                logger.info(f"Git repository detected at {git_root}")
+
+                # Run the same logic as the init tool but with connection notification
+                result = await lifecycle_manager.initialize_session(str(current_dir))
+                if result["success"]:
+                    logger.info("✅ Auto-initialized session for git repository")
+
+                    # Store connection info for display via tools
+                    global _connection_info
+                    _connection_info = {
+                        "connected_at": "just connected",
+                        "project": result["project"],
+                        "quality_score": result["quality_score"],
+                        "previous_session": result.get("previous_session"),
+                        "recommendations": result["quality_data"].get(
+                            "recommendations",
+                            [],
+                        ),
+                    }
+                else:
+                    logger.warning(f"Auto-init failed: {result['error']}")
+            except Exception as e:
+                logger.warning(f"Auto-init failed (non-critical): {e}")
+        else:
+            logger.debug("Non-git directory - skipping auto-initialization")
+    except Exception as e:
+        logger.warning(f"Delayed session init failed: {e}")
+
+
 # Lifespan handler for automatic session management
 @asynccontextmanager
 async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
-    """Automatic session lifecycle for git repositories only."""
+    """Automatic session lifecycle for git repositories only.
+
+    IMPORTANT: Server must be able to accept MCP connections immediately after
+    yield. Expensive operations (initialize_session, Dhara registration) run
+    as background tasks to prevent blocking the MCP handshake.
+    """
     current_dir = Path.cwd()
 
-    # Only auto-initialize for git repositories
-    if is_git_repository(current_dir):
-        try:
-            git_root = get_git_root(current_dir)
-            logger.info(f"Git repository detected at {git_root}")
+    # Register to Dhara quickly before yield - this is fast (HTTP POST)
+    try:
+        await _register_component_to_dhara("http://127.0.0.1:8678/mcp")
+    except Exception as e:
+        logger.warning(f"Dhara registration failed (non-critical): {e}")
 
-            # Run the same logic as the init tool but with connection notification
-            result = await lifecycle_manager.initialize_session(str(current_dir))
-            if result["success"]:
-                logger.info("✅ Auto-initialized session for git repository")
+    # Fire expensive initialization in background AFTER yield
+    # This prevents MCP handshake blocking when multiple clients connect simultaneously
+    asyncio.create_task(_delayed_session_init(current_dir))
 
-                # Store connection info for display via tools
-                global _connection_info
-                _connection_info = {
-                    "connected_at": "just connected",
-                    "project": result["project"],
-                    "quality_score": result["quality_score"],
-                    "previous_session": result.get("previous_session"),
-                    "recommendations": result["quality_data"].get(
-                        "recommendations",
-                        [],
-                    ),
-                }
-            else:
-                logger.warning(f"Auto-init failed: {result['error']}")
-        except Exception as e:
-            logger.warning(f"Auto-init failed (non-critical): {e}")
-    else:
-        logger.debug("Non-git directory - skipping auto-initialization")
-
-    # Phase 0: register this component's MCP endpoint to Dhara
-    await _register_component_to_dhara("http://127.0.0.1:8678/mcp")
-
-    yield  # Server runs normally
+    yield  # Server runs normally - MCP handshakes can complete immediately
 
     # On disconnect - cleanup for git repos only
     if is_git_repository(current_dir):
