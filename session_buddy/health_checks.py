@@ -9,6 +9,7 @@ Phase 10.1: Production Hardening - Session Management Health Checks
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import time
 import typing as t
@@ -216,7 +217,7 @@ async def check_dependencies_health() -> ComponentHealth:
 
     Checks:
         - Crackerjack integration availability
-        - ONNX runtime for embeddings
+        - HTTP embedding providers (llama-server/Ollama)
         - Other optional features
 
     """
@@ -246,11 +247,78 @@ async def check_dependencies_health() -> ComponentHealth:
     else:
         unavailable.append("crackerjack")
 
-    # Check ONNX/embeddings without importing
-    if _module_available("onnxruntime"):
-        available.append("onnx")
-    else:
-        unavailable.append("onnx")
+    # SSRF defense: validate embedding URLs before making requests.
+    # Block loopback (127.0.0.0/8, ::1), RFC1918 private, and link-local (169.254.x.x) IPs.
+    # Env vars are operator-controlled, but this guards against accidental misconfiguration
+    # or substitution from untrusted sources (e.g., user-provided config files).
+    def _ssrf_check(url: str) -> bool:
+        """Return True if the URL's host is safe (not a private/internal address)."""
+        import ipaddress
+        try:
+            parsed = httpx.URL(url)
+            host = parsed.host or ""
+            # If it looks like an IP, validate directly
+            try:
+                addr = ipaddress.ip_address(host)
+                return not (addr.is_loopback or addr.is_private or addr.is_link_local)
+            except ValueError:
+                pass
+            # For hostnames, resolve and validate all IPs
+            import socket
+            for family, _, _, _, sockaddr in socket.getaddrinfo(host, None):
+                resolved_ip = sockaddr[0]
+                try:
+                    addr = ipaddress.ip_address(resolved_ip)
+                    if addr.is_loopback or addr.is_private or addr.is_link_local:
+                        return False
+                except ValueError:
+                    pass
+            return True
+        except Exception:
+            return False
+
+    # Check HTTP embedding providers (llama-server/Ollama) — actual HTTP health checks
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            # Check llama-server
+            try:
+                # Strip any trailing /embeddings before appending once (same logic as embeddings._get_llama_server_url)
+                _base = os.environ.get("MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8080/v1").rstrip("/")
+                if _base.endswith("/embeddings") or _base.endswith("/v1/embeddings"):
+                    _base = _base.rsplit("/embeddings", 1)[0]
+                _url = f"{_base}/embeddings"
+                if not _ssrf_check(_url):
+                    logger.warning(f"llama-server URL rejected by SSRF check: {_url}")
+                    unavailable.append("llama-server")
+                else:
+                    resp = await client.post(_url, json={"input": ["health-check"]})
+                    if resp.status_code == 200:
+                        available.append("llama-server")
+                    else:
+                        unavailable.append("llama-server")
+            except Exception:
+                unavailable.append("llama-server")
+
+            # Check Ollama
+            try:
+                _ollama_url = f"{os.environ.get('MAHAVISHNU__OLLAMA_URL', 'http://localhost:11434')}/api/embed"
+                if not _ssrf_check(_ollama_url):
+                    logger.warning(f"Ollama URL rejected by SSRF check: {_ollama_url}")
+                    unavailable.append("ollama")
+                else:
+                    resp = await client.post(
+                        _ollama_url,
+                        json={"model": "nomic-embed-text", "input": ["health-check"]},
+                    )
+                    if resp.status_code == 200:
+                        available.append("ollama")
+                    else:
+                        unavailable.append("ollama")
+            except Exception:
+                unavailable.append("ollama")
+    except ImportError:
+        unavailable.extend(["llama-server", "ollama"])
 
     # Check multi-project features
     try:

@@ -201,16 +201,12 @@ class SkillsEmbeddingService:
             return False
 
         try:
-            # Initialize ONNX model
-            session = initialize_embedding_system()
-            self._initialized = session is not None
-
-            if self._initialized:
-                logger.info("Skills embedding service initialized")
-            else:
-                logger.warning("Failed to initialize embedding system")
-
-            return self._initialized
+            # HTTP embedding is stateless — no model to load.
+            # initialize_embedding_system() is a no-op kept for backward compat.
+            initialize_embedding_system()
+            self._initialized = True
+            logger.info("Skills embedding service initialized (HTTP providers)")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to initialize embedding system: {e}")
@@ -276,8 +272,11 @@ class SkillsEmbeddingService:
             Embedding or None
         """
         try:
-            # Use reflection embedding system
-            embedding_list = generate_reflection_embedding(text)
+            # Use reflection embedding system (async, so run in a fresh event loop).
+            # asyncio.run() creates a new loop and closes it when done —
+            # correct for sync-in-thread-pool bridging.
+            import asyncio
+            embedding_list = asyncio.run(generate_reflection_embedding(text))
 
             if embedding_list is None:
                 return None

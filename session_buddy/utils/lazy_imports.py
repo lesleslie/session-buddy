@@ -112,18 +112,10 @@ class LazyLoader:
 # Global lazy loader instance
 lazy_loader = LazyLoader()
 
-# Common lazy imports for session-mgmt-mcp
-transformers = lazy_loader.add_import(
-    "transformers",
-    "transformers",
-    error_msg="Transformers not available. Install with: uv sync --extra embeddings",
-)
-
-onnxruntime = lazy_loader.add_import(
-    "onnxruntime",
-    "onnxruntime",
-    error_msg="ONNX Runtime not available. Install with: uv sync --extra embeddings",
-)
+# REMOVED: transformers and onnxruntime lazy imports
+# These were used for local ONNX embedding models which have been replaced
+# by HTTP-based embedding providers (llama-server/Ollama)
+# Keeping tiktoken, duckdb, numpy which are still needed
 
 tiktoken = lazy_loader.add_import(
     "tiktoken",
@@ -246,22 +238,19 @@ def get_dependency_status() -> dict[str, dict[str, Any]]:
         }
 
     # Check optional dependencies
-    optional_deps = ["transformers", "onnxruntime", "tiktoken", "numpy"]
+    optional_deps = ["tiktoken", "numpy"]  # transformers/onnxruntime removed — using HTTP providers
     for dep in optional_deps:
         loader = lazy_loader.get_import(dep)
         status[dep] = {
             "available": loader.available if loader else False,
             "required": False,
-            "category": "embeddings"
-            if dep in {"transformers", "onnxruntime", "numpy"}
-            else "optimization",
+            "category": "optimization",
         }
 
     # Overall status
     core_available = all(status[dep]["available"] for dep in core_deps)
-    embeddings_available = all(
-        status[dep]["available"] for dep in ("transformers", "onnxruntime", "numpy")
-    )
+    # embeddings now served via HTTP (llama-server/Ollama) — always "available"
+    embeddings_available = True
 
     status["_summary"] = {
         "core_functionality": core_available,
@@ -289,7 +278,7 @@ def log_dependency_status() -> None:
     missing_core = [dep for dep in ("duckdb",) if not status[dep]["available"]]
     missing_optional = [
         dep
-        for dep in ("transformers", "onnxruntime", "tiktoken", "numpy")
+        for dep in ("tiktoken", "numpy")
         if not status[dep]["available"]
     ]
 

@@ -24,7 +24,6 @@ if t.TYPE_CHECKING:
 
     import duckdb
     import numpy as np
-    from onnxruntime import InferenceSession
 
 # Runtime imports (available at runtime but optional for type checking)
 try:
@@ -34,19 +33,11 @@ try:
 except ImportError:
     NUMPY_AVAILABLE = False
 
-# Embedding system imports
-_TransformersTokenizer: type | None = None
-try:
-    import onnxruntime as ort
-    from transformers import AutoTokenizer as _TransformersTokenizer
-
-    ONNX_AVAILABLE = True
-except ImportError:
-    ONNX_AVAILABLE = False
-    ort = None
-
-# Use the tokenizer from transformers if available, otherwise None
-AutoTokenizer: type | None = _TransformersTokenizer
+# HTTP-based embedding — no local ONNX model needed.
+# Providers (llama-server/Ollama) return pre-normalized 384d vectors.
+ONNX_AVAILABLE = False  # Always False — using HTTP providers
+ort = None
+AutoTokenizer: type | None = None  # Not needed for HTTP
 
 from session_buddy.adapters.settings import ReflectionAdapterSettings
 from session_buddy.cache.query_cache import QueryCacheManager
@@ -104,7 +95,7 @@ class ReflectionDatabaseAdapterOneiric:
 
     This adapter replaces ACB's Vector adapter with direct DuckDB operations while maintaining
     the original ReflectionDatabase API for backward compatibility. It handles:
-    - Local ONNX embedding generation (all-MiniLM-L6-v2, 384 dimensions)
+    - HTTP-based embedding generation (llama-server/Ollama, 384 dimensions)
     - Vector storage and retrieval via native DuckDB
     - Graceful fallback to text search when embeddings unavailable
     - Async/await patterns consistent with existing code
@@ -154,13 +145,8 @@ class ReflectionDatabaseAdapterOneiric:
         else:
             self.db_path = str(settings_db_path)
         self.conn: t.Any = None  # DuckDB connection (sync)
-        self.onnx_session: InferenceSession | None = None
-        self.tokenizer: t.Any = None
         self.embedding_dim = self.settings.embedding_dim  # all-MiniLM-L6-v2 dimension
         self._initialized = False
-
-        # Embedding cache for performance optimization
-        self._embedding_cache: dict[str, list[float]] = {}
 
         # Category evolution engine (Phase 5)
         self._category_engine: CategoryEvolutionEngine | None = None
@@ -273,8 +259,6 @@ class ReflectionDatabaseAdapterOneiric:
                 self.conn.close()
             self.conn = None
 
-        # Clear embedding cache to free memory
-        self._embedding_cache.clear()
         self._cache_hits = 0
         self._cache_misses = 0
 
@@ -355,10 +339,6 @@ class ReflectionDatabaseAdapterOneiric:
             l2_ttl_days=7,
         )
         await self._query_cache.initialize(conn=self.conn)
-
-        # Initialize ONNX embedding model if embeddings are enabled
-        if self.settings.enable_embeddings and ONNX_AVAILABLE:
-            await self._init_embedding_model()
 
         # Initialize category evolution engine (Phase 5)
         self._category_engine = CategoryEvolutionEngine(
@@ -823,117 +803,30 @@ class ReflectionDatabaseAdapterOneiric:
             )
 
     async def _init_embedding_model(self) -> None:
-        """Initialize ONNX embedding model."""
-        if not ONNX_AVAILABLE:
-            return
+        """Initialize embedding model.
 
-        assert AutoTokenizer is not None
-        assert ort is not None
-
-        # Use Xenova's pre-converted ONNX model (no PyTorch required)
-        model_name = "Xenova/all-MiniLM-L6-v2"
-
-        # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)  # type: ignore[attr-defined]
-
-        # Load ONNX model from onnx/ subdirectory
-        try:
-            from huggingface_hub import snapshot_download
-
-            # Get the actual cache directory for this model
-            cache_dir = snapshot_download(
-                repo_id=model_name, allow_patterns=["onnx/model.onnx"]
-            )
-            onnx_path = str(Path(cache_dir) / "onnx" / "model.onnx")
-
-            self.onnx_session = ort.InferenceSession(
-                onnx_path,
-                providers=["CPUExecutionProvider"],
-            )
-            logger.info("✅ ONNX model loaded successfully (Xenova/all-MiniLM-L6-v2)")
-        except Exception as e:
-            logger.warning(f"Failed to load ONNX model from {model_name}: {e}")
-            self.onnx_session = None
+        After migration to HTTP: no local model loading needed.
+        HTTP providers (llama-server/Ollama) are called directly.
+        Kept as no-op for backward compatibility.
+        """
+        pass  # HTTP embedding is stateless — no initialization needed
 
     async def _generate_embedding(self, text: str) -> list[float] | None:
-        """Generate embedding for text using ONNX model.
+        """Generate embedding for text via HTTP provider chain.
 
-        Uses embedding cache to avoid recomputation for repeated queries.
-        Cache provides 5-10x performance improvement for common queries.
+        Delegates to generate_embedding() from embeddings.py which calls
+        llama-server → Ollama → None. HTTP providers return pre-normalized
+        384d vectors, so no mean-pooling or normalization needed.
+
+        Cache is handled by generate_embedding()'s thread-safe dict cache.
         """
-        if not self.onnx_session or not self.tokenizer:
-            return None
-
-        # Check cache first (O(1) lookup)
-        if text in self._embedding_cache:
-            self._cache_hits += 1
-            return self._embedding_cache[text]
-
-        # Cache miss - generate embedding
-        self._cache_misses += 1
+        # Import here to avoid circular imports
+        from session_buddy.reflection.embeddings import generate_embedding as http_generate_embedding
 
         try:
-            # Tokenize input (use NumPy to avoid PyTorch dependency)
-            inputs = self.tokenizer(
-                text,
-                return_tensors="np",
-                padding=True,
-                truncation=True,
-                max_length=256,
-            )
-
-            # Get numpy arrays directly (no conversion needed)
-            input_ids = inputs["input_ids"]
-            attention_mask = inputs["attention_mask"]
-            token_type_ids = inputs.get("token_type_ids", None)
-
-            # Run inference
-            ort_inputs = {
-                "input_ids": input_ids,
-                "attention_mask": attention_mask,
-            }
-            if token_type_ids is not None:
-                ort_inputs["token_type_ids"] = token_type_ids
-
-            # Get embeddings (shape: [batch, seq_len, 384])
-            outputs = self.onnx_session.run(None, ort_inputs)
-            last_hidden_state = outputs[0]  # Shape: [1, seq_len, 384]
-
-            # Apply mean pooling to get sentence embedding
-            # Expand attention_mask to match embedding dimensions
-            input_mask_expanded = np.expand_dims(
-                attention_mask, axis=-1
-            )  # [1, seq_len, 1]
-            input_mask_expanded = np.broadcast_to(
-                input_mask_expanded, last_hidden_state.shape
-            )
-
-            # Weighted sum of embeddings (masked tokens have 0 weight)
-            sum_embeddings = np.sum(
-                last_hidden_state * input_mask_expanded, axis=1
-            )  # [1, 384]
-
-            # Sum of mask (number of real tokens, not padding)
-            sum_mask = np.maximum(np.sum(input_mask_expanded, axis=1), 1e-9)  # [1, 384]
-
-            # Mean pooling
-            mean_pooled = sum_embeddings / sum_mask  # [1, 384]
-
-            # Normalize to unit length
-            embeddings = mean_pooled / np.linalg.norm(
-                mean_pooled, axis=1, keepdims=True
-            )
-
-            # Return [384] as list
-            result = embeddings[0].tolist()
-            embedding_list = t.cast("list[float]", result)
-
-            # Store in cache for future use
-            self._embedding_cache[text] = embedding_list
-
-            return embedding_list
+            return await http_generate_embedding(text)
         except Exception as e:
-            logger.warning(f"Failed to generate embedding: {e}")
+            logger.warning(f"HTTP embedding failed: {e}")
             return None
 
     def _quantize_embedding(self, embedding: list[float]) -> list[int] | None:
@@ -1521,25 +1414,12 @@ class ReflectionDatabaseAdapterOneiric:
             f"SELECT COUNT(*) FROM {self._table('conversations')} WHERE embedding IS NOT NULL"
         ).fetchone()[0]
 
-        # Calculate cache statistics
-        total_cache_requests = self._cache_hits + self._cache_misses
-        cache_hit_rate = (
-            self._cache_hits / total_cache_requests if total_cache_requests > 0 else 0.0
-        )
-
         return {
             "total_conversations": conv_count,
             "total_reflections": refl_count,
             "conversations_with_embeddings": embedding_count,
             "database_path": self.db_path,
             "collection_name": self.collection_name,
-            # Cache statistics
-            "embedding_cache": {
-                "size": len(self._embedding_cache),
-                "hits": self._cache_hits,
-                "misses": self._cache_misses,
-                "hit_rate": cache_hit_rate,
-            },
         }
 
     async def store_reflection(
@@ -1592,7 +1472,7 @@ class ReflectionDatabaseAdapterOneiric:
 
         # Generate embedding if available
         embedding: list[float] | None = None
-        if ONNX_AVAILABLE and self.onnx_session:
+        if self.settings.enable_embeddings:
             try:
                 embedding = await self._generate_embedding(content)
             except Exception:
@@ -1788,7 +1668,7 @@ class ReflectionDatabaseAdapterOneiric:
             List of matching reflections
 
         """
-        if use_embeddings and ONNX_AVAILABLE and self.onnx_session:
+        if use_embeddings and self.settings.enable_embeddings:
             return await self._semantic_search_reflections(query, limit)
         return await self._text_search_reflections(query, limit)
 
@@ -2055,7 +1935,7 @@ class ReflectionDatabaseAdapterOneiric:
 
         # Generate embedding if available
         embedding: list[float] | None = None
-        if ONNX_AVAILABLE and self.onnx_session:
+        if self.settings.enable_embeddings:
             try:
                 embedding = await self._generate_embedding(content)
             except Exception:
@@ -2138,7 +2018,7 @@ class ReflectionDatabaseAdapterOneiric:
             await self.initialize()
 
         # Use semantic search if embeddings available
-        if use_embeddings and ONNX_AVAILABLE and self.onnx_session:
+        if use_embeddings and self.settings.enable_embeddings:
             return await self._semantic_search_insights(
                 query, limit, min_quality_score, min_similarity
             )

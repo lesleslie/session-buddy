@@ -133,11 +133,8 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         self._initialized = False
         self._embedding_initialized = False
 
-        # Initialize embedding system if available
-        if EMBEDDING_AVAILABLE:
-            self._embedding_session = initialize_embedding_system()
-        else:
-            self._embedding_session = None
+        # HTTP embedding providers are stateless — no session initialization needed
+        self._embedding_session = None
 
     def __enter__(self) -> t.Self:
         """Sync context manager entry (not recommended - use async)."""
@@ -481,7 +478,7 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             Float vector of dimension 384, or None if embedding unavailable
 
         """
-        if not EMBEDDING_AVAILABLE or self._embedding_session is None:
+        if not EMBEDDING_AVAILABLE:
             return None
 
         # Combine entity information for rich semantic representation
@@ -492,7 +489,7 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         text = " ".join(text_parts)
 
         try:
-            return await generate_embedding(text, self._embedding_session, None)
+            return await generate_embedding(text)
         except Exception:
             # Silently fail - embeddings are optional
             return None

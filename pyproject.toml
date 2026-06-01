@@ -22,9 +22,9 @@ dependencies = [
     "fastmcp>=2.14.5",
     "hatchling>=1.28.0",
     "numpy>=2.4.2",
-    "onnxruntime>=1.23.2,<1.24",
-
-    "transformers>=5.1.0",
+    # onnxruntime, transformers removed — session-buddy uses HTTP embedding providers
+    # (llama-server → Ollama → graceful degradation) for vector embeddings.
+    # This removes a transitive dependency conflict across the Bodai ecosystem.
     "pydantic>=2.12.5",
     "duckdb>=1.4.4",
     "tiktoken>=0.12.0",
@@ -108,16 +108,15 @@ markers = [
     "benchmark: Benchmark tests (deferred)",
     "smoke: Quick smoke tests",
     "regression: Regression tests",
-    "api: API endpoint tests",
-    "database: marks test as database test",
-    "external: marks test requiring external services",
-    "no_leaks: detect asyncio task leaks",
-    "property: marks test as property-based test",
-    "mutation: marks test as mutation testing",
-    "chaos: marks test as chaos engineering test",
-    "ai_generated: marks test as AI-generated test",
-    "breakthrough: marks test as breakthrough frontier test",
-    "parallel_safe: mark test as safe for parallel execution",
+    "mutation: Mutation testing",
+    "chaos: Chaos engineering test",
+    "ai_generated: AI-generated test",
+    "breakthrough: Breakthrough frontier test",
+    "parallel_safe: Safe for parallel execution",
+    "database: Database test",
+    "external: External services required",
+    "no_leaks: Asyncio task leak detection",
+    "property: Property-based test",
 ]
 
 [tool.coverage.run]
@@ -203,7 +202,6 @@ exclude-deps = [
     "aiofiles",     # team_knowledge uses importlib find_spec, not direct import
     "aiohttp",     # ollama_provider fallback, may not be used if HTTPClientAdapter available
     "dhara",        # settings.py has optional URL field, may not connect
-    "onnxruntime",  # reflection/embeddings.py try/except ImportError, optional
     "opentelemetry-api",      # opentelemetry_sdk imports via try/except
     "opentelemetry-exporter-otlp-proto-grpc",  # try/except optional
     "opentelemetry-exporter-otlp-proto-http",   # try/except optional
@@ -211,7 +209,6 @@ exclude-deps = [
     "psutil",       # app_monitor, interruption_manager use try/except ImportError
     "rich",         # quality_engine.py only uses in f-string for output formatting
     "tiktoken",     # token_optimizer.py uses try/except ImportError
-    "transformers", # reflection/embeddings.py only if ONNX available, try/except
     # Only keep hatchling - the only dependency from pyproject.toml that's in exclude-deps
     "hatchling",
 ]

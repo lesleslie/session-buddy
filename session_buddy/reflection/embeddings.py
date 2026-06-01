@@ -1,320 +1,96 @@
-"""Embedding generation for semantic search using local ONNX models.
+"""Embedding generation for semantic search via HTTP providers.
 
-Provides async embedding generation using all-MiniLM-L6-v2 model with
-thread-safe execution and caching support.
+Provides async embedding generation using llama-server (preferred) or Ollama
+with graceful degradation when no providers are available.
+
+Phase 5: ONNX path removed — HTTP-only embedding via llama-server → Ollama → None.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import threading
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
-from functools import lru_cache
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-import numpy as np
+import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from onnxruntime import InferenceSession
-
-    # Use Any for type annotations that are only used at runtime
-    TokenizersBackend: Any = None
-    SentencePieceBackend: Any = None
-
-# Lazy imports to avoid triggering transformers warnings on module load
-ONNX_AVAILABLE = None  # Will be determined on first use
-_ort = None
-_AutoTokenizer = None
+# HTTP provider URLs
+_LLAMA_SERVER_BASE = os.environ.get("MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8080/v1")
+OLLAMA_URL = os.environ.get("MAHAVISHNU__OLLAMA_URL", "http://localhost:11434")
 
 
-def _check_onnx_available() -> bool:
-    """Lazily check if ONNX runtime is available."""
-    global ONNX_AVAILABLE, _ort, _AutoTokenizer
-    if ONNX_AVAILABLE is not None:
-        return ONNX_AVAILABLE
+def _get_llama_server_url() -> str:
+    """Compute full llama-server URL, stripping trailing /embeddings if present."""
+    base = _LLAMA_SERVER_BASE.rstrip("/")
+    if base.endswith("/embeddings") or base.endswith("/v1/embeddings"):
+        base = base.rsplit("/embeddings", 1)[0]
+    return f"{base}/embeddings"
 
-    with suppress(ImportError):
-        import onnxruntime as ort  # noqa: PLW2901
-
-        _ort = ort
-        ONNX_AVAILABLE = True
-
-    if not ONNX_AVAILABLE:
-        return False
-
-    # Only import transformers if ONNX is available
-    # Suppress the "PyTorch was not found" warning from transformers
-    with suppress(ImportError):
-        import logging
-        import sys
-        from io import StringIO
-
-        # Temporarily redirect stdout/stderr to suppress PyTorch warning
-        # The warning is printed directly by transformers, not via warnings module
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
-        sys.stdout = StringIO()
-        sys.stderr = StringIO()
-
-        # Also suppress transformers logger
-        transformers_logger = logging.getLogger("transformers")
-        original_level = transformers_logger.level
-        transformers_logger.setLevel(logging.ERROR)
-
-        try:
-            from transformers import AutoTokenizer  # noqa: PLW2901
-
-            _AutoTokenizer = AutoTokenizer
-        finally:
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
-            transformers_logger.setLevel(original_level)
-
-    return ONNX_AVAILABLE
+EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 / nomic-embed-text dimension
 
 
-# Global executor for async embedding operations
-_embedding_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="embedding")
+async def _try_http_embedding_providers(text: str) -> list[float] | None:
+    """Try llama-server first, then Ollama, return embedding or None.
 
-# Global embedding model cache (thread-local for thread safety)
-_embedding_cache_lock = threading.RLock()
-_onnx_session: InferenceSession | None = None
-_tokenizer: TokenizersBackend | SentencePieceBackend | None = None
-_embedding_dim = 384  # all-MiniLM-L6-v2 dimension
-_model_initialized = False
+    llama-server: OpenAI-compatible /v1/embeddings endpoint.
+    Ollama: /api/embed endpoint with nomic-embed-text model.
 
-
-def initialize_embedding_system(
-    model_dir: str | Path | None = None,
-    allow_download: bool = False,
-) -> InferenceSession | None:
-    """Initialize the ONNX embedding model.
-
-    Args:
-        model_dir: Optional custom model directory path
-        allow_download: If True, allow downloading from HuggingFace if not cached.
-                       Default is False to avoid unexpected network requests.
-
-    Returns:
-        ONNX inference session if successful, None otherwise
-
-    Example:
-        >>> session = initialize_embedding_system()
-        >>> if session:
-        ...     print("Embedding system ready")
+    Both providers return pre-normalized 384d vectors.
     """
-    global _onnx_session, _tokenizer, _model_initialized
+    import httpx
 
-    # Lazily check ONNX availability (this triggers imports only when needed)
-    if not _check_onnx_available():
-        logger.debug("ONNX runtime not available, embeddings disabled")
-        _model_initialized = True
-        return None
-
-    if _model_initialized:
-        return _onnx_session
-
+    # Try llama-server at localhost:8080
     try:
-        # Determine model directory
-        if model_dir is None:
-            # Default to user's cache directory
-            cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
-            model_dir = cache_dir
-
-        model_path = Path(model_dir)
-
-        # Check if model is locally cached
-        model_name = "models--sentence-transformers--all-MiniLM-L6-v2"
-        local_cache = model_path / model_name
-        is_cached = local_cache.exists()
-
-        if not is_cached and not allow_download:
-            logger.debug(
-                "Embedding model not cached locally and allow_download=False. "
-                "Embeddings will use text-only search."
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
+            resp = await client.post(
+                _get_llama_server_url(),
+                json={"input": [text]},
             )
-            _model_initialized = True
-            return None
-
-        # Load tokenizer (only if cached or downloads allowed)
-        # Use lazy-loaded _AutoTokenizer from _check_onnx_available()
-        if _AutoTokenizer is not None:
-            try:
-                _tokenizer = _AutoTokenizer.from_pretrained(
-                    "sentence-transformers/all-MiniLM-L6-v2",
-                    local_files_only=not allow_download,
-                )
-            except Exception as e:
-                if allow_download:
-                    logger.warning(f"Failed to load tokenizer: {e}")
-                else:
-                    logger.debug(f"Tokenizer not cached locally: {e}")
-                _tokenizer = None
-        else:
-            logger.debug("AutoTokenizer not available, skipping tokenizer load")
-            _tokenizer = None
-
-        # Load ONNX session if available
-        # Use lazy-loaded _ort from _check_onnx_available()
-        if _ort is not None:
-            try:
-                if model_path.exists():
-                    # Use custom model path
-                    _onnx_session = _ort.InferenceSession(
-                        str(model_path / "model.onnx")
-                    )
-                else:
-                    # Try to find model in cache
-
-                    # Let transformers handle the model loading
-                    logger.debug("Using transformers for embedding generation")
-                    _onnx_session = None  # Will use transformers directly
-            except Exception as e:
-                logger.warning(f"Failed to load ONNX model: {e}")
-                _onnx_session = None
-        else:
-            logger.debug("ONNX runtime not available, skipping session load")
-            _onnx_session = None
-
-        _model_initialized = True
-        logger.info("Embedding system initialized successfully")
-        return _onnx_session
-
+            if resp.status_code == 200:
+                data = resp.json()
+                # OpenAI-compatible response: {"data": [{"embedding": [...]}]}
+                if not isinstance(data, dict) or "data" not in data:
+                    raise ValueError(f"Unexpected response shape: {type(data)}")
+                embedding_data = data["data"]
+                if not isinstance(embedding_data, list) or len(embedding_data) == 0:
+                    raise ValueError("Empty or missing data array in response")
+                embedding = embedding_data[0].get("embedding")
+                if embedding and isinstance(embedding, list) and len(embedding) == 384:
+                    if all(isinstance(x, (int, float)) for x in embedding):
+                        return embedding
     except Exception as e:
-        logger.error(f"Failed to initialize embedding system: {e}")
-        _model_initialized = True
-        return None
+        logger.debug(f"llama-server embedding failed: {e}")
 
-
-def _sync_generate_embedding(
-    text: str,
-    onnx_session: InferenceSession | None,
-    tokenizer: TokenizersBackend | SentencePieceBackend | None,
-) -> list[float]:
-    """Synchronously generate embedding for text.
-
-    Args:
-        text: Input text to embed
-        onnx_session: ONNX inference session
-        tokenizer: Tokenizer for encoding text
-
-    Returns:
-        Float vector of dimension 384
-
-    Raises:
-        RuntimeError: If embedding model not available
-    """
-    # Ensure ONNX is available (triggers lazy import)
-    if not _check_onnx_available():
-        msg = "ONNX runtime not available"
-        raise RuntimeError(msg)
-
-    if not onnx_session or not tokenizer:
-        msg = "No embedding model available"
-        raise RuntimeError(msg)
-
-    # Tokenize text
-    encoded = tokenizer(
-        text,
-        truncation=True,
-        padding=True,
-        return_tensors="np",
-    )
-
-    # Run inference
-    outputs = onnx_session.run(
-        None,
-        {
-            "input_ids": encoded["input_ids"],
-            "attention_mask": encoded["attention_mask"],
-            "token_type_ids": encoded.get(
-                "token_type_ids",
-                np.zeros_like(encoded["input_ids"]),
-            ),
-        },
-    )
-
-    # Mean pooling
-    embeddings = outputs[0]
-    attention_mask = encoded["attention_mask"]
-    masked_embeddings = embeddings * np.expand_dims(attention_mask, axis=-1)
-    summed = np.sum(masked_embeddings, axis=1)
-    counts = np.sum(attention_mask, axis=1, keepdims=True)
-    mean_pooled = summed / counts
-
-    # Normalize
-    norms = np.linalg.norm(mean_pooled, axis=1, keepdims=True)
-    normalized = mean_pooled / norms
-
-    # Convert to float32 to match DuckDB FLOAT type
-    result: list[float] = normalized[0].astype(np.float32).tolist()
-    return result
-
-
-async def generate_embedding(
-    text: str,
-    onnx_session: InferenceSession | None = None,
-    tokenizer: TokenizersBackend | SentencePieceBackend | None = None,
-) -> list[float] | None:
-    """Generate embedding for text asynchronously.
-
-    Args:
-        text: Input text to embed
-        onnx_session: Optional ONNX session (uses global if None)
-        tokenizer: Optional tokenizer (uses global if None)
-
-    Returns:
-        Float vector of dimension 384, or None if unavailable
-
-    Example:
-        >>> embedding = await generate_embedding("Hello world")
-        >>> if embedding:
-        ...     print(f"Generated {len(embedding)}-dimensional vector")
-    """
-    # Use global instances if not provided
-    if onnx_session is None:
-        onnx_session = _onnx_session
-    if tokenizer is None:
-        tokenizer = _tokenizer
-
-    if not onnx_session or not tokenizer:
-        return None
-
-    # Check cache first (thread-safe)
-    with _embedding_cache_lock:
-        cached = _embedding_cache_get(text)
-        if cached is not None:
-            return cached
-
-    # Generate in thread pool to avoid blocking event loop
-    loop = asyncio.get_event_loop()
+    # Try Ollama at localhost:11434
     try:
-        embedding = await loop.run_in_executor(
-            _embedding_executor,
-            _sync_generate_embedding,
-            text,
-            onnx_session,
-            tokenizer,
-        )
-
-        # Cache result (thread-safe)
-        with _embedding_cache_lock:
-            _embedding_cache_put(text, embedding)
-
-        return embedding
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=5.0)) as client:
+            resp = await client.post(
+                f"{OLLAMA_URL}/api/embed",
+                json={"model": "nomic-embed-text", "input": [text]},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                embeddings = data.get("embeddings")
+                if isinstance(embeddings, list) and len(embeddings) > 0:
+                    embedding = embeddings[0]
+                else:
+                    embedding = data.get("embedding", [])
+                if embedding and isinstance(embedding, list) and len(embedding) == 384:
+                    if all(isinstance(x, (int, float)) for x in embedding):
+                        return embedding
     except Exception as e:
-        logger.error(f"Embedding generation failed: {e}")
-        return None
+        logger.debug(f"Ollama embedding failed: {e}")
+
+    return None
 
 
-@lru_cache(maxsize=1024)
+# Thread-safe embedding cache (simple dict + lock)
+_embedding_cache: dict[str, list[float]] = {}
+_embedding_cache_lock = __import__("threading").RLock()
+
+
 def _embedding_cache_get(text: str) -> list[float] | None:
-    """Get embedding from cache (thread-safe wrapper).
+    """Get embedding from cache.
 
     Args:
         text: Input text
@@ -322,51 +98,58 @@ def _embedding_cache_get(text: str) -> list[float] | None:
     Returns:
         Cached embedding or None if not found
     """
-    # This is wrapped in lock at call site
-    return None  # Actual cache is handled by lru_cache decorator
+    with _embedding_cache_lock:
+        return _embedding_cache.get(text)
 
 
 def _embedding_cache_put(text: str, embedding: list[float]) -> None:
-    """Store embedding in cache (no-op for lru_cache).
+    """Store embedding in cache."""
+    with _embedding_cache_lock:
+        _embedding_cache[text] = embedding
+        # Simple eviction: if cache too large, remove oldest 10%
+        if len(_embedding_cache) > 1024:
+            oldest = list(_embedding_cache.keys())[: int(len(_embedding_cache) * 0.1)]
+            for k in oldest:
+                del _embedding_cache[k]
+
+
+async def generate_embedding(text: str) -> list[float] | None:
+    """Generate embedding for text asynchronously via HTTP providers.
+
+    Tries llama-server first, then Ollama. Both return pre-normalized
+    384d vectors. Results are cached.
 
     Args:
-        text: Input text
-        embedding: Generated embedding
+        text: Input text to embed
 
-    Note:
-        lru_cache handles caching automatically, this is a no-op
-        kept for API compatibility.
+    Returns:
+        Float vector of dimension 384, or None if all providers fail
+
+    Example:
+        >>> embedding = await generate_embedding("Hello world")
+        >>> if embedding:
+        ...     print(f"Generated {len(embedding)}-dimensional vector")
     """
-    pass
+    # Check cache first
+    cached = _embedding_cache_get(text)
+    if cached is not None:
+        return cached
+
+    # Try HTTP providers
+    result = await _try_http_embedding_providers(text)
+    if result is not None:
+        _embedding_cache_put(text, result)
+        return result
+
+    return None
 
 
 def clear_embedding_cache() -> None:
-    """Clear the embedding cache.
-
-    Example:
-        >>> clear_embedding_cache()
-        >>> print("Embedding cache cleared")
-    """
-    global _embedding_cache_lock
-
+    """Clear the embedding cache."""
+    global _embedding_cache
     with _embedding_cache_lock:
-        _sync_clear_cache()
-
+        _embedding_cache.clear()
     logger.info("Embedding cache cleared")
-
-
-def _sync_clear_cache() -> None:
-    """Internal cache clearing (not thread-safe).
-
-    Note:
-        lru_cache doesn't provide a clear method, so we recreate
-        the function to clear the cache.
-    """
-    global generate_embedding
-
-    # Recreate the function to clear lru_cache
-    # This is a workaround as lru_cache doesn't have a clear() method
-    pass
 
 
 def get_embedding_system_info() -> dict[str, Any]:
@@ -374,31 +157,44 @@ def get_embedding_system_info() -> dict[str, Any]:
 
     Returns:
         Dict with keys:
-        - available: Whether ONNX is available
-        - initialized: Whether model is initialized
-        - model_dim: Embedding dimension (384 for MiniLM)
+        - available: Always True (HTTP providers handle failures gracefully)
+        - initialized: Always True (HTTP is stateless)
+        - model_dim: Embedding dimension (384)
         - cache_size: Current cache size
+        - http_providers: Dict with llama_server and ollama URLs
     """
+    with _embedding_cache_lock:
+        cache_size = len(_embedding_cache)
     return {
-        "available": _check_onnx_available(),
-        "initialized": _model_initialized,
-        "model_dim": _embedding_dim,
-        "cache_size": generate_embedding.__wrapped__.cache_info()
-        if hasattr(generate_embedding, "__wrapped__")
-        else None,
+        "available": True,
+        "initialized": True,
+        "model_dim": EMBEDDING_DIM,
+        "cache_size": cache_size,
+        "http_providers": {
+            "llama_server": _get_llama_server_url(),
+            "ollama": OLLAMA_URL,
+        },
     }
 
 
-# Initialize embedding system on module import ONLY if model is cached locally
-# This prevents network requests during import while still enabling embeddings
-# for users who have already cached the model
-_model_name = "models--sentence-transformers--all-MiniLM-L6-v2"
-_cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
-_local_cache = _cache_dir / _model_name
-if _local_cache.exists():
-    # Model is cached, safe to initialize without network requests
-    initialize_embedding_system(allow_download=False)
-else:
-    # Model not cached - don't initialize to avoid network requests
-    # Will be initialized lazily on first use if needed
-    logger.debug("Embedding model not cached locally - will use text-only search")
+# Backward-compatibility exports — ONNX is removed
+# These were removed in Phase 5 but are kept as no-op stubs for any
+# code that imports them. Remove them when you find usages.
+def initialize_embedding_system(
+    model_dir: str | None = None,  # noqa: ARG001
+    allow_download: bool = False,  # noqa: ARG001
+) -> None:
+    """No-op. ONNX embedding removed in Phase 5.
+
+    HTTP providers (llama-server/Ollama) handle embeddings.
+    Kept for backward compatibility — safe to ignore.
+    """
+    logger.debug("initialize_embedding_system: ONNX removed, HTTP providers used")
+
+
+__all__ = [
+    "generate_embedding",
+    "clear_embedding_cache",
+    "get_embedding_system_info",
+    "initialize_embedding_system",  # backward compat
+]

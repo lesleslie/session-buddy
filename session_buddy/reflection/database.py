@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 if TYPE_CHECKING:
     import duckdb
-    from onnxruntime import InferenceSession
+    # onnxruntime removed — using HTTP embedding providers
 
 try:
     import duckdb
@@ -26,13 +26,9 @@ try:
 except ImportError:
     DUCKDB_AVAILABLE = False
 
-try:
-    import onnxruntime as ort
-
-    ONNX_AVAILABLE = True
-except ImportError:
-    ONNX_AVAILABLE = False
-    ort = None
+# HTTP embedding providers (llama-server/Ollama) handle embeddings
+# No local ONNX runtime needed
+ONNX_AVAILABLE = False  # Kept for compatibility but always False
 
 logger = logging.getLogger(__name__)
 
@@ -111,23 +107,14 @@ class ReflectionDatabase:
         self.local = threading.local()
         self.lock = threading.RLock()  # Re-entrant for nested access in temp DB
 
-        # Embedding system (lazy-loaded to avoid HF requests on instantiation)
-        self._onnx_session: InferenceSession | None = None
-        self._embedding_initialized = False
-        self.tokenizer = None  # Set by embedding system
-        self.embedding_dim = 384  # all-MiniLM-L6-v2 dimension
+        # Embedding system — HTTP providers are stateless, no initialization needed
+        self.embedding_dim = 384  # all-MiniLM-L6-v2 / nomic-embed-text dimension
         self._initialized = False
 
     @property
-    def onnx_session(self) -> InferenceSession | None:
-        """Lazy-load ONNX session on first access.
-
-        This avoids triggering Hugging Face downloads during __init__.
-        """
-        if not self._embedding_initialized:
-            self._onnx_session = initialize_embedding_system()
-            self._embedding_initialized = True
-        return self._onnx_session
+    def onnx_session(self) -> Any:
+        """Backward-compat stub. HTTP embedding needs no session."""
+        return None
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection | None:
@@ -187,8 +174,8 @@ class ReflectionDatabase:
             msg = "DuckDB is not available"
             raise RuntimeError(msg)
 
-        # Note: Embedding system is now lazy-loaded via the onnx_session property
-        # to avoid triggering Hugging Face downloads during initialization
+        # Note: Embedding system is now lazy-loaded via HTTP providers
+        # to avoid triggering external service calls during initialization
 
         # Create data directory if needed
         if not self.is_temp_db:
@@ -273,7 +260,7 @@ class ReflectionDatabase:
         return self.local.conn  # type: ignore
 
     async def get_embedding(self, text: str) -> list[float]:
-        """Get embedding for text using ONNX model.
+        """Get embedding for text using HTTP embedding provider.
 
         Args:
             text: Input text to embed
@@ -288,11 +275,7 @@ class ReflectionDatabase:
             >>> embedding = await db.get_embedding("Hello world")
             >>> print(f"Generated {len(embedding)}-dimensional vector")
         """
-        if self.onnx_session is None:
-            msg = "No embedding model available"
-            raise RuntimeError(msg)
-
-        embedding = await generate_embedding(text, self.onnx_session, self.tokenizer)
+        embedding = await generate_embedding(text)
         if embedding is None:
             msg = "Failed to generate embedding"
             raise RuntimeError(msg)
@@ -699,8 +682,8 @@ class ReflectionDatabase:
             projects = [row[0] for row in projects_rows if row and row[0] is not None]
 
             provider = (
-                "onnx-runtime"
-                if (self.onnx_session and ONNX_AVAILABLE)
+                "http-embedding-providers"
+                if self.onnx_session
                 else "text-search-only"
             )
             return {
