@@ -67,7 +67,7 @@ def test_path_validator_blocks_relative_traversal():
         outside_file = outside_file.resolve()
 
         # Should block traversal
-        with pytest.raises(ValueError, match="outside allowed directories"):
+        with pytest.raises(ValueError, match="escapes base directory"):
             validator.validate_user_path(
                 tmpdir / ".." / "outside_test.txt",
                 base_dir=tmpdir

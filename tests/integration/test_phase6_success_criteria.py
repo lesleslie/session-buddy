@@ -53,8 +53,8 @@ class TestPhase6CoreRuntime:
         assert hasattr(settings, "enable_debug_mode"), "Should have enable_debug_mode"
 
         # Verify custom SessionBuddy settings
-        assert hasattr(settings, "http_port"), "Should have http_port"
-        assert hasattr(settings, "websocket_port"), "Should have websocket_port"
+        assert hasattr(settings, "server_port"), "Should have server_port"
+        assert hasattr(settings, "enable_websockets"), "Should have enable_websockets"
 
     async def test_no_acb_dependencies_import(self):
         """Test success criterion: No ACB imports in runtime."""
@@ -164,7 +164,7 @@ class TestPhase6MemoryAdapters:
             assert kg.conn is not None, "Connection should be initialized"
 
             entity = await kg.create_entity(
-                name="TestEntity6",
+                name=f"TestEntity6_{uuid.uuid4().hex[:8]}",
                 entity_type="test",
                 attributes={"phase": "6"},
             )
@@ -195,7 +195,7 @@ class TestPhase6MemoryAdapters:
         try:
             start = time.time()
             entity = await kg.create_entity(
-                name="HybridTest",
+                name=f"HybridTest_{uuid.uuid4().hex[:8]}",
                 entity_type="test",
                 attributes={"pattern": "hybrid"},
             )
