@@ -24,7 +24,7 @@ OLLAMA_URL = os.environ.get("MAHAVISHNU__OLLAMA_URL", "http://localhost:11434")
 def _get_llama_server_url() -> str:
     """Compute full llama-server URL, stripping trailing /embeddings if present."""
     base = _LLAMA_SERVER_BASE.rstrip("/")
-    if base.endswith("/embeddings") or base.endswith("/v1/embeddings"):
+    if base.endswith(("/embeddings", "/v1/embeddings")):
         base = base.rsplit("/embeddings", 1)[0]
     return f"{base}/embeddings"
 

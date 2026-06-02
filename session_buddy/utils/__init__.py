@@ -1,5 +1,7 @@
 """Utility functions for session-mgmt-mcp."""
 
+import logging as _stdlib_logging
+
 import session_buddy.utils.quality_scoring as quality_utils_v2  # noqa: F401
 
 from .database_pool import DatabaseConnectionPool, get_database_pool
@@ -39,10 +41,7 @@ from .lazy_imports import (
 )
 from .logging import SessionLogger, get_session_logger
 
-# Create a module-level logger instance for compatibility
-import logging
-
-logger = logging.getLogger("session_buddy")
+logger = _stdlib_logging.getLogger("session_buddy")
 from .quality_score_parser import (
     _analyze_quality_trend,
     _extract_quality_scores,

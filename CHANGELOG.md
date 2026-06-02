@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.8] - 2026-06-02
+
+### Changed
+
+- Session-buddy (quality: 62/100) - 2026-06-01 16:57:09
+- Session-buddy (quality: 62/100) - 2026-06-01 17:08:42
+- Session-buddy (quality: 62/100) - 2026-06-01 17:14:46
+- Session-buddy (quality: 63/100) - 2026-06-01 18:49:23
+- Session-buddy (quality: 63/100) - 2026-06-01 21:27:00
+- Session-buddy (quality: 63/100) - 2026-06-02 04:10:50
+- Session-buddy (quality: 63/100) - 2026-06-02 10:05:42
+
 ## [0.19.7] - 2026-05-31
 
 ### Changed

@@ -8,16 +8,15 @@ Phase 10.1: Production Hardening - Session Management Health Checks
 
 from __future__ import annotations
 
-from contextlib import suppress
-from dataclasses import dataclass, field
 import importlib.util
 import os
 import sys
 import time
 import typing as t
+from contextlib import suppress
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import httpx
 
@@ -250,7 +249,9 @@ def _check_crackerjack() -> tuple[list[str], list[str]]:
     unavailable = []
     quality_utils = sys.modules.get("session_buddy.utils.quality_utils_v2")
     if quality_utils is not None:
-        crackerjack_available = bool(getattr(quality_utils, "CRACKERJACK_AVAILABLE", False))
+        crackerjack_available = bool(
+            getattr(quality_utils, "CRACKERJACK_AVAILABLE", False)
+        )
     else:
         crackerjack_available = _module_available("crackerjack")
 
@@ -263,7 +264,9 @@ def _check_crackerjack() -> tuple[list[str], list[str]]:
 
 def _llama_server_health_url() -> str:
     """Build llama-server health check URL."""
-    base = os.environ.get("MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8080/v1").rstrip("/")
+    base = os.environ.get(
+        "MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8080/v1"
+    ).rstrip("/")
     if base.endswith(("/embeddings", "/v1/embeddings")):
         base = base.rsplit("/embeddings", 1)[0]
     return f"{base}/embeddings"
@@ -298,14 +301,19 @@ async def _check_embedding_providers(
     available = []
     unavailable = []
 
-    result = await _check_provider(client, _llama_server_health_url(), "llama-server", {"input": ["health-check"]})
+    result = await _check_provider(
+        client, _llama_server_health_url(), "llama-server", {"input": ["health-check"]}
+    )
     if result == "llama-server":
         available.append(result)
     else:
         unavailable.append(result)
 
     result = await _check_provider(
-        client, _ollama_health_url(), "ollama", {"model": "nomic-embed-text", "input": ["health-check"]}
+        client,
+        _ollama_health_url(),
+        "ollama",
+        {"model": "nomic-embed-text", "input": ["health-check"]},
     )
     if result == "ollama":
         available.append(result)
