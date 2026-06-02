@@ -11,6 +11,8 @@ pipeline: storage → fingerprint generation → duplicate detection.
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
 from session_buddy.adapters.reflection_adapter_oneiric import (
@@ -23,13 +25,14 @@ class TestPhase4DuplicateDetectionAccuracy:
     """Test duplicate detection accuracy for Phase 4 success criteria."""
 
     async def test_exact_duplicate_detection_rate(
-        self, tmp_path, collection_name="test_exact_dups"
+        self, tmp_path, collection_name=None
     ):
         """Test success criterion: >90% exact duplicate detection rate.
 
         Creates multiple exact duplicates and verifies they are correctly
         identified when deduplicate=True.
         """
+        collection_name = collection_name or f"test_exact_dups_{uuid.uuid4().hex[:8]}"
         # Test data: 10 conversations, 5 of which are exact duplicates
         test_data = [
             ("Python async patterns make code faster", "original1"),
@@ -99,13 +102,14 @@ class TestPhase4DuplicateDetectionAccuracy:
             assert detection_rate >= 90.0, f"Exact duplicate detection rate {detection_rate:.1f}% is below 90% threshold"
 
     async def test_near_duplicate_detection_rate(
-        self, tmp_path, collection_name="test_near_dups"
+        self, tmp_path, collection_name=None
     ):
         """Test success criterion: >70% near-duplicate detection rate.
 
         Creates near-duplicates (minor edits) and verifies they are
         detected at threshold 0.85.
         """
+        collection_name = collection_name or f"test_near_dups_{uuid.uuid4().hex[:8]}"
         # Test data: pairs of near-duplicates with minor edits
         near_duplicate_pairs = [
             ("Python async patterns are useful", "Python async pattern is useful"),
@@ -154,12 +158,13 @@ class TestPhase4DuplicateDetectionAccuracy:
             detection_rate >= 70.0
         ), f"Near-duplicate detection rate {detection_rate:.1f}% is below 70% threshold"
 
-    async def test_false_positive_rate(self, tmp_path, collection_name="test_false_pos"):
+    async def test_false_positive_rate(self, tmp_path, collection_name=None):
         """Test success criterion: <1% false positive rate.
 
         Verifies that truly different content is NOT flagged as duplicate.
         False positive = different content incorrectly marked as duplicate.
         """
+        collection_name = collection_name or f"test_false_pos_{uuid.uuid4().hex[:8]}"
         # Test data: 10 completely different conversations
         different_content = [
             "Python async patterns improve performance",
@@ -212,9 +217,10 @@ class TestPhase4DuplicateDetectionAccuracy:
         ), f"False positive rate {false_positive_rate:.2f}% exceeds 1% threshold"
 
     async def test_fingerprint_generation_on_storage(
-        self, tmp_path, collection_name="test_fingerprint_storage"
+        self, tmp_path, collection_name=None
     ):
         """Test that fingerprints are automatically generated during storage."""
+        collection_name = collection_name or f"test_fingerprint_storage_{uuid.uuid4().hex[:8]}"
         test_content = "Python async patterns for concurrent programming"
 
         async with ReflectionDatabaseAdapterOneiric(
@@ -238,9 +244,10 @@ class TestPhase4DuplicateDetectionAccuracy:
             assert len(fingerprint_blob) == 1024, "Fingerprint should be 1024 bytes"
 
     async def test_reflection_fingerprinting(
-        self, tmp_path, collection_name="test_reflection_fingerprint"
+        self, tmp_path, collection_name=None
     ):
         """Test fingerprinting works for reflections too."""
+        collection_name = collection_name or f"test_reflection_fingerprint_{uuid.uuid4().hex[:8]}"
         test_reflection = "Key insight: async/await patterns improve code readability"
 
         async with ReflectionDatabaseAdapterOneiric(
@@ -264,9 +271,10 @@ class TestPhase4DuplicateDetectionAccuracy:
             assert len(fingerprint_blob) == 1024, "Fingerprint should be 1024 bytes"
 
     async def test_deduplicate_parameter_conversations(
-        self, tmp_path, collection_name="test_dedup_conv"
+        self, tmp_path, collection_name=None
     ):
         """Test deduplicate parameter works for conversations."""
+        collection_name = collection_name or f"test_dedup_conv_{uuid.uuid4().hex[:8]}"
         content = "Test content for deduplication"
 
         async with ReflectionDatabaseAdapterOneiric(
@@ -306,9 +314,10 @@ class TestPhase4DuplicateDetectionAccuracy:
             assert count == 1, "Should have only 1 conversation with deduplication"
 
     async def test_deduplicate_parameter_reflections(
-        self, tmp_path, collection_name="test_dedup_refl"
+        self, tmp_path, collection_name=None
     ):
         """Test deduplicate parameter works for reflections."""
+        collection_name = collection_name or f"test_dedup_refl_{uuid.uuid4().hex[:8]}"
         content = "Key insight about deduplication"
 
         async with ReflectionDatabaseAdapterOneiric(
@@ -333,8 +342,9 @@ class TestPhase4DuplicateDetectionAccuracy:
 class TestPhase4MCPTools:
     """Test fingerprint MCP tools work correctly."""
 
-    async def test_find_duplicates_tool(self, tmp_path, collection_name="test_tool_find_dups"):
+    async def test_find_duplicates_tool(self, tmp_path, collection_name=None):
         """Test find_duplicates MCP tool."""
+        collection_name = collection_name or f"test_tool_find_dups_{uuid.uuid4().hex[:8]}"
         from session_buddy.tools.fingerprint_tools import find_duplicates
 
         async with ReflectionDatabaseAdapterOneiric(
@@ -356,9 +366,10 @@ class TestPhase4MCPTools:
         assert result["count"] >= 1, "Should find at least the exact match"
 
     async def test_fingerprint_search_tool(
-        self, tmp_path, collection_name="test_tool_search"
+        self, tmp_path, collection_name=None
     ):
         """Test fingerprint_search MCP tool."""
+        collection_name = collection_name or f"test_tool_search_{uuid.uuid4().hex[:8]}"
         from session_buddy.tools.fingerprint_tools import fingerprint_search
 
         async with ReflectionDatabaseAdapterOneiric(
@@ -379,9 +390,10 @@ class TestPhase4MCPTools:
         assert result["total_results"] >= 1, "Should find similar content"
 
     async def test_deduplication_stats_tool(
-        self, tmp_path, collection_name="test_tool_stats"
+        self, tmp_path, collection_name=None
     ):
         """Test deduplication_stats MCP tool."""
+        collection_name = collection_name or f"test_tool_stats_{uuid.uuid4().hex[:8]}"
         from session_buddy.tools.fingerprint_tools import deduplication_stats
 
         async with ReflectionDatabaseAdapterOneiric(
@@ -406,9 +418,10 @@ class TestPhase4EdgeCases:
     """Test edge cases for fingerprinting system."""
 
     async def test_empty_content_fingerprinting(
-        self, tmp_path, collection_name="test_edge_empty"
+        self, tmp_path, collection_name=None
     ):
         """Test fingerprinting handles empty content gracefully."""
+        collection_name = collection_name or f"test_edge_empty_{uuid.uuid4().hex[:8]}"
         async with ReflectionDatabaseAdapterOneiric(
             collection_name=collection_name
         ) as db:
@@ -417,9 +430,10 @@ class TestPhase4EdgeCases:
             assert id1 is not None
 
     async def test_very_long_content_fingerprinting(
-        self, tmp_path, collection_name="test_edge_long"
+        self, tmp_path, collection_name=None
     ):
         """Test fingerprinting handles very long content."""
+        collection_name = collection_name or f"test_edge_long_{uuid.uuid4().hex[:8]}"
         long_content = "Python async patterns " * 1000
 
         async with ReflectionDatabaseAdapterOneiric(
@@ -441,9 +455,10 @@ class TestPhase4EdgeCases:
             assert result[0] is not None, "Fingerprint should be stored even for long content"
 
     async def test_unicode_content_fingerprinting(
-        self, tmp_path, collection_name="test_edge_unicode"
+        self, tmp_path, collection_name=None
     ):
         """Test fingerprinting handles unicode content."""
+        collection_name = collection_name or f"test_edge_unicode_{uuid.uuid4().hex[:8]}"
         unicode_content = "Python async: café, naïve, 日本語, emoji 🚀"
 
         async with ReflectionDatabaseAdapterOneiric(
