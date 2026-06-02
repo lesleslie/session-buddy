@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 # Import embedding generation
 from session_buddy.reflection.embeddings import (
     generate_embedding,
-    initialize_embedding_system,
 )
 from session_buddy.reflection.schema import initialize_schema
 
@@ -682,9 +681,7 @@ class ReflectionDatabase:
             projects = [row[0] for row in projects_rows if row and row[0] is not None]
 
             provider = (
-                "http-embedding-providers"
-                if self.onnx_session
-                else "text-search-only"
+                "http-embedding-providers" if self.onnx_session else "text-search-only"
             )
             return {
                 "conversations_count": conv_count,

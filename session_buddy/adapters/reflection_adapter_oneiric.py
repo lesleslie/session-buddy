@@ -821,7 +821,9 @@ class ReflectionDatabaseAdapterOneiric:
         Cache is handled by generate_embedding()'s thread-safe dict cache.
         """
         # Import here to avoid circular imports
-        from session_buddy.reflection.embeddings import generate_embedding as http_generate_embedding
+        from session_buddy.reflection.embeddings import (
+            generate_embedding as http_generate_embedding,
+        )
 
         try:
             return await http_generate_embedding(text)

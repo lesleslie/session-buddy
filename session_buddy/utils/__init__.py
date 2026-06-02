@@ -38,6 +38,11 @@ from .lazy_imports import (
     require_dependency,
 )
 from .logging import SessionLogger, get_session_logger
+
+# Create a module-level logger instance for compatibility
+import logging
+
+logger = logging.getLogger("session_buddy")
 from .quality_score_parser import (
     _analyze_quality_trend,
     _extract_quality_scores,

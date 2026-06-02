@@ -276,6 +276,7 @@ class SkillsEmbeddingService:
             # asyncio.run() creates a new loop and closes it when done —
             # correct for sync-in-thread-pool bridging.
             import asyncio
+
             embedding_list = asyncio.run(generate_reflection_embedding(text))
 
             if embedding_list is None:

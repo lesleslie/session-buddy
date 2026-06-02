@@ -52,6 +52,7 @@ except ImportError:
 try:
     from session_buddy.reflection.embeddings import (
         generate_embedding,
+        initialize_embedding_system,
     )
 
     EMBEDDING_AVAILABLE = True

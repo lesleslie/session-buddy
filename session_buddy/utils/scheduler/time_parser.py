@@ -13,8 +13,7 @@ from re import Match
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from dateutil import parser as date_parser
-    from dateutil.relativedelta import relativedelta
+    pass
 
 # Try to import dateutil for better date handling
 try:

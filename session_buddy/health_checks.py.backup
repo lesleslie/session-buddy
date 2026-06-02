@@ -8,20 +8,20 @@ Phase 10.1: Production Hardening - Session Management Health Checks
 
 from __future__ import annotations
 
-from contextlib import suppress
-from dataclasses import dataclass, field
 import importlib.util
 import os
 import sys
 import time
 import typing as t
+
+# Health status types (mcp_common.health doesn't exist in 2.0.0)
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import httpx
-
-from session_buddy.utils import logger
+if TYPE_CHECKING:
+    pass
 
 
 class HealthStatus(StrEnum):
@@ -209,130 +209,7 @@ async def check_file_system_health() -> ComponentHealth:
         )
 
 
-def _module_available(name: str) -> bool:
-    """Check if a module is available without importing it."""
-    try:
-        return importlib.util.find_spec(name) is not None
-    except ValueError:
-        return name in sys.modules
-
-
-def _is_safe_url(url: str) -> bool:
-    """Return True if the URL's host is safe (not a private/internal address).
-
-    SSRF defense: block loopback (127.0.0.0/8, ::1), RFC1918 private, and
-    link-local (169.254.x.x) IPs. Env vars are operator-controlled, but this
-    guards against accidental misconfiguration or substitution from untrusted sources.
-    """
-    import ipaddress
-    import socket
-
-    try:
-        parsed = httpx.URL(url)
-        host = parsed.host or ""
-        with suppress(ValueError):
-            addr = ipaddress.ip_address(host)
-            return not (addr.is_loopback or addr.is_private or addr.is_link_local)
-        for family, _, _, _, sockaddr in socket.getaddrinfo(host, None):
-            resolved_ip = sockaddr[0]
-            with suppress(ValueError):
-                addr = ipaddress.ip_address(resolved_ip)
-                if addr.is_loopback or addr.is_private or addr.is_link_local:
-                    return False
-        return True
-    except Exception:
-        return False
-
-
-def _check_crackerjack() -> tuple[list[str], list[str]]:
-    """Check Crackerjack availability, return (available, unavailable) lists."""
-    available = []
-    unavailable = []
-    quality_utils = sys.modules.get("session_buddy.utils.quality_utils_v2")
-    if quality_utils is not None:
-        crackerjack_available = bool(getattr(quality_utils, "CRACKERJACK_AVAILABLE", False))
-    else:
-        crackerjack_available = _module_available("crackerjack")
-
-    if crackerjack_available:
-        available.append("crackerjack")
-    else:
-        unavailable.append("crackerjack")
-    return available, unavailable
-
-
-def _llama_server_health_url() -> str:
-    """Build llama-server health check URL."""
-    base = os.environ.get("MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8080/v1").rstrip("/")
-    if base.endswith(("/embeddings", "/v1/embeddings")):
-        base = base.rsplit("/embeddings", 1)[0]
-    return f"{base}/embeddings"
-
-
-def _ollama_health_url() -> str:
-    """Build Ollama health check URL."""
-    return f"{os.environ.get('MAHAVISHNU__OLLAMA_URL', 'http://localhost:11434')}/api/embed"
-
-
-async def _check_provider(
-    client: httpx.AsyncClient,
-    url: str,
-    name: str,
-    payload: dict[str, t.Any],
-) -> str:
-    """Check an HTTP provider and return status string."""
-    if not _is_safe_url(url):
-        logger.warning(f"{name} URL rejected by SSRF check: {url}")
-        return f"{name} (SSRF blocked)"
-    try:
-        resp = await client.post(url, json=payload)
-        return name if resp.status_code == 200 else f"{name} ({resp.status_code})"
-    except Exception:
-        return f"{name} (error)"
-
-
-async def _check_embedding_providers(
-    client: httpx.AsyncClient,
-) -> tuple[list[str], list[str]]:
-    """Check llama-server and Ollama, return (available, unavailable) lists."""
-    available = []
-    unavailable = []
-
-    result = await _check_provider(client, _llama_server_health_url(), "llama-server", {"input": ["health-check"]})
-    if result == "llama-server":
-        available.append(result)
-    else:
-        unavailable.append(result)
-
-    result = await _check_provider(
-        client, _ollama_health_url(), "ollama", {"model": "nomic-embed-text", "input": ["health-check"]}
-    )
-    if result == "ollama":
-        available.append(result)
-    else:
-        unavailable.append(result)
-
-    return available, unavailable
-
-
-async def _check_crackerjack_and_embedding_providers() -> tuple[list[str], list[str]]:
-    """Check Crackerjack and HTTP embedding providers, return (available, unavailable)."""
-    available, unavailable = _check_crackerjack()
-
-    try:
-        import httpx
-
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            ep_available, ep_unavailable = await _check_embedding_providers(client)
-            available.extend(ep_available)
-            unavailable.extend(ep_unavailable)
-    except ImportError:
-        unavailable.extend(["llama-server", "ollama"])
-
-    return available, unavailable
-
-
-async def check_dependencies_health() -> ComponentHealth:
+async def check_dependencies_health() -> ComponentHealth:  # noqa: C901
     """Check optional dependencies availability.
 
     Returns:
@@ -346,13 +223,117 @@ async def check_dependencies_health() -> ComponentHealth:
     """
     start_time = time.perf_counter()
 
-    available, unavailable = await _check_crackerjack_and_embedding_providers()
+    available = []
+    unavailable = []
+
+    def _module_available(name: str) -> bool:
+        try:
+            return importlib.util.find_spec(name) is not None
+        except ValueError:
+            return name in sys.modules
+
+    # Check Crackerjack without importing heavy modules
+    crackerjack_available = False
+    quality_utils = sys.modules.get("session_buddy.utils.quality_utils_v2")
+    if quality_utils is not None:
+        crackerjack_available = bool(
+            getattr(quality_utils, "CRACKERJACK_AVAILABLE", False)
+        )
+    else:
+        crackerjack_available = _module_available("crackerjack")
+
+    if crackerjack_available:
+        available.append("crackerjack")
+    else:
+        unavailable.append("crackerjack")
+
+    # SSRF defense: validate embedding URLs before making requests.
+    # Block loopback (127.0.0.0/8, ::1), RFC1918 private, and link-local (169.254.x.x) IPs.
+    # Env vars are operator-controlled, but this guards against accidental misconfiguration
+    # or substitution from untrusted sources (e.g., user-provided config files).
+    def _ssrf_check(url: str) -> bool:
+        """Return True if the URL's host is safe (not a private/internal address)."""
+        import ipaddress
+
+        try:
+            parsed = httpx.URL(url)
+            host = parsed.host or ""
+            # If it looks like an IP, validate directly
+            try:
+                addr = ipaddress.ip_address(host)
+                return not (addr.is_loopback or addr.is_private or addr.is_link_local)
+            except ValueError:
+                pass
+            # For hostnames, resolve and validate all IPs
+            import socket
+
+            for family, _, _, _, sockaddr in socket.getaddrinfo(host, None):
+                resolved_ip = sockaddr[0]
+                try:
+                    addr = ipaddress.ip_address(resolved_ip)
+                    if addr.is_loopback or addr.is_private or addr.is_link_local:
+                        return False
+                except ValueError:
+                    pass
+            return True
+        except Exception:
+            return False
+
+    # Check HTTP embedding providers (llama-server/Ollama) — actual HTTP health checks
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            # Check llama-server
+            try:
+                # Strip any trailing /embeddings before appending once (same logic as embeddings._get_llama_server_url)
+                _base = os.environ.get(
+                    "MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8080/v1"
+                ).rstrip("/")
+                if _base.endswith("/embeddings") or _base.endswith("/v1/embeddings"):
+                    _base = _base.rsplit("/embeddings", 1)[0]
+                _url = f"{_base}/embeddings"
+                if not _ssrf_check(_url):
+                    logger.warning(f"llama-server URL rejected by SSRF check: {_url}")
+                    unavailable.append("llama-server")
+                else:
+                    resp = await client.post(_url, json={"input": ["health-check"]})
+                    if resp.status_code == 200:
+                        available.append("llama-server")
+                    else:
+                        unavailable.append("llama-server")
+            except Exception:
+                unavailable.append("llama-server")
+
+            # Check Ollama
+            try:
+                _ollama_url = f"{os.environ.get('MAHAVISHNU__OLLAMA_URL', 'http://localhost:11434')}/api/embed"
+                if not _ssrf_check(_ollama_url):
+                    logger.warning(f"Ollama URL rejected by SSRF check: {_ollama_url}")
+                    unavailable.append("ollama")
+                else:
+                    resp = await client.post(
+                        _ollama_url,
+                        json={"model": "nomic-embed-text", "input": ["health-check"]},
+                    )
+                    if resp.status_code == 200:
+                        available.append("ollama")
+                    else:
+                        unavailable.append("ollama")
+            except Exception:
+                unavailable.append("ollama")
+    except ImportError:
+        unavailable.extend(["llama-server", "ollama"])
 
     # Check multi-project features
-    spec = importlib.util.find_spec("session_buddy.multi_project_coordinator")
-    if spec is not None:
-        available.append("multi_project")
-    else:
+    try:
+        # Try to import the multi-project module directly without triggering server init
+        spec = importlib.util.find_spec("session_buddy.multi_project_coordinator")
+        if spec is not None:
+            available.append("multi_project")
+        else:
+            unavailable.append("multi_project")
+    except (ImportError, Exception):
         unavailable.append("multi_project")
 
     latency_ms = (time.perf_counter() - start_time) * 1000

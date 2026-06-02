@@ -238,7 +238,10 @@ def get_dependency_status() -> dict[str, dict[str, Any]]:
         }
 
     # Check optional dependencies
-    optional_deps = ["tiktoken", "numpy"]  # transformers/onnxruntime removed — using HTTP providers
+    optional_deps = [
+        "tiktoken",
+        "numpy",
+    ]  # transformers/onnxruntime removed — using HTTP providers
     for dep in optional_deps:
         loader = lazy_loader.get_import(dep)
         status[dep] = {
@@ -277,9 +280,7 @@ def log_dependency_status() -> None:
     # Log missing dependencies
     missing_core = [dep for dep in ("duckdb",) if not status[dep]["available"]]
     missing_optional = [
-        dep
-        for dep in ("tiktoken", "numpy")
-        if not status[dep]["available"]
+        dep for dep in ("tiktoken", "numpy") if not status[dep]["available"]
     ]
 
     if missing_core:
