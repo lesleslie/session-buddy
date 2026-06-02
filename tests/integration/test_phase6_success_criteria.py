@@ -13,6 +13,8 @@ Phase 6 validates that after removing all ACB dependencies:
 
 from __future__ import annotations
 
+import uuid
+
 import asyncio
 import json
 import tempfile
