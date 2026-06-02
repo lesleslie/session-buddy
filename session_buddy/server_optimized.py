@@ -217,17 +217,18 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     """
     current_dir = Path.cwd()
 
-    # Register to Dhara quickly before yield - this is fast (HTTP POST)
+    yield  # Server starts - MCP handshakes can complete immediately
+
+    # Register to Dhara AFTER yield as fire-and-forget task
+    # Registration needs server to be UP (HTTP POST to self), so it must come after yield
     try:
-        await _register_component_to_dhara("http://127.0.0.1:8678/mcp")
+        asyncio.create_task(_register_component_to_dhara("http://127.0.0.1:8678/mcp"))
     except Exception as e:
-        logger.warning(f"Dhara registration failed (non-critical): {e}")
+        logger.warning(f"Dhara registration task failed (non-critical): {e}")
 
     # Fire expensive initialization in background AFTER yield
-    # This prevents MCP handshake blocking when multiple clients connect simultaneously
+    # This prevents MCP handshake blocking when multiple clients connect
     asyncio.create_task(_delayed_session_init(current_dir))
-
-    yield  # Server runs normally - MCP handshakes can complete immediately
 
     # On disconnect - cleanup for git repos only
     if is_git_repository(current_dir):
