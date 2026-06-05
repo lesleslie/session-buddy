@@ -157,17 +157,23 @@ class TestEmbeddingQuantization:
 
     def test_quantization_with_cache(self, quantized_settings: ReflectionAdapterSettings) -> None:
         """Test that quantization works correctly with the embedding cache."""
+        from session_buddy.reflection.embeddings import (
+            _embedding_cache,
+            _embedding_cache_put,
+        )
+
         adapter = ReflectionDatabaseAdapterOneiric(settings=quantized_settings)
 
-        # Simulate cache interaction: cache stores quantized embeddings
+        # Simulate cache interaction: cache stores the original embedding
         query = "test query"
         embedding = [0.1, -0.2, 0.3, 0.4] * 96  # 384-dim
 
-        # When caching, we should store the original (not quantized)
-        adapter._embedding_cache[query] = embedding
+        # The cache is now module-level (production moved it from instance
+        # attribute to module scope). Use the module-level cache API.
+        _embedding_cache_put(query, embedding)
 
         # Retrieve from cache (should get original, not quantized)
-        cached = adapter._embedding_cache.get(query)
+        cached = _embedding_cache.get(query)
         assert cached == embedding, "Cache should store original embedding"
 
         # Quantization should work on cached embedding

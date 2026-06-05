@@ -6,37 +6,63 @@ import types
 from pathlib import Path
 
 import pytest
-import session_buddy
 
-
-_CORE_PACKAGE = types.ModuleType("session_buddy.core")
-_CORE_PACKAGE.__path__ = []  # type: ignore[attr-defined]
-_CORE_PACKAGE.session_manager = types.SimpleNamespace()  # type: ignore[attr-defined]
-sys.modules["session_buddy.core"] = _CORE_PACKAGE
-setattr(session_buddy, "core", _CORE_PACKAGE)
-
-_REFLECTION_TOOLS_MODULE = types.ModuleType("session_buddy.reflection_tools")
-_REFLECTION_TOOLS_MODULE.ReflectionDatabase = types.SimpleNamespace()  # type: ignore[attr-defined]
-sys.modules["session_buddy.reflection_tools"] = _REFLECTION_TOOLS_MODULE
-setattr(session_buddy, "reflection_tools", _REFLECTION_TOOLS_MODULE)
 
 _FEATURES_PATH = (
     Path(__file__).resolve().parents[2] / "session_buddy" / "core" / "features.py"
 )
-_FEATURES_SPEC = importlib.util.spec_from_file_location(
-    "session_buddy.core.features",
-    _FEATURES_PATH,
-)
-assert _FEATURES_SPEC is not None and _FEATURES_SPEC.loader is not None
-_FEATURES_MODULE = importlib.util.module_from_spec(_FEATURES_SPEC)
-sys.modules[_FEATURES_SPEC.name] = _FEATURES_MODULE
-_FEATURES_SPEC.loader.exec_module(_FEATURES_MODULE)
+
+
+@pytest.fixture(scope="module")
+def _module_stubs():
+    """Install `session_buddy.core` and `session_buddy.reflection_tools` stubs
+    for the duration of this test module.
+
+    The original code did this at module load time (which polluted other
+    test files). This fixture scopes the pollution to *this* module only,
+    and restores the real modules on teardown so subsequent test files
+    see the un-polluted state.
+    """
+    core_stub = types.ModuleType("session_buddy.core")
+    core_stub.__path__ = []  # type: ignore[attr-defined]
+    core_stub.session_manager = types.SimpleNamespace()  # type: ignore[attr-defined]
+    reflection_tools_stub = types.ModuleType("session_buddy.reflection_tools")
+    reflection_tools_stub.ReflectionDatabase = types.SimpleNamespace()  # type: ignore[attr-defined]
+
+    saved_core = sys.modules.get("session_buddy.core")
+    saved_rt = sys.modules.get("session_buddy.reflection_tools")
+    saved_features = sys.modules.get("session_buddy.core.features")
+
+    sys.modules["session_buddy.core"] = core_stub
+    sys.modules["session_buddy.reflection_tools"] = reflection_tools_stub
+
+    spec = importlib.util.spec_from_file_location(
+        "session_buddy.core.features",
+        _FEATURES_PATH,
+    )
+    assert spec is not None and spec.loader is not None
+    features_module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = features_module
+    spec.loader.exec_module(features_module)
+
+    yield features_module
+
+    # Teardown: restore the real modules
+    for name, original in (
+        ("session_buddy.core.features", saved_features),
+        ("session_buddy.core", saved_core),
+        ("session_buddy.reflection_tools", saved_rt),
+    ):
+        if original is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = original
 
 
 def test_feature_detector_and_flags_cover_true_and_false_paths(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, _module_stubs
 ) -> None:
-    features_module = _FEATURES_MODULE
+    features_module = _module_stubs
 
     def fake_find_spec(name: str):
         if name in {
@@ -69,8 +95,10 @@ def test_feature_detector_and_flags_cover_true_and_false_paths(
     assert features_module.get_feature_flags() == flags
 
 
-def test_feature_detector_import_error_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    features_module = _FEATURES_MODULE
+def test_feature_detector_import_error_path(
+    monkeypatch: pytest.MonkeyPatch, _module_stubs
+) -> None:
+    features_module = _module_stubs
 
     def raising_find_spec(name: str):
         if name == "session_buddy.advanced_search":
@@ -82,8 +110,10 @@ def test_feature_detector_import_error_path(monkeypatch: pytest.MonkeyPatch) -> 
     assert features_module.FeatureDetector._check_advanced_search() is False
 
 
-def test_feature_detector_false_branches(monkeypatch: pytest.MonkeyPatch) -> None:
-    features_module = _FEATURES_MODULE
+def test_feature_detector_false_branches(
+    monkeypatch: pytest.MonkeyPatch, _module_stubs
+) -> None:
+    features_module = _module_stubs
 
     def missing_find_spec(name: str):
         return None
@@ -136,8 +166,9 @@ def test_feature_detector_handles_import_error_from_find_spec(
     monkeypatch: pytest.MonkeyPatch,
     method_name: str,
     module_name: str,
+    _module_stubs,
 ) -> None:
-    features_module = _FEATURES_MODULE
+    features_module = _module_stubs
 
     def raising_find_spec(name: str):
         if name == module_name:

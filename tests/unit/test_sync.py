@@ -1138,7 +1138,26 @@ class TestSyncAllInstancesFunction:
     @pytest.mark.asyncio
     async def test_sync_all_instances_creates_embedding_service(self) -> None:
         """Test that function creates embedding service if not provided."""
-        with patch(
+        import sys
+        import types
+
+        # akosha is an optional dependency; create a stub module so the
+        # lazy import inside sync_all_instances() succeeds.
+        akosha_pkg = types.ModuleType("akosha")
+        akosha_pkg.__path__ = []  # type: ignore[attr-defined]
+        akosha_processing = types.ModuleType("akosha.processing")
+        akosha_processing.__path__ = []  # type: ignore[attr-defined]
+        akosha_embeddings = types.ModuleType("akosha.processing.embeddings")
+        akosha_embeddings.EmbeddingService = MagicMock()  # type: ignore[attr-defined]
+
+        with patch.dict(
+            sys.modules,
+            {
+                "akosha": akosha_pkg,
+                "akosha.processing": akosha_processing,
+                "akosha.processing.embeddings": akosha_embeddings,
+            },
+        ), patch(
             "session_buddy.sync.AkoshaSync"
         ) as mock_sync_class:
             mock_instance = AsyncMock()
@@ -1148,14 +1167,12 @@ class TestSyncAllInstancesFunction:
             mock_sync_class.return_value = mock_instance
 
             # Patch EmbeddingService to avoid actual initialization
-            with patch(
-                "akosha.processing.embeddings.EmbeddingService"
-            ) as mock_es_class:
-                mock_es = MagicMock()
-                mock_es.initialize = AsyncMock()
-                mock_es_class.return_value = mock_es
+            mock_es_class = akosha_embeddings.EmbeddingService
+            mock_es = MagicMock()
+            mock_es.initialize = AsyncMock()
+            mock_es_class.return_value = mock_es
 
-                await sync_all_instances()
+            await sync_all_instances()
 
             mock_es_class.assert_called_once()
             mock_es.initialize.assert_called_once()

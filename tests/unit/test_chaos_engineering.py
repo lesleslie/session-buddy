@@ -47,8 +47,10 @@ class TestSystemResilience:
         from session_buddy.reflection_tools import ReflectionDatabase
 
         # Create database with embeddings disabled
-        with patch("session_buddy.reflection.embeddings.ONNX_AVAILABLE", False):
-            async with DatabaseTestHelper.temp_reflection_db() as db:
+        # The ONNX-based embedding system was removed; conftest now stubs
+        # the HTTP providers so the resilience test exercises the "embedding
+        # is always available" path. The system still works correctly.
+        async with DatabaseTestHelper.temp_reflection_db() as db:
                 # Should still be able to store conversations without embeddings
                 conv_id = await db.store_conversation(
                     "Test conversation without embeddings", {"project": "chaos-test"}
@@ -130,9 +132,11 @@ class TestSystemResilience:
         from session_buddy.reflection_tools import ReflectionDatabase
 
         # Test with missing dependencies
-        with patch("session_buddy.reflection.embeddings.ONNX_AVAILABLE", False):
-            # Should still initialize without error
-            async with DatabaseTestHelper.temp_reflection_db() as db:
+        # The ONNX-based embedding system was removed; conftest now stubs
+        # the HTTP providers so the resilience test exercises the "embedding
+        # is always available" path.
+        # Should still initialize without error
+        async with DatabaseTestHelper.temp_reflection_db() as db:
                 # Basic functionality should still work
                 conv_id = await db.store_conversation(
                     "Test", {"project": "dependency-test"}
@@ -214,8 +218,10 @@ class TestErrorRecovery:
         from session_buddy.reflection_tools import ReflectionDatabase
 
         # Simulate ONNX not available (embeddings disabled)
-        with patch("session_buddy.reflection.embeddings.ONNX_AVAILABLE", False):
-            async with DatabaseTestHelper.temp_reflection_db() as db:
+        # The ONNX-based embedding system was removed; conftest now stubs
+        # the HTTP providers so the resilience test exercises the "embedding
+        # is always available" path. The system still works correctly.
+        async with DatabaseTestHelper.temp_reflection_db() as db:
                 # System should still work without semantic search
                 conv_id = await db.store_conversation(
                     "Fallback test conversation", {"project": "fallback-test"}

@@ -53,7 +53,9 @@ class TrendAnalysis:
         confidence: Statistical confidence (p-value)
     """
 
-    trend: Literal["improving", "declining", "stable", "insufficient_data"]
+    trend: Literal[
+        "improving", "declining", "stable", "insufficient_data", "invalid_metric"
+    ]
     slope: float
     start_value: float
     end_value: float
@@ -185,8 +187,14 @@ class TimeSeriesAnalyzer:
                 "invocation_count": "COUNT(*)",
             }
             if metric not in valid_metrics:
+                # Security: return a distinct "invalid_metric" trend for
+                # unknown metric names. This is different from
+                # "insufficient_data" (which means the metric is valid
+                # but the database has no rows), so callers can
+                # distinguish between "metric is bogus" and "metric is
+                # fine but there's no data yet".
                 return TrendAnalysis(
-                    trend="insufficient_data",
+                    trend="invalid_metric",
                     slope=0.0,
                     start_value=0.0,
                     end_value=0.0,

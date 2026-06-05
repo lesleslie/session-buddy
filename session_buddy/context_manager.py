@@ -249,9 +249,16 @@ class ContextDetector:
             ".DS_Store",
         }
 
-        # Check if any part of the path matches ignore patterns
+        # Check if any part of the path matches ignore patterns.
+        # We only ignore path components that are explicitly in the
+        # ignore_patterns set above (e.g. ".git", ".venv", ".claude") —
+        # NOT every hidden directory. The previous "len(part) > 4"
+        # heuristic incorrectly matched legitimate names like ".claude"
+        # and ".pytest_cache" that should be skipped only when in the
+        # ignore list, not by length. Hidden *files* like ".gitignore"
+        # are short and don't match the rule anyway.
         for part in file_path.parts:
-            if part in ignore_patterns or (part.startswith(".") and len(part) > 4):
+            if part in ignore_patterns:
                 return True
 
         # Check file extensions to ignore

@@ -17,24 +17,65 @@ class _DummyLogger:
         self.info = Mock()
 
 
-_UTILS_PACKAGE = types.ModuleType("session_buddy.utils")
-_UTILS_PACKAGE.__path__ = []  # type: ignore[attr-defined]
-sys.modules.setdefault("session_buddy.utils", _UTILS_PACKAGE)
-
-_LOGGING_STUB = types.ModuleType("session_buddy.utils.logging")
-_LOGGING_STUB.get_session_logger = lambda: _DummyLogger()
-sys.modules.setdefault("session_buddy.utils.logging", _LOGGING_STUB)
-
-_MODULE_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "lazy_imports.py"
-_SPEC = importlib.util.spec_from_file_location("session_buddy.utils.lazy_imports", _MODULE_PATH)
-assert _SPEC is not None and _SPEC.loader is not None
-_MODULE = importlib.util.module_from_spec(_SPEC)
-sys.modules.setdefault("session_buddy.utils.lazy_imports", _MODULE)
-_SPEC.loader.exec_module(_MODULE)
+# Snapshot of any real session_buddy.* packages already imported before this
+# test file ran. We restore this snapshot in :func:`_isolated_lazy_imports` so
+# the synthetic stubs below cannot leak into later test files.
+_PRESERVED_MODULES: dict[str, object] = {
+    name: module
+    for name, module in sys.modules.items()
+    if name == "session_buddy" or name.startswith("session_buddy.")
+}
 
 
-def test_get_logger_uses_session_logger_and_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    lazy_imports = _MODULE
+@pytest.fixture
+def _isolated_lazy_imports():
+    """Install the lazy_imports stubs for the duration of a single test.
+
+    The original test file did the stub installation at module-import time,
+    which leaked the empty-``__path__`` :class:`types.ModuleType` for
+    ``session_buddy.utils`` into later test files and broke their
+    :mod:`session_buddy.utils.*` imports. Scoping the stubs to this
+    fixture (and removing them on teardown) confines the pollution to a
+    single test.
+    """
+
+    utils_package = types.ModuleType("session_buddy.utils")
+    utils_package.__path__ = []  # type: ignore[attr-defined]
+    sys.modules["session_buddy.utils"] = utils_package
+
+    logging_stub = types.ModuleType("session_buddy.utils.logging")
+    logging_stub.get_session_logger = lambda: _DummyLogger()  # type: ignore[attr-defined]
+    sys.modules["session_buddy.utils.logging"] = logging_stub
+
+    module_path = (
+        Path(__file__).resolve().parents[2]
+        / "session_buddy"
+        / "utils"
+        / "lazy_imports.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "session_buddy.utils.lazy_imports", module_path
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["session_buddy.utils.lazy_imports"] = module
+    spec.loader.exec_module(module)
+
+    yield module
+
+    # Tear down: drop the synthetic stubs and restore the real packages
+    # that were present before this test started.
+    for name in (
+        "session_buddy.utils.lazy_imports",
+        "session_buddy.utils.logging",
+        "session_buddy.utils",
+    ):
+        sys.modules.pop(name, None)
+    sys.modules.update(_PRESERVED_MODULES)
+
+
+def test_get_logger_uses_session_logger_and_fallback(monkeypatch: pytest.MonkeyPatch, _isolated_lazy_imports) -> None:
+    lazy_imports = _isolated_lazy_imports
 
     logger = _DummyLogger()
     monkeypatch.setattr(lazy_imports, "_logger", None)
@@ -54,8 +95,8 @@ def test_get_logger_uses_session_logger_and_fallback(monkeypatch: pytest.MonkeyP
     assert fallback.name == lazy_imports.__name__
 
 
-def test_lazy_import_success_and_failure_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    lazy_imports = _MODULE
+def test_lazy_import_success_and_failure_paths(monkeypatch: pytest.MonkeyPatch, _isolated_lazy_imports) -> None:
+    lazy_imports = _isolated_lazy_imports
 
     logger = _DummyLogger()
     monkeypatch.setattr(lazy_imports, "_logger", logger)
@@ -94,8 +135,8 @@ def test_lazy_import_success_and_failure_paths(monkeypatch: pytest.MonkeyPatch) 
     assert with_fallback.answer == 7
 
 
-def test_lazy_loader_and_decorators(monkeypatch: pytest.MonkeyPatch) -> None:
-    lazy_imports = _MODULE
+def test_lazy_loader_and_decorators(monkeypatch: pytest.MonkeyPatch, _isolated_lazy_imports) -> None:
+    lazy_imports = _isolated_lazy_imports
 
     logger = _DummyLogger()
     monkeypatch.setattr(lazy_imports, "_logger", logger)
@@ -141,8 +182,8 @@ def test_lazy_loader_and_decorators(monkeypatch: pytest.MonkeyPatch) -> None:
         broken()
 
 
-def test_mock_module_and_embedding_mock(monkeypatch: pytest.MonkeyPatch) -> None:
-    lazy_imports = _MODULE
+def test_mock_module_and_embedding_mock(monkeypatch: pytest.MonkeyPatch, _isolated_lazy_imports) -> None:
+    lazy_imports = _isolated_lazy_imports
 
     module = lazy_imports.MockModule("demo")
     with pytest.raises(ImportError, match="Mock function encode called"):
@@ -159,8 +200,8 @@ def test_mock_module_and_embedding_mock(monkeypatch: pytest.MonkeyPatch) -> None
     assert all(len(row) == 384 for row in many)
 
 
-def test_dependency_status_and_logging(monkeypatch: pytest.MonkeyPatch) -> None:
-    lazy_imports = _MODULE
+def test_dependency_status_and_logging(monkeypatch: pytest.MonkeyPatch, _isolated_lazy_imports) -> None:
+    lazy_imports = _isolated_lazy_imports
 
     logger = _DummyLogger()
     monkeypatch.setattr(lazy_imports, "_logger", logger)
@@ -176,16 +217,6 @@ def test_dependency_status_and_logging(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setitem(
         lazy_imports.lazy_loader._loaders,
-        "transformers",
-        DummyLoader(False),
-    )
-    monkeypatch.setitem(
-        lazy_imports.lazy_loader._loaders,
-        "onnxruntime",
-        DummyLoader(True),
-    )
-    monkeypatch.setitem(
-        lazy_imports.lazy_loader._loaders,
         "tiktoken",
         DummyLoader(False),
     )
@@ -197,18 +228,21 @@ def test_dependency_status_and_logging(monkeypatch: pytest.MonkeyPatch) -> None:
 
     status = lazy_imports.get_dependency_status()
 
+    # transformers/onnxruntime were removed in favour of HTTP embedding
+    # providers (llama-server / Ollama); get_dependency_status() no longer
+    # surfaces them. Embedding functionality is now always reported as
+    # available.
     assert status["duckdb"]["available"] is True
-    assert status["transformers"]["available"] is False
     assert status["_summary"]["core_functionality"] is True
-    assert status["_summary"]["embedding_functionality"] is False
+    assert status["_summary"]["embedding_functionality"] is True
     assert status["_summary"]["optimization_functionality"] is False
 
     lazy_imports.log_dependency_status()
     logger.info.assert_called()
 
 
-def test_missing_dependency_logging_and_fallback_attribute(monkeypatch: pytest.MonkeyPatch) -> None:
-    lazy_imports = _MODULE
+def test_missing_dependency_logging_and_fallback_attribute(monkeypatch: pytest.MonkeyPatch, _isolated_lazy_imports) -> None:
+    lazy_imports = _isolated_lazy_imports
 
     logger = _DummyLogger()
     monkeypatch.setattr(lazy_imports, "_logger", logger)
@@ -231,16 +265,6 @@ def test_missing_dependency_logging_and_fallback_attribute(monkeypatch: pytest.M
     monkeypatch.setitem(
         lazy_imports.lazy_loader._loaders,
         "duckdb",
-        DummyLoader(False),
-    )
-    monkeypatch.setitem(
-        lazy_imports.lazy_loader._loaders,
-        "transformers",
-        DummyLoader(False),
-    )
-    monkeypatch.setitem(
-        lazy_imports.lazy_loader._loaders,
-        "onnxruntime",
         DummyLoader(False),
     )
     monkeypatch.setitem(

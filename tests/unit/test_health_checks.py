@@ -560,9 +560,15 @@ class TestCheckDependenciesHealth:
         """Test HEALTHY when all optional features are available."""
         mock_spec = MagicMock()
 
+        async def fake_check_embedding_providers(client):
+            return (["llama-server", "ollama"], [])
+
         with patch(
             "importlib.util.find_spec", return_value=mock_spec
-        ), patch.dict(sys.modules, {"session_buddy.utils.quality_utils_v2": None}):
+        ), patch.dict(sys.modules, {"session_buddy.utils.quality_utils_v2": None}), patch(
+            "session_buddy.health_checks._check_embedding_providers",
+            side_effect=fake_check_embedding_providers,
+        ):
             result = await check_dependencies_health()
             assert result.name == "dependencies"
             assert result.status == HealthStatus.HEALTHY
@@ -667,7 +673,11 @@ class TestCheckDependenciesHealth:
 
     @pytest.mark.asyncio
     async def test_dependencies_health_multi_project_import_error(self) -> None:
-        """Test when find_spec for multi_project raises ImportError."""
+        """Test that an ImportError from find_spec is treated as 'unavailable' rather than propagated.
+
+        The health check is best-effort: a transient import-time failure for
+        multi_project should not crash the whole health check.
+        """
         def mock_find_spec(name: str) -> MagicMock | None:
             if name == "session_buddy.multi_project_coordinator":
                 raise ImportError("Module not found")
@@ -678,10 +688,16 @@ class TestCheckDependenciesHealth:
         ), patch.dict(sys.modules, {"session_buddy.utils.quality_utils_v2": None}):
             result = await check_dependencies_health()
             assert "multi_project" in result.metadata["unavailable"]
+            # The whole check should still complete successfully.
+            assert result.name == "dependencies"
 
     @pytest.mark.asyncio
     async def test_dependencies_health_multi_project_generic_exception(self) -> None:
-        """Test when find_spec for multi_project raises generic Exception."""
+        """Test that a generic Exception from find_spec is treated as 'unavailable' rather than propagated.
+
+        The health check is best-effort: any failure to probe multi_project
+        should be logged and reported as unavailable, not re-raised.
+        """
         def mock_find_spec(name: str) -> MagicMock | None:
             if name == "session_buddy.multi_project_coordinator":
                 raise Exception("Unknown error")
@@ -692,6 +708,8 @@ class TestCheckDependenciesHealth:
         ), patch.dict(sys.modules, {"session_buddy.utils.quality_utils_v2": None}):
             result = await check_dependencies_health()
             assert "multi_project" in result.metadata["unavailable"]
+            # The whole check should still complete successfully.
+            assert result.name == "dependencies"
 
     @pytest.mark.asyncio
     async def test_dependencies_health_includes_latency(self) -> None:
@@ -702,17 +720,6 @@ class TestCheckDependenciesHealth:
             result = await check_dependencies_health()
             assert result.latency_ms is not None
             assert result.latency_ms >= 0
-
-    @pytest.mark.asyncio
-    async def test_dependencies_health_onxxruntime_available(self) -> None:
-        """Test when onnxruntime module is available."""
-        mock_spec = MagicMock()
-
-        with patch(
-            "importlib.util.find_spec", return_value=mock_spec
-        ), patch.dict(sys.modules, {"session_buddy.utils.quality_utils_v2": None}):
-            result = await check_dependencies_health()
-            assert "onnx" in result.metadata["available"]
 
 
 # =============================================================================

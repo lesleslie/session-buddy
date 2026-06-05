@@ -53,6 +53,13 @@ def _write_runtime_health(path: Path, snapshot: _RuntimeHealthSnapshot) -> None:
 
 _MCP_COMMON = types.ModuleType("mcp_common")
 _MCP_COMMON.MCPServerSettings = _MCPServerSettings
+
+
+class _MCPBaseSettings:  # minimal stub: parent of MCPServerSettings
+    """Minimal stub of mcp_common.MCPBaseSettings to satisfy downstream imports."""
+
+
+_MCP_COMMON.MCPBaseSettings = _MCPBaseSettings
 _MCP_CLI = types.ModuleType("mcp_common.cli")
 _MCP_CLI_HEALTH = types.ModuleType("mcp_common.cli.health")
 _MCP_CLI_HEALTH.RuntimeHealthSnapshot = _RuntimeHealthSnapshot
@@ -64,7 +71,11 @@ sys.modules.setdefault("mcp_common.cli.health", _MCP_CLI_HEALTH)
 
 _UTILS_PACKAGE = types.ModuleType("session_buddy.utils")
 _UTILS_PACKAGE.__path__ = []  # type: ignore[attr-defined]
-sys.modules.setdefault("session_buddy.utils", _UTILS_PACKAGE)
+# Don't pollute sys.modules with a stub for session_buddy.utils — let
+# the real package load naturally. The stub is only used as the parent
+# namespace for the runtime_snapshots submodule we're about to install.
+# If a previous test already loaded the real session_buddy.utils into
+# sys.modules, reuse that (don't overwrite it).
 
 _MODULE_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "runtime_snapshots.py"
 _SPEC = importlib.util.spec_from_file_location(

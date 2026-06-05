@@ -13,6 +13,7 @@ Key improvements over V1:
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess  # nosec B404
 from contextlib import suppress
@@ -264,6 +265,12 @@ def _score_version_control(project_dir: Path) -> tuple[float, dict[str, str]]:
         OSError,
         FileNotFoundError,
     ):
+        # GIT_CEILING_DIRECTORIES prevents git from walking up the directory
+        # tree and finding an unrelated parent repo (e.g. when a test's
+        # tmp_path is itself inside a git checkout). Without it, an empty
+        # project_dir/.git would silently return the parent repo's history
+        # and inflate the score.
+        ceiling = str(project_dir.parent.absolute())
         result = subprocess.run(
             ["git", "log", "--oneline", "-n", "10"],
             check=False,
@@ -271,6 +278,7 @@ def _score_version_control(project_dir: Path) -> tuple[float, dict[str, str]]:
             capture_output=True,
             text=True,
             timeout=2,
+            env={**os.environ, "GIT_CEILING_DIRECTORIES": ceiling},
         )
         if result.returncode == 0 and len(result.stdout.strip().split("\n")) >= 5:
             return 5, {"version_control": "active git repository"}

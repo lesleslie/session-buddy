@@ -255,6 +255,10 @@ def test_setup_working_directory_rejects_invalid_and_escaped_paths(
         "session_buddy.core.session_manager.tempfile.gettempdir",
         lambda: str(fake_tmp),
     )
+    monkeypatch.setattr(
+        "session_buddy.core.session_manager.Path.home",
+        lambda: tmp_path / "isolated_home",
+    )
 
     with pytest.raises(ValueError, match="Traversal not allowed"):
         manager._setup_working_directory("../traversal")

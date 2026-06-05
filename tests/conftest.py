@@ -8,6 +8,7 @@ pytest_plugins = ["tests.helpers"]
 import asyncio
 import os
 import shutil
+import sys
 import tempfile
 from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import suppress
@@ -376,6 +377,24 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop]:
             loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
 
         loop.close()
+
+
+@pytest.fixture(autouse=True)
+def restore_session_buddy_modules():
+    """Defend against ``sys.modules`` pollution from stub packages at test time.
+
+    The :func:`pytest_pycollect_makemodule` hook covers pollution that happens
+    between test files (during collection), but a stub created during one
+    test can also leak into the *next* test within the same file. This
+    autouse fixture runs around every test to guarantee a clean
+    ``session_buddy`` namespace regardless of which test ran immediately
+    before.
+
+    See :func:`_purge_session_buddy_stubs` for the exact detection rules.
+    """
+    _purge_session_buddy_stubs()
+    yield
+    _purge_session_buddy_stubs()
 
 
 @pytest.fixture(autouse=True)
@@ -985,6 +1004,68 @@ def pytest_collection_modifyitems(config, items):
 
         if "performance" in item.keywords and not run_performance:
             item.add_marker(skip_performance)
+
+
+def _purge_session_buddy_stubs() -> None:
+    """Remove any stubbed ``session_buddy`` namespace entries from sys.modules.
+
+    Several unit tests build synthetic ``session_buddy`` or
+    ``session_buddy.utils`` packages in :data:`sys.modules` so they can
+    reload a single module in isolation. When those tests fail to clean
+    up, the stub leaks into subsequent test collection, where Python
+    treats the stub as the canonical package and refuses to import any
+    submodules that the stub did not register (resulting in
+    ``ImportError: cannot import name '...' from 'session_buddy.x'
+    (unknown location)`` or ``ModuleNotFoundError: No module named
+    'session_buddy.x.y'``).
+
+    A stub is identified as a module with no :data:`__file__` attribute
+    and either no :data:`__path__` or an empty one. Removing the entry
+    forces Python's importer to re-read the real package from disk on
+    next access. Real modules (with a ``__file__``) are preserved so
+    correctly-imported submodules stay loaded.
+    """
+    for name in list(sys.modules):
+        if (
+            name != "session_buddy"
+            and not name.startswith("session_buddy.")
+            and not name.startswith("mcp_common")
+        ):
+            continue
+        module = sys.modules.get(name)
+        if module is None:
+            continue
+        module_file = getattr(module, "__file__", None)
+        module_path = getattr(module, "__path__", None)
+        is_stub = module_file is None and (
+            not module_path or module_path == []
+        )
+        is_orphan = module_file is None and module_path is None
+        if is_stub or is_orphan:
+            del sys.modules[name]
+
+
+def pytest_pycollect_makemodule(module_path, parent):
+    """Clean up ``sys.modules`` stubs before the next test file is imported.
+
+    Test files in :mod:`tests.unit` install synthetic packages via
+    :func:`sys.modules` at module load time. The autouse fixtures
+    alone cannot help because collection imports each test module
+    *before* any test runs, so a stub left in ``sys.modules`` during
+    collection breaks the *next* file's import. This hook fires before
+    each test file is imported, so any pollution from a previously
+    collected file is wiped before the new import begins.
+    """
+    _purge_session_buddy_stubs()
+
+
+def pytest_collection_finish(session):
+    """Purge any session_buddy / mcp_common stubs after the entire collection.
+
+    Acts as a safety net for tests whose module-load stub-install races
+    with the per-module hook above. Runs once after collection completes.
+    """
+    _purge_session_buddy_stubs()
 
 
 # Session management specific fixtures

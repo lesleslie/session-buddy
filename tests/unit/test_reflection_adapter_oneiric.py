@@ -585,9 +585,11 @@ class TestStats:
 
     async def test_get_stats_includes_cache_info(self, adapter):
         """Test stats include cache information."""
+        # The embedding cache is now module-level (session_buddy.reflection.embeddings
+        # uses a single shared dict, not an instance attribute on the adapter).
+        # Production's get_stats() reports conversations_with_embeddings instead.
         stats = await adapter.get_stats()
-        assert "embedding_cache" in stats
-        assert "hit_rate" in stats["embedding_cache"]
+        assert "conversations_with_embeddings" in stats
 
 
 # =============================================================================
@@ -997,12 +999,19 @@ class TestCloseAndCleanup:
         assert adapter._initialized is False
 
     async def test_aclose_clears_embedding_cache(self, adapter):
-        """Test that aclose clears embedding cache."""
-        # Add something to the cache
-        adapter._embedding_cache["test"] = [0.0] * 384
+        """Test that aclose resets the adapter's cache counters.
 
+        Note: The embedding cache itself is module-level (shared across
+        adapters by design), so aclose() resets the per-adapter hit/miss
+        counters but does not clear the module-level cache dict.
+        """
+        # Populate the adapter's counters by generating an embedding
+        await adapter._generate_embedding("some query to cache")
+        # Reset the counters
         await adapter.aclose()
-        assert len(adapter._embedding_cache) == 0
+        # aclose() resets the per-adapter counters
+        assert adapter._cache_hits == 0
+        assert adapter._cache_misses == 0
 
     async def test_close_in_running_loop(self, tmp_path: Path):
         """Test that close() works when event loop is running."""

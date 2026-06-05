@@ -166,7 +166,7 @@ class Phase3RelationshipMixin:
         target_lower = target_entity_name.lower()
 
         # Check each pattern
-        for pattern, rel_type in self._RELATIONSHIP_PATTERNS.items():
+        for rel_type, pattern in self._RELATIONSHIP_PATTERNS.items():
             # Look for pattern with entity name
             match = re.search(pattern, text_lower, re.IGNORECASE)
             if match:
@@ -213,7 +213,7 @@ class Phase3RelationshipMixin:
 
         for observation in observations:
             # Extract all potential relationships from this observation
-            for pattern, rel_type in self._RELATIONSHIP_PATTERNS.items():
+            for rel_type, pattern in self._RELATIONSHIP_PATTERNS.items():
                 matches = re.finditer(pattern, observation, re.IGNORECASE)
                 for match in matches:
                     target_entity = match.group(1)

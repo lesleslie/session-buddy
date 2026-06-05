@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 
 async def initialize_intent_detector() -> None:
     """Initialize intent detector on server startup."""
-    from session_buddy.mcp.tools.intent_detection_tools import get_intent_detector
+    from session_buddy.mcp.tools.advanced.intent_detection_tools import (
+        get_intent_detector,
+    )
 
     await get_intent_detector()
     print("✅ Natural language intent detection system initialized")
@@ -42,7 +44,9 @@ async def _detect_intent_impl(
     Returns:
         Detection result dictionary
     """
-    from session_buddy.mcp.tools.intent_detection_tools import get_intent_detector
+    from session_buddy.mcp.tools.advanced.intent_detection_tools import (
+        get_intent_detector,
+    )
 
     detector = await get_intent_detector()
     match = await detector.detect_intent(user_message, confidence_threshold)
@@ -136,7 +140,9 @@ async def _get_intent_suggestions_impl(user_message: str, limit: int) -> dict[st
     Returns:
         Suggestions result dictionary
     """
-    from session_buddy.mcp.tools.intent_detection_tools import get_intent_detector
+    from session_buddy.mcp.tools.advanced.intent_detection_tools import (
+        get_intent_detector,
+    )
 
     detector = await get_intent_detector()
     suggestions = await detector.get_suggestions(user_message, limit)
@@ -177,7 +183,9 @@ async def _list_supported_intents_impl() -> dict[str, Any]:
     Returns:
         Intents list result dictionary
     """
-    from session_buddy.mcp.tools.intent_detection_tools import get_intent_detector
+    from session_buddy.mcp.tools.advanced.intent_detection_tools import (
+        get_intent_detector,
+    )
 
     detector = await get_intent_detector()
     tools_info = _build_tools_info(detector)

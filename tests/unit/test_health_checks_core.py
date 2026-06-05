@@ -316,9 +316,15 @@ class TestCheckDependenciesHealth:
         """Test when all optional dependencies are available."""
         mock_spec = MagicMock()
 
+        async def fake_check_embedding_providers(client):
+            return (["llama-server", "ollama"], [])
+
         with patch(
             "importlib.util.find_spec", return_value=mock_spec
-        ), patch.dict(sys.modules, {"session_buddy.utils.quality_utils_v2": None}):
+        ), patch.dict(sys.modules, {"session_buddy.utils.quality_utils_v2": None}), patch(
+            "session_buddy.health_checks._check_embedding_providers",
+            side_effect=fake_check_embedding_providers,
+        ):
             health = await check_dependencies_health()
             assert health.name == "dependencies"
             assert health.status == HealthStatus.HEALTHY
@@ -357,11 +363,17 @@ class TestCheckDependenciesHealth:
         fake_quality_utils = types.ModuleType("session_buddy.utils.quality_utils_v2")
         fake_quality_utils.CRACKERJACK_AVAILABLE = True
 
+        async def fake_check_embedding_providers(client):
+            return (["llama-server", "ollama"], [])
+
         with patch.dict(
             sys.modules,
             {"session_buddy.utils.quality_utils_v2": fake_quality_utils},
             clear=False,
-        ), patch("importlib.util.find_spec", return_value=MagicMock()):
+        ), patch("importlib.util.find_spec", return_value=MagicMock()), patch(
+            "session_buddy.health_checks._check_embedding_providers",
+            side_effect=fake_check_embedding_providers,
+        ):
             health = await check_dependencies_health()
 
             assert health.name == "dependencies"

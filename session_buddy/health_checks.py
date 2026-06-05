@@ -209,10 +209,17 @@ async def check_file_system_health() -> ComponentHealth:
 
 
 def _module_available(name: str) -> bool:
-    """Check if a module is available without importing it."""
+    """Check if a module is available without importing it.
+
+    Returns True if the module can be found, False otherwise. Treats
+    any exception raised by ``find_spec`` (ImportError, ModuleNotFoundError,
+    ValueError, or unexpected errors) as "not available" so health checks
+    remain best-effort and never crash on a transient module-discovery
+    failure.
+    """
     try:
         return importlib.util.find_spec(name) is not None
-    except ValueError:
+    except Exception:
         return name in sys.modules
 
 
@@ -357,8 +364,7 @@ async def check_dependencies_health() -> ComponentHealth:
     available, unavailable = await _check_crackerjack_and_embedding_providers()
 
     # Check multi-project features
-    spec = importlib.util.find_spec("session_buddy.multi_project_coordinator")
-    if spec is not None:
+    if _module_available("session_buddy.multi_project_coordinator"):
         available.append("multi_project")
     else:
         unavailable.append("multi_project")

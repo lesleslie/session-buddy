@@ -6,6 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+# Import the submodule so its symbols populate the package namespace, which is
+# what pytest's `patch("...get_intent_detector")` walks. Production uses a lazy
+# `from ... import get_intent_detector` inside function bodies, so the patch
+# must rebind the symbol on the source module — that requires the submodule
+# to be imported (and registered) first.
+import session_buddy.mcp.tools.advanced.intent_detection_tools  # noqa: F401
+
 from session_buddy.mcp.tools.advanced import intent_tools_registration as module
 
 
@@ -18,7 +25,10 @@ class TestInitializeIntentDetector:
         mock_detector = MagicMock()
         mock_detector.initialize = AsyncMock()
 
-        with patch.object(module, 'get_intent_detector', new_callable=AsyncMock) as mock_get:
+        with patch(
+            "session_buddy.mcp.tools.advanced.intent_detection_tools.get_intent_detector",
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_detector
 
             await module.initialize_intent_detector()
@@ -30,7 +40,10 @@ class TestInitializeIntentDetector:
         """Test initialization when detector already exists."""
         mock_detector = MagicMock()
 
-        with patch.object(module, 'get_intent_detector', new_callable=AsyncMock) as mock_get:
+        with patch(
+            "session_buddy.mcp.tools.advanced.intent_detection_tools.get_intent_detector",
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_detector
 
             await module.initialize_intent_detector()
@@ -54,7 +67,10 @@ class TestDetectIntentImpl:
         mock_detector = MagicMock()
         mock_detector.detect_intent = AsyncMock(return_value=mock_match)
 
-        with patch.object(module, 'get_intent_detector', new_callable=AsyncMock) as mock_get:
+        with patch(
+            "session_buddy.mcp.tools.advanced.intent_detection_tools.get_intent_detector",
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_detector
 
             result = await module._detect_intent_impl("search for test", 0.7)
@@ -75,7 +91,10 @@ class TestDetectIntentImpl:
             {"tool": "find", "confidence": 0.4},
         ])
 
-        with patch.object(module, 'get_intent_detector', new_callable=AsyncMock) as mock_get:
+        with patch(
+            "session_buddy.mcp.tools.advanced.intent_detection_tools.get_intent_detector",
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_detector
 
             result = await module._detect_intent_impl("random text", 0.7)
@@ -91,7 +110,10 @@ class TestDetectIntentImpl:
         mock_detector.detect_intent = AsyncMock(return_value=None)
         mock_detector.get_suggestions = AsyncMock(return_value=[])
 
-        with patch.object(module, 'get_intent_detector', new_callable=AsyncMock) as mock_get:
+        with patch(
+            "session_buddy.mcp.tools.advanced.intent_detection_tools.get_intent_detector",
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_detector
 
             result = await module._detect_intent_impl("xyz123", 0.7)
@@ -160,7 +182,10 @@ class TestGetIntentSuggestionsImpl:
             {"tool": "query", "confidence": 0.5, "match_type": "pattern"},
         ])
 
-        with patch.object(module, 'get_intent_detector', new_callable=AsyncMock) as mock_get:
+        with patch(
+            "session_buddy.mcp.tools.advanced.intent_detection_tools.get_intent_detector",
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_detector
 
             result = await module._get_intent_suggestions_impl("find something", 5)
@@ -175,7 +200,10 @@ class TestGetIntentSuggestionsImpl:
         mock_detector = MagicMock()
         mock_detector.get_suggestions = AsyncMock(return_value=[])
 
-        with patch.object(module, 'get_intent_detector', new_callable=AsyncMock) as mock_get:
+        with patch(
+            "session_buddy.mcp.tools.advanced.intent_detection_tools.get_intent_detector",
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_detector
 
             result = await module._get_intent_suggestions_impl("xyz unknown", 5)
@@ -214,7 +242,10 @@ class TestListSupportedIntentsImpl:
         }
         mock_detector.argument_extraction = ["checkpoint"]
 
-        with patch.object(module, 'get_intent_detector', new_callable=AsyncMock) as mock_get:
+        with patch(
+            "session_buddy.mcp.tools.advanced.intent_detection_tools.get_intent_detector",
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_detector
 
             result = await module._list_supported_intents_impl()
@@ -233,7 +264,10 @@ class TestListSupportedIntentsImpl:
         mock_detector.semantic_examples = {}
         mock_detector.argument_extraction = []
 
-        with patch.object(module, 'get_intent_detector', new_callable=AsyncMock) as mock_get:
+        with patch(
+            "session_buddy.mcp.tools.advanced.intent_detection_tools.get_intent_detector",
+            new_callable=AsyncMock,
+        ) as mock_get:
             mock_get.return_value = mock_detector
 
             result = await module._list_supported_intents_impl()

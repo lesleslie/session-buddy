@@ -1354,7 +1354,9 @@ class SessionLifecycleManager:
                 insights_extracted,
             )
 
-            summary["handoff_documentation"] = handoff_path or None
+            summary["handoff_documentation"] = (
+                str(handoff_path) if handoff_path else None
+            )
             summary["insights_extracted"] = insights_extracted
 
             # Add conversation storage result to summary

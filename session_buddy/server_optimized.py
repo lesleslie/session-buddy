@@ -493,7 +493,10 @@ def _count_significant_files(current_dir: Path) -> int:
         for file_path in current_dir.rglob("*"):
             if (
                 file_path.is_file()
-                and not any(part.startswith(".") for part in file_path.parts)
+                and not any(
+                    part.startswith(".")
+                    for part in file_path.relative_to(current_dir).parts
+                )
                 and file_path.suffix
                 in {
                     ".py",

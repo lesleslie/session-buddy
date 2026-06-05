@@ -828,7 +828,7 @@ class TestRegisterSessionToolsComplete:
 
         import asyncio
 
-        result = asyncio.get_event_loop().run_until_complete(health_check())
+        result = asyncio.run(health_check())
 
         assert "Health Check" in result
         assert "Server Status" in result
@@ -855,7 +855,7 @@ class TestRegisterSessionToolsComplete:
 
         import asyncio
 
-        result = asyncio.get_event_loop().run_until_complete(server_info())
+        result = asyncio.run(server_info())
 
         assert "Server Information" in result or "📊" in result
         assert "Home Directory" in result or "🏠" in result
@@ -893,7 +893,7 @@ class TestRegisterSessionToolsComplete:
                 "tags": ["tag1", "tag2"],
             }
 
-            result = asyncio.get_event_loop().run_until_complete(pre_compact())
+            result = asyncio.run(pre_compact())
 
             assert "Pre-Compact Sync" in result or "🗜️" in result
             assert "test-project" in result

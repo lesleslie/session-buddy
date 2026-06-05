@@ -664,7 +664,7 @@ def test_git_commit_and_version_control_fallback_branches(
     assert qs._score_issue_tracking(project) == (3, {"issue_tracking": "good (2/5 refs)"})
     assert qs._score_branch_strategy(project) == (1, {"branch_strategy": "main-only development"})
 
-    def run_active_history(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None):
+    def run_active_history(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None, env=None):
         if cmd[:3] == ["git", "log", "--oneline"]:
             return Result(stdout="feat: a\nfix: b\nchore: c\ndocs: d\ntest: e")
         if cmd[:2] == ["git", "branch"]:

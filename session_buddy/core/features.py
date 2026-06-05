@@ -41,7 +41,12 @@ class FeatureDetector:
                 session_buddy.core.session_manager
             )  # Reference to avoid unused import warning during static analysis
             return True
-        except ImportError:
+        except (ImportError, AttributeError):
+            # `import session_buddy.core` can raise AttributeError when
+            # `session_buddy`'s `__getattr__` doesn't know the sub-attribute
+            # (e.g. when the feature detector is being scanned in isolation
+            # or when the module is being stubbed). Treat that the same as
+            # an ImportError: the feature isn't available.
             return False
 
     @staticmethod
@@ -54,7 +59,9 @@ class FeatureDetector:
                 session_buddy.reflection_tools
             )  # Use the import to avoid unused import warning
             return True
-        except ImportError:
+        except (ImportError, AttributeError):
+            # See note in _check_session_management: AttributeError can
+            # be raised by the package's `__getattr__` for unknown names.
             return False
 
     @staticmethod

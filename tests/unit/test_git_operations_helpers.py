@@ -50,10 +50,32 @@ def _load_git_operations_module():
     return module
 
 
-go = _load_git_operations_module()
+@pytest.fixture
+def go():
+    """Load git_operations as an isolated module with stubbed git_worktrees.
+
+    Restores any pre-existing `session_buddy.utils.git_worktrees` on teardown
+    so this fixture does not pollute the rest of the test suite.
+    """
+    saved = sys.modules.get("session_buddy.utils.git_worktrees")
+    saved_pkg = sys.modules.get("session_buddy.utils")
+    saved_ops = sys.modules.get("session_buddy.utils.git_operations")
+    try:
+        yield _load_git_operations_module()
+    finally:
+        # Restore the original modules so subsequent tests see the real ones.
+        for name, original in (
+            ("session_buddy.utils.git_worktrees", saved),
+            ("session_buddy.utils", saved_pkg),
+            ("session_buddy.utils.git_operations", saved_ops),
+        ):
+            if original is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = original
 
 
-def test_parse_and_format_helpers() -> None:
+def test_parse_and_format_helpers(go) -> None:
     staged, untracked = go._parse_git_status(
         ["A  tracked.txt", "M  modified.txt", "D  deleted.txt", "?? new.txt", "ignored"]
     )
@@ -65,6 +87,7 @@ def test_parse_and_format_helpers() -> None:
 
 
 def test_run_git_command_success_and_failure(
+    go,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -87,6 +110,7 @@ def test_run_git_command_success_and_failure(
 
 
 def test_stage_and_commit_files_covers_success_failure_and_exception(
+    go,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -130,7 +154,7 @@ def test_stage_and_commit_files_covers_success_failure_and_exception(
     assert output[-1] == "❌ Git operation error: boom"
 
 
-def test_optimize_git_repository_covers_all_outcomes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_optimize_git_repository_covers_all_outcomes(go, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     class Result:
         def __init__(self, returncode: int, stderr: str = "") -> None:
             self.returncode = returncode
