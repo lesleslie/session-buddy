@@ -166,3 +166,8 @@ tests/archived/
 .backups/
 
 .coverage
+
+# Backup Files (added by gitignore audit)
+# ============================================================================
+*.backup
+*.bak
