@@ -313,11 +313,33 @@ class ReflectionDatabaseAdapterOneiric:
                     self.conn = None
 
         if self.conn is None:
-            self.conn = duckdb.connect(
-                database=self.db_path,
-                read_only=False,
-                config={"allow_unsigned_extensions": True},
-            )
+            try:
+                self.conn = duckdb.connect(
+                    database=self.db_path,
+                    read_only=False,
+                    config={"allow_unsigned_extensions": True},
+                )
+            except Exception as e:
+                # If DuckDB cannot open the file (e.g. a stale .wal
+                # sidecar references a default database the catalog
+                # no longer has), purge the .wal and retry once. Any
+                # uncommitted writes are already lost; a successful
+                # retry creates a fresh, consistent database.
+                msg = str(e)
+                if self.db_path != ":memory:" and (
+                    "replaying WAL" in msg or "GetDefaultDatabase" in msg
+                ):
+                    wal_file = Path(self.db_path + ".wal")
+                    if wal_file.exists():
+                        with suppress(Exception):
+                            wal_file.unlink()
+                    self.conn = duckdb.connect(
+                        database=self.db_path,
+                        read_only=False,
+                        config={"allow_unsigned_extensions": True},
+                    )
+                else:
+                    raise
             # Only cache file-based connections, not :memory:
             if self.db_path != ":memory:":
                 cache_key = str(Path(self.db_path).resolve())

@@ -130,6 +130,25 @@ DatabaseUnavailableError = error_management.DatabaseUnavailableError
 ValidationError = error_management.ValidationError
 
 
+@pytest.fixture(autouse=True)
+def _reinstall_tool_wrapper_mocks():
+    """Re-install mocks after the conftest's autouse stub purge.
+
+    The root conftest's ``restore_session_buddy_modules`` fixture runs
+    before every test and calls ``_purge_session_buddy_stubs()``, which
+    deletes any module with no ``__file__`` — including the mock
+    ``error_management``/``database_tools``/``messages`` modules this
+    file installs in ``sys.modules`` at import time. Re-run the loader
+    so the test sees the mock ``ValidationError`` / ``validate_required``
+    again, not the real ones from disk.
+    """
+    global tw, error_management, DatabaseUnavailableError, ValidationError
+    tw, error_management = _load_tool_wrapper_module()
+    DatabaseUnavailableError = error_management.DatabaseUnavailableError
+    ValidationError = error_management.ValidationError
+    yield
+
+
 class FakeDB:
     async def search_reflections(self, q: str) -> list[dict[str, Any]]:
         return [{"content": q}]

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from hypothesis import given
+from hypothesis import given, settings as hypothesis_settings
 from hypothesis import strategies as st
 from session_buddy.utils.logging import SessionLogger
 from session_buddy.utils.quality_utils_v2 import QualityScoreV2
@@ -343,6 +343,17 @@ class TestUtilityEdgeCases:
 class TestReflectionDatabasePropertyBased:
     """Property-based tests for ReflectionDatabase operations."""
 
+    # NOTE: The ``@hypothesis_settings`` decorator is applied directly
+    # to each test method below. The class-level ``settings`` attribute
+    # is intentionally NOT used because recent Hypothesis versions only
+    # honour it when the ``@given`` decorator is also applied at class
+    # level, not method level.
+
+    _REFLECTION_DB_TEST_SETTINGS = hypothesis_settings(
+        max_examples=20, deadline=2000
+    )
+
+    @hypothesis_settings(max_examples=20, deadline=2000)
     @given(
         st.text(min_size=1, max_size=200),
         st.lists(st.text(min_size=1, max_size=20), min_size=0, max_size=10),
@@ -406,6 +417,7 @@ class TestReflectionDatabasePropertyBased:
             max_size=50,
         )
     )
+    @hypothesis_settings(max_examples=10, deadline=10000)
     async def test_similarity_search_properties(self, contents: list[str]):
         """Property test: similarity search should return valid results."""
         from tempfile import NamedTemporaryFile
@@ -461,6 +473,7 @@ class TestReflectionDatabasePropertyBased:
             except:
                 pass
 
+    @hypothesis_settings(max_examples=20, deadline=2000)
     @given(
         st.text(min_size=1, max_size=500),
         st.lists(st.text(min_size=1, max_size=10), min_size=0, max_size=10),

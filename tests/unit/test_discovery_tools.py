@@ -104,9 +104,13 @@ class TestDiscoverTools:
         """Exact tool name match should return that tool."""
         result = await discover_tools("ping")
 
-        assert result["found"] == 1
-        assert result["tools"][0]["name"] == "ping"
-        assert "Liveness probe" in result["tools"][0]["description"]
+        # "ping" matches by tool name; "progressive_search" also matches
+        # via description-substring ("...early stop*ping*"). Verify the
+        # exact tool is present alongside any other description matches.
+        names = [t["name"] for t in result["tools"]]
+        assert "ping" in names
+        ping_tool = next(t for t in result["tools"] if t["name"] == "ping")
+        assert "Liveness probe" in ping_tool["description"]
 
     @pytest.mark.asyncio
     async def test_partial_tool_name_match(self):
@@ -227,9 +231,16 @@ class TestRegisterDiscoveryTools:
 
     @pytest.fixture
     def mock_mcp(self):
-        """Create a mock FastMCP server."""
+        """Create a mock FastMCP server.
+
+        Production code uses the two-step decorator pattern
+        ``mcp.tool()(discover_tools)`` — the outer ``mcp.tool()`` is
+        called with no args, and the inner decorator is then called
+        with the function. Both layers need to be mocks.
+        """
         mcp = MagicMock()
-        mcp.tool = MagicMock(return_value=lambda f: f)
+        decorator = MagicMock(side_effect=lambda f: f)
+        mcp.tool = MagicMock(return_value=decorator)
         return mcp
 
     def test_registers_tool_decorator(self, mock_mcp):
@@ -249,8 +260,10 @@ class TestRegisterDiscoveryTools:
         """The decorated discover_tools should be an async function."""
         register_discovery_tools(mock_mcp)
 
-        # Get the decorated function
-        decorated_func = mock_mcp.tool.call_args[0][0]
+        # Production code calls ``mcp.tool()`` (no args) then calls the
+        # returned decorator with the function. The decorated function
+        # is therefore at ``mock_mcp.tool.return_value.call_args[0][0]``.
+        decorated_func = mock_mcp.tool.return_value.call_args[0][0]
 
         # It should be awaitable
         import asyncio
@@ -262,8 +275,9 @@ class TestRegisterDiscoveryTools:
         """The registered discover_tools should work correctly."""
         register_discovery_tools(mock_mcp)
 
-        # Get the decorated function and call it
-        decorated_func = mock_mcp.tool.call_args[0][0]
+        # Production uses the two-step ``mcp.tool()(func)`` pattern, so
+        # the decorated function is at ``mcp.tool.return_value.call_args[0][0]``.
+        decorated_func = mock_mcp.tool.return_value.call_args[0][0]
         result = await decorated_func(query="health")
 
         assert "found" in result

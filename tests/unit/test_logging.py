@@ -108,11 +108,6 @@ def test_resolve_logs_dir_uses_session_paths(monkeypatch: pytest.MonkeyPatch, tm
         "get_sync",
         lambda _typ: fake_paths,
     )
-    monkeypatch.setattr(
-        "session_buddy.di.config.SessionPaths",
-        object(),
-        raising=False,
-    )
 
     result = logging_module._resolve_logs_dir()
 
@@ -152,11 +147,6 @@ def test_resolve_logs_dir_falls_back_when_session_paths_missing_logs_dir(
         logging_module.depends,
         "get_sync",
         lambda _typ: fake_paths,
-    )
-    monkeypatch.setattr(
-        "session_buddy.di.config.SessionPaths",
-        object(),
-        raising=False,
     )
     monkeypatch.setattr(logging_module.Path, "home", lambda: tmp_path)
 

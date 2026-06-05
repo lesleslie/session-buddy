@@ -36,14 +36,19 @@ class TestKnowledgeGraphAdapterInit:
         assert adapter._initialized is False
 
     def test_adapter_init_without_path(self) -> None:
-        """Should initialize without database path (uses config later)."""
+        """Should initialize without database path (uses config later).
+
+        Production sets ``db_path = ""`` (empty string) as a placeholder
+        when neither a path nor settings are provided, distinct from
+        ``None`` which only occurs when a non-empty path is later assigned.
+        """
         from session_buddy.adapters.knowledge_graph_adapter import (
             KnowledgeGraphDatabaseAdapter,
         )
 
         adapter = KnowledgeGraphDatabaseAdapter()
 
-        assert adapter.db_path is None
+        assert adapter.db_path == ""
         assert adapter.conn is None
         assert adapter._initialized is False
 

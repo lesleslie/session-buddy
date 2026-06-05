@@ -141,13 +141,24 @@ class TestPhase6MCPTools:
 class TestPhase6MemoryAdapters:
     """Test Phase 6 memory adapter parity after Oneiric-only cutover."""
 
-    async def test_reflection_adapter_init_and_health(self):
+    async def test_reflection_adapter_init_and_health(self, tmp_path):
         """Test success criterion: Reflection adapter lifecycle works.
 
         Simplified test avoiding query cache issues.
         """
+        # Isolate the test from the shared default DuckDB path so a
+        # production server (or another test) holding the file lock
+        # cannot cause this test to fail with a ConflictingLock error.
+        from session_buddy.adapters.settings import ReflectionAdapterSettings
+
+        settings = ReflectionAdapterSettings(
+            database_path=tmp_path / "test_phase6_simple.duckdb",
+            collection_name="test_phase6_simple",
+            enable_vss=False,
+            enable_embeddings=False,
+        )
         # Create adapter without async context manager to avoid cache cleanup issues
-        db = ReflectionDatabaseAdapterOneiric(collection_name="test_phase6_simple")
+        db = ReflectionDatabaseAdapterOneiric(settings=settings)
         await db.initialize()
 
         try:
@@ -175,9 +186,17 @@ class TestPhase6MemoryAdapters:
         finally:
             await kg.aclose()
 
-    async def test_reflection_adapter_uses_native_duckdb(self):
+    async def test_reflection_adapter_uses_native_duckdb(self, tmp_path):
         """Test success criterion: Reflection adapter uses native DuckDB."""
-        db = ReflectionDatabaseAdapterOneiric(collection_name="test_phase6_duckdb")
+        from session_buddy.adapters.settings import ReflectionAdapterSettings
+
+        settings = ReflectionAdapterSettings(
+            database_path=tmp_path / "test_phase6_duckdb.duckdb",
+            collection_name="test_phase6_duckdb",
+            enable_vss=False,
+            enable_embeddings=False,
+        )
+        db = ReflectionDatabaseAdapterOneiric(settings=settings)
         await db.initialize()
 
         try:
@@ -276,12 +295,24 @@ class TestPhase6ServerlessStorage:
 class TestPhase6Integration:
     """Test Phase 6 end-to-end integration after Oneiric-only cutover."""
 
-    async def test_reflection_and_storage_integration(self):
+    async def test_reflection_and_storage_integration(self, tmp_path):
         """Test success criterion: Reflection adapter and storage work together."""
-        from session_buddy.adapters.settings import StorageAdapterSettings
+        from session_buddy.adapters.settings import (
+            ReflectionAdapterSettings,
+            StorageAdapterSettings,
+        )
 
+        # Isolate the reflection adapter from the shared default
+        # DuckDB path so a production server holding the file lock
+        # cannot break this test.
+        reflection_settings = ReflectionAdapterSettings(
+            database_path=tmp_path / "test_phase6_integration.duckdb",
+            collection_name="test_phase6_integration",
+            enable_vss=False,
+            enable_embeddings=False,
+        )
         # Test reflection adapter (simplified, no search)
-        db = ReflectionDatabaseAdapterOneiric(collection_name="test_phase6_integration")
+        db = ReflectionDatabaseAdapterOneiric(settings=reflection_settings)
         await db.initialize()
 
         try:
@@ -301,11 +332,21 @@ class TestPhase6Integration:
         retrieved = await storage.download("sessions", "integration_test.json")
         assert json.loads(retrieved.decode())["conversation_id"] == conv_id
 
-    async def test_di_container_integration(self):
+    async def test_di_container_integration(self, tmp_path):
         """Test success criterion: DI container integrates services."""
+        from session_buddy.adapters.settings import ReflectionAdapterSettings
+
         container = ServiceContainer()
 
-        reflection_adapter = ReflectionDatabaseAdapterOneiric(collection_name="test_phase6_di")
+        # Isolate the reflection adapter from the shared default
+        # DuckDB path; the DI container itself is fine.
+        reflection_settings = ReflectionAdapterSettings(
+            database_path=tmp_path / "test_phase6_di.duckdb",
+            collection_name="test_phase6_di",
+            enable_vss=False,
+            enable_embeddings=False,
+        )
+        reflection_adapter = ReflectionDatabaseAdapterOneiric(settings=reflection_settings)
         await reflection_adapter.initialize()
         container.set("reflection_adapter", reflection_adapter)
 

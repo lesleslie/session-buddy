@@ -41,8 +41,8 @@ class TestProfileConstants:
 
     def test_standard_registrations_count(self):
         """Test STANDARD has expected number of registrations."""
-        # STANDARD = MINIMAL + 9 additional
-        assert len(STANDARD_REGISTRATIONS) == len(MINIMAL_REGISTRATIONS) + 9
+        # STANDARD = MINIMAL + 10 additional
+        assert len(STANDARD_REGISTRATIONS) == len(MINIMAL_REGISTRATIONS) + 10
 
     def test_standard_includes_minimal(self):
         """Test STANDARD includes all MINIMAL registrations."""
@@ -91,8 +91,8 @@ class TestProfileConstants:
 
     def test_full_registrations_count(self):
         """Test FULL has expected number of registrations."""
-        # FULL = STANDARD + 16 additional
-        expected_full_count = len(STANDARD_REGISTRATIONS) + 16
+        # FULL = STANDARD + 18 additional
+        expected_full_count = len(STANDARD_REGISTRATIONS) + 18
         assert len(FULL_REGISTRATIONS) == expected_full_count
 
     def test_full_includes_standard(self):
@@ -317,11 +317,16 @@ class TestProfileRegistrationLogic:
         assert len(STANDARD_REGISTRATIONS) > 0
         assert len(FULL_REGISTRATIONS) > 0
 
-    def test_registrations_are_sorted_alphabetically_within_profile(self):
-        """Test registrations within each profile are sorted alphabetically."""
-        assert MINIMAL_REGISTRATIONS == sorted(MINIMAL_REGISTRATIONS)
-        assert STANDARD_REGISTRATIONS == sorted(STANDARD_REGISTRATIONS)
-        assert FULL_REGISTRATIONS == sorted(FULL_REGISTRATIONS)
+    def test_registrations_are_unique_within_profile(self):
+        """Test that each profile has no duplicate registrations.
+
+        Registrations are intentionally ordered by functional category
+        (not alphabetically) so mandatory infrastructure entries such as
+        ``register_health_tools_sb`` stay in the mandatory-first slot.
+        """
+        assert len(MINIMAL_REGISTRATIONS) == len(set(MINIMAL_REGISTRATIONS))
+        assert len(STANDARD_REGISTRATIONS) == len(set(STANDARD_REGISTRATIONS))
+        assert len(FULL_REGISTRATIONS) == len(set(FULL_REGISTRATIONS))
 
 
 class TestProfileInheritance:

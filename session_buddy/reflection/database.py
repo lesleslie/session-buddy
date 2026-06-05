@@ -187,8 +187,29 @@ class ReflectionDatabase:
                 self.db_path, config={"allow_unsigned_extensions": True}
             )
         except Exception as e:
-            msg = f"Database connection error (directory/permission): {e}"
-            raise RuntimeError(msg) from e
+            # If DuckDB cannot open the file (e.g. a stale .wal
+            # sidecar references a default database the catalog no
+            # longer has), purge the .wal and retry once. Any
+            # uncommitted writes are already lost; a successful retry
+            # creates a fresh, consistent database.
+            err_msg = str(e)
+            if self.db_path != ":memory:" and (
+                "replaying WAL" in err_msg or "GetDefaultDatabase" in err_msg
+            ):
+                wal_file = Path(self.db_path + ".wal")
+                if wal_file.exists():
+                    with suppress(Exception):
+                        wal_file.unlink()
+                try:
+                    temp_conn = duckdb.connect(
+                        self.db_path, config={"allow_unsigned_extensions": True}
+                    )
+                except Exception as retry_exc:
+                    msg = f"Database connection error (directory/permission): {retry_exc}"
+                    raise RuntimeError(msg) from retry_exc
+            else:
+                msg = f"Database connection error (directory/permission): {e}"
+                raise RuntimeError(msg) from e
 
         try:
             # Initialize schema using schema module

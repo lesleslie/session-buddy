@@ -438,6 +438,10 @@ def _analyze_git_activity(project_dir: Path) -> dict[str, Any]:
 def _collect_recent_commits(project_dir: Path) -> list[str]:
     """Return commit messages for the last 30 days."""
     since_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    # Constrain git to the project_dir subtree so a test's empty
+    # ``.git`` cannot silently walk up and return the parent
+    # repo's history (which would inflate the dev_velocity score).
+    ceiling = str(project_dir.parent.absolute())
     result = subprocess.run(
         ["git", "log", f"--since={since_date}", "--pretty=format:%s", "--no-merges"],
         check=False,
@@ -445,6 +449,7 @@ def _collect_recent_commits(project_dir: Path) -> list[str]:
         capture_output=True,
         text=True,
         timeout=5,
+        env={**os.environ, "GIT_CEILING_DIRECTORIES": ceiling},
     )
 
     if result.returncode != 0 or not result.stdout.strip():
@@ -502,6 +507,10 @@ def _analyze_dev_patterns(project_dir: Path) -> dict[str, Any]:
 def _score_issue_tracking(project_dir: Path) -> tuple[int, dict[str, str]]:
     """Analyze recent commits for issue references."""
     try:
+        # Constrain git to the project_dir subtree so a test's empty
+        # ``.git`` cannot silently walk up and use the parent repo's
+        # commit history (which would inflate issue_tracking).
+        ceiling = str(project_dir.parent.absolute())
         result = subprocess.run(
             ["git", "log", "--oneline", "-n", "50", "--no-merges"],
             check=False,
@@ -509,6 +518,7 @@ def _score_issue_tracking(project_dir: Path) -> tuple[int, dict[str, str]]:
             capture_output=True,
             text=True,
             timeout=5,
+            env={**os.environ, "GIT_CEILING_DIRECTORIES": ceiling},
         )
     except Exception as exc:
         return 0, {"issue_tracking": f"analysis failed: {exc}"}
@@ -531,6 +541,10 @@ def _score_issue_tracking(project_dir: Path) -> tuple[int, dict[str, str]]:
 def _score_branch_strategy(project_dir: Path) -> tuple[int, dict[str, str]]:
     """Evaluate branch naming strategy for feature work."""
     try:
+        # Constrain git to the project_dir subtree so a test's empty
+        # ``.git`` cannot silently walk up and use the parent repo's
+        # branches (which would inflate the branch_strategy score).
+        ceiling = str(project_dir.parent.absolute())
         result = subprocess.run(
             ["git", "branch", "-a"],
             check=False,
@@ -538,6 +552,7 @@ def _score_branch_strategy(project_dir: Path) -> tuple[int, dict[str, str]]:
             capture_output=True,
             text=True,
             timeout=5,
+            env={**os.environ, "GIT_CEILING_DIRECTORIES": ceiling},
         )
     except Exception as exc:
         return 0, {"branch_strategy": f"analysis failed: {exc}"}
