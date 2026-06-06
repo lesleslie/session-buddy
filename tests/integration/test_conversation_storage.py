@@ -116,7 +116,7 @@ async def test_conversation_storage(tmp_path) -> None:
 
     # Test 5: Semantic search
     print("\n📝 Test 5: Semantic search")
-    db = ReflectionDatabase()
+    db = ReflectionDatabase(str(tmp_path / "conversation_test.duckdb"))
     await db.initialize()
     try:
         results = await db.search_conversations(
