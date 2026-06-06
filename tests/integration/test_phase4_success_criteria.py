@@ -51,7 +51,8 @@ class TestPhase4DuplicateDetectionAccuracy:
         total_duplicates = 5  # We know there are 5 duplicates
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Store all conversations with deduplication enabled
             for content, label in test_data:
@@ -67,7 +68,8 @@ class TestPhase4DuplicateDetectionAccuracy:
 
         # Better approach: count unique IDs stored
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Get all stored conversations
             result = db.conn.execute(
@@ -84,7 +86,8 @@ class TestPhase4DuplicateDetectionAccuracy:
 
         # Simpler test: verify duplicates are detected
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Try to store exact duplicates
             id1 = await db.store_conversation(
@@ -122,7 +125,8 @@ class TestPhase4DuplicateDetectionAccuracy:
         detected_near_dups = 0
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             for original, variant in near_duplicate_pairs:
                 # Store original
@@ -182,7 +186,8 @@ class TestPhase4DuplicateDetectionAccuracy:
         false_positives = 0
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Store all unique content
             for content in different_content:
@@ -224,7 +229,8 @@ class TestPhase4DuplicateDetectionAccuracy:
         test_content = "Python async patterns for concurrent programming"
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Store a conversation
             conv_id = await db.store_conversation(test_content)
@@ -251,7 +257,8 @@ class TestPhase4DuplicateDetectionAccuracy:
         test_reflection = "Key insight: async/await patterns improve code readability"
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Store a reflection
             refl_id = await db.store_reflection(test_reflection)
@@ -278,7 +285,8 @@ class TestPhase4DuplicateDetectionAccuracy:
         content = "Test content for deduplication"
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Store without deduplication
             id1 = await db.store_conversation(content, deduplicate=False)
@@ -297,7 +305,8 @@ class TestPhase4DuplicateDetectionAccuracy:
         # New collection for deduplication test
         collection_name2 = "test_dedup_conv_enabled"
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name2
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),2
         ) as db:
             # Store with deduplication enabled
             id3 = await db.store_conversation(content, deduplicate=True)
@@ -321,7 +330,8 @@ class TestPhase4DuplicateDetectionAccuracy:
         content = "Key insight about deduplication"
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Store with deduplication enabled
             id1 = await db.store_reflection(content, deduplicate=True)
@@ -348,7 +358,8 @@ class TestPhase4MCPTools:
         from session_buddy.tools.fingerprint_tools import find_duplicates
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Store some content
             await db.store_conversation("Python async patterns")
@@ -360,6 +371,7 @@ class TestPhase4MCPTools:
             content_type="conversation",
             threshold=0.95,
             collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),,
         )
 
         assert result["success"] is True
@@ -373,7 +385,8 @@ class TestPhase4MCPTools:
         from session_buddy.tools.fingerprint_tools import fingerprint_search
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Store some content
             await db.store_conversation("Python async patterns for concurrency")
@@ -384,6 +397,7 @@ class TestPhase4MCPTools:
             query="Python async patterns",
             threshold=0.70,
             collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),,
         )
 
         assert result["success"] is True
@@ -397,7 +411,8 @@ class TestPhase4MCPTools:
         from session_buddy.tools.fingerprint_tools import deduplication_stats
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Store some content
             await db.store_conversation("Content one")
@@ -423,7 +438,8 @@ class TestPhase4EdgeCases:
         """Test fingerprinting handles empty content gracefully."""
         collection_name = collection_name or f"test_edge_empty_{uuid.uuid4().hex[:8]}"
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Should handle empty content without crashing
             id1 = await db.store_conversation("")
@@ -437,7 +453,8 @@ class TestPhase4EdgeCases:
         long_content = "Python async patterns " * 1000
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             # Should handle long content
             id1 = await db.store_conversation(long_content)
@@ -462,7 +479,8 @@ class TestPhase4EdgeCases:
         unicode_content = "Python async: café, naïve, 日本語, emoji 🚀"
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         ) as db:
             id1 = await db.store_conversation(unicode_content)
             assert id1 is not None
