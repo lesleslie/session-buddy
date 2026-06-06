@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
-async def test_conversation_storage() -> None:
+async def test_conversation_storage(tmp_path) -> None:
     """Test conversation storage during checkpoints and session end."""
     print("\n" + "=" * 70)
     print("Testing Conversation Storage Functionality")
@@ -58,6 +58,7 @@ async def test_conversation_storage() -> None:
         checkpoint_type="test",
         quality_score=85,
         is_manual=True,
+        db_path=str(tmp_path / "conversation_test.duckdb"),
     )
 
     assert result["success"], f"Storage should succeed: {result.get('error')}"
@@ -67,7 +68,10 @@ async def test_conversation_storage() -> None:
 
     # Test 3: Verify conversation in database
     print("\n📝 Test 3: Verify conversation in database")
-    db = ReflectionDatabase()
+    # Use a temp database to avoid the shared default DuckDB path
+    # (which can be locked by another xdist worker or by the
+    # production server running outside the test session).
+    db = ReflectionDatabase(str(tmp_path / "conversation_test.duckdb"))
     await db.initialize()
     try:
         count = await db._get_conversation_count()
@@ -101,7 +105,7 @@ async def test_conversation_storage() -> None:
 
     # Test 4: Get conversation statistics
     print("\n📝 Test 4: Get conversation statistics")
-    stats = await get_conversation_stats()
+    stats = await get_conversation_stats(db_path=str(tmp_path / "conversation_test.duckdb"))
 
     assert stats["total_conversations"] > 0, "Should have conversations"
     assert stats["error"] is None, f"Should not have errors: {stats['error']}"

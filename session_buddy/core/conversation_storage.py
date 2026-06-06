@@ -116,6 +116,7 @@ async def store_conversation_checkpoint(
     checkpoint_type: str = "checkpoint",
     quality_score: int | None = None,
     is_manual: bool = False,
+    db_path: str | None = None,
 ) -> dict[str, t.Any]:
     """Store conversation checkpoint to the reflection database.
 
@@ -205,7 +206,7 @@ async def store_conversation_checkpoint(
             conversation_text = conversation_text[:max_length] + "\n... [truncated]"
 
         # Store conversation to database
-        db = ReflectionDatabase()
+        db = ReflectionDatabase(db_path) if db_path else ReflectionDatabase()
         await db.initialize()
 
         try:
@@ -238,7 +239,7 @@ async def store_conversation_checkpoint(
     return result
 
 
-async def get_conversation_stats() -> dict[str, t.Any]:
+async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]:
     """Get statistics about stored conversations.
 
     Returns:
@@ -266,7 +267,7 @@ async def get_conversation_stats() -> dict[str, t.Any]:
     try:
         from session_buddy.reflection.database import ReflectionDatabase
 
-        db = ReflectionDatabase()
+        db = ReflectionDatabase(db_path) if db_path else ReflectionDatabase()
         await db.initialize()
 
         try:
