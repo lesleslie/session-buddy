@@ -124,8 +124,11 @@ class ReflectionDatabaseAdapterOneiric:
             collection_name: Name of the vector collection to use.
                            Default "default" collection will be created automatically.
             settings: Reflection adapter settings. If None, uses defaults.
-            db_path: Deprecated; kept for backward compat only. Ignored —
-                     path is derived from settings.
+            db_path: Override the database path. Takes precedence over
+                     ``settings.database_path``. Useful for tests that
+                     want to isolate each instance into a tempdir
+                     (otherwise multiple processes / xdist workers
+                     collide on the shared default path).
 
         """
         self.settings = settings or ReflectionAdapterSettings.from_settings()
@@ -137,13 +140,17 @@ class ReflectionDatabaseAdapterOneiric:
         else:
             # Validate collection name to prevent SQL injection
             self.collection_name = validate_collection_name(collection_name)
-        # Use unique database file per collection to avoid DuckDB locking conflicts
-        settings_db_path = self.settings.database_path
-        # Preserve :memory: paths as-is to avoid converting to file paths
-        if str(settings_db_path) == ":memory:":
-            self.db_path = ":memory:"
+        # Resolve the database path. ``db_path`` (when provided) takes
+        # precedence so tests can isolate each adapter into a tempdir.
+        # Preserve :memory: paths as-is to avoid converting to file paths.
+        if db_path is not None:
+            self.db_path = ":memory:" if str(db_path) == ":memory:" else str(db_path)
         else:
-            self.db_path = str(settings_db_path)
+            settings_db_path = self.settings.database_path
+            if str(settings_db_path) == ":memory:":
+                self.db_path = ":memory:"
+            else:
+                self.db_path = str(settings_db_path)
         self.conn: t.Any = None  # DuckDB connection (sync)
         self.embedding_dim = self.settings.embedding_dim  # all-MiniLM-L6-v2 dimension
         self._initialized = False
