@@ -371,6 +371,7 @@ class TestPhase4MCPTools:
             content_type="conversation",
             threshold=0.95,
             collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         )
 
         assert result["success"] is True
@@ -396,6 +397,7 @@ class TestPhase4MCPTools:
             query="Python async patterns",
             threshold=0.70,
             collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
         )
 
         assert result["success"] is True
@@ -418,7 +420,10 @@ class TestPhase4MCPTools:
             await db.store_reflection("Reflection one")
 
         # Test deduplication stats
-        result = await deduplication_stats(collection_name=collection_name)
+        result = await deduplication_stats(
+            collection_name=collection_name,
+            db_path=str(tmp_path / f"{collection_name}.duckdb"),
+        )
 
         assert result["success"] is True
         assert result["total_conversations"] == 2

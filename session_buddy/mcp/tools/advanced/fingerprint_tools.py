@@ -41,6 +41,7 @@ async def find_duplicates(
     threshold: float = 0.85,
     limit: int = 10,
     collection_name: str = "default",
+    db_path: str | None = None,
 ) -> dict[str, t.Any]:
     """Find duplicate or near-duplicate content using MinHash fingerprinting.
 
@@ -90,7 +91,8 @@ async def find_duplicates(
 
         # Connect to database
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=db_path,
         ) as db:
             # Check for duplicates using the adapter's method
             duplicates = db._check_for_duplicates(
@@ -125,6 +127,7 @@ async def fingerprint_search(
     threshold: float = 0.70,
     limit: int = 10,
     collection_name: str = "default",
+    db_path: str | None = None,
 ) -> dict[str, t.Any]:
     """Search for similar content using fingerprint similarity.
 
@@ -170,7 +173,8 @@ async def fingerprint_search(
 
         # Connect to database
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=db_path,
         ) as db:
             # Search conversations if not filtered out
             if content_type is None or content_type == "conversation":
@@ -309,6 +313,7 @@ def _search_by_token_overlap(
 async def deduplication_stats(
     collection_name: str = "default",
     threshold: float = 0.85,
+    db_path: str | None = None,
 ) -> dict[str, t.Any]:
     """Compute deduplication statistics for the database.
 
@@ -330,7 +335,8 @@ async def deduplication_stats(
         )
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=db_path,
         ) as db:
             # Get total counts
             total_conversations = _get_table_count(db, collection_name, "conversations")
@@ -543,7 +549,8 @@ async def deduplicate_content(
         )
 
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name
+            collection_name=collection_name,
+            db_path=db_path,
         ) as db:
             all_ids_to_remove = await _find_duplicate_content(
                 db, content_type, threshold, collection_name
