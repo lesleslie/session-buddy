@@ -305,8 +305,8 @@ class TestPhase4DuplicateDetectionAccuracy:
         # New collection for deduplication test
         collection_name2 = "test_dedup_conv_enabled"
         async with ReflectionDatabaseAdapterOneiric(
-            collection_name=collection_name,
-            db_path=str(tmp_path / f"{collection_name}.duckdb"),2
+            collection_name=collection_name2,
+            db_path=str(tmp_path / f"{collection_name2}.duckdb"),
         ) as db:
             # Store with deduplication enabled
             id3 = await db.store_conversation(content, deduplicate=True)
@@ -371,7 +371,6 @@ class TestPhase4MCPTools:
             content_type="conversation",
             threshold=0.95,
             collection_name=collection_name,
-            db_path=str(tmp_path / f"{collection_name}.duckdb"),,
         )
 
         assert result["success"] is True
@@ -397,7 +396,6 @@ class TestPhase4MCPTools:
             query="Python async patterns",
             threshold=0.70,
             collection_name=collection_name,
-            db_path=str(tmp_path / f"{collection_name}.duckdb"),,
         )
 
         assert result["success"] is True
