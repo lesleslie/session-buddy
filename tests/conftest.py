@@ -494,124 +494,38 @@ def restore_session_buddy_modules():
 def reset_di_container():
     """Reset DI container between tests to ensure clean state.
 
-    This fixture runs automatically for every test to prevent DI state
-    leakage between tests. It cleans up all singleton instances from the
-    bevy container, including:
-    - SessionPaths, SessionLogger, SessionPermissionsManager, SessionLifecycleManager
-    - ApplicationMonitor, LLMManager, ServerlessSessionManager
-    - ReflectionDatabase, InterruptionManager
+    Clears the ``depends._instances`` cache and re-registers the default
+    services so each test starts with a clean DI state. Without this, the
+    process-global ``depends`` singleton accumulates state across tests,
+    causing failures in tests that later resolve DI-managed services.
 
-    Week 8 Day 1: Enhanced to fix test isolation issues by directly
-    cleaning the bevy container instances dictionary. Reset happens both
-    before and after test to ensure clean state for monkeypatching.
+    The previous implementation imported from ``bevy`` (not installed) and
+    silently failed inside a bare ``except Exception: pass``, so the
+    container was never actually reset. This version uses the real
+    :func:`session_buddy.di.container.depends.reset` API followed by
+    :func:`session_buddy.di.configure` to re-establish the defaults.
     """
+    from session_buddy.di import configure
+    from session_buddy.di.container import depends
+    import session_buddy.di as di_module
 
-    def _cleanup_container():
-        """Helper function to clean up the DI container."""
-        try:
-            from bevy import get_container
-            from session_buddy.di import SessionPaths
-
-            container = get_container()
-
-            # List of all singleton classes to clean up
-            singleton_classes = [
-                SessionPaths,
-                # Core DI singletons
-                "SessionLogger",
-                "SessionPermissionsManager",
-                "SessionLifecycleManager",
-                # Instance manager singletons
-                "ApplicationMonitor",
-                "LLMManager",
-                "ServerlessSessionManager",
-                "ReflectionDatabase",
-                "InterruptionManager",
-            ]
-
-            # Clean up each singleton from container
-            for cls in singleton_classes:
-                # Handle both direct class and string class names
-                if isinstance(cls, str):
-                    # Import the class dynamically
-                    try:
-                        if cls == "SessionLogger":
-                            from session_buddy.utils.logging import SessionLogger
-
-                            cls = SessionLogger
-                        elif cls == "SessionPermissionsManager":
-                            from session_buddy.core.permissions import (
-                                SessionPermissionsManager,
-                            )
-
-                            cls = SessionPermissionsManager
-                        elif cls == "SessionLifecycleManager":
-                            from session_buddy.core import SessionLifecycleManager
-
-                            cls = SessionLifecycleManager
-                        elif cls == "ApplicationMonitor":
-                            from session_buddy.app_monitor import ApplicationMonitor
-
-                            cls = ApplicationMonitor
-                        elif cls == "LLMManager":
-                            from session_buddy.llm_providers import LLMManager
-
-                            cls = LLMManager
-                        elif cls == "ServerlessSessionManager":
-                            from session_buddy.serverless_mode import (
-                                ServerlessSessionManager,
-                            )
-
-                            cls = ServerlessSessionManager
-                        elif cls == "ReflectionDatabase":
-                            # Migration Phase 2.7: Use ReflectionDatabaseAdapter (ACB-based)
-                            from session_buddy.adapters.reflection_adapter import (
-                                ReflectionDatabaseAdapter as ReflectionDatabase,
-                            )
-
-                            cls = ReflectionDatabase
-                        elif cls == "InterruptionManager":
-                            from session_buddy.interruption_manager import (
-                                InterruptionManager,
-                            )
-
-                            cls = InterruptionManager
-                    except ImportError:
-                        continue
-
-                # Remove from container if present
-                try:
-                    container.instances.pop(cls, None)
-                except (KeyError, TypeError):
-                    pass
-
-            # Reset configuration flag
-            import session_buddy.di as di_module
-
-            di_module._configured = False
-
-        except Exception:
-            # If cleanup fails, we'll try again on next test
-            pass
+    def _cleanup_container() -> None:
+        # depends.reset() clears _instances dict AND replaces the resolver
+        depends.reset()
+        # configure(force=True) re-registers the 7 default services
+        # (paths, logger, permissions, quality scorer, code formatter,
+        # workflow metrics, lifecycle manager, hooks manager)
+        di_module._configured = False
+        configure(force=True)
 
     # Clean up BEFORE test to ensure monkeypatch can take effect
-    # Skip cleanup if we're in a multiprocessing worker to avoid conflicts
-    import os
-    if not os.environ.get('PYTEST_XDIST_WORKER'):
-        _cleanup_container()
+    _cleanup_container()
 
     # Test runs here
     yield
 
-    # Reset DI configured flag FIRST (before re-cleanup)
-    # This ensures configure() will properly re-register on next use
-    import session_buddy.di as di_module
-    di_module._configured = False
-
     # Clean up AFTER test for consistency
-    # Skip cleanup if we're in a multiprocessing worker to avoid conflicts
-    if not os.environ.get('PYTEST_XDIST_WORKER'):
-        _cleanup_container()
+    _cleanup_container()
 
 
 @pytest.fixture

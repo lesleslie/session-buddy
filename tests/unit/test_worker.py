@@ -787,24 +787,55 @@ class TestWorkerProcessTasks:
         worker = Worker(**worker_kwargs)
         worker.running = True
 
-        # Simulate empty queue - wait_for will timeout
-        mock_queue.get.side_effect = asyncio.TimeoutError()
+        # ``_process_tasks`` loops on TimeoutError until ``worker.running``
+        # flips False. We use a side_effect that blocks once with an
+        # ``asyncio.Event`` (so ``wait_for`` raises the real
+        # ``TimeoutError``) then flips the running flag. This exercises
+        # the genuine wait_for timeout path while still terminating the
+        # loop.
+        timeout_event = asyncio.Event()
+        first_call = True
+
+        async def block_then_stop(*args: Any, **kwargs: Any) -> None:
+            nonlocal first_call
+            if first_call:
+                first_call = False
+                # Block long enough for wait_for to time out (1.0s).
+                # We set the event after 1.2s to also flip the loop flag.
+                try:
+                    await asyncio.wait_for(timeout_event.wait(), timeout=1.5)
+                except asyncio.TimeoutError:
+                    pass
+            worker.running = False
+            return None
+
+        mock_queue.get.side_effect = block_then_stop
 
         await worker._process_tasks()
 
-        # Should have called get and handled TimeoutError
+        # Should have called get at least once
         mock_queue.get.assert_called()
 
     @pytest.mark.asyncio
     async def test_process_tasks_handles_cancelled_error(self, worker_kwargs: dict[str, Any], mock_queue: AsyncMock) -> None:
-        """Test that _process_tasks handles CancelledError gracefully."""
+        r"""Test that _process_tasks handles CancelledError gracefully.
+
+        The production code intentionally swallows ``CancelledError`` and
+        ``break``\s the loop so the worker shuts down cleanly; the
+        exception should NOT propagate to the caller. This test verifies
+        that the function returns without raising, and that the loop
+        terminated (no hang).
+        """
         worker = Worker(**worker_kwargs)
         worker.running = True
 
         mock_queue.get.side_effect = asyncio.CancelledError()
 
-        with pytest.raises(asyncio.CancelledError):
-            await worker._process_tasks()
+        # Should return without raising — CancelledError is caught and
+        # converted to a graceful loop exit.
+        result = await worker._process_tasks()
+        assert result is None
+        mock_queue.get.assert_called()
 
     @pytest.mark.asyncio
     async def test_process_tasks_handles_generic_exception(self, worker_kwargs: dict[str, Any], mock_queue: AsyncMock) -> None:
@@ -812,9 +843,26 @@ class TestWorkerProcessTasks:
         worker = Worker(**worker_kwargs)
         worker.running = True
 
-        mock_queue.get.side_effect = ValueError("Queue error")
+        # ``_process_tasks`` only exits when ``worker.running`` is False.
+        # We flip the flag from a side_effect that fires the moment
+        # the loop tries to grab the (non-existent) task. Using a
+        # side_effect (rather than a separate ``asyncio.create_task``)
+        # avoids the event-loop yield timing problem where a parallel
+        # stopper task never gets to run.
+        call_count = 0
 
-        # Should not raise, but should log exception
+        def fail_then_stop(*args: Any, **kwargs: Any) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First iteration: exercise the failure path.
+                raise ValueError("Queue error")
+            # Subsequent iterations: stop the loop.
+            worker.running = False
+            return None
+
+        mock_queue.get.side_effect = fail_then_stop
+
         with patch("session_buddy.worker.logger") as mock_logger:
             await worker._process_tasks()
             mock_logger.exception.assert_called()
@@ -829,7 +877,20 @@ class TestWorkerProcessTasks:
         worker.running = True
         worker.health_check_failures = 2  # Will become 3
 
-        mock_queue.get.side_effect = ValueError("Queue error")
+        # Use a side_effect that flips ``running`` after a few failures
+        # so the test exercises the unhealthy-after-3 path without
+        # hanging the loop forever.
+        call_count = 0
+
+        def fail_then_stop(*args: Any, **kwargs: Any) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 3:
+                raise ValueError("Queue error")
+            worker.running = False
+            return None
+
+        mock_queue.get.side_effect = fail_then_stop
 
         with patch("session_buddy.worker.logger"):
             await worker._process_tasks()
@@ -842,7 +903,20 @@ class TestWorkerProcessTasks:
         worker = Worker(**worker_kwargs)
         worker.running = True
         task = Task(task_id=sample_task_id, prompt=sample_prompt)
-        mock_queue.get.return_value = task
+        # Return the task once, then flip ``running`` so the loop exits.
+        # Returning the same task forever would cause the loop to
+        # re-execute it indefinitely.
+        call_count = 0
+
+        def get_task_or_stop(*args: Any, **kwargs: Any) -> Any:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return task
+            worker.running = False
+            return task
+
+        mock_queue.get.side_effect = get_task_or_stop
 
         await worker._process_tasks()
 
@@ -929,10 +1003,19 @@ class TestWorkerHealthCheck:
         worker.running = True
         worker.health_check_failures = 0
 
-        with patch.object(worker._health_lock, "__aenter__", new_callable=AsyncMock) as mock_enter:
-            with patch.object(worker._health_lock, "__aexit__", new_callable=AsyncMock):
-                await worker.health_check()
-                mock_enter.assert_called_once()
+        # Replace the lock with a fully-mocked async context manager so we
+        # can verify the health_check() actually enters it. Patching
+        # ``__aenter__``/``__aexit__`` on an ``asyncio.Lock`` instance does
+        # not work because the C-level slot is bound and bypasses
+        # instance attribute lookups — the original lock would still be
+        # used. So we swap the whole attribute for an AsyncMock that
+        # supports ``async with`` semantics.
+        mock_lock = AsyncMock()
+        mock_lock.__aenter__ = AsyncMock(return_value=None)
+        mock_lock.__aexit__ = AsyncMock(return_value=None)
+        with patch.object(worker, "_health_lock", mock_lock):
+            await worker.health_check()
+            mock_lock.__aenter__.assert_called_once()
 
 
 class TestWorkerGetStatus:
