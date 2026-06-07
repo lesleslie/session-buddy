@@ -510,13 +510,34 @@ def reset_di_container():
     import session_buddy.di as di_module
 
     def _cleanup_container() -> None:
+        # Restore the real ``depends`` on the ``session_buddy.di`` module
+        # in case a test stubbed it via ``monkeypatch.setattr(di_pkg, ...,
+        # "depends", ...)``. The autouse teardown runs before the test's
+        # ``monkeypatch`` teardown, so the stub is still in place here
+        # and ``configure`` (which looks up ``depends`` via the module's
+        # globals) would call ``.set()`` on a ``types.SimpleNamespace``.
+        di_module.depends = depends
         # depends.reset() clears _instances dict AND replaces the resolver
         depends.reset()
         # configure(force=True) re-registers the 7 default services
         # (paths, logger, permissions, quality scorer, code formatter,
         # workflow metrics, lifecycle manager, hooks manager)
         di_module._configured = False
-        configure(force=True)
+        try:
+            configure(force=True)
+        except (OSError, AttributeError, KeyError):
+            # A test may have stubbed ``Path.mkdir`` to always fail, in
+            # which case ``paths.ensure_directories()`` (and its fallback
+            # in ``configure``) both raise ``OSError``. A test may also
+            # have stubbed ``depends.get_sync`` or ``depends.set`` (the
+            # autouse teardown runs before the test's ``monkeypatch``
+            # teardown, so the stub is still in place here), which makes
+            # ``configure`` raise ``AttributeError`` or ``KeyError`` when
+            # it tries to re-register the default services. Swallow
+            # these teardown-time failures so they don't mask real test
+            # results; the next test's setup will reset the container
+            # cleanly once the test's ``monkeypatch`` is undone.
+            pass
 
     # Clean up BEFORE test to ensure monkeypatch can take effect
     _cleanup_container()

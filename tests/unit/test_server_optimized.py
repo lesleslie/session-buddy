@@ -10,6 +10,7 @@ Tests cover:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -885,6 +886,13 @@ class TestSessionLifecycleContextManager:
 
         async with so.session_lifecycle(mock_app):
             pass
+
+        # Drain fire-and-forget background tasks so _delayed_session_init runs
+        # before we assert. Mirrors the pattern in test_channel_tracking_tools.
+        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+
         assert mock_manager.initialize_session.called
 
     async def test_handles_init_failure_gracefully(

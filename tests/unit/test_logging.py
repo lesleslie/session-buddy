@@ -121,6 +121,11 @@ def test_resolve_logs_dir_falls_back_to_temp_on_permission_error(
     fake_home = Path("/nonexistent/home")
     original_mkdir = Path.mkdir
 
+    monkeypatch.setattr(
+        logging_module.depends,
+        "get_sync",
+        lambda _typ: SimpleNamespace(other_dir=fake_home / "other"),
+    )
     monkeypatch.setattr(logging_module.Path, "home", lambda: fake_home)
     monkeypatch.setattr(
         logging_module.Path,

@@ -285,7 +285,7 @@ class TestSecurityValidation:
             "test$(id)",  # Command substitution
             "a" * 100,  # Too long
             "..parent",  # Parent directory reference
-            "release-1.0.0",  # Dots not allowed in current regex
+            "main..parent",  # Path-traversal style name (two consecutive dots)
         ]
         for branch in unsafe_branches:
             assert worktree_manager._is_safe_branch_name(branch) is False, f"Should reject: {branch}"

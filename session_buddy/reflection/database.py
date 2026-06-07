@@ -205,7 +205,9 @@ class ReflectionDatabase:
                         self.db_path, config={"allow_unsigned_extensions": True}
                     )
                 except Exception as retry_exc:
-                    msg = f"Database connection error (directory/permission): {retry_exc}"
+                    msg = (
+                        f"Database connection error (directory/permission): {retry_exc}"
+                    )
                     raise RuntimeError(msg) from retry_exc
             else:
                 msg = f"Database connection error (directory/permission): {e}"
@@ -663,13 +665,22 @@ class ReflectionDatabase:
     def close(self) -> None:
         """Close database connection (synchronous).
 
+        Safe to call on a partially-initialized instance (e.g. when
+        ``__init__`` raised before ``self.local`` was set, or before
+        ``__aenter__``/``initialize`` opened a connection). Called by
+        ``__del__`` during garbage collection, so it must not assume
+        any specific state.
+
         Example:
             >>> db.close()
         """
-        if hasattr(self.local, "conn") and self.local.conn is not None:
+        local = getattr(self, "local", None)
+        if local is None:
+            return
+        if hasattr(local, "conn") and local.conn is not None:
             with suppress(Exception):
-                self.local.conn.close()
-            self.local.conn = None
+                local.conn.close()
+            local.conn = None
 
     async def aclose(self) -> None:
         """Async close database connection.
