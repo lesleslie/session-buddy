@@ -380,6 +380,91 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop]:
 
 
 @pytest.fixture(autouse=True)
+def isolated_test_db_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Redirect all default DuckDB paths to a per-test tmp directory.
+
+    Several test files instantiate adapters without an explicit ``db_path``:
+        ReflectionDatabaseAdapter(), KnowledgeGraphDatabaseAdapter(), and
+    code paths that go through ``get_settings().database_path``. Without
+    isolation, every test would race on the shared
+    ``~/.claude/data/reflection.duckdb`` and the first DuckDB single-writer
+    file lock would cascade ``IO Error: Could not set lock on file`` through
+    the rest of the batch (27+ tests fail in ``test_reflection_adapter.py``
+    when run alongside other test files).
+
+    This fixture redirects **both** the chokepoints:
+
+    1. ``SessionMgmtSettings._settings`` — the module-level singleton cached
+       in :mod:`session_buddy.settings` (line 810). Resetting the singleton
+       forces the next :func:`get_settings` call to reload from disk; we
+       then inject a fresh instance with our isolated ``data_dir`` /
+       ``database_path`` / ``log_dir``.
+
+    2. ``_resolve_data_dir`` in :mod:`session_buddy.adapters.settings` —
+       called by every ``*AdapterSettings.from_settings()`` classmethod to
+       resolve where the per-adapter DuckDB file lives. We replace it with
+       a function that returns our isolated data dir so the adapter-side
+       path resolution also lands in tmp.
+
+    The tmp dir is scoped to a single test (via ``tmp_path``), so DuckDB
+    file locks are released as soon as the test closes its adapter. No
+    tests that explicitly pass ``db_path=...`` are affected.
+    """
+    test_data_dir = tmp_path / "session-buddy-data"
+    test_data_dir.mkdir(exist_ok=True)
+    test_log_dir = tmp_path / "session-buddy-logs"
+    test_log_dir.mkdir(exist_ok=True)
+    test_db_path = test_data_dir / "reflection.duckdb"
+
+    # (1) Replace the cached SessionMgmtSettings singleton. We import the
+    # real class here so the patched instance is the same class the
+    # production code uses (preserves isinstance checks). The 3-arg form
+    # of monkeypatch.setattr is REQUIRED here: the dotted-string form
+    # (``"session_buddy.settings._settings"``) is broken because
+    # ``session_buddy`` uses ``__getattr__`` lazy-loading and the string
+    # import resolves to ``setattr("session_buddy", "settings._settings", ...)``
+    # which is not what we want.
+    import session_buddy.settings as _settings_module
+    from session_buddy.settings import SessionMgmtSettings
+
+    # Build a real settings instance pointing at our isolated dirs.
+    # We use the production load() so any environment-var overrides
+    # are honored, then mutate the three path fields.
+    real_settings = SessionMgmtSettings.load("session-buddy")
+    real_settings.data_dir = test_data_dir
+    real_settings.log_dir = test_log_dir
+    real_settings.database_path = test_db_path
+    monkeypatch.setattr(_settings_module, "_settings", real_settings)
+
+    # (2) Redirect _resolve_data_dir so adapter-level path resolution
+    # (ReflectionAdapterSettings.from_settings, etc.) also lands in tmp.
+    from session_buddy.adapters import settings as _adapter_settings_module
+
+    def _isolated_resolve_data_dir() -> Path:
+        return test_data_dir
+
+    monkeypatch.setattr(
+        _adapter_settings_module, "_resolve_data_dir", _isolated_resolve_data_dir
+    )
+
+    # Belt-and-suspenders: reset the DI module's configured flag so any
+    # cached singletons (ReflectionDatabase etc.) re-resolve their paths
+    # against the new settings.
+    try:
+        import session_buddy.di as _di_module
+
+        _di_module._configured = False
+    except Exception:
+        pass
+
+    yield
+
+    # No explicit teardown needed — monkeypatch restores both bindings
+    # automatically when the test ends, and tmp_path cleanup removes
+    # the directory.
+
+
+@pytest.fixture(autouse=True)
 def restore_session_buddy_modules():
     """Defend against ``sys.modules`` pollution from stub packages at test time.
 

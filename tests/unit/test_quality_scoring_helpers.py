@@ -606,7 +606,7 @@ def test_git_commit_and_version_control_fallback_branches(
             self.returncode = returncode
             self.stdout = stdout
 
-    def run_for_commits(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None):
+    def run_for_commits(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None, env=None):
         if cmd[:3] == ["git", "log", "--oneline"]:
             return Result(stdout="feat: a\nfix: b\nchore: c\ndocs: d\ntest: e\nfeat: f\nfix: g\n")
         if cmd[:2] == ["git", "log"] and "--since=" in cmd[2]:
@@ -632,7 +632,7 @@ def test_git_commit_and_version_control_fallback_branches(
         "details": {"frequency": "no recent commits", "quality": "no data"},
     }
 
-    def run_issue_tracking_basic(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None):
+    def run_issue_tracking_basic(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None, env=None):
         if cmd[:2] == ["git", "log"]:
             return Result(stdout="feat: a #1\nfix: b\nchore: c\nrefactor: d\nstyle: e\n")
         if cmd[:2] == ["git", "branch"]:
@@ -643,7 +643,7 @@ def test_git_commit_and_version_control_fallback_branches(
     assert qs._score_issue_tracking(project) == (1, {"issue_tracking": "basic (1/5 refs)"})
     assert qs._score_branch_strategy(project) == (3, {"branch_strategy": "some feature branches (2)"})
 
-    def run_issue_tracking_good(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None):
+    def run_issue_tracking_good(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None, env=None):
         if cmd[:2] == ["git", "log"]:
             return Result(stdout="feat: a #1\nfix: b #2\nchore: c #3\nrefactor: d\nstyle: e\n")
         if cmd[:2] == ["git", "branch"]:
