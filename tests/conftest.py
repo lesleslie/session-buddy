@@ -392,19 +392,20 @@ def isolated_test_db_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     the rest of the batch (27+ tests fail in ``test_reflection_adapter.py``
     when run alongside other test files).
 
-    This fixture redirects **both** the chokepoints:
+    This fixture redirects the chokepoint at
+    :data:`session_buddy.settings._settings` — the module-level singleton
+    cached in :mod:`session_buddy.settings` (line 810). We inject a fresh
+    instance with our isolated ``data_dir`` / ``database_path`` / ``log_dir``
+    so any production code that calls :func:`get_settings` (or
+    :func:`_resolve_data_dir`, which itself calls :func:`get_settings`)
+    ends up pointing at the test's tmp dir.
 
-    1. ``SessionMgmtSettings._settings`` — the module-level singleton cached
-       in :mod:`session_buddy.settings` (line 810). Resetting the singleton
-       forces the next :func:`get_settings` call to reload from disk; we
-       then inject a fresh instance with our isolated ``data_dir`` /
-       ``database_path`` / ``log_dir``.
-
-    2. ``_resolve_data_dir`` in :mod:`session_buddy.adapters.settings` —
-       called by every ``*AdapterSettings.from_settings()`` classmethod to
-       resolve where the per-adapter DuckDB file lives. We replace it with
-       a function that returns our isolated data dir so the adapter-side
-       path resolution also lands in tmp.
+    Important: we patch the **singleton**, not ``_resolve_data_dir`` or
+    ``get_settings`` directly. This means a test that monkeypatches
+    ``get_settings`` (e.g. ``test_from_settings_builds_adapter_configs``)
+    can still flow its mock through to the adapter layer — our singleton
+    patch is layered behind :func:`get_settings` and is overridden by
+    any inner test-level monkeypatch.
 
     The tmp dir is scoped to a single test (via ``tmp_path``), so DuckDB
     file locks are released as soon as the test closes its adapter. No
@@ -416,14 +417,14 @@ def isolated_test_db_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     test_log_dir.mkdir(exist_ok=True)
     test_db_path = test_data_dir / "reflection.duckdb"
 
-    # (1) Replace the cached SessionMgmtSettings singleton. We import the
-    # real class here so the patched instance is the same class the
-    # production code uses (preserves isinstance checks). The 3-arg form
-    # of monkeypatch.setattr is REQUIRED here: the dotted-string form
-    # (``"session_buddy.settings._settings"``) is broken because
+    # Replace the cached SessionMgmtSettings singleton. We import the
+    # real module/class here so the patched instance is the same class
+    # the production code uses (preserves isinstance checks). The 3-arg
+    # form of monkeypatch.setattr is REQUIRED here: the dotted-string
+    # form (``"session_buddy.settings._settings"``) is broken because
     # ``session_buddy`` uses ``__getattr__`` lazy-loading and the string
-    # import resolves to ``setattr("session_buddy", "settings._settings", ...)``
-    # which is not what we want.
+    # import resolves to ``setattr("session_buddy", "settings._settings",
+    # ...)`` which is not what we want.
     import session_buddy.settings as _settings_module
     from session_buddy.settings import SessionMgmtSettings
 
@@ -435,17 +436,6 @@ def isolated_test_db_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     real_settings.log_dir = test_log_dir
     real_settings.database_path = test_db_path
     monkeypatch.setattr(_settings_module, "_settings", real_settings)
-
-    # (2) Redirect _resolve_data_dir so adapter-level path resolution
-    # (ReflectionAdapterSettings.from_settings, etc.) also lands in tmp.
-    from session_buddy.adapters import settings as _adapter_settings_module
-
-    def _isolated_resolve_data_dir() -> Path:
-        return test_data_dir
-
-    monkeypatch.setattr(
-        _adapter_settings_module, "_resolve_data_dir", _isolated_resolve_data_dir
-    )
 
     # Belt-and-suspenders: reset the DI module's configured flag so any
     # cached singletons (ReflectionDatabase etc.) re-resolve their paths
@@ -459,7 +449,7 @@ def isolated_test_db_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     yield
 
-    # No explicit teardown needed — monkeypatch restores both bindings
+    # No explicit teardown needed — monkeypatch restores the binding
     # automatically when the test ends, and tmp_path cleanup removes
     # the directory.
 
