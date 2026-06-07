@@ -145,17 +145,28 @@ class TestConfigureOtelTracing:
         monkeypatch.setattr(telemetry, "OTLPHTTPSpanExporter", MockHTTPSpanExporter)
         monkeypatch.setattr(telemetry, "BatchSpanProcessor", MockBatchSpanProcessor)
 
-        with patch.object(telemetry.trace, "set_tracer_provider"):
-            result = telemetry.configure_otel_tracing(
-                service_name="test-service",
-                environment="test",
-                service_namespace="test-ns",
-                endpoint="http://localhost:4317",
-                protocol="http",
-            )
+        # ``telemetry.trace`` may be ``None`` when the OTel import failed
+        # at module-load time (the production module guards with a
+        # try/except and assigns ``trace = None`` on failure). Replace
+        # it with a Mock so the production code can call
+        # ``trace.set_tracer_provider(...)`` without raising
+        # ``AttributeError: NoneType has no attribute 'set_tracer_provider'``.
+        mock_trace = MagicMock()
+        monkeypatch.setattr(telemetry, "trace", mock_trace)
+
+        result = telemetry.configure_otel_tracing(
+            service_name="test-service",
+            environment="test",
+            service_namespace="test-ns",
+            endpoint="http://localhost:4317",
+            protocol="http",
+        )
 
         assert result is True
         assert telemetry._TRACING_CONFIGURED is True
+        # ``set_tracer_provider`` should have been called once with the
+        # provider produced by ``TracerProvider(resource)``.
+        mock_trace.set_tracer_provider.assert_called_once()
 
 
 class TestShutdownOtelTracing:

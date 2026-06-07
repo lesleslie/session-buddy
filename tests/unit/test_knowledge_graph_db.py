@@ -28,14 +28,20 @@ class TestKnowledgeGraphDatabaseInit:
     - __init__ with custom path
     """
 
-    def test_init_default_path(self) -> None:
-        """Should initialize with default database path."""
+    def test_init_default_path(self, tmp_path: Any) -> None:
+        """Should initialize with default database path.
+
+        After the isolated_test_db_path fixture (tests/conftest.py:382)
+        monkeypatches SessionMgmtSettings._settings to point at a per-test
+        tmp dir, the resolved default path lands under
+        ``<tmp_path>/session-buddy-data/knowledge_graph.duckdb``.
+        """
         from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
 
         kg = KnowledgeGraphDatabase()
 
         assert kg.db_path.endswith("knowledge_graph.duckdb")
-        assert "~/.claude/data" in kg.db_path or ".claude/data" in kg.db_path
+        assert str(tmp_path) in kg.db_path
         assert kg.conn is None
         assert kg._duckpgq_installed is False
 

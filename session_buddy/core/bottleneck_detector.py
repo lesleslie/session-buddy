@@ -126,17 +126,26 @@ class BottleneckDetector:
 
     def __init__(
         self,
-        db_path: str = "~/.claude/data/workflow_metrics.db",
+        db_path: str | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         """Initialize bottleneck detector.
 
         Args:
-            db_path: Path to workflow metrics database
+            db_path: Path to workflow metrics database. When None, resolves
+                to ``get_settings().database_path.parent / "workflow_metrics.db"``
+                so test fixtures that monkeypatch SessionMgmtSettings._settings
+                will redirect this path.
             logger: Optional logger instance
         """
         import os
 
+        if db_path is None:
+            # Lazy import to avoid circular dependency with session_buddy.settings
+            from session_buddy.settings import get_settings
+
+            settings_db_path = get_settings().database_path
+            db_path = str(settings_db_path.parent / "workflow_metrics.db")
         self.db_path = os.path.expanduser(db_path)
         self.logger = logger or logging.getLogger(__name__)
         self._conn: Any = None

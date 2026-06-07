@@ -127,17 +127,26 @@ class MemoryHealthAnalyzer:
 
     def __init__(
         self,
-        db_path: str = "~/.claude/data/memory",
+        db_path: str | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         """Initialize memory health analyzer.
 
         Args:
-            db_path: Path to memory database directory
+            db_path: Path to memory database directory. When None, resolves
+                to ``get_settings().database_path.parent / "memory"`` so test
+                fixtures that monkeypatch SessionMgmtSettings._settings will
+                redirect this path.
             logger: Optional logger instance
         """
         import os
 
+        if db_path is None:
+            # Lazy import to avoid circular dependency with session_buddy.settings
+            from session_buddy.settings import get_settings
+
+            settings_db_path = get_settings().database_path
+            db_path = str(settings_db_path.parent / "memory")
         self.db_path = os.path.expanduser(db_path)
         self.logger = logger or logging.getLogger(__name__)
         self._conn: Any = None

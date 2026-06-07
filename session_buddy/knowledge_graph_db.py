@@ -61,12 +61,21 @@ class KnowledgeGraphDatabase:
 
         Args:
             db_path: Path to DuckDB database file.
-                    Defaults to ~/.claude/data/knowledge_graph.duckdb
+                    Defaults to KnowledgeGraphAdapterSettings.from_settings().database_path
+                    (resolved via get_settings(), so test fixtures that monkeypatch
+                    SessionMgmtSettings._settings will redirect this path).
 
         """
-        self.db_path = db_path or os.path.expanduser(
-            "~/.claude/data/knowledge_graph.duckdb",
-        )
+        if db_path is None:
+            # Lazy import to avoid circular dependency with session_buddy.settings
+            from session_buddy.adapters.settings import (
+                KnowledgeGraphAdapterSettings,
+            )
+
+            db_path = str(
+                KnowledgeGraphAdapterSettings.from_settings().database_path,
+            )
+        self.db_path = db_path
         try:
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         except OSError:
