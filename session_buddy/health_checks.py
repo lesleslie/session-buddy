@@ -107,13 +107,22 @@ async def check_database_health() -> ComponentHealth:
         latency_ms = (time.perf_counter() - start_time) * 1000
 
         # Check if database is responsive
+        # get_stats() returns BOTH "conversations_count" and
+        # "total_conversations" (same value); the documented primary key
+        # (see reflection/database.py:704) is "conversations_count".
+        conv_count = int(stats.get("conversations_count", 0) or 0)
+        refl_count = int(stats.get("reflections_count", 0) or 0)
         if latency_ms > 500:  # >500ms is concerning
             return ComponentHealth(
                 name="database",
                 status=HealthStatus.DEGRADED,
                 message=f"High database latency: {latency_ms:.1f}ms",
                 latency_ms=latency_ms,
-                metadata={"conversations": stats.get("conversations_count", 0)},
+                metadata={
+                    "conversations": conv_count,
+                    "reflections": refl_count,
+                    "database_path": getattr(db, "db_path", None),
+                },
             )
 
         return ComponentHealth(
@@ -121,7 +130,11 @@ async def check_database_health() -> ComponentHealth:
             status=HealthStatus.HEALTHY,
             message="Database operational",
             latency_ms=latency_ms,
-            metadata={"conversations": stats.get("conversations_count", 0)},
+            metadata={
+                "conversations": conv_count,
+                "reflections": refl_count,
+                "database_path": getattr(db, "db_path", None),
+            },
         )
 
     except Exception as e:
@@ -223,12 +236,50 @@ def _module_available(name: str) -> bool:
         return name in sys.modules
 
 
-def _is_safe_url(url: str) -> bool:
-    """Return True if the URL's host is safe (not a private/internal address).
+def _is_loopback_host(host: str) -> bool:
+    """Return True if *host* is a loopback address (IPv4 127.0.0.0/8 or IPv6 ::1)."""
+    import ipaddress
 
-    SSRF defense: block loopback (127.0.0.0/8, ::1), RFC1918 private, and
-    link-local (169.254.x.x) IPs. Env vars are operator-controlled, but this
-    guards against accidental misconfiguration or substitution from untrusted sources.
+    with suppress(ValueError):
+        addr = ipaddress.ip_address(host)
+        return addr.is_loopback
+    return host.lower() == "localhost"
+
+
+def _private_network_allowed() -> bool:
+    """Return True if RFC1918 private network provider URLs should be allowed.
+
+    Opt-in via ``SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS=1`` (also accepts
+    ``true``/``yes``/``on``). Off by default — the only loopback exception is
+    unconditional (see ``_is_loopback_host``).
+    """
+    return os.environ.get(
+        "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", ""
+    ).lower() in {"1", "true", "yes", "on"}
+
+
+def _is_safe_url(url: str) -> bool:
+    """Return True if the URL's host is safe to probe.
+
+    SSRF defense policy (matches the defaults of MAHAVISHNU__OLLAMA_URL and
+    MAHAVISHNU__LLAMA_SERVER_URL, which both point at loopback):
+
+    * ``localhost`` / ``127.0.0.0/8`` / ``::1`` — ALWAYS allowed. Loopback
+      cannot reach an external attacker, and the two provider URLs default
+      to loopback, so unconditionally blocking it masks the doctor signal
+      operators actually need (is the service running? slow? timing out?).
+    * RFC1918 private (``10/8``, ``172.16/12``, ``192.168/16``) — blocked
+      unless ``SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS=1`` is set.
+      This guards against an operator accidentally pointing the env var at
+      an internal service on another host.
+    * Link-local (``169.254/16``, IPv6 ``fe80::/10``) — ALWAYS blocked. This
+      range includes cloud metadata endpoints (e.g. ``169.254.169.254`` on
+      AWS/GCP/Azure) which is the canonical SSRF target.
+    * Anything else (public IPs, hostnames that resolve to public IPs) — allowed.
+
+    Env vars are operator-controlled, not user-controlled, so loopback trust
+    is the correct default. The opt-in flag exists for the case where the
+    operator *deliberately* points a provider URL at a private network.
     """
     import ipaddress
     import socket
@@ -236,18 +287,46 @@ def _is_safe_url(url: str) -> bool:
     try:
         parsed = httpx.URL(url)
         host = parsed.host or ""
-        with suppress(ValueError):
-            addr = ipaddress.ip_address(host)
-            return not (addr.is_loopback or addr.is_private or addr.is_link_local)
-        for family, _, _, _, sockaddr in socket.getaddrinfo(host, None):
-            resolved_ip = sockaddr[0]
-            with suppress(ValueError):
-                addr = ipaddress.ip_address(resolved_ip)
-                if addr.is_loopback or addr.is_private or addr.is_link_local:
-                    return False
-        return True
     except Exception:
         return False
+
+    # Fast path: loopback is always safe (operator's own machine).
+    if _is_loopback_host(host):
+        return True
+
+    # Resolve hostname (or use the literal IP) and classify.
+    addr: ipaddress.IPv4Address | ipaddress.IPv6Address | None = None
+    with suppress(ValueError):
+        addr = ipaddress.ip_address(host)
+
+    if addr is not None:
+        # Link-local is always blocked (cloud metadata, etc.).
+        if addr.is_link_local:
+            return False
+        # RFC1918 private is blocked unless explicitly opted in.
+        if addr.is_private and not _is_loopback_host(host):
+            allow_private = _private_network_allowed()
+            if not allow_private:
+                return False
+        return True
+
+    # Hostname: resolve and re-evaluate.
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:
+        # If we cannot resolve, fail safe (treat as not safe).
+        return False
+
+    for _family, _type, _proto, _canon, sockaddr in infos:
+        resolved_ip = sockaddr[0]
+        with suppress(ValueError):
+            resolved_addr = ipaddress.ip_address(resolved_ip)
+            if resolved_addr.is_link_local:
+                return False
+            if resolved_addr.is_private and not resolved_addr.is_loopback:
+                if not _private_network_allowed():
+                    return False
+    return True
 
 
 def _check_crackerjack() -> tuple[list[str], list[str]]:
@@ -290,13 +369,35 @@ async def _check_provider(
     name: str,
     payload: dict[str, t.Any],
 ) -> str:
-    """Check an HTTP provider and return status string."""
+    """Check an HTTP provider and return status string.
+
+    Distinct messages so the doctor can show operators what is actually
+    wrong with their provider (running? slow? wrong port? blocked by
+    SSRF?):
+
+    * ``"{name}"`` — HTTP 200 (running and responsive)
+    * ``"{name} ({status_code})"`` — responded but rejected the request
+    * ``"{name} (timeout)"`` — service is unreachable within the timeout
+      (often: ollama is alive on the port but the model is loading)
+    * ``"{name} (connection refused)"`` — nothing is listening on the port
+    * ``"{name} (error)"`` — anything else (DNS failure, TLS error, etc.)
+    * ``"{name} (SSRF blocked — set SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS=1)"``
+      — the URL targets a private/link-local host and the operator has
+      not opted in to probing it. Loopback is always allowed.
+    """
     if not _is_safe_url(url):
         logger.warning(f"{name} URL rejected by SSRF check: {url}")
-        return f"{name} (SSRF blocked)"
+        return (
+            f"{name} (SSRF blocked — set "
+            f"SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS=1)"
+        )
     try:
         resp = await client.post(url, json=payload)
         return name if resp.status_code == 200 else f"{name} ({resp.status_code})"
+    except httpx.TimeoutException:
+        return f"{name} (timeout)"
+    except httpx.ConnectError:
+        return f"{name} (connection refused)"
     except Exception:
         return f"{name} (error)"
 

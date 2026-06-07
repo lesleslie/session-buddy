@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import builtins
 import importlib
+import os
 import sys
 import tempfile
 import time
@@ -24,11 +25,17 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
+import httpx
 import pytest
 
 from session_buddy.health_checks import (
     ComponentHealth,
     HealthStatus,
+    _check_provider,
+    _is_loopback_host,
+    _is_safe_url,
+    _ollama_health_url,
+    _private_network_allowed,
     check_database_health,
     check_dependencies_health,
     check_file_system_health,
@@ -36,7 +43,6 @@ from session_buddy.health_checks import (
     get_all_health_checks,
     get_initialized_reflection_database,
 )
-
 
 # =============================================================================
 # Test HealthStatus Enum
@@ -1375,3 +1381,375 @@ class TestHealthCheckEdgeCases:
                 HealthStatus.DEGRADED,
                 HealthStatus.UNHEALTHY,
             ]
+
+
+# =============================================================================
+# Test _is_loopback_host helper
+# =============================================================================
+
+
+class TestIsLoopbackHost:
+    """Test the _is_loopback_host helper for SSRF classification."""
+
+    @pytest.mark.parametrize(
+        "host",
+        ["localhost", "LOCALHOST", "127.0.0.1", "127.1.2.3", "127.255.255.254", "::1"],
+    )
+    def test_loopback_hosts_are_loopback(self, host: str) -> None:
+        """All loopback forms return True without needing the env opt-in."""
+        assert _is_loopback_host(host) is True
+
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "10.0.0.1",  # RFC1918 10/8 — NOT loopback
+            "172.16.0.1",  # RFC1918 172.16/12
+            "192.168.1.1",  # RFC1918 192.168/16
+            "169.254.169.254",  # Link-local / cloud metadata
+            "8.8.8.8",  # Public
+            "example.com",  # Hostname (resolves elsewhere)
+            "0.0.0.0",  # Unspecified
+        ],
+    )
+    def test_non_loopback_hosts_are_not_loopback(self, host: str) -> None:
+        """RFC1918, link-local, public, and hostnames are not loopback."""
+        assert _is_loopback_host(host) is False
+
+
+# =============================================================================
+# Test _private_network_allowed helper
+# =============================================================================
+
+
+class TestPrivateNetworkAllowed:
+    """Test the _private_network_allowed env-var helper."""
+
+    @pytest.mark.parametrize("value", ["1", "true", "True", "TRUE", "yes", "YES", "on"])
+    def test_truthy_values_allow_private_network(
+        self, value: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Truthy env values enable private network probing."""
+        monkeypatch.setenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", value
+        )
+        assert _private_network_allowed() is True
+
+    @pytest.mark.parametrize("value", ["", "0", "false", "no", "off", "nope"])
+    def test_falsy_values_block_private_network(
+        self, value: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Falsy / off values keep private network blocked."""
+        if value:
+            monkeypatch.setenv(
+                "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", value
+            )
+        else:
+            monkeypatch.delenv(
+                "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+            )
+        assert _private_network_allowed() is False
+
+    def test_unset_env_var_blocks_private_network(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Default (env var unset) blocks private network probing."""
+        monkeypatch.delenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+        )
+        assert _private_network_allowed() is False
+
+
+# =============================================================================
+# Test _is_safe_url — SSRF policy
+# =============================================================================
+
+
+class TestIsSafeUrl:
+    """Test _is_safe_url SSRF classification against operator-controlled URLs."""
+
+    # ---- loopback is always allowed (matches the default MAHAVISHNU__*_URLs) ----
+
+    def test_localhost_url_is_safe(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The literal default URL from MAHAVISHNU__OLLAMA_URL must be safe."""
+        monkeypatch.delenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+        )
+        assert _is_safe_url("http://localhost:11434/api/embed") is True
+
+    def test_localhost_with_no_env_var_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Loopback is allowed even with no opt-in env var set."""
+        monkeypatch.delenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+        )
+        assert _is_safe_url("http://localhost:8080/v1/embeddings") is True
+
+    def test_loopback_ipv4_is_safe(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """All 127.0.0.0/8 are unconditionally allowed."""
+        monkeypatch.delenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+        )
+        for ip in ("127.0.0.1", "127.1.2.3", "127.255.255.254"):
+            assert _is_safe_url(f"http://{ip}:8080/v1/embeddings") is True
+
+    def test_loopback_ipv6_is_safe(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """IPv6 ::1 is unconditionally allowed."""
+        monkeypatch.delenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+        )
+        assert _is_safe_url("http://[::1]:11434/api/embed") is True
+
+    def test_loopback_safe_with_explicit_env_var(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Setting SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS=1 does not
+        change loopback behaviour (it stays allowed).
+        """
+        monkeypatch.setenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", "1"
+        )
+        assert _is_safe_url("http://localhost:11434/api/embed") is True
+
+    # ---- private RFC1918: blocked by default, allowed with opt-in ----
+
+    def test_rfc1918_10_dot_blocked_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """10.0.0.0/8 is blocked unless the operator opts in."""
+        monkeypatch.delenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+        )
+        assert _is_safe_url("http://10.0.0.5:11434/api/embed") is False
+
+    def test_rfc1918_192_168_blocked_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """192.168.0.0/16 is blocked unless the operator opts in."""
+        monkeypatch.delenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+        )
+        assert _is_safe_url("http://192.168.1.10:8080/v1/embeddings") is False
+
+    def test_rfc1918_172_16_blocked_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """172.16.0.0/12 is blocked unless the operator opts in."""
+        monkeypatch.delenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+        )
+        assert _is_safe_url("http://172.16.0.1:8080/v1/embeddings") is False
+
+    def test_rfc1918_allowed_when_env_var_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Setting SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS=1 unblocks
+        RFC1918 — the operator has explicitly accepted the risk.
+        """
+        monkeypatch.setenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", "1"
+        )
+        assert _is_safe_url("http://10.0.0.5:11434/api/embed") is True
+        assert _is_safe_url("http://192.168.1.10:8080/v1/embeddings") is True
+        assert _is_safe_url("http://172.16.0.1:8080/v1/embeddings") is True
+
+    def test_rfc1918_still_blocked_when_env_var_set_to_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Explicit "0" must keep RFC1918 blocked (only truthy values opt in)."""
+        monkeypatch.setenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", "0"
+        )
+        assert _is_safe_url("http://10.0.0.5:11434/api/embed") is False
+
+    # ---- link-local is always blocked (cloud-metadata SSRF target) ----
+
+    def test_link_local_169_254_always_blocked(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The AWS/GCP/Azure metadata endpoint 169.254.169.254 is ALWAYS
+        blocked, even with the private-network opt-in.
+        """
+        monkeypatch.setenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", "1"
+        )
+        assert _is_safe_url("http://169.254.169.254/latest/meta-data/") is False
+
+    def test_link_local_blocked_without_env_var(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Link-local is blocked even when the opt-in flag is absent."""
+        monkeypatch.delenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+        )
+        assert _is_safe_url("http://169.254.10.20/") is False
+
+    # ---- public hosts are allowed ----
+
+    def test_public_ip_is_safe(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Public IPs are not the SSRF concern this guard exists for."""
+        monkeypatch.delenv(
+            "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
+        )
+        assert _is_safe_url("http://8.8.8.8:80/health") is True
+
+    # ---- garbage inputs ----
+
+    def test_unparseable_url_is_not_safe(self) -> None:
+        """A URL that httpx cannot parse is rejected (fail-closed)."""
+        assert _is_safe_url("not a url at all") is False
+        assert _is_safe_url("") is False
+
+
+# =============================================================================
+# Test _check_provider distinct status messages
+# =============================================================================
+
+
+class TestCheckProviderMessages:
+    """Test that _check_provider emits distinct, actionable messages.
+
+    The whole point of the SSRF fix is to make the doctor tell the operator
+    *what* is wrong (running? slow? wrong port? blocked?) instead of
+    always saying "SSRF blocked".
+    """
+
+    @pytest.mark.asyncio
+    async def test_ssrf_blocked_message_names_the_env_var(self) -> None:
+        """When the SSRF check blocks a private-network URL, the returned
+        status string must name the env var that would unblock it.
+        """
+        client = MagicMock()
+        client.post = AsyncMock()
+
+        with patch.dict(
+            os.environ,
+            {
+                "MAHAVISHNU__OLLAMA_URL": "http://10.0.0.5:11434",
+                # ALLOW_PRIVATE unset — must block
+            },
+            clear=False,
+        ):
+            # Clear the opt-in if anything in the ambient env set it.
+            os.environ.pop("SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", None)
+            result = await _check_provider(
+                client,
+                _ollama_health_url(),
+                "ollama",
+                {"model": "nomic-embed-text", "input": ["health-check"]},
+            )
+        assert "SSRF blocked" in result
+        assert "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS" in result
+        assert "ollama" in result
+
+    @pytest.mark.asyncio
+    async def test_loopback_passes_ssrf_check_and_attempts_connection(
+        self,
+    ) -> None:
+        """When the URL is loopback the SSRF check passes, and the real
+        connection attempt runs. A refused connection is reported as
+        "connection refused", NOT "SSRF blocked".
+        """
+        client = MagicMock()
+        client.post = AsyncMock(
+            side_effect=httpx.ConnectError("Connection refused")
+        )
+
+        result = await _check_provider(
+            client,
+            "http://localhost:11434/api/embed",
+            "ollama",
+            {"model": "nomic-embed-text", "input": ["health-check"]},
+        )
+        assert "ollama" in result
+        assert "SSRF blocked" not in result
+        assert "connection refused" in result
+
+    @pytest.mark.asyncio
+    async def test_loopback_timeout_reported_as_timeout(self) -> None:
+        """A timeout against a loopback URL is reported as 'timeout', so
+        operators can tell ollama is alive on the port but the embed
+        endpoint is slow (often: model is still loading).
+        """
+        client = MagicMock()
+        client.post = AsyncMock(side_effect=httpx.TimeoutException("read timed out"))
+
+        result = await _check_provider(
+            client,
+            "http://localhost:11434/api/embed",
+            "ollama",
+            {"model": "nomic-embed-text", "input": ["health-check"]},
+        )
+        assert "ollama" in result
+        assert "SSRF blocked" not in result
+        assert "timeout" in result
+
+    @pytest.mark.asyncio
+    async def test_loopback_http_200_reports_just_the_name(self) -> None:
+        """A successful HTTP 200 against a loopback URL is reported as
+        just the provider name (e.g. 'ollama'), with no parenthetical.
+        """
+        client = MagicMock()
+        response = MagicMock()
+        response.status_code = 200
+        client.post = AsyncMock(return_value=response)
+
+        result = await _check_provider(
+            client,
+            "http://localhost:11434/api/embed",
+            "ollama",
+            {"model": "nomic-embed-text", "input": ["health-check"]},
+        )
+        assert result == "ollama"
+
+    @pytest.mark.asyncio
+    async def test_loopback_non_200_reports_status_code(self) -> None:
+        """A non-200 response against a loopback URL is reported as
+        'name (status_code)' so operators can see the model-not-found,
+        auth, etc. signals.
+        """
+        client = MagicMock()
+        response = MagicMock()
+        response.status_code = 404
+        client.post = AsyncMock(return_value=response)
+
+        result = await _check_provider(
+            client,
+            "http://localhost:11434/api/embed",
+            "ollama",
+            {"model": "nomic-embed-text", "input": ["health-check"]},
+        )
+        assert result == "ollama (404)"
+
+    @pytest.mark.asyncio
+    async def test_loopback_url_no_longer_logs_ssrf_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Regression guard: the 'URL rejected by SSRF check' warning must
+        not fire for loopback URLs — that's the bug this PR fixes.
+        """
+        client = MagicMock()
+        response = MagicMock()
+        response.status_code = 200
+        client.post = AsyncMock(return_value=response)
+
+        with caplog.at_level("WARNING"):
+            await _check_provider(
+                client,
+                "http://localhost:11434/api/embed",
+                "ollama",
+                {"model": "nomic-embed-text", "input": ["health-check"]},
+            )
+        assert not any(
+            "rejected by SSRF check" in record.message
+            for record in caplog.records
+        )
+

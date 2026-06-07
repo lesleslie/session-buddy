@@ -53,15 +53,14 @@ class FeatureDetector:
     def _check_reflection_tools() -> bool:
         """Check if reflection tools are available."""
         try:
-            import session_buddy.reflection_tools
-
-            _ = (
-                session_buddy.reflection_tools
-            )  # Use the import to avoid unused import warning
-            return True
-        except (ImportError, AttributeError):
-            # See note in _check_session_management: AttributeError can
-            # be raised by the package's `__getattr__` for unknown names.
+            return (
+                importlib.util.find_spec("session_buddy.reflection_tools") is not None
+            )
+        except (ImportError, ValueError):
+            # `ImportError` is the documented failure for missing
+            # modules. `ValueError` can be raised when a module is
+            # present in `sys.modules` but lacks a valid `__spec__`
+            # (e.g. a stubbed module in tests).
             return False
 
     @staticmethod
