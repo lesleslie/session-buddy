@@ -119,10 +119,17 @@ class WorktreeManager:
         """Security: Validate branch name is safe for shell execution."""
         import re
 
-        # Allow alphanumeric, dashes, underscores, slashes (for remote branches)
-        # Using pattern directly to avoid ValidatedPattern complexity
-        pattern = re.compile(r"^[a-zA-Z0-9_/-]+$")  # REGEX OK: validated safe pattern
-        return bool(pattern.match(branch)) and len(branch) < 100
+        # Allow alphanumeric, dashes, underscores, slashes (for remote
+        # branches) and dots (for semver-style names like release-1.0.0).
+        # Using pattern directly to avoid ValidatedPattern complexity.
+        pattern = re.compile(r"^[a-zA-Z0-9_/.-]+$")  # REGEX OK: validated safe pattern
+        if not pattern.match(branch) or len(branch) >= 100:
+            return False
+        # Reject ``..`` to prevent path-traversal style names like
+        # ``main..parent``.
+        if ".." in branch:
+            return False
+        return True
 
     def _is_safe_path(self, path: Path) -> bool:
         """Security: Validate path is safe and reasonable."""
