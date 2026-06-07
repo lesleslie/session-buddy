@@ -871,6 +871,14 @@ class TestSessionLifecycleContextManager:
         monkeypatch.setattr(so, "is_git_repository", lambda _: True)
         monkeypatch.setattr(so, "get_git_root", lambda _: mock_current_dir)
 
+        # Dhara registration is a fire-and-forget task that retries forever
+        # when the Dhara server is unreachable; the gather() below would
+        # never return. Stub it to a no-op coroutine.
+        async def _noop_register(_mcp_url: str) -> None:
+            return None
+
+        monkeypatch.setattr(so, "_register_component_to_dhara", _noop_register)
+
         # Mock lifecycle manager
         mock_manager = MagicMock()
         mock_manager.initialize_session = AsyncMock(
@@ -881,6 +889,11 @@ class TestSessionLifecycleContextManager:
                 "previous_session": None,
                 "quality_data": {"recommendations": []},
             }
+        )
+        # session_lifecycle also awaits end_session() on teardown for git
+        # repos; if it stays a plain MagicMock the await hangs forever.
+        mock_manager.end_session = AsyncMock(
+            return_value={"success": True, "message": "ended"}
         )
         monkeypatch.setattr(so, "lifecycle_manager", mock_manager)
 

@@ -8,38 +8,91 @@ from unittest.mock import MagicMock
 
 import pytest
 
-_UTILS_PACKAGE = types.ModuleType("session_buddy.utils")
-_UTILS_PACKAGE.__path__ = []  # type: ignore[attr-defined]
-sys.modules.setdefault("session_buddy.utils", _UTILS_PACKAGE)
 
-_ERROR_MGMT = types.ModuleType("session_buddy.utils.error_management")
+@pytest.fixture(scope="module", autouse=True)
+def _isolated_stubs() -> None:
+    """Install and tear down lightweight stub modules for database_tools.
+
+    Previously these stubs were installed at module import time, which
+    permanently replaced ``session_buddy.utils.error_management`` in
+    ``sys.modules`` and broke every test that imported
+    ``ValidationError`` from the real module (e.g. ``test_memory_tools``,
+    ``test_mcp/test_memory_tools``). Scoping the stub setup to this
+    module keeps ``database_tools`` testable in isolation while
+    leaving the real package available to the rest of the suite.
+    """
+    saved = {
+        name: sys.modules.get(name)
+        for name in (
+            "session_buddy.utils",
+            "session_buddy.utils.error_management",
+            "session_buddy.utils.instance_managers",
+            "session_buddy.utils.database_tools",
+        )
+    }
+
+    utils_package = types.ModuleType("session_buddy.utils")
+    utils_package.__path__ = []  # type: ignore[attr-defined]
+    sys.modules["session_buddy.utils"] = utils_package
+
+    error_mgmt = types.ModuleType("session_buddy.utils.error_management")
+
+    class _DatabaseUnavailableError(Exception):
+        pass
+
+    error_mgmt.DatabaseUnavailableError = _DatabaseUnavailableError
+    error_mgmt._get_logger = lambda: MagicMock()
+    sys.modules["session_buddy.utils.error_management"] = error_mgmt
+
+    instance_managers = types.ModuleType("session_buddy.utils.instance_managers")
+    instance_managers.get_reflection_database = lambda: None
+    sys.modules["session_buddy.utils.instance_managers"] = instance_managers
+
+    module_path = (
+        Path(__file__).resolve().parents[2]
+        / "session_buddy"
+        / "utils"
+        / "database_tools.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "session_buddy.utils.database_tools", module_path
+    )
+    assert spec is not None and spec.loader is not None
+    db_tools_module = importlib.util.module_from_spec(spec)
+    sys.modules["session_buddy.utils.database_tools"] = db_tools_module
+    spec.loader.exec_module(db_tools_module)
+
+    # Re-export the functions under the test module's namespace.
+    current = sys.modules[__name__]
+    current.database_tools = db_tools_module
+    current.batch_database_operation = db_tools_module.batch_database_operation
+    current.check_database_available = db_tools_module.check_database_available
+    current.get_database_stats = db_tools_module.get_database_stats
+    current.require_reflection_database = db_tools_module.require_reflection_database
+    current.safe_database_operation = db_tools_module.safe_database_operation
+    current.safe_database_operation_with_message = (
+        db_tools_module.safe_database_operation_with_message
+    )
+    current.DatabaseUnavailableError = _DatabaseUnavailableError
+
+    try:
+        yield
+    finally:
+        for name, original in saved.items():
+            if original is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = original
 
 
-class DatabaseUnavailableError(Exception):
-    pass
-
-
-_ERROR_MGMT.DatabaseUnavailableError = DatabaseUnavailableError
-_ERROR_MGMT._get_logger = lambda: MagicMock()
-sys.modules.setdefault("session_buddy.utils.error_management", _ERROR_MGMT)
-
-_INSTANCE_MANAGERS = types.ModuleType("session_buddy.utils.instance_managers")
-_INSTANCE_MANAGERS.get_reflection_database = lambda: None
-sys.modules.setdefault("session_buddy.utils.instance_managers", _INSTANCE_MANAGERS)
-
-_MODULE_PATH = Path(__file__).resolve().parents[2] / "session_buddy" / "utils" / "database_tools.py"
-_SPEC = importlib.util.spec_from_file_location("session_buddy.utils.database_tools", _MODULE_PATH)
-assert _SPEC is not None and _SPEC.loader is not None
-database_tools = importlib.util.module_from_spec(_SPEC)
-sys.modules.setdefault("session_buddy.utils.database_tools", database_tools)
-_SPEC.loader.exec_module(database_tools)
-
-batch_database_operation = database_tools.batch_database_operation
-check_database_available = database_tools.check_database_available
-get_database_stats = database_tools.get_database_stats
-require_reflection_database = database_tools.require_reflection_database
-safe_database_operation = database_tools.safe_database_operation
-safe_database_operation_with_message = database_tools.safe_database_operation_with_message
+batch_database_operation: object
+check_database_available: object
+get_database_stats: object
+require_reflection_database: object
+safe_database_operation: object
+safe_database_operation_with_message: object
+database_tools: object  # populated by the autouse fixture above
+DatabaseUnavailableError: object  # populated by the autouse fixture above
 
 
 @pytest.mark.asyncio

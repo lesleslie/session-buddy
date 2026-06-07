@@ -192,9 +192,17 @@ class TestMemoryToolHelpers:
 
     def test_check_reflection_tools_unavailable(self):
         """Test checking when reflection tools are not available."""
+        # The function caches its result in a module-level global; the
+        # earlier test in this class (or any other test in the session)
+        # may have populated the cache with a truthy value, which would
+        # mask the patched find_spec. Reset the cache so the patch is
+        # actually consulted.
+        from session_buddy.mcp.tools.memory import memory_tools
+
         with patch("importlib.util.find_spec", return_value=None):
-            result = _check_reflection_tools_available()
-            assert result is False
+            with patch.object(memory_tools, "_reflection_tools_available", None):
+                result = _check_reflection_tools_available()
+        assert result is False
 
 
 @pytest.mark.asyncio
