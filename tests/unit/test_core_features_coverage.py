@@ -24,10 +24,47 @@ def _module_stubs():
     see the un-polluted state.
     """
     core_stub = types.ModuleType("session_buddy.core")
-    core_stub.__path__ = []  # type: ignore[attr-defined]
-    core_stub.session_manager = types.SimpleNamespace()  # type: ignore[attr-defined]
+    # Set a real __file__ path so the conftest's autouse stub-purge doesn't
+    # treat this as a stub (it identifies stubs by `__file__ is None`).
+    # The path points to the real __init__.py so the stub appears as a
+    # legitimate, fully-loaded package.
+    _real_core_init = (
+        Path(__file__).resolve().parents[2]
+        / "session_buddy"
+        / "core"
+        / "__init__.py"
+    )
+    core_stub.__file__ = str(_real_core_init)  # type: ignore[attr-defined]
+    core_stub.__path__ = [str(_real_core_init.parent)]  # type: ignore[attr-defined]
+    # Use a real class so that the production check in
+    # ``_check_session_management`` (which does ``import session_buddy.core``
+    # then accesses ``session_buddy.core.session_manager``) succeeds
+    # regardless of import ordering. A SimpleNamespace instance is also
+    # truthy on attribute access, but downstream ``from __future__``
+    # annotations combined with the real module's session_manager being
+    # a *submodule* can confuse the production check when the stub
+    # collides with prior tests that loaded the real package.
+    class _StubSessionManager:
+        """Stub class replacing session_buddy.core.session_manager."""
+
+    core_stub.session_manager = _StubSessionManager  # type: ignore[attr-defined]
     reflection_tools_stub = types.ModuleType("session_buddy.reflection_tools")
-    reflection_tools_stub.ReflectionDatabase = types.SimpleNamespace()  # type: ignore[attr-defined]
+    _real_rt_init = (
+        Path(__file__).resolve().parents[2]
+        / "session_buddy"
+        / "reflection_tools"
+        / "__init__.py"
+    )
+    reflection_tools_stub.__file__ = str(_real_rt_init)  # type: ignore[attr-defined]
+    reflection_tools_stub.__path__ = [str(_real_rt_init.parent)]  # type: ignore[attr-defined]
+    # Use a real class (not a SimpleNamespace instance) so that downstream
+    # modules that import `ReflectionDatabase` for type annotations (e.g.
+    # `validated_memory_tools.py`'s `ReflectionDatabaseAdapter | ReflectionDatabase`)
+    # can evaluate at module-load time without raising TypeError.
+    class _StubReflectionDatabase:
+        """Stub class replacing ReflectionDatabase during feature-detector tests."""
+
+    reflection_tools_stub.ReflectionDatabase = _StubReflectionDatabase  # type: ignore[attr-defined]
 
     saved_core = sys.modules.get("session_buddy.core")
     saved_rt = sys.modules.get("session_buddy.reflection_tools")

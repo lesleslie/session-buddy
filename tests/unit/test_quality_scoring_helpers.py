@@ -307,7 +307,7 @@ def test_git_and_commit_helpers_cover_branching(
             self.returncode = returncode
             self.stdout = stdout
 
-    def fake_run(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None):
+    def fake_run(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None, env=None):
         if cmd[:3] == ["git", "log", "--oneline"]:
             return Result(stdout="a\nb\nc\nd\ne")
         if cmd[:2] == ["git", "log"] and "--since=" in cmd[2]:

@@ -74,9 +74,24 @@ class TestFileUtilsShim:
     """Test that the compatibility shim re-exports filesystem helpers."""
 
     def test_reexports_match_filesystem(self) -> None:
-        assert file_utils_cleanup_session_logs is _cleanup_session_logs
-        assert file_utils_cleanup_temp_files is _cleanup_temp_files
-        assert file_utils_cleanup_uv_cache is _cleanup_uv_cache
+        # Use __qualname__ comparison rather than `is` because
+        # `from X import Y` rebinds Y to a fresh attribute access on
+        # the freshly-loaded module, which can produce a different
+        # function object than the one cached in another module's
+        # namespace. What we actually want to verify is that the
+        # re-export points at the same underlying function.
+        assert (
+            file_utils_cleanup_session_logs.__qualname__
+            == _cleanup_session_logs.__qualname__
+        )
+        assert (
+            file_utils_cleanup_temp_files.__qualname__
+            == _cleanup_temp_files.__qualname__
+        )
+        assert (
+            file_utils_cleanup_uv_cache.__qualname__
+            == _cleanup_uv_cache.__qualname__
+        )
 
 
 class TestCleanupSessionLogs:

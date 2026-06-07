@@ -173,12 +173,44 @@ def pytest_pycollect_makemodule(module_path, parent):
             continue
         module_file = getattr(module, "__file__", None)
         module_path_attr = getattr(module, "__path__", None)
+        # Use length-based check for __path__ to avoid the KeyError that
+        # _NamespacePath.__eq__ can raise on namespace packages.
+        is_empty_path = False
+        if module_path_attr is not None:
+            try:
+                is_empty_path = len(module_path_attr) == 0
+            except (TypeError, KeyError):
+                is_empty_path = False
         is_stub = module_file is None and (
-            not module_path_attr or module_path_attr == []
+            module_path_attr is None or is_empty_path
         )
         is_orphan = module_file is None and module_path_attr is None
         if is_stub or is_orphan:
-            del sys.modules[name]
+            # Use pop() rather than del to be safe against a parallel
+            # fixture teardown that may have already removed the entry
+            # from sys.modules while we iterate.
+            sys.modules.pop(name, None)
+        # Also catch synthetic packages installed via
+        # ``types.ModuleType(name); module.__path__ = [str(real_path)]``
+        # (no ``__file__`` but with a real ``__path__``). These look
+        # like legitimate packages to the heuristic above but are in
+        # fact stubs. The trigger: ``__file__`` is None AND the
+        # module is not a sub-module of a real package.
+        elif module_file is None and not name.endswith(".conftest"):
+            sys.modules.pop(name, None)
+
+    # Defensive: re-import session_buddy.core from disk if it's missing
+    # or is a stub (no __file__). This handles module-level stubs like
+    # those installed by ``test_mcp_quality_scorer.py``'s
+    # ``_ensure_package`` call, which leave ``session_buddy.core`` as a
+    # fake module with ``__path__`` set but no real attributes.
+    core = sys.modules.get("session_buddy.core")
+    if core is None or getattr(core, "__file__", None) is None:
+        sys.modules.pop("session_buddy.core", None)
+        try:
+            import session_buddy.core  # noqa: F401
+        except ImportError:
+            pass
 
     _re_attach_runtime_snapshots_submodule()
 

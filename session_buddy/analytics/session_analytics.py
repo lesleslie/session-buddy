@@ -946,6 +946,26 @@ def create_session_summary_report(
     # Top components
     lines.extend(["TOP COMPONENTS (by session count):", ""])
 
+    # Populate the top components section from the components list. Sort by
+    # session_count desc so the highest-volume components surface first.
+    if components:
+        for component in sorted(
+            components, key=lambda c: c.session_count, reverse=True
+        ):
+            lines.append(
+                f"  • {component.component_name}: {component.session_count} sessions, "
+                f"avg quality {component.avg_quality_score:.1f}"
+            )
+        lines.append("")
+    elif stats:
+        # Fall back to stats when components list is empty.
+        for s in sorted(stats, key=lambda s: s.total_sessions, reverse=True):
+            lines.append(
+                f"  • {s.component_name}: {s.total_sessions} sessions, "
+                f"avg duration {s.avg_duration:.0f}s"
+            )
+        lines.append("")
+
     # Components with high error rates
     high_error = [
         (name, data)

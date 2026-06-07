@@ -526,6 +526,7 @@ async def deduplicate_content(
     threshold: float = 0.85,
     dry_run: bool = True,
     collection_name: str = "default",
+    db_path: str | None = None,
 ) -> dict[str, t.Any]:
     """Remove duplicate content from the database.
 

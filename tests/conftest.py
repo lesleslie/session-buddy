@@ -394,7 +394,25 @@ def restore_session_buddy_modules():
     """
     _purge_session_buddy_stubs()
     yield
+    # After the test, restore the canonical real `session_buddy.core` from
+    # disk in case a stub from ``test_mcp_quality_scorer.py``'s
+    # module-level ``_ensure_package`` (or a test that loaded a stubbed
+    # module) left an unsync'd state behind. Force-reimporting here
+    # ensures downstream tests see a real package.
     _purge_session_buddy_stubs()
+    # Re-import session_buddy.core from disk if it's missing or was stubbed.
+    core = sys.modules.get("session_buddy.core")
+    needs_reimport = (
+        core is None
+        or getattr(core, "__file__", None) is None
+        or not hasattr(core, "SessionLifecycleManager")
+    )
+    if needs_reimport:
+        sys.modules.pop("session_buddy.core", None)
+        try:
+            import session_buddy.core  # noqa: F401
+        except ImportError:
+            pass
 
 
 @pytest.fixture(autouse=True)
@@ -1037,12 +1055,37 @@ def _purge_session_buddy_stubs() -> None:
             continue
         module_file = getattr(module, "__file__", None)
         module_path = getattr(module, "__path__", None)
+        # Use length-based checks for __path__ rather than `==` because
+        # namespace packages (those without __init__.py) produce a
+        # _NamespacePath object whose __eq__ can raise KeyError during
+        # comparison. Safe to wrap in try/except as a defensive guard.
+        is_empty_path = False
+        if module_path is not None:
+            try:
+                is_empty_path = len(module_path) == 0
+            except (TypeError, KeyError):
+                is_empty_path = False
         is_stub = module_file is None and (
-            not module_path or module_path == []
+            module_path is None or is_empty_path
         )
         is_orphan = module_file is None and module_path is None
         if is_stub or is_orphan:
-            del sys.modules[name]
+            # Use pop() rather than del to be safe against a parallel
+            # fixture teardown (e.g. the _module_stubs fixture in
+            # test_core_features_coverage.py) that may have already
+            # removed the entry from sys.modules while we iterate.
+            sys.modules.pop(name, None)
+        # Also catch synthetic packages installed via
+        # ``types.ModuleType(name); module.__path__ = [str(real_path)]``
+        # (no ``__file__`` but with a real ``__path__``). These look
+        # like legitimate packages to the heuristic above but are in
+        # fact stubs. The trigger: ``__file__`` is None AND the
+        # module is not a sub-module of a real package (which always
+        # has ``__file__`` set when loaded from disk).
+        elif module_file is None and not name.endswith(".conftest"):
+            # Synthetic package stub: drop it so the next importer
+            # re-reads the real on-disk package.
+            sys.modules.pop(name, None)
 
 
 def pytest_pycollect_makemodule(module_path, parent):
@@ -1057,6 +1100,51 @@ def pytest_pycollect_makemodule(module_path, parent):
     collected file is wiped before the new import begins.
     """
     _purge_session_buddy_stubs()
+    # Defensive: re-import session_buddy.core from disk if it's missing
+    # or is a stub (no __file__). This handles module-level stubs like
+    # those installed by ``test_mcp_quality_scorer.py``'s
+    # ``_ensure_package`` call, which leave ``session_buddy.core`` as a
+    # fake module with ``__path__`` set but no real attributes.
+    core = sys.modules.get("session_buddy.core")
+    if core is None or getattr(core, "__file__", None) is None:
+        sys.modules.pop("session_buddy.core", None)
+        try:
+            import session_buddy.core  # noqa: F401
+        except ImportError:
+            pass
+    # Also force re-import for any session_buddy.* subpackage whose
+    # __file__ is None. These are stubs that snuck past the purge
+    # because they had a real __path__ set.
+    for name in list(sys.modules):
+        if not name.startswith("session_buddy."):
+            continue
+        mod = sys.modules.get(name)
+        if mod is None or getattr(mod, "__file__", None) is None:
+            sys.modules.pop(name, None)
+    # And finally re-import everything session_buddy.* in a fresh state
+    # by walking the known on-disk packages. This is a hard reset.
+    _REIMPORT_TARGETS = (
+        "session_buddy",
+        "session_buddy.core",
+        "session_buddy.adapters",
+        "session_buddy.reflection",
+        "session_buddy.utils",
+        "session_buddy.mcp",
+        "session_buddy.analytics",
+        "session_buddy.tools",
+    )
+    for target in _REIMPORT_TARGETS:
+        if target not in sys.modules:
+            continue
+        mod = sys.modules[target]
+        # If the module's __file__ is None or doesn't point to disk,
+        # it's a stub and needs to be re-imported.
+        if getattr(mod, "__file__", None) is None:
+            sys.modules.pop(target, None)
+            try:
+                __import__(target)
+            except ImportError:
+                pass
 
 
 def pytest_collection_finish(session):

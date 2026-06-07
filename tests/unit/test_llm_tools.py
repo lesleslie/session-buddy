@@ -815,10 +815,15 @@ class TestAddModelList:
 
         _add_model_list(output, models)
 
-        assert "model-1" in output
-        assert "model-5" in output
-        assert "model-6" not in output
-        assert "... and 1 more" in output
+        # The output formatter prefixes each model name with a bullet and
+        # padding (e.g. "  • model-1"), so check for the formatted
+        # representation rather than the raw model name. Use any() to
+        # check substring presence across the list of formatted strings.
+        joined = "\n".join(output)
+        assert "model-1" in joined
+        assert "model-5" in joined
+        assert "model-6" not in joined
+        assert any("... and 1 more" in line for line in output)
 
     def test_no_overflow_when_five_or_fewer_models(self):
         """Test no overflow message when 5 or fewer models."""
