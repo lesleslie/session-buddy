@@ -504,8 +504,10 @@ class TestReadCoverageDotfile:
             patch("session_buddy.utils.quality_scoring.CRACKERJACK_AVAILABLE", False),
             patch("coverage.Coverage", return_value=mock_cov),
         ):
-            metrics = asyncio.get_event_loop().run_until_complete(
-                _get_crackerjack_metrics(tmp_path)
-            )
+            # Use asyncio.run() rather than get_event_loop() to get a
+            # fresh event loop. The previous pattern (get_event_loop) was
+            # deprecated and returned a closed loop when this test ran
+            # after pytest-asyncio tests, causing intermittent failures.
+            metrics = asyncio.run(_get_crackerjack_metrics(tmp_path))
 
         assert metrics.get("code_coverage") == 55.0

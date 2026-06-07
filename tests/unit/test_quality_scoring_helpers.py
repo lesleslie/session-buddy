@@ -653,7 +653,7 @@ def test_git_commit_and_version_control_fallback_branches(
     monkeypatch.setattr(qs.subprocess, "run", run_issue_tracking_good)
     assert qs._score_issue_tracking(project) == (5, {"issue_tracking": "excellent (3/5 refs)"})
 
-    def run_issue_tracking_good_ratio(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None):
+    def run_issue_tracking_good_ratio(cmd, check=False, cwd=None, capture_output=False, text=False, timeout=None, env=None):
         if cmd[:2] == ["git", "log"]:
             return Result(stdout="feat: a #1\nfix: b #2\nchore: c\nrefactor: d\nstyle: e\n")
         if cmd[:2] == ["git", "branch"]:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import tempfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -46,9 +46,9 @@ def sample_checkpoint_data() -> dict[str, Any]:
         "git_commits": 5,
         "checkpoint_history": {
             "checkpoints": [
-                {"id": "cp1", "timestamp": "2026-05-25T10:00:00Z"},
-                {"id": "cp2", "timestamp": "2026-05-25T10:30:00Z"},
-                {"id": "cp3", "timestamp": "2026-05-25T11:00:00Z"},
+                {"id": "cp1", "timestamp": "2026-06-06T10:00:00Z"},
+                {"id": "cp2", "timestamp": "2026-06-06T10:30:00Z"},
+                {"id": "cp3", "timestamp": "2026-06-06T11:00:00Z"},
             ]
         },
         "tool_usage": [
@@ -72,8 +72,8 @@ def sample_session_metrics() -> SessionMetrics:
     return SessionMetrics(
         session_id="test-session-123",
         project_path="/Users/test/project",
-        started_at=datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC),
-        ended_at=datetime(2026, 5, 25, 11, 30, 0, tzinfo=UTC),
+        started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0),
+        ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=11, minute=30, second=0, microsecond=0),
         duration_minutes=150.0,
         checkpoint_count=3,
         commit_count=5,
@@ -100,8 +100,8 @@ class TestSessionMetrics:
         metrics = SessionMetrics(
             session_id="sess-1",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0),
             duration_minutes=120.0,
             checkpoint_count=4,
             commit_count=3,
@@ -154,8 +154,8 @@ class TestSessionMetrics:
 
     def test_session_metrics_to_dict(self):
         """Test SessionMetrics to_dict conversion."""
-        started = datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC)
-        ended = datetime(2026, 5, 25, 12, 0, 0, tzinfo=UTC)
+        started = (datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+        ended = (datetime.now(UTC) - timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)
 
         metrics = SessionMetrics(
             session_id="sess-1",
@@ -195,7 +195,7 @@ class TestSessionMetrics:
 
     def test_session_metrics_to_dict_with_none_ended_at(self):
         """Test to_dict when ended_at is None."""
-        started = datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC)
+        started = (datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
 
         metrics = SessionMetrics(
             session_id="sess-active",
@@ -300,8 +300,8 @@ class TestWorkflowMetricsStore:
         session1 = SessionMetrics(
             session_id="sess-1",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0),
             duration_minutes=60.0,
             checkpoint_count=2,
             commit_count=3,
@@ -318,8 +318,8 @@ class TestWorkflowMetricsStore:
         session2 = SessionMetrics(
             session_id="sess-2",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 14, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 15, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=14, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=15, minute=0, second=0, microsecond=0),
             duration_minutes=60.0,
             checkpoint_count=1,
             commit_count=2,
@@ -355,8 +355,8 @@ class TestWorkflowMetricsStore:
         session1 = SessionMetrics(
             session_id="sess-proj1",
             project_path="/project/one",
-            started_at=datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0),
             duration_minutes=60.0,
             checkpoint_count=1,
             commit_count=1,
@@ -373,8 +373,8 @@ class TestWorkflowMetricsStore:
         session2 = SessionMetrics(
             session_id="sess-proj2",
             project_path="/project/two",
-            started_at=datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 11, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=11, minute=0, second=0, microsecond=0),
             duration_minutes=60.0,
             checkpoint_count=2,
             commit_count=2,
@@ -408,8 +408,8 @@ class TestWorkflowMetricsStore:
             session = SessionMetrics(
                 session_id=f"sess-{i}",
                 project_path="/test/project",
-                started_at=datetime(2026, 5, 25, 9 + i, 0, 0, tzinfo=UTC),
-                ended_at=datetime(2026, 5, 25, 10 + i, 0, 0, tzinfo=UTC),
+                started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9 + i, minute=0, second=0, microsecond=0),
+                ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10 + i, minute=0, second=0, microsecond=0),
                 duration_minutes=60.0,
                 checkpoint_count=1,
                 commit_count=1,
@@ -438,8 +438,8 @@ class TestWorkflowMetricsStore:
             session = SessionMetrics(
                 session_id=f"sess-{i}",
                 project_path="/test/project",
-                started_at=datetime(2026, 5, 25, 9 + i, 0, 0, tzinfo=UTC),
-                ended_at=datetime(2026, 5, 25, 10 + i, 0, 0, tzinfo=UTC),
+                started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9 + i, minute=0, second=0, microsecond=0),
+                ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10 + i, minute=0, second=0, microsecond=0),
                 duration_minutes=60.0,
                 checkpoint_count=1,
                 commit_count=1,
@@ -468,8 +468,8 @@ class TestWorkflowMetricsStore:
             session = SessionMetrics(
                 session_id=f"sess-{i}",
                 project_path="/test/project",
-                started_at=datetime(2026, 5, 25, 9 + i, 0, 0, tzinfo=UTC),
-                ended_at=datetime(2026, 5, 25, 10 + i, 0, 0, tzinfo=UTC),
+                started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9 + i, minute=0, second=0, microsecond=0),
+                ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10 + i, minute=0, second=0, microsecond=0),
                 duration_minutes=60.0,
                 checkpoint_count=1,
                 commit_count=1,
@@ -497,8 +497,8 @@ class TestWorkflowMetricsStore:
         morning_session = SessionMetrics(
             session_id="sess-morning",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 11, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=11, minute=0, second=0, microsecond=0),
             duration_minutes=120.0,
             checkpoint_count=5,
             commit_count=10,
@@ -516,8 +516,8 @@ class TestWorkflowMetricsStore:
         evening_session = SessionMetrics(
             session_id="sess-evening",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 19, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 20, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=19, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=20, minute=0, second=0, microsecond=0),
             duration_minutes=60.0,
             checkpoint_count=1,
             commit_count=1,
@@ -546,8 +546,8 @@ class TestWorkflowMetricsStore:
         session1 = SessionMetrics(
             session_id="sess-1",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0),
             duration_minutes=60.0,
             checkpoint_count=1,
             commit_count=1,
@@ -564,8 +564,8 @@ class TestWorkflowMetricsStore:
         session2 = SessionMetrics(
             session_id="sess-2",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 11, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=11, minute=0, second=0, microsecond=0),
             duration_minutes=60.0,
             checkpoint_count=1,
             commit_count=1,
@@ -626,7 +626,7 @@ class TestWorkflowMetricsEngine:
         store = WorkflowMetricsStore(db_path=temp_db_path)
         engine = WorkflowMetricsEngine(store=store)
 
-        started_at = datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC)
+        started_at = (datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
 
         metrics = await engine.collect_session_metrics(
             session_id="collect-test-1",
@@ -657,7 +657,7 @@ class TestWorkflowMetricsEngine:
         store = WorkflowMetricsStore(db_path=temp_db_path)
         engine = WorkflowMetricsEngine(store=store)
 
-        started_at = datetime(2026, 5, 25, 22, 0, 0, tzinfo=UTC)  # night
+        started_at = (datetime.now(UTC) - timedelta(days=1)).replace(hour=22, minute=0, second=0, microsecond=0)  # night
 
         metrics = await engine.collect_session_metrics(
             session_id="empty-checkpoint",
@@ -777,8 +777,8 @@ class TestWorkflowMetricsEngine:
         session = SessionMetrics(
             session_id="metrics-test-1",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0),
             duration_minutes=60.0,
             checkpoint_count=2,
             commit_count=3,
@@ -836,8 +836,8 @@ class TestWorkflowMetrics:
             total_files_modified=150,
             avg_velocity_commits_per_hour=2.5,
             active_projects=["/project/one", "/project/two"],
-            period_start=datetime(2026, 5, 1, 0, 0, 0, tzinfo=UTC),
-            period_end=datetime(2026, 5, 25, 23, 59, 59, tzinfo=UTC),
+            period_start=(datetime.now(UTC) - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0),
+            period_end=(datetime.now(UTC) - timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=0),
         )
 
         assert metrics.total_sessions == 10
@@ -866,8 +866,8 @@ class TestWorkflowMetrics:
             total_files_modified=50,
             avg_velocity_commits_per_hour=3.0,
             active_projects=["/project/a"],
-            period_start=datetime(2026, 5, 1, 0, 0, 0, tzinfo=UTC),
-            period_end=datetime(2026, 5, 25, 23, 59, 59, tzinfo=UTC),
+            period_start=(datetime.now(UTC) - timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0),
+            period_end=(datetime.now(UTC) - timedelta(days=1)).replace(hour=23, minute=59, second=59, microsecond=0),
         )
 
         result = metrics.to_dict()
@@ -921,8 +921,8 @@ class TestVelocityCalculation:
         session = SessionMetrics(
             session_id="velocity-1",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0),
             duration_minutes=60.0,
             checkpoint_count=2,
             commit_count=6,
@@ -953,8 +953,8 @@ class TestVelocityCalculation:
         session = SessionMetrics(
             session_id="velocity-short",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 9, 15, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=15, second=0, microsecond=0),
             duration_minutes=15.0,
             checkpoint_count=1,
             commit_count=1,
@@ -992,8 +992,8 @@ class TestQualityTrendAnalysis:
         session = SessionMetrics(
             session_id="single-sess",
             project_path="/test/project",
-            started_at=datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC),
-            ended_at=datetime(2026, 5, 25, 10, 0, 0, tzinfo=UTC),
+            started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0),
+            ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0),
             duration_minutes=60.0,
             checkpoint_count=1,
             commit_count=1,
@@ -1025,8 +1025,8 @@ class TestQualityTrendAnalysis:
             session = SessionMetrics(
                 session_id=f"boundary-{i}",
                 project_path="/test/project",
-                started_at=datetime(2026, 5, 25, i, 0, 0, tzinfo=UTC),
-                ended_at=datetime(2026, 5, 25, i + 1, 0, 0, tzinfo=UTC),
+                started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=i, minute=0, second=0, microsecond=0),
+                ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=i + 1, minute=0, second=0, microsecond=0),
                 duration_minutes=60.0,
                 checkpoint_count=1,
                 commit_count=1,
@@ -1056,8 +1056,8 @@ class TestQualityTrendAnalysis:
             session = SessionMetrics(
                 session_id=f"decline-{i}",
                 project_path="/test/project",
-                started_at=datetime(2026, 5, 25, i, 0, 0, tzinfo=UTC),
-                ended_at=datetime(2026, 5, 25, i + 1, 0, 0, tzinfo=UTC),
+                started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=i, minute=0, second=0, microsecond=0),
+                ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=i + 1, minute=0, second=0, microsecond=0),
                 duration_minutes=60.0,
                 checkpoint_count=1,
                 commit_count=1,
@@ -1095,7 +1095,7 @@ class TestWorkflowMetricsIntegration:
         await engine.initialize()
 
         # Collect metrics from checkpoint data
-        started_at = datetime(2026, 5, 25, 9, 0, 0, tzinfo=UTC)
+        started_at = (datetime.now(UTC) - timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
         metrics = await engine.collect_session_metrics(
             session_id="integration-1",
             project_path="/test/project",
@@ -1139,8 +1139,8 @@ class TestWorkflowMetricsIntegration:
             session = SessionMetrics(
                 session_id=sess["id"],
                 project_path="/test/project",
-                started_at=datetime(2026, 5, 25, sess["hour"], 0, 0, tzinfo=UTC),
-                ended_at=datetime(2026, 5, 25, sess["hour"] + 1, 0, 0, tzinfo=UTC),
+                started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=sess["hour"], minute=0, second=0, microsecond=0),
+                ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=sess["hour"] + 1, minute=0, second=0, microsecond=0),
                 duration_minutes=60.0,
                 checkpoint_count=sess["checkpoints"],
                 commit_count=sess["commits"],
