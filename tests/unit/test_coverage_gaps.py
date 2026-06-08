@@ -546,10 +546,12 @@ async def test_core_project_analysis_async_entrypoint(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from session_buddy.core.lifecycle import project_context
     from session_buddy.core.lifecycle.project_context import analyze_project_context
 
     monkeypatch.setattr(
-        "session_buddy.core.lifecycle.project_context.is_git_repository",
+        project_context,
+        "is_git_repository",
         lambda _: True,
     )
 

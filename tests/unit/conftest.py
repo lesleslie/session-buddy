@@ -215,6 +215,17 @@ def pytest_pycollect_makemodule(module_path, parent):
     _re_attach_runtime_snapshots_submodule()
 
 
+# Submodules of ``session_buddy.utils`` that the conftest must
+# re-attach as parent-package attributes before each test. Tests use
+# string-form ``monkeypatch.setattr("session_buddy.utils.X.Y", ...)``;
+# when a prior test (e.g. ``test_database_tools.py``) caused
+# ``session_buddy.utils`` to be re-imported, the freshly imported
+# package object has no ``X`` attribute and the monkeypatch call
+# raises ``AttributeError``. These helpers do the re-attach with
+# direct imports (no dynamic ``importlib.import_module``) to keep
+# static-analysis warnings at bay.
+
+
 def _re_attach_runtime_snapshots_submodule() -> None:
     """Re-attach ``runtime_snapshots`` as an attribute on the real parent.
 
@@ -233,28 +244,21 @@ def _re_attach_runtime_snapshots_submodule() -> None:
     the rest of the ``session_buddy.utils`` package) so the parent
     attribute chain is intact for the duration of the test.
     """
-    import importlib  # noqa: PLC0415
-    import sys
-
-    if "session_buddy" not in sys.modules:
-        try:
-            importlib.import_module("session_buddy")
-        except Exception:
-            return
+    import sys  # noqa: PLC0415
 
     utils_pkg = sys.modules.get("session_buddy.utils")
     if utils_pkg is None:
         try:
-            importlib.import_module("session_buddy.utils")
-            utils_pkg = sys.modules.get("session_buddy.utils")
+            import session_buddy.utils  # noqa: PLC0415, F401
         except Exception:
             return
+        utils_pkg = sys.modules.get("session_buddy.utils")
 
     if utils_pkg is None or hasattr(utils_pkg, "runtime_snapshots"):
         return
 
     try:
-        importlib.import_module("session_buddy.utils.runtime_snapshots")
+        import session_buddy.utils.runtime_snapshots  # noqa: PLC0415, F401
     except Exception:
         return
 
@@ -263,15 +267,59 @@ def _re_attach_runtime_snapshots_submodule() -> None:
         utils_pkg.runtime_snapshots = rt_snapshots  # type: ignore[attr-defined]
 
 
+def _re_attach_git_worktrees_submodule() -> None:
+    """Re-attach ``git_worktrees`` as an attribute on ``session_buddy.utils``.
+
+    Tests in :mod:`tests.unit.test_git_operations` use string-form
+    ``monkeypatch.setattr("session_buddy.utils.git_worktrees.X", ...)`` to
+    patch subprocess calls. When a prior test (notably
+    ``test_database_tools.py``'s module-scoped ``_isolated_stubs`` fixture)
+    caused ``session_buddy.utils`` to be re-imported, the freshly
+    imported package object has no ``git_worktrees`` attribute and the
+    monkeypatch call raises
+    ``AttributeError: module 'session_buddy.utils' has no attribute 'git_worktrees'``.
+
+    This function forces the import of ``git_worktrees`` so the parent
+    attribute chain is intact for the duration of the test.
+    """
+    import sys  # noqa: PLC0415
+
+    utils_pkg = sys.modules.get("session_buddy.utils")
+    if utils_pkg is None:
+        try:
+            import session_buddy.utils  # noqa: PLC0415, F401
+        except Exception:
+            return
+        utils_pkg = sys.modules.get("session_buddy.utils")
+
+    if utils_pkg is None or hasattr(utils_pkg, "git_worktrees"):
+        return
+
+    try:
+        import session_buddy.utils.git_worktrees  # noqa: PLC0415, F401
+    except Exception:
+        return
+
+    git_worktrees = sys.modules.get("session_buddy.utils.git_worktrees")
+    if git_worktrees is not None:
+        utils_pkg.git_worktrees = git_worktrees  # type: ignore[attr-defined]
+
+
 def pytest_runtest_setup(item):
-    """Re-attach ``runtime_snapshots`` parent attribute before each test.
+    """Re-attach lazy submodules as parent-package attributes before each test.
 
     Belt-and-suspenders safety net: the ``pytest_pycollect_makemodule``
     hook above runs at collection time, but Python's import machinery
     can re-execute a parent package's ``__init__.py`` between
     collection and test execution (e.g. when a conftest fixture
-    imports it). This hook fires immediately before each test, so the
-    ``session_buddy.utils.runtime_snapshots`` attribute is guaranteed
-    present on the parent package for the duration of the test.
+    imports it or a previous test reloaded the package). This hook
+    fires immediately before each test, so the lazily-imported
+    submodules below are guaranteed present on the parent package for
+    the duration of the test. Without this, string-form
+    ``monkeypatch.setattr("session_buddy.utils.X.Y", ...)`` calls in
+    tests like ``test_git_operations.py`` fail with
+    ``AttributeError: module 'session_buddy.utils' has no attribute 'X'``
+    when run after ``test_database_tools.py``.
     """
     _re_attach_runtime_snapshots_submodule()
+    _re_attach_git_worktrees_submodule()
