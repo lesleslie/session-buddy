@@ -711,6 +711,85 @@ async def _causal_chain_impl(start_id: str, max_depth: int = 3) -> str:
 
 
 # ============================================================================
+# Skill Distillation (Phase 1.5 Feature #6)
+# ============================================================================
+# The data layer is LLM-optional; the LLM path is a Conscious Agent
+# enhancement. The default ``model='heuristic'`` argument means a
+# caller can distill skills without configuring a provider.
+
+
+def _format_skill(skill: dict[str, Any]) -> str:
+    """Format a single distilled skill for the LLM-facing response."""
+    importance = float(skill.get("importance_score") or 0.0)
+    evidence = int(skill.get("evidence_count") or 0)
+    return (
+        f"### {skill.get('problem_pattern', '?')}\n"
+        f"**Approach:** {skill.get('suggested_approach', '?')}\n"
+        f"**Because:** {skill.get('because', '?')}\n"
+        f"**Importance:** {importance:.2f} | **Evidence:** {evidence} prior cases | "
+        f"**Model:** {skill.get('model', '?')}"
+    )
+
+
+def _format_skill_list(skills: list[dict[str, Any]]) -> str:
+    """Format a list of skills as a Markdown report."""
+    if not skills:
+        return "🔍 No skills distilled yet."
+    lines = [f"🧪 **{len(skills)} distilled skill(s)**\n"]
+    for i, s in enumerate(skills, 1):
+        lines.append(f"**{i}.** {_format_skill(s)}")
+    return "\n\n".join(lines)
+
+
+def _format_skill_search(results: list[dict[str, Any]]) -> str:
+    """Format a search result list as Markdown."""
+    if not results:
+        return "🔍 No matching skills found."
+    return _format_skill_list(results)
+
+
+async def _distill_skills_now_impl(
+    evidence_threshold: int = 3, model: str = "heuristic"
+) -> str:
+    """Run the skill distiller and return the freshly-distilled skills.
+
+    Phase 1.5 #6. The first 10 distilled skills are sampled for
+    human review (per the plan's quality gate). The function
+    is idempotent on the same data — a re-run produces duplicate
+    rows. The Conscious Agent is responsible for scheduling
+    cadence and dedup.
+    """
+    async def operation(db: ReflectionDatabase) -> str:
+        skills = await db.distill_skills_now(
+            evidence_threshold=evidence_threshold, model=model
+        )
+        return _format_skill_list(skills)
+
+    return await execute_simple_database_tool(
+        operation, "Distill skills"
+    )
+
+
+async def _search_distilled_skills_impl(
+    query: str = "", limit: int = 5
+) -> str:
+    """Search distilled skills by problem_pattern / approach / because.
+
+    Phase 1.5 #6. An empty ``query`` returns the top ``limit``
+    skills by ``importance_score DESC, last_reinforced_at DESC``.
+    A non-empty ``query`` does a case-insensitive substring
+    match across the three text fields.
+    """
+    async def operation(db: ReflectionDatabase) -> str:
+        results = await db.search_distilled_skills(query=query, limit=limit)
+        return _format_skill_search(results)
+
+    return await execute_simple_database_tool(
+        operation, "Search distilled skills"
+    )
+
+
+# ============================================================================
 # Database Management
 # ============================================================================
 
@@ -1206,6 +1285,37 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         pins causal inference at 0).
         """
         return await _causal_chain_impl(start_id, max_depth)
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def distill_skills_now(
+        evidence_threshold: int = 3, model: str = "heuristic"
+    ) -> str:
+        """Run the skill distiller and return freshly-distilled skills.
+
+        Phase 1.5 #6. The first 10 distilled skills are sampled
+        for human review (per the plan's quality gate). The
+        data layer is LLM-optional; the default ``model='heuristic'``
+        argument means a caller can distill skills without
+        configuring a provider.
+
+        Per the plan's LLM Cost Ceiling: 100 calls/week cap.
+        """
+        return await _distill_skills_now_impl(
+            evidence_threshold, model
+        )
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def search_distilled_skills(
+        query: str = "", limit: int = 5
+    ) -> str:
+        """Search distilled skills by problem / approach / because.
+
+        Phase 1.5 #6. An empty ``query`` returns the top ``limit``
+        skills by ``importance_score DESC, last_reinforced_at DESC``.
+        A non-empty ``query`` does a case-insensitive substring
+        match across the three text fields.
+        """
+        return await _search_distilled_skills_impl(query, limit)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:

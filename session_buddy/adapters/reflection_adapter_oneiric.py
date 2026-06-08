@@ -61,6 +61,21 @@ from session_buddy.memory.causal import (
 from session_buddy.memory.causal import (
     walk_causal_chain as _walk_causal_chain,
 )
+from session_buddy.skills.distiller import (
+    DEFAULT_EVIDENCE_THRESHOLD as _DEFAULT_EVIDENCE_THRESHOLD,
+)
+from session_buddy.skills.distiller import (
+    HEURISTIC_MODEL as _HEURISTIC_MODEL,
+)
+from session_buddy.skills.distiller import (
+    distill_skills as _distill_skills,
+)
+from session_buddy.skills.distiller import (
+    reinforce_skill as _reinforce_skill,
+)
+from session_buddy.skills.distiller import (
+    search_distilled_skills as _search_distilled_skills,
+)
 from session_buddy.memory.peer_modeling import (
     build_peer_context,
     get_peer_model,
@@ -3173,6 +3188,76 @@ class ReflectionDatabaseAdapterOneiric:
         if not self._initialized:
             await self.initialize()
         return _prune_causal_links_older_than(self.conn, days=days)
+
+    # ========================================================================
+    # Skill Distillation (Phase 1.5 Feature #6)
+    # ========================================================================
+    # A "skill" is a learnable pattern extracted from observed session
+    # activity: "for problems like X, try Y because Z worked in N prior
+    # cases." The data layer is LLM-optional; the LLM path (Conscious
+    # Agent) is an enhancement, not a dependency. Per the plan's LLM
+    # Cost Ceiling: 100 calls/week cap, $Y/week (TBD with ops).
+    #
+    # See ``session_buddy.skills.distiller`` for the heuristic.
+
+    async def distill_skills_now(
+        self,
+        *,
+        evidence_threshold: int = _DEFAULT_EVIDENCE_THRESHOLD,
+        model: str = _HEURISTIC_MODEL,
+    ) -> list[dict[str, t.Any]]:
+        """Distill skills from current session activity.
+
+        Phase 1.5 #6. The first 10 distilled skills are sampled for
+        human review (per the plan's quality gate). The function
+        is idempotent on the same data — a re-run produces
+        duplicate rows. The Conscious Agent is responsible for
+        scheduling cadence and dedup.
+
+        The importance floor (>= 0.7) is enforced by the CHECK
+        constraint; the application filter is the first line of
+        defense, the constraint is the second.
+        """
+        if not self._initialized:
+            await self.initialize()
+        return _distill_skills(
+            self.conn,
+            evidence_threshold=evidence_threshold,
+            model=model,
+        )
+
+    async def search_distilled_skills(
+        self,
+        *,
+        query: str = "",
+        limit: int = 5,
+    ) -> list[dict[str, t.Any]]:
+        """Search distilled skills by problem_pattern / approach / because.
+
+        Phase 1.5 #6. An empty ``query`` returns the top ``limit``
+        skills by ``importance_score DESC, last_reinforced_at DESC``.
+        A non-empty ``query`` does a case-insensitive substring
+        match across the three text fields.
+
+        LLM-based semantic search is a future Conscious Agent
+        enhancement; the data layer is a thin LIKE wrapper.
+        """
+        if not self._initialized:
+            await self.initialize()
+        return _search_distilled_skills(
+            self.conn, query=query, limit=limit
+        )
+
+    async def reinforce_skill(self, *, skill_id: str) -> bool:
+        """Bump ``evidence_count`` + ``last_reinforced_at`` for a skill.
+
+        Phase 1.5 #6. Returns ``True`` if the row existed and was
+        updated, ``False`` if no row matched (idempotent no-op
+        for unknown ids).
+        """
+        if not self._initialized:
+            await self.initialize()
+        return _reinforce_skill(self.conn, skill_id=skill_id)
 
 
 # Alias for backward compatibility

@@ -274,6 +274,38 @@ CREATE TABLE IF NOT EXISTS causal_links (
 CREATE INDEX IF NOT EXISTS idx_causal_from ON causal_links(from_id);
 CREATE INDEX IF NOT EXISTS idx_causal_to ON causal_links(to_id);
 CREATE INDEX IF NOT EXISTS idx_causal_last_evidence ON causal_links(last_evidence_at);
+
+-- Skill Distillation (Phase 1.5 #6).
+-- A distilled skill is a learnable pattern extracted from observed
+-- session activity. The shape is "for problems like X, try Y because
+-- Z worked in N prior cases" — three short fields plus evidence.
+--
+-- The CHECK constraint on ``importance_score >= 0.7`` is the plan's
+-- quality floor: skills below this threshold are not persisted
+-- (the distiller filters them out at the application layer). The
+-- Conscious Agent's LLM synthesis path can also rewrite
+-- ``suggested_approach`` into better prose. The data layer doesn't
+-- care which path produced the text — the ``model`` column records it.
+--
+-- ``source_memory_ids`` is a JSON array (stored as VARCHAR per the
+-- v2 ``metadata`` pattern, no native JSON column in DuckDB). Each
+-- entry is a conversation id that contributed to the distillation.
+-- This is provenance for the skill: "N prior cases" comes from this
+-- list's length.
+CREATE TABLE IF NOT EXISTS distilled_skills (
+    id TEXT PRIMARY KEY,
+    problem_pattern TEXT NOT NULL,
+    suggested_approach TEXT NOT NULL,
+    because TEXT NOT NULL,
+    evidence_count INTEGER NOT NULL DEFAULT 0,
+    source_memory_ids VARCHAR,  -- JSON array of conversation ids
+    importance_score REAL NOT NULL CHECK (importance_score >= 0.7 AND importance_score <= 1.0),
+    model TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    last_reinforced_at TIMESTAMP NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_distilled_importance ON distilled_skills(importance_score DESC);
+CREATE INDEX IF NOT EXISTS idx_distilled_last_reinforced ON distilled_skills(last_reinforced_at DESC);
 """
 
 # Migration from v1 to v2

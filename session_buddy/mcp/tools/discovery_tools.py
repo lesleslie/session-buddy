@@ -55,6 +55,8 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "peer_context": "Return peer context (representation + recent memories).",
     "update_peer_model": "Trigger a peer model update (heuristic or LLM-driven).",
     "causal_chain": "BFS-walk the causal graph from a memory id (depth-capped, cycle-safe).",
+    "distill_skills_now": "Run the skill distiller and return freshly-distilled skills.",
+    "search_distilled_skills": "Search distilled skills by problem / approach / because.",
     "search_code": "Search code patterns in reflections.",
     "search_code_patterns": "Search for code patterns with regex support.",
     "search_errors": "Search for error patterns.",
