@@ -41,8 +41,15 @@ AutoTokenizer: type | None = None  # Not needed for HTTP
 
 from session_buddy.adapters.settings import ReflectionAdapterSettings
 from session_buddy.cache.query_cache import QueryCacheManager
+from session_buddy.ingesters.redaction import (
+    ALLOWED_METADATA_KEYS,
+    RedactionSizeError,
+    redact,
+    redact_metadata,
+)
 from session_buddy.insights.models import validate_collection_name
 from session_buddy.memory.category_evolution import CategoryEvolutionEngine
+from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
 from session_buddy.utils.fingerprint import MinHashSignature
 
 logger = logging.getLogger(__name__)
@@ -204,7 +211,17 @@ class ReflectionDatabaseAdapterOneiric:
 
         All internal table references MUST use this helper to guarantee
         that the collection name was validated at __init__ time.
+
+        v2 rewire (Phase 0): the conversations and reflections suffixes now
+        resolve to the global ``conversations_v2`` / ``reflections_v2``
+        tables instead of the legacy ``{collection}_conversations`` /
+        ``{collection}_reflections`` collection-scoped tables. This keeps
+        all write/read paths pointing at the v2 schema after the rewire.
         """
+        if suffix == "conversations":
+            return "conversations_v2"
+        if suffix == "reflections":
+            return "reflections_v2"
         return f"{self.collection_name}_{suffix}"
 
     def _index(self, suffix: str) -> str:
@@ -235,6 +252,55 @@ class ReflectionDatabaseAdapterOneiric:
             )
             raise RuntimeError(msg)
         return self.conn
+
+    def _log_access(
+        self,
+        *,
+        memory_id: str | None,
+        access_type: str,
+        query_text: str | None = None,
+    ) -> None:
+        """Unconditionally write a row to ``memory_access_log``.
+
+        The Conscious Agent analysis loop reads from ``memory_access_log``
+        to decide which memories to promote. Per the rollout plan, the
+        read path MUST write to this table from day one — before the
+        background analysis loop is enabled — so the log is populated
+        the day the loop turns on.
+
+        This method is deliberately permissive:
+
+        * It never raises. An instrumentation failure must never break
+          the read path that called it.
+        * It does not consult any feature flag. The flag gates the
+          background analysis loop, not the write path.
+        * It tolerates ``memory_id=None`` (a search that hits nothing).
+
+        Args:
+            memory_id: ID of the memory being accessed, or None for
+                access events not tied to a specific memory (e.g. a
+                search that returned no hits).
+            access_type: Category of access (``search``, ``retrieve``,
+                ``promote``, ``demote``).
+            query_text: Original search string, when applicable.
+
+        """
+        try:
+            if not self._initialized:
+                # No connection yet — we cannot log. Silently drop.
+                return
+            self.conn.execute(
+                """
+                INSERT INTO memory_access_log (
+                    id, memory_id, access_type, query_text, timestamp
+                )
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                [str(uuid.uuid4()), memory_id, access_type, query_text],
+            )
+        except Exception:
+            # Instrumentation must NEVER break the read path.
+            logger.debug("memory_access_log write failed", exc_info=True)
 
     def close(self) -> None:
         """Close adapter connections (sync version for compatibility)."""
@@ -399,6 +465,14 @@ class ReflectionDatabaseAdapterOneiric:
 
     def _create_tables(self) -> None:
         """Create database tables if they don't exist."""
+        # ========================================================================
+        # v2 SCHEMA (Phase 0 v2 rewire) — Memori-inspired global tables.
+        # Runs the SCHEMA_V2_SQL constant first so the conversations_v2 /
+        # reflections_v2 tables exist with the v2 column set. The legacy
+        # CREATE TABLE IF NOT EXISTS below is then a no-op for conversations_v2.
+        # ========================================================================
+        self._create_v2_schema()
+
         # Create conversations table
         self.conn.execute(
             f"""
@@ -437,12 +511,16 @@ class ReflectionDatabaseAdapterOneiric:
             """
         )
 
-        # Create indices for faster search
+        # Create indices for faster search.
+        # v2 rewire: ``conversations_v2`` uses ``timestamp`` not
+        # ``created_at``, so we pick the column that actually exists.
+        conv_idx_col = "timestamp" if self._table("conversations") == "conversations_v2" else "created_at"
+        refl_idx_col = "timestamp" if self._table("reflections") == "reflections_v2" else "created_at"
         self.conn.execute(
-            f"CREATE INDEX IF NOT EXISTS {self._index('conv_created')} ON {self._table('conversations')}(created_at)"
+            f"CREATE INDEX IF NOT EXISTS {self._index('conv_created')} ON {self._table('conversations')}({conv_idx_col})"
         )
         self.conn.execute(
-            f"CREATE INDEX IF NOT EXISTS {self._index('refl_created')} ON {self._table('reflections')}(created_at)"
+            f"CREATE INDEX IF NOT EXISTS {self._index('refl_created')} ON {self._table('reflections')}({refl_idx_col})"
         )
 
         # ========================================================================
@@ -764,6 +842,26 @@ class ReflectionDatabaseAdapterOneiric:
         # Create HNSW indexes for fast vector similarity search (requires VSS extension)
         self._create_hnsw_indexes()
 
+    def _create_v2_schema(self) -> None:
+        """Run the v2 DDL (SCHEMA_V2_SQL) against the current connection.
+
+        Executes the multi-statement v2 SQL string. DuckDB's ``execute()`` is
+        statement-atomic but accepts multi-statement strings separated by
+        semicolons; we iterate to keep error messages readable and to
+        continue past benign ``IF NOT EXISTS``-style no-ops.
+
+        The v2 schema is global (not collection-scoped), so it is created
+        once per database file and shared by every adapter instance.
+        """
+        statements = [
+            stmt.strip() for stmt in SCHEMA_V2_SQL.split(";") if stmt.strip()
+        ]
+        for stmt in statements:
+            try:
+                self.conn.execute(stmt)
+            except Exception as e:  # noqa: BLE001 — best-effort bootstrap
+                logger.debug("v2 schema statement skipped: %s", e)
+
     def _create_hnsw_indexes(self) -> None:
         """Create HNSW indexes for fast vector similarity search.
 
@@ -1067,14 +1165,34 @@ class ReflectionDatabaseAdapterOneiric:
         metadata: dict[str, t.Any] | None = None,
         deduplicate: bool = False,
         dedup_threshold: float = 0.85,
+        *,
+        source_type: str | None = None,
+        turn_parent_id: str | None = None,
+        causal_parent_id: str | None = None,
     ) -> str:
         """Store a conversation in the database.
 
+        v2 rewire (Phase 0): writes go to ``conversations_v2`` (the global
+        Memori-style table) instead of the legacy
+        ``{collection}_conversations`` collection table. Content and
+        metadata are redacted via :mod:`session_buddy.ingesters.redaction`
+        before insertion. Provenance/lineage kwargs (``source_type``,
+        ``turn_parent_id``, ``causal_parent_id``) are persisted as their
+        own columns so transcript ingesters and Conscious-Agent write
+        paths can reconstruct the chain.
+
         Args:
             content: Conversation content
-            metadata: Optional metadata
-            deduplicate: If True, check for duplicates before storing (Phase 4)
-            dedup_threshold: Minimum Jaccard similarity to consider a duplicate (0.0 to 1.0)
+            metadata: Optional metadata (allowlist-filtered on write)
+            deduplicate: If True, check for duplicates before storing (Phase 4).
+                Note: the duplicate check is over the v2 table — pre-v2
+                duplicates are invisible.
+            dedup_threshold: Minimum Jaccard similarity (0.0 to 1.0)
+            source_type: Provenance tag (``claude_code`` | ``crackerjack``
+                | ``mahavishnu_workflow`` | ``manual`` | ``migration``).
+                Subject to the ``source_type_check`` CHECK constraint.
+            turn_parent_id: ID of the parent turn in a transcript chain.
+            causal_parent_id: ID of the parent that caused this memory.
 
         Returns:
             Conversation ID (existing ID if duplicate found and deduplicate=True)
@@ -1083,8 +1201,25 @@ class ReflectionDatabaseAdapterOneiric:
         if not self._initialized:
             await self.initialize()
 
+        # Redact content + metadata BEFORE any duplicate check or write so
+        # secrets never reach the on-disk store. The redaction module is
+        # idempotent and dependency-free.
+        try:
+            redacted_content = redact(content)
+            redacted_metadata = redact_metadata(
+                dict(metadata or {}), set(ALLOWED_METADATA_KEYS)
+            )
+        except RedactionSizeError:
+            # Re-raise with a clearer error — 64KB+ conversation content is
+            # a configuration error, not a transient one.
+            msg = (
+                "store_conversation rejected oversized payload "
+                f"(> {65536} bytes); split the content or raise MAX_REDACTION_BYTES."
+            )
+            raise ValueError(msg) from None
+
         # Generate MinHash fingerprint for duplicate detection (Phase 4)
-        fingerprint = MinHashSignature.from_text(content)
+        fingerprint = MinHashSignature.from_text(redacted_content)
 
         # Check for duplicates if deduplication is enabled
         if deduplicate:
@@ -1099,7 +1234,7 @@ class ReflectionDatabaseAdapterOneiric:
                 existing_id: str = duplicates[0]["id"]
                 return existing_id  # Return ID of most similar duplicate
 
-        conv_id = self._generate_id(content)
+        conv_id = self._generate_id(redacted_content)
         if not deduplicate:
             existing_row = self.conn.execute(
                 f"""
@@ -1113,54 +1248,78 @@ class ReflectionDatabaseAdapterOneiric:
             if existing_row:
                 conv_id = str(uuid.uuid4())
         now = datetime.now(UTC)
-        metadata_json = json.dumps(metadata)
+        metadata_json = json.dumps(redacted_metadata)
+        # Extract the project from the (redacted) metadata dict; v2 has a
+        # dedicated ``project`` column that callers expect to be filterable.
+        project_value = (
+            str(redacted_metadata["project"])
+            if isinstance(redacted_metadata.get("project"), (str, int, float))
+            else None
+        )
 
         # Generate embedding if enabled
         embedding = None
         if self.settings.enable_embeddings:
-            embedding = await self._generate_embedding(content)
+            embedding = await self._generate_embedding(redacted_content)
 
         # Convert MinHash fingerprint to bytes for storage
         fingerprint_bytes = fingerprint.to_bytes()
 
-        # Store conversation
-        if embedding:
-            self.conn.execute(
-                f"""
-                INSERT INTO {self._table("conversations")}
-                (id, content, metadata, created_at, updated_at, embedding, fingerprint)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    content = excluded.content,
-                    metadata = excluded.metadata,
-                    updated_at = excluded.updated_at,
-                    embedding = excluded.embedding,
-                    fingerprint = excluded.fingerprint
-                """,
-                [
-                    conv_id,
-                    content,
-                    metadata_json,
-                    now,
-                    now,
-                    embedding,
-                    fingerprint_bytes,
-                ],
+        # v2 rewire: write to conversations_v2 with the new column set.
+        # We keep ``fingerprint`` (DuckDB stores BLOB as BLOB) for backward
+        # compatibility with the duplicate-detection path.
+        self.conn.execute(
+            f"""
+            INSERT INTO {self._table("conversations")}
+            (
+                id, content, embedding, category, subcategory, importance_score,
+                memory_tier, project, namespace, session_id, user_id,
+                searchable_content, reasoning, metadata, source_type,
+                turn_parent_id, causal_parent_id, timestamp, fingerprint
             )
-        else:
-            self.conn.execute(
-                f"""
-                INSERT INTO {self._table("conversations")}
-                (id, content, metadata, created_at, updated_at, fingerprint)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    content = excluded.content,
-                    metadata = excluded.metadata,
-                    updated_at = excluded.updated_at,
-                    fingerprint = excluded.fingerprint
-                """,
-                [conv_id, content, metadata_json, now, now, fingerprint_bytes],
-            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                content = excluded.content,
+                embedding = excluded.embedding,
+                category = excluded.category,
+                subcategory = excluded.subcategory,
+                importance_score = excluded.importance_score,
+                memory_tier = excluded.memory_tier,
+                project = excluded.project,
+                namespace = excluded.namespace,
+                session_id = excluded.session_id,
+                user_id = excluded.user_id,
+                searchable_content = excluded.searchable_content,
+                reasoning = excluded.reasoning,
+                metadata = excluded.metadata,
+                source_type = excluded.source_type,
+                turn_parent_id = excluded.turn_parent_id,
+                causal_parent_id = excluded.causal_parent_id,
+                timestamp = excluded.timestamp,
+                fingerprint = excluded.fingerprint
+            """,
+            [
+                conv_id,
+                redacted_content,
+                embedding,
+                "context",  # default category for the rewire path
+                None,  # subcategory (None preserves current behavior)
+                0.5,  # importance_score default
+                "long_term",  # memory_tier default
+                project_value,
+                "default",  # namespace
+                None,  # session_id (not threaded through in this rewire)
+                "default",  # user_id
+                redacted_content,  # searchable_content: keep parity with v1
+                None,  # reasoning
+                metadata_json,
+                source_type,
+                turn_parent_id,
+                causal_parent_id,
+                now,
+                fingerprint_bytes,
+            ],
+        )
 
         return conv_id
 
@@ -1193,6 +1352,18 @@ class ReflectionDatabaseAdapterOneiric:
 
         if not self._initialized:
             await self.initialize()
+
+        # Phase 0c: Unconditional instrumentation. The Conscious Agent
+        # analysis loop reads from ``memory_access_log`` to decide which
+        # memories to promote; the write path must be active from day
+        # one of the rollout so the log is populated the day the loop
+        # turns on. The ``_log_access`` helper is fail-safe (never
+        # raises) and does not consult any feature flag.
+        self._log_access(
+            memory_id=None,
+            access_type="search",
+            query_text=query,
+        )
 
         # Check cache first (Phase 1: Query Cache)
         cached_results = self._get_cached_conversations(
@@ -1338,12 +1509,41 @@ class ReflectionDatabaseAdapterOneiric:
             self.conn.execute(f"SET hnsw_ef_search = {self.settings.hnsw_ef_search}")
 
         vector_query = f"[{', '.join(map(str, query_embedding))}]"
+        # v2 rewire: the v2 schema has ``timestamp`` rather than
+        # ``created_at``/``updated_at``. We detect the table name to choose
+        # the right columns without breaking the v1 collection path.
+        table = self._table("conversations")
+        if table == "conversations_v2":
+            result = self.conn.execute(
+                f"""
+                SELECT
+                    id, content, metadata, timestamp,
+                    array_cosine_similarity(embedding, '{vector_query}'::FLOAT[{self.embedding_dim}]) as score
+                FROM {table}
+                WHERE embedding IS NOT NULL
+                ORDER BY score DESC
+                LIMIT ?
+                """,
+                [limit],
+            ).fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "content": row[1],
+                    "metadata": json.loads(row[2]) if row[2] else {},
+                    "created_at": row[3],
+                    "updated_at": row[3],
+                    "score": float(row[4]),
+                }
+                for row in result
+                if row[4] >= threshold
+            ]
         result = self.conn.execute(
             f"""
             SELECT
                 id, content, metadata, created_at, updated_at,
                 array_cosine_similarity(embedding, '{vector_query}'::FLOAT[{self.embedding_dim}]) as score
-            FROM {self._table("conversations")}
+            FROM {table}
             WHERE embedding IS NOT NULL
             ORDER BY score DESC
             LIMIT ?
@@ -1380,10 +1580,35 @@ class ReflectionDatabaseAdapterOneiric:
             List of matching conversations with scores
 
         """
+        # v2 rewire: the v2 schema has ``timestamp`` rather than
+        # ``created_at``/``updated_at``. Pick the columns that exist.
+        table = self._table("conversations")
+        if table == "conversations_v2":
+            result = self.conn.execute(
+                f"""
+                SELECT id, content, metadata, timestamp
+                FROM {table}
+                WHERE content LIKE ?
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """,
+                [f"%{query}%", limit],
+            ).fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "content": row[1],
+                    "metadata": json.loads(row[2]) if row[2] else {},
+                    "created_at": row[3],
+                    "updated_at": row[3],
+                    "score": 1.0,  # Text search gets maximum score
+                }
+                for row in result
+            ]
         result = self.conn.execute(
             f"""
             SELECT id, content, metadata, created_at, updated_at
-            FROM {self._table("conversations")}
+            FROM {table}
             WHERE content LIKE ?
             ORDER BY updated_at DESC
             LIMIT ?
