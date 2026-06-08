@@ -73,7 +73,7 @@ class TestPhase4DuplicateDetectionAccuracy:
         ) as db:
             # Get all stored conversations
             result = db.conn.execute(
-                f"SELECT COUNT(DISTINCT content) FROM {collection_name}_conversations"
+                f"SELECT COUNT(DISTINCT content) FROM {db._table('conversations')}"
             ).fetchone()
             unique_content_count = result[0]
 
@@ -238,7 +238,7 @@ class TestPhase4DuplicateDetectionAccuracy:
             # Verify fingerprint was stored
             result = db.conn.execute(
                 f"""
-                SELECT fingerprint FROM {collection_name}_conversations
+                SELECT fingerprint FROM {db._table('conversations')}
                 WHERE id = ?
                 """,
                 [conv_id],
@@ -266,7 +266,7 @@ class TestPhase4DuplicateDetectionAccuracy:
             # Verify fingerprint was stored
             result = db.conn.execute(
                 f"""
-                SELECT fingerprint FROM {collection_name}_reflections
+                SELECT fingerprint FROM {db._table('reflections')}
                 WHERE id = ?
                 """,
                 [refl_id],
@@ -297,7 +297,7 @@ class TestPhase4DuplicateDetectionAccuracy:
 
             # Count entries
             result = db.conn.execute(
-                f"SELECT COUNT(*) FROM {collection_name}_conversations"
+                f"SELECT COUNT(*) FROM {db._table('conversations')}"
             ).fetchone()
             count = result[0]
             assert count == 2, "Should have 2 conversations without deduplication"
@@ -317,7 +317,7 @@ class TestPhase4DuplicateDetectionAccuracy:
 
             # Count entries
             result = db.conn.execute(
-                f"SELECT COUNT(*) FROM {collection_name2}_conversations"
+                f"SELECT COUNT(*) FROM {db._table('conversations')}"
             ).fetchone()
             count = result[0]
             assert count == 1, "Should have only 1 conversation with deduplication"
@@ -342,7 +342,7 @@ class TestPhase4DuplicateDetectionAccuracy:
 
             # Count entries
             result = db.conn.execute(
-                f"SELECT COUNT(*) FROM {collection_name}_reflections"
+                f"SELECT COUNT(*) FROM {db._table('reflections')}"
             ).fetchone()
             count = result[0]
             assert count == 1, "Should have only 1 reflection with deduplication"
@@ -466,7 +466,7 @@ class TestPhase4EdgeCases:
             # Verify fingerprint was stored
             result = db.conn.execute(
                 f"""
-                SELECT fingerprint FROM {collection_name}_conversations
+                SELECT fingerprint FROM {db._table('conversations')}
                 WHERE id = ?
                 """,
                 [id1],
@@ -491,7 +491,7 @@ class TestPhase4EdgeCases:
             # Verify fingerprint was stored
             result = db.conn.execute(
                 f"""
-                SELECT fingerprint FROM {collection_name}_conversations
+                SELECT fingerprint FROM {db._table('conversations')}
                 WHERE id = ?
                 """,
                 [id1],

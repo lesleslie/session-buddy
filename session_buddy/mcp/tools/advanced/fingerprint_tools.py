@@ -245,6 +245,7 @@ def _search_by_token_overlap(
     limit: int,
 ) -> list[dict[str, t.Any]]:
     """Fallback search using token overlap when fingerprint matching is too strict."""
+    del collection_name  # collection_name is no longer used for table names
     tokens = [
         token
         for token in re.findall(r"[A-Za-z0-9_]+", query.lower())
@@ -256,31 +257,37 @@ def _search_by_token_overlap(
     results: list[dict[str, t.Any]] = []
     table_specs: list[tuple[str, str]] = []
     if content_type is None or content_type == "conversation":
-        table_specs.append((f"{collection_name}_conversations", "conversation"))
+        table_specs.append((db._table("conversations"), "conversation"))
     if content_type is None or content_type == "reflection":
-        table_specs.append((f"{collection_name}_reflections", "reflection"))
+        table_specs.append((db._table("reflections"), "reflection"))
 
     for table_name, label in table_specs:
         where_clauses = " OR ".join(["lower(content) LIKE ?" for _ in tokens])
         params = [f"%{token}%" for token in tokens]
         if label == "conversation":
+            # v2 rewire: conversations_v2 uses ``timestamp`` and ``project``
+            # instead of legacy ``created_at``/``updated_at``/``metadata``.
             rows = db.conn.execute(
                 f"""
-                SELECT id, content, metadata, created_at, updated_at
+                SELECT id, content, project, namespace, timestamp
                 FROM {table_name}
                 WHERE {where_clauses}
-                ORDER BY updated_at DESC
+                ORDER BY timestamp DESC
                 LIMIT ?
                 """,
                 params + [limit],
             ).fetchall()
         else:
+            # v2 rewire: reflections_v2 has both legacy compatibility columns
+            # (created_at, updated_at) and v2 columns (timestamp, project).
+            # Use timestamp for ordering since it's always present in v2.
             rows = db.conn.execute(
                 f"""
-                SELECT id, content, tags, created_at, updated_at
+                SELECT id, content, tags, project, namespace,
+                       timestamp, created_at, updated_at
                 FROM {table_name}
                 WHERE {where_clauses}
-                ORDER BY updated_at DESC
+                ORDER BY timestamp DESC
                 LIMIT ?
                 """,
                 params + [limit],
@@ -292,15 +299,27 @@ def _search_by_token_overlap(
             overlap = sum(1 for token in tokens if token in content_lower)
             similarity = overlap / len(tokens)
             tags = []
+            # Schema-aware column indexing: the SELECT list above differs
+            # by label, so index into the row by what we know is there.
             if label == "reflection":
+                # Reflection SELECT: id(0), content(1), tags(2),
+                # project(3), namespace(4), timestamp(5),
+                # created_at(6), updated_at(7)
                 tags = list(row[2]) if row[2] else []
+                created_at = row[6]
+                updated_at = row[7]
+            else:
+                # Conversation SELECT: id(0), content(1),
+                # project(2), namespace(3), timestamp(4)
+                created_at = row[4]
+                updated_at = row[4]
             results.append(
                 {
                     "id": row[0],
                     "content": content,
                     "tags": tags,
-                    "created_at": row[3].isoformat() if row[3] else None,
-                    "updated_at": row[4].isoformat() if row[4] else None,
+                    "created_at": created_at.isoformat() if created_at else None,
+                    "updated_at": updated_at.isoformat() if updated_at else None,
                     "similarity": similarity,
                     "content_type": label,
                 }
@@ -372,15 +391,16 @@ def _get_table_count(
 
     Args:
         db: Database adapter
-        collection_name: Collection name
-        table_name: Table name
+        collection_name: Collection name (kept for API parity)
+        table_name: Table name (suffix used by ``db._table()``)
 
     Returns:
         Total count
 
     """
+    del collection_name  # rewire-aware: use db._table() instead
     result = db.conn.execute(
-        f"SELECT COUNT(*) FROM {collection_name}_{table_name}"
+        f"SELECT COUNT(*) FROM {db._table(table_name)}"
     ).fetchone()
     return result[0] if result else 0
 
@@ -395,18 +415,19 @@ async def _count_duplicates_in_table(
 
     Args:
         db: Database adapter
-        collection_name: Collection name
-        table_name: Table name
+        collection_name: Collection name (kept for API parity)
+        table_name: Table name (suffix used by ``db._table()``)
         threshold: Similarity threshold
 
     Returns:
         Number of duplicates found
 
     """
+    del collection_name  # rewire-aware: use db._table() instead
     result = db.conn.execute(
         f"""
         SELECT fingerprint
-        FROM {collection_name}_{table_name}
+        FROM {db._table(table_name)}
         WHERE fingerprint IS NOT NULL
         """
     ).fetchall()
@@ -616,18 +637,19 @@ async def _find_duplicates_in_table(
 
     Args:
         db: Database adapter
-        collection_name: Collection name
-        table_name: "conversations" or "reflections"
+        collection_name: Collection name (kept for API parity)
+        table_name: "conversations" or "reflections" (suffix used by ``db._table()``)
         threshold: Similarity threshold
 
     Returns:
         List of duplicate items
 
     """
+    del collection_name  # rewire-aware: use db._table() instead
     result = db.conn.execute(
         f"""
         SELECT id, content, fingerprint
-        FROM {collection_name}_{table_name}
+        FROM {db._table(table_name)}
         WHERE fingerprint IS NOT NULL
         ORDER BY created_at ASC
         """
@@ -742,12 +764,12 @@ async def _delete_duplicate_content(
         try:
             if item_type == "conversation":
                 db.conn.execute(
-                    f"DELETE FROM {collection_name}_conversations WHERE id = ?",
+                    f"DELETE FROM {db._table('conversations')} WHERE id = ?",
                     [item_id],
                 )
             else:  # reflection
                 db.conn.execute(
-                    f"DELETE FROM {collection_name}_reflections WHERE id = ?",
+                    f"DELETE FROM {db._table('reflections')} WHERE id = ?",
                     [item_id],
                 )
 

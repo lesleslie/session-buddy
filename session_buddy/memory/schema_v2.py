@@ -96,7 +96,19 @@ CREATE TABLE IF NOT EXISTS reflections_v2 (
 
     -- Access tracking
     access_count INTEGER DEFAULT 0,
-    last_accessed TIMESTAMP
+    last_accessed TIMESTAMP,
+
+    -- Legacy compatibility columns (used by store_reflection)
+    -- These are written alongside the v2 columns so the v2 table can
+    -- serve as a drop-in replacement for the legacy reflections table.
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    insight_type TEXT,
+    usage_count INTEGER DEFAULT 0,
+    last_used_at TIMESTAMP,
+    confidence_score REAL,
+    fingerprint BLOB,
+    subcategory TEXT
 );
 
 -- Entity extraction table (Memori pattern)

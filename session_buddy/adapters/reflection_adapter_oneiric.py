@@ -1932,20 +1932,42 @@ class ReflectionDatabaseAdapterOneiric:
         fingerprint_bytes = fingerprint.to_bytes()
 
         # Store reflection (explicitly set insight_type to NULL to distinguish from insights)
+        # v2 rewire (Phase 0): write to ``reflections_v2`` (the global
+        # Memori-style table). The INSERT now lists the v2 column set so the
+        # table stores both v2 fields (category, importance_score, memory_tier,
+        # tags, related_entities, project, namespace, timestamp) and the
+        # legacy compatibility columns (created_at, updated_at, insight_type,
+        # usage_count, last_used_at, confidence_score, fingerprint).
         if embedding:
             self.conn.execute(
                 f"""
                 INSERT INTO {self._table("reflections")}
-                (id, content, tags, embedding, created_at, updated_at, insight_type, fingerprint)
-                VALUES (?, ?, ?, ?, ?, ?, NULL, ?)
+                (
+                    id, content, embedding, category, importance_score,
+                    memory_tier, tags, related_entities, project, namespace,
+                    timestamp, created_at, updated_at, insight_type,
+                    usage_count, last_used_at, confidence_score, fingerprint
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     reflection_id,
                     content,
-                    tags or [],
                     embedding,
-                    now,
-                    now,
+                    "context",  # category default
+                    0.5,  # importance_score default
+                    "long_term",  # memory_tier default
+                    tags or [],
+                    None,  # related_entities (not threaded through here)
+                    None,  # project (not threaded through here)
+                    "default",  # namespace
+                    now,  # timestamp (v2)
+                    now,  # created_at (legacy)
+                    now,  # updated_at (legacy)
+                    None,  # insight_type (NULL to distinguish from insights)
+                    0,  # usage_count
+                    None,  # last_used_at
+                    0.5,  # confidence_score
                     fingerprint_bytes,
                 ),
             )
@@ -1953,15 +1975,32 @@ class ReflectionDatabaseAdapterOneiric:
             self.conn.execute(
                 f"""
                 INSERT INTO {self._table("reflections")}
-                (id, content, tags, created_at, updated_at, insight_type, fingerprint)
-                VALUES (?, ?, ?, ?, ?, NULL, ?)
+                (
+                    id, content, embedding, category, importance_score,
+                    memory_tier, tags, related_entities, project, namespace,
+                    timestamp, created_at, updated_at, insight_type,
+                    usage_count, last_used_at, confidence_score, fingerprint
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     reflection_id,
                     content,
+                    None,  # embedding
+                    "context",  # category default
+                    0.5,  # importance_score default
+                    "long_term",  # memory_tier default
                     tags or [],
-                    now,
-                    now,
+                    None,  # related_entities
+                    None,  # project
+                    "default",  # namespace
+                    now,  # timestamp
+                    now,  # created_at
+                    now,  # updated_at
+                    None,  # insight_type
+                    0,  # usage_count
+                    None,  # last_used_at
+                    0.5,  # confidence_score
                     fingerprint_bytes,
                 ),
             )
@@ -2328,66 +2367,71 @@ class ReflectionDatabaseAdapterOneiric:
         if not self._initialized:
             await self.initialize()
 
-        with self.conn:
-            # 1. Free write-heavy instrumentation rows first.
+        # DuckDB auto-commits each statement unless explicitly bracketed
+        # with ``BEGIN``/``COMMIT``. We rely on per-statement commit so
+        # the cascade is incremental — if any single DELETE fails the
+        # earlier ones stay applied. That is acceptable for a cascade
+        # because the next call to ``delete_conversation`` for the same
+        # id is idempotent and re-runs the rest of the cascade.
+        # 1. Free write-heavy instrumentation rows first.
+        self.conn.execute(
+            "DELETE FROM memory_access_log WHERE memory_id = ?",
+            [memory_id],
+        )
+
+        # 2. Direct child: provenance (Phase 1 Feature #4).
+        self.conn.execute(
+            "DELETE FROM memory_provenance WHERE memory_id = ?",
+            [memory_id],
+        )
+
+        # 3. 2nd-level: relationships reference entities. Look up
+        #    the entity ids first, then remove any relationship
+        #    that points at them. This must happen BEFORE the
+        #    entities are deleted, otherwise we'd orphan rows.
+        entity_rows = self.conn.execute(
+            "SELECT id FROM memory_entities WHERE memory_id = ?",
+            [memory_id],
+        ).fetchall()
+        entity_ids = [row[0] for row in entity_rows]
+        if entity_ids:
+            placeholders = ",".join("?" * len(entity_ids))
+            params = entity_ids + entity_ids
             self.conn.execute(
-                "DELETE FROM memory_access_log WHERE memory_id = ?",
-                [memory_id],
+                f"DELETE FROM memory_relationships "
+                f"WHERE from_entity_id IN ({placeholders}) "
+                f"OR to_entity_id IN ({placeholders})",
+                params,
             )
 
-            # 2. Direct child: provenance (Phase 1 Feature #4).
-            self.conn.execute(
-                "DELETE FROM memory_provenance WHERE memory_id = ?",
-                [memory_id],
-            )
+        # 4. Direct child: entities.
+        self.conn.execute(
+            "DELETE FROM memory_entities WHERE memory_id = ?",
+            [memory_id],
+        )
 
-            # 3. 2nd-level: relationships reference entities. Look up
-            #    the entity ids first, then remove any relationship
-            #    that points at them. This must happen BEFORE the
-            #    entities are deleted, otherwise we'd orphan rows.
-            entity_rows = self.conn.execute(
-                "SELECT id FROM memory_entities WHERE memory_id = ?",
-                [memory_id],
-            ).fetchall()
-            entity_ids = [row[0] for row in entity_rows]
-            if entity_ids:
-                placeholders = ",".join("?" * len(entity_ids))
-                params = entity_ids + entity_ids
-                self.conn.execute(
-                    f"DELETE FROM memory_relationships "
-                    f"WHERE from_entity_id IN ({placeholders}) "
-                    f"OR to_entity_id IN ({placeholders})",
-                    params,
-                )
+        # 5. Direct child: promotions.
+        self.conn.execute(
+            "DELETE FROM memory_promotions WHERE memory_id = ?",
+            [memory_id],
+        )
 
-            # 4. Direct child: entities.
-            self.conn.execute(
-                "DELETE FROM memory_entities WHERE memory_id = ?",
-                [memory_id],
-            )
-
-            # 5. Direct child: promotions.
-            self.conn.execute(
-                "DELETE FROM memory_promotions WHERE memory_id = ?",
-                [memory_id],
-            )
-
-            # 6. Parent row. Use before/after COUNT to compute the
-            #    return value — DuckDB's Python ``execute()`` does
-            #    not expose a stable ``rowcount`` attribute.
-            before = self.conn.execute(
-                "SELECT COUNT(*) FROM conversations_v2 WHERE id = ?",
-                [memory_id],
-            ).fetchone()[0]
-            self.conn.execute(
-                "DELETE FROM conversations_v2 WHERE id = ?",
-                [memory_id],
-            )
-            after = self.conn.execute(
-                "SELECT COUNT(*) FROM conversations_v2 WHERE id = ?",
-                [memory_id],
-            ).fetchone()[0]
-            return before - after
+        # 6. Parent row. Use before/after COUNT to compute the
+        #    return value — DuckDB's Python ``execute()`` does
+        #    not expose a stable ``rowcount`` attribute.
+        before = self.conn.execute(
+            "SELECT COUNT(*) FROM conversations_v2 WHERE id = ?",
+            [memory_id],
+        ).fetchone()[0]
+        self.conn.execute(
+            "DELETE FROM conversations_v2 WHERE id = ?",
+            [memory_id],
+        )
+        after = self.conn.execute(
+            "SELECT COUNT(*) FROM conversations_v2 WHERE id = ?",
+            [memory_id],
+        ).fetchone()[0]
+        return before - after
 
     async def reset_database(self) -> None:
         """Reset the database by dropping and recreating tables."""
