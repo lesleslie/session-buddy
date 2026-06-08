@@ -321,5 +321,107 @@ def pytest_runtest_setup(item):
     ``AttributeError: module 'session_buddy.utils' has no attribute 'X'``
     when run after ``test_database_tools.py``.
     """
+    _re_attach_utils_to_session_buddy()
+    _re_attach_memory_submodules()
     _re_attach_runtime_snapshots_submodule()
     _re_attach_git_worktrees_submodule()
+
+
+def _re_attach_utils_to_session_buddy() -> None:
+    """Re-attach common submodules as attributes on ``session_buddy``.
+
+    Several tests (e.g. ``test_logging.py``, ``test_instance_managers.py``,
+    ``test_messaging.py``, ``test_quality_scoring_helpers.py``,
+    ``test_tool_wrapper.py``) install a stub ``session_buddy`` package in
+    ``sys.modules`` at module load time. The conftest's
+    ``_purge_session_buddy_stubs`` hook removes those stubs at collection
+    time, but subsequent test code (e.g. a teardown that re-imports
+    ``session_buddy.core``) re-loads the real ``session_buddy`` package
+    without the lazily-imported submodule attributes. String-form
+    ``monkeypatch.setattr("session_buddy.X.Y", ...)`` then fails with
+    ``AttributeError: module 'session_buddy' has no attribute 'X'``
+    because the freshly imported ``session_buddy`` package object has no
+    ``X`` attribute even though ``session_buddy.X`` is in ``sys.modules``.
+
+    This helper forces an import of ``session_buddy.utils``,
+    ``session_buddy.memory``, and ``session_buddy.config`` (or attaches
+    the already-cached copy) so the parent attribute chain is intact.
+    """
+    import sys  # noqa: PLC0415
+
+    sb_pkg = sys.modules.get("session_buddy")
+    if sb_pkg is None or getattr(sb_pkg, "__file__", None) is None:
+        return
+
+    for submodule_name in ("utils", "memory", "config", "backends", "modes", "cli"):
+        if hasattr(sb_pkg, submodule_name):
+            continue
+        full_name = f"session_buddy.{submodule_name}"
+        submodule = sys.modules.get(full_name)
+        if submodule is None or getattr(submodule, "__file__", None) is None:
+            try:
+                __import__(full_name)
+            except Exception:
+                continue
+            submodule = sys.modules.get(full_name)
+            if submodule is None or getattr(submodule, "__file__", None) is None:
+                continue
+        setattr(sb_pkg, submodule_name, submodule)
+
+
+# Submodules of ``session_buddy.memory`` that string-form
+# ``monkeypatch.setattr("session_buddy.memory.X.Y", ...)`` calls in tests
+# like ``test_advanced_tools_coverage.py`` and ``test_migration_tools.py``
+# depend on. The ``session_buddy.memory`` package's ``__init__.py`` only
+# eagerly imports ``category_evolution``; ``persistence``, ``migration``,
+# etc. are only loaded on demand. After the autouse
+# ``restore_session_buddy_modules`` fixture re-imports ``session_buddy``,
+# the freshly imported ``session_buddy.memory`` package has no
+# ``persistence`` attribute, and string-form ``monkeypatch.setattr`` calls
+# fail with ``AttributeError: module 'session_buddy.memory' has no
+# attribute 'persistence'``.
+
+
+_MEMORY_LAZY_SUBMODULES: tuple[str, ...] = (
+    "persistence",
+    "entity_extractor",
+    "schema_v2",
+    "migration",
+)
+
+
+def _re_attach_memory_submodules() -> None:
+    """Re-attach lazily-imported ``session_buddy.memory`` submodules.
+
+    Same pattern as ``_re_attach_git_worktrees_submodule`` but for
+    ``session_buddy.memory``: the conftest's autouse
+    ``restore_session_buddy_modules`` fixture can leave the
+    ``session_buddy.memory`` package in a state where some of its
+    submodules are in ``sys.modules`` but not set as attributes on the
+    parent package. Without re-attaching them, string-form
+    ``monkeypatch.setattr("session_buddy.memory.X.Y", ...)`` calls fail
+    with ``AttributeError: module 'session_buddy.memory' has no
+    attribute 'X'`` when run after tests like ``test_logging.py`` that
+    install a stub ``session_buddy`` at module load time.
+    """
+    import sys  # noqa: PLC0415
+
+    memory_pkg = sys.modules.get("session_buddy.memory")
+    if memory_pkg is None or getattr(memory_pkg, "__file__", None) is None:
+        return
+
+    for submodule_name in _MEMORY_LAZY_SUBMODULES:
+        if hasattr(memory_pkg, submodule_name):
+            continue
+        full_name = f"session_buddy.memory.{submodule_name}"
+        submodule = sys.modules.get(full_name)
+        if submodule is None or getattr(submodule, "__file__", None) is None:
+            try:
+                __import__(full_name)
+            except Exception:
+                continue
+            submodule = sys.modules.get(full_name)
+            if submodule is None or getattr(submodule, "__file__", None) is None:
+                continue
+        setattr(memory_pkg, submodule_name, submodule)
+

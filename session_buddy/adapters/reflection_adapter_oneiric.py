@@ -217,6 +217,25 @@ class ReflectionDatabaseAdapterOneiric:
             return 100  # Safe default
         return value
 
+    def _get_conn(self) -> t.Any:
+        """Return the active DuckDB connection.
+
+        Backward-compat shim: the legacy ReflectionDatabase had this method,
+        and ``code_graph_subscriber`` / ``reflection/storage`` call it
+        defensively via :func:`hasattr` before falling back to ``self.conn``.
+        The Oneiric adapter migration preserved the legacy API on most
+        methods but accidentally dropped this one. Keep the API alive so
+        the 12 call sites that depend on it (verified via exploration) keep
+        working without modification.
+        """
+        if not self._initialized:
+            msg = (
+                "ReflectionDatabaseAdapterOneiric._get_conn() called before "
+                "initialize(); the adapter is not connected."
+            )
+            raise RuntimeError(msg)
+        return self.conn
+
     def close(self) -> None:
         """Close adapter connections (sync version for compatibility)."""
         try:
