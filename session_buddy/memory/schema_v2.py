@@ -19,6 +19,7 @@ class MemoryCategory(StrEnum):
     SKILLS = "skills"  # User knowledge/expertise (languages, frameworks)
     RULES = "rules"  # Learned patterns/rules (workflows, best practices)
     CONTEXT = "context"  # Contextual information (current tasks, environment)
+    CLAUDE_TURN = "claude_turn"  # A single Claude conversation turn (transcript ingester)
 
 
 class MemoryTier(StrEnum):
@@ -60,7 +61,17 @@ CREATE TABLE IF NOT EXISTS conversations_v2 (
 
     -- Search optimization
     searchable_content TEXT,  -- For full-text fallback
-    reasoning TEXT  -- Why this memory is important
+    reasoning TEXT,  -- Why this memory is important
+
+    -- Provenance + lineage (added Phase 0 v2 rewire)
+    metadata VARCHAR,  -- JSON-encoded metadata (allowlist-filtered)
+    source_type TEXT CHECK (
+        source_type IS NULL OR source_type IN (
+            'claude_code', 'crackerjack', 'mahavishnu_workflow', 'manual', 'migration'
+        )
+    ),  -- claude_code | crackerjack | mahavishnu_workflow | manual | migration
+    turn_parent_id TEXT,  -- Parent turn in a transcript chain
+    causal_parent_id TEXT  -- Parent that caused this memory to be written
 );
 
 -- Enhanced reflections table
@@ -124,10 +135,14 @@ CREATE TABLE IF NOT EXISTS memory_promotions (
 );
 
 -- Access patterns tracking (for Conscious Agent)
+-- ``memory_id`` is nullable: a search that hits nothing has no row in
+-- ``conversations_v2`` to point at. ``query_text`` captures the raw
+-- search string so the analysis loop can group by query pattern.
 CREATE TABLE IF NOT EXISTS memory_access_log (
     id TEXT PRIMARY KEY,
-    memory_id TEXT NOT NULL,
+    memory_id TEXT,  -- nullable: search hits often have no memory_id
     access_type TEXT,  -- search, retrieve, promote, demote
+    query_text TEXT,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (memory_id) REFERENCES conversations_v2(id)
 );
@@ -152,6 +167,12 @@ CREATE INDEX IF NOT EXISTS idx_access_log_memory ON memory_access_log(memory_id,
 
 -- Full-text search (fallback when ONNX unavailable)
 CREATE INDEX IF NOT EXISTS idx_conversations_fts ON conversations_v2(searchable_content);
+
+-- Index for source_type lookups (most reads filter by project + recency).
+-- Note: source_type CHECK constraint is defined inline in the CREATE TABLE
+-- above (DuckDB does not support ALTER TABLE ... ADD CONSTRAINT).
+CREATE INDEX IF NOT EXISTS idx_v2_source_type_project
+    ON conversations_v2(source_type, project, timestamp DESC);
 """
 
 # Migration from v1 to v2
