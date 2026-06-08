@@ -181,16 +181,66 @@ def test_redact_metadata_keeps_allowlisted_and_buckets_unknown(
 
 
 # ---------------------------------------------------------------------------
-# 4) Size cap raises RedactionSizeError
+# 4) Oversize default behavior: warn-and-truncate
 # ---------------------------------------------------------------------------
 
 
-def test_redact_raises_size_error_above_cap() -> None:
-    """Combined input larger than 64KB triggers RedactionSizeError."""
+def test_redact_truncates_with_marker_when_size_exceeds() -> None:
+    """Default behavior: oversized content is truncated with a [TRUNCATED] marker.
+
+    The first ``MAX_REDACTION_BYTES`` bytes of the input are redacted and
+    returned, followed by a ``[TRUNCATED]`` suffix. No exception is raised.
+    """
+    oversized: str = "x" * (MAX_REDACTION_BYTES + 4096)
+
+    result: str = redact(oversized)
+
+    assert result.endswith("[TRUNCATED]"), (
+        "Truncation marker missing from output tail"
+    )
+    # Total length = MAX_REDACTION_BYTES (the kept prefix) + len("[TRUNCATED]")
+    # = 64 * 1024 + 12 = 65548
+    assert len(result) == MAX_REDACTION_BYTES + len("[TRUNCATED]"), (
+        f"Expected 64KB+marker total, got {len(result)} bytes"
+    )
+    # The kept prefix is the FIRST 64KB of the input.
+    assert result[:MAX_REDACTION_BYTES] == "x" * MAX_REDACTION_BYTES
+
+
+def test_redact_raises_when_opted_in_via_raise_on_oversize() -> None:
+    """Opt-in strict mode raises ``RedactionSizeError`` for oversized input."""
     oversized: str = "x" * (MAX_REDACTION_BYTES + 4096)
 
     with pytest.raises(RedactionSizeError):
-        redact(oversized)
+        redact(oversized, raise_on_oversize=True)
+
+
+def test_redact_metadata_truncates_combined_oversize() -> None:
+    """``redact_metadata`` truncates combined oversize input with a marker.
+
+    When the combined serialized representation of the metadata exceeds
+    ``MAX_REDACTION_BYTES``, the oversized string values are truncated to
+    the cap and tagged with ``[TRUNCATED]``; the result also carries a
+    ``_truncated`` flag so downstream consumers can detect truncation.
+    """
+    huge_value: str = "y" * MAX_REDACTION_BYTES
+    metadata: dict[str, object] = {
+        "source_session": huge_value,
+        "tool_names": ["Bash", "Read"],
+    }
+
+    result: dict[str, object] = redact_metadata(metadata, DEFAULT_ALLOWLIST)
+
+    assert "_truncated" in result, "Truncation flag missing from result"
+    truncated_flag: object = result["_truncated"]
+    assert truncated_flag is True, "_truncated flag must be True when truncated"
+    # The oversized string value is truncated to MAX_REDACTION_BYTES + marker.
+    truncated_value: object = result["source_session"]
+    assert isinstance(truncated_value, str)
+    assert len(truncated_value) == MAX_REDACTION_BYTES + len("[TRUNCATED]"), (
+        f"Expected source_session to be capped+marker, got {len(truncated_value)} bytes"
+    )
+    assert truncated_value.endswith("[TRUNCATED]")
 
 
 # ---------------------------------------------------------------------------

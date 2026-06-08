@@ -2292,6 +2292,103 @@ class ReflectionDatabaseAdapterOneiric:
 
         return combined[:limit]
 
+    async def delete_conversation(self, memory_id: str) -> int:
+        """Delete a conversation and all its child rows (app-level cascade).
+
+        DuckDB does NOT support ``ON DELETE CASCADE`` on FOREIGN KEY
+        constraints (Parser Error: FOREIGN KEY constraints cannot use
+        CASCADE, SET NULL or SET DEFAULT). The v2 schema has five child
+        tables that reference ``conversations_v2.id`` (directly or
+        transitively); this method removes them in the right order:
+
+        1. ``memory_access_log`` — write-heavy, free first.
+        2. ``memory_provenance`` — direct FK, one row per source write.
+        3. ``memory_relationships`` — 2nd-level FK to
+           ``memory_entities``; must be removed BEFORE the entity rows
+           it points at.
+        4. ``memory_entities`` — direct FK, holds the ids that
+           relationships reference.
+        5. ``memory_promotions`` — direct FK.
+        6. ``conversations_v2`` — the parent row.
+
+        The cascade is conservative: instrumentation rows in
+        ``memory_access_log`` are removed too. An access-log row whose
+        parent memory has been deleted is a dead pointer that would
+        otherwise confuse the Conscious Agent analysis loop.
+
+        Args:
+            memory_id: ULID of the conversation to delete.
+
+        Returns:
+            Number of ``conversations_v2`` rows removed (0 or 1).
+            The method is idempotent: deleting a non-existent id
+            returns 0 and does not raise.
+
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        with self.conn:
+            # 1. Free write-heavy instrumentation rows first.
+            self.conn.execute(
+                "DELETE FROM memory_access_log WHERE memory_id = ?",
+                [memory_id],
+            )
+
+            # 2. Direct child: provenance (Phase 1 Feature #4).
+            self.conn.execute(
+                "DELETE FROM memory_provenance WHERE memory_id = ?",
+                [memory_id],
+            )
+
+            # 3. 2nd-level: relationships reference entities. Look up
+            #    the entity ids first, then remove any relationship
+            #    that points at them. This must happen BEFORE the
+            #    entities are deleted, otherwise we'd orphan rows.
+            entity_rows = self.conn.execute(
+                "SELECT id FROM memory_entities WHERE memory_id = ?",
+                [memory_id],
+            ).fetchall()
+            entity_ids = [row[0] for row in entity_rows]
+            if entity_ids:
+                placeholders = ",".join("?" * len(entity_ids))
+                params = entity_ids + entity_ids
+                self.conn.execute(
+                    f"DELETE FROM memory_relationships "
+                    f"WHERE from_entity_id IN ({placeholders}) "
+                    f"OR to_entity_id IN ({placeholders})",
+                    params,
+                )
+
+            # 4. Direct child: entities.
+            self.conn.execute(
+                "DELETE FROM memory_entities WHERE memory_id = ?",
+                [memory_id],
+            )
+
+            # 5. Direct child: promotions.
+            self.conn.execute(
+                "DELETE FROM memory_promotions WHERE memory_id = ?",
+                [memory_id],
+            )
+
+            # 6. Parent row. Use before/after COUNT to compute the
+            #    return value — DuckDB's Python ``execute()`` does
+            #    not expose a stable ``rowcount`` attribute.
+            before = self.conn.execute(
+                "SELECT COUNT(*) FROM conversations_v2 WHERE id = ?",
+                [memory_id],
+            ).fetchone()[0]
+            self.conn.execute(
+                "DELETE FROM conversations_v2 WHERE id = ?",
+                [memory_id],
+            )
+            after = self.conn.execute(
+                "SELECT COUNT(*) FROM conversations_v2 WHERE id = ?",
+                [memory_id],
+            ).fetchone()[0]
+            return before - after
+
     async def reset_database(self) -> None:
         """Reset the database by dropping and recreating tables."""
         if not self._initialized:

@@ -14,6 +14,7 @@ import re
 
 MAX_REDACTION_BYTES = 65536
 REDACTED_MARKER = "[REDACTED]"
+TRUNCATED_MARKER = "[TRUNCATED]"
 
 # Standard allowlist for reflection metadata. Keys outside this set are
 # moved into a ``_redacted`` bucket by :func:`redact_metadata`.
@@ -51,26 +52,47 @@ class RedactionSizeError(Exception):
     """Raised when input to :func:`redact` exceeds the 64KB size cap."""
 
 
-def redact(text: str) -> str:
-    """Replace secret-shaped substrings with ``[REDACTED]``.
+def _redact_iter(text: str) -> str:
+    """Apply every secret pattern to ``text`` in order.
 
-    Raises :class:`RedactionSizeError` if ``text`` is larger than 64KB.
+    Used by both :func:`redact` and the truncation path so redaction logic
+    is defined in one place.
     """
-    if len(text) > MAX_REDACTION_BYTES:
-        raise RedactionSizeError(
-            f"Input of {len(text)} bytes exceeds {MAX_REDACTION_BYTES} cap"
-        )
     for pattern in _SECRET_PATTERNS:
         text = pattern.sub(REDACTED_MARKER, text)
     return text
 
 
+def redact(text: str, *, raise_on_oversize: bool = False) -> str:
+    """Replace secret-shaped substrings with ``[REDACTED]``.
+
+    By default, content larger than ``MAX_REDACTION_BYTES`` (64KB) is
+    truncated to the first 64KB and tagged with a ``[TRUNCATED]`` suffix.
+    Set ``raise_on_oversize=True`` to recover the strict behavior, which
+    raises :class:`RedactionSizeError` for oversized input instead.
+    """
+    if len(text) > MAX_REDACTION_BYTES:
+        if raise_on_oversize:
+            raise RedactionSizeError(
+                f"Input of {len(text)} bytes exceeds {MAX_REDACTION_BYTES} cap"
+            )
+        return _redact_iter(text[:MAX_REDACTION_BYTES]) + TRUNCATED_MARKER
+    return _redact_iter(text)
+
+
 def redact_metadata(
-    metadata: dict[str, object], allowlist: set[str]
+    metadata: dict[str, object],
+    allowlist: set[str],
+    *,
+    raise_on_oversize: bool = False,
 ) -> dict[str, object]:
     """Return a copy of ``metadata`` with allowlisted keys untouched.
 
     Keys outside the allowlist are moved into a ``_redacted`` mapping.
+    When the serialized form of the returned dict exceeds
+    ``MAX_REDACTION_BYTES``, oversized string values are truncated and a
+    ``_truncated`` flag is set. Set ``raise_on_oversize=True`` to opt
+    back into :class:`RedactionSizeError` on oversize input.
     """
     redacted: dict[str, object] = {}
     bucket: dict[str, object] = {}
@@ -81,6 +103,23 @@ def redact_metadata(
             bucket[key] = value
     if bucket:
         redacted["_redacted"] = bucket
+
+    serialized: str = repr(redacted)
+    if len(serialized) > MAX_REDACTION_BYTES:
+        if raise_on_oversize:
+            raise RedactionSizeError(
+                f"Metadata of {len(serialized)} bytes exceeds "
+                f"{MAX_REDACTION_BYTES} cap"
+            )
+        truncated: dict[str, object] = {}
+        for key, value in redacted.items():
+            if isinstance(value, str) and len(value) >= MAX_REDACTION_BYTES:
+                truncated[key] = value[:MAX_REDACTION_BYTES] + TRUNCATED_MARKER
+            else:
+                truncated[key] = value
+        truncated["_truncated"] = True
+        return truncated
+
     return redacted
 
 
@@ -88,6 +127,7 @@ __all__ = [
     "ALLOWED_METADATA_KEYS",
     "MAX_REDACTION_BYTES",
     "REDACTED_MARKER",
+    "TRUNCATED_MARKER",
     "RedactionSizeError",
     "redact",
     "redact_metadata",
