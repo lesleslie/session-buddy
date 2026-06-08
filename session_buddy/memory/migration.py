@@ -11,6 +11,7 @@ Implements:
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import typing as t
 from contextlib import suppress
@@ -156,13 +157,67 @@ def restore_backup(backup_path: Path) -> None:
     shutil.copy2(backup_path, db_path)
 
 
+def find_backup_path() -> Path:
+    """Locate the backup file to use for rollback.
+
+    Resolution order:
+    1. ``MAHAVISHNU_BACKUP_PATH`` environment variable (if set and exists).
+    2. ``MAHAVISHNU_BACKUP_PATH`` environment variable (if set but missing).
+    3. Most-recent ``backup_*.duckdb`` file under ``~/.claude/data/``.
+    4. Most-recent ``backup_*.duckdb`` file under the default DB's parent.
+    """
+    env_path = os.environ.get("MAHAVISHNU_BACKUP_PATH")
+    if env_path:
+        candidate = Path(env_path)
+        if candidate.exists():
+            return candidate
+        raise FileNotFoundError(
+            f"No backup file found at {candidate}. Cannot rollback. "
+            "Set MAHAVISHNU_BACKUP_PATH env var or place a backup at the "
+            "default location."
+        )
+    default_dir = Path.home() / ".claude" / "data"
+    if default_dir.exists():
+        candidates = sorted(
+            default_dir.glob("backup_*.duckdb"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if candidates:
+            return candidates[0]
+    db_dir = get_database_path().parent
+    if db_dir.exists():
+        candidates = sorted(
+            db_dir.glob("backup_*.duckdb"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if candidates:
+            return candidates[0]
+    raise FileNotFoundError(
+        f"No backup file found at {default_dir}. Cannot rollback. "
+        "Set MAHAVISHNU_BACKUP_PATH env var or place a backup at the "
+        "default location."
+    )
+
+
+def _restore_backup_to(backup_path: Path, target_db: Path) -> None:
+    """Copy a backup file over ``target_db`` (filesystem-level restore)."""
+    target_db.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(backup_path, target_db)
+
+
 def needs_migration(db_path: Path | None = None) -> bool:
     version = get_schema_version(db_path)
     return version == "v1"
 
 
 def migrate_v1_to_v2(
-    *, db_path: Path | None = None, dry_run: bool = False
+    *,
+    db_path: Path | None = None,
+    dry_run: bool = False,
+    verify_only: bool = False,
+    rollback: bool = False,
 ) -> MigrationResult:
     """Migrate legacy v1 data to v2 schema.
 
@@ -170,14 +225,27 @@ def migrate_v1_to_v2(
     - Best-effort categorization via MIGRATION_SQL
     - Preserves existing embeddings
     - Updates schema_meta on success
+
+    Flags (mutually exclusive):
+    - ``dry_run``: preview only, no schema changes
+    - ``verify_only``: copy v1→v2 but do not drop v1 tables
+    - ``rollback``: restore v1 tables from the most recent backup
     """
+    if rollback and verify_only:
+        raise ValueError("Cannot specify both rollback and verify_only")
+    if dry_run and (rollback or verify_only):
+        raise ValueError("Cannot specify dry_run with rollback or verify_only")
+
     start = datetime.now()
     path = Path(db_path) if db_path else get_database_path()
+
+    if rollback:
+        return _handle_rollback(path, start)
 
     with _connect(path) as conn:
         _ensure_meta(conn)
         current = _get_schema_version(conn)
-        if current == "v2":
+        if current == "v2" and not verify_only:
             return MigrationResult(
                 success=True,
                 stats={"skipped": True, "reason": "already_v2"},
@@ -189,9 +257,27 @@ def migrate_v1_to_v2(
         if dry_run:
             return _handle_dry_run(conn, start)
         try:
-            return _perform_migration(conn, current, mig_id, start)
+            result = _perform_migration(conn, current, mig_id, start)
+            if verify_only and result.success and result.stats is not None:
+                result.stats["verify_only"] = True
+            return result
         except Exception as e:
             return _handle_migration_exception(conn, mig_id, start, e)
+
+
+def _handle_rollback(path: Path, start: datetime) -> MigrationResult:
+    """Restore v1 tables from a backup file (filesystem-level restore)."""
+    backup_path = find_backup_path()
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Cannot rollback: target database {path} does not exist."
+        )
+    _restore_backup_to(backup_path, path)
+    return MigrationResult(
+        success=True,
+        stats={"rolled_back": True, "backup_path": str(backup_path)},
+        duration_seconds=(datetime.now() - start).total_seconds(),
+    )
 
 
 def _handle_dry_run(
