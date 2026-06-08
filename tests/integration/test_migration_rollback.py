@@ -60,7 +60,7 @@ def v1_db_path(tmp_path: Path) -> Path:
         # Build a 384-dim zero vector
         zero_vec = "[" + ",".join(["0.0"] * 384) + "]"
         con.execute(
-            "INSERT INTO conversations VALUES ('1', 'test content', ?, "
+            "INSERT INTO conversations VALUES ('01ARZ3NDEKTSV4RRFFQ69G5FAV', 'test content', ?, "
             "'test-project', CURRENT_TIMESTAMP)",
             [zero_vec],
         )

@@ -26,6 +26,7 @@ dependencies = [
     # (llama-server → Ollama → graceful degradation) for vector embeddings.
     # This removes a transitive dependency conflict across the Bodai ecosystem.
     "pydantic>=2.13.4",
+    "python-ulid>=2.0.0",
     "duckdb>=1.5.3",
     "httpx>=0.28.1",
     "rich>=15.0.0",

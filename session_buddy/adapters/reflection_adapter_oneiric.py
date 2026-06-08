@@ -13,11 +13,11 @@ import hashlib
 import json
 import logging
 import typing as t
-import uuid
 from contextlib import suppress
 from datetime import UTC, datetime
 from operator import itemgetter
 from pathlib import Path
+from ulid import ULID
 
 if t.TYPE_CHECKING:
     from types import TracebackType
@@ -296,7 +296,7 @@ class ReflectionDatabaseAdapterOneiric:
                 )
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """,
-                [str(uuid.uuid4()), memory_id, access_type, query_text],
+                [str(ULID()), memory_id, access_type, query_text],
             )
         except Exception:
             # Instrumentation must NEVER break the read path.
@@ -1253,7 +1253,7 @@ class ReflectionDatabaseAdapterOneiric:
                 [conv_id],
             ).fetchone()
             if existing_row:
-                conv_id = str(uuid.uuid4())
+                conv_id = str(ULID())
         now = datetime.now(UTC)
         metadata_json = json.dumps(redacted_metadata)
         # Extract the project from the (redacted) metadata dict; v2 has a
@@ -1749,7 +1749,7 @@ class ReflectionDatabaseAdapterOneiric:
                 existing_id: str = duplicates[0]["id"]
                 return existing_id  # Return ID of most similar duplicate
 
-        reflection_id = str(uuid.uuid4())
+        reflection_id = str(ULID())
         now = datetime.now(tz=UTC)
 
         # Generate embedding if available
@@ -2197,7 +2197,7 @@ class ReflectionDatabaseAdapterOneiric:
         if not self._initialized:
             await self.initialize()
 
-        insight_id = str(uuid.uuid4())
+        insight_id = str(ULID())
         now = datetime.now(tz=UTC)
 
         # Validate insight_type
