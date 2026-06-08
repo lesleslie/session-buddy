@@ -173,6 +173,29 @@ CREATE INDEX IF NOT EXISTS idx_conversations_fts ON conversations_v2(searchable_
 -- above (DuckDB does not support ALTER TABLE ... ADD CONSTRAINT).
 CREATE INDEX IF NOT EXISTS idx_v2_source_type_project
     ON conversations_v2(source_type, project, timestamp DESC);
+
+-- Memory provenance / lineage (Phase 1 Feature #4).
+-- One row per memory write that declares a source_type. Records WHERE
+-- each memory came from (source_ref, e.g. session id), WHEN it was
+-- extracted, and WHICH model produced it.
+--
+-- Note: no FOREIGN KEY constraint here. DuckDB does NOT support
+-- ``ON DELETE CASCADE`` on FOREIGN KEY constraints (Parser Error:
+-- FOREIGN KEY constraints cannot use CASCADE, SET NULL or SET
+-- DEFAULT). Cascading is application-level: callers that delete from
+-- ``conversations_v2`` must also delete matching
+-- ``memory_provenance`` rows in the same transaction (same pattern
+-- as ``memory_entities`` and ``memory_promotions``).
+CREATE TABLE IF NOT EXISTS memory_provenance (
+    id TEXT PRIMARY KEY,
+    memory_id TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    source_ref TEXT,
+    extracted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    model TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_provenance_memory ON memory_provenance(memory_id);
+CREATE INDEX IF NOT EXISTS idx_provenance_extracted ON memory_provenance(extracted_at);
 """
 
 # Migration from v1 to v2

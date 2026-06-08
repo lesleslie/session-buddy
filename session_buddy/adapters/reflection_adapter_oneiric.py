@@ -1328,7 +1328,92 @@ class ReflectionDatabaseAdapterOneiric:
             ],
         )
 
+        # Phase 1 Feature #4: lineage / provenance. Only track writes
+        # that declare a source_type — sourceless writes (tests,
+        # legacy code, manual) intentionally have no provenance row.
+        self._write_provenance(
+            memory_id=conv_id,
+            source_type=source_type,
+            metadata=redacted_metadata,
+        )
+
         return conv_id
+
+    def _write_provenance(
+        self,
+        *,
+        memory_id: str,
+        source_type: str | None,
+        metadata: dict[str, t.Any] | None,
+    ) -> None:
+        """Insert a ``memory_provenance`` row for a freshly written memory.
+
+        Phase 1 Feature #4. Silently no-ops when ``source_type`` is None:
+        sourceless writes (legacy callers, tests) intentionally leave
+        the provenance table untouched. ``source_ref`` is taken from
+        ``metadata['source_session']`` (the transcript-ingester field);
+        ``model`` is taken from ``metadata['model']``. Both are
+        nullable; missing keys become NULL rows.
+        """
+        if source_type is None:
+            return
+        meta = metadata or {}
+        source_ref = meta.get("source_session")
+        model = meta.get("model")
+        self.conn.execute(
+            """
+            INSERT INTO memory_provenance
+                (id, memory_id, source_type, source_ref, model)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [str(ULID()), memory_id, source_type, source_ref, model],
+        )
+
+    async def memory_lineage(self, memory_id: str) -> list[dict[str, t.Any]]:
+        """Return the provenance chain for a memory, oldest-first.
+
+        Phase 1 Feature #4. Each row in ``memory_provenance`` describes
+        one extraction event (source_type + source_ref + model +
+        extracted_at) for the given memory id. Most memories have a
+        single row; transcripts and Conscious-Agent writes can produce
+        more.
+        """
+        result = self.conn.execute(
+            """
+            SELECT id, source_type, source_ref, extracted_at, model
+            FROM memory_provenance
+            WHERE memory_id = ?
+            ORDER BY extracted_at ASC
+            """,
+            [memory_id],
+        )
+        columns = [c[0] for c in (result.description or [])]
+        return [dict(zip(columns, row, strict=False)) for row in result.fetchall()]
+
+    async def prune_provenance_older_than(self, *, days: int = 90) -> int:
+        """Delete provenance rows older than ``days``. Returns count.
+
+        Phase 1 Feature #4. Default 90-day retention window keeps the
+        table small while preserving long-enough history to answer
+        lineage questions. Pruned rows are unrecoverable; the FK
+        CASCADE trigger keeps the parent table unaffected.
+        """
+        before_row = self.conn.execute(
+            "SELECT COUNT(*) FROM memory_provenance"
+        ).fetchone()
+        before = int(before_row[0]) if before_row else 0
+        self.conn.execute(
+            """
+            DELETE FROM memory_provenance
+            WHERE extracted_at < CURRENT_TIMESTAMP - INTERVAL (? || ' days')
+            """,
+            [days],
+        )
+        after_row = self.conn.execute(
+            "SELECT COUNT(*) FROM memory_provenance"
+        ).fetchone()
+        after = int(after_row[0]) if after_row else 0
+        return max(0, before - after)
 
     async def search_conversations(
         self,

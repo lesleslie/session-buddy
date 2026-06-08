@@ -507,6 +507,47 @@ async def _search_by_source_impl(
 
 
 # ============================================================================
+# Memory Lineage / Provenance (Phase 1 Feature #4)
+# ============================================================================
+
+
+async def _format_memory_lineage(
+    memory_id: str, chain: list[dict[str, Any]]
+) -> str:
+    """Format the provenance chain for a memory."""
+    if not chain:
+        return f"🔍 No provenance records for memory_id={memory_id!r}"
+    lines = [
+        f"🔍 **Lineage for memory_id={memory_id}** — {len(chain)} records\n"
+    ]
+    for i, row in enumerate(chain, 1):
+        ts = row.get("extracted_at", "unknown")
+        src = row.get("source_type", "?")
+        ref = row.get("source_ref") or "-"
+        model = row.get("model") or "-"
+        lines.append(f"**{i}.** ({ts}) source={src} ref={ref} model={model}")
+    return "\n".join(lines)
+
+
+async def _memory_lineage_impl(memory_id: str) -> str:
+    """Return the provenance chain for a memory, oldest-first.
+
+    Phase 1 Feature #4. Each row in ``memory_provenance`` records
+    WHERE a memory came from (source_type + source_ref + model) and
+    WHEN it was extracted. Most memories have a single row;
+    transcripts and Conscious-Agent writes can produce more.
+    """
+    if not memory_id:
+        return ToolMessages.invalid_input("memory_id", "(non-empty string)")
+
+    async def operation(db: ReflectionDatabase) -> str:
+        chain = await db.memory_lineage(memory_id)
+        return _format_memory_lineage(memory_id, chain)
+
+    return await execute_simple_database_tool(operation, "Memory lineage")
+
+
+# ============================================================================
 # Database Management
 # ============================================================================
 
@@ -913,6 +954,18 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         all sources.
         """
         return await _search_by_source_impl(query, source_type, project, limit)
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def memory_lineage(memory_id: str) -> str:
+        """Return the provenance chain for a memory, oldest-first.
+
+        Phase 1 Feature #4. Each record lists the source_type
+        (claude_code | crackerjack | mahavishnu_workflow | manual |
+        migration), the source_ref (typically a session id), the
+        model, and the extracted_at timestamp. Returns a formatted
+        Markdown summary.
+        """
+        return await _memory_lineage_impl(memory_id)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:
