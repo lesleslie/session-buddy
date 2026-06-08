@@ -15,7 +15,11 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.utils.database_tools import require_reflection_database
-from session_buddy.utils.error_management import _get_logger, validate_required
+from session_buddy.utils.error_management import (
+    DatabaseUnavailableError,
+    _get_logger,
+    validate_required,
+)
 from session_buddy.utils.messages import ToolMessages
 from session_buddy.utils.tool_wrapper import (
     execute_database_tool,
@@ -579,6 +583,25 @@ async def _reflection_stats_impl() -> str:
     return await execute_simple_database_tool(operation, "Reflection stats")
 
 
+async def _session_learning_report_impl(
+    session_id: str, window_hours: int = 24
+) -> dict[str, Any]:
+    """Generate a 'session learning report' for the given session_id.
+
+    Pure read over v2 tables. Returns what memories were created, reinforced,
+    contradicted, or had new causal links attributed to this session within
+    the time window.
+    """
+    try:
+        db = await require_reflection_database()
+        return await db.generate_session_differential(session_id, window_hours)
+    except DatabaseUnavailableError as e:
+        return {"error": str(e), "session_id": session_id}
+    except Exception as e:
+        _get_logger().exception(f"Error in Session learning report: {e}")
+        return {"error": str(e), "session_id": session_id}
+
+
 # ============================================================================
 # Search Code
 # ============================================================================
@@ -1001,6 +1024,24 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         project: str | None = None,
     ) -> str:
         return await _search_temporal_impl(time_expression, query, limit, project)
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def session_learning_report(
+        session_id: str, window_hours: int = 24
+    ) -> dict[str, Any]:
+        """Generate a 'session learning report' for the given session_id.
+
+        Pure read over v2 tables; no new writes. Returns a dictionary
+        describing what memories were created, reinforced (accessed more
+        than once), contradicted, or had new causal links attributed to
+        this session within the time window. ``contradictions`` and
+        ``new_causal_links`` are placeholders (out of scope for v1).
+
+        Args:
+            session_id: Session identifier to scope the report.
+            window_hours: How far back to look (default 24 hours).
+        """
+        return await _session_learning_report_impl(session_id, window_hours)
 
 
 def _register_progressive_search_tools(mcp: Any) -> None:
