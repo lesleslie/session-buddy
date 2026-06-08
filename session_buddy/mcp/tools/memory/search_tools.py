@@ -552,6 +552,115 @@ async def _memory_lineage_impl(memory_id: str) -> str:
 
 
 # ============================================================================
+# Per-project peer modeling (Phase 1.5 Feature #2: Honcho)
+# ============================================================================
+# ACL is a CALLER concern — these tools do not check ``peer_models:read``
+# / ``peer_models:write`` themselves. The host environment (typically
+# Mahavishnu's ACL router) is expected to gate the tool invocation
+# before the request reaches here. See
+# ``session_buddy.memory.peer_modeling`` for the full contract.
+
+
+def _format_peer_context(context: dict[str, Any]) -> str:
+    """Format a peer_context dict for the LLM-facing response."""
+    lines = [
+        f"🧠 **Peer context for {context['peer_id']} in "
+        f"{context['project_id']}**\n"
+    ]
+    rep = context.get("representation_text", "") or ""
+    if rep:
+        lines.append(f"**Representation:** {rep}\n")
+    if context.get("last_updated"):
+        lines.append(
+            f"**Last updated:** {context['last_updated']} | "
+            f"**Evidence:** {context['evidence_count']} | "
+            f"**Model:** {context['model'] or 'n/a'}\n"
+        )
+    recent = context.get("recent_memories") or []
+    if recent:
+        lines.append(f"**Recent memories ({len(recent)}):**")
+        for mem in recent:
+            content = mem.get("content", "")
+            if isinstance(content, str) and len(content) > 120:
+                content = content[:117] + "..."
+            lines.append(
+                f"- {mem.get('id', '?')[:8]} [{mem.get('category', '?')}] "
+                f"{content}"
+            )
+        lines.append("")
+    target = context.get("target_peer")
+    if target is not None:
+        lines.append(
+            f"**Target peer ({target['peer_id']}):** "
+            f"{target.get('representation_text', '')}"
+        )
+    return "\n".join(lines)
+
+
+async def _peer_context_impl(
+    peer_id: str,
+    project_id: str,
+    target_peer_id: str | None = None,
+    recent_limit: int = 5,
+) -> str:
+    """Return peer context (representation + recent memories).
+
+    Phase 1.5 #2 (Honcho). Bundles the peer's evolving
+    ``representation_text`` with their recent memories in the project,
+    optionally alongside a second peer's model. ACL: caller must
+    check ``peer_models:read``.
+    """
+    if not peer_id:
+        return ToolMessages.invalid_input("peer_id", "(non-empty string)")
+    if not project_id:
+        return ToolMessages.invalid_input("project_id", "(non-empty string)")
+
+    async def operation(db: ReflectionDatabase) -> str:
+        context = await db.peer_context(
+            peer_id=peer_id,
+            project_id=project_id,
+            recent_limit=recent_limit,
+            target_peer_id=target_peer_id,
+        )
+        return _format_peer_context(context)
+
+    return await execute_simple_database_tool(operation, "Peer context")
+
+
+async def _update_peer_model_impl(
+    peer_id: str,
+    project_id: str,
+    model: str = "heuristic",
+) -> str:
+    """Trigger a peer model update (heuristic or LLM).
+
+    Phase 1.5 #2. On first call for a peer, creates a row with
+    ``representation_text`` synthesized from recent memories. On
+    subsequent calls, increments ``evidence_count`` and refreshes the
+    representation. The ``model`` field on the row records which path
+    produced it. ACL: caller must check ``peer_models:write``.
+    """
+    if not peer_id:
+        return ToolMessages.invalid_input("peer_id", "(non-empty string)")
+    if not project_id:
+        return ToolMessages.invalid_input("project_id", "(non-empty string)")
+
+    async def operation(db: ReflectionDatabase) -> str:
+        representation = await db.update_peer_model(
+            peer_id=peer_id,
+            project_id=project_id,
+            model=model,
+        )
+        return (
+            f"✅ Peer model updated for {peer_id} in {project_id}\n\n"
+            f"**Model:** {model}\n"
+            f"**Representation:** {representation}"
+        )
+
+    return await execute_simple_database_tool(operation, "Update peer model")
+
+
+# ============================================================================
 # Database Management
 # ============================================================================
 
@@ -989,6 +1098,48 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         Markdown summary.
         """
         return await _memory_lineage_impl(memory_id)
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def peer_context(
+        peer_id: str,
+        project_id: str,
+        target_peer_id: str | None = None,
+        recent_limit: int = 5,
+    ) -> str:
+        """Return peer context (representation + recent memories).
+
+        Phase 1.5 #2 (Honcho-style theory of mind). Bundles a peer's
+        evolving ``representation_text`` with their recent memories
+        in the project. When ``target_peer_id`` is set, the response
+        also includes a second peer's model — useful for agent-vs-user
+        theory of mind.
+
+        Requires ``peer_models:read`` ACL (caller's responsibility).
+        Returns a formatted Markdown summary.
+        """
+        return await _peer_context_impl(
+            peer_id, project_id, target_peer_id, recent_limit
+        )
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def update_peer_model(
+        peer_id: str,
+        project_id: str,
+        model: str = "heuristic",
+    ) -> str:
+        """Trigger a peer model update (heuristic or LLM-driven).
+
+        Phase 1.5 #2. On first call for a peer, creates a row with
+        ``representation_text`` synthesized from recent memories. On
+        subsequent calls, increments ``evidence_count`` and refreshes
+        the representation. The ``model`` field records which path
+        produced it ('heuristic' for the cheap path, an LLM name for
+        the Conscious Agent path).
+
+        Requires ``peer_models:write`` ACL (caller's responsibility).
+        Returns the new representation.
+        """
+        return await _update_peer_model_impl(peer_id, project_id, model)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:

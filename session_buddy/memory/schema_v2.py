@@ -208,6 +208,37 @@ CREATE TABLE IF NOT EXISTS memory_provenance (
 );
 CREATE INDEX IF NOT EXISTS idx_provenance_memory ON memory_provenance(memory_id);
 CREATE INDEX IF NOT EXISTS idx_provenance_extracted ON memory_provenance(extracted_at);
+
+-- Per-project peer model (Honcho-style theory of mind, Phase 1.5 #2).
+-- ``peer_id`` is the user/agent identifier, ``project_id`` scopes the
+-- representation so cross-project leakage is impossible at the schema
+-- level (composite primary key). ``representation_text`` is the
+-- short, evolving user summary — initially heuristic, optionally
+-- LLM-derived when the Conscious Agent runs.
+--
+-- Concurrency: writes use ``INSERT ... ON CONFLICT (peer_id, project_id)
+-- DO UPDATE`` so two workers updating the same peer race harmlessly
+-- (last-writer-wins on the row). The Conscious Agent's evidence
+-- count lets us decide when re-derivation is worth the LLM cost
+-- (plan §LLM Cost Ceiling: 50 calls/day/peer).
+--
+-- ACL note: this table is NOT consumed by any read path by default.
+-- Cross-component consumers (Mahavishnu routing, Akosha analytics)
+-- must check the ``peer_models:read`` permission before reading
+-- (plan §Honcho: ``peer_models:read``/``peer_models:write`` ACL).
+-- Session-Buddy exposes peer_context() but the ACL gate lives in
+-- the calling tool, not in the adapter — adapters are infrastructure,
+-- not policy.
+CREATE TABLE IF NOT EXISTS user_models (
+    peer_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    representation_text TEXT NOT NULL,
+    last_updated TIMESTAMP NOT NULL DEFAULT now(),
+    evidence_count INTEGER NOT NULL DEFAULT 0,
+    model TEXT NOT NULL,
+    PRIMARY KEY (peer_id, project_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_models_project ON user_models(project_id, last_updated DESC);
 """
 
 # Migration from v1 to v2

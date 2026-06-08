@@ -49,6 +49,11 @@ from session_buddy.ingesters.redaction import (
 )
 from session_buddy.insights.models import validate_collection_name
 from session_buddy.memory.category_evolution import CategoryEvolutionEngine
+from session_buddy.memory.peer_modeling import (
+    build_peer_context,
+    get_peer_model,
+    upsert_peer_model,
+)
 from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
 from session_buddy.utils.fingerprint import MinHashSignature
 
@@ -2969,6 +2974,95 @@ class ReflectionDatabaseAdapterOneiric:
             "new_causal_links": new_causal_links,
             "generated_at": datetime.now(UTC).isoformat(),
         }
+
+    # ========================================================================
+    # Per-project peer modeling (Phase 1.5 Feature #2: Honcho)
+    # ========================================================================
+    # ACL: the adapter exposes data-layer methods without permission
+    # checks. Tool/agent callers MUST verify ``peer_models:read`` before
+    # calling ``get_peer_model`` / ``peer_context`` and ``peer_models:write``
+    # before calling ``update_peer_model``. A global user model would
+    # leak preferences across projects — the composite
+    # ``PRIMARY KEY (peer_id, project_id)`` in ``user_models`` enforces
+    # per-project scoping at the schema level. See
+    # ``session_buddy.memory.peer_modeling`` for the full ACL contract.
+
+    async def get_peer_model(
+        self, peer_id: str, project_id: str
+    ) -> dict[str, t.Any] | None:
+        """Return the row for ``(peer_id, project_id)`` or None.
+
+        Phase 1.5 #2. Read miss returns None; the row is NOT created
+        on read. Use :meth:`update_peer_model` to create a row.
+        """
+        if not self._initialized:
+            await self.initialize()
+        return get_peer_model(self.conn, peer_id=peer_id, project_id=project_id)
+
+    async def update_peer_model(
+        self,
+        peer_id: str,
+        project_id: str,
+        *,
+        representation_text: str | None = None,
+        model: str = "heuristic",
+    ) -> str:
+        """Insert or update the peer model for ``(peer_id, project_id)``.
+
+        Phase 1.5 #2. On the first call for a peer, this synthesizes a
+        representation from the peer's recent memories in this project
+        (heuristic; no LLM cost). On subsequent calls, the
+        ``evidence_count`` is incremented and the ``representation_text``
+        is refreshed (heuristically, or from the caller's
+        ``representation_text`` arg when the Conscious Agent runs an
+        LLM-driven synthesis).
+
+        The composite ``PRIMARY KEY (peer_id, project_id)`` makes the
+        upsert race-safe via DuckDB's ``ON CONFLICT`` clause — two
+        workers updating the same peer is last-writer-wins on the row,
+        which is acceptable because both writers produce equivalent
+        representations from the same evidence.
+
+        Returns:
+            The ``representation_text`` that was stored.
+        """
+        if not self._initialized:
+            await self.initialize()
+        return upsert_peer_model(
+            self.conn,
+            peer_id=peer_id,
+            project_id=project_id,
+            representation_text=representation_text,
+            model=model,
+        )
+
+    async def peer_context(
+        self,
+        peer_id: str,
+        project_id: str,
+        *,
+        recent_limit: int = 5,
+        target_peer_id: str | None = None,
+    ) -> dict[str, t.Any]:
+        """Bundle a peer's representation + recent memories into one dict.
+
+        Phase 1.5 #2. When ``target_peer_id`` is set, the response also
+        includes a ``target_peer`` field with that peer's model
+        (useful for agent-vs-user theory of mind).
+
+        Returns a dict with keys: ``peer_id``, ``project_id``,
+        ``representation_text``, ``last_updated``, ``evidence_count``,
+        ``model``, ``recent_memories``, ``target_peer``.
+        """
+        if not self._initialized:
+            await self.initialize()
+        return build_peer_context(
+            self.conn,
+            peer_id=peer_id,
+            project_id=project_id,
+            recent_limit=recent_limit,
+            target_peer_id=target_peer_id,
+        )
 
 
 # Alias for backward compatibility

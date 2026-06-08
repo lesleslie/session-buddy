@@ -27,6 +27,11 @@ ALLOWED_METADATA_KEYS: frozenset[str] = frozenset(
         "model",
         "token_usage",
         "extracted_at",
+        # Project scoping tag — needed by Cross-Tool Fabric and
+        # peer_modeling to filter by project. Not a secret; this is
+        # the project's filesystem path or repo name (already public
+        # to the user's local environment).
+        "project",
     }
 )
 
