@@ -1169,6 +1169,8 @@ class ReflectionDatabaseAdapterOneiric:
         source_type: str | None = None,
         turn_parent_id: str | None = None,
         causal_parent_id: str | None = None,
+        category: str | None = None,
+        memory_tier: str | None = None,
     ) -> str:
         """Store a conversation in the database.
 
@@ -1193,6 +1195,11 @@ class ReflectionDatabaseAdapterOneiric:
                 Subject to the ``source_type_check`` CHECK constraint.
             turn_parent_id: ID of the parent turn in a transcript chain.
             causal_parent_id: ID of the parent that caused this memory.
+            category: Memori-inspired category (``facts`` | ``preferences``
+                | ``skills`` | ``rules`` | ``context`` | ``claude_turn``).
+                Defaults to ``context`` for backward compatibility.
+            memory_tier: Storage tier (``working`` | ``short_term`` |
+                ``long_term``). Defaults to ``long_term``.
 
         Returns:
             Conversation ID (existing ID if duplicate found and deduplicate=True)
@@ -1302,10 +1309,10 @@ class ReflectionDatabaseAdapterOneiric:
                 conv_id,
                 redacted_content,
                 embedding,
-                "context",  # default category for the rewire path
+                category or "context",  # default category for the rewire path
                 None,  # subcategory (None preserves current behavior)
                 0.5,  # importance_score default
-                "long_term",  # memory_tier default
+                memory_tier or "long_term",  # memory_tier default
                 project_value,
                 "default",  # namespace
                 None,  # session_id (not threaded through in this rewire)
