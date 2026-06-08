@@ -168,3 +168,10 @@ enable_websockets: true
 # === Development Settings ===
 enable_debug_mode: false
 enable_hot_reload: false
+
+# === Conscious Agent Settings (Phase 0c) ===
+# Gates the background analysis loop ONLY. The read-path instrumentation
+# (``memory_access_log`` writes) is unconditional — see
+# ``_log_access`` in ``reflection_adapter_oneiric.py`` — so the log is
+# populated from day one even when the analysis loop is off.
+enable_conscious_agent: false

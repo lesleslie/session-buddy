@@ -5,14 +5,156 @@ Analyzes conversation patterns to promote frequently-accessed memories
 from long-term to short-term storage for faster retrieval.
 """
 
+from __future__ import annotations
+
 import asyncio
 import contextlib
+import fcntl
 import logging
+import os
+import tempfile
+import typing as t
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
+
+
+# Lockfile used to elect a single Conscious Agent per host. The path is
+# anchored at ``tempfile.gettempdir()`` so the lock is per-user, not
+# per-filesystem, and survives worker restarts. The PID of the winning
+# worker is written to the file so operators can ``cat`` it to diagnose
+# which process owns the agent.
+_CONSCIOUS_AGENT_LOCK_PATH = "session-buddy-conscious-agent.lock"
+
+# In-process state. POSIX ``flock`` locks the *open file description*,
+# not the inode — so a second ``open()`` of the same path from the
+# same process gets a fresh file description and would acquire its
+# own lock. To make the in-process case behave the same as the
+# cross-process case (only one election per process), we cache the
+# election result here. The cache is per-process so a multi-process
+# host still gets one agent per host (the OS-level ``flock`` handles
+# that).
+_conscious_agent_lock_fd: t.Any = None
+_conscious_agent_elected: bool = False
+
+
+def _start_conscious_agent_with_lock(settings: Any) -> bool:
+    """Try to start the background Conscious Agent, gated by a host-wide lock.
+
+    Multiple Session-Buddy workers may run on the same host (a local
+    dev server, a CLI invocation, a periodic cron, etc.). Only one of
+    them should run the background analysis loop — otherwise the
+    promotion logic thrashes. This function is the single entry point
+    for "start the agent"; it elects one winner per host using a
+    POSIX ``fcntl`` file lock and returns True to the winner, False
+    to everyone else.
+
+    Behavior:
+
+    1. If ``settings.enable_conscious_agent`` is False, return False
+       immediately. The background loop is off — the write path is
+       still active (it is unconditional; see
+       ``_log_access`` in ``reflection_adapter_oneiric.py``) so the
+       analysis loop has data to chew on the day it is enabled.
+    2. Acquire an exclusive, non-blocking ``fcntl`` lock on
+       ``session-buddy-conscious-agent.lock`` in the temp directory.
+       If the lock is held by another process, return False.
+    3. Write the winning PID to the lockfile (best effort) and
+       return True. The caller is expected to actually start the
+       background task; this function only handles the election.
+
+    Args:
+        settings: An object with an ``enable_conscious_agent`` boolean
+            attribute. ``SessionMgmtSettings`` works; ``SimpleNamespace``
+            works for tests.
+
+    Returns:
+        True if this process should start the agent, False otherwise.
+        The function never raises — election failures are logged and
+        treated as "another worker has it".
+
+    """
+    # Short-circuit: feature flag off -> no agent, no lockfile, no work.
+    if not getattr(settings, "enable_conscious_agent", False):
+        return False
+
+    # In-process election cache. POSIX ``flock`` locks the *open file
+    # description* (per-process), not the inode, so a second ``open()``
+    # of the same path from the same process would acquire a fresh
+    # lock and double-elect. The cache here makes the in-process case
+    # behave the same as the cross-process case.
+    global _conscious_agent_lock_fd, _conscious_agent_elected
+    if _conscious_agent_elected:
+        return False
+
+    lock_path = Path(tempfile.gettempdir()) / _CONSCIOUS_AGENT_LOCK_PATH
+
+    # Open the lockfile and try to grab an exclusive, non-blocking
+    # POSIX lock. ``LOCK_NB`` makes the call return immediately with
+    # ``BlockingIOError`` if another process already holds the lock —
+    # we never want a new worker to wait for the lock because the
+    # holder could be long-lived.
+    try:
+        lock_path.touch(exist_ok=True)
+        lock_fd = open(lock_path, "w")
+    except OSError as exc:
+        logger.debug(
+            "Conscious Agent lockfile could not be opened at %s: %s",
+            lock_path,
+            exc,
+        )
+        return False
+
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        # Another worker holds the lock. Close our handle and bail.
+        lock_fd.close()
+        logger.info(
+            "Conscious Agent already running in another worker (pid unknown); "
+            "this process will not start a new loop"
+        )
+        return False
+    except OSError as exc:
+        # fcntl can fail on platforms that don't support it. Treat
+        # the same as "another worker has it" so we still avoid
+        # double-starting on Linux/macOS while not crashing on Windows.
+        lock_fd.close()
+        logger.debug(
+            "Conscious Agent flock failed on %s: %s", lock_path, exc
+        )
+        return False
+
+    # We have the lock. Record our PID so operators can identify the
+    # owner. Best-effort: a failure here is not fatal.
+    try:
+        lock_fd.seek(0)
+        lock_fd.write(str(os.getpid()))
+        lock_fd.truncate()
+        lock_fd.flush()
+    except OSError:
+        pass
+
+    logger.info(
+        "Conscious Agent elected by worker pid=%s (lock=%s)",
+        os.getpid(),
+        lock_path,
+    )
+    # NOTE: We deliberately do NOT close ``lock_fd`` here. The POSIX
+    # file lock is bound to the open file description; closing the fd
+    # would release the lock and let the next worker steal the
+    # election. The caller is expected to keep the adapter's
+    # lifetime long enough that this is not a problem; if the
+    # process exits, the OS reclaims the lock automatically.
+    _conscious_agent_lock_fd = lock_fd
+    _conscious_agent_elected = True
+    return True
 
 
 @dataclass
