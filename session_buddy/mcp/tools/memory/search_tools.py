@@ -661,6 +661,56 @@ async def _update_peer_model_impl(
 
 
 # ============================================================================
+# Causal Memory Chains (Phase 1.5 Feature #3)
+# ============================================================================
+# The chain walker is LLM-free (the plan's LLM Cost Ceiling pins
+# causal inference at 0). The output distinguishes ``observed``
+# links (ground truth) from ``inferred`` links (heuristic) so
+# consumers know which to trust.
+
+
+def _format_causal_chain(start_id: str, edges: list[dict[str, Any]]) -> str:
+    """Format a causal chain walk for the LLM-facing response."""
+    if not edges:
+        return f"🔍 No causal chain found for memory_id={start_id!r}"
+    lines = [
+        f"⛓️  **Causal chain for memory_id={start_id}** "
+        f"— {len(edges)} edges\n"
+    ]
+    for i, edge in enumerate(edges, 1):
+        origin = edge.get("link_origin", "?")
+        evidence = edge.get("evidence", 0.0)
+        link_type = edge.get("link_type", "?")
+        depth = edge.get("depth", "?")
+        origin_emoji = "✅" if origin == "observed" else "🤔"
+        lines.append(
+            f"**{i}.** {origin_emoji} [{origin}] depth={depth} "
+            f"evidence={evidence:.2f} type={link_type}\n"
+            f"    {edge.get('from_id', '?')} → {edge.get('to_id', '?')}"
+        )
+    return "\n".join(lines)
+
+
+async def _causal_chain_impl(start_id: str, max_depth: int = 3) -> str:
+    """BFS-walk the causal graph from ``start_id`` up to ``max_depth``.
+
+    Phase 1.5 #3. Cycle-safe. Returns a formatted Markdown summary
+    with each edge's ``link_origin`` (observed vs inferred) and
+    evidence weight. Depth defaults to 3 per the plan.
+    """
+    if not start_id:
+        return ToolMessages.invalid_input("start_id", "(non-empty string)")
+
+    async def operation(db: ReflectionDatabase) -> str:
+        edges = await db.causal_chain(
+            start_id=start_id, max_depth=max_depth
+        )
+        return _format_causal_chain(start_id, edges)
+
+    return await execute_simple_database_tool(operation, "Causal chain")
+
+
+# ============================================================================
 # Database Management
 # ============================================================================
 
@@ -1140,6 +1190,22 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         Returns the new representation.
         """
         return await _update_peer_model_impl(peer_id, project_id, model)
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def causal_chain(
+        start_id: str, max_depth: int = 3
+    ) -> str:
+        """BFS-walk the causal graph from ``start_id``.
+
+        Phase 1.5 #3. Cycle-safe. Returns a formatted Markdown
+        summary with each edge's ``link_origin`` (observed vs
+        inferred) and evidence weight. ``max_depth`` is the cap
+        on hop count from ``start_id`` (default 3 per the plan).
+
+        LLM-free — pure DuckDB queries (the plan's LLM Cost Ceiling
+        pins causal inference at 0).
+        """
+        return await _causal_chain_impl(start_id, max_depth)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:

@@ -54,6 +54,7 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "search_by_source": "Cross-tool memory search by source_type and project.",
     "peer_context": "Return peer context (representation + recent memories).",
     "update_peer_model": "Trigger a peer model update (heuristic or LLM-driven).",
+    "causal_chain": "BFS-walk the causal graph from a memory id (depth-capped, cycle-safe).",
     "search_code": "Search code patterns in reflections.",
     "search_code_patterns": "Search for code patterns with regex support.",
     "search_errors": "Search for error patterns.",

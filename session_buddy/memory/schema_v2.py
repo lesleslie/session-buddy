@@ -239,6 +239,41 @@ CREATE TABLE IF NOT EXISTS user_models (
     PRIMARY KEY (peer_id, project_id)
 );
 CREATE INDEX IF NOT EXISTS idx_user_models_project ON user_models(project_id, last_updated DESC);
+
+-- Causal Memory Chains (Phase 1.5 #3).
+-- A directed graph over ``conversations_v2`` rows: ``from_id`` was
+-- (probably) the cause of ``to_id``. The graph is walked in
+-- :func:`walk_causal_chain` with a depth cap of 3 (per the plan's
+-- cap-at-3 decision, cycle-safe via visited-set).
+--
+-- ``link_type`` is a free-form label (e.g. ``led_to``, ``elaborated``,
+-- ``superseded``). The application decides the vocabulary. ``evidence``
+-- is a weight in [0.0, 1.0] — links with evidence <= 0.5 are NOT
+-- persisted by ``infer_causal_links`` (the plan's quality floor).
+-- ``last_evidence_at`` is bumped on every observed re-use so the
+-- Conscious Agent can prune links that haven't been touched in 90 days.
+-- ``link_origin`` distinguishes ``observed`` (direct transcript pair,
+-- parent_uuid_chain, or other ground-truth) from ``inferred``
+-- (heuristic guess from co-occurrence).
+--
+-- Note: no FK to ``conversations_v2(id)`` because the source rows
+-- are not necessarily conversations — the schema is open to links
+-- from any future memory primitive (reflections, distilled skills,
+-- etc.). Application-level cascade is in the adapter's delete path.
+CREATE TABLE IF NOT EXISTS causal_links (
+    id TEXT PRIMARY KEY,
+    from_id TEXT NOT NULL,
+    to_id TEXT NOT NULL,
+    link_type TEXT NOT NULL,
+    evidence REAL NOT NULL CHECK (evidence > 0.0 AND evidence <= 1.0),
+    last_evidence_at TIMESTAMP NOT NULL DEFAULT now(),
+    link_origin TEXT NOT NULL CHECK (link_origin IN ('observed', 'inferred')),
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    depth INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_causal_from ON causal_links(from_id);
+CREATE INDEX IF NOT EXISTS idx_causal_to ON causal_links(to_id);
+CREATE INDEX IF NOT EXISTS idx_causal_last_evidence ON causal_links(last_evidence_at);
 """
 
 # Migration from v1 to v2

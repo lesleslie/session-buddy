@@ -49,6 +49,18 @@ from session_buddy.ingesters.redaction import (
 )
 from session_buddy.insights.models import validate_collection_name
 from session_buddy.memory.category_evolution import CategoryEvolutionEngine
+from session_buddy.memory.causal import (
+    infer_causal_links_for as _infer_causal_links_for,
+)
+from session_buddy.memory.causal import (
+    prune_causal_links_older_than as _prune_causal_links_older_than,
+)
+from session_buddy.memory.causal import (
+    record_observed_link as _record_observed_link,
+)
+from session_buddy.memory.causal import (
+    walk_causal_chain as _walk_causal_chain,
+)
 from session_buddy.memory.peer_modeling import (
     build_peer_context,
     get_peer_model,
@@ -3063,6 +3075,104 @@ class ReflectionDatabaseAdapterOneiric:
             recent_limit=recent_limit,
             target_peer_id=target_peer_id,
         )
+
+    # ========================================================================
+    # Causal Memory Chains (Phase 1.5 Feature #3)
+    # ========================================================================
+    # The causal graph is a directed, weighted, ``link_origin``-tagged
+    # network of "A caused B" relationships between memory rows. Two
+    # flavors: ``observed`` (ground truth from a transcript
+    # ``parentUuid`` chain, manual note, or a tool that asserts
+    # "A caused B") and ``inferred`` (heuristic guess from same-
+    # project co-occurrence + category overlap + time decay). Per
+    # the plan, inference is LLM-free — pure DuckDB queries.
+    #
+    # See ``session_buddy.memory.causal`` for the heuristic and
+    # the evidence-weight formula.
+
+    async def record_observed_link(
+        self,
+        from_id: str,
+        to_id: str,
+        link_type: str,
+        evidence: float,
+    ) -> str:
+        """Record an observed causal link from ``from_id`` to ``to_id``.
+
+        Phase 1.5 #3. Self-links (``from_id == to_id``) are rejected
+        with ``ValueError``. Calling with the same ``(from_id, to_id)``
+        pair upserts (same ULID), bumping ``last_evidence_at`` and
+        updating ``evidence``.
+
+        Returns the link's id (a fresh ULID on insert; same id on
+        upsert).
+        """
+        if not self._initialized:
+            await self.initialize()
+        return _record_observed_link(
+            self.conn,
+            from_id=from_id,
+            to_id=to_id,
+            link_type=link_type,
+            evidence=evidence,
+        )
+
+    async def infer_causal_links_for(
+        self,
+        memory_id: str,
+        *,
+        lookback_limit: int = 20,
+    ) -> list[dict[str, t.Any]]:
+        """Infer causal links FROM prior memories TO ``memory_id``.
+
+        Phase 1.5 #3. LLM-free heuristic: looks at the last
+        ``lookback_limit`` same-project memories with
+        ``timestamp < memory_id.timestamp``, computes an evidence
+        weight from category overlap and time decay, and persists
+        any link with ``evidence > 0.5`` as ``link_origin='inferred'``.
+
+        Returns the list of newly inferred links.
+        """
+        if not self._initialized:
+            await self.initialize()
+        return _infer_causal_links_for(
+            self.conn,
+            memory_id=memory_id,
+            lookback_limit=lookback_limit,
+        )
+
+    async def causal_chain(
+        self,
+        start_id: str,
+        *,
+        max_depth: int = 3,
+    ) -> list[dict[str, t.Any]]:
+        """BFS-walk the causal graph from ``start_id`` up to ``max_depth``.
+
+        Phase 1.5 #3. Cycle-safe via a visited set keyed on the
+        destination ``to_id``. Returns a list of walked edges, each
+        with ``from_id``, ``to_id``, ``link_type``, ``evidence``,
+        ``link_origin``, ``depth`` (hop count from ``start_id``).
+        An isolated start returns ``[]``.
+        """
+        if not self._initialized:
+            await self.initialize()
+        return _walk_causal_chain(
+            self.conn, start_id=start_id, max_depth=max_depth
+        )
+
+    async def prune_causal_links_older_than(
+        self, *, days: int = 90
+    ) -> int:
+        """Delete causal links stale for ``days``. Returns count.
+
+        Phase 1.5 #3. The Conscious Agent calls this as a periodic
+        cleanup. ``record_observed_link`` bumps ``last_evidence_at``
+        so re-used links survive another full window.
+        """
+        if not self._initialized:
+            await self.initialize()
+        return _prune_causal_links_older_than(self.conn, days=days)
 
 
 # Alias for backward compatibility
