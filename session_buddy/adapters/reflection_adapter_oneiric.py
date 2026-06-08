@@ -2876,6 +2876,100 @@ class ReflectionDatabaseAdapterOneiric:
             "by_type": by_type,
         }
 
+    async def generate_session_differential(
+        self,
+        session_id: str,
+        window_hours: int = 24,
+    ) -> dict[str, t.Any]:
+        """Generate a 'session learning report' for the given session_id.
+
+        Pure read over v2 tables; no new writes. The differential summarizes
+        what memories were created, reinforced, contradicted, or had new
+        causal links attributed to this session within the time window.
+
+        Args:
+            session_id: Session identifier to scope the report.
+            window_hours: How far back to look (default 24 hours).
+
+        Returns:
+            Dictionary with keys:
+            - session_id: Echo of the input.
+            - window_hours: Echo of the input.
+            - new_memory_count: Count of new memories in the window.
+            - new_memories: Row dicts for those memories.
+            - reinforced_memories: ``[{memory_id, access_count}, ...]``
+              for memories accessed more than once in the window.
+            - contradictions: ``[]`` (placeholder; NLP detection is out of
+              scope for v1).
+            - new_causal_links: ``[]`` (placeholder; will be wired up in
+              Phase 2 Feature #3).
+            - generated_at: ISO-8601 UTC timestamp of report generation.
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        # New memories: rows in conversations_v2 with matching session_id
+        # and timestamp inside the window.
+        new_memories_result = self.conn.execute(
+            """
+            SELECT id, content, category, subcategory, project, namespace,
+                   timestamp, session_id, importance_score
+            FROM conversations_v2
+            WHERE session_id = ?
+              AND timestamp > now() - INTERVAL '1 hour' * ?
+            ORDER BY timestamp DESC
+            """,
+            [session_id, window_hours],
+        )
+        new_memories_columns = [
+            c[0] for c in (new_memories_result.description or [])
+        ]
+        new_memories_rows = new_memories_result.fetchall()
+        new_memories: list[dict[str, t.Any]] = [
+            dict(zip(new_memories_columns, row, strict=False))
+            for row in new_memories_rows
+        ]
+        new_memory_ids = [row["id"] for row in new_memories]
+
+        # Reinforced: memories in this session whose id appears in
+        # memory_access_log more than once during the window. We build
+        # a comma-separated IN-list to avoid DuckDB's bind semantics
+        # for ``ANY(?)`` lists.
+        reinforced: list[dict[str, t.Any]] = []
+        if new_memory_ids:
+            placeholders = ",".join(["?"] * len(new_memory_ids))
+            reinforced_rows = self.conn.execute(
+                f"""
+                SELECT memory_id, COUNT(*) AS access_count
+                FROM memory_access_log
+                WHERE memory_id IN ({placeholders})
+                  AND timestamp > now() - INTERVAL '1 hour' * ?
+                GROUP BY memory_id
+                HAVING COUNT(*) > 1
+                """,
+                [*new_memory_ids, window_hours],
+            ).fetchall()
+            reinforced = [
+                {"memory_id": row[0], "access_count": int(row[1])}
+                for row in reinforced_rows
+            ]
+
+        # Contradictions: NLP-based detection is out of scope for v1.
+        contradictions: list[dict[str, t.Any]] = []
+        # New causal links: wired up in Phase 2 Feature #3.
+        new_causal_links: list[dict[str, t.Any]] = []
+
+        return {
+            "session_id": session_id,
+            "window_hours": window_hours,
+            "new_memory_count": len(new_memory_ids),
+            "new_memories": new_memories,
+            "reinforced_memories": reinforced,
+            "contradictions": contradictions,
+            "new_causal_links": new_causal_links,
+            "generated_at": datetime.now(UTC).isoformat(),
+        }
+
 
 # Alias for backward compatibility
 ReflectionDatabase = ReflectionDatabaseAdapterOneiric
