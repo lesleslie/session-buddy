@@ -1400,6 +1400,89 @@ class ReflectionDatabaseAdapterOneiric:
 
         return results
 
+    # Allowed values for ``source_type`` on ``conversations_v2``. Mirrors
+    # the CHECK constraint in ``schema_v2.py``. Used by ``search_by_source``
+    # to validate user input before it reaches DuckDB.
+    _VALID_SOURCE_TYPES: t.Final[frozenset[str]] = frozenset(
+        {
+            "claude_code",
+            "crackerjack",
+            "mahavishnu_workflow",
+            "manual",
+            "migration",
+        },
+    )
+
+    async def search_by_source(
+        self,
+        query: str,
+        source_type: str | None = None,
+        project: str | None = None,
+        limit: int = 10,
+    ) -> list[dict[str, t.Any]]:
+        """Cross-tool query: filter ``conversations_v2`` by source_type and/or project.
+
+        Phase 1 Feature #5. The ``idx_v2_source_type_project`` covering index
+        on ``(source_type, project, timestamp DESC)`` makes this an O(log n)
+        range scan rather than a full table scan.
+
+        Args:
+            query: Text fragment to match in ``content`` (LIKE %query%).
+            source_type: Optional provenance tag. Must be one of
+                ``claude_code``, ``crackerjack``, ``mahavishnu_workflow``,
+                ``manual``, ``migration`` — matching the v2 CHECK constraint.
+            project: Optional project name filter.
+            limit: Maximum number of rows to return.
+
+        Returns:
+            List of matching rows, most recent first. Each row contains
+            ``id``, ``content``, ``metadata``, ``source_type``, ``project``,
+            ``category``, ``timestamp``.
+
+        Raises:
+            ValueError: If ``source_type`` is not in the allowed set.
+
+        """
+        if source_type is not None and source_type not in self._VALID_SOURCE_TYPES:
+            valid = ", ".join(sorted(self._VALID_SOURCE_TYPES))
+            msg = (
+                f"Invalid source_type {source_type!r}; "
+                f"must be one of: {valid}"
+            )
+            raise ValueError(msg)
+
+        if not self._initialized:
+            await self.initialize()
+
+        sql = """
+            SELECT id, content, metadata, source_type, project, category, timestamp
+            FROM conversations_v2
+            WHERE content LIKE ?
+        """
+        params: list[t.Any] = [f"%{query}%"]
+        if source_type is not None:
+            sql += " AND source_type = ?"
+            params.append(source_type)
+        if project is not None:
+            sql += " AND project = ?"
+            params.append(project)
+        sql += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+
+        rows = self.conn.execute(sql, params).fetchall()
+        return [
+            {
+                "id": row[0],
+                "content": row[1],
+                "metadata": json.loads(row[2]) if row[2] else {},
+                "source_type": row[3],
+                "project": row[4],
+                "category": row[5],
+                "timestamp": row[6],
+            }
+            for row in rows
+        ]
+
     def _get_cached_conversations(
         self,
         query: str,

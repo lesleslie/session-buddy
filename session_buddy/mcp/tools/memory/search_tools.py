@@ -432,6 +432,81 @@ async def _search_by_concept_impl(
 
 
 # ============================================================================
+# Search by Source (Cross-Tool Memory Fabric)
+# ============================================================================
+
+
+async def _format_source_results(
+    query: str,
+    results: list[dict[str, Any]],
+    source_type: str | None,
+    project: str | None,
+) -> str:
+    """Format cross-tool memory search results."""
+    if not results:
+        scope = f"source_type={source_type!r}" if source_type else "all sources"
+        scope += f", project={project!r}" if project else ""
+        return f"🔍 No cross-tool memory found for '{query}' ({scope})"
+
+    scope_bits: list[str] = []
+    if source_type:
+        scope_bits.append(f"source: {source_type}")
+    if project:
+        scope_bits.append(f"project: {project}")
+    scope_text = f" [{', '.join(scope_bits)}]" if scope_bits else " [all sources]"
+
+    output = f"🔍 **{len(results)} cross-tool results** for '{query}'{scope_text}\n\n"
+    for i, result in enumerate(results, 1):
+        output += f"**{i}.** "
+        if result.get("timestamp"):
+            output += f"({result['timestamp']}) "
+        if result.get("source_type"):
+            output += f"[{result['source_type']}] "
+        if result.get("project"):
+            output += f"[{result['project']}] "
+        content = str(result.get("content", ""))
+        output += f"{content[:200]}...\n\n"
+    return output
+
+
+async def _search_by_source_operation(
+    db: ReflectionDatabase,
+    query: str,
+    source_type: str | None,
+    project: str | None,
+    limit: int,
+) -> str:
+    """Execute cross-tool memory search."""
+    results = await db.search_by_source(
+        query=query,
+        source_type=source_type,
+        project=project,
+        limit=limit,
+    )
+    return _format_source_results(query, results, source_type, project)
+
+
+async def _search_by_source_impl(
+    query: str,
+    source_type: str | None = None,
+    project: str | None = None,
+    limit: int = 10,
+) -> str:
+    """Cross-tool memory search: filter v2 by source_type and/or project.
+
+    Phase 1 Feature #5. The v2 schema indexes source_type and project
+    so this is an O(log n) range scan, not a full table scan.
+    """
+
+    async def operation(db: ReflectionDatabase) -> str:
+        return await _search_by_source_operation(
+            db, query, source_type, project, limit
+        )
+
+    return await execute_simple_database_tool(operation, "Search by source")
+
+
+# ============================================================================
 # Database Management
 # ============================================================================
 
@@ -823,6 +898,21 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         project: str | None = None,
     ) -> str:
         return await _search_by_concept_impl(concept, include_files, limit, project)
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def search_by_source(
+        query: str,
+        source_type: str | None = None,
+        project: str | None = None,
+        limit: int = 10,
+    ) -> str:
+        """Cross-tool memory search: filter v2 by source_type and project.
+
+        source_type must be one of: claude_code, crackerjack,
+        mahavishnu_workflow, manual, migration. Leave None to search
+        all sources.
+        """
+        return await _search_by_source_impl(query, source_type, project, limit)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:
