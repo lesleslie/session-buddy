@@ -381,7 +381,7 @@ class HttpSyncMethod(SyncMethod):
                     id, content, embedding, category, subcategory,
                     importance_score, memory_tier, access_count, last_accessed,
                     project, namespace, timestamp, session_id, user_id,
-                    searchable_content, reasoning
+                    searchable_content, reasoning, source_type
                 FROM conversations_v2
                 {where_clause}
                 ORDER BY timestamp DESC
@@ -410,6 +410,7 @@ class HttpSyncMethod(SyncMethod):
                     "user_id": row[13],
                     "searchable_content": row[14],
                     "reasoning": row[15],
+                    "source_type": row[16],
                 }
                 for row in results
             ]
@@ -446,6 +447,7 @@ class HttpSyncMethod(SyncMethod):
             "subcategory": conv.get("subcategory"),
             "importance_score": conv.get("importance_score", 0.5),
             "memory_tier": conv.get("memory_tier", "long_term"),
+            "source_type": conv.get("source_type"),
             "project": conv.get("project"),
             "namespace": conv.get("namespace", "default"),
             "session_id": conv.get("session_id"),

@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import json
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -506,3 +507,119 @@ class TestSessionEndHookIntegration:
 
                 # Verify task was NOT created
                 mock_create.assert_not_called()
+
+
+# ============================================================================
+# Source Type Round-Trip Tests (Bodai Phase 1.5 Item 1)
+# ============================================================================
+
+
+def _seed_conversations_v2(reflection_db: Path) -> None:
+    """Seed a minimal conversations_v2 table in DuckDB for round-trip tests.
+
+    The table mirrors the v2 schema column subset that
+    ``_fetch_conversations`` selects. We avoid running the real schema
+    bootstrap to keep this test self-contained.
+    """
+    import duckdb
+
+    conn = duckdb.connect(str(reflection_db))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE conversations_v2 (
+                id TEXT PRIMARY KEY,
+                content TEXT,
+                embedding FLOAT[384],
+                category TEXT,
+                subcategory TEXT,
+                importance_score REAL,
+                memory_tier TEXT,
+                access_count INTEGER,
+                last_accessed TIMESTAMP,
+                project TEXT,
+                namespace TEXT,
+                timestamp TIMESTAMP,
+                session_id TEXT,
+                user_id TEXT,
+                searchable_content TEXT,
+                reasoning TEXT,
+                source_type TEXT
+            )
+            """
+        )
+    finally:
+        conn.close()
+
+
+class TestSourceTypeRoundTrip:
+    """Round-trip ``source_type`` through fetch → serialize → Akosha metadata.
+
+    Item 1 of the Bodai Phase 1.5 plan: a memory stored with
+    ``source_type='claude_code'`` must arrive at Akosha with
+    ``metadata.source_type == 'claude_code'``. The fetch must
+    select the column and the serializer must place it in metadata.
+    """
+
+    @pytest.mark.asyncio
+    async def test_source_type_round_trips_to_akosha_metadata(
+        self,
+        sample_config: AkoshaSyncConfig,
+        tmp_path: Path,
+    ) -> None:
+        """A ``claude_code`` row round-trips to ``metadata.source_type``."""
+        from session_buddy.storage.akosha_sync import HttpSyncMethod
+
+        reflection_db = tmp_path / "reflection.duckdb"
+        _seed_conversations_v2(reflection_db)
+
+        # Seed a row tagged with source_type='claude_code'.
+        import duckdb
+
+        seed_conn = duckdb.connect(str(reflection_db))
+        try:
+            seed_conn.execute(
+                """
+                INSERT INTO conversations_v2
+                    (id, content, category, importance_score, memory_tier,
+                     project, namespace, timestamp, session_id, user_id,
+                     searchable_content, reasoning, source_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    "mem-1",
+                    "hello akosha",
+                    "context",
+                    0.7,
+                    "long_term",
+                    "proj-x",
+                    "default",
+                    datetime(2026, 6, 8, 12, 0, 0, tzinfo=UTC),
+                    "sess-1",
+                    "user-1",
+                    "hello akosha",
+                    "phase 1.5",
+                    "claude_code",
+                ],
+            )
+        finally:
+            seed_conn.close()
+
+        # Build an HttpSyncMethod pointed at the seeded DB.
+        http_sync = HttpSyncMethod(sample_config)
+        http_sync.reflection_db_path = reflection_db
+
+        # Fetch the row.
+        rows = await http_sync._fetch_conversations(incremental=False, batch_size=10)
+        assert len(rows) == 1
+        assert rows[0]["id"] == "mem-1"
+
+        # Serialize the row into the Akosha payload.
+        memory = http_sync._serialize_conversation(rows[0])
+        assert memory["memory_id"] == "mem-1"
+
+        # The acceptance criterion: source_type is in the Akosha metadata.
+        assert "source_type" in memory["metadata"], (
+            f"source_type missing from Akosha metadata; got {sorted(memory['metadata'])}"
+        )
+        assert memory["metadata"]["source_type"] == "claude_code"
