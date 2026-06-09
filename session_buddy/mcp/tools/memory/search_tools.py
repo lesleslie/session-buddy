@@ -790,6 +790,160 @@ async def _search_distilled_skills_impl(
 
 
 # ============================================================================
+# Distilled Skill Health (Phase 1.5 wiring, Item 4 of bodai-adoption-phase-1.5)
+# ============================================================================
+# Crackerjack's coverage report calls this tool rather than reading
+# DuckDB directly (per the plan's A3 + Q3 default). The tool reads
+# ``distilled_skills``, computes a freshness status per row, and
+# returns a list of dicts. The status semantics:
+#
+#   - ``stale``          last_reinforced_at < now() - threshold_days
+#   - ``under_utilized`` importance_score >= 0.9 AND no matching
+#                        Crackerjack skill (when supplied)
+#   - ``cold``           evidence_count == 0 (never reinforced) AND
+#                        not under_utilized
+#   - ``fresh``          anything else
+
+
+# Importance threshold for the under-utilized bucket. Pinned at 0.9
+# in the plan's Item 4 acceptance: a high-importance skill with no
+# Crackerjack counterpart is exactly the kind of "under-utilized
+# knowledge" the report must surface.
+_UNDER_UTILIZED_IMPORTANCE_FLOOR: float = 0.9
+
+
+def _classify_skill_status(
+    row: dict[str, Any],
+    *,
+    threshold: timedelta,
+    crackerjack_skill_names: list[str] | None,
+) -> str:
+    """Apply the four-bucket classifier to one distilled_skill row.
+
+    Pure function — no DB, no I/O — so unit tests can exercise the
+    status logic directly. The ordering of the checks matters:
+    ``stale`` is checked first (it depends only on the timestamp),
+    then ``under_utilized`` (depends on importance + Crackerjack
+    match), then ``cold`` (depends on evidence_count), with
+    ``fresh`` as the catch-all.
+    """
+    importance = float(row.get("importance_score") or 0.0)
+    evidence = int(row.get("evidence_count") or 0)
+    last_reinforced = row.get("last_reinforced_at")
+
+    # 1. Stale — timestamp-based; check first so a stale, high-importance
+    # skill reports as 'stale' rather than 'under_utilized'.
+    if last_reinforced is not None:
+        try:
+            reinforced_dt = _parse_reinforced_ts(last_reinforced)
+        except (TypeError, ValueError):
+            reinforced_dt = None
+        if reinforced_dt is not None:
+            now = datetime.now()
+            if now - reinforced_dt > threshold:
+                return "stale"
+
+    # 2. Under-utilized — high importance with no Crackerjack match.
+    if importance >= _UNDER_UTILIZED_IMPORTANCE_FLOOR:
+        if crackerjack_skill_names is not None:
+            pattern = str(row.get("problem_pattern") or "").lower()
+            has_match = any(
+                pattern and pattern in name.lower()
+                for name in crackerjack_skill_names
+            )
+            if not has_match:
+                return "under_utilized"
+        else:
+            # No Crackerjack skill list provided: the report cannot
+            # decide if the skill is under-utilized, so it stays in
+            # the default bucket. Item 4 only treats it as
+            # 'under_utilized' when the caller supplies the list.
+            pass
+
+    # 3. Cold — never reinforced (zero evidence) AND below the
+    # under-utilized floor. The plan's "cold-start indicator" is
+    # "a skill exists but has no signal"; evidence==0 captures
+    # that even when last_reinforced_at is recent.
+    if evidence == 0:
+        return "cold"
+
+    return "fresh"
+
+
+def _parse_reinforced_ts(value: Any) -> datetime:
+    """Coerce a ``last_reinforced_at`` value to a ``datetime``.
+
+    The v2 schema stores ``TIMESTAMP`` which DuckDB returns as a
+    ``datetime`` instance, but tests and ad-hoc inserts sometimes
+    hand us a string. Accept both forms rather than crash.
+    """
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    raise TypeError(f"unsupported last_reinforced_at type: {type(value)!r}")
+
+
+async def _distilled_skill_health_impl(
+    threshold_days: int = 90,
+    crackerjack_skill_names: list[str] | None = None,
+    db: ReflectionDatabase | None = None,
+) -> list[dict[str, Any]]:
+    """Return a freshness/utility report for the v2 ``distilled_skills`` table.
+
+    Phase 1.5 wiring (Item 4 of the bodai-adoption-phase-1.5 plan).
+    Crackerjack's ``skill_coverage_report`` calls this tool rather
+    than reading DuckDB directly so the read stays ACL-gated and
+    the data shape is owned by the producer.
+
+    Args:
+        threshold_days: Number of days since ``last_reinforced_at``
+            before a skill is reported as ``stale``. Default 90
+            matches the plan's A4.
+        crackerjack_skill_names: Optional list of skill names from
+            Crackerjack's registry. When provided, high-importance
+            (>= 0.9) skills whose ``problem_pattern`` is NOT a
+            substring of any Crackerjack skill are reported as
+            ``under_utilized``.
+        db: Optional pre-resolved ``ReflectionDatabase`` instance.
+            Used by the test suite to inject a fixture-bound adapter
+            (so the read targets the same DuckDB file the test
+            just seeded). When ``None``, falls back to
+            :func:`require_reflection_database`.
+
+    Returns:
+        A list of dicts, one per row in ``distilled_skills``,
+        each containing the row's columns plus a ``status`` key.
+    """
+    if threshold_days <= 0:
+        return []
+    threshold = timedelta(days=threshold_days)
+
+    try:
+        if db is None:
+            db = await require_reflection_database()
+        # The simplest portable read: ask the distiller module for
+        # the full list (empty query → top by score). That keeps
+        # the tool in the LLM-free data layer and avoids a new
+        # raw-SQL path. The result is bounded only by the underlying
+        # query; for the report's purposes "all rows" is correct.
+        rows = await db.search_distilled_skills(query="", limit=10_000)
+        for row in rows:
+            row["status"] = _classify_skill_status(
+                row,
+                threshold=threshold,
+                crackerjack_skill_names=crackerjack_skill_names,
+            )
+        return rows
+    except DatabaseUnavailableError as e:
+        _get_logger().exception(f"Distilled skill health: {e}")
+        return []
+    except Exception as e:
+        _get_logger().exception(f"Distilled skill health: {e}")
+        return []
+
+
+# ============================================================================
 # Database Management
 # ============================================================================
 
@@ -1130,6 +1284,31 @@ def _parse_tags_parameter(tags: list[str] | str | None) -> list[str] | None:
         return [tags]
 
 
+def _parse_skill_names_param(
+    names: list[str] | str | None,
+) -> list[str] | None:
+    """Normalize the ``crackerjack_skill_names`` MCP parameter.
+
+    Mirrors :func:`_parse_tags_parameter`: MCP transports sometimes
+    serialize a list[str] as a JSON string during transport. This
+    helper accepts both shapes and returns ``list[str] | None``.
+    A JSON parse failure falls back to ``None`` so the call site
+    can opt out of the under-utilized check rather than crash.
+    """
+    if names is None:
+        return None
+    if isinstance(names, list):
+        return [str(n) for n in names]
+    if isinstance(names, str):
+        try:
+            decoded = json.loads(names)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(decoded, list):
+            return [str(n) for n in decoded]
+    return None
+
+
 def _register_core_search_tools(mcp: Any) -> None:
     """Register core search and reflection tools.
 
@@ -1317,6 +1496,10 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         """
         return await _search_distilled_skills_impl(query, limit)
 
+    _register_distilled_skill_health_tool(mcp)
+    _register_peer_modeling_tools(mcp)
+    _register_causal_chain_tools(mcp)
+
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:
         return await _reset_reflection_database_impl()
@@ -1369,6 +1552,54 @@ def _register_specialized_search_tools(mcp: Any) -> None:
             window_hours: How far back to look (default 24 hours).
         """
         return await _session_learning_report_impl(session_id, window_hours)
+
+
+def _register_distilled_skill_health_tool(mcp: Any) -> None:
+    """Register the ``distilled_skill_health`` MCP tool.
+
+    Extracted from :func:`_register_specialized_search_tools` to
+    keep the parent's branch count under the 15-branch pylint
+    ceiling. The tool itself is a Phase 1.5 wiring (Item 4 of
+    the bodai-adoption-phase-1.5 plan); Crackerjack's
+    ``skill_coverage_report`` is its only known consumer.
+    """
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def distilled_skill_health(
+        threshold_days: int = 90,
+        crackerjack_skill_names: list[str] | str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return a freshness/utility report for the ``distilled_skills`` table.
+
+        Phase 1.5 wiring (Item 4 of the bodai-adoption-phase-1.5
+        plan). Crackerjack's ``skill_coverage_report`` calls this
+        tool via the MCP client — the data layer is the source of
+        truth, so the read stays ACL-gated and the schema is owned
+        by the producer.
+
+        Each row in the returned list carries its v2 columns plus
+        a ``status`` key:
+
+        - ``stale`` — ``last_reinforced_at`` is older than
+          ``threshold_days`` (default 90, per the plan's A4).
+        - ``under_utilized`` — ``importance_score >= 0.9`` AND
+          ``problem_pattern`` does not appear in any
+          ``crackerjack_skill_names`` entry.
+        - ``cold`` — ``evidence_count == 0`` and not under-utilized.
+        - ``fresh`` — anything else.
+
+        Args:
+            threshold_days: Days since ``last_reinforced_at`` before
+                a skill is reported as ``stale``. Default 90.
+            crackerjack_skill_names: Optional list (or JSON-encoded
+                string) of skill names from Crackerjack's
+                registry. When provided, drives the
+                ``under_utilized`` classification.
+        """
+        parsed_names = _parse_skill_names_param(crackerjack_skill_names)
+        return await _distilled_skill_health_impl(
+            threshold_days, parsed_names
+        )
 
 
 def _register_progressive_search_tools(mcp: Any) -> None:
