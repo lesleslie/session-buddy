@@ -250,22 +250,67 @@ class ConsciousAgent:
         Analyze memory patterns and optimize storage.
 
         Returns:
-            dict: Analysis results with promotion statistics
+            dict: Analysis results with promotion statistics and
+            periodic-job counts. The periodic-job keys are added by
+            Phase 1.5 follow-up wiring: ``provenance_pruned``,
+            ``causal_links_pruned``, ``skills_distilled``, and
+            ``periodic_jobs_errors``.
 
         """
         logger.info("Running conscious agent memory analysis...")
 
-        # 1. Analyze access patterns
-        patterns = await self._analyze_access_patterns()
+        # All steps below are best-effort (per the plan's
+        # resilience contract — Decision I). A failure in one
+        # step is recorded into ``periodic_errors`` and the
+        # loop continues. The legacy promotion/demotion methods
+        # (1-4) open their own DuckDB connections; the new
+        # periodic jobs (5) honor ``self.reflection_db`` when set.
+        periodic_errors: list[str] = []
 
-        # 2. Calculate priority scores
-        candidates = await self._calculate_promotion_priorities(patterns)
+        # 1. Analyze access patterns (legacy — opens its own DB)
+        try:
+            patterns = await self._analyze_access_patterns()
+        except Exception as exc:  # noqa: BLE001 — best-effort
+            logger.exception("Conscious agent: access-pattern analysis failed")
+            periodic_errors.append(f"analyze_access_patterns: {exc!r}")
+            patterns = []
 
-        # 3. Promote high-priority memories
-        promoted = await self._promote_memories(candidates)
+        # 2. Calculate priority scores (pure function on patterns)
+        try:
+            candidates = await self._calculate_promotion_priorities(patterns)
+        except Exception as exc:  # noqa: BLE001 — best-effort
+            logger.exception("Conscious agent: priority calculation failed")
+            periodic_errors.append(f"calculate_promotion_priorities: {exc!r}")
+            candidates = []
 
-        # 4. Demote stale memories
-        demoted = await self._demote_stale_memories()
+        # 3. Promote high-priority memories (legacy — opens its own DB)
+        try:
+            promoted = await self._promote_memories(candidates)
+        except Exception as exc:  # noqa: BLE001 — best-effort
+            logger.exception("Conscious agent: promote failed")
+            periodic_errors.append(f"promote_memories: {exc!r}")
+            promoted = []
+
+        # 4. Demote stale memories (legacy — opens its own DB)
+        try:
+            demoted = await self._demote_stale_memories()
+        except Exception as exc:  # noqa: BLE001 — best-effort
+            logger.exception("Conscious agent: demote failed")
+            periodic_errors.append(f"demote_stale_memories: {exc!r}")
+            demoted = []
+
+        # 5. Periodic jobs (Phase 1.5 follow-up: provenance prune,
+        #    causal-link prune, skill distillation). Each job is
+        #    best-effort; a failure is captured into
+        #    ``periodic_jobs_errors`` instead of aborting the loop
+        #    (per the plan's resilience contract — Decision I).
+        # 5. Periodic jobs (Phase 1.5 follow-up: provenance prune,
+        #    causal-link prune, skill distillation). Each job is
+        #    best-effort; a failure is captured into
+        #    ``periodic_jobs_errors`` instead of aborting the loop
+        #    (per the plan's resilience contract — Decision I).
+        periodic_results = await self._run_periodic_jobs()
+        periodic_errors.extend(periodic_results["errors"])
 
         results = {
             "timestamp": datetime.now().isoformat(),
@@ -275,15 +320,194 @@ class ConsciousAgent:
             "demoted_count": len(demoted),
             "promoted_ids": promoted,
             "demoted_ids": demoted,
+            "provenance_pruned": periodic_results["provenance_pruned"],
+            "causal_links_pruned": periodic_results["causal_links_pruned"],
+            "skills_distilled": periodic_results["skills_distilled"],
+            "periodic_jobs_errors": periodic_errors,
         }
 
         logger.info(
             f"Conscious agent analysis complete: "
             f"{results['promoted_count']} promoted, "
-            f"{results['demoted_count']} demoted"
+            f"{results['demoted_count']} demoted, "
+            f"{results['provenance_pruned']} provenance pruned, "
+            f"{results['causal_links_pruned']} causal links pruned, "
+            f"{results['skills_distilled']} skills distilled"
         )
+        if results["periodic_jobs_errors"]:
+            logger.warning(
+                f"Conscious agent periodic job errors: "
+                f"{results['periodic_jobs_errors']}"
+            )
 
         return results
+
+    async def _run_periodic_jobs(self) -> dict[str, Any]:
+        """Run the Phase 1.5 periodic jobs.
+
+        Three jobs run, each in its own try/except so a failure in
+        one does not stop the others. The plan's resilience
+        contract (Decision I): the Conscious Agent is best-effort
+        and a single broken job must not crash the loop.
+
+        The jobs use the same database path the agent already
+        opens (``get_database_path()``), so the new code does not
+        depend on ``self.reflection_db`` being non-None.
+
+        Returns a dict with keys ``provenance_pruned`` (int),
+        ``causal_links_pruned`` (int), ``skills_distilled`` (int),
+        and ``errors`` (list[str]). Each ``errors`` entry names
+        the failed job for log triage.
+        """
+        provenance_pruned = 0
+        causal_links_pruned = 0
+        skills_distilled = 0
+        errors: list[str] = []
+
+        # Job 1: prune provenance older than 90 days.
+        try:
+            provenance_pruned = await self._periodic_prune_provenance(days=90)
+        except Exception as exc:  # noqa: BLE001 — best-effort
+            logger.exception("Conscious agent: provenance prune failed")
+            errors.append(f"provenance_prune: {exc!r}")
+
+        # Job 2: prune causal links older than 90 days.
+        try:
+            causal_links_pruned = await self._periodic_prune_causal_links(days=90)
+        except Exception as exc:  # noqa: BLE001 — best-effort
+            logger.exception("Conscious agent: causal-link prune failed")
+            errors.append(f"causal_links_prune: {exc!r}")
+
+        # Job 3: distill skills from current session activity.
+        try:
+            skills_distilled = await self._periodic_distill_skills()
+        except Exception as exc:  # noqa: BLE001 — best-effort
+            logger.exception("Conscious agent: skill distillation failed")
+            errors.append(f"distill_skills: {exc!r}")
+
+        return {
+            "provenance_pruned": provenance_pruned,
+            "causal_links_pruned": causal_links_pruned,
+            "skills_distilled": skills_distilled,
+            "errors": errors,
+        }
+
+    async def _periodic_prune_provenance(self, *, days: int) -> int:
+        """Prune provenance rows older than ``days``.
+
+        Mirrors the adapter's ``prune_provenance_older_than`` but
+        opens its own DuckDB connection when ``self.reflection_db``
+        is not set. When ``self.reflection_db`` IS set, the agent
+        delegates to the adapter's method directly so test
+        environments that use a temp DB path are honored.
+
+        Returns the count of pruned rows.
+        """
+        if self.reflection_db is not None:
+            return await self.reflection_db.prune_provenance_older_than(
+                days=days
+            )
+        import duckdb
+
+        from session_buddy.settings import get_database_path
+
+        db_path = Path(str(get_database_path()))
+        if not db_path.exists():
+            return 0
+        conn = duckdb.connect(
+            str(db_path), config={"allow_unsigned_extensions": True}
+        )
+        try:
+            # Same SQL as ``prune_provenance_older_than`` in
+            # ``reflection_adapter_oneiric.py``. Re-implementing
+            # here is intentional — the agent does its own
+            # connection management to avoid coupling.
+            before = conn.execute(
+                "SELECT COUNT(*) FROM memory_provenance"
+            ).fetchone()
+            before_count = int(before[0]) if before else 0
+            conn.execute(
+                """
+                DELETE FROM memory_provenance
+                WHERE extracted_at < now() - INTERVAL (? || ' days')
+                """,
+                [str(days)],
+            )
+            after = conn.execute(
+                "SELECT COUNT(*) FROM memory_provenance"
+            ).fetchone()
+            after_count = int(after[0]) if after else 0
+            return before_count - after_count
+        finally:
+            conn.close()
+
+    async def _periodic_prune_causal_links(self, *, days: int) -> int:
+        """Prune causal links older than ``days``.
+
+        Mirrors the adapter's ``prune_causal_links_older_than``.
+        Returns the count of pruned rows.
+        """
+        if self.reflection_db is not None:
+            return await self.reflection_db.prune_causal_links_older_than(
+                days=days
+            )
+        import duckdb
+
+        from session_buddy.settings import get_database_path
+
+        db_path = Path(str(get_database_path()))
+        if not db_path.exists():
+            return 0
+        conn = duckdb.connect(
+            str(db_path), config={"allow_unsigned_extensions": True}
+        )
+        try:
+            before = conn.execute(
+                "SELECT COUNT(*) FROM causal_links"
+            ).fetchone()
+            before_count = int(before[0]) if before else 0
+            conn.execute(
+                """
+                DELETE FROM causal_links
+                WHERE last_evidence_at < now() - INTERVAL (? || ' days')
+                """,
+                [str(days)],
+            )
+            after = conn.execute(
+                "SELECT COUNT(*) FROM causal_links"
+            ).fetchone()
+            after_count = int(after[0]) if after else 0
+            return before_count - after_count
+        finally:
+            conn.close()
+
+    async def _periodic_distill_skills(self) -> int:
+        """Distill skills from current session activity.
+
+        Mirrors the adapter's ``distill_skills_now``. Returns the
+        number of skills produced (0 on a clean DB).
+        """
+        if self.reflection_db is not None:
+            skills = await self.reflection_db.distill_skills_now(
+                evidence_threshold=3
+            )
+            return len(skills)
+        import duckdb
+
+        from session_buddy.skills.distiller import distill_skills
+        from session_buddy.settings import get_database_path
+
+        db_path = Path(str(get_database_path()))
+        if not db_path.exists():
+            return 0
+        conn = duckdb.connect(
+            str(db_path), config={"allow_unsigned_extensions": True}
+        )
+        try:
+            skills = distill_skills(conn, evidence_threshold=3)
+            return len(skills)
+        finally:
+            conn.close()
 
     async def _analyze_access_patterns(self) -> list[MemoryAccessPattern]:
         """
