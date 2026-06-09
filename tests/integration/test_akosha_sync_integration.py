@@ -7,21 +7,16 @@ mocked cloud services.
 from __future__ import annotations
 
 import gzip
-import hashlib
 import json
-import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from httpx import Response
 
 from session_buddy.storage.akosha_config import AkoshaSyncConfig
 from session_buddy.storage.akosha_sync import HybridAkoshaSync
 from session_buddy.storage.cloud_sync import CloudSyncMethod
-from session_buddy.storage.sync_protocol import CloudUploadError
-
 
 # ============================================================================
 # Fixtures
@@ -153,9 +148,6 @@ class TestCloudSyncMethodIntegration:
 
             cloud_sync = CloudSyncMethod(config_dedupe)
             cloud_sync.reflection_db_path = reflection_db
-
-            # Mock file exists with same checksum
-            checksum = await cloud_sync._compute_sha256(reflection_db)
 
             with patch.object(
                 cloud_sync,
