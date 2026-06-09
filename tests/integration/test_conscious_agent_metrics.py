@@ -27,7 +27,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -66,8 +65,8 @@ def agent_with_patched_path(fast_temp_db: AsyncGenerator):
     temp DB. Mirrors the fixture in
     ``test_conscious_agent_periodic_jobs.py``.
     """
-    from session_buddy.memory.conscious_agent import ConsciousAgent
     from session_buddy import settings as settings_mod
+    from session_buddy.memory.conscious_agent import ConsciousAgent
 
     db = fast_temp_db
     db_path = Path(str(db.settings.database_path))
@@ -271,8 +270,8 @@ async def test_periodic_jobs_error_counter_labels_failed_job(
     """If one periodic job raises, the ``periodic_jobs_errors_total``
     counter increments by 1 (labelled with the failed job name).
     """
-    from session_buddy.memory.conscious_agent import ConsciousAgent
     from session_buddy import metrics
+    from session_buddy.memory.conscious_agent import ConsciousAgent
 
     db = fast_temp_db
 
