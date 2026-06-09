@@ -128,11 +128,28 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
 
         @mcp.tool()
         async def get_prometheus_metrics() -> str:
-            """Export all Session-Buddy metrics in Prometheus text format."""
+            """Export all Session-Buddy metrics in Prometheus text format.
+
+            The output combines the session-tracking metrics
+            (managed by the ``SessionMetrics`` singleton on its
+            own private registry) and the Conscious Agent counters
+            (managed by ``session_buddy.metrics`` on the global
+            Prometheus registry). Akosha's fitness analyzer
+            scrapes this endpoint to observe the Conscious
+            Agent's pruning + distillation activity (Phase 1.5
+            Item 6).
+            """
             try:
+                from prometheus_client import REGISTRY, generate_latest
+
                 metrics = get_metrics()
-                metrics_data = metrics.export_metrics()
-                return metrics_data.decode("utf-8")
+                session_data = metrics.export_metrics()
+                # Conscious Agent counters live on the global
+                # REGISTRY (see ``session_buddy.metrics``).
+                conscious_data = generate_latest(REGISTRY)
+                return session_data.decode("utf-8") + conscious_data.decode(
+                    "utf-8"
+                )
 
             except Exception as e:
                 logger.error("Failed to export Prometheus metrics: %s", e)

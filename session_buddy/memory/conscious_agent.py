@@ -340,6 +340,21 @@ class ConsciousAgent:
                 f"{results['periodic_jobs_errors']}"
             )
 
+        # Promote the return-dict values to Prometheus counters so
+        # Akosha's fitness analyzer (and any other Prometheus
+        # scraper) can observe Conscious Agent activity.
+        # Source-of-truth rule: the dict values are the truth; the
+        # counters are derived from them (per the plan's
+        # risk-mitigation for counter drift).
+        from session_buddy import metrics
+
+        metrics.record_provenance_pruned(int(results["provenance_pruned"]))
+        metrics.record_causal_links_pruned(
+            int(results["causal_links_pruned"])
+        )
+        metrics.record_skills_distilled(int(results["skills_distilled"]))
+        metrics.record_periodic_job_errors(results["periodic_jobs_errors"])
+
         return results
 
     async def _run_periodic_jobs(self) -> dict[str, Any]:
