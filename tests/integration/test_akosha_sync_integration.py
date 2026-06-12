@@ -200,7 +200,7 @@ class TestCloudSyncMethodIntegration:
                     cloud_sync,
                     "_upload_with_retry",
                     wraps=cloud_sync._upload_with_retry,
-                ) as mock_retry:
+                ):
                     # Simulate successful upload after retries
                     with patch.object(
                         cloud_sync,
@@ -459,7 +459,6 @@ class TestSessionEndHookIntegration:
                     created_tasks.append(coro)
                     # Return mock task
                     task = Mock()
-                    task_name = name
                     return task
 
                 with patch("asyncio.create_task", side_effect=mock_create_task):
