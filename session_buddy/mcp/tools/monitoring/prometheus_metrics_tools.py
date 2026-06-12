@@ -147,9 +147,7 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
                 # Conscious Agent counters live on the global
                 # REGISTRY (see ``session_buddy.metrics``).
                 conscious_data = generate_latest(REGISTRY)
-                return session_data.decode("utf-8") + conscious_data.decode(
-                    "utf-8"
-                )
+                return session_data.decode("utf-8") + conscious_data.decode("utf-8")
 
             except Exception as e:
                 logger.error("Failed to export Prometheus metrics: %s", e)

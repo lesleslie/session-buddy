@@ -38,7 +38,6 @@ from __future__ import annotations
 import logging
 import math
 import typing as t
-from datetime import datetime
 
 if t.TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
@@ -130,13 +129,9 @@ def record_observed_link(
     repeated observations without changing the link's id.
     """
     if from_id == to_id:
-        raise ValueError(
-            f"self-link rejected: from_id == to_id ({from_id!r})"
-        )
+        raise ValueError(f"self-link rejected: from_id == to_id ({from_id!r})")
     if not (0.0 < evidence <= 1.0):
-        raise ValueError(
-            f"evidence must be in (0.0, 1.0], got {evidence}"
-        )
+        raise ValueError(f"evidence must be in (0.0, 1.0], got {evidence}")
 
     # Look for an existing row with the same (from, to, type). If
     # one exists, UPDATE it. Otherwise INSERT a fresh row.
@@ -317,9 +312,7 @@ def walk_causal_chain(
     return walked
 
 
-def prune_causal_links_older_than(
-    conn: DuckDBPyConnection, *, days: int = 90
-) -> int:
+def prune_causal_links_older_than(conn: DuckDBPyConnection, *, days: int = 90) -> int:
     """Delete causal links with ``last_evidence_at`` older than ``days``.
 
     Returns the number of rows deleted. This is what the Conscious

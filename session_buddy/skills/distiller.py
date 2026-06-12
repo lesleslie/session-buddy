@@ -60,9 +60,7 @@ DEFAULT_EVIDENCE_THRESHOLD: int = 3
 HEURISTIC_MODEL: str = "heuristic"
 
 
-def _importance_from_evidence(
-    evidence_count: int, project_count: int
-) -> float:
+def _importance_from_evidence(evidence_count: int, project_count: int) -> float:
     """Heuristic importance score in [IMPORTANCE_FLOOR, 1.0].
 
     Pure-Python so the function is unit-testable without a DB.
@@ -141,9 +139,7 @@ def distill_skills(
     distilled: list[dict[str, t.Any]] = []
     for project, category, memory_count, access_count, memory_ids in clusters:
         project_count = 1 if project else 0  # GROUP BY collapsed per (project, cat)
-        importance = _importance_from_evidence(
-            int(memory_count), project_count
-        )
+        importance = _importance_from_evidence(int(memory_count), project_count)
         if importance < IMPORTANCE_FLOOR:
             # The formula clamps, but defense in depth: skip
             # anything that fell below.

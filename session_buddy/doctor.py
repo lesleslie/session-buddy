@@ -46,6 +46,11 @@ from pathlib import Path
 
 import structlog
 
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import typer
+
 from session_buddy.health_checks import (
     ComponentHealth,
     HealthStatus,
@@ -115,9 +120,9 @@ async def check_v2_migration(db_path: Path | None = None) -> ComponentHealth:
             message=f"Migration status returned unexpected shape: {type(status).__name__}",
         )
     version = status.get("current_version", "unknown")
-    counts = status.get("counts", {}) or {}
+    counts: dict[str, Any] = status.get("counts", {}) or {}
     v2_count = int(counts.get("v2_conversations", 0) or 0)
-    history = status.get("migration_history", []) or []
+    history: list[dict[str, Any]] = status.get("migration_history", []) or []
 
     if version == "v2" and v2_count > 0:
         return ComponentHealth(
@@ -231,7 +236,7 @@ async def check_code_index_round_trip() -> ComponentHealth:
             message=f"Search returned unexpected shape: {type(search).__name__}",
         )
     total = int(search.get("total", 0) or 0)
-    symbols = search.get("symbols", []) or []
+    symbols: list[dict[str, Any]] = search.get("symbols", []) or []
     matched = [s for s in symbols if s.get("name") == marker]
     if matched:
         return ComponentHealth(
@@ -277,7 +282,7 @@ async def check_auto_capture_recent(db_path: Path | None = None) -> ComponentHea
             from session_buddy.settings import get_settings
 
             settings = get_settings()
-            db_path = str(
+            db_path = Path(
                 getattr(settings, "database_path", None)
                 or getattr(settings, "reflection_db_path", None)
                 or ":memory:"
@@ -316,13 +321,11 @@ async def check_auto_capture_recent(db_path: Path | None = None) -> ComponentHea
             f"SELECT COUNT(*) FROM {db._table('conversations')}"
         ).fetchone()[0]
         recent_24h = db.conn.execute(
-            f"SELECT COUNT(*) FROM {db._table('conversations')} "
-            "WHERE created_at >= ?",
+            f"SELECT COUNT(*) FROM {db._table('conversations')} WHERE created_at >= ?",
             [cutoff_24h],
         ).fetchone()[0]
         recent_7d = db.conn.execute(
-            f"SELECT COUNT(*) FROM {db._table('conversations')} "
-            "WHERE created_at >= ?",
+            f"SELECT COUNT(*) FROM {db._table('conversations')} WHERE created_at >= ?",
             [cutoff_7d],
         ).fetchone()[0]
         result = db.conn.execute(
@@ -438,7 +441,7 @@ async def check_claude_hooks_config() -> ComponentHealth:
             message=f"Could not parse {settings_path.name}: {exc}",
         )
 
-    hooks = data.get("hooks", {}) if isinstance(data, dict) else {}
+    hooks: dict[str, Any] = data.get("hooks", {}) if isinstance(data, dict) else {}
     required = ("SessionStart", "SessionEnd")
     missing = [ev for ev in required if ev not in hooks]
     if missing:
@@ -580,7 +583,7 @@ async def run_all_doctor_checks() -> list[ComponentHealth]:
 # ---------------------------------------------------------------------------
 # CLI registration
 # ---------------------------------------------------------------------------
-def register_doctor_command(app) -> None:
+def register_doctor_command(app: typer.Typer) -> None:
     """Register the ``doctor`` subcommand on a Typer ``app``.
 
     Adds ``python -m session_buddy doctor [--json]`` with the

@@ -102,9 +102,7 @@ def heuristic_synthesize(
 
     cat_summary = ", ".join(
         f"{cat} ({n})"
-        for cat, n in sorted(
-            category_counts.items(), key=lambda x: -x[1]
-        )
+        for cat, n in sorted(category_counts.items(), key=lambda x: -x[1])
     )
 
     # Pull a couple of distinct first-words as "topics" — short and
@@ -247,9 +245,7 @@ def build_peer_context(
     be returned side by side).
     """
     model = get_peer_model(conn, peer_id=peer_id, project_id=project_id)
-    memories = recent_memories(
-        conn, project_id=project_id, recent_limit=recent_limit
-    )
+    memories = recent_memories(conn, project_id=project_id, recent_limit=recent_limit)
 
     if model is None:
         base: dict[str, t.Any] = {
@@ -275,9 +271,7 @@ def build_peer_context(
         }
 
     if target_peer_id is not None:
-        target = get_peer_model(
-            conn, peer_id=target_peer_id, project_id=project_id
-        )
+        target = get_peer_model(conn, peer_id=target_peer_id, project_id=project_id)
         if target is not None:
             base["target_peer"] = {
                 "peer_id": target["peer_id"],

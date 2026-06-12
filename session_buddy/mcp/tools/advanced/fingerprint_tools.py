@@ -399,9 +399,7 @@ def _get_table_count(
 
     """
     del collection_name  # rewire-aware: use db._table() instead
-    result = db.conn.execute(
-        f"SELECT COUNT(*) FROM {db._table(table_name)}"
-    ).fetchone()
+    result = db.conn.execute(f"SELECT COUNT(*) FROM {db._table(table_name)}").fetchone()
     return result[0] if result else 0
 
 

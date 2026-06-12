@@ -32,7 +32,6 @@ from __future__ import annotations
 
 from prometheus_client import REGISTRY, CollectorRegistry, Counter, generate_latest
 
-
 # Module-level registry. ``prometheus_client.REGISTRY`` is the
 # default global registry, but we keep a reference here so tests
 # (and any future custom registry callers) have a single import

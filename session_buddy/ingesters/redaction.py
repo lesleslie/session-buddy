@@ -113,8 +113,7 @@ def redact_metadata(
     if len(serialized) > MAX_REDACTION_BYTES:
         if raise_on_oversize:
             raise RedactionSizeError(
-                f"Metadata of {len(serialized)} bytes exceeds "
-                f"{MAX_REDACTION_BYTES} cap"
+                f"Metadata of {len(serialized)} bytes exceeds {MAX_REDACTION_BYTES} cap"
             )
         truncated: dict[str, object] = {}
         for key, value in redacted.items():

@@ -84,7 +84,7 @@ async def test_record_observed_link_upserts_and_bumps_evidence(
     """Recording the same (from, to) twice updates evidence + timestamp.
 
     The Conscious Agent uses ``last_evidence_at`` to decide which links
-    to prune. Bumping it on re-use keeps active links alive.
+    to prune. Bumping it on reuse keeps active links alive.
     """
     db = fast_temp_db
 

@@ -1752,4 +1752,3 @@ class TestCheckProviderMessages:
             "rejected by SSRF check" in record.message
             for record in caplog.records
         )
-

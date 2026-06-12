@@ -17,6 +17,7 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from operator import itemgetter
 from pathlib import Path
+
 from ulid import ULID
 
 if t.TYPE_CHECKING:
@@ -61,6 +62,12 @@ from session_buddy.memory.causal import (
 from session_buddy.memory.causal import (
     walk_causal_chain as _walk_causal_chain,
 )
+from session_buddy.memory.peer_modeling import (
+    build_peer_context,
+    get_peer_model,
+    upsert_peer_model,
+)
+from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
 from session_buddy.skills.distiller import (
     DEFAULT_EVIDENCE_THRESHOLD as _DEFAULT_EVIDENCE_THRESHOLD,
 )
@@ -76,12 +83,6 @@ from session_buddy.skills.distiller import (
 from session_buddy.skills.distiller import (
     search_distilled_skills as _search_distilled_skills,
 )
-from session_buddy.memory.peer_modeling import (
-    build_peer_context,
-    get_peer_model,
-    upsert_peer_model,
-)
-from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
 from session_buddy.utils.fingerprint import MinHashSignature
 
 logger = logging.getLogger(__name__)
@@ -388,7 +389,7 @@ class ReflectionDatabaseAdapterOneiric:
 
         self._initialized = False
 
-    async def initialize(self) -> None:
+    async def initialize(self) -> None:  # noqa: C901
         """Initialize DuckDB connection and create tables if needed."""
         if self._initialized:
             return
@@ -398,78 +399,34 @@ class ReflectionDatabaseAdapterOneiric:
             raise ImportError(msg)
 
         # Create database directory if it doesn't exist (skip for :memory:)
-        if self.db_path != ":memory:":
-            db_dir = Path(self.db_path).parent
-            db_dir.mkdir(parents=True, exist_ok=True)
+        if self.db_path == ":memory:":
+            return
+        db_dir = Path(self.db_path).parent
+        db_dir.mkdir(parents=True, exist_ok=True)
 
-            # Remove stale/empty database file that DuckDB cannot open.
-            # NamedTemporaryFile (and similar) may create a zero-byte file at the
-            # target path; DuckDB treats an existing but empty file as an invalid
-            # database.  Deleting it lets DuckDB create a fresh one.
-            db_file = Path(self.db_path)
-            if db_file.exists() and db_file.stat().st_size == 0:
-                db_file.unlink()
+        # Remove stale/empty database file that DuckDB cannot open.
+        # NamedTemporaryFile (and similar) may create a zero-byte file at the
+        # target path; DuckDB treats an existing but empty file as an invalid
+        # database.  Deleting it lets DuckDB create a fresh one.
+        db_file = Path(self.db_path)
+        if db_file.exists() and db_file.stat().st_size == 0:
+            db_file.unlink()
 
         # Connect to DuckDB database
         # Use consistent config to avoid "different configuration" errors when
         # other parts of the codebase (e.g., legacy ReflectionDatabase) have
-        # already opened the same database file with allow_unsigned_extensions
-        #
+        # already opened the same database file with allow_unsigned_extensions.
         # Reuse an existing connection if one is already open for this database
         # path so that session-local objects (like HNSW indexes) are visible to
-        # all adapter instances sharing the file.
-        #
-        # NOTE: :memory: databases are never cached because each duckdb.connect()
-        # creates a unique in-memory database that must not be shared.
-        if self.db_path != ":memory:":
-            cache_key = str(Path(self.db_path).resolve())
-            cached = _typed_connection_cache.get(cache_key)
-            if cached is not None:
-                try:
-                    # Verify the connection is still alive
-                    cached.conn.execute("SELECT 1")
-                    self.conn = cached.conn
-                    cached.ref_count += 1  # Another adapter reusing this connection
-                except Exception:
-                    # Stale connection; remove and create a fresh one
-                    cached.release()
-                    _typed_connection_cache.pop(cache_key, None)
-                    self.conn = None
+        # all adapter instances sharing the file. :memory: databases are never
+        # cached because each duckdb.connect() creates a unique in-memory
+        # database that must not be shared.
+        self.conn = self._open_duckdb_connection()
 
-        if self.conn is None:
-            try:
-                self.conn = duckdb.connect(
-                    database=self.db_path,
-                    read_only=False,
-                    config={"allow_unsigned_extensions": True},
-                )
-            except Exception as e:
-                # If DuckDB cannot open the file (e.g. a stale .wal
-                # sidecar references a default database the catalog
-                # no longer has), purge the .wal and retry once. Any
-                # uncommitted writes are already lost; a successful
-                # retry creates a fresh, consistent database.
-                msg = str(e)
-                if self.db_path != ":memory:" and (
-                    "replaying WAL" in msg or "GetDefaultDatabase" in msg
-                ):
-                    wal_file = Path(self.db_path + ".wal")
-                    if wal_file.exists():
-                        with suppress(Exception):
-                            wal_file.unlink()
-                    self.conn = duckdb.connect(
-                        database=self.db_path,
-                        read_only=False,
-                        config={"allow_unsigned_extensions": True},
-                    )
-                else:
-                    raise
-            # Only cache file-based connections, not :memory:
-            if self.db_path != ":memory:":
-                cache_key = str(Path(self.db_path).resolve())
-                _typed_connection_cache[cache_key] = _CachedConnection(
-                    self.conn, cache_key
-                )
+        # Enable vector extension if available
+        with suppress(Exception):
+            self.conn.execute("INSTALL 'httpfs';")
+            self.conn.execute("LOAD 'httpfs';")
 
         # Enable vector extension if available
         with suppress(Exception):
@@ -494,6 +451,64 @@ class ReflectionDatabaseAdapterOneiric:
         await self._category_engine.initialize()
 
         self._initialized = True
+
+    def _open_duckdb_connection(self) -> t.Any:
+        """Return a live DuckDB connection, reusing a cache entry when possible.
+
+        For file-based paths, the module-level ``_typed_connection_cache`` may
+        already hold a live connection (e.g. another adapter instance opened
+        the same file). Reusing it keeps session-local objects like HNSW
+        indexes visible across adapters. :memory: databases are never cached
+        because each ``duckdb.connect()`` produces a unique in-memory instance.
+
+        If a fresh connect fails because of a stale ``.wal`` sidecar, the
+        sidecar is purged and the connect is retried once. Any uncommitted
+        writes are already lost in that case; a successful retry yields a
+        consistent database.
+        """
+        if self.db_path != ":memory:":
+            cache_key = str(Path(self.db_path).resolve())
+            cached = _typed_connection_cache.get(cache_key)
+            if cached is not None:
+                try:
+                    # Verify the connection is still alive
+                    cached.conn.execute("SELECT 1")
+                    cached.ref_count += 1
+                    return cached.conn
+                except Exception:
+                    # Stale connection; remove and create a fresh one
+                    cached.release()
+                    _typed_connection_cache.pop(cache_key, None)
+
+        try:
+            conn = duckdb.connect(
+                database=self.db_path,
+                read_only=False,
+                config={"allow_unsigned_extensions": True},
+            )
+        except Exception as e:
+            msg = str(e)
+            if self.db_path != ":memory:" and (
+                "replaying WAL" in msg or "GetDefaultDatabase" in msg
+            ):
+                wal_file = Path(self.db_path + ".wal")
+                if wal_file.exists():
+                    with suppress(Exception):
+                        wal_file.unlink()
+                conn = duckdb.connect(
+                    database=self.db_path,
+                    read_only=False,
+                    config={"allow_unsigned_extensions": True},
+                )
+            else:
+                raise
+
+        # Only cache file-based connections, not :memory:
+        if self.db_path != ":memory:":
+            cache_key = str(Path(self.db_path).resolve())
+            _typed_connection_cache[cache_key] = _CachedConnection(conn, cache_key)
+
+        return conn
 
     def _create_tables(self) -> None:
         """Create database tables if they don't exist."""
@@ -546,8 +561,16 @@ class ReflectionDatabaseAdapterOneiric:
         # Create indices for faster search.
         # v2 rewire: ``conversations_v2`` uses ``timestamp`` not
         # ``created_at``, so we pick the column that actually exists.
-        conv_idx_col = "timestamp" if self._table("conversations") == "conversations_v2" else "created_at"
-        refl_idx_col = "timestamp" if self._table("reflections") == "reflections_v2" else "created_at"
+        conv_idx_col = (
+            "timestamp"
+            if self._table("conversations") == "conversations_v2"
+            else "created_at"
+        )
+        refl_idx_col = (
+            "timestamp"
+            if self._table("reflections") == "reflections_v2"
+            else "created_at"
+        )
         self.conn.execute(
             f"CREATE INDEX IF NOT EXISTS {self._index('conv_created')} ON {self._table('conversations')}({conv_idx_col})"
         )
@@ -885,9 +908,7 @@ class ReflectionDatabaseAdapterOneiric:
         The v2 schema is global (not collection-scoped), so it is created
         once per database file and shared by every adapter instance.
         """
-        statements = [
-            stmt.strip() for stmt in SCHEMA_V2_SQL.split(";") if stmt.strip()
-        ]
+        statements = [stmt.strip() for stmt in SCHEMA_V2_SQL.split(";") if stmt.strip()]
         for stmt in statements:
             try:
                 self.conn.execute(stmt)
@@ -1562,10 +1583,7 @@ class ReflectionDatabaseAdapterOneiric:
         """
         if source_type is not None and source_type not in self._VALID_SOURCE_TYPES:
             valid = ", ".join(sorted(self._VALID_SOURCE_TYPES))
-            msg = (
-                f"Invalid source_type {source_type!r}; "
-                f"must be one of: {valid}"
-            )
+            msg = f"Invalid source_type {source_type!r}; must be one of: {valid}"
             raise ValueError(msg)
 
         if not self._initialized:
@@ -2463,7 +2481,7 @@ class ReflectionDatabaseAdapterOneiric:
             "SELECT COUNT(*) FROM conversations_v2 WHERE id = ?",
             [memory_id],
         ).fetchone()[0]
-        return before - after
+        return int(before) - int(after)
 
     async def reset_database(self) -> None:
         """Reset the database by dropping and recreating tables."""
@@ -2953,9 +2971,7 @@ class ReflectionDatabaseAdapterOneiric:
             """,
             [session_id, window_hours],
         )
-        new_memories_columns = [
-            c[0] for c in (new_memories_result.description or [])
-        ]
+        new_memories_columns = [c[0] for c in (new_memories_result.description or [])]
         new_memories_rows = new_memories_result.fetchall()
         new_memories: list[dict[str, t.Any]] = [
             dict(zip(new_memories_columns, row, strict=False))
@@ -3172,18 +3188,14 @@ class ReflectionDatabaseAdapterOneiric:
         """
         if not self._initialized:
             await self.initialize()
-        return _walk_causal_chain(
-            self.conn, start_id=start_id, max_depth=max_depth
-        )
+        return _walk_causal_chain(self.conn, start_id=start_id, max_depth=max_depth)
 
-    async def prune_causal_links_older_than(
-        self, *, days: int = 90
-    ) -> int:
+    async def prune_causal_links_older_than(self, *, days: int = 90) -> int:
         """Delete causal links stale for ``days``. Returns count.
 
         Phase 1.5 #3. The Conscious Agent calls this as a periodic
         cleanup. ``record_observed_link`` bumps ``last_evidence_at``
-        so re-used links survive another full window.
+        so reused links survive another full window.
         """
         if not self._initialized:
             await self.initialize()
@@ -3244,9 +3256,7 @@ class ReflectionDatabaseAdapterOneiric:
         """
         if not self._initialized:
             await self.initialize()
-        return _search_distilled_skills(
-            self.conn, query=query, limit=limit
-        )
+        return _search_distilled_skills(self.conn, query=query, limit=limit)
 
     async def reinforce_skill(self, *, skill_id: str) -> bool:
         """Bump ``evidence_count`` + ``last_reinforced_at`` for a skill.

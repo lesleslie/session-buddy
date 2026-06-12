@@ -19,7 +19,9 @@ class MemoryCategory(StrEnum):
     SKILLS = "skills"  # User knowledge/expertise (languages, frameworks)
     RULES = "rules"  # Learned patterns/rules (workflows, best practices)
     CONTEXT = "context"  # Contextual information (current tasks, environment)
-    CLAUDE_TURN = "claude_turn"  # A single Claude conversation turn (transcript ingester)
+    CLAUDE_TURN = (
+        "claude_turn"  # A single Claude conversation turn (transcript ingester)
+    )
 
 
 class MemoryTier(StrEnum):
@@ -250,7 +252,7 @@ CREATE INDEX IF NOT EXISTS idx_user_models_project ON user_models(project_id, la
 -- ``superseded``). The application decides the vocabulary. ``evidence``
 -- is a weight in [0.0, 1.0] — links with evidence <= 0.5 are NOT
 -- persisted by ``infer_causal_links`` (the plan's quality floor).
--- ``last_evidence_at`` is bumped on every observed re-use so the
+-- ``last_evidence_at`` is bumped on every observed reuse so the
 -- Conscious Agent can prune links that haven't been touched in 90 days.
 -- ``link_origin`` distinguishes ``observed`` (direct transcript pair,
 -- parent_uuid_chain, or other ground-truth) from ``inferred``

@@ -440,7 +440,7 @@ async def _search_by_concept_impl(
 # ============================================================================
 
 
-async def _format_source_results(
+def _format_source_results(
     query: str,
     results: list[dict[str, Any]],
     source_type: str | None,
@@ -503,9 +503,7 @@ async def _search_by_source_impl(
     """
 
     async def operation(db: ReflectionDatabase) -> str:
-        return await _search_by_source_operation(
-            db, query, source_type, project, limit
-        )
+        return await _search_by_source_operation(db, query, source_type, project, limit)
 
     return await execute_simple_database_tool(operation, "Search by source")
 
@@ -515,15 +513,11 @@ async def _search_by_source_impl(
 # ============================================================================
 
 
-async def _format_memory_lineage(
-    memory_id: str, chain: list[dict[str, Any]]
-) -> str:
+def _format_memory_lineage(memory_id: str, chain: list[dict[str, Any]]) -> str:
     """Format the provenance chain for a memory."""
     if not chain:
         return f"🔍 No provenance records for memory_id={memory_id!r}"
-    lines = [
-        f"🔍 **Lineage for memory_id={memory_id}** — {len(chain)} records\n"
-    ]
+    lines = [f"🔍 **Lineage for memory_id={memory_id}** — {len(chain)} records\n"]
     for i, row in enumerate(chain, 1):
         ts = row.get("extracted_at", "unknown")
         src = row.get("source_type", "?")
@@ -542,7 +536,7 @@ async def _memory_lineage_impl(memory_id: str) -> str:
     transcripts and Conscious-Agent writes can produce more.
     """
     if not memory_id:
-        return ToolMessages.invalid_input("memory_id", "(non-empty string)")
+        return ToolMessages.validation_error("memory_id", "(non-empty string)")
 
     async def operation(db: ReflectionDatabase) -> str:
         chain = await db.memory_lineage(memory_id)
@@ -564,8 +558,7 @@ async def _memory_lineage_impl(memory_id: str) -> str:
 def _format_peer_context(context: dict[str, Any]) -> str:
     """Format a peer_context dict for the LLM-facing response."""
     lines = [
-        f"🧠 **Peer context for {context['peer_id']} in "
-        f"{context['project_id']}**\n"
+        f"🧠 **Peer context for {context['peer_id']} in {context['project_id']}**\n"
     ]
     rep = context.get("representation_text", "") or ""
     if rep:
@@ -576,7 +569,7 @@ def _format_peer_context(context: dict[str, Any]) -> str:
             f"**Evidence:** {context['evidence_count']} | "
             f"**Model:** {context['model'] or 'n/a'}\n"
         )
-    recent = context.get("recent_memories") or []
+    recent: list[dict[str, Any]] = context.get("recent_memories") or []
     if recent:
         lines.append(f"**Recent memories ({len(recent)}):**")
         for mem in recent:
@@ -584,8 +577,7 @@ def _format_peer_context(context: dict[str, Any]) -> str:
             if isinstance(content, str) and len(content) > 120:
                 content = content[:117] + "..."
             lines.append(
-                f"- {mem.get('id', '?')[:8]} [{mem.get('category', '?')}] "
-                f"{content}"
+                f"- {mem.get('id', '?')[:8]} [{mem.get('category', '?')}] {content}"
             )
         lines.append("")
     target = context.get("target_peer")
@@ -611,9 +603,9 @@ async def _peer_context_impl(
     check ``peer_models:read``.
     """
     if not peer_id:
-        return ToolMessages.invalid_input("peer_id", "(non-empty string)")
+        return ToolMessages.validation_error("peer_id", "(non-empty string)")
     if not project_id:
-        return ToolMessages.invalid_input("project_id", "(non-empty string)")
+        return ToolMessages.validation_error("project_id", "(non-empty string)")
 
     async def operation(db: ReflectionDatabase) -> str:
         context = await db.peer_context(
@@ -641,9 +633,9 @@ async def _update_peer_model_impl(
     produced it. ACL: caller must check ``peer_models:write``.
     """
     if not peer_id:
-        return ToolMessages.invalid_input("peer_id", "(non-empty string)")
+        return ToolMessages.validation_error("peer_id", "(non-empty string)")
     if not project_id:
-        return ToolMessages.invalid_input("project_id", "(non-empty string)")
+        return ToolMessages.validation_error("project_id", "(non-empty string)")
 
     async def operation(db: ReflectionDatabase) -> str:
         representation = await db.update_peer_model(
@@ -673,10 +665,7 @@ def _format_causal_chain(start_id: str, edges: list[dict[str, Any]]) -> str:
     """Format a causal chain walk for the LLM-facing response."""
     if not edges:
         return f"🔍 No causal chain found for memory_id={start_id!r}"
-    lines = [
-        f"⛓️  **Causal chain for memory_id={start_id}** "
-        f"— {len(edges)} edges\n"
-    ]
+    lines = [f"⛓️  **Causal chain for memory_id={start_id}** — {len(edges)} edges\n"]
     for i, edge in enumerate(edges, 1):
         origin = edge.get("link_origin", "?")
         evidence = edge.get("evidence", 0.0)
@@ -699,12 +688,10 @@ async def _causal_chain_impl(start_id: str, max_depth: int = 3) -> str:
     evidence weight. Depth defaults to 3 per the plan.
     """
     if not start_id:
-        return ToolMessages.invalid_input("start_id", "(non-empty string)")
+        return ToolMessages.validation_error("start_id", "(non-empty string)")
 
     async def operation(db: ReflectionDatabase) -> str:
-        edges = await db.causal_chain(
-            start_id=start_id, max_depth=max_depth
-        )
+        edges = await db.causal_chain(start_id=start_id, max_depth=max_depth)
         return _format_causal_chain(start_id, edges)
 
     return await execute_simple_database_tool(operation, "Causal chain")
@@ -759,20 +746,17 @@ async def _distill_skills_now_impl(
     rows. The Conscious Agent is responsible for scheduling
     cadence and dedup.
     """
+
     async def operation(db: ReflectionDatabase) -> str:
         skills = await db.distill_skills_now(
             evidence_threshold=evidence_threshold, model=model
         )
         return _format_skill_list(skills)
 
-    return await execute_simple_database_tool(
-        operation, "Distill skills"
-    )
+    return await execute_simple_database_tool(operation, "Distill skills")
 
 
-async def _search_distilled_skills_impl(
-    query: str = "", limit: int = 5
-) -> str:
+async def _search_distilled_skills_impl(query: str = "", limit: int = 5) -> str:
     """Search distilled skills by problem_pattern / approach / because.
 
     Phase 1.5 #6. An empty ``query`` returns the top ``limit``
@@ -780,13 +764,12 @@ async def _search_distilled_skills_impl(
     A non-empty ``query`` does a case-insensitive substring
     match across the three text fields.
     """
+
     async def operation(db: ReflectionDatabase) -> str:
         results = await db.search_distilled_skills(query=query, limit=limit)
         return _format_skill_search(results)
 
-    return await execute_simple_database_tool(
-        operation, "Search distilled skills"
-    )
+    return await execute_simple_database_tool(operation, "Search distilled skills")
 
 
 # ============================================================================
@@ -848,8 +831,7 @@ def _classify_skill_status(
         if crackerjack_skill_names is not None:
             pattern = str(row.get("problem_pattern") or "").lower()
             has_match = any(
-                pattern and pattern in name.lower()
-                for name in crackerjack_skill_names
+                pattern and pattern in name.lower() for name in crackerjack_skill_names
             )
             if not has_match:
                 return "under_utilized"
@@ -1298,7 +1280,7 @@ def _parse_skill_names_param(
     if names is None:
         return None
     if isinstance(names, list):
-        return [str(n) for n in names]
+        return [n for n in names]
     if isinstance(names, str):
         try:
             decoded = json.loads(names)
@@ -1487,9 +1469,7 @@ def _register_peer_and_temporal_tools(mcp: Any) -> None:
         return await _update_peer_model_impl(peer_id, project_id, model)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
-    async def causal_chain(
-        start_id: str, max_depth: int = 3
-    ) -> str:
+    async def causal_chain(start_id: str, max_depth: int = 3) -> str:
         """BFS-walk the causal graph from ``start_id``.
 
         Phase 1.5 #3. Cycle-safe. Returns a formatted Markdown
@@ -1542,14 +1522,10 @@ def _register_distillation_and_stats_tools(mcp: Any) -> None:
 
         Per the plan's LLM Cost Ceiling: 100 calls/week cap.
         """
-        return await _distill_skills_now_impl(
-            evidence_threshold, model
-        )
+        return await _distill_skills_now_impl(evidence_threshold, model)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
-    async def search_distilled_skills(
-        query: str = "", limit: int = 5
-    ) -> str:
+    async def search_distilled_skills(query: str = "", limit: int = 5) -> str:
         """Search distilled skills by problem / approach / because.
 
         Phase 1.5 #6. An empty ``query`` returns the top ``limit``
@@ -1646,9 +1622,7 @@ def _register_distilled_skill_health_tool(mcp: Any) -> None:
                 ``under_utilized`` classification.
         """
         parsed_names = _parse_skill_names_param(crackerjack_skill_names)
-        return await _distilled_skill_health_impl(
-            threshold_days, parsed_names
-        )
+        return await _distilled_skill_health_impl(threshold_days, parsed_names)
 
 
 def _register_progressive_search_tools(mcp: Any) -> None:

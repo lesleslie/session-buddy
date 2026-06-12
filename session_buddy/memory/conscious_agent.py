@@ -102,7 +102,7 @@ def _start_conscious_agent_with_lock(settings: Any) -> bool:
     # holder could be long-lived.
     try:
         lock_path.touch(exist_ok=True)
-        lock_fd = open(lock_path, "w")
+        lock_fd = lock_path.open("w")
     except OSError as exc:
         logger.debug(
             "Conscious Agent lockfile could not be opened at %s: %s",
@@ -126,20 +126,16 @@ def _start_conscious_agent_with_lock(settings: Any) -> bool:
         # the same as "another worker has it" so we still avoid
         # double-starting on Linux/macOS while not crashing on Windows.
         lock_fd.close()
-        logger.debug(
-            "Conscious Agent flock failed on %s: %s", lock_path, exc
-        )
+        logger.debug("Conscious Agent flock failed on %s: %s", lock_path, exc)
         return False
 
     # We have the lock. Record our PID so operators can identify the
     # owner. Best-effort: a failure here is not fatal.
-    try:
+    with contextlib.suppress(OSError):
         lock_fd.seek(0)
         lock_fd.write(str(os.getpid()))
         lock_fd.truncate()
         lock_fd.flush()
-    except OSError:
-        pass
 
     logger.info(
         "Conscious Agent elected by worker pid=%s (lock=%s)",
@@ -349,9 +345,7 @@ class ConsciousAgent:
         from session_buddy import metrics
 
         metrics.record_provenance_pruned(int(results["provenance_pruned"]))
-        metrics.record_causal_links_pruned(
-            int(results["causal_links_pruned"])
-        )
+        metrics.record_causal_links_pruned(int(results["causal_links_pruned"]))
         metrics.record_skills_distilled(int(results["skills_distilled"]))
         metrics.record_periodic_job_errors(results["periodic_jobs_errors"])
 
@@ -419,9 +413,7 @@ class ConsciousAgent:
         Returns the count of pruned rows.
         """
         if self.reflection_db is not None:
-            return await self.reflection_db.prune_provenance_older_than(
-                days=days
-            )
+            return int(await self.reflection_db.prune_provenance_older_than(days=days))
         import duckdb
 
         from session_buddy.settings import get_database_path
@@ -429,17 +421,13 @@ class ConsciousAgent:
         db_path = Path(str(get_database_path()))
         if not db_path.exists():
             return 0
-        conn = duckdb.connect(
-            str(db_path), config={"allow_unsigned_extensions": True}
-        )
+        conn = duckdb.connect(db_path, config={"allow_unsigned_extensions": True})
         try:
             # Same SQL as ``prune_provenance_older_than`` in
             # ``reflection_adapter_oneiric.py``. Re-implementing
             # here is intentional — the agent does its own
             # connection management to avoid coupling.
-            before = conn.execute(
-                "SELECT COUNT(*) FROM memory_provenance"
-            ).fetchone()
+            before = conn.execute("SELECT COUNT(*) FROM memory_provenance").fetchone()
             before_count = int(before[0]) if before else 0
             conn.execute(
                 """
@@ -448,9 +436,7 @@ class ConsciousAgent:
                 """,
                 [str(days)],
             )
-            after = conn.execute(
-                "SELECT COUNT(*) FROM memory_provenance"
-            ).fetchone()
+            after = conn.execute("SELECT COUNT(*) FROM memory_provenance").fetchone()
             after_count = int(after[0]) if after else 0
             return before_count - after_count
         finally:
@@ -463,9 +449,7 @@ class ConsciousAgent:
         Returns the count of pruned rows.
         """
         if self.reflection_db is not None:
-            return await self.reflection_db.prune_causal_links_older_than(
-                days=days
-            )
+            return int(await self.reflection_db.prune_causal_links_older_than(days=days))
         import duckdb
 
         from session_buddy.settings import get_database_path
@@ -473,13 +457,9 @@ class ConsciousAgent:
         db_path = Path(str(get_database_path()))
         if not db_path.exists():
             return 0
-        conn = duckdb.connect(
-            str(db_path), config={"allow_unsigned_extensions": True}
-        )
+        conn = duckdb.connect(db_path, config={"allow_unsigned_extensions": True})
         try:
-            before = conn.execute(
-                "SELECT COUNT(*) FROM causal_links"
-            ).fetchone()
+            before = conn.execute("SELECT COUNT(*) FROM causal_links").fetchone()
             before_count = int(before[0]) if before else 0
             conn.execute(
                 """
@@ -488,9 +468,7 @@ class ConsciousAgent:
                 """,
                 [str(days)],
             )
-            after = conn.execute(
-                "SELECT COUNT(*) FROM causal_links"
-            ).fetchone()
+            after = conn.execute("SELECT COUNT(*) FROM causal_links").fetchone()
             after_count = int(after[0]) if after else 0
             return before_count - after_count
         finally:
@@ -503,21 +481,17 @@ class ConsciousAgent:
         number of skills produced (0 on a clean DB).
         """
         if self.reflection_db is not None:
-            skills = await self.reflection_db.distill_skills_now(
-                evidence_threshold=3
-            )
+            skills = await self.reflection_db.distill_skills_now(evidence_threshold=3)
             return len(skills)
         import duckdb
 
-        from session_buddy.skills.distiller import distill_skills
         from session_buddy.settings import get_database_path
+        from session_buddy.skills.distiller import distill_skills
 
         db_path = Path(str(get_database_path()))
         if not db_path.exists():
             return 0
-        conn = duckdb.connect(
-            str(db_path), config={"allow_unsigned_extensions": True}
-        )
+        conn = duckdb.connect(db_path, config={"allow_unsigned_extensions": True})
         try:
             skills = distill_skills(conn, evidence_threshold=3)
             return len(skills)

@@ -5,6 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.12] - 2026-06-12
+
+### Added
+
+- akosha: Include source_type in sync payload (Item 1)
+- conscious-agent: Multi-worker lock + unconditional access log
+- ingesters: Claude_code_transcript ingester for LLM conversation capture
+- mcp: Add distilled_skill_health tool (Item 4 cross-component)
+- memory: Add migration --rollback and --verify-only safety nets
+- memory: Add redaction library for transcript/PII scrubbing
+- memory: Add v2 rewire columns, source_type CHECK, cross-tool index
+- memory: Cross-tool search_by_source with source_type + project filter
+- Memory_provenance table + memory_lineage MCP tool
+- metrics: Expose Conscious Agent stats as Prometheus counters (Item 6)
+- Rewire reflection adapter to v2 with redaction hook
+- tier 10: add conftest-level db_path isolation fixture
+
+### Changed
+
+- search: Extract category-specific tool registration helpers (Item B)
+- Session-buddy (quality: 60/100) - 2026-06-08 09:16:30
+- Session-buddy (quality: 60/100) - 2026-06-08 11:59:08
+- Session-buddy (quality: 60/100) - 2026-06-08 19:04:06
+- Session-buddy (quality: 61/100) - 2026-06-05 18:46:10
+- Session-buddy (quality: 61/100) - 2026-06-05 18:52:49
+- Session-buddy (quality: 61/100) - 2026-06-05 19:11:31
+- Session-buddy (quality: 61/100) - 2026-06-05 19:22:23
+- Session-buddy (quality: 61/100) - 2026-06-05 19:28:42
+- Session-buddy (quality: 62/100) - 2026-06-05 12:44:47
+- Session-buddy (quality: 62/100) - 2026-06-05 18:30:24
+- Session-buddy (quality: 62/100) - 2026-06-08 04:19:43
+- Session-buddy (quality: 62/100) - 2026-06-08 06:23:30
+- Session-buddy (quality: 62/100) - 2026-06-08 08:25:02
+- Session-buddy (quality: 63/100) - 2026-06-08 06:35:48
+- Session-buddy (quality: 64/100) - 2026-06-06 22:19:42
+- Session-buddy (quality: 64/100) - 2026-06-07 00:24:56
+- Switch v2 row IDs from UUID v4 to ULID
+- tier 15: allow dots in branch names; reject .. for path traversal
+
+### Fixed
+
+- adapter+schema: Repair store_reflection + fingerprint_tools for v2 rewire
+- fixup! chore(discovery): audit and fill ALL_TOOLS_REGISTRY (Item 5)
+- fixup! feat(akosha): include source_type in sync payload (Item 1)
+- fixup! feat(metrics): expose Conscious Agent stats as Prometheus counters (Item 6)
+- tier 11: fix hardcoded dates and event loop staleness in tests
+- tier 12: refine isolated_test_db_path fixture
+- tier 13: fix broken DI fixture + worker hang/fail tests
+- tier 14: route 4 DuckDB modules through get_settings() + fix telemetry test
+- tier 16: fix 14 errors across 6 test files (logging, server_optimized, worktree_v2, instance_managers, query_rewriter, session_manager_high_impact, reflection_db)
+- tier 17: fix get_stats key in health_checks + SSRF loopback allow
+- tier 18: fix 3 more batch-isolated failures
+- tier 19: fix 11 batch-isolated failures (git_operations + coverage_gaps)
+
+### Documentation
+
+- tier 20: doctor command + conftest pollution hardening + reflection shim
+
+### Testing
+
+- Mark DuckDB 1.5.3 bug as xfail in cascade tests
+
+### Internal
+
+- discovery: Audit and fill ALL_TOOLS_REGISTRY (Item 5)
+- gitignore: Add backup file patterns to silence checkpoint tool artifacts
+- tests: Clean up F401/F841 in test_akosha_sync_integration.py (Item C)
+- Untrack and delete 55 historical *.backup/*.bak files
+
 ## [0.19.9] - 2026-06-02
 
 ### Changed
