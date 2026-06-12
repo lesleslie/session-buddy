@@ -1360,9 +1360,38 @@ def _register_core_search_tools(mcp: Any) -> None:
 def _register_specialized_search_tools(mcp: Any) -> None:
     """Register specialized search tools (file, concept, code, errors, temporal).
 
+    The tool bodies are split across four category-specific helpers to
+    keep the parent's branch count under the 15-branch pylint ceiling
+    (C901). The four helpers, plus the already-extracted
+    ``_register_distilled_skill_health_tool``, are the only side
+    effects.
+
+    Note: prior to the C901 refactor, this function also called
+    ``_register_peer_modeling_tools(mcp)`` and
+    ``_register_causal_chain_tools(mcp)`` — those names were never
+    defined anywhere in the package, so the parent would have raised
+    ``NameError`` on the first call. The four helpers above already
+    cover ``peer_context``/``update_peer_model`` (peer_and_temporal)
+    and ``causal_chain`` (peer_and_temporal), so the phantom calls
+    are removed. The bug was latent because no test invokes this
+    function with a real ``FastMCP`` instance.
+
     Args:
         mcp: FastMCP server instance
 
+    """
+    _register_indexed_search_tools(mcp)
+    _register_peer_and_temporal_tools(mcp)
+    _register_distillation_and_stats_tools(mcp)
+    _register_code_and_error_search_tools(mcp)
+    _register_distilled_skill_health_tool(mcp)
+
+
+def _register_indexed_search_tools(mcp: Any) -> None:
+    """Register search tools that index by file / concept / source / lineage.
+
+    Extracted from :func:`_register_specialized_search_tools` to keep
+    the parent's branch count under the 15-branch pylint ceiling (C901).
     """
 
     @mcp.tool()  # type: ignore[untyped-decorator]
@@ -1406,6 +1435,14 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         Markdown summary.
         """
         return await _memory_lineage_impl(memory_id)
+
+
+def _register_peer_and_temporal_tools(mcp: Any) -> None:
+    """Register peer context, peer model, causal chain, and session report tools.
+
+    Extracted from :func:`_register_specialized_search_tools` to keep
+    the parent's branch count under the 15-branch pylint ceiling (C901).
+    """
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def peer_context(
@@ -1466,6 +1503,32 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         return await _causal_chain_impl(start_id, max_depth)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
+    async def session_learning_report(
+        session_id: str, window_hours: int = 24
+    ) -> dict[str, Any]:
+        """Generate a 'session learning report' for the given session_id.
+
+        Pure read over v2 tables; no new writes. Returns a dictionary
+        describing what memories were created, reinforced (accessed more
+        than once), contradicted, or had new causal links attributed to
+        this session within the time window. ``contradictions`` and
+        ``new_causal_links`` are placeholders (out of scope for v1).
+
+        Args:
+            session_id: Session identifier to scope the report.
+            window_hours: How far back to look (default 24 hours).
+        """
+        return await _session_learning_report_impl(session_id, window_hours)
+
+
+def _register_distillation_and_stats_tools(mcp: Any) -> None:
+    """Register skill distillation and reflection-stats tools.
+
+    Extracted from :func:`_register_specialized_search_tools` to keep
+    the parent's branch count under the 15-branch pylint ceiling (C901).
+    """
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
     async def distill_skills_now(
         evidence_threshold: int = 3, model: str = "heuristic"
     ) -> str:
@@ -1496,10 +1559,6 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         """
         return await _search_distilled_skills_impl(query, limit)
 
-    _register_distilled_skill_health_tool(mcp)
-    _register_peer_modeling_tools(mcp)
-    _register_causal_chain_tools(mcp)
-
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:
         return await _reset_reflection_database_impl()
@@ -1507,6 +1566,14 @@ def _register_specialized_search_tools(mcp: Any) -> None:
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reflection_stats() -> str:
         return await _reflection_stats_impl()
+
+
+def _register_code_and_error_search_tools(mcp: Any) -> None:
+    """Register code, error, and temporal search tools.
+
+    Extracted from :func:`_register_specialized_search_tools` to keep
+    the parent's branch count under the 15-branch pylint ceiling (C901).
+    """
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def search_code(
@@ -1534,24 +1601,6 @@ def _register_specialized_search_tools(mcp: Any) -> None:
         project: str | None = None,
     ) -> str:
         return await _search_temporal_impl(time_expression, query, limit, project)
-
-    @mcp.tool()  # type: ignore[untyped-decorator]
-    async def session_learning_report(
-        session_id: str, window_hours: int = 24
-    ) -> dict[str, Any]:
-        """Generate a 'session learning report' for the given session_id.
-
-        Pure read over v2 tables; no new writes. Returns a dictionary
-        describing what memories were created, reinforced (accessed more
-        than once), contradicted, or had new causal links attributed to
-        this session within the time window. ``contradictions`` and
-        ``new_causal_links`` are placeholders (out of scope for v1).
-
-        Args:
-            session_id: Session identifier to scope the report.
-            window_hours: How far back to look (default 24 hours).
-        """
-        return await _session_learning_report_impl(session_id, window_hours)
 
 
 def _register_distilled_skill_health_tool(mcp: Any) -> None:
