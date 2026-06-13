@@ -2026,3 +2026,343 @@ class TestDecayResult:
         )
 
         assert result.timestamp is not None
+
+
+# ============================================================================
+# Targeted Gap Coverage (Phase 5 - Added for 80%+ coverage)
+# ============================================================================
+
+
+class TestFingerprintCentroidAggregation:
+    """Cover the first-fingerprint branch of _update_fingerprint_centroid.
+
+    The aggregation (union) branch (lines 506-517) is unreachable from
+    a working test: np.minimum on Python int lists returns int64, which
+    struct.pack("Q", ...) cannot pack. That is a real source-level bug.
+    The simpler "first fingerprint stored verbatim" branch is tested here.
+    """
+
+    def test_fingerprint_centroid_first_fingerprint_stored_verbatim(self):
+        """When centroid_fingerprint is None, the new fingerprint is stored directly."""
+        clusterer = SubcategoryClusterer()
+        subcat = Subcategory(
+            id="agg1",
+            parent_category=TopLevelCategory.SKILLS,
+            name="agg",
+            keywords=[],
+            centroid_fingerprint=None,
+        )
+
+        new_fp = MinHashSignature.from_ngrams(
+            extract_ngrams("alpha bravo charlie", n=3)
+        ).to_bytes()
+
+        clusterer._update_fingerprint_centroid(subcat, new_fp)
+
+        assert subcat.centroid_fingerprint == new_fp
+
+
+class TestCreateNewSubcategoriesCollision:
+    """Cover the subcat_name collision counter loop (lines 546-547)."""
+
+    def test_collision_appends_counter_suffix(self):
+        """When a candidate name already exists, append -1, -2, ... suffix."""
+        clusterer = SubcategoryClusterer()
+        category = TopLevelCategory.SKILLS
+        existing_names = {"python-async-fastapi"}
+
+        # Build memories with keywords so the candidate name resolves to
+        # "python-async-fastapi" — same as the existing entry.
+        memories = [
+            {
+                "content": "python async fastapi patterns",
+                "embedding": np.array([1.0, 0.0, 0.0]),
+            }
+            for _ in range(3)
+        ]
+        embeddings = [m["embedding"] for m in memories]
+
+        result = clusterer._create_new_subcategories(
+            memories=memories,
+            embeddings=embeddings,
+            category=category,
+            existing_names=existing_names,
+        )
+
+        assert len(result) == 1
+        assert result[0].name == "python-async-fastapi-1"
+
+    def test_no_collision_keeps_base_name(self):
+        """When no name collision occurs, the base name is used unchanged."""
+        clusterer = SubcategoryClusterer()
+        category = TopLevelCategory.SKILLS
+        existing_names = {"unrelated-name"}
+
+        memories = [
+            {
+                "content": "python async fastapi patterns",
+                "embedding": np.array([1.0, 0.0, 0.0]),
+            }
+            for _ in range(3)
+        ]
+        embeddings = [m["embedding"] for m in memories]
+
+        result = clusterer._create_new_subcategories(
+            memories=memories,
+            embeddings=embeddings,
+            category=category,
+            existing_names=existing_names,
+        )
+
+        assert len(result) == 1
+        assert not result[0].name.endswith("-1")
+
+
+class TestEmbeddingMatchNoMatch:
+    """Cover the no-match return path of _embedding_match (line 1172)."""
+
+    def test_embedding_match_returns_none_when_no_centroids_match(self):
+        """If no subcategory centroid meets the similarity threshold, return None."""
+        engine = CategoryEvolutionEngine(similarity_threshold=0.99)
+
+        # Subcategory with centroid orthogonal to the query embedding
+        subcat = Subcategory(
+            id="sc1",
+            parent_category=TopLevelCategory.SKILLS,
+            name="skill-1",
+            keywords=[],
+            centroid=np.array([1.0, 0.0, 0.0]),
+        )
+        engine._subcategories[TopLevelCategory.SKILLS] = [subcat]
+
+        memory = {
+            "id": "m1",
+            "embedding": np.array([0.0, 1.0, 0.0]),  # orthogonal
+        }
+
+        match = engine._embedding_match(memory, [subcat])
+        assert match is None
+
+    def test_embedding_match_returns_none_when_no_subcategories(self):
+        """Empty subcategory list returns None without raising."""
+        engine = CategoryEvolutionEngine()
+
+        memory = {
+            "id": "m1",
+            "embedding": np.array([1.0, 0.0, 0.0]),
+        }
+
+        assert engine._embedding_match(memory, []) is None
+        assert engine._embedding_match(memory, None or []) is None
+
+    def test_embedding_match_returns_none_when_embedding_missing(self):
+        """Memory with no embedding returns None."""
+        engine = CategoryEvolutionEngine()
+        subcat = Subcategory(
+            id="sc1",
+            parent_category=TopLevelCategory.SKILLS,
+            name="skill-1",
+            keywords=[],
+            centroid=np.array([1.0, 0.0, 0.0]),
+        )
+
+        assert engine._embedding_match({"id": "m1"}, [subcat]) is None
+
+
+class TestSilhouetteEdgeCases:
+    """Cover the insufficient-data branch in calculate_silhouette_score (1054-1079)."""
+
+    def test_silhouette_returns_one_with_fewer_than_two_subcategories(self):
+        """One subcategory → 1.0 (no clustering to evaluate)."""
+        engine = CategoryEvolutionEngine()
+        subcats = [
+            Subcategory(
+                id="only",
+                parent_category=TopLevelCategory.SKILLS,
+                name="only",
+                keywords=[],
+                centroid=np.array([1.0, 0.0, 0.0]),
+            )
+        ]
+        memories = [{"embedding": np.array([1.0, 0.0, 0.0])}]
+
+        assert engine.calculate_silhouette_score(subcats, memories) == 1.0
+
+    def test_silhouette_returns_one_when_no_memories_match(self):
+        """Two subcategories but no embeddings match either → 1.0 fallback."""
+        engine = CategoryEvolutionEngine(similarity_threshold=0.5)
+        subcats = [
+            Subcategory(
+                id="a",
+                parent_category=TopLevelCategory.SKILLS,
+                name="a",
+                keywords=[],
+                centroid=np.array([1.0, 0.0, 0.0]),
+            ),
+            Subcategory(
+                id="b",
+                parent_category=TopLevelCategory.SKILLS,
+                name="b",
+                keywords=[],
+                centroid=np.array([0.0, 1.0, 0.0]),
+            ),
+        ]
+        # Memories with no embedding → can't be assigned → len(X) < 2
+        memories = [{"id": "m1"}, {"id": "m2"}]
+
+        assert engine.calculate_silhouette_score(subcats, memories) == 1.0
+
+    def test_silhouette_handles_sklearn_import_error(self):
+        """When sklearn raises, return 0.0 (neutral)."""
+        engine = CategoryEvolutionEngine(similarity_threshold=0.1)
+        subcats = [
+            Subcategory(
+                id="a",
+                parent_category=TopLevelCategory.SKILLS,
+                name="a",
+                keywords=[],
+                centroid=np.array([1.0, 0.0, 0.0]),
+            ),
+            Subcategory(
+                id="b",
+                parent_category=TopLevelCategory.SKILLS,
+                name="b",
+                keywords=[],
+                centroid=np.array([0.0, 1.0, 0.0]),
+            ),
+        ]
+        # Plain lists, not ndarrays, so `_is_memory_in_subcategory`'s
+        # `if not embedding` check works as expected (False for non-empty list)
+        memories = [
+            {"id": "1", "embedding": [1.0, 0.0, 0.0]},
+            {"id": "2", "embedding": [0.0, 1.0, 0.0]},
+        ]
+
+        with patch(
+            "sklearn.metrics.silhouette_score",
+            side_effect=RuntimeError("boom"),
+        ):
+            assert engine.calculate_silhouette_score(subcats, memories) == 0.0
+
+
+class TestLoadAndSnapshotPersistence:
+    """Cover the happy-path SQL execution in _load_subcategories and _save_evolution_snapshot."""
+
+    @pytest.mark.asyncio
+    async def test_load_subcategories_happy_path(self):
+        """A row with a valid parent_category populates the in-memory cache."""
+        mock_conn = MagicMock()
+        mock_db = MagicMock()
+        mock_db.conn = mock_conn
+        mock_db.collection_name = "test"
+
+        # Each row: (id, parent_category, name, keywords, centroid, fingerprint,
+        #            memory_count, created_at, updated_at, last_accessed_at, access_count)
+        mock_conn.execute.return_value.fetchall.return_value = [
+            (
+                "loaded-1",
+                "skills",
+                "python-async",
+                ["python", "async"],
+                [0.1, 0.2, 0.3],
+                b"fp-bytes",
+                4,
+                datetime.now(UTC),
+                datetime.now(UTC),
+                datetime.now(UTC),
+                7,
+            )
+        ]
+
+        engine = CategoryEvolutionEngine(db_adapter=mock_db)
+        await engine.initialize()  # triggers _load_subcategories
+
+        skills = engine._subcategories[TopLevelCategory.SKILLS]
+        assert len(skills) == 1
+        sc = skills[0]
+        assert sc.id == "loaded-1"
+        assert sc.parent_category == TopLevelCategory.SKILLS
+        assert sc.name == "python-async"
+        assert sc.keywords == ["python", "async"]
+        assert sc.memory_count == 4
+        assert sc.access_count == 7
+        # centroid is restored as a numpy array
+        assert isinstance(sc.centroid, np.ndarray)
+
+    @pytest.mark.asyncio
+    async def test_load_subcategories_skips_invalid_category(self):
+        """Rows with unknown parent_category are skipped, not raised on."""
+        mock_conn = MagicMock()
+        mock_db = MagicMock()
+        mock_db.conn = mock_conn
+        mock_db.collection_name = "test"
+
+        mock_conn.execute.return_value.fetchall.return_value = [
+            (
+                "bad-1",
+                "nonsense-category",  # not a valid TopLevelCategory
+                ["x"],
+                None,
+                None,
+                0,
+                datetime.now(UTC),
+                datetime.now(UTC),
+                datetime.now(UTC),
+                0,
+            )
+        ]
+
+        engine = CategoryEvolutionEngine(db_adapter=mock_db)
+        await engine.initialize()
+
+        # No subcategories loaded for any real category
+        for cat in TopLevelCategory:
+            assert engine._subcategories[cat] == []
+
+    @pytest.mark.asyncio
+    async def test_save_evolution_snapshot_inserts_row(self):
+        """A successful _save_evolution_snapshot issues an INSERT with all 13 params."""
+        mock_conn = MagicMock()
+        mock_db = MagicMock()
+        mock_db.conn = mock_conn
+        mock_db.collection_name = "test"
+
+        engine = CategoryEvolutionEngine(db_adapter=mock_db)
+        await engine.initialize()
+
+        await engine._save_evolution_snapshot(
+            category=TopLevelCategory.SKILLS,
+            before_state={
+                "subcategory_count": 2,
+                "silhouette": 0.4,
+                "total_memories": 10,
+            },
+            after_state={
+                "subcategory_count": 3,
+                "silhouette": 0.6,
+                "total_memories": 12,
+            },
+            decay_results=DecayResult(
+                removed_count=1,
+                archived=True,
+                freed_space=2048,
+                message="ok",
+                decayed_subcategories=["old"],
+            ),
+            duration_ms=12.5,
+        )
+
+        # The snapshot INSERT was issued exactly once
+        inserts = [
+            c
+            for c in mock_conn.execute.call_args_list
+            if "category_evolution_snapshots" in str(c)
+        ]
+        assert len(inserts) == 1
+        # 13 bound parameters in the INSERT
+        bound_params = inserts[0][0][1]
+        assert len(bound_params) == 13
+        # archived_count=1 since decay_results.archived was True
+        assert bound_params[9] == 1
+        # bytes_freed matches the decay result
+        assert bound_params[10] == 2048

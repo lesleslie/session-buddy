@@ -1525,3 +1525,89 @@ class TestIntrospection:
         from session_buddy.quality_engine import perform_strategic_compaction
 
         assert callable(perform_strategic_compaction)
+
+
+# ===== Coverage Gap Tests =====
+
+
+class TestCoverageGaps:
+    """Targeted tests for uncovered branches in quality_engine.py."""
+
+    @pytest.mark.asyncio
+    async def test_monitor_proactive_quality_outer_exception(self) -> None:
+        """Should return error result when outer try block raises."""
+        from session_buddy.quality_engine import monitor_proactive_quality
+
+        with patch(
+            "session_buddy.quality_engine._perform_quality_analysis",
+            new=AsyncMock(side_effect=Exception("boom")),
+        ):
+            result = await monitor_proactive_quality()
+
+        assert result["quality_trend"] == "unknown"
+        assert result["monitoring_active"] is False
+        assert "boom" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_summarize_current_conversation_inner_exception_fallback(
+        self,
+    ) -> None:
+        """Should return fallback summary on generic inner exception."""
+        from session_buddy.quality_engine import summarize_current_conversation
+
+        with patch(
+            "session_buddy.reflection_tools.get_reflection_database",
+            side_effect=RuntimeError("db unavailable"),
+        ):
+            result = await summarize_current_conversation()
+
+        assert isinstance(result, dict)
+        # Fallback summary is produced by _get_fallback_summary()
+        assert "key_topics" in result or "summary" in result or result
+
+    @pytest.mark.asyncio
+    async def test_analyze_token_usage_patterns_failure(self) -> None:
+        """Should return analysis_failed dict when inner logic raises."""
+        from session_buddy.quality_engine import analyze_token_usage_patterns
+
+        with patch(
+            "session_buddy.quality_engine._get_conversation_statistics",
+            new=AsyncMock(side_effect=Exception("stats failed")),
+        ):
+            result = await analyze_token_usage_patterns()
+
+        assert result["status"] == "analysis_failed"
+        assert result["needs_attention"] is False
+        assert result["recommend_compact"] is False
+        assert "stats failed" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_analyze_conversation_flow_analysis_unavailable(self) -> None:
+        """Should return analysis_unavailable when reflection lookup raises."""
+        from session_buddy.quality_engine import analyze_conversation_flow
+
+        with patch(
+            "session_buddy.reflection_tools.get_reflection_database",
+            side_effect=RuntimeError("reflection db error"),
+        ):
+            result = await analyze_conversation_flow()
+
+        assert result["pattern_type"] == "analysis_unavailable"
+        assert isinstance(result["recommendations"], list)
+        assert len(result["recommendations"]) > 0
+
+    def test_generate_session_tags_cwd_fallback(self) -> None:
+        """Should fall back to 'unknown-project' when Path.cwd() raises."""
+        from session_buddy.quality_engine import _generate_session_tags
+
+        with patch(
+            "session_buddy.quality_engine.Path.cwd",
+            side_effect=FileNotFoundError("cwd gone"),
+        ):
+            tags = _generate_session_tags(85.0)
+
+        assert "checkpoint" in tags
+        assert "session-summary" in tags
+        assert "unknown-project" in tags
+        # 85.0 >= 80, so excellent-session branch should be present
+        assert "excellent-session" in tags

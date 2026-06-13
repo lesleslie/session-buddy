@@ -911,5 +911,234 @@ class TestSessionLifecycleManagerSessionStatus:
                 assert "status check failed" in result["error"].lower()
 
 
+class TestSessionLifecycleManagerBranchCoverage:
+    """Branch coverage tests for SessionLifecycleManager uncovered paths."""
+
+    def test_initialize_templates_fallback_when_jinja_missing(self, monkeypatch):
+        """_initialize_templates falls back to None when jinja2 import fails."""
+        import builtins as _builtins
+
+        real_import = _builtins.__import__
+
+        def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "jinja2" or name.startswith("jinja2."):
+                raise ImportError("jinja2 not available")
+            return real_import(name, globals, locals, fromlist, level)
+
+        monkeypatch.setattr(_builtins, "__import__", fake_import)
+        manager = SessionLifecycleManager.__new__(SessionLifecycleManager)
+        import logging as _logging
+        manager.logger = _logging.getLogger("test")
+        manager._initialize_templates()
+        assert manager.templates is None
+
+    def test_format_trust_score_with_object(self):
+        """_format_trust_score handles object with .total attribute."""
+        manager = SessionLifecycleManager()
+
+        class TrustObj:
+            total = 80.0
+            details = {
+                "permissions_count": 25,
+                "session_available": True,
+                "tool_count": 12,
+            }
+
+        output = manager._format_trust_score(TrustObj())
+        assert any("80/100" in line for line in output)
+        assert any("Trusted operations: 25/40" in line for line in output)
+        assert any("Tool ecosystem: 12 tools" in line for line in output)
+
+    def test_format_trust_score_with_dict(self):
+        """_format_trust_score handles dict with total key."""
+        manager = SessionLifecycleManager()
+        trust = {
+            "total": 55.0,
+            "details": {
+                "permissions_count": 10,
+                "session_available": False,
+                "tool_count": 5,
+            },
+        }
+        output = manager._format_trust_score(trust)
+        assert any("55/100" in line for line in output)
+        assert any("Tool ecosystem: 5 tools" in line for line in output)
+
+    def test_format_trust_score_zero_total(self):
+        """_format_trust_score returns empty list when total is zero."""
+        manager = SessionLifecycleManager()
+        assert manager._format_trust_score({"total": 0}) == []
+        assert manager._format_trust_score({"total": 0, "details": {"x": 1}}) == []
+
+    def test_format_trust_score_unknown_type(self):
+        """_format_trust_score returns empty list for unknown shapes."""
+        manager = SessionLifecycleManager()
+        assert manager._format_trust_score("not a trust score") == []
+        assert manager._format_trust_score(42) == []
+
+    @patch("session_buddy.core.session_manager.is_git_repository")
+    async def test_perform_quality_assessment_invalid_data_returns_default(
+        self, mock_is_git_repo
+    ):
+        """perform_quality_assessment returns default 75 when data is empty/non-dict."""
+        mock_is_git_repo.return_value = True
+        manager = SessionLifecycleManager()
+
+        with patch.object(manager, "calculate_quality_score", return_value=None):
+            score, data = await manager.perform_quality_assessment()
+            assert score == 75
+            assert data["total_score"] == 75
+            assert "recommendations" in data
+
+    @patch("session_buddy.core.session_manager.is_git_repository")
+    async def test_perform_quality_assessment_missing_total_score(
+        self, mock_is_git_repo
+    ):
+        """perform_quality_assessment adds total_score from overall when missing."""
+        mock_is_git_repo.return_value = True
+        manager = SessionLifecycleManager()
+
+        with patch.object(
+            manager,
+            "calculate_quality_score",
+            return_value={"overall": 88, "breakdown": {}},
+        ):
+            score, data = await manager.perform_quality_assessment()
+            assert score == 88
+            assert data["total_score"] == 88
+
+    def test_format_quality_results_with_malformed_breakdown(self):
+        """format_quality_results handles malformed breakdown gracefully."""
+        manager = SessionLifecycleManager()
+        # breakdown is not a dict -> subscript fails -> caught
+        quality_data = {
+            "breakdown": "not-a-dict",
+            "recommendations": [],
+        }
+        result = manager.format_quality_results(50, quality_data)
+        assert any("unavailable" in line.lower() for line in result)
+
+    def test_format_quality_results_with_trust_score(self):
+        """format_quality_results renders trust score when present."""
+        manager = SessionLifecycleManager()
+        quality_data = {
+            "breakdown": {
+                "code_quality": 30.0,
+                "project_health": 20.0,
+                "dev_velocity": 15.0,
+                "security": 5.0,
+            },
+            "trust_score": {"total": 70.0, "details": {}},
+            "recommendations": [],
+        }
+        result = manager.format_quality_results(85, quality_data)
+        assert any("trust score" in line.lower() for line in result)
+
+    def test_validate_working_directory_traversal_rejected(self, tmp_path):
+        """_validate_working_directory rejects .. traversal sequences."""
+        manager = SessionLifecycleManager()
+        with pytest.raises(ValueError, match="Traversal not allowed"):
+            manager._validate_working_directory(str(tmp_path / ".."))
+
+    def test_validate_working_directory_nonexistent_rejected(self, tmp_path):
+        """_validate_working_directory rejects paths that do not exist."""
+        manager = SessionLifecycleManager()
+        missing = tmp_path / "definitely_missing_dir"
+        with pytest.raises(ValueError, match="Path does not exist"):
+            manager._validate_working_directory(str(missing))
+
+    def test_validate_working_directory_file_rejected(self, tmp_path):
+        """_validate_working_directory rejects file paths."""
+        manager = SessionLifecycleManager()
+        file_path = tmp_path / "not_a_dir.txt"
+        file_path.write_text("hi")
+        with pytest.raises(ValueError, match="Path is not a directory"):
+            manager._validate_working_directory(str(file_path))
+
+    def test_record_quality_score_caps_history_at_ten(self):
+        """record_quality_score caps history at 10 entries per project."""
+        manager = SessionLifecycleManager()
+        for i in range(15):
+            manager.record_quality_score("proj", i)
+        assert len(manager._quality_history["proj"]) == 10
+        assert manager._quality_history["proj"][0] == 5
+        assert manager._quality_history["proj"][-1] == 14
+        assert manager.get_previous_quality_score("proj") == 14
+
+    def test_get_previous_quality_score_missing_project(self):
+        """get_previous_quality_score returns None for unknown project."""
+        manager = SessionLifecycleManager()
+        assert manager.get_previous_quality_score("nope") is None
+
+    def test_discover_session_files_finds_json(self, tmp_path):
+        """_discover_session_files finds *.session.json files."""
+        manager = SessionLifecycleManager()
+        (tmp_path / "alpha.session.json").write_text("{}")
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (sub / "beta.session.json").write_text("{}")
+        found = manager._discover_session_files(tmp_path)
+        names = {p.name for p in found}
+        assert names == {"alpha.session.json", "beta.session.json"}
+
+    @pytest.mark.asyncio
+    async def test_read_previous_session_info_json_dict(self, tmp_path):
+        """_read_previous_session_info returns dict when JSON file is valid dict."""
+        manager = SessionLifecycleManager()
+        json_file = tmp_path / "sess.session.json"
+        json_file.write_text('{"ended_at": "2024-06-01T10:00:00Z", "score": 91}')
+        result = await manager._read_previous_session_info(json_file)
+        assert result == {"ended_at": "2024-06-01T10:00:00Z", "score": 91}
+
+    @pytest.mark.asyncio
+    async def test_read_previous_session_info_json_non_dict(self, tmp_path):
+        """_read_previous_session_info returns None for non-dict JSON."""
+        manager = SessionLifecycleManager()
+        json_file = tmp_path / "sess.session.json"
+        json_file.write_text("[1, 2, 3]")
+        assert await manager._read_previous_session_info(json_file) is None
+
+    @pytest.mark.asyncio
+    async def test_read_previous_session_info_oserror_returns_none(self, tmp_path):
+        """_read_previous_session_info returns None on OSError."""
+        manager = SessionLifecycleManager()
+        missing = tmp_path / "does_not_exist.session.json"
+        assert await manager._read_previous_session_info(missing) is None
+
+    def test_find_latest_handoff_file_falls_back_to_handoff_json(self, tmp_path):
+        """_find_latest_handoff_file falls back to *.handoff.json."""
+        manager = SessionLifecycleManager()
+        handoff = tmp_path / "x.handoff.json"
+        handoff.write_text("{}")
+        assert manager._find_latest_handoff_file(tmp_path) == handoff
+
+    def test_find_latest_handoff_file_falls_back_to_session_json(self, tmp_path):
+        """_find_latest_handoff_file falls back to *.session.json."""
+        manager = SessionLifecycleManager()
+        session = tmp_path / "x.session.json"
+        session.write_text("{}")
+        assert manager._find_latest_handoff_file(tmp_path) == session
+
+    def test_find_latest_handoff_file_nested_newer_than_legacy(self, tmp_path):
+        """_find_latest_handoff_file returns nested when newer than legacy."""
+        manager = SessionLifecycleManager()
+        import time
+
+        legacy = tmp_path / "session_handoff_20240101_100000.md"
+        legacy.write_text("legacy")
+        # Force legacy to be older
+        legacy.touch()
+        nested_dir = tmp_path / ".crackerjack" / "session" / "handoff"
+        nested_dir.mkdir(parents=True)
+        nested = nested_dir / "session_handoff_20240601_120000.md"
+        nested.write_text("nested")
+        # Make nested newer
+        future = time.time() + 60
+        import os
+        os.utime(legacy, (time.time() - 3600, time.time() - 3600))
+        os.utime(nested, (future, future))
+        assert manager._find_latest_handoff_file(tmp_path) == nested
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
