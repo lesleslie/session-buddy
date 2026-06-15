@@ -865,7 +865,7 @@ wheels = [
 
 [[package]]
 name = "dhara"
-version = "0.11.1"
+version = "0.11.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiosqlite" },
@@ -880,9 +880,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/11/b2/e1a589a13536af1cbeba848f72e70220c2f58a7b69bb6854b7da36906dc2/dhara-0.11.1.tar.gz", hash = "sha256:e2799f61a8f2611c2e747cef5399f628ac674584d35158e6aa64c09eda27d12e", size = 617199, upload-time = "2026-06-04T08:58:16.087Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/c9/b0a52f4e32f9ef4948fa5d7fae107a90adebb993876e5882d4e241814b4a/dhara-0.11.2.tar.gz", hash = "sha256:9f65cfa051bd317315dc7c8994f34179d215b010be4dfff2c77c776c655c27e9", size = 617248, upload-time = "2026-06-15T12:03:27.587Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/40/2c/9d514fe4042587d3c39392dfd7e552866636a8bd301baae15998b23fd0f2/dhara-0.11.1-py3-none-any.whl", hash = "sha256:aaa378212f7a2e9413cbbc5e6c1ef884772401e9f87dc65820d073defb4540d6", size = 213056, upload-time = "2026-06-04T08:58:17.449Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/45/29b6ef39e4e6d5d7c37a4319914eaeedbad32e59de90a55fd65ef1506835/dhara-0.11.2-py3-none-any.whl", hash = "sha256:bc0ba162d6bec2092becf279fecddefa32ccf91910a6b963a69b59a11f61679c", size = 213058, upload-time = "2026-06-15T12:03:28.776Z" },
 ]
 
 [[package]]
@@ -3938,7 +3938,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.19.12"
+version = "0.19.13"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

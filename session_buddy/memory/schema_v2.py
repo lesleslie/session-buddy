@@ -161,6 +161,28 @@ CREATE TABLE IF NOT EXISTS memory_access_log (
     FOREIGN KEY (memory_id) REFERENCES conversations_v2(id)
 );
 
+-- Column patches: idempotent ALTER TABLE guards for columns added after initial deployment.
+-- DuckDB's CREATE TABLE IF NOT EXISTS does not add new columns to existing tables, so
+-- any column added to a CREATE TABLE block above also needs an ADD COLUMN IF NOT EXISTS here.
+-- These run BEFORE indexes so that indexes referencing new columns (e.g. source_type) succeed
+-- even on databases that predate those columns.
+
+-- conversations_v2: provenance + lineage columns (added Phase 0 v2 rewire)
+ALTER TABLE conversations_v2 ADD COLUMN IF NOT EXISTS metadata VARCHAR;
+ALTER TABLE conversations_v2 ADD COLUMN IF NOT EXISTS source_type TEXT;
+ALTER TABLE conversations_v2 ADD COLUMN IF NOT EXISTS turn_parent_id TEXT;
+ALTER TABLE conversations_v2 ADD COLUMN IF NOT EXISTS causal_parent_id TEXT;
+
+-- reflections_v2: legacy compatibility columns (used by store_reflection)
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS insight_type TEXT;
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0;
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP;
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS confidence_score REAL;
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS fingerprint BLOB;
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS subcategory TEXT;
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_conversations_category ON conversations_v2(category, namespace);
 CREATE INDEX IF NOT EXISTS idx_conversations_tier ON conversations_v2(memory_tier, importance_score DESC);
