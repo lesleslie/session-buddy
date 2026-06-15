@@ -43,10 +43,9 @@ import uuid
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import structlog
-
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import typer

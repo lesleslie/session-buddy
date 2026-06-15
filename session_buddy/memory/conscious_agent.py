@@ -449,7 +449,9 @@ class ConsciousAgent:
         Returns the count of pruned rows.
         """
         if self.reflection_db is not None:
-            return int(await self.reflection_db.prune_causal_links_older_than(days=days))
+            return int(
+                await self.reflection_db.prune_causal_links_older_than(days=days)
+            )
         import duckdb
 
         from session_buddy.settings import get_database_path
