@@ -208,8 +208,8 @@ ______________________________________________________________________
 
 - 📖 [Full Documentation](docs/)
 - 🌐 [Architecture Overview](ARCHITECTURE.md)
-- 💬 [Community Discussions](https://github.com/lesleslie/session-buddy)
-- 🐛 [Report Issues](https://github.com/lesleslie/session-buddy/issues)
+- 💬 Community Discussions
+- 🐛 Report Issues
 
 ______________________________________________________________________
 

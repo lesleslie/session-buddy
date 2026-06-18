@@ -584,6 +584,18 @@ class ReflectionDatabaseAdapterOneiric:
         # This migration ensures existing databases get the new insight columns
         # We use ALTER TABLE IF NOT EXISTS pattern (DuckDB-safe)
 
+        # Add created_at column if it doesn't exist (v2 legacy compatibility)
+        with suppress(Exception):
+            self.conn.execute(
+                f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+            )
+
+        # Add updated_at column if it doesn't exist (v2 legacy compatibility)
+        with suppress(Exception):
+            self.conn.execute(
+                f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP"
+            )
+
         # Add insight_type column if it doesn't exist
         with suppress(Exception):
             self.conn.execute(

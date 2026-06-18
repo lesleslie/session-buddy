@@ -32,6 +32,16 @@ ONNX_AVAILABLE = False  # Kept for compatibility but always False
 
 logger = logging.getLogger(__name__)
 
+
+class DatabaseLockedError(RuntimeError):
+    """Raised when the DuckDB file is exclusively locked by another process.
+
+    This is a normal condition when a long-running session-buddy instance
+    already owns the lock. Callers (e.g. shutdown checkpoint) should catch
+    this and skip storage rather than surfacing it as an error.
+    """
+
+
 # Import schema initialization
 # Import embedding generation
 from session_buddy.reflection.embeddings import (
@@ -156,6 +166,44 @@ class ReflectionDatabase:
         """Cleanup connection on deletion."""
         self.close()
 
+    def _raw_connect(self) -> duckdb.DuckDBPyConnection:
+        """Open a DuckDB connection, converting lock conflicts to DatabaseLockedError."""
+        try:
+            return duckdb.connect(
+                self.db_path, config={"allow_unsigned_extensions": True}
+            )
+        except Exception as e:
+            err = str(e)
+            if "Conflicting lock" in err or "Could not set lock" in err:
+                msg = f"Database locked by another process: {e}"
+                raise DatabaseLockedError(msg) from e
+            raise
+
+    def _connect_with_wal_retry(self, first_exc: Exception) -> duckdb.DuckDBPyConnection:
+        """Handle a WAL-related connect failure by deleting the stale WAL and retrying.
+
+        Raises RuntimeError for non-WAL failures. Re-raises DatabaseLockedError
+        unchanged. Uncommitted writes in the stale WAL are intentionally discarded.
+        """
+        err_msg = str(first_exc)
+        is_wal_error = self.db_path != ":memory:" and (
+            "replaying WAL" in err_msg or "GetDefaultDatabase" in err_msg
+        )
+        if not is_wal_error:
+            msg = f"Database connection error (directory/permission): {first_exc}"
+            raise RuntimeError(msg) from first_exc
+        wal_file = Path(self.db_path + ".wal")
+        if wal_file.exists():
+            with suppress(Exception):
+                wal_file.unlink()
+        try:
+            return self._raw_connect()
+        except DatabaseLockedError:
+            raise
+        except Exception as retry_exc:
+            msg = f"Database connection error (directory/permission): {retry_exc}"
+            raise RuntimeError(msg) from retry_exc
+
     async def initialize(self) -> None:
         """Initialize database connection and create tables.
 
@@ -183,35 +231,11 @@ class ReflectionDatabase:
 
         # Create tables if they don't exist
         try:
-            temp_conn = duckdb.connect(
-                self.db_path, config={"allow_unsigned_extensions": True}
-            )
+            temp_conn = self._raw_connect()
+        except DatabaseLockedError:
+            raise
         except Exception as e:
-            # If DuckDB cannot open the file (e.g. a stale .wal
-            # sidecar references a default database the catalog no
-            # longer has), purge the .wal and retry once. Any
-            # uncommitted writes are already lost; a successful retry
-            # creates a fresh, consistent database.
-            err_msg = str(e)
-            if self.db_path != ":memory:" and (
-                "replaying WAL" in err_msg or "GetDefaultDatabase" in err_msg
-            ):
-                wal_file = Path(self.db_path + ".wal")
-                if wal_file.exists():
-                    with suppress(Exception):
-                        wal_file.unlink()
-                try:
-                    temp_conn = duckdb.connect(
-                        self.db_path, config={"allow_unsigned_extensions": True}
-                    )
-                except Exception as retry_exc:
-                    msg = (
-                        f"Database connection error (directory/permission): {retry_exc}"
-                    )
-                    raise RuntimeError(msg) from retry_exc
-            else:
-                msg = f"Database connection error (directory/permission): {e}"
-                raise RuntimeError(msg) from e
+            temp_conn = self._connect_with_wal_retry(e)
 
         try:
             # Initialize schema using schema module

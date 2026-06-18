@@ -229,11 +229,19 @@ async def store_conversation_checkpoint(
             db.close()
 
     except Exception as e:
-        logger.warning(
-            "Failed to store conversation checkpoint, project=%s, error=%s",
-            manager.current_project,
-            str(e),
-        )
+        from session_buddy.reflection.database import DatabaseLockedError
+
+        if isinstance(e, DatabaseLockedError):
+            logger.debug(
+                "Skipping conversation checkpoint — DB locked by another process, project=%s",
+                manager.current_project,
+            )
+        else:
+            logger.warning(
+                "Failed to store conversation checkpoint, project=%s, error=%s",
+                manager.current_project,
+                str(e),
+            )
         result["error"] = str(e)
 
     return result

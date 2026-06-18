@@ -26,6 +26,7 @@ Example:
 
 # Core database
 from session_buddy.reflection.database import (
+    DatabaseLockedError,
     ReflectionDatabase,
     get_reflection_database,
 )
@@ -51,6 +52,7 @@ from session_buddy.reflection.storage import (
 
 __all__ = [
     # Core database
+    "DatabaseLockedError",
     "ReflectionDatabase",
     "get_reflection_database",
     # Embeddings
