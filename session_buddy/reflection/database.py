@@ -179,7 +179,9 @@ class ReflectionDatabase:
                 raise DatabaseLockedError(msg) from e
             raise
 
-    def _connect_with_wal_retry(self, first_exc: Exception) -> duckdb.DuckDBPyConnection:
+    def _connect_with_wal_retry(
+        self, first_exc: Exception
+    ) -> duckdb.DuckDBPyConnection:
         """Handle a WAL-related connect failure by deleting the stale WAL and retrying.
 
         Raises RuntimeError for non-WAL failures. Re-raises DatabaseLockedError
