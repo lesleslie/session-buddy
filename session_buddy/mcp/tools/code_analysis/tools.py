@@ -21,12 +21,12 @@ async def _code_ingest_file_impl(
     try:
         extractor = KGExtractor()
         result = await extractor.extract_and_store(
-            Path(file_path), project=project, language=language
+            Path(file_path).resolve(), project=project, language=language
         )
         return {"status": "success"} | result
     except Exception as e:
         logger.error(f"Failed to ingest file: {e}")
-        return {"status": "error", "error": e, "file_path": file_path}
+        return {"status": "error", "error": str(e), "file_path": file_path}
 
 
 async def _code_ingest_directory_impl(
