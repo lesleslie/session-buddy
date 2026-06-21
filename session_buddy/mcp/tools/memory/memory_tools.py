@@ -143,9 +143,28 @@ async def _store_reflection_impl(content: str, tags: list[str] | None = None) ->
 
     try:
         validate_required(content, "content")
+
+        # OWASP memory guard — screens every write before it reaches the DB
+        from session_buddy.security.memory_guard_adapter import (
+            GuardAction,
+            MemoryGuardAdapter,
+            MemoryGuardBlockedError,
+        )
+
+        guard = MemoryGuardAdapter()
+        decision = guard.screen(content, tags)
+        if decision.action == GuardAction.BLOCK:
+            raise MemoryGuardBlockedError(
+                f"Memory guard blocked write: rule={decision.matched_rule}"
+            )
+        content = decision.content
+        tags = decision.tags
+
         db = await _get_reflection_database()
         result = await _store_reflection_operation(db, content, tags or [])
         return _format_store_reflection_result(result)
+    except MemoryGuardBlockedError:
+        raise
     except ValidationError as e:
         return ToolMessages.validation_error("Store reflection", str(e))
     except DatabaseUnavailableError as e:

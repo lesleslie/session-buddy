@@ -1,0 +1,30 @@
+rules:
+  - pattern: prompt_injection
+    action: quarantine
+    namespaces: [project, reference]
+  - pattern: secret_leakage
+    action: redact
+  - pattern: pii_leakage
+    action: redact
+  - pattern: protected_key_tampering
+    action: block
+    namespaces: [user, feedback]
+  - pattern: size_anomaly
+    action: quarantine
+    threshold_bytes: 10000
+
+quarantine:
+  excluded_from_general_search: true
+  readable_by: [security_audit_only]
+
+retention:
+  fix_failure_records:
+    max_age_days: 90
+    archive_to_dhara: true
+  quarantine_records:
+    max_age_days: 30
+    archive_to_dhara: false
+
+baselines:
+  namespaces: [user, feedback]
+  hash_algorithm: sha256

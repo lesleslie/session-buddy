@@ -468,6 +468,7 @@ class ReflectionDatabase:
         project: str | None = None,
         min_score: float = 0.7,
         tags: list[str] | None = None,
+        exclude_tags: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Search reflections by text similarity.
 
@@ -477,6 +478,9 @@ class ReflectionDatabase:
             project: Optional project filter
             min_score: Minimum similarity score (0-1)
             tags: Optional tag filter (only return reflections with any of these tags)
+            exclude_tags: Optional exclusion filter — reflections with ANY of these
+                tags are removed from results. Use ``exclude_tags=["quarantine"]`` to
+                hide quarantined reflections from general searches (M-NEW-31).
 
         Returns:
             List of search results with content, score, tags, etc.
@@ -510,10 +514,17 @@ class ReflectionDatabase:
             self.lock if self.is_temp_db else None,
         )
 
-        # Apply tag filter if specified
+        # Apply inclusion tag filter
         if tags:
             results = [
                 r for r in results if any(tag in r.get("tags", []) for tag in tags)
+            ]
+
+        # Apply exclusion tag filter (M-NEW-31 — quarantine isolation)
+        if exclude_tags:
+            exclude_set = set(exclude_tags)
+            results = [
+                r for r in results if not exclude_set.intersection(r.get("tags", []))
             ]
 
         return results
