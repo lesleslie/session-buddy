@@ -29,7 +29,7 @@ from session_buddy.mcp.auth import require_auth
 from session_buddy.mcp.event_models import ChannelSessionEvent, ChannelSessionResult
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 _VALID_EVENT_TYPES = frozenset(
     {"channel_session_start", "channel_session_end", "channel_heartbeat"}

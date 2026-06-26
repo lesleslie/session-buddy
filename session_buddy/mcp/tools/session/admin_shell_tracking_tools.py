@@ -36,7 +36,7 @@ from session_buddy.di import get_sync_typed
 from session_buddy.di.container import depends
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 from session_buddy.core import SessionLifecycleManager
 from session_buddy.mcp.auth import require_auth

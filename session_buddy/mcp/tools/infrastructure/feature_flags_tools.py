@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from session_buddy.config.feature_flags import get_feature_flags
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 
 def register_feature_flags_tools(mcp: FastMCP) -> None:

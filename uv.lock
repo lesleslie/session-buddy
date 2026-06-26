@@ -2164,10 +2164,11 @@ wheels = [
 
 [[package]]
 name = "mcp-common"
-version = "0.16.4"
-source = { registry = "https://pypi.org/simple" }
+version = "0.17.0"
+source = { editable = "../mcp-common" }
 dependencies = [
     { name = "cryptography" },
+    { name = "fastmcp" },
     { name = "oneiric" },
     { name = "psutil" },
     { name = "pydantic" },
@@ -2177,10 +2178,6 @@ dependencies = [
     { name = "rich" },
     { name = "typer" },
     { name = "websockets" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/52/b6/5853d33beb4d162d4a522c58ace83383ce9f63502606cfa15f68d254e5ca/mcp_common-0.16.4.tar.gz", hash = "sha256:b228467bb245218d790201d8d0513643affc622da1d19a6ee0560d23e1cb55db", size = 883345, upload-time = "2026-06-12T10:52:22.141Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/05/e09ff926d7aed5bb5ec53038e0315034c6608455141c7f3dd529d7363d3f/mcp_common-0.16.4-py3-none-any.whl", hash = "sha256:40935b1acebb8f233e9028ae0821fa39046390c5bf2abc9a164313ea6c476600", size = 377231, upload-time = "2026-06-12T10:52:20.626Z" },
 ]
 
 [package.optional-dependencies]
@@ -2192,6 +2189,37 @@ treesitter = [
     { name = "tree-sitter-go" },
     { name = "tree-sitter-python" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "crackerjack", marker = "extra == 'dev'", specifier = ">=0.65.3" },
+    { name = "cryptography", specifier = ">=48.0.0" },
+    { name = "fastmcp", specifier = ">=3.4.0,<4" },
+    { name = "mcp-common", extras = ["all-prompts", "dev", "treesitter", "llm"], marker = "extra == 'all'" },
+    { name = "mcp-common", extras = ["macos-prompts", "terminal-prompts"], marker = "extra == 'all-prompts'" },
+    { name = "oneiric", specifier = ">=0.13.1" },
+    { name = "openai", marker = "extra == 'llm'", specifier = ">=2.41.0" },
+    { name = "prompt-toolkit", marker = "extra == 'terminal-prompts'", specifier = ">=3.0.52" },
+    { name = "psutil", specifier = ">=7.2.2" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "pydantic-settings", specifier = ">=2.14.1" },
+    { name = "pyjwt", specifier = ">=2.8.0" },
+    { name = "pyobjc-core", marker = "extra == 'macos-prompts'", specifier = ">=12.2" },
+    { name = "pyobjc-framework-cocoa", marker = "extra == 'macos-prompts'", specifier = ">=10.0" },
+    { name = "pytest-benchmark", marker = "extra == 'dev'", specifier = ">=5.2.3" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "rich", specifier = ">=15.0.0" },
+    { name = "tree-sitter", marker = "extra == 'treesitter'", specifier = ">=0.25.2" },
+    { name = "tree-sitter-go", marker = "extra == 'treesitter'", specifier = ">=0.25.0" },
+    { name = "tree-sitter-python", marker = "extra == 'treesitter'", specifier = ">=0.25.0" },
+    { name = "typer", specifier = ">=0.26.7" },
+    { name = "uv-bump", marker = "extra == 'dev'", specifier = ">=0.5.0" },
+    { name = "websockets", specifier = ">=16.0" },
+]
+provides-extras = ["macos-prompts", "terminal-prompts", "all-prompts", "treesitter", "llm", "dev", "all"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "crackerjack", specifier = ">=0.65.3" }]
 
 [[package]]
 name = "mdformat"
@@ -3938,7 +3966,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.19.17"
+version = "0.19.18"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -3975,10 +4003,10 @@ requires-dist = [
     { name = "crackerjack", specifier = ">=0.62.0" },
     { name = "dhara", specifier = ">=0.9.7" },
     { name = "duckdb", specifier = ">=1.5.3" },
-    { name = "fastmcp", specifier = ">=3.3.1" },
+    { name = "fastmcp", specifier = ">=3.4.0,<4" },
     { name = "hatchling", specifier = ">=1.30.1" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "mcp-common", extras = ["treesitter", "llm"], specifier = ">=0.16.1" },
+    { name = "mcp-common", extras = ["treesitter", "llm"], editable = "../mcp-common" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "prometheus-client", specifier = ">=0.25.0" },
     { name = "pydantic", specifier = ">=2.13.4" },

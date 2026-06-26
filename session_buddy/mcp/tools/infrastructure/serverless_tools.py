@@ -21,7 +21,7 @@ from session_buddy.utils.messages import ToolMessages
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 
 # ============================================================================

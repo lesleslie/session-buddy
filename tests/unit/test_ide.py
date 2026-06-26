@@ -1136,7 +1136,7 @@ class TestRegisterIDETools:
     def test_register_ide_tools_with_mock_mcp(self) -> None:
         """Should call mcp.tool() decorator for each tool when mcp is valid FastMCP."""
         import session_buddy.mcp.tools.ide as ide_module
-        from fastmcp import FastMCP
+        from mcp_common.fastmcp import FastMCP
 
         original = ide_module._pycharm_adapter
         mock_adapter = MagicMock(spec=PyCharmMCPAdapter)

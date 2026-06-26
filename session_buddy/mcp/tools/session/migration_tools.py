@@ -14,7 +14,7 @@ from session_buddy.memory.migration import (
 )
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 
 def register_migration_tools(mcp: FastMCP) -> None:

@@ -28,7 +28,7 @@ if str(project_root) not in sys.path:
 
 # Lazy loading for FastMCP
 try:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
     MCP_AVAILABLE = True
 except ImportError:

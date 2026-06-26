@@ -9,7 +9,7 @@ import inspect
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from fastmcp import FastMCP
+from mcp_common.fastmcp import FastMCP
 from session_buddy.tools.crackerjack_tools import register_crackerjack_tools
 
 

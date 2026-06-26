@@ -16,7 +16,7 @@ from session_buddy.utils.error_management import _get_logger
 from session_buddy.utils.messages import ToolMessages
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 
 # Constants for error messages

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from fastmcp import FastMCP
+from mcp_common.fastmcp import FastMCP
 
 if TYPE_CHECKING:
     from session_buddy.core.intent_detector import IntentDetector

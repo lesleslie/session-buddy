@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 
 def register_access_log_tools(mcp: FastMCP) -> None:

@@ -826,52 +826,74 @@ class TestCrackerjackHealthCheckImpl:
 
 
 class TestRegisterCrackerjackTools:
-    """Cover tool registration and compat-tool shim."""
+    """Cover tool registration via the public FastMCP API.
 
-    def test_registers_all_tools(self) -> None:
-        """Should register every tool function with the MCP server."""
+    Plan 7 Phase 2 removed the pre-3.x ``mcp._tools`` / ``mcp.tools`` /
+    ``mcp.get_tools`` monkey-patch shim. Tool registration now goes
+    exclusively through ``@tool()`` decorators; tests below assert
+    the public surface is the only side effect.
+    """
+
+    EXPECTED_TOOLS = (
+        "execute_crackerjack_command",
+        "crackerjack_run",
+        "crackerjack_history",
+        "crackerjack_metrics",
+        "crackerjack_patterns",
+        "crackerjack_help",
+        "get_crackerjack_results_history",
+        "get_crackerjack_quality_metrics",
+        "analyze_crackerjack_test_patterns",
+        "crackerjack_quality_trends",
+        "crackerjack_health_check",
+        "quality_monitor",
+    )
+
+    def test_registers_all_tools_via_public_decorator(self) -> None:
+        """Each tool function must be registered exactly once via ``mcp.tool()``."""
         from session_buddy.mcp.tools.session import crackerjack_tools
 
         mcp = MagicMock()
         crackerjack_tools.register_crackerjack_tools(mcp)
 
-        # Each tool function should be registered exactly once
-        assert mcp.tool.call_count == len(
-            crackerjack_tools.tool_functions
-            if hasattr(crackerjack_tools, "tool_functions")
-            else [
-                "execute_crackerjack_command",
-                "crackerjack_run",
-                "crackerjack_history",
-                "crackerjack_metrics",
-                "crackerjack_patterns",
-                "crackerjack_help",
-                "get_crackerjack_results_history",
-                "get_crackerjack_quality_metrics",
-                "analyze_crackerjack_test_patterns",
-                "crackerjack_quality_trends",
-                "crackerjack_health_check",
-                "quality_monitor",
-            ]
+        # Public API: the ``@tool()`` decorator was invoked once per tool.
+        assert mcp.tool.call_count == len(self.EXPECTED_TOOLS)
+        # Plan 7 migration removed the compat shim; private / non-public
+        # attributes must NOT be mutated by the registration helper.
+        assert not mcp.get_tools.called, (
+            "mcp.get_tools must not be monkey-patched (Plan 7 Phase 2)"
         )
-        # Compat shim installed
-        assert callable(mcp.get_tools)
-        assert isinstance(mcp.tools, dict)
-        assert isinstance(mcp._tools, dict)
-        # Compat tool entry contains function and parameters
-        for name, entry in mcp.tools.items():
-            assert hasattr(entry, "function")
-            assert "properties" in entry.parameters
+        assert not hasattr(mcp, "_tools") or not mcp._tools.called, (
+            "mcp._tools must not be monkey-patched (Plan 7 Phase 2)"
+        )
+
+    def test_registered_tool_callables_match_expected_functions(self) -> None:
+        """Each ``mcp.tool()`` invocation must wrap the expected function."""
+        from session_buddy.mcp.tools.session import crackerjack_tools
+
+        mcp = MagicMock()
+        crackerjack_tools.register_crackerjack_tools(mcp)
+
+        registered = {
+            call.args[0].__name__ for call in mcp.tool.return_value.call_args_list
+        }
+        assert registered == set(self.EXPECTED_TOOLS)
 
     @pytest.mark.asyncio
-    async def test_get_tools_async_returns_compat(self) -> None:
-        """The injected get_tools async function returns the compat dict."""
+    async def test_no_get_tools_shadowing(self) -> None:
+        """The pre-3.x compat shim that overwrote ``mcp.get_tools`` is gone.
+
+        Plan 7 migration drops the closure injection of ``get_tools``
+        (FastMCP 3.4 already exposes its own async ``get_tools`` method
+        via ``server.get_tool(name)`` and ``server.list_tools()``).
+        """
         from session_buddy.mcp.tools.session.crackerjack_tools import (
             register_crackerjack_tools,
         )
 
         mcp = MagicMock()
         register_crackerjack_tools(mcp)
-        tools = await mcp.get_tools()
-        assert "execute_crackerjack_command" in tools
-        assert "quality_monitor" in tools
+
+        # ``get_tools`` should remain a MagicMock attribute (untouched),
+        # not have been overwritten with a real async function.
+        assert isinstance(mcp.get_tools, MagicMock)

@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from fastmcp import FastMCP
+from mcp_common.fastmcp import FastMCP
 from session_buddy.tools.session_tools import register_session_tools
 
 
