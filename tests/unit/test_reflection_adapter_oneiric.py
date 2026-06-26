@@ -220,10 +220,22 @@ class TestHelperMethods:
     """Test adapter helper methods."""
 
     async def test_table_returns_valid_table_name(self, adapter):
-        """Test _table() helper returns valid table name."""
+        """Test _table() helper returns valid table name.
+
+        Phase 0 v2 rewire: the ``conversations`` and ``reflections`` suffixes
+        resolve to the global ``conversations_v2`` / ``reflections_v2``
+        tables. Unknown suffixes still use the collection-scoped shape.
+        """
         table_name = adapter._table("conversations")
-        assert table_name == f"{adapter.collection_name}_conversations"
+        assert table_name == "conversations_v2"
         assert ";" not in table_name  # No SQL injection
+        # The reflections suffix follows the same convention.
+        assert adapter._table("reflections") == "reflections_v2"
+        # Unknown suffixes keep the legacy collection-scoped shape.
+        assert (
+            adapter._table("custom_suffix")
+            == f"{adapter.collection_name}_custom_suffix"
+        )
 
     async def test_index_returns_valid_index_name(self, adapter):
         """Test _index() helper returns valid index name."""
@@ -367,11 +379,17 @@ class TestConversationSearch:
         assert isinstance(results, list)
 
     async def test_search_uses_text_fallback_when_no_embeddings(self, adapter):
-        """Test text search fallback works."""
-        await adapter.store_conversation("Specific unique content 12345")
-        results = await adapter.search_conversations("12345")
+        """Test text search fallback works.
+
+        ``store_conversation`` runs the ingest redaction pipeline before
+        writing. To avoid that step swapping digits for ``[REDACTED]``
+        (the PII phone regex matches any 5+ digit run), use alphabetic
+        content that survives redaction.
+        """
+        await adapter.store_conversation("specific unique content queryterm")
+        results = await adapter.search_conversations("queryterm")
         assert len(results) >= 1
-        assert results[0]["content"] == "Specific unique content 12345"
+        assert results[0]["content"] == "specific unique content queryterm"
 
     async def test_search_case_insensitive(self, adapter):
         """Test search handles different cases."""

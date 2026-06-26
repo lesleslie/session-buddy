@@ -850,7 +850,11 @@ class TestPruneDelayValidation:
 
         missing = _parse_worktree_entry({})
         assert missing.branch == "unknown"
-        assert missing.is_main_worktree is True
+        # An empty ``{}`` entry yields an empty ``Path`` and ``path.exists()``
+        # is False, so the parser defaults ``is_main_worktree`` to False.
+        # The "main worktree" branch can only be inferred from a real path
+        # whose parent has no ``.git`` symlink/file.
+        assert missing.is_main_worktree is False
 
     def test_format_untracked_files_truncates_list(self):
         """Untracked file formatting limits the display list."""

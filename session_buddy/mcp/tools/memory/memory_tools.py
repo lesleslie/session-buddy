@@ -23,6 +23,7 @@ from session_buddy.utils.error_management import (
 )
 from session_buddy.utils.messages import ToolMessages
 from session_buddy.utils.tool_wrapper import format_reflection_result
+from session_buddy.security.memory_guard_adapter import MemoryGuardBlockedError
 
 if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter
@@ -144,11 +145,13 @@ async def _store_reflection_impl(content: str, tags: list[str] | None = None) ->
     try:
         validate_required(content, "content")
 
-        # OWASP memory guard — screens every write before it reaches the DB
+        # OWASP memory guard — screens every write before it reaches the DB.
+        # ``MemoryGuardBlockedError`` is imported at module top so the
+        # ``except`` clause below can name it even when ``validate_required``
+        # raises before this import block executes.
         from session_buddy.security.memory_guard_adapter import (
             GuardAction,
             MemoryGuardAdapter,
-            MemoryGuardBlockedError,
         )
 
         guard = MemoryGuardAdapter()
