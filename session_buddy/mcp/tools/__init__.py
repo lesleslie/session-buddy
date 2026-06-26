@@ -52,6 +52,7 @@ from .intelligence.llm_tools import register_llm_tools
 # Memory tools
 from .memory.akosha_tools import register_akosha_tools
 from .memory.category_tools import register_category_tools
+from .memory.export_tools import register_export_tools
 from .memory.memory_tools import register_memory_tools
 from .memory.otel_trace_tools import register_otel_trace_tools
 from .memory.search_tools import register_search_tools
@@ -115,6 +116,7 @@ __all__ = [
     # Memory
     "register_akosha_tools",
     "register_category_tools",
+    "register_export_tools",
     "register_memory_tools",
     "register_otel_trace_tools",
     "register_search_tools",
