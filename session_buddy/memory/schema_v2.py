@@ -110,7 +110,11 @@ CREATE TABLE IF NOT EXISTS reflections_v2 (
     last_used_at TIMESTAMP,
     confidence_score REAL,
     fingerprint BLOB,
-    subcategory TEXT
+    subcategory TEXT,
+    -- v2 rewire missed this on initial rewire; legacy reflections has it.
+    -- json_extract(metadata, '$.quality_score') is used by store_insight
+    -- / get_insights_statistics / search_insights queries.
+    metadata JSON
 );
 
 -- Entity extraction table (Memori pattern)
@@ -182,6 +186,7 @@ ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP;
 ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS confidence_score REAL;
 ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS fingerprint BLOB;
 ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS subcategory TEXT;
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS metadata JSON;
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_conversations_category ON conversations_v2(category, namespace);

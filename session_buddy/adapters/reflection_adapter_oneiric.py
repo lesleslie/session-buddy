@@ -398,11 +398,14 @@ class ReflectionDatabaseAdapterOneiric:
             msg = "DuckDB not available. Install with: uv add duckdb"
             raise ImportError(msg)
 
-        # Create database directory if it doesn't exist (skip for :memory:)
-        if self.db_path == ":memory:":
-            return
-        db_dir = Path(self.db_path).parent
-        db_dir.mkdir(parents=True, exist_ok=True)
+        # :memory: databases are real DuckDB databases (each connection has its
+        # own private in-memory store); we still need to call _open_duckdb_connection()
+        # to get a usable self.conn. The earlier early-return was the root cause
+        # of `'NoneType' object has no attribute 'execute'` in tests using temp_db.
+        # For file-backed databases, ensure the parent dir exists.
+        if self.db_path != ":memory:":
+            db_dir = Path(self.db_path).parent
+            db_dir.mkdir(parents=True, exist_ok=True)
 
         # Remove stale/empty database file that DuckDB cannot open.
         # NamedTemporaryFile (and similar) may create a zero-byte file at the
@@ -534,24 +537,50 @@ class ReflectionDatabaseAdapterOneiric:
             """
         )
 
-        # Create reflections table with insight support
+        # Create reflections table with insight support.
+        # v2/legacy hybrid alignment (2026-06-26 plan, Task 1, direction (a)):
+        # the legacy CREATE TABLE block MUST include every v2 column referenced
+        # by store_reflection, search_reflections, store_insight, and the
+        # index build below. Earlier this block only carried the legacy column
+        # subset, which left ``reflections_v2`` missing ``timestamp`` /
+        # ``memory_tier`` / ``category`` whenever the malformed
+        # ``SCHEMA_V2_SQL`` split skipped the v2 CREATE TABLE — every index
+        # and INSERT that touched a v2 column then failed with BinderException.
+        # By making the legacy block a complete superset of the v2 column
+        # set, either schema-source path produces a compatible table.
         self.conn.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {self._table("reflections")} (
                 id VARCHAR PRIMARY KEY,
                 conversation_id VARCHAR,
                 content TEXT NOT NULL,
-                tags VARCHAR[],
-                metadata JSON,
-                created_at TIMESTAMP NOT NULL,
-                updated_at TIMESTAMP NOT NULL,
                 embedding FLOAT[{self.embedding_dim}],
+
+                -- Memori-inspired v2 columns (mirrors schema_v2.reflections_v2)
+                category TEXT NOT NULL DEFAULT 'context',
+                subcategory TEXT,
+                importance_score REAL DEFAULT 0.5,
+                memory_tier TEXT DEFAULT 'long_term',
+                tags TEXT[],
+                related_entities TEXT[],
+                namespace TEXT DEFAULT 'default',
+                project TEXT,
+                access_count INTEGER DEFAULT 0,
+                last_accessed TIMESTAMP,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+                -- Legacy compatibility columns (used by store_reflection /
+                -- store_insight / search_reflections reads)
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                metadata JSON,
 
                 -- Insight-specific fields
                 insight_type VARCHAR DEFAULT 'general',
                 usage_count INTEGER DEFAULT 0,
                 last_used_at TIMESTAMP,
                 confidence_score REAL DEFAULT 0.5,
+                fingerprint BLOB,
 
                 FOREIGN KEY (conversation_id) REFERENCES {self._table("conversations")}(id)
             )
@@ -583,42 +612,36 @@ class ReflectionDatabaseAdapterOneiric:
         # ========================================================================
         # This migration ensures existing databases get the new insight columns
         # We use ALTER TABLE IF NOT EXISTS pattern (DuckDB-safe)
+        # Each migration statement is followed by a ROLLBACK inside its own
+        # suppress block: DuckDB marks the transaction aborted on any failed
+        # statement, and without ROLLBACK every subsequent statement in
+        # _create_tables errors with "Current transaction is aborted".
 
-        # Add created_at column if it doesn't exist (v2 legacy compatibility)
-        with suppress(Exception):
-            self.conn.execute(
-                f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-            )
+        def _safe_alter(sql: str) -> None:
+            with suppress(Exception):
+                self.conn.execute(sql)
+            with suppress(Exception):
+                self.conn.execute("ROLLBACK")
 
-        # Add updated_at column if it doesn't exist (v2 legacy compatibility)
-        with suppress(Exception):
-            self.conn.execute(
-                f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP"
-            )
-
-        # Add insight_type column if it doesn't exist
-        with suppress(Exception):
-            self.conn.execute(
-                f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS insight_type VARCHAR DEFAULT 'general'"
-            )
-
-        # Add usage_count column if it doesn't exist
-        with suppress(Exception):
-            self.conn.execute(
-                f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0"
-            )
-
-        # Add last_used_at column if it doesn't exist
-        with suppress(Exception):
-            self.conn.execute(
-                f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP"
-            )
-
-        # Add confidence_score column if it doesn't exist
-        with suppress(Exception):
-            self.conn.execute(
-                f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS confidence_score REAL DEFAULT 0.5"
-            )
+        # v2 legacy compatibility columns
+        _safe_alter(
+            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        )
+        _safe_alter(
+            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP"
+        )
+        _safe_alter(
+            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS insight_type VARCHAR DEFAULT 'general'"
+        )
+        _safe_alter(
+            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0"
+        )
+        _safe_alter(
+            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP"
+        )
+        _safe_alter(
+            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS confidence_score REAL DEFAULT 0.5"
+        )
 
         # Create insight-specific indexes for performance
         # Note: DuckDB doesn't support partial indexes (WHERE clauses), so we create full indexes
@@ -926,6 +949,12 @@ class ReflectionDatabaseAdapterOneiric:
                 self.conn.execute(stmt)
             except Exception as e:  # noqa: BLE001 — best-effort bootstrap
                 logger.debug("v2 schema statement skipped: %s", e)
+                # DuckDB marks the transaction aborted on any failed DDL.
+                # Roll back so subsequent statements can still execute.
+                try:
+                    self.conn.execute("ROLLBACK")
+                except Exception:  # noqa: BLE001 — best-effort
+                    pass
 
     def _create_hnsw_indexes(self) -> None:
         """Create HNSW indexes for fast vector similarity search.
@@ -1666,8 +1695,32 @@ class ReflectionDatabaseAdapterOneiric:
         if not cached_result_ids:
             return []
 
-        # Fetch cached results by IDs
+        # Fetch cached results by IDs.
+        # v2 rewire: ``conversations_v2`` carries ``timestamp`` instead of
+        # ``created_at``/``updated_at``. Pick the columns that actually exist
+        # on the resolved table — same pattern as the index branch above.
         id_list = "', '".join(cached_result_ids)
+        if self._table("conversations") == "conversations_v2":
+            result = self.conn.execute(
+                f"""
+                SELECT id, content, metadata, timestamp
+                FROM {self._table("conversations")}
+                WHERE id IN ('{id_list}')
+                ORDER BY timestamp DESC
+                """
+            ).fetchall()
+            return [
+                {
+                    "id": row[0],
+                    "content": row[1],
+                    "metadata": json.loads(row[2]) if row[2] else {},
+                    "created_at": row[3],
+                    "updated_at": row[3],
+                    "score": 1.0,
+                    "_cached": True,
+                }
+                for row in result
+            ]
         result = self.conn.execute(
             f"""
             SELECT id, content, metadata, created_at, updated_at
@@ -2500,20 +2553,62 @@ class ReflectionDatabaseAdapterOneiric:
         if not self._initialized:
             await self.initialize()
 
-        # Drop foreign key constraints first, then tables
-        try:
-            # Drop reflections table first (has foreign key to conversations)
-            self.conn.execute(f"DROP TABLE IF EXISTS {self._table('reflections')}")
-            # Then drop conversations table
-            self.conn.execute(f"DROP TABLE IF EXISTS {self._table('conversations')}")
-        except Exception:
-            # If there are issues, try dropping with CASCADE
-            self.conn.execute(
-                f"DROP TABLE IF EXISTS {self._table('reflections')} CASCADE"
-            )
-            self.conn.execute(
-                f"DROP TABLE IF EXISTS {self._table('conversations')} CASCADE"
-            )
+        # 2026-06-26 plan, Task 2 (Bug E): the v2 schema adds FK
+        # constraints from ``memory_entities`` / ``memory_promotions`` /
+        # ``memory_access_log`` / ``memory_relationships`` / the legacy
+        # ``reflections`` table back to ``conversations_v2`` and
+        # ``memory_entities``. DuckDB rejects a parent-table DROP while
+        # any child still references it (Catalog Error: main key table
+        # of ...). Drop children in topological order first, then
+        # parents, then the FK-free auxiliary tables.
+        child_tables_in_fk_order: tuple[str, ...] = (
+            # 2nd-level: relationships reference entities.
+            "memory_relationships",
+            # Direct children of conversations_v2 (v2 schema).
+            "memory_entities",
+            "memory_promotions",
+            "memory_access_log",
+            # Legacy reflection/conversation FK chain.
+            "reflections",
+        )
+        parent_tables_in_fk_order: tuple[str, ...] = (
+            "conversations",
+        )
+        # Tables with no FK constraints in either schema — drop order
+        # is irrelevant but listed explicitly so the reset is total.
+        standalone_tables: tuple[str, ...] = (
+            "query_cache_l2",
+            "rewritten_queries",
+            "content_fingerprints",
+            "memory_subcategories",
+            "category_evolution_snapshots",
+            "archived_subcategories",
+            "result_interactions",
+            "usage_metrics_summary",
+            "causal_links",
+            "user_models",
+            "distilled_skills",
+            "memory_provenance",
+        )
+
+        def _drop(name: str) -> None:
+            with suppress(Exception):
+                self.conn.execute(f"DROP TABLE IF EXISTS {name}")
+
+        for name in child_tables_in_fk_order:
+            # ``reflections`` resolves via ``_table`` (collection-scoped
+            # or global v2). All other tables are global v2 names.
+            if name in {"reflections"}:
+                _drop(self._table(name))
+            else:
+                _drop(name)
+
+        for name in standalone_tables:
+            _drop(name)
+
+        for name in parent_tables_in_fk_order:
+            # ``conversations`` resolves via ``_table``.
+            _drop(self._table(name))
 
         # Recreate tables
         self._create_tables()
@@ -2570,6 +2665,11 @@ class ReflectionDatabaseAdapterOneiric:
 
         insight_id = str(ULID())
         now = datetime.now(tz=UTC)
+
+        # Lazy-init guard: tests sometimes construct the adapter without going
+        # through __aenter__ / initialize(). If conn is None, init now.
+        if self.conn is None:
+            await self.initialize()
 
         # Validate insight_type
         from session_buddy.insights.models import validate_collection_name
