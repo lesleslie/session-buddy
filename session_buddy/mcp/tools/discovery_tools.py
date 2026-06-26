@@ -166,6 +166,8 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "reflection_stats": "Reflection database statistics.",
     "store_reflection": "Store an insight or reflection.",
     "store_reflection_validated": "Store with type validation.",
+    "export_markdown": "Export a reflection as a Markdown (or HTML) document with YAML frontmatter.",
+    "lint_memory": "Lint a reflection for OWASP memory-guard false-negatives (homoglyphs, base64 payloads).",
     "vote_on_reflection": "Upvote/downvote a reflection for relevance.",
     "reset_reflection_database": "Reset the reflection database.",
     "deduplicate_content": "Find and remove duplicate reflections.",
