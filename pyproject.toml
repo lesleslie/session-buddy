@@ -37,7 +37,7 @@ dependencies = [
     "scikit-learn>=1.9.0",
     "scipy>=1.17.1",
     "websockets>=16.0",
-    "mcp-common[treesitter,llm]>=0.16.1",
+    "mcp-common[treesitter,llm]>=0.17.0",
     "dhara>=0.9.7",
 ]
 
@@ -227,12 +227,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-# Plan 7: pin mcp-common to the local editable checkout so the
-# ``mcp_common.fastmcp`` re-export surface (added in mcp-common 0ae0426)
-# is always available. The PyPI-published 0.16.4 wheel does NOT include
-# the ``fastmcp`` submodule, so without this override the Plan 7 Phase 2
-# import migration fails at runtime.
-mcp-common = { path = "../mcp-common", editable = true }
+
 
 [tool.crackerjack]
 # Exclude directories and files from link checking

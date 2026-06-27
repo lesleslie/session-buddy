@@ -2165,7 +2165,7 @@ wheels = [
 [[package]]
 name = "mcp-common"
 version = "0.17.0"
-source = { editable = "../mcp-common" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "fastmcp" },
@@ -2179,6 +2179,10 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/de/75/b3378dfa42d3e685c8d6d75ffcd4c389cbb5535bb0c41da6aa46896b8498/mcp_common-0.17.0.tar.gz", hash = "sha256:25fc89f003cd7e493f3f25d5325e4814aefe33d72cd08651089159a509dda99f", size = 884031, upload-time = "2026-06-26T16:28:00.744Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fa/8a/fb3078aa6561fcb71dba5c30741fda21bf226613a5cfe3664cfcdcd2b5d5/mcp_common-0.17.0-py3-none-any.whl", hash = "sha256:f0018354c9d304d45c18e0dbc431cbda64a928810de730287337e0d3798899ee", size = 378520, upload-time = "2026-06-26T16:27:59.107Z" },
+]
 
 [package.optional-dependencies]
 llm = [
@@ -2189,37 +2193,6 @@ treesitter = [
     { name = "tree-sitter-go" },
     { name = "tree-sitter-python" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "crackerjack", marker = "extra == 'dev'", specifier = ">=0.65.3" },
-    { name = "cryptography", specifier = ">=48.0.0" },
-    { name = "fastmcp", specifier = ">=3.4.0,<4" },
-    { name = "mcp-common", extras = ["all-prompts", "dev", "treesitter", "llm"], marker = "extra == 'all'" },
-    { name = "mcp-common", extras = ["macos-prompts", "terminal-prompts"], marker = "extra == 'all-prompts'" },
-    { name = "oneiric", specifier = ">=0.13.1" },
-    { name = "openai", marker = "extra == 'llm'", specifier = ">=2.41.0" },
-    { name = "prompt-toolkit", marker = "extra == 'terminal-prompts'", specifier = ">=3.0.52" },
-    { name = "psutil", specifier = ">=7.2.2" },
-    { name = "pydantic", specifier = ">=2.13.4" },
-    { name = "pydantic-settings", specifier = ">=2.14.1" },
-    { name = "pyjwt", specifier = ">=2.8.0" },
-    { name = "pyobjc-core", marker = "extra == 'macos-prompts'", specifier = ">=12.2" },
-    { name = "pyobjc-framework-cocoa", marker = "extra == 'macos-prompts'", specifier = ">=10.0" },
-    { name = "pytest-benchmark", marker = "extra == 'dev'", specifier = ">=5.2.3" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
-    { name = "rich", specifier = ">=15.0.0" },
-    { name = "tree-sitter", marker = "extra == 'treesitter'", specifier = ">=0.25.2" },
-    { name = "tree-sitter-go", marker = "extra == 'treesitter'", specifier = ">=0.25.0" },
-    { name = "tree-sitter-python", marker = "extra == 'treesitter'", specifier = ">=0.25.0" },
-    { name = "typer", specifier = ">=0.26.7" },
-    { name = "uv-bump", marker = "extra == 'dev'", specifier = ">=0.5.0" },
-    { name = "websockets", specifier = ">=16.0" },
-]
-provides-extras = ["macos-prompts", "terminal-prompts", "all-prompts", "treesitter", "llm", "dev", "all"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "crackerjack", specifier = ">=0.65.3" }]
 
 [[package]]
 name = "mdformat"
@@ -4006,7 +3979,7 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=3.4.0,<4" },
     { name = "hatchling", specifier = ">=1.30.1" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "mcp-common", extras = ["treesitter", "llm"], editable = "../mcp-common" },
+    { name = "mcp-common", extras = ["treesitter", "llm"], specifier = ">=0.17.0" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "prometheus-client", specifier = ">=0.25.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
