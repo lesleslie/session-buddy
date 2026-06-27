@@ -16,14 +16,13 @@ from collections.abc import Coroutine as ABCCoroutine
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.di import get_sync_typed
 from session_buddy.di.container import depends
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 from session_buddy.core import SessionLifecycleManager
 from session_buddy.storage.akosha_config import AkoshaSyncConfig
@@ -1146,23 +1145,10 @@ Timestamp: {health_info["timestamp"]}
             return "\n".join(output)
         return f"❌ Pre-compact sync failed: {result.get('error', 'unknown error')}"
 
-    compat_tools = {
-        name: SimpleNamespace(function=tool, fn=tool, parameters={"properties": {}})
-        for name, tool in {
-            "start": start,
-            "checkpoint": checkpoint,
-            "end": end,
-            "status": status,
-            "health_check": health_check,
-            "server_info": server_info,
-            "ping": ping,
-            "pre_compact_sync": pre_compact_sync,
-        }.items()
-    }
-
-    async def get_tools() -> dict[str, Any]:
-        return compat_tools
-
-    mcp_server.get_tools = get_tools  # type: ignore[attr-defined]
-    mcp_server.tools = compat_tools  # type: ignore[attr-defined]
-    mcp_server._tools = compat_tools  # type: ignore[attr-defined]
+    # NOTE: The pre-3.x compat block that monkey-patched
+    # ``mcp_server._tools`` / ``mcp_server.tools`` / ``mcp_server.get_tools``
+    # was removed for Plan 7 Phase 2. FastMCP 3.4 exposes tool registration
+    # exclusively through the public ``@tool()`` decorator above plus the
+    # server's own ``get_tool`` / ``list_tools`` introspection methods; the
+    # private ``_tools`` and ``_tool_manager`` attributes no longer exist
+    # and writing to them was a no-op (or worse, shadowed public API).

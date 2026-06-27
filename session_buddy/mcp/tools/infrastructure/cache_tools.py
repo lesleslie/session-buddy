@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fastmcp import Context
+from mcp_common.fastmcp import Context
 
 from session_buddy.cache.query_cache import QueryCacheManager
 

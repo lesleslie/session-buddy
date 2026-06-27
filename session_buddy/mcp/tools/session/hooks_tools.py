@@ -16,7 +16,7 @@ from session_buddy.di import get_sync_typed
 from session_buddy.di.container import depends
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 
 def _get_hooks_manager():  # type: ignore[no-untyped-def]

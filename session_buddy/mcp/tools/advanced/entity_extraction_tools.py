@@ -11,7 +11,7 @@ from session_buddy.memory.entity_extractor import EntityExtractionEngine
 from session_buddy.memory.persistence import insert_processed_memory
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 
 async def extract_and_store_memory(

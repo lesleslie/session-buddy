@@ -13,7 +13,7 @@ import time
 import typing as t
 from dataclasses import dataclass
 
-from fastmcp import FastMCP
+from mcp_common.fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
 

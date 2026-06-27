@@ -2164,10 +2164,11 @@ wheels = [
 
 [[package]]
 name = "mcp-common"
-version = "0.16.4"
+version = "0.17.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
+    { name = "fastmcp" },
     { name = "oneiric" },
     { name = "psutil" },
     { name = "pydantic" },
@@ -2178,9 +2179,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/52/b6/5853d33beb4d162d4a522c58ace83383ce9f63502606cfa15f68d254e5ca/mcp_common-0.16.4.tar.gz", hash = "sha256:b228467bb245218d790201d8d0513643affc622da1d19a6ee0560d23e1cb55db", size = 883345, upload-time = "2026-06-12T10:52:22.141Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/de/75/b3378dfa42d3e685c8d6d75ffcd4c389cbb5535bb0c41da6aa46896b8498/mcp_common-0.17.0.tar.gz", hash = "sha256:25fc89f003cd7e493f3f25d5325e4814aefe33d72cd08651089159a509dda99f", size = 884031, upload-time = "2026-06-26T16:28:00.744Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/05/e09ff926d7aed5bb5ec53038e0315034c6608455141c7f3dd529d7363d3f/mcp_common-0.16.4-py3-none-any.whl", hash = "sha256:40935b1acebb8f233e9028ae0821fa39046390c5bf2abc9a164313ea6c476600", size = 377231, upload-time = "2026-06-12T10:52:20.626Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/8a/fb3078aa6561fcb71dba5c30741fda21bf226613a5cfe3664cfcdcd2b5d5/mcp_common-0.17.0-py3-none-any.whl", hash = "sha256:f0018354c9d304d45c18e0dbc431cbda64a928810de730287337e0d3798899ee", size = 378520, upload-time = "2026-06-26T16:27:59.107Z" },
 ]
 
 [package.optional-dependencies]
@@ -3938,7 +3939,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.19.17"
+version = "0.19.18"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -3975,10 +3976,10 @@ requires-dist = [
     { name = "crackerjack", specifier = ">=0.62.0" },
     { name = "dhara", specifier = ">=0.9.7" },
     { name = "duckdb", specifier = ">=1.5.3" },
-    { name = "fastmcp", specifier = ">=3.3.1" },
+    { name = "fastmcp", specifier = ">=3.4.0,<4" },
     { name = "hatchling", specifier = ">=1.30.1" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "mcp-common", extras = ["treesitter", "llm"], specifier = ">=0.16.1" },
+    { name = "mcp-common", extras = ["treesitter", "llm"], specifier = ">=0.17.0" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "prometheus-client", specifier = ">=0.25.0" },
     { name = "pydantic", specifier = ">=2.13.4" },

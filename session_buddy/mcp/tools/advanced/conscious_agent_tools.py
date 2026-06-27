@@ -9,7 +9,7 @@ from session_buddy.memory.conscious_agent import ConsciousAgent
 from session_buddy.utils.instance_managers import get_reflection_database
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 _agent: ConsciousAgent | None = None
 

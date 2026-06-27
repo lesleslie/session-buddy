@@ -688,7 +688,7 @@ class MockingHelper:
     @asynccontextmanager
     async def mock_mcp_server():
         """Create mock MCP server context manager."""
-        from fastmcp import FastMCP
+        from mcp_common.fastmcp import FastMCP
 
         server = Mock(spec=FastMCP)
         server.tool = Mock()

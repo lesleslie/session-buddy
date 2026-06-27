@@ -23,7 +23,7 @@ from typing import Any
 
 # Import FastMCP with type checking ignore
 try:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 except ImportError:
     FastMCP = Any  # type: ignore[assignment, misc]
 

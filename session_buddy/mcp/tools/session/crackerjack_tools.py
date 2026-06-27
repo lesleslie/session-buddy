@@ -7,14 +7,12 @@ code analysis, and development workflow integration.
 
 from __future__ import annotations
 
-import inspect
 import logging
 import operator
 import re
 import shlex
 import typing as t
 from pathlib import Path
-from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.utils.instance_managers import (
@@ -1600,22 +1598,12 @@ def register_crackerjack_tools(mcp: Any) -> None:
         "quality_monitor": quality_monitor,
     }
 
-    compat_tools: dict[str, Any] = {}
-
-    for name, fn in tool_functions.items():
+    for fn in tool_functions.values():
         mcp.tool()(fn)
-        sig = inspect.signature(t.cast(t.Callable[..., Any], fn))
-        properties: dict[str, dict[str, Any]] = {
-            param_name: {} for param_name in sig.parameters
-        }
-        compat_tools[name] = SimpleNamespace(
-            function=fn,
-            parameters={"properties": properties},
-        )
 
-    async def get_tools() -> dict[str, Any]:
-        return compat_tools
-
-    mcp.get_tools = get_tools
-    mcp.tools = compat_tools
-    mcp._tools = compat_tools
+    # NOTE: The pre-3.x compat block that monkey-patched
+    # ``mcp._tools`` / ``mcp.tools`` / ``mcp.get_tools`` was removed for
+    # Plan 7 Phase 2. FastMCP 3.4 registers tools exclusively through
+    # the public ``@tool()`` decorator above; the ``_tools`` private
+    # attribute no longer exists, and writing to it shadowed the
+    # server's public introspection API.
