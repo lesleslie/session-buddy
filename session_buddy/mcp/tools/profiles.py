@@ -70,6 +70,7 @@ FULL_REGISTRATIONS: list[str] = STANDARD_REGISTRATIONS + [
     "register_code_analysis_tools",
     "register_admin_shell_tracking_tools",
     "register_akosha_tools",
+    "register_export_tools",
     "register_prometheus_metrics_tools",
 ]
 
