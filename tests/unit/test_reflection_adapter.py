@@ -605,11 +605,20 @@ class TestReflectionDatabaseAdapterTableValidation:
     """Test table name validation helper methods."""
 
     def test_table_helper_generates_valid_names(self) -> None:
-        """Should generate valid table names."""
+        """Should generate valid table names.
+
+        Phase 0 v2 rewire: ``_table("conversations")`` resolves to the
+        global ``conversations_v2`` table (collection name is no longer
+        embedded in the table name). The legacy ``{collection}_conversations``
+        shape only applies for unknown suffixes.
+        """
         adapter = ReflectionDatabaseAdapter(collection_name="valid_name")
         table_name = adapter._table("conversations")
-        assert "valid_name" in table_name
-        assert table_name == f"{adapter.collection_name}_conversations"
+        assert table_name == "conversations_v2"
+        assert ";" not in table_name  # No SQL injection
+        # Unknown suffixes still use the collection-scoped shape.
+        other_name = adapter._table("custom_suffix")
+        assert other_name == f"{adapter.collection_name}_custom_suffix"
 
     def test_index_helper_generates_valid_names(self) -> None:
         """Should generate valid index names."""

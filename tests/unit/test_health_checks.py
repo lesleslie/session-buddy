@@ -552,14 +552,25 @@ class TestCheckDependenciesHealth:
 
     @pytest.mark.asyncio
     async def test_dependencies_health_no_features_available(self) -> None:
-        """Test DEGRADED when no optional features are available."""
+        """Test DEGRADED when no optional features are available.
+
+        The exact ``message`` string is not asserted because the embedding
+        provider check pings live HTTP endpoints (ollama/llama-server); on
+        developer machines one of them may actually be running. The
+        contract is: when no optional Python deps are importable, the
+        status is DEGRADED and every Crackerjack/multi_project flag is
+        in the ``unavailable`` metadata list.
+        """
         with patch(
             "importlib.util.find_spec", return_value=None
         ), patch.dict(sys.modules, {"session_buddy.utils.quality_utils_v2": None}):
             result = await check_dependencies_health()
             assert result.name == "dependencies"
             assert result.status == HealthStatus.DEGRADED
-            assert "no optional features" in result.message.lower()
+            # All three importable-but-mocked deps must be marked unavailable.
+            unavailable = result.metadata.get("unavailable", [])
+            assert "crackerjack" in unavailable
+            assert "multi_project" in unavailable
 
     @pytest.mark.asyncio
     async def test_dependencies_health_all_available(self) -> None:

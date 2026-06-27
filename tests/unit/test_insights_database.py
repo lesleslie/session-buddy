@@ -45,7 +45,8 @@ class TestStoreInsight:
         )
 
         assert insight_id is not None
-        assert len(insight_id) == 36  # UUID format
+        # store_insight emits a ULID (26-char Crockford base32), not a UUID.
+        assert len(insight_id) == 26  # ULID format
 
         # Verify insight was stored
         results = await temp_db.search_insights("async database", limit=1)
@@ -152,7 +153,8 @@ class TestStoreInsight:
         # Verify all were stored and have valid IDs
         assert len(insight_ids) == 3
         for insight_id in insight_ids:
-            assert len(insight_id) == 36  # Valid UUID format
+            # store_insight emits a ULID (26-char Crockford base32), not a UUID.
+            assert len(insight_id) == 26  # Valid ULID format
 
         # Verify we can search and find each one individually
         results1 = await temp_db.search_insights("async", limit=10, use_embeddings=False)
