@@ -196,7 +196,7 @@ def _format_productivity_metrics(metrics: dict[str, Any]) -> list[str]:
 
 async def _get_activity_summary_operation(monitor: Any, hours: int) -> str:
     """Get activity summary for the specified number of hours."""
-    summary = await monitor.get_activity_summary(hours=hours)
+    summary = monitor.get_activity_summary(hours=hours)
     lines = [f"📊 Activity Summary - Last {hours} Hours", ""]
 
     if not summary.get("has_data"):

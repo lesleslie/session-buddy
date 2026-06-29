@@ -34,7 +34,7 @@ class FakeMonitor:
             "context_switches": 2,
         }
 
-    async def get_activity_summary(self, hours: int):
+    def get_activity_summary(self, hours: int):  # NOTE: sync, matches production
         return {
             "has_data": True,
             "file_activity": [
@@ -212,3 +212,94 @@ async def test_monitoring_and_interruption_impls_success_and_error_paths(
     assert "not available" in await mod._preserve_current_context_impl("x")
     assert "not available" in await mod._restore_session_context_impl("x")
     assert "not available" in await mod._get_interruption_history_impl("u")
+
+
+class SyncFakeMonitor:
+    """Fake AppMonitor whose ``get_activity_summary`` is sync, mirroring the
+    real ``AppMonitor.get_activity_summary`` signature at
+    ``session_buddy/app_monitor.py`` (a plain ``def`` that returns ``dict``)."""
+
+    def __init__(self) -> None:
+        self.started: list[object] = []
+        self.stopped = False
+        self.activity_calls: list[int] = []
+
+    async def start_monitoring(self, project_paths=None):
+        self.started.append(project_paths)
+
+    async def stop_monitoring(self):
+        self.stopped = True
+        return {
+            "duration_minutes": 12.5,
+            "files_tracked": 4,
+            "apps_monitored": 3,
+            "context_switches": 2,
+        }
+
+    def get_activity_summary(self, hours: int):  # NOTE: sync, NOT async
+        self.activity_calls.append(hours)
+        return {
+            "has_data": True,
+            "file_activity": [
+                {"path": "/a.py", "access_count": 4},
+                {"path": "/b.py", "access_count": 2},
+            ],
+            "app_activity": [
+                {"name": "VS Code", "focus_time_minutes": 30.0},
+            ],
+            "productivity_metrics": {
+                "focus_time_minutes": 40,
+                "context_switches": 3,
+                "deep_work_periods": 2,
+            },
+        }
+
+
+@pytest.mark.asyncio
+async def test_get_activity_summary_impl_works_with_sync_monitor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression test for session-buddy-activity-summary.
+
+    The real ``AppMonitor.get_activity_summary`` is a plain ``def`` that
+    returns a ``dict``. Awaiting it raises ``TypeError: object dict can't
+    be used in 'await' expression``. This test pins the call site to the
+    actual sync contract by using a sync fake monitor.
+    """
+    from session_buddy.mcp.tools.monitoring import monitoring_tools as mod
+
+    sync_monitor = SyncFakeMonitor()
+
+    async def resolve_sync_monitor():
+        return sync_monitor
+
+    monkeypatch.setattr(mod, "resolve_app_monitor", resolve_sync_monitor)
+
+    summary = await mod._get_activity_summary_impl(3)
+
+    # If the call site were still `await monitor.get_activity_summary(...)`,
+    # this would raise TypeError before we ever got here.
+    assert "Activity Summary" in summary
+    assert "Last 3 Hours" in summary
+    assert sync_monitor.activity_calls == [3]
+
+
+@pytest.mark.asyncio
+async def test_get_activity_summary_operation_does_not_await_sync_return(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression test for session-buddy-activity-summary.
+
+    Exercises the inner operation directly with a sync-returning monitor.
+    Pre-fix, this raised ``TypeError: object dict can't be used in 'await'
+    expression`` at monitoring_tools.py:199.
+    """
+    from session_buddy.mcp.tools.monitoring import monitoring_tools as mod
+
+    sync_monitor = SyncFakeMonitor()
+
+    result = await mod._get_activity_summary_operation(sync_monitor, 2)
+
+    assert "Activity Summary" in result
+    assert "Last 2 Hours" in result
+    assert sync_monitor.activity_calls == [2]  # confirms the call happened
