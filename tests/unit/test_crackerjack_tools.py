@@ -1705,6 +1705,69 @@ class TestCrackerjackMetricsImpl:
 
             assert "No quality metrics" in result
 
+    @pytest.mark.asyncio
+    async def test_reads_quality_metrics_history_rows(self) -> None:
+        """Should surface rows from quality_metrics_history (the CLI write target).
+
+        Regression for the read-side gap where get_crackerjack_quality_metrics
+        only consulted the reflection DB even though the crackerjack CLI now
+        writes per-run snapshots to the integration DB's quality_metrics_history
+        table. The MCP tool must reflect those rows in its output.
+        """
+        from session_buddy.mcp.tools.session.crackerjack_tools import (
+            _crackerjack_metrics_impl,
+        )
+
+        fake_history = [
+            {
+                "id": "metric-row-1",
+                "project_path": "/Users/les/Projects/crackerjack",
+                "metric_type": "lint_score",
+                "metric_value": 92.5,
+                "timestamp": "2026-06-29T13:00:00",
+                "result_id": "result-abc",
+            },
+            {
+                "id": "metric-row-2",
+                "project_path": "/Users/les/Projects/crackerjack",
+                "metric_type": "test_pass_rate",
+                "metric_value": 98.0,
+                "timestamp": "2026-06-29T13:00:01",
+                "result_id": "result-abc",
+            },
+        ]
+
+        async def fake_get_history(
+            project_path: str,
+            metric_type: str | None = None,
+            days: int = 30,
+        ) -> list[dict[str, object]]:
+            assert project_path.endswith("crackerjack")
+            assert metric_type is None
+            assert days == 7
+            return fake_history
+
+        with patch(
+            "session_buddy.crackerjack_integration.get_quality_metrics_history",
+            new=fake_get_history,
+        ):
+            result = await _crackerjack_metrics_impl(
+                working_directory="/Users/les/Projects/crackerjack",
+                days=7,
+            )
+
+        # Surface reflects both rows
+        assert "Total Samples" in result
+        assert "2" in result
+        # Metric types appear
+        assert "lint_score" in result
+        assert "test_pass_rate" in result
+        # Values appear
+        assert "92.5" in result
+        assert "98.0" in result
+        # Should NOT fall back to the "no data" message
+        assert "No quality metrics data available" not in result
+
 
 class TestCrackerjackPatternsImpl:
     """Test _crackerjack_patterns_impl implementation."""

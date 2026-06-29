@@ -41,19 +41,19 @@ These are projects adopted by other Bodai components that may surface through Se
 ## Legal posture summary
 
 1. **No source linking**: Session-Buddy does not import AGPL libraries directly.
-2. **No source distribution**: Session-Buddy repos do not bundle AGPL source.
-3. **Attribution**: This file provides attribution per project.
-4. **AGPL inheritance**: If Session-Buddy gains a runtime dependency that loads AGPL code, this file must be updated before the dependency lands.
+1. **No source distribution**: Session-Buddy repos do not bundle AGPL source.
+1. **Attribution**: This file provides attribution per project.
+1. **AGPL inheritance**: If Session-Buddy gains a runtime dependency that loads AGPL code, this file must be updated before the dependency lands.
 
 ## How to update
 
 When adopting a new third-party project:
 
 1. Add a row to the appropriate table.
-2. Document version, license, URL, copyright (look up upstream `LICENSE` file).
-3. Specify integration mode.
-4. If AGPL/SSPL: add legal posture note.
-5. Commit with PR title `chore: add <project> to THIRD_PARTY_NOTICES.md`.
+1. Document version, license, URL, copyright (look up upstream `LICENSE` file).
+1. Specify integration mode.
+1. If AGPL/SSPL: add legal posture note.
+1. Commit with PR title `chore: add <project> to THIRD_PARTY_NOTICES.md`.
 
 ## Cross-references
 

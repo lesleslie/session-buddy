@@ -1188,11 +1188,80 @@ def _format_quality_metrics_output(
     return output
 
 
+def _format_quality_metrics_history(
+    days: int,
+    history: list[dict[str, Any]],
+) -> str:
+    """Format quality metrics history rows from the integration DB.
+
+    Args:
+        days: Lookback window (used in the header).
+        history: Rows from ``quality_metrics_history`` (newest first).
+            Each row has: ``id``, ``project_path``, ``metric_type``,
+            ``metric_value``, ``timestamp``, ``result_id``.
+    """
+    output = f"📊 **Crackerjack Quality Metrics** (last {days} days)\n\n"
+    output += f"**Total Samples**: {len(history)}\n\n"
+
+    latest_by_metric: dict[str, dict[str, Any]] = {}
+    for row in history:
+        metric_type = row.get("metric_type")
+        if metric_type and metric_type not in latest_by_metric:
+            latest_by_metric[metric_type] = row
+
+    if latest_by_metric:
+        output += "**Latest Values**:\n"
+        for metric_type, row in sorted(latest_by_metric.items()):
+            value = row.get("metric_value")
+            timestamp = row.get("timestamp", "unknown")
+            output += f"- {metric_type}: {value} (at {timestamp})\n"
+        output += "\n"
+
+    output += "**Recent Samples** (newest first):\n"
+    for row in history[:10]:
+        output += (
+            f"- {row.get('timestamp', 'unknown')} "
+            f"{row.get('metric_type')} = {row.get('metric_value')}\n"
+        )
+
+    output += "\n💡 Use `crackerjack analyze` for detailed quality analysis"
+    return output
+
+
 async def _crackerjack_metrics_impl(
     working_directory: str = ".",
     days: int = 30,
 ) -> str:
-    """Get quality metrics trends from crackerjack execution history."""
+    """Get quality metrics trends from crackerjack execution history.
+
+    Reads from the crackerjack integration's ``quality_metrics_history``
+    table first (where the CLI now writes per-run snapshots). Falls back
+    to searching reflection-DB conversations for callers that still rely
+    on the legacy history path.
+    """
+    project_path = str(Path(working_directory).resolve())
+
+    # Primary path: integration DB quality_metrics_history table
+    try:
+        from session_buddy.crackerjack_integration import (
+            get_quality_metrics_history as integration_get_metrics,
+        )
+
+        history = await integration_get_metrics(
+            project_path,
+            None,
+            days,
+        )
+        if history:
+            return _format_quality_metrics_history(days, history)
+    except Exception as e:
+        _get_logger().exception(
+            "Integration quality_metrics_history read failed",
+            extra={"project_path": project_path, "days": days},
+        )
+        # Fall through to legacy reflection-DB search on read errors
+
+    # Fallback path: reflection DB conversation search (legacy)
     try:
         db = await _get_reflection_db()
         if not db:

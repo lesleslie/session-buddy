@@ -2571,9 +2571,7 @@ class ReflectionDatabaseAdapterOneiric:
             # Legacy reflection/conversation FK chain.
             "reflections",
         )
-        parent_tables_in_fk_order: tuple[str, ...] = (
-            "conversations",
-        )
+        parent_tables_in_fk_order: tuple[str, ...] = ("conversations",)
         # Tables with no FK constraints in either schema — drop order
         # is irrelevant but listed explicitly so the reset is total.
         standalone_tables: tuple[str, ...] = (

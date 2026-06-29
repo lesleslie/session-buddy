@@ -22,10 +22,11 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from oneiric.core.logging import get_logger
 
@@ -42,20 +43,27 @@ _INJECTION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"</?(system|instruction|prompt)\s*>", re.IGNORECASE),
     re.compile(r"act\s+as\s+(root|admin|superuser|god\s*mode)", re.IGNORECASE),
     re.compile(r"reveal\s+(all\s+)?(secret|password|token|key)", re.IGNORECASE),
-    re.compile(r"override\s+(all\s+)?(previous|prior|current)\s+(guideline|instruction|rule)", re.IGNORECASE),
+    re.compile(
+        r"override\s+(all\s+)?(previous|prior|current)\s+(guideline|instruction|rule)",
+        re.IGNORECASE,
+    ),
     re.compile(r"\[INST\]|\[/INST\]|<<SYS>>|<</SYS>>", re.IGNORECASE),
 ]
 
 _PII_EMAIL = re.compile(r"\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b")
 _PII_SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
-_PII_PHONE = re.compile(r"\b(?:\+?\d{1,3}[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b")
+_PII_PHONE = re.compile(
+    r"\b(?:\+?\d{1,3}[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b"
+)
 _PII_CREDIT_CARD = re.compile(r"\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b")
 
 _SECRET_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\b(sk|pk|rk)_[a-zA-Z0-9]{20,}", re.IGNORECASE),  # Stripe-style
     re.compile(r"\bghp_[a-zA-Z0-9]{36}\b"),  # GitHub PAT
     re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS key
-    re.compile(r"\beyJ[a-zA-Z0-9_\-]{20,}\.[a-zA-Z0-9_\-]{20,}\.[a-zA-Z0-9_\-]{20,}\b"),  # JWT
+    re.compile(
+        r"\beyJ[a-zA-Z0-9_\-]{20,}\.[a-zA-Z0-9_\-]{20,}\.[a-zA-Z0-9_\-]{20,}\b"
+    ),  # JWT
 ]
 
 # Tags that indicate content may override memory-type semantics
@@ -134,7 +142,9 @@ class MemoryGuardAdapter:
             GuardDecision with action, (possibly modified) content and tags.
         """
         effective_tags = list(tags or [])
-        content_hash = hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest()[:16]
+        content_hash = hashlib.sha256(
+            content.encode("utf-8", errors="replace")
+        ).hexdigest()[:16]
 
         # --- size anomaly check (quarantine, not block) ---
         if len(content.encode("utf-8", errors="replace")) > _SIZE_THRESHOLD_BYTES:
@@ -149,7 +159,9 @@ class MemoryGuardAdapter:
             return decision
 
         # --- protected key tampering (block for feedback/user tags) ---
-        if _PROTECTED_MEMORY_TAGS.intersection(effective_tags) and _PROTECTED_CONTENT_OVERRIDE.search(content):
+        if _PROTECTED_MEMORY_TAGS.intersection(
+            effective_tags
+        ) and _PROTECTED_CONTENT_OVERRIDE.search(content):
             decision = GuardDecision(
                 action=GuardAction.BLOCK,
                 content=content,
@@ -222,9 +234,11 @@ class MemoryGuardAdapter:
                 decision.content_hash,
             )
             return
-        self.on_security_event({
-            "type": event_type,
-            "rule": decision.matched_rule,
-            "content_hash": decision.content_hash,
-            "tags": decision.tags,
-        })
+        self.on_security_event(
+            {
+                "type": event_type,
+                "rule": decision.matched_rule,
+                "content_hash": decision.content_hash,
+                "tags": decision.tags,
+            }
+        )
