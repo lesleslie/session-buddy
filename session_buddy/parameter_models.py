@@ -730,9 +730,9 @@ def create_mcp_validator(
             return await func(**params_dict)
 
         # Preserve function metadata
-        wrapper.__name__ = func.__name__
-        wrapper.__doc__ = func.__doc__
-        wrapper.__annotations__ = func.__annotations__
+        setattr(wrapper, "__name__", getattr(func, "__name__", "wrapper"))
+        setattr(wrapper, "__doc__", getattr(func, "__doc__", None))
+        setattr(wrapper, "__annotations__", getattr(func, "__annotations__", {}))
 
         return wrapper
 

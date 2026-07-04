@@ -29,6 +29,7 @@ from __future__ import annotations
 import base64
 import html
 import re
+from operator import itemgetter
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.utils.database_tools import require_reflection_database
@@ -229,23 +230,22 @@ def _find_homoglyph_issues(content: str) -> list[dict[str, Any]]:
     code point in ``_CYRILLIC_HOMOGLYPHS``. The evidence string names
     the offending character so reviewers can spot it.
     """
-    issues: list[dict[str, Any]] = []
-    for start, token in _iter_long_tokens(content):
-        bad: list[str] = []
-        for ch in token:
-            if ch in _CYRILLIC_HOMOGLYPHS:
-                bad.append(f"{ch!r} (Cyrillic → ASCII {_CYRILLIC_HOMOGLYPHS[ch]!r})")
-        if bad:
-            issues.append(
-                {
-                    "kind": "homoglyph",
-                    "position": start,
-                    "evidence": (
-                        f"token {token!r} contains Cyrillic homoglyphs: "
-                        + ", ".join(bad)
-                    ),
-                }
-            )
+    issues: list[dict[str, Any]] = [
+        {
+            "kind": "homoglyph",
+            "position": start,
+            "evidence": (
+                f"token {token!r} contains Cyrillic homoglyphs: "
+                + ", ".join(
+                    f"{ch!r} (Cyrillic → ASCII {_CYRILLIC_HOMOGLYPHS[ch]!r})"
+                    for ch in token
+                    if ch in _CYRILLIC_HOMOGLYPHS
+                )
+            ),
+        }
+        for start, token in _iter_long_tokens(content)
+        if any(ch in _CYRILLIC_HOMOGLYPHS for ch in token)
+    ]
     return issues
 
 
@@ -312,7 +312,7 @@ def _lint_memory_impl(reflection: dict[str, Any]) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     issues.extend(_find_homoglyph_issues(content))
     issues.extend(_find_base64_issues(content))
-    issues.sort(key=lambda i: i["position"])
+    issues.sort(key=itemgetter("position"))
     return issues
 
 

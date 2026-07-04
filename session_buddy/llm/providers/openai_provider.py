@@ -96,7 +96,7 @@ class OpenAIProvider(LLMProvider):
             self.logger.exception(f"OpenAI generation failed: {e}")
             raise
 
-    async def stream_generate(  # type: ignore[override]
+    async def stream_generate(  # ty: ignore[invalid-method-override]
         self,
         messages: list[LLMMessage],
         model: str | None = None,

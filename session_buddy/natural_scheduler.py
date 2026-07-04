@@ -329,8 +329,13 @@ class ReminderScheduler:
         recurrence_pattern: Any,
     ) -> bool:
         """Schedule next occurrence for recurring reminder."""
+        last_time_raw: Any = (
+            reminder_data.get("scheduled_time") or reminder_data.get("scheduled_for")
+        )
+        if not isinstance(last_time_raw, datetime):
+            return False
         next_time = self._calculate_next_occurrence(
-            reminder_data.get("scheduled_time") or reminder_data.get("scheduled_for"),  # type: ignore[arg-type]
+            last_time_raw,
             recurrence_pattern,
         )
 

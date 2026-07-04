@@ -334,7 +334,7 @@ class TestWorkflowMetricsTools:
 
     def test_register_workflow_metrics_tools(self, mock_server: MagicMock) -> None:
         """Should register workflow metrics tools on server."""
-        from session_buddy.tools.workflow_metrics_tools import register_workflow_metrics_tools
+        from session_buddy.mcp.tools.monitoring.workflow_metrics_tools import register_workflow_metrics_tools
 
         register_workflow_metrics_tools(mock_server)
 
@@ -344,7 +344,7 @@ class TestWorkflowMetricsTools:
 
     def test_workflow_metrics_help_prompt(self, mock_server: MagicMock) -> None:
         """Should register help prompt for workflow metrics."""
-        from session_buddy.tools.workflow_metrics_tools import register_workflow_metrics_tools
+        from session_buddy.mcp.tools.monitoring.workflow_metrics_tools import register_workflow_metrics_tools
 
         register_workflow_metrics_tools(mock_server)
 
@@ -359,7 +359,7 @@ class TestWorkflowMetricsTools:
 
 
 # Import helper functions for testing
-from session_buddy.tools.workflow_metrics_tools import (
+from session_buddy.mcp.tools.monitoring.workflow_metrics_tools import (
     _generate_workflow_insights,
     _generate_session_insights,
 )

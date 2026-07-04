@@ -267,7 +267,7 @@ class Phase3RelationshipMixin:
             >>> print(result)
             {"created": 45, "skipped": 12, "duplicate": 8}
         """
-        conn = self._get_conn()  # type: ignore[attr-defined]
+        conn = self._get_conn()  # ty: ignore[unresolved-attribute]
 
         # Confidence ranking for min comparison
         confidence_rank = {"low": 1, "medium": 2, "high": 3}
@@ -351,7 +351,7 @@ class Phase3RelationshipMixin:
 
                     # Create transitive relationship
                     try:
-                        await self.create_relation(  # type: ignore[attr-defined]
+                        await self.create_relation(  # ty: ignore[unresolved-attribute]
                             from_entity=from_entity,
                             to_entity=to_entity,
                             relation_type=transitive_type,
@@ -471,7 +471,7 @@ class Phase3RelationshipMixin:
             # Creates entity and extracts relationship: session-buddy -> uses -> FastMCP
         """
         # Create entity first
-        entity = await self.create_entity(  # type: ignore[attr-defined]
+        entity = await self.create_entity(  # ty: ignore[unresolved-attribute]
             name=name,
             entity_type=entity_type,
             observations=observations,
@@ -494,9 +494,9 @@ class Phase3RelationshipMixin:
             for rel in discovered:
                 with suppress(Exception):
                     # Resolve target entity by name
-                    target_entity = await self.find_entity_by_name(rel["to_name"])  # type: ignore[attr-defined]
+                    target_entity = await self.find_entity_by_name(rel["to_name"])  # ty: ignore[unresolved-attribute]
                     if target_entity:
-                        await self.create_relation(  # type: ignore[attr-defined]
+                        await self.create_relation(  # ty: ignore[unresolved-attribute]
                             from_entity=entity["id"],
                             to_entity=target_entity["id"],
                             relation_type=rel["relation_type"],

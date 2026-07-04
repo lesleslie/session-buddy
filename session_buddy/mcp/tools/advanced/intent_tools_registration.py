@@ -7,12 +7,7 @@ tools with the MCP server.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from session_buddy.mcp.server import (
-        SessionBuddyServer,  # type: ignore[attr-defined]
-    )
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -242,11 +237,11 @@ def _format_list_intents_error(error_message: str) -> dict[str, Any]:
 # ============================================================================
 
 
-def register_intent_detection_tools(server: SessionBuddyServer) -> None:
+def register_intent_detection_tools(server: Any) -> None:
     """Register intent detection tools with the MCP server.
 
     Args:
-        server: SessionBuddyServer instance to register tools on
+        server: MCP server instance (duck-typed: must expose ``tool()``).
     """
 
     @server.tool()  # type: ignore[untyped-decorator]

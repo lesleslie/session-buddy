@@ -21,6 +21,9 @@ from mcp_common import MCPServerCLIFactory, MCPServerSettings, RuntimeHealthSnap
 
 from session_buddy.mcp.tools.monitoring.health_tools import get_health_status
 from session_buddy.utils.runtime_snapshots import update_telemetry_counter
+from typing import Any
+
+from typer import Typer
 
 
 class SessionBuddySettings(MCPServerSettings):
@@ -180,7 +183,7 @@ def create_session_buddy_cli() -> MCPServerCLIFactory:
 
     # Preserve the factory interface expected by callers while returning an
     # object whose create_app() yields the augmented app.
-    cli_factory.create_app = lambda: app  # type: ignore[method-assign]
+    cli_factory.create_app = lambda: app  # ty: ignore[invalid-assignment]
     return cli_factory
 
 

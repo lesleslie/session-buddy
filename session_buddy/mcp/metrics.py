@@ -35,7 +35,7 @@ from prometheus_client.registry import CollectorRegistry
 
 try:
     from prometheus_client.exposition import (
-        choose_formatter,  # type: ignore[attr-defined]
+        choose_formatter,  # ty: ignore[unresolved-import]
     )
 except ImportError:
     # prometheus_client < 0.20.0
@@ -508,9 +508,9 @@ def track_operation_duration(
         # Check if function is async or sync
         if hasattr(func, "__annotations__") and "return" in func.__annotations__:
             # Async function
-            return async_wrapper  # type: ignore[return-value]
+            return async_wrapper  # ty: ignore[invalid-return-type]
         # Sync function
-        return sync_wrapper  # type: ignore[return-value]
+        return sync_wrapper  # ty: ignore[invalid-return-type]
 
     return decorator
 

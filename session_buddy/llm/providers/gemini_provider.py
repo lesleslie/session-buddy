@@ -29,7 +29,7 @@ class GeminiProvider(LLMProvider):
         """Get or create Gemini client."""
         if self._client is None:
             try:
-                import google.generativeai as genai
+                import google.generativeai as genai  # ty: ignore[unresolved-import]
 
                 genai.configure(api_key=self.api_key)
                 self._client = genai
@@ -130,7 +130,7 @@ class GeminiProvider(LLMProvider):
             self.logger.exception(f"Gemini generation failed: {e}")
             raise
 
-    async def stream_generate(  # type: ignore[override]
+    async def stream_generate(  # ty: ignore[invalid-method-override]
         self,
         messages: list[LLMMessage],
         model: str | None = None,

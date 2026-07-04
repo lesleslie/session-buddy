@@ -393,7 +393,7 @@ class AdvancedSearchEngine:
         """Rebuild the search index from conversations and reflections."""
         # Ensure database tables exist before indexing
         if self.reflection_db.conn:
-            self.reflection_db._create_tables()
+            self.reflection_db._create_tables()  # ty: ignore[unresolved-attribute]
             self._ensure_advanced_search_tables()
 
         # Index conversations

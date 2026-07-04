@@ -10,7 +10,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 from scipy import stats
@@ -400,7 +400,7 @@ class TimeSeriesAnalyzer:
                     }
                 )
 
-        return anomalies
+        return cast("list[dict[str, object]]", anomalies)
 
     def get_time_series_plot_data(
         self,
@@ -420,11 +420,11 @@ class TimeSeriesAnalyzer:
         """
         hourly = self.aggregate_hourly_metrics(skill_name=skill_name, hours=hours)
 
-        metric_values: list[object] = {
+        metric_values: list[float] = {
             "completion_rate": [h.completion_rate for h in hourly],
             "avg_duration_seconds": [h.avg_duration_seconds for h in hourly],
             "invocation_count": [h.invocation_count for h in hourly],
-        }.get(metric, [])  # type: ignore[assignment]
+        }.get(metric, [])  # ty: ignore[invalid-assignment]
 
         return {
             "timestamps": [h.timestamp for h in hourly],

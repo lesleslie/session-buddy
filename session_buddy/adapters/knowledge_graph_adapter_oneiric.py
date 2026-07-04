@@ -46,7 +46,7 @@ except ImportError:
         # Type stub for type checking when duckdb is not installed
         import types
 
-        duckdb = types.SimpleNamespace()  # type: ignore[assignment]
+        duckdb: t.Any = types.SimpleNamespace()
 
 # Embedding system imports
 try:
@@ -804,7 +804,11 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         )
 
         # Return updated entity
-        return await self.find_entity_by_name(entity_name)  # type: ignore[return-value]
+        updated = await self.find_entity_by_name(entity_name)
+        if updated is None:
+            msg = f"Entity {entity_name!r} disappeared between UPDATE and SELECT"
+            raise ValueError(msg)
+        return updated
 
     async def search_entities(
         self,

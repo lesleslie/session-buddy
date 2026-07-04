@@ -34,25 +34,25 @@ async def get_health_status(
         components, and probe-specific keys (alive/ready, metadata).
     """
     components: list[
-        ComponentHealth | dict[str, Any]
-    ] = await health_checks.get_all_health_checks()  # type: ignore[assignment]
+        ComponentHealth
+    ] = await health_checks.get_all_health_checks()
 
     # Convert ComponentHealth dataclasses to dicts if needed
     serialised: list[dict[str, Any]] = []
     for comp in components:
-        if isinstance(comp, dict):
-            serialised.append(comp)
-        else:
-            # ComponentHealth instance
+        if isinstance(comp, ComponentHealth):
             serialised.append(
                 {
                     "name": comp.name,
                     "status": str(comp.status),
                     "message": comp.message,
                     "latency_ms": comp.latency_ms,
-                    **comp.metadata,
                 }
+                | comp.metadata
             )
+        else:
+            # Defensive fallback for any dict-like component
+            serialised.append(dict(comp))
 
     # Determine overall health
     statuses = [c.get("status", "healthy") for c in serialised]

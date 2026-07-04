@@ -145,7 +145,7 @@ def _get_console_handler(
             handler,
             logging.FileHandler,
         ):
-            return handler
+            return t.cast("logging.StreamHandler[t.TextIO]", handler)
     return None
 
 

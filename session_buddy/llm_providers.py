@@ -18,7 +18,7 @@ try:
 
     SECURITY_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency
-    APIKeyValidator = None  # type: ignore[assignment,misc]
+    APIKeyValidator: type[Any] | None = None
     SECURITY_AVAILABLE = False
 
 

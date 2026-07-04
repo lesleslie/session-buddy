@@ -394,8 +394,8 @@ class ABTestFramework:
 
         # Determine winner
         if p_value < 0.05:  # Statistically significant
-            control_rate = float(control_metrics["completion_rate"])  # type: ignore[arg-type]
-            treatment_rate = float(treatment_metrics["completion_rate"])  # type: ignore[arg-type]
+            control_rate = float(control_metrics["completion_rate"])  # ty: ignore[invalid-argument-type]
+            treatment_rate = float(treatment_metrics["completion_rate"])  # ty: ignore[invalid-argument-type]
             if treatment_rate > control_rate:
                 winner = "treatment"
                 recommendation = (
@@ -420,7 +420,7 @@ class ABTestFramework:
             control_metrics=control_metrics,
             treatment_metrics=treatment_metrics,
             statistical_significance=p_value,
-            winner=cast(Literal["control", "treatment", "inconclusive"], winner),
+            winner=winner,
             recommendation=recommendation,
         )
 

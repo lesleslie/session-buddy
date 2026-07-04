@@ -576,7 +576,7 @@ class TestWorkerExecuteTask:
             captured_status = task.status
             await original_set_result(*args, **kwargs)
 
-        task.set_result = capture_status
+        task.set_result = capture_status  # ty: ignore[invalid-assignment]
 
         await worker._execute_task(task)
 

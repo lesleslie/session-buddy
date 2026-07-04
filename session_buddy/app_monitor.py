@@ -321,7 +321,7 @@ class IDEFileHandler(FileSystemEventHandler):
         with suppress(Exception):
             import asyncio as _asyncio
 
-            from session_buddy.mcp.tools.entity_extraction_tools import (
+            from session_buddy.mcp.tools.advanced.entity_extraction_tools import (
                 extract_and_store_memory as _extract,
             )
             from session_buddy.memory.file_context import build_file_context

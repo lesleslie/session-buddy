@@ -37,7 +37,7 @@ class TestSessionTools:
             )
 
             assert callable(start_session_tool) or hasattr(
-                session_tools, "start_session"
+                session_tools, "start_session"  # ty: ignore[unresolved-reference]
             )
         except (ImportError, AttributeError):
             pytest.skip("Start session function not found")

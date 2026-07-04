@@ -626,7 +626,7 @@ async def _get_advanced_search_engine() -> t.Any:
         # Type ignore: get_reflection_database returns ReflectionDatabaseAdapter
         # which is compatible with AdvancedSearchEngine's expected type
         db = await get_reflection_database()
-        return AdvancedSearchEngine(db)  # type: ignore[arg-type]
+        return AdvancedSearchEngine(db)  # ty: ignore[invalid-argument-type]
     except Exception:
         return None
 

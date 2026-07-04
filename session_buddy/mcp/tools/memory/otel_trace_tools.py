@@ -99,7 +99,7 @@ async def query_local_traces(
         List of trace records matching the filter criteria
     """
     try:
-        from session_buddy.adapters.reflection_adapter_oneiric import (  # type: ignore[attr-defined]
+        from session_buddy.reflection_tools import (
             get_reflection_database,
         )
 

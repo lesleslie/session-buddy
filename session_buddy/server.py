@@ -35,12 +35,16 @@ async def health_check(request: Any = None) -> dict[str, Any]:
     response = await _health_check(request)
     if hasattr(response, "body"):
         body = response.body
-        if isinstance(body, bytes):
+        if isinstance(body, (bytes, bytearray, memoryview)):
+            return json.loads(bytes(body))
+        if isinstance(body, str):
             return json.loads(body)
         if isinstance(body, dict):
             return body
-        return body
-    return response
+        return {"raw": body}
+    if isinstance(response, dict):
+        return response
+    return {"raw": response}
 
 
 async def calculate_quality_score(project_dir: str | None = None) -> dict[str, Any]:

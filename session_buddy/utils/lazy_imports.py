@@ -147,7 +147,7 @@ def require_dependency(
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             loader = lazy_loader.get_import(dependency_name)
             if not loader or not loader.available:
-                error_msg = f"Function {func.__name__} requires {dependency_name}"
+                error_msg = f"Function {func.__name__} requires {dependency_name}"  # ty: ignore[unresolved-attribute]
                 if install_hint:
                     error_msg += f". Install with: {install_hint}"
                 raise ImportError(error_msg)
@@ -170,7 +170,7 @@ def optional_dependency(
             loader = lazy_loader.get_import(dependency_name)
             if not loader or not loader.available:
                 _get_logger().info(
-                    f"Function {func.__name__} skipped - {dependency_name} not available",
+                    f"Function {func.__name__} skipped - {dependency_name} not available",  # ty: ignore[unresolved-attribute]
                 )
                 return fallback_result
             return func(*args, **kwargs)

@@ -196,7 +196,7 @@ class TestGenerateULIDWithDruva:
     def test_uses_druva_when_available(self, monkeypatch) -> None:
         """Test that druva is used when available."""
         fake_druva = types.ModuleType("druva")
-        fake_druva.generate = lambda: "druva-generated-ulid-000000"  # type: ignore[attr-defined]
+        fake_druva.generate = lambda: "druva-generated-ulid-000000"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         monkeypatch.setitem(sys.modules, "druva", fake_druva)
 
         from session_buddy.core import ulid_generator

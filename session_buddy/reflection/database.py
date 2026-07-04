@@ -305,7 +305,7 @@ class ReflectionDatabase:
             self.local.conn = duckdb.connect(
                 self.db_path, config={"allow_unsigned_extensions": True}
             )
-        return self.local.conn  # type: ignore
+        return self.local.conn
 
     async def get_embedding(self, text: str) -> list[float]:
         """Get embedding for text using HTTP embedding provider.

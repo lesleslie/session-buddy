@@ -774,9 +774,9 @@ def _register_code_impact_analysis_tool(mcp: Any) -> None:
 
 def _get_conn(reflection_db: Any) -> Any:
     """Get the underlying connection from a reflection database wrapper."""
-    import typing as t
-
-    return t.cast(Any, reflection_db)._get_conn()
+    # `reflection_db` is typed as `Any` upstream; the wrapper exposes
+    # `_get_conn()` as a private attribute, so we keep the return type loose.
+    return reflection_db._get_conn()
 
 
 def _build_path_str(

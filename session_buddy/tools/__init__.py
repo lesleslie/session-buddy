@@ -150,18 +150,14 @@ _alias_submodule(
 _alias_submodule(
     "session_buddy.tools.llm_tools", "session_buddy.mcp.tools.intelligence.llm_tools"
 )
-_alias_submodule(
-    "session_buddy.tools.memory_tools", "session_buddy.mcp.tools.memory.memory_tools"
-)
+# NOTE: ``session_buddy.tools.memory_tools``, ``search_tools``, and
+# ``session_tools`` are real Python modules (see the .py files alongside
+# this __init__.py) that re-export the canonical MCP tools. They are
+# NOT routed through ``_alias_submodule`` — real files take precedence
+# over sys.modules aliases and make type checkers (ty/mypy/pyright) happy.
 _alias_submodule(
     "session_buddy.tools.recommendation_engine",
     "session_buddy.mcp.tools.advanced.recommendation_engine",
-)
-_alias_submodule(
-    "session_buddy.tools.search_tools", "session_buddy.mcp.tools.memory.search_tools"
-)
-_alias_submodule(
-    "session_buddy.tools.session_tools", "session_buddy.mcp.tools.session.session_tools"
 )
 _alias_submodule(
     "session_buddy.tools.validated_memory_tools",

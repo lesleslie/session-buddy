@@ -489,6 +489,7 @@ def _score_commit_quality(commits: list[str]) -> tuple[int, dict[str, str]]:
         return 3, {"quality": f"good ({conventional}/{commit_count} conventional)"}
     if commit_count > 0:
         return 1, {"quality": f"basic ({conventional}/{commit_count} conventional)"}
+    return 0, {"quality": "no data"}
 
 
 def _analyze_dev_patterns(project_dir: Path) -> dict[str, Any]:

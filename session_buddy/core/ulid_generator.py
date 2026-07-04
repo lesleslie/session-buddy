@@ -16,7 +16,7 @@ def generate_ulid() -> str:
     """
     # Try Druva first
     try:
-        from druva import generate as generate_ulid_impl
+        from druva import generate as generate_ulid_impl  # ty: ignore[unresolved-import]
 
         return str(generate_ulid_impl())
     except ImportError:

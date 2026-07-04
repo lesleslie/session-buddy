@@ -22,7 +22,7 @@ from pathlib import Path
 try:
     import duckdb
 except ImportError:
-    duckdb = None  # type: ignore[assignment]
+    duckdb: t.Any = None
 
 from session_buddy.memory.schema_v2 import MIGRATION_SQL, SCHEMA_V2_SQL
 from session_buddy.settings import get_database_path

@@ -47,7 +47,7 @@ except ImportError:
 try:
     import tomli
 except ImportError:
-    tomli = None  # type: ignore[assignment]
+    tomli: Any = None
 
 
 # Import extracted modules
@@ -377,7 +377,7 @@ async def initialize_new_features(
                 from session_buddy.advanced_search import AdvancedSearchEngine
 
                 # Type ignore: db is ReflectionDatabaseAdapterOneiric which is compatible
-                advanced_search_engine = AdvancedSearchEngine(db)  # type: ignore[arg-type]
+                advanced_search_engine = AdvancedSearchEngine(db)  # ty: ignore[invalid-argument-type]
 
     return multi_project_coordinator, advanced_search_engine, app_config
 

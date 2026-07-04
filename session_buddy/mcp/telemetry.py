@@ -21,16 +21,18 @@ try:
     )
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.sdk.trace.export import (
+        BatchSpanProcessor,
+    )
 
     _OTEL_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional runtime dependency
-    trace = None  # type: ignore[assignment,misc]
-    OTLPGrpcSpanExporter = None  # type: ignore[assignment,misc]
-    OTLPHTTPSpanExporter = None  # type: ignore[assignment,misc]
-    Resource = None  # type: ignore[assignment,misc]
-    TracerProvider = None  # type: ignore[assignment,misc]
-    BatchSpanProcessor = None  # type: ignore[assignment,misc]
+    trace: Any = None
+    OTLPGrpcSpanExporter: Any = None
+    OTLPHTTPSpanExporter: Any = None
+    Resource: Any = None
+    TracerProvider: Any = None
+    BatchSpanProcessor: Any = None
     _OTEL_AVAILABLE = False
 
 logger = logging.getLogger(__name__)

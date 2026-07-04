@@ -49,6 +49,9 @@ class ServiceContainer:
         if not candidate:
             msg = f"Service not registered: {name}"
             raise KeyError(msg)
+        if isinstance(candidate.factory, str):
+            msg = f"Cannot instantiate string factory reference: {candidate.factory}"
+            raise RuntimeError(msg)
         instance = candidate.factory()
         if inspect.isawaitable(instance):
             msg = f"Async factory registered for sync get: {name}"
@@ -67,6 +70,9 @@ class ServiceContainer:
         if not candidate:
             msg = f"Service not registered: {name}"
             raise KeyError(msg)
+        if isinstance(candidate.factory, str):
+            msg = f"Cannot instantiate string factory reference: {candidate.factory}"
+            raise RuntimeError(msg)
         instance = candidate.factory()
         if inspect.isawaitable(instance):
             instance = await instance

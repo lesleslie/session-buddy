@@ -44,7 +44,7 @@ class TestWorktreeCreationOptions:
         """Test that creation options are frozen (immutable)."""
         opts = WorktreeCreationOptions()
         with pytest.raises(AttributeError):
-            opts.create_branch = True
+            setattr(opts, "create_branch", True)
 
 
 class TestWorktreeValidationResult:

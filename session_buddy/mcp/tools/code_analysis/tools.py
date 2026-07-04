@@ -124,9 +124,7 @@ async def _code_get_symbol_graph_impl(
             relationships = []
             if entity_id:
                 with suppress(Exception):
-                    relationships = await kg.get_relationships(
-                        entity_id, max_depth=min(depth, 3)
-                    )
+                    relationships = await kg.get_relationships(entity_id)
             return {
                 "status": "success",
                 "symbol": {

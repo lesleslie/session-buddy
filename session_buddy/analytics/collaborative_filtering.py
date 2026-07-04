@@ -20,6 +20,7 @@ import hashlib
 import operator
 import sqlite3
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -87,7 +88,7 @@ class CollaborativeFilteringEngine:
     # ========================================================================
 
     @contextmanager
-    def _get_connection(self) -> sqlite3.Connection:  # type: ignore[type-arg, misc]
+    def _get_connection(self) -> Iterator[sqlite3.Connection]:
         """Get database connection with proper configuration.
 
         Yields:

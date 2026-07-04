@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import shutil
 import subprocess  # nosec B404
-from collections.abc import Coroutine as ABCCoroutine
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,10 +37,6 @@ def should_suggest_compact() -> tuple[bool, str]:
     from session_buddy.server_optimized import should_suggest_compact as _impl
 
     return _impl()
-
-
-if not hasattr(asyncio.coroutines, "Coroutine"):
-    asyncio.coroutines.Coroutine = ABCCoroutine  # type: ignore[attr-defined]
 
 
 @dataclass
@@ -806,7 +801,7 @@ async def _checkpoint_impl(working_directory: str | None = None) -> str:
 
         # Normalize minimal fixture results into the richer structure used by the
         # full session manager implementation.
-        quality_data = result.get("quality_data")
+        quality_data: dict[str, Any] | None = result.get("quality_data")
         if result.get("success") and not isinstance(quality_data, dict):
             quality_data = {
                 "total_score": result.get("quality_score", 0),
@@ -814,7 +809,7 @@ async def _checkpoint_impl(working_directory: str | None = None) -> str:
                 "recommendations": [],
             }
             result["quality_data"] = quality_data
-        elif result.get("success") and "total_score" not in quality_data:
+        elif result.get("success") and isinstance(quality_data, dict) and "total_score" not in quality_data:
             _get_logger().error(
                 "Quality data missing 'total_score' key. Keys: %s",
                 list(quality_data.keys()),
@@ -965,9 +960,13 @@ async def _pre_compact_sync_impl() -> dict[str, Any]:
         result["project"] = project
 
         # Get current quality score if available
-        quality_score = None
+        quality_score: int | None = None
         if hasattr(manager, "_last_quality_score"):
-            quality_score = manager._last_quality_score
+            raw_score: Any = manager._last_quality_score
+            if isinstance(raw_score, (int, float)) and not isinstance(raw_score, bool):
+                quality_score = int(raw_score)
+            elif isinstance(raw_score, int):
+                quality_score = raw_score
             result["quality_score"] = quality_score
 
         # Build context summary for reflection

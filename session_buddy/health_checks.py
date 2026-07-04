@@ -597,7 +597,7 @@ async def get_all_health_checks() -> list[ComponentHealth]:
                 ),
             )
         else:
-            components.append(result)  # type: ignore[arg-type]  # result is ComponentHealth from gather
+            components.append(result)  # ty: ignore[invalid-argument-type]  # result is ComponentHealth from gather
 
     return components
 

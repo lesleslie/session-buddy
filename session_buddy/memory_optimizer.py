@@ -68,7 +68,7 @@ class ConversationSummarizer:
     def _extractive_summarization(self, content: str, max_sentences: int = 3) -> str:
         """Extract most important sentences from conversation."""
         sentence_pattern = SAFE_PATTERNS["sentence_split"]
-        sentences = sentence_pattern.split(content)
+        sentences = sentence_pattern._get_compiled_pattern().split(content)
         sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
 
         # Score sentences based on various factors
@@ -215,10 +215,10 @@ class ConversationSummarizer:
         """Create summary based on extracted keywords."""
         # Clean content
         code_block_pattern = SAFE_PATTERNS["code_block_cleanup"]
-        content_clean = code_block_pattern.sub("", content)
+        content_clean = code_block_pattern.apply(content)
 
         inline_code_pattern = SAFE_PATTERNS["inline_code_cleanup"]
-        content_clean = inline_code_pattern.sub("", content_clean)
+        content_clean = inline_code_pattern.apply(content_clean)
 
         # Extract potential keywords
         word_pattern = SAFE_PATTERNS["word_extraction"]

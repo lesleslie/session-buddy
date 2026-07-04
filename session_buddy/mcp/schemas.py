@@ -104,7 +104,7 @@ class SchemaRegistry:
             )
 
         model_class = self._models[model_name]
-        schema = model_class.model_json_schema()  # type: ignore[attr-defined,no-any-return]
+        schema = model_class.model_json_schema()  # ty: ignore[unresolved-attribute]
 
         # Add schema metadata
         schema["$schema"] = JSON_SCHEMA_DRAFT

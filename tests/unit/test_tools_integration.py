@@ -1,14 +1,15 @@
 """Integration tests for crackerjack:run workflow."""
 
 from datetime import datetime, timedelta
+from typing import Any
 
 import pytest
-from session_buddy.tools.agent_analyzer import AgentAnalyzer, AgentType
+from session_buddy.mcp.tools.intelligence.agent_analyzer import AgentAnalyzer, AgentType
+from session_buddy.mcp.tools.advanced.recommendation_engine import RecommendationEngine
 from session_buddy.tools.quality_metrics import (
     QualityMetrics,
     QualityMetricsExtractor,
 )
-from session_buddy.tools.recommendation_engine import RecommendationEngine
 
 
 class MockReflectionDatabase:
@@ -283,7 +284,7 @@ class TestEndToEndWorkflow:
         assert abs(effectiveness.success_rate - 0.5) < 0.01
 
         # Test confidence adjustment with 50% success rate
-        current_recommendation = [
+        current_recommendation: list[dict[str, Any]] = [
             {
                 "agent": AgentType.SECURITY,
                 "confidence": 0.8,
@@ -294,7 +295,7 @@ class TestEndToEndWorkflow:
         ]
 
         # Convert dict to AgentRecommendation for adjustment
-        from session_buddy.tools.agent_analyzer import AgentRecommendation
+        from session_buddy.mcp.tools.intelligence.agent_analyzer import AgentRecommendation
 
         recommendations = [
             AgentRecommendation(
@@ -449,9 +450,9 @@ class TestRecommendationEngineIntegration:
         sig2 = result2["patterns"][0].pattern_signature if result2["patterns"] else None
 
         assert sig1 != sig2
-        assert "complexity" in sig1
+        assert sig1 is not None and "complexity" in sig1
         # Pattern signature uses "security:N" format, not "security_issues"
-        assert "security" in sig2
+        assert sig2 is not None and "security" in sig2
 
     @pytest.mark.asyncio
     async def test_insights_generation(self):

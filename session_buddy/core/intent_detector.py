@@ -195,12 +195,11 @@ class IntentDetector:
                     example_embedding = await generate_embedding(example)
 
                     # Cosine similarity: dot product of normalized vectors
+                    q = np.asarray(query_embedding, dtype=np.float64)
+                    e = np.asarray(example_embedding, dtype=np.float64)
                     similarity = float(
-                        np.dot(query_embedding, example_embedding)  # type: ignore[arg-type]
-                        / (
-                            np.linalg.norm(query_embedding)  # type: ignore[arg-type]
-                            * np.linalg.norm(example_embedding)  # type: ignore[arg-type]
-                        )
+                        np.dot(q, e)
+                        / (np.linalg.norm(q) * np.linalg.norm(e))
                     )
 
                     if similarity > best_score:

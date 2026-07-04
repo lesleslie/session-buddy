@@ -42,7 +42,7 @@ try:
     WATCHDOG_AVAILABLE = True
 except ImportError:
     WATCHDOG_AVAILABLE = False
-    Observer = object  # type: ignore[assignment]
+    Observer: Any = object  # type: ignore[assignment,misc]
 
 # gzip is always available in Python stdlib
 COMPRESSION_AVAILABLE = True

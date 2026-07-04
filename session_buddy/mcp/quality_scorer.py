@@ -89,8 +89,8 @@ class MCPQualityScorer(QualityScorer):
             return self._permissions_score_cache
 
         try:
-            from session_buddy.mcp.server import (
-                permissions_manager,  # type: ignore[attr-defined]
+            from session_buddy.server import (
+                permissions_manager,
             )
 
             if hasattr(permissions_manager, "trusted_operations"):

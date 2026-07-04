@@ -430,7 +430,7 @@ class StorageRegistryOneiric:
 
         # Concrete adapters accept StorageAdapterSettings | None
         # Base class signature differs from concrete classes
-        return adapter_class(self._settings)  # type: ignore[arg-type]
+        return adapter_class(self._settings)  # ty: ignore[invalid-argument-type]
 
     def _apply_config_overrides(
         self,

@@ -23,15 +23,19 @@ from typing import Any
 
 # Import FastMCP with type checking ignore
 try:
-    from mcp_common.fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP as _RealFastMCP
+
+    FastMCP: Any = _RealFastMCP
 except ImportError:
-    FastMCP = Any  # type: ignore[assignment, misc]
+    FastMCP: Any = Any
 
 # Import metrics module with graceful degradation
 try:
-    from prometheus_client import CONTENT_TYPE_LATEST
+    from prometheus_client import CONTENT_TYPE_LATEST as _CONTENT_TYPE_LATEST
+
+    CONTENT_TYPE_LATEST: Any = _CONTENT_TYPE_LATEST
 except ImportError:
-    CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"
+    CONTENT_TYPE_LATEST: Any = "text/plain; version=0.0.4; charset=utf-8"
 
 try:
     from session_buddy.mcp.metrics import get_metrics

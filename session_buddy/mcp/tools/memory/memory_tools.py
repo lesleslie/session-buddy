@@ -14,6 +14,7 @@ import typing as t
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from session_buddy.security.memory_guard_adapter import MemoryGuardBlockedError
 from session_buddy.utils.database_tools import require_reflection_database
 from session_buddy.utils.error_management import (
     DatabaseUnavailableError,
@@ -23,7 +24,6 @@ from session_buddy.utils.error_management import (
 )
 from session_buddy.utils.messages import ToolMessages
 from session_buddy.utils.tool_wrapper import format_reflection_result
-from session_buddy.security.memory_guard_adapter import MemoryGuardBlockedError
 
 if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter

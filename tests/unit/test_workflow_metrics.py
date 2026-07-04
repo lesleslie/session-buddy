@@ -150,7 +150,7 @@ class TestSessionMetrics:
         )
 
         with pytest.raises(AttributeError):
-            metrics.session_id = "new-id"
+            setattr(metrics, "session_id", "new-id")
 
     def test_session_metrics_to_dict(self):
         """Test SessionMetrics to_dict conversion."""
@@ -1136,18 +1136,23 @@ class TestWorkflowMetricsIntegration:
         ]
 
         for idx, sess in enumerate(sessions):
+            session_id = str(sess["id"])
+            hour = int(sess["hour"])
+            commits = int(sess["commits"])
+            checkpoints = int(sess["checkpoints"])
+            quality = int(sess["quality"])
             session = SessionMetrics(
-                session_id=sess["id"],
+                session_id=session_id,
                 project_path="/test/project",
-                started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=sess["hour"], minute=0, second=0, microsecond=0),
-                ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=sess["hour"] + 1, minute=0, second=0, microsecond=0),
+                started_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=hour, minute=0, second=0, microsecond=0),
+                ended_at=(datetime.now(UTC) - timedelta(days=1)).replace(hour=hour + 1, minute=0, second=0, microsecond=0),
                 duration_minutes=60.0,
-                checkpoint_count=sess["checkpoints"],
-                commit_count=sess["commits"],
-                quality_start=sess["quality"] - 5.0,
-                quality_end=sess["quality"],
+                checkpoint_count=checkpoints,
+                commit_count=commits,
+                quality_start=quality - 5.0,
+                quality_end=quality,
                 quality_delta=5.0,
-                avg_quality=sess["quality"],
+                avg_quality=quality,
                 files_modified=2 + idx,
                 tools_used=["tool1", "tool2"],
                 primary_language="Python",

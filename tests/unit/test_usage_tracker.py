@@ -21,7 +21,7 @@ from session_buddy.analytics.usage_tracker import (
 # ============================================================================
 
 @pytest.fixture
-def mock_datetime() -> MagicMock:
+def mock_datetime() -> t.Generator[MagicMock, None, None]:
     """Mock datetime for time-sensitive tests."""
     fixed_time = datetime(2026, 5, 23, 12, 0, 0, tzinfo=UTC)
     with patch("session_buddy.analytics.usage_tracker.datetime") as mock:

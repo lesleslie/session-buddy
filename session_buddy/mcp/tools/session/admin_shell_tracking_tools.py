@@ -107,7 +107,7 @@ def _get_session_tracker() -> SessionTracker:
         # Try to get from container if already registered
         from session_buddy.di import depends
 
-        tracker = depends.get(SessionTracker, None)  # type: ignore[arg-type]
+        tracker = depends.get(SessionTracker)
         if tracker is not None:
             return tracker
 

@@ -20,7 +20,9 @@ if TYPE_CHECKING:
 
 # mcp-common HTTP client adapter (httpx based)
 try:
-    from mcp_common.adapters.http.client import HTTPClientAdapter
+    from mcp_common.adapters.http.client import (  # ty: ignore[unresolved-import]
+        HTTPClientAdapter,
+    )
 
     from session_buddy.di.container import depends
 
@@ -217,7 +219,7 @@ class OllamaProvider(LLMProvider):
             msg = "aiohttp not installed and mcp-common not available"
             raise ImportError(msg)
 
-    async def stream_generate(  # type: ignore[override]
+    async def stream_generate(  # ty: ignore[invalid-method-override]
         self,
         messages: list[LLMMessage],
         model: str | None = None,

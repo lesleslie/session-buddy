@@ -22,7 +22,7 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Final
+from typing import Final, cast
 
 # Constants
 INSIGHT_DELIMITER_START: Final[str] = "`★ Insight ─────────────────────────────────────"
@@ -306,7 +306,7 @@ def _extract_reflection_insights(
         reflection_insights = extract_insights_from_response(
             response_content=reflection_content,
             conversation_id=conv_id,
-            reflection_id=reflection.get("id"),
+            reflection_id=cast("str | None", reflection.get("id")),
             min_confidence=min_confidence,
         )
         insights.extend(reflection_insights)
@@ -375,7 +375,7 @@ def extract_insights_from_context(
     all_insights: list[ExtractedInsight] = []
 
     # Extract from conversation history
-    conversation_history = context.get("conversation_history", [])
+    conversation_history = cast("list[object]", context.get("conversation_history", []))
     if isinstance(conversation_history, list):
         conversation_id = context.get("conversation_id")
         insights = _extract_conversation_insights(
@@ -384,7 +384,7 @@ def extract_insights_from_context(
         all_insights.extend(insights)
 
     # Extract from recent reflections
-    recent_reflections = context.get("recent_reflections", [])
+    recent_reflections = cast("list[object]", context.get("recent_reflections", []))
     if isinstance(recent_reflections, list):
         conversation_id = context.get("conversation_id")
         insights = _extract_reflection_insights(

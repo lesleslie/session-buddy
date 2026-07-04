@@ -22,7 +22,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 if TYPE_CHECKING:
     pass
@@ -104,6 +104,17 @@ class StoredMetrics:
     last_invoked: str | None
     completion_rate: float
     avg_duration_seconds: float
+
+
+class TransitionEntry(TypedDict):
+    """Per-key aggregate entry built when scanning skill invocations."""
+
+    from_phase: str | None
+    to_phase: str | None
+    invocation_count: int
+    most_common_skill: str | None
+    avg_transition_duration: float
+    _total_transition_duration: NotRequired[float]
 
 
 class SkillsStorage:
@@ -850,7 +861,7 @@ class SkillsStorage:
             rows = cursor.fetchall()
 
         # Calculate similarities
-        results = []
+        results: list[tuple[StoredInvocation, float]] = []
         query_vec = unpack_embedding(query_embedding)
 
         for row in rows:
@@ -1142,7 +1153,7 @@ class SkillsStorage:
     def get_workflow_phase_transitions(
         self,
         session_id: str | None = None,
-    ) -> list[dict[str, object]]:
+    ) -> list[TransitionEntry]:
         """Get workflow phase transition patterns.
 
         Analyzes how sessions move through workflow phases and which skills
@@ -1196,7 +1207,7 @@ class SkillsStorage:
 
             rows = cursor.fetchall()
 
-        transitions: dict[tuple[str, str, str], dict[str, object]] = {}
+        transitions: dict[tuple[str, str, str], TransitionEntry] = {}
         previous_by_session: dict[str, sqlite3.Row] = {}
 
         for row in rows:
@@ -1218,7 +1229,7 @@ class SkillsStorage:
                     "_total_transition_duration": 0.0,
                 },
             )
-            entry["invocation_count"] = int(entry["invocation_count"]) + 1  # type: ignore[call-overload]
+            entry["invocation_count"] = int(entry["invocation_count"]) + 1
             try:
                 transition_duration = (
                     datetime.fromisoformat(row["invoked_at"])
@@ -1227,14 +1238,14 @@ class SkillsStorage:
             except ValueError:
                 transition_duration = 0.0
             entry["_total_transition_duration"] = float(
-                entry["_total_transition_duration"]  # type: ignore[arg-type]
+                entry["_total_transition_duration"]
             ) + max(0.0, transition_duration)
             previous_by_session[session_key] = row
 
-        results: list[dict[str, object]] = []
+        results: list[TransitionEntry] = []
         for entry in transitions.values():
-            count = int(entry["invocation_count"])  # type: ignore[call-overload]
-            total_duration = float(entry.pop("_total_transition_duration", 0.0))  # type: ignore[arg-type]
+            count = int(entry["invocation_count"])
+            total_duration = float(entry.pop("_total_transition_duration", 0.0))
             entry["avg_transition_duration"] = total_duration / count if count else 0.0
             results.append(entry)
 
@@ -1799,7 +1810,7 @@ class SkillsStorage:
                 rows = cursor.fetchall()
 
                 # Calculate Jaccard similarity for each candidate
-                similar_users = []
+                similar_users: list[tuple[str, float]] = []
                 for row in rows:
                     other_user_id = row["other_user_id"]
                     common_skills = row["common_skills"]
@@ -1818,7 +1829,9 @@ class SkillsStorage:
 
                     # Jaccard similarity = |intersection| / |union|
                     union_size = len(target_skills) + other_total - common_skills
-                    jaccard = common_skills / union_size if union_size > 0 else 0.0
+                    jaccard = (
+                        float(common_skills) / union_size if union_size > 0 else 0.0
+                    )
 
                     similar_users.append((other_user_id, jaccard))
 

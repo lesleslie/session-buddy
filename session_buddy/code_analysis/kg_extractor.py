@@ -265,7 +265,7 @@ class KGExtractor:
                 if "error" in result and result.get("entities", 0) == 0:
                     results["failed"] += 1
                     results["errors"].append(
-                        {"file": str(file_path), "error": result.get("error")}
+                        {"file": str(file_path), "error": str(result.get("error", ""))}
                     )
                 else:
                     results["successful"] += 1

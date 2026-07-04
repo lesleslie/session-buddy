@@ -74,7 +74,7 @@ class JsonSchemaMixin:
             >>> print(schema["$schema"])
             https://json-schema.org/draft/2020-12/schema
         """
-        schema: dict[str, Any] = cls.model_json_schema()  # type: ignore[attr-defined]
+        schema: dict[str, Any] = cls.model_json_schema()  # ty: ignore[unresolved-attribute]
         schema["$schema"] = JSON_SCHEMA_DRAFT
         schema["event_version"] = SCHEMA_VERSION
         return schema

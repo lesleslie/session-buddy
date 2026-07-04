@@ -603,7 +603,7 @@ class QueryCacheManager:
         Returns:
             Future from run_in_executor
         """
-        self._track_operation(func.__name__)
+        self._track_operation(getattr(func, "__name__", "executor_func"))
 
         def _wrapper() -> Any:
             try:

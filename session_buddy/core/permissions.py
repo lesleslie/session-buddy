@@ -32,7 +32,7 @@ class SessionPermissionsManager:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         # Type checker knows this is Self from the annotation above
-        return cls._instance  # type: ignore[return-value]
+        return cls._instance  # ty: ignore[invalid-return-type]
 
     def __init__(self, claude_dir: Path) -> None:
         # Detect path changes: if the singleton was initialised for a

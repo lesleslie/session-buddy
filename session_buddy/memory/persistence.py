@@ -9,7 +9,7 @@ from pathlib import Path
 try:
     import duckdb
 except ImportError:
-    duckdb = None  # type: ignore[assignment]
+    duckdb: t.Any = None
 
 from session_buddy.memory.entity_extractor import (
     EntityRelationship,

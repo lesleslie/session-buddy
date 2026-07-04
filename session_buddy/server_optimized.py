@@ -28,8 +28,9 @@ if str(project_root) not in sys.path:
 
 # Lazy loading for FastMCP
 try:
-    from mcp_common.fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP as _RealFastMCP
 
+    FastMCP: Any = _RealFastMCP
     MCP_AVAILABLE = True
 except ImportError:
     # Check if we're in a test environment
@@ -65,7 +66,7 @@ except ImportError:
             def run(self, *args: Any, **kwargs: Any) -> None:
                 pass
 
-        FastMCP = MockFastMCP
+        FastMCP: Any = MockFastMCP
         MCP_AVAILABLE = False
     else:
         sys.exit(1)
@@ -93,7 +94,7 @@ configure_otel_tracing(
 lifecycle_manager = SessionLifecycleManager()
 
 # Global connection info for notification display
-_connection_info = None
+_connection_info: dict[str, Any] | None = None
 
 # Module-level task reference so shutdown can cancel the heartbeat loop
 _heartbeat_task: asyncio.Task[None] | None = None
@@ -330,7 +331,7 @@ async def session_welcome() -> str:
     )
 
     # Previous session info
-    previous = _connection_info.get("previous_session")
+    previous: dict[str, Any] | None = _connection_info.get("previous_session")
     if previous:
         output.extend(("\n📋 Previous Session Summary:", "-" * 30))
 
@@ -719,7 +720,6 @@ def run_server(host: str = "127.0.0.1", port: int = 8678) -> None:
         LoggingConfig(
             level="INFO",
             emit_json=False,  # Console output for local service readability
-            traceback_style="string",  # Human-readable tracebacks (not dict)
         )
     )
 

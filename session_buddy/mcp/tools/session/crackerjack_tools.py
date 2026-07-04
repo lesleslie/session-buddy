@@ -1254,7 +1254,7 @@ async def _crackerjack_metrics_impl(
         )
         if history:
             return _format_quality_metrics_history(days, history)
-    except Exception as e:
+    except Exception:
         _get_logger().exception(
             "Integration quality_metrics_history read failed",
             extra={"project_path": project_path, "days": days},

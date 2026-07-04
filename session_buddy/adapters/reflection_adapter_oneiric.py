@@ -951,10 +951,8 @@ class ReflectionDatabaseAdapterOneiric:
                 logger.debug("v2 schema statement skipped: %s", e)
                 # DuckDB marks the transaction aborted on any failed DDL.
                 # Roll back so subsequent statements can still execute.
-                try:
+                with suppress(Exception):  # noqa: BLE001 — best-effort
                     self.conn.execute("ROLLBACK")
-                except Exception:  # noqa: BLE001 — best-effort
-                    pass
 
     def _create_hnsw_indexes(self) -> None:
         """Create HNSW indexes for fast vector similarity search.
@@ -1215,7 +1213,7 @@ class ReflectionDatabaseAdapterOneiric:
             """
         ).fetchall()
 
-        duplicates = []
+        duplicates: list[dict[str, t.Any]] = []
 
         for row in result:
             existing_id = row[0]
@@ -2596,7 +2594,7 @@ class ReflectionDatabaseAdapterOneiric:
         for name in child_tables_in_fk_order:
             # ``reflections`` resolves via ``_table`` (collection-scoped
             # or global v2). All other tables are global v2 names.
-            if name in {"reflections"}:
+            if name == "reflections":
                 _drop(self._table(name))
             else:
                 _drop(name)

@@ -24,7 +24,7 @@ def _parse_version(value: str) -> tuple[int, ...]:
     """Parse the leading ``X.Y.Z`` triplet from a PEP 440 version string."""
     match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?", value)
     if match is None:
-        raise ValueError(f"Unparseable version: {value!r}")
+        raise ValueError(f"Unparsable version: {value!r}")
     parts: tuple[int, ...] = (
         int(match.group(1)),
         int(match.group(2)),

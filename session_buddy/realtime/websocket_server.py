@@ -28,8 +28,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import websockets
+from websockets.asyncio.server import ServerConnection
 from websockets.exceptions import ConnectionClosed
-from websockets.server import ServerConnection
 
 from session_buddy.realtime.auth import (
     AUTH_ENABLED,
@@ -107,7 +107,7 @@ class RealTimeMetricsServer:
         self.authenticator = get_authenticator()
 
         # Server state
-        self._server: websockets.server.WebSocketServer | None = None
+        self._server: websockets.Server | None = None
         self._broadcast_task: asyncio.Task[None] | None = None
         self._running = False
 
@@ -128,7 +128,7 @@ class RealTimeMetricsServer:
         """
         self.clients.add(websocket)
         # Initialize subscription to all skills
-        websocket.subscription_skill = None  # type: ignore[assignment]
+        websocket.subscription_skill = None  # ty: ignore[unresolved-attribute]
         logger.info(
             f"Client registered: {websocket.remote_address}, "  # type: ignore[attr-defined]
             f"total clients: {len(self.clients)}"
@@ -280,7 +280,7 @@ class RealTimeMetricsServer:
                     for client in self.clients:
                         try:
                             # Filter by subscription if set
-                            client_subscription: str | None = getattr(  # type: ignore[assignment]
+                            client_subscription: str | None = getattr(
                                 client, "subscription_skill", None
                             )
                             if client_subscription:
@@ -394,7 +394,7 @@ class RealTimeMetricsServer:
                 await self.handle_subscription(websocket, skill_name)
 
             elif msg_type == "unsubscribe":
-                websocket.subscription_skill = None  # type: ignore[assignment]
+                websocket.subscription_skill = None  # ty: ignore[unresolved-attribute]
                 logger.info(
                     f"Client {websocket.remote_address} unsubscribed from all skills"  # type: ignore[attr-defined]
                 )
@@ -422,7 +422,7 @@ class RealTimeMetricsServer:
         Example:
             >>> await server.handle_subscription(websocket, "pytest-run")
         """
-        websocket.subscription_skill = skill_name  # type: ignore[assignment]
+        websocket.subscription_skill = skill_name  # ty: ignore[unresolved-attribute]
         if skill_name:
             logger.info(
                 f"Client {websocket.remote_address} subscribed to skill: {skill_name}"  # type: ignore[attr-defined]
@@ -466,7 +466,7 @@ class RealTimeMetricsServer:
                 return
 
             # Attach user to websocket for later reference
-            websocket.user = user  # type: ignore[assignment]
+            websocket.user = user  # ty: ignore[unresolved-attribute]
 
         self.register_client(websocket)
 
@@ -487,7 +487,9 @@ class RealTimeMetricsServer:
             )
 
             # Handle incoming messages
-            async for message in websocket:  # type: ignore[iterable]
+            async for message in websocket:
+                if isinstance(message, bytes):
+                    message = message.decode("utf-8")
                 await self.handle_client_message(websocket, message)
 
         except ConnectionClosed:
