@@ -13,9 +13,9 @@ from datetime import datetime, timedelta
 from typing import Any
 
 try:
-    import tiktoken  # ty: ignore[unresolved-import]
+    import tiktoken
 except ImportError:
-    tiktoken = None  # type: ignore[assignment]
+    tiktoken: Any = None
 
 # ACB cache replaced with native dict-based cache
 _chunk_cache: dict[str, list[tuple[Any, ...]]] = {}

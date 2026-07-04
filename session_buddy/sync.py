@@ -600,7 +600,7 @@ async def sync_all_instances(
     # Create embedding service if not provided
     if embedding_service is None:
         try:
-            from akosha.processing.embeddings import EmbeddingService  # ty: ignore[unresolved-import]
+            from akosha.processing.embeddings import EmbeddingService
         except ImportError as e:
             raise ImportError(
                 "akosha is required for default embedding service. "
