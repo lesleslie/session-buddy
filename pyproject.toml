@@ -37,29 +37,8 @@ dependencies = [
     "scikit-learn>=1.9.0",
     "scipy>=1.17.1",
     "websockets>=16.0",
-    "mcp-common[treesitter,llm]>=0.17.0",
+    "mcp-common>=0.17.0",
     "dhara>=0.9.7",
-]
-
-# Optional dependencies for storage backends, LLM providers, and telemetry.
-# These are imported lazily behind try/except ImportError guards; install
-# the relevant extra to enable the feature. ty reports these imports as
-# unresolved in environments without the extra installed, which is why
-# each import site carries `# ty: ignore[unresolved-import]`.
-[project.optional-dependencies]
-storage = [
-    "redis>=5.0.0",
-    "boto3>=1.34.0",
-]
-llm = [
-    "anthropic>=0.39.0",
-    "tiktoken>=0.7.0",
-]
-telemetry = [
-    "opentelemetry-api>=1.20.0",
-    "opentelemetry-sdk>=1.20.0",
-    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
 ]
 
 [project.license]
@@ -239,12 +218,42 @@ exclude_patterns = [
 ]
 max_complexity = 15
 
+# PEP 735 dependency-groups (replaces [project.optional-dependencies]).
+# Install with: uv sync --group dev --group storage --group llm --group telemetry --group treesitter
 [dependency-groups]
 dev = [
     "crackerjack",
     "deadcode>=2.4.1",
     "factory-boy>=3.3.3",
     "faker>=40.20.0",
+]
+
+# mcp-common sub-features (formerly `mcp-common[treesitter,llm]` extras).
+# Now declared here per the Bodai PEP 735 standard.
+treesitter = [
+    "tree-sitter>=0.25.2",
+    "tree-sitter-python>=0.25.0",
+    "tree-sitter-go>=0.25.0",
+]
+llm-providers = [
+    "openai>=2.41.0",
+]
+
+# Session-buddy feature groups. All imports in these areas are behind
+# try/except ImportError guards; install the group to enable the feature.
+storage = [
+    "redis>=5.0.0",
+    "boto3>=1.34.0",
+]
+llm = [
+    "anthropic>=0.39.0",
+    "tiktoken>=0.7.0",
+]
+telemetry = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
 ]
 
 [tool.uv.sources]
