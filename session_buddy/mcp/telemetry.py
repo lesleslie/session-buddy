@@ -12,16 +12,16 @@ from typing import Any
 from mcp_common.server.telemetry import FastMCPOpenTelemetryMiddleware
 
 try:
-    from opentelemetry import trace
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+    from opentelemetry import trace  # ty: ignore[unresolved-import]
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # ty: ignore[unresolved-import]
         OTLPSpanExporter as OTLPGrpcSpanExporter,
     )
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (  # ty: ignore[unresolved-import]
         OTLPSpanExporter as OTLPHTTPSpanExporter,
     )
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import (
+    from opentelemetry.sdk.resources import Resource  # ty: ignore[unresolved-import]
+    from opentelemetry.sdk.trace import TracerProvider  # ty: ignore[unresolved-import]
+    from opentelemetry.sdk.trace.export import (  # ty: ignore[unresolved-import]
         BatchSpanProcessor,
     )
 
