@@ -1,0 +1,59 @@
+# Betterleaks configuration for session-buddy
+# Mirrors crackerjack's .betterleaks.toml structure so the comprehensive
+# hooks report stays actionable and free of known false positives.
+
+title = "Session Buddy Betterleaks Configuration"
+
+[allowlist]
+description = "Global allowlist for false positives"
+paths = [
+    # Documentation and example code containing sample secrets
+    '''\.claude/''',
+    '''\.md$''',
+    '''docs/''',
+    '''examples/''',
+
+    # IDE configuration files
+    '''\.idea/''',
+    '''\.vscode/''',
+
+    # Test files
+    '''tests/''',
+
+    # Lock files and configuration
+    '''uv\.lock$''',
+    '''pyproject\.toml$''',
+
+    # Build and cache directories
+    '''__pycache__/''',
+    '''build/''',
+    '''dist/''',
+    '''\.venv/''',
+
+    # Local cache directories (crackerjack, hypothesis, etc.)
+    '''\.cache/''',
+    '''\.hypothesis/''',
+
+    # Old release tarballs
+    '''session-buddy-\d+\.\d+\.\d+/''',
+
+    # Archive directory
+    '''archive/''',
+
+    # Log files
+    '''\.crackerjack/logs/''',
+]
+
+# Allow specific regex patterns that are known false positives in
+# session-buddy's configuration (model filenames are not credentials).
+regexes = [
+    # Ollama GGUF model filenames — high-entropy strings that match
+    # generic-api-key but are model identifiers, not secrets.
+    '''Qwen3-\d+B-\d+\.\d+B-Q\d+_K_[MS]''',
+    '''Qwen[\w.-]*Q\d+_K_[MS]''',
+    # Documentation placeholder API keys
+    '''YOUR_API_KEY''',
+    '''sk-1234567890''',
+    '''ghp_1234567890''',
+    '''abcdef1234567890''',
+]

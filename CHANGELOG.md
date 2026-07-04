@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.19.19] - 2026-07-04
+
+### Added
+
+- security: Add OWASP Agent Memory Guard at store_reflection write path
+- session-buddy: Plan 3 Tier 1 — export_markdown + lint_memory MCP tools
+- session-buddy: Plan 3 Tier 1 — wire export_markdown + lint_memory into server + profiles
+- session-buddy: Plan 7 Phase 2 — FastMCP 3.4 consumer bump
+
+### Changed
+
+- Session-buddy (quality: 64/100) - 2026-06-29 13:54:09
+
+### Fixed
+
+- mcp: Drop spurious await on get_activity_summary
+- session-buddy: Add ty ignore for optional-dep imports
+- session-buddy: Align v2/legacy reflections schema + cache read paths
+- session-buddy: Raise mcp-common floor + drop local source override (PyPI 0.17.0 ships submodule)
+- session-buddy: Remove unused ty ignore directives
+- session-buddy: Resolve ty errors across 6 batches
+
+### Documentation
+
+- plan: Phase 0 — session-buddy third-party notices
+
+### Testing
+
+- session-buddy: Task 4 — align test fixtures to new schema contracts
+
+### Internal
+
+- gitignore: Track .worktrees/ to silence worktree add artifacts
+- gitignore: Untrack .lycheecache (lychee link-checker cache)
+- Remove unused ty: ignore directives from mcp/telemetry.py
+- session-buddy: Migrate [project.optional-dependencies] → [dependency-groups]
+
 ## [0.19.13] - 2026-06-15
 
 ### Testing
