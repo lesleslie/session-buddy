@@ -429,7 +429,7 @@ class CICDTracker:
                     "successful_runs": metrics.successful_runs,
                     "success_rate": metrics.success_rate(),
                     "avg_duration_seconds": metrics.avg_duration_seconds(),
-                    "skills_used": metrics.skills_used.copy(),
+                    "skills_used": sorted(metrics.skills_used),
                 }
 
                 if metrics.common_failures:

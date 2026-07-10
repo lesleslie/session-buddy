@@ -21,12 +21,10 @@ from __future__ import annotations
 # at the bottom of this file are what external callers (and tests) use.
 from session_buddy.mcp.tools.memory.memory_tools import (
     register_memory_tools,
-)
-from session_buddy.mcp.tools.memory.memory_tools import (
-    quick_search as _quick_search_impl,  # ty: ignore[unresolved-import]
-    reflection_stats as _reflection_stats_impl,  # ty: ignore[unresolved-import]
-    search_by_concept as _search_by_concept_impl,  # ty: ignore[unresolved-import]
-    store_reflection as _store_reflection_impl,  # ty: ignore[unresolved-import]
+    _quick_search_impl,
+    _reflection_stats_impl,
+    _search_by_concept_impl,
+    _store_reflection_impl,
 )
 
 

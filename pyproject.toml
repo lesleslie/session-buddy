@@ -112,6 +112,12 @@ markers = [
     "external: External services required",
     "no_leaks: Asyncio task leak detection",
     "property: Property-based test",
+    "functional: Functional tests",
+    "async_test: mark test as requiring async event loop",
+    "db_test: mark test as requiring database",
+    "embedding_test: mark test as requiring embeddings",
+    "mcp: mark test as MCP-related",
+    "mcp_test: mark test is MCP server test",
 ]
 
 [tool.coverage.run]

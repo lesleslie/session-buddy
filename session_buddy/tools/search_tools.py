@@ -8,13 +8,13 @@ import them from the conventional ``session_buddy.tools.search_tools`` path.
 
 from __future__ import annotations
 
-from session_buddy.mcp.tools.memory.search_tools import register_search_tools
 from session_buddy.mcp.tools.memory.search_tools import (
-    quick_search as _quick_search_impl,  # ty: ignore[unresolved-import]
-    reflection_stats as _reflection_stats_impl,  # ty: ignore[unresolved-import]
-    search_by_concept as _search_by_concept_impl,  # ty: ignore[unresolved-import]
-    search_code as _search_code_impl,  # ty: ignore[unresolved-import]
-    store_reflection as _store_reflection_impl,  # ty: ignore[unresolved-import]
+    register_search_tools,
+    _quick_search_impl,
+    _reflection_stats_impl,
+    _search_by_concept_impl,
+    _search_code_impl,
+    _store_reflection_impl,
 )
 
 
@@ -40,11 +40,10 @@ async def search_by_concept(
     include_files: bool = True,
     limit: int = 10,
     project: str | None = None,
-    min_score: float = 0.7,
 ) -> str:
     """Search for conversations about a specific development concept."""
     return await _search_by_concept_impl(
-        concept, include_files, limit, project, min_score
+        concept, include_files, limit, project
     )
 
 

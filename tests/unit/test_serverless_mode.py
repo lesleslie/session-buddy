@@ -1274,3 +1274,90 @@ class TestSessionStateEdgeCases:
 
         assert isinstance(size, int)
         assert size > 0
+
+
+# --- Coverage gap tests for ServerlessConfigManager.test_storage_backends ---
+# These tests target the `except Exception` branch (lines 216-217 in
+# session_buddy/serverless_mode.py), which catches failures that surface
+# from adapter instantiation OR from `storage.is_available()` for already-
+# matched backends (file/memory).
+
+class TestTestStorageBackendsExceptionPaths:
+    """Targeted tests for test_storage_backends' exception-handling branch."""
+
+    @pytest.mark.asyncio
+    async def test_test_storage_backends_is_available_raises(self) -> None:
+        """If storage.is_available() raises, the result should be False."""
+        from session_buddy.serverless_mode import ServerlessConfigManager
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
+        )
+
+        config = {"backends": {"memory": {}}}
+
+        async def _boom() -> bool:
+            raise RuntimeError("boom")
+
+        with patch.object(
+            ServerlessStorageAdapter,
+            "is_available",
+            new=AsyncMock(side_effect=_boom),
+        ):
+            results = await ServerlessConfigManager.test_storage_backends(config)
+
+        assert results["memory"] is False
+
+    @pytest.mark.asyncio
+    async def test_test_storage_backends_mixed_success_and_exception(self) -> None:
+        """One backend succeeds and one raises; results reflect each independently."""
+        from session_buddy.serverless_mode import ServerlessConfigManager
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
+        )
+
+        config = {"backends": {"memory": {}, "file": {}}}
+
+        async def _available() -> bool:
+            return True
+
+        async def _boom() -> bool:
+            raise RuntimeError("boom")
+
+        original_is_available = ServerlessStorageAdapter.is_available
+
+        async def _selective(self):  # type: ignore[no-untyped-def]
+            if getattr(self, "backend", None) == "file":
+                raise RuntimeError("file backend unavailable")
+            return True
+
+        with patch.object(
+            ServerlessStorageAdapter,
+            "is_available",
+            new=_selective,
+        ):
+            results = await ServerlessConfigManager.test_storage_backends(config)
+
+        assert results["memory"] is True
+        assert results["file"] is False
+
+    @pytest.mark.asyncio
+    async def test_test_storage_backends_partial_failure_handled(self) -> None:
+        """Multiple exceptions produce multiple False entries without crashing."""
+        from session_buddy.serverless_mode import ServerlessConfigManager
+        from session_buddy.adapters.serverless_storage_adapter import (
+            ServerlessStorageAdapter,
+        )
+
+        config = {"backends": {"memory": {}, "file": {}}}
+
+        async def _always_raise(self):  # type: ignore[no-untyped-def]
+            raise RuntimeError("nope")
+
+        with patch.object(
+            ServerlessStorageAdapter,
+            "is_available",
+            new=_always_raise,
+        ):
+            results = await ServerlessConfigManager.test_storage_backends(config)
+
+        assert results == {"memory": False, "file": False}

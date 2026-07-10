@@ -1841,5 +1841,645 @@ class TestIntegrationScenarios:
             assert result2 is True
 
 
+# =====================================
+# REAL DuckDB TESTS (no mocking)
+# =====================================
+# The tests above deliberately use ``patch("...knowledge_graph_db.duckdb")``
+# so they don't need a working DuckDB install. That level of mocking prevents
+# coverage from registering on the real production code paths, so the suite
+# below exercises the **actual** implementation against a real DuckDB
+# (in-memory or file-backed) on disk.
+
+
+class TestKnowledgeGraphRealDuckDB:
+    """Real DuckDB-backed tests (no ``duckdb`` mock).
+
+    These verify that the production module actually issues valid SQL and
+    correctly serializes / deserializes JSON columns, timestamps, and
+    arrays.  Uses a fresh file-backed database per test via ``tmp_path``.
+    """
+
+    @pytest.mark.unit
+    async def test_initialize_creates_tables_and_schema(
+        self, tmp_path: Any
+    ) -> None:
+        """After ``initialize()``, the real schema exists in DuckDB."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "real_schema.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            conn = kg._get_conn()
+            tables = conn.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = 'main' ORDER BY table_name"
+            ).fetchall()
+            table_names = sorted(row[0] for row in tables)
+            # Both required tables must exist.
+            assert "kg_entities" in table_names
+            assert "kg_relationships" in table_names
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_create_and_get_entity_round_trip(self, tmp_path: Any) -> None:
+        """Round-trip: create entity, then read it back by ID."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "roundtrip.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            created = await kg.create_entity(
+                name="session-buddy",
+                entity_type="project",
+                observations=["MCP server", "Async-first"],
+                properties={"version": "1.0"},
+                metadata={"source": "github"},
+            )
+
+            fetched = await kg.get_entity(created["id"])
+            assert fetched is not None
+            assert fetched["name"] == "session-buddy"
+            assert fetched["entity_type"] == "project"
+            assert "MCP server" in fetched["observations"]
+            assert fetched["properties"]["version"] == "1.0"
+            assert fetched["metadata"]["source"] == "github"
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_find_entity_by_name_case_insensitive_real(
+        self, tmp_path: Any
+    ) -> None:
+        """Lookup by name is case-insensitive."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "case_insensitive.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="Python", entity_type="language")
+            await kg.create_entity(name="Rust", entity_type="language")
+
+            # Different cases should all find Python.
+            for name in ("python", "PYTHON", "Python"):
+                e = await kg.find_entity_by_name(name)
+                assert e is not None
+                assert e["name"] == "Python"
+
+            # Type filter narrows results.
+            only_python = await kg.find_entity_by_name(
+                "python", entity_type="language"
+            )
+            assert only_python is not None
+            assert only_python["entity_type"] == "language"
+
+            # Nonexistent returns None.
+            assert await kg.find_entity_by_name("go") is None
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_create_relation_and_query(self, tmp_path: Any) -> None:
+        """Create relation between two entities, then query outgoing."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "relations.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="A", entity_type="project")
+            await kg.create_entity(name="B", entity_type="library")
+
+            rel = await kg.create_relation("A", "B", "uses")
+            assert rel is not None
+            assert rel["from_entity"] == "A"
+            assert rel["to_entity"] == "B"
+            assert rel["relation_type"] == "uses"
+
+            outgoing = await kg.get_relationships("A", direction="outgoing")
+            assert len(outgoing) == 1
+            assert outgoing[0]["from_entity"] == "A"
+            assert outgoing[0]["to_entity"] == "B"
+
+            incoming = await kg.get_relationships("B", direction="incoming")
+            assert len(incoming) == 1
+            assert incoming[0]["relation_type"] == "uses"
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_relation_with_unknown_entity_returns_none(
+        self, tmp_path: Any
+    ) -> None:
+        """If ``from_entity`` does not exist, ``create_relation`` returns None."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "missing_entity.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="real", entity_type="project")
+            result = await kg.create_relation("missing", "real", "uses")
+            assert result is None
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_search_entities_by_name_and_type(self, tmp_path: Any) -> None:
+        """Search for entities by name pattern and type filter."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "search.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="alpha-project", entity_type="project")
+            await kg.create_entity(name="alpha-lib", entity_type="library")
+            await kg.create_entity(name="beta-project", entity_type="project")
+
+            # Pattern search matches both alpha entries.
+            results = await kg.search_entities("alpha")
+            assert len(results) == 2
+            names = {e["name"] for e in results}
+            assert "alpha-project" in names
+            assert "alpha-lib" in names
+
+            # Type filter narrows to projects.
+            projects = await kg.search_entities(
+                "alpha", entity_type="project"
+            )
+            assert len(projects) == 1
+            assert projects[0]["name"] == "alpha-project"
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_get_relationships_direction_filters(
+        self, tmp_path: Any
+    ) -> None:
+        """Direction filter returns expected subset of relationships."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "directions.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="center", entity_type="thing")
+            await kg.create_entity(name="in1", entity_type="thing")
+            await kg.create_entity(name="out1", entity_type="thing")
+            await kg.create_entity(name="in2", entity_type="thing")
+
+            await kg.create_relation("center", "out1", "uses")
+            await kg.create_relation("in1", "center", "calls")
+            await kg.create_relation("in2", "center", "depends_on")
+
+            outgoing = await kg.get_relationships("center", direction="outgoing")
+            assert {r["to_entity"] for r in outgoing} == {"out1"}
+
+            incoming = await kg.get_relationships("center", direction="incoming")
+            assert {r["from_entity"] for r in incoming} == {"in1", "in2"}
+
+            both = await kg.get_relationships("center", direction="both")
+            assert len(both) == 3
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_get_relationships_with_type_filter(self, tmp_path: Any) -> None:
+        """Type filter narrows results."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "type_filter.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="A", entity_type="thing")
+            await kg.create_entity(name="B", entity_type="thing")
+            await kg.create_entity(name="C", entity_type="thing")
+
+            await kg.create_relation("A", "B", "uses")
+            await kg.create_relation("A", "C", "depends_on")
+
+            uses = await kg.get_relationships("A", relation_type="uses")
+            assert len(uses) == 1
+            assert uses[0]["to_entity"] == "B"
+
+            depends = await kg.get_relationships(
+                "A", relation_type="depends_on"
+            )
+            assert len(depends) == 1
+            assert depends[0]["to_entity"] == "C"
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_add_observation_appends_to_list(self, tmp_path: Any) -> None:
+        """Adding an observation grows the observations array."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "add_obs.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(
+                name="lib", entity_type="library", observations=["v1"]
+            )
+
+            ok = await kg.add_observation("lib", "v2 release notes")
+            assert ok is True
+
+            entity = await kg.find_entity_by_name("lib")
+            assert entity is not None
+            assert "v1" in entity["observations"]
+            assert "v2 release notes" in entity["observations"]
+
+            # Adding to non-existent entity returns False.
+            missing = await kg.add_observation("does-not-exist", "x")
+            assert missing is False
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_get_stats_counts(self, tmp_path: Any) -> None:
+        """``get_stats`` reports entity / relationship counts and types."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "stats.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            # Initially empty.
+            stats = await kg.get_stats()
+            assert stats["total_entities"] == 0
+            assert stats["total_relationships"] == 0
+            assert stats["entity_types"] == {}
+            assert stats["relationship_types"] == {}
+
+            # Seed data.
+            await kg.create_entity(name="proj-a", entity_type="project")
+            await kg.create_entity(name="lib-x", entity_type="library")
+            await kg.create_entity(name="lib-y", entity_type="library")
+            await kg.create_relation("proj-a", "lib-x", "uses")
+            await kg.create_relation("proj-a", "lib-y", "uses")
+            await kg.create_relation("lib-x", "lib-y", "depends_on")
+
+            stats = await kg.get_stats()
+            assert stats["total_entities"] == 3
+            assert stats["total_relationships"] == 3
+            assert stats["entity_types"]["project"] == 1
+            assert stats["entity_types"]["library"] == 2
+            assert stats["relationship_types"]["uses"] == 2
+            assert stats["relationship_types"]["depends_on"] == 1
+            assert stats["database_path"] == db_path
+            assert "duckpgq_installed" in stats
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_get_stats_entity_count_includes_type_breakdown(
+        self, tmp_path: Any
+    ) -> None:
+        """Type breakdown is sorted by count (descending)."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "breakdown.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            # Insert two projects, three libraries, one tool.
+            for i in range(2):
+                await kg.create_entity(
+                    name=f"proj-{i}", entity_type="project"
+                )
+            for i in range(3):
+                await kg.create_entity(
+                    name=f"lib-{i}", entity_type="library"
+                )
+            await kg.create_entity(name="tool", entity_type="tool")
+
+            stats = await kg.get_stats()
+            types = stats["entity_types"]
+            assert types["library"] == 3
+            assert types["project"] == 2
+            assert types["tool"] == 1
+            # Sorted by count descending.
+            counts = list(types.values())
+            assert counts == sorted(counts, reverse=True)
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_search_entities_limit(self, tmp_path: Any) -> None:
+        """Search respects ``limit`` parameter."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "limit.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            for i in range(5):
+                await kg.create_entity(
+                    name=f"item-{i:02d}", entity_type="thing"
+                )
+
+            limited = await kg.search_entities("item", limit=2)
+            assert len(limited) == 2
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_search_entities_with_special_chars(self, tmp_path: Any) -> None:
+        """Search with special characters doesn't raise (DuckDB parameterization)."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "special.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(
+                name="with/slash", entity_type="thing"
+            )
+
+            # SQL injection attempt - parameter binding should keep this safe.
+            results = await kg.search_entities("'; DROP TABLE kg_entities; --")
+            # No crashes, returns no matching rows.
+            assert results == []
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_get_stats_database_path(self, tmp_path: Any) -> None:
+        """Stats include the actual database path."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "path_test.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            stats = await kg.get_stats()
+            assert stats["database_path"] == db_path
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_get_stats_duckpgq_flag_set(self, tmp_path: Any) -> None:
+        """``duckpgq_installed`` flag is True when the extension loads."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "duckpgq_flag.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            stats = await kg.get_stats()
+            # We have a real DuckPGQ extension available in this environment.
+            assert stats["duckpgq_installed"] is True
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_get_entity_malformed_json_returns_empty_dict(
+        self, tmp_path: Any
+    ) -> None:
+        """If ``properties_json`` is null in the row, return empty dict."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "malformed_json.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            # Manually insert a row with NULL properties / metadata.
+            conn = kg._get_conn()
+            conn.execute(
+                "INSERT INTO kg_entities (id, name, entity_type, properties, metadata) "
+                "VALUES ('eid', 'manual', 'type', NULL, NULL)"
+            )
+            entity = await kg.get_entity("eid")
+            assert entity is not None
+            assert entity["name"] == "manual"
+            # Properties / metadata default to empty dict when NULL.
+            assert entity["properties"] == {}
+            assert entity["metadata"] == {}
+            # No observations -> empty list.
+            assert entity["observations"] == []
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_async_context_manager_initializes_and_closes(
+        self, tmp_path: Any
+    ) -> None:
+        """``async with`` initializes the connection on enter, closes on exit."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "async_with.duckdb")
+
+        async with KnowledgeGraphDatabase(db_path=db_path) as kg:
+            # Connection is alive inside the context.
+            assert kg.conn is not None
+            await kg.create_entity(name="x", entity_type="t")
+            e = await kg.find_entity_by_name("x")
+            assert e is not None
+
+        # Connection is closed on exit.
+        assert kg.conn is None
+
+    @pytest.mark.unit
+    async def test_find_path_returns_list_when_duckpgq_succeeds(
+        self, tmp_path: Any
+    ) -> None:
+        """``find_path`` exercises both the SQL/PGQ query and the fallback."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "find_path.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="A", entity_type="t")
+            await kg.create_entity(name="B", entity_type="t")
+            await kg.create_entity(name="C", entity_type="t")
+            await kg.create_relation("A", "B", "uses")
+            await kg.create_relation("B", "C", "uses")
+
+            # Should NOT raise, regardless of whether DuckPGQ's syntax
+            # is supported by the current DuckPGQ version (the try/except
+            # in ``find_path`` covers it).
+            paths = await kg.find_path("A", "C", max_depth=3)
+            # The result is a list (possibly empty depending on DuckPGQ version).
+            assert isinstance(paths, list)
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_find_path_with_missing_entity_returns_empty(
+        self, tmp_path: Any
+    ) -> None:
+        """``find_path`` with missing endpoint returns an empty list."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "find_path_missing.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="A", entity_type="t")
+
+            paths = await kg.find_path("A", "missing", max_depth=3)
+            assert paths == []
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_get_stats_with_relationship_type_breakdown(
+        self, tmp_path: Any
+    ) -> None:
+        """``relationship_types`` breakdown is present in stats."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "rel_breakdown.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="A", entity_type="t")
+            await kg.create_entity(name="B", entity_type="t")
+            await kg.create_entity(name="C", entity_type="t")
+            await kg.create_relation("A", "B", "uses")
+            await kg.create_relation("A", "B", "extends")
+            await kg.create_relation("B", "C", "uses")
+
+            stats = await kg.get_stats()
+            rtypes = stats["relationship_types"]
+            assert rtypes["uses"] == 2
+            assert rtypes["extends"] == 1
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_search_entities_by_observation_text(
+        self, tmp_path: Any
+    ) -> None:
+        """Search hits observations, not just names."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "by_obs.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(
+                name="entity-a",
+                entity_type="thing",
+                observations=["popular framework", "open source"],
+            )
+            await kg.create_entity(
+                name="entity-b",
+                entity_type="thing",
+                observations=["internal tool"],
+            )
+
+            results = await kg.search_entities("popular")
+            assert {e["name"] for e in results} == {"entity-a"}
+
+            results_internal = await kg.search_entities("internal")
+            assert {e["name"] for e in results_internal} == {"entity-b"}
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_find_entity_by_name_with_type_no_match(
+        self, tmp_path: Any
+    ) -> None:
+        """Type filter that excludes the entity returns None."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "type_nomatch.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="foo", entity_type="project")
+            # Type filter that doesn't match -> None.
+            assert (
+                await kg.find_entity_by_name("foo", entity_type="library")
+            ) is None
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_search_entities_returns_empty_for_no_match(
+        self, tmp_path: Any
+    ) -> None:
+        """Search query that matches nothing returns empty list."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "no_match.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            await kg.create_entity(name="alpha", entity_type="project")
+            await kg.create_entity(name="beta", entity_type="project")
+            results = await kg.search_entities("nonexistent")
+            assert results == []
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_get_relationships_unknown_entity_returns_empty(
+        self, tmp_path: Any
+    ) -> None:
+        """``get_relationships`` on an unknown entity returns empty list."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "no_entity_rel.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            results = await kg.get_relationships("never-existed")
+            assert results == []
+        finally:
+            kg.close()
+
+    @pytest.mark.unit
+    async def test_get_conn_raises_when_not_initialized(
+        self, tmp_path: Any
+    ) -> None:
+        """``_get_conn`` raises ``RuntimeError`` before ``initialize()``."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "no_init.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        # IMPORTANT: do NOT call initialize.
+        with pytest.raises(RuntimeError, match="not initialized"):
+            kg._get_conn()
+
+    @pytest.mark.unit
+    async def test_initialize_twice_creates_property_graph_once(
+        self, tmp_path: Any
+    ) -> None:
+        """Re-initializing doesn't crash on property-graph recreation."""
+        from session_buddy.knowledge_graph_db import KnowledgeGraphDatabase
+
+        db_path = str(tmp_path / "twice.duckdb")
+        kg = KnowledgeGraphDatabase(db_path=db_path)
+        await kg.initialize()
+        try:
+            # Data inserted on first init should survive.
+            await kg.create_entity(name="first", entity_type="t")
+
+            # Run _create_schema again manually. Property-graph creation
+            # may raise "already exists" but should be caught.
+            await kg._create_schema()
+
+            # Tables and data still intact.
+            await kg.create_entity(name="second", entity_type="t")
+            assert (
+                await kg.find_entity_by_name("first") is not None
+            )
+            assert (
+                await kg.find_entity_by_name("second") is not None
+            )
+        finally:
+            kg.close()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

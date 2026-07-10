@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import types
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch, call
@@ -1350,6 +1351,349 @@ class TestHelperFunctions:
         _cleanup_handler(handler)
 
         handler.flush.assert_called_once()
+
+
+# --- Coverage gap tests ---
+#
+# The existing suite already covers most branches. The classes below target
+# lines uncovered in the initial coverage report:
+#
+#   59            -> _close_adapter_method `await maybe_await`
+#   96-113, 118   -> cleanup_http_clients: _cleanup_resources path,
+#                    underlying-client fallback paths, and outer Exception
+#   120           -> cleanup_http_clients outer Exception branch that re-raises
+#   273-275       -> cleanup_logging_handlers outer Exception branch
+#   282, 287, 289 -> _cleanup_handler edge branches
+#                    (remove-without-flush / only-close / only-flush)
+#   372           -> register_all_cleanup_handlers temp_files wrapper invocation
+
+
+class TestCloseAdapterMethodCoverageGap:
+    """Target the `await maybe_await` branch (line 59)."""
+
+    @pytest.mark.asyncio
+    async def test_close_adapter_method_truly_awaits_native_coroutine(
+        self, mock_logger
+    ):
+        """Force the await branch with a real native coroutine and assert it ran."""
+        import asyncio
+
+        from session_buddy.resource_cleanup import _close_adapter_method
+
+        called = []
+
+        class NativeAdapter:
+            def close(self):  # noqa: D401 - simple attribute
+                async def _coro() -> None:
+                    called.append("invoked")
+
+                return _coro()
+
+        adapter = NativeAdapter()
+        result = await _close_adapter_method(adapter, mock_logger)
+
+        assert result is True
+        # Drain any remaining task state before pytest-asyncio asserts.
+        await asyncio.sleep(0)
+        assert called == ["invoked"]
+
+
+class TestCleanupHttpClientsCoverageGap:
+    """Target lines 96-113 and 118-120 of resource_cleanup.py.
+
+    The production import ``from mcp_common.adapters.http.client import
+    HTTPClientAdapter`` does not exist in this environment (the ty/type
+    comment ``# ty: ignore[unresolved-import]`` confirms the upstream is
+    aware). To exercise the post-import branch we inject the symbol via
+    ``sys.modules`` so the ``import`` statement resolves cleanly.
+    """
+
+    @pytest.fixture
+    def injected_http_adapter(self):
+        """Inject mcp_common.adapters.http.client.HTTPClientAdapter into sys.modules."""
+        fake_client_module = types.ModuleType("mcp_common.adapters.http.client")
+        # Use a real sentinel class so it can be used as a `spec` for MagicMock.
+        class _HTTPClientAdapter:  # noqa: D401 - fake for injection only
+            pass
+
+        fake_client_module.HTTPClientAdapter = _HTTPClientAdapter
+        sys.modules.setdefault("mcp_common", types.ModuleType("mcp_common"))
+        sys.modules.setdefault(
+            "mcp_common.adapters", types.ModuleType("mcp_common.adapters")
+        )
+        sys.modules[
+            "mcp_common.adapters.http"
+        ] = types.ModuleType("mcp_common.adapters.http")
+        sys.modules["mcp_common.adapters.http.client"] = fake_client_module
+        # Force the production module to re-import the symbol freshly so it
+        # picks up our injected module even after a previous failed import.
+        sys.modules.pop("session_buddy.resource_cleanup", None)
+        return fake_client_module.HTTPClientAdapter
+
+    @pytest.mark.asyncio
+    async def test_cleanup_http_clients_via_cleanup_resources_sync(
+        self, mock_logger, injected_http_adapter
+    ):
+        """Adapter has _cleanup_resources (sync) — it should run and return."""
+        from session_buddy.resource_cleanup import cleanup_http_clients  # re-imported
+
+        cleanup_called = []
+
+        class FakeAdapter:
+            def _cleanup_resources(self) -> None:
+                cleanup_called.append("sync")
+
+        adapter = FakeAdapter()
+
+        with (
+            patch(
+                "session_buddy.resource_cleanup._get_logger",
+                return_value=mock_logger,
+            ),
+            patch("session_buddy.di.container.depends") as mock_depends,
+        ):
+            mock_depends.get_sync.return_value = adapter
+
+            await cleanup_http_clients()
+
+        assert cleanup_called == ["sync"]
+
+    @pytest.mark.asyncio
+    async def test_cleanup_http_clients_via_cleanup_resources_async(
+        self, mock_logger, injected_http_adapter
+    ):
+        """Adapter has _cleanup_resources returning awaitable — await it."""
+        from session_buddy.resource_cleanup import cleanup_http_clients  # re-imported
+
+        cleanup_calls = []
+
+        class FakeAdapter:
+            def _cleanup_resources(self):  # returns native coroutine
+                async def _coro() -> None:
+                    cleanup_calls.append("awaited")
+
+                return _coro()
+
+        adapter = FakeAdapter()
+
+        with (
+            patch(
+                "session_buddy.resource_cleanup._get_logger",
+                return_value=mock_logger,
+            ),
+            patch("session_buddy.di.container.depends") as mock_depends,
+        ):
+            mock_depends.get_sync.return_value = adapter
+
+            await cleanup_http_clients()
+            # Let scheduled coroutines drain.
+            import asyncio
+
+            await asyncio.sleep(0)
+
+        assert cleanup_calls == ["awaited"]
+
+    @pytest.mark.asyncio
+    async def test_cleanup_http_clients_falls_back_to_adapter_close(
+        self, mock_logger, injected_http_adapter
+    ):
+        """Adapter has no _cleanup_resources — fall through to close adapter."""
+        from session_buddy.resource_cleanup import cleanup_http_clients  # re-imported
+
+        close_calls = []
+
+        class FakeAdapter:
+            def close(self):  # returns native coroutine
+                async def _coro() -> None:
+                    close_calls.append("awaited")
+
+                return _coro()
+
+        adapter = FakeAdapter()
+
+        with (
+            patch(
+                "session_buddy.resource_cleanup._get_logger",
+                return_value=mock_logger,
+            ),
+            patch("session_buddy.di.container.depends") as mock_depends,
+        ):
+            mock_depends.get_sync.return_value = adapter
+
+            await cleanup_http_clients()
+            # Drain.
+            import asyncio
+
+            await asyncio.sleep(0)
+
+        assert close_calls == ["awaited"]
+
+    @pytest.mark.asyncio
+    async def test_cleanup_http_clients_falls_back_to_underlying_client_aclose(
+        self, mock_logger, injected_http_adapter
+    ):
+        """Adapter has no close() — fall back to underlying client aclose."""
+        from session_buddy.resource_cleanup import cleanup_http_clients  # re-imported
+
+        aclose_calls = []
+
+        class FakeClient:
+            async def aclose(self) -> None:
+                aclose_calls.append("awaited")
+
+        client = FakeClient()
+
+        # Use plain object so we can attach .client dynamically without
+        # running into Python class-scope NameError issues.
+        adapter = type("FakeAdapter", (), {})()
+        adapter.client = client  # type: ignore[attr-defined] dynamically attached
+
+        with (
+            patch(
+                "session_buddy.resource_cleanup._get_logger",
+                return_value=mock_logger,
+            ),
+            patch("session_buddy.di.container.depends") as mock_depends,
+        ):
+            mock_depends.get_sync.return_value = adapter
+
+            await cleanup_http_clients()
+
+        assert aclose_calls == ["awaited"]
+
+    @pytest.mark.asyncio
+    async def test_cleanup_http_clients_outer_exception_reraises(
+        self, mock_logger, injected_http_adapter
+    ):
+        """An Exception raised by _cleanup_resources escapes the inner except.
+
+        The inner ``except Exception`` only wraps ``depends.get_sync``. A
+        RuntimeError raised later (by the cleanup function itself) is caught
+        by the OUTER ``except Exception``, which logs and re-raises.
+        """
+        from session_buddy.resource_cleanup import cleanup_http_clients  # re-imported
+
+        class FakeAdapter:
+            def _cleanup_resources(self) -> None:
+                raise RuntimeError("kaboom")
+
+        adapter = FakeAdapter()
+
+        with (
+            patch(
+                "session_buddy.resource_cleanup._get_logger",
+                return_value=mock_logger,
+            ),
+            patch("session_buddy.di.container.depends") as mock_depends,
+        ):
+            mock_depends.get_sync.return_value = adapter
+
+            with pytest.raises(RuntimeError, match="kaboom"):
+                await cleanup_http_clients()
+
+            mock_logger.exception.assert_called()
+
+
+class TestCleanupLoggingHandlersCoverageGap:
+    """Target line 273-275 — outer Exception branch in cleanup_logging_handlers.
+
+    The production code copies the handlers list and iterates a copy:
+
+        for handler in logging.root.handlers.copy():
+            _cleanup_handler(handler)
+
+    Patching ``logging.root.handlers`` with a custom object that raises
+    ``.copy()`` makes the outer ``except Exception`` block fire.
+    """
+
+    @pytest.mark.asyncio
+    async def test_cleanup_logging_handlers_outer_exception_reraises(
+        self, mock_logger
+    ):
+        """Iteration over handlers.copy() raises — exception logs + re-raises."""
+        from session_buddy.resource_cleanup import cleanup_logging_handlers
+
+        class _BoomList(list):
+            def copy(self):  # noqa: D401 - in-test helper
+                raise RuntimeError("iter failed")
+
+        fake_handlers = _BoomList()
+
+        with (
+            patch(
+                "session_buddy.resource_cleanup._get_logger",
+                return_value=mock_logger,
+            ),
+            patch("logging.root.handlers", fake_handlers),
+        ):
+            with pytest.raises(RuntimeError, match="iter failed"):
+                await cleanup_logging_handlers()
+
+            mock_logger.exception.assert_called()
+
+
+class TestCleanupHandlerCoverageGap:
+    """Target lines 282 / 287 / 289 of _cleanup_handler."""
+
+    def test_cleanup_handler_remove_without_flush(self):
+        """`hasattr(handler, 'remove') and not hasattr(handler, 'flush')` short-circuits."""
+        from session_buddy.resource_cleanup import _cleanup_handler
+
+        handler = MagicMock(spec=["remove"])  # only remove attribute
+        _cleanup_handler(handler)
+        # Must return early without touching remove().
+
+    def test_cleanup_handler_only_close(self):
+        """Handler with only close — fall through to elif close branch."""
+        from session_buddy.resource_cleanup import _cleanup_handler
+
+        handler = MagicMock(spec=["close"])
+        handler.close = MagicMock()
+        _cleanup_handler(handler)
+        handler.close.assert_called_once()
+
+    def test_cleanup_handler_only_flush(self):
+        """Handler with only flush — fall through to final elif flush branch."""
+        from session_buddy.resource_cleanup import _cleanup_handler
+
+        handler = MagicMock(spec=["flush"])
+        handler.flush = MagicMock()
+        _cleanup_handler(handler)
+        handler.flush.assert_called_once()
+
+
+class TestRegisterAllCleanupHandlersWrapperInvocation:
+    """Target line 372 — directly invoke the registered temp_files wrapper."""
+
+    @pytest.mark.asyncio
+    async def test_temp_files_wrapper_invokes_cleanup_temp_files(
+        self, tmp_path: Path
+    ):
+        """The async wrapper around `cleanup_temp_files(temp_dir)` must await it."""
+        from session_buddy.resource_cleanup import register_all_cleanup_handlers
+
+        # Seed a temp file in tmp_path.
+        (tmp_path / "leftover.tmp").write_text("data")
+
+        mock_shutdown_manager = MagicMock()
+        register_all_cleanup_handlers(mock_shutdown_manager, temp_dir=tmp_path)
+
+        # Recover the wrapper that was registered.
+        temp_files_call = next(
+            call
+            for call in mock_shutdown_manager.register_cleanup.call_args_list
+            if call[1]["name"] == "temp_files"
+        )
+        wrapper = temp_files_call[1]["callback"]
+
+        with patch("session_buddy.resource_cleanup._get_logger") as mock_get_logger:
+            mock_logger = MagicMock()
+            mock_get_logger.return_value = mock_logger
+
+            await wrapper()
+
+        # The wrapper must have actually unlinked our file via the inner call.
+        assert not (tmp_path / "leftover.tmp").exists()
 
 
 if __name__ == "__main__":
