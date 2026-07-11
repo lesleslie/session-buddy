@@ -295,13 +295,14 @@ async def get_interruption_statistics(user_id: str) -> str:
         sessions = stats.get("sessions", {})
         interruptions = stats.get("interruptions", {})
         snapshots = stats.get("snapshots", {})
-        by_type = interruptions.get("by_type", [])
 
         # Format all sections
         output.extend(_format_session_statistics(sessions))
         output.extend(_format_interruption_statistics(interruptions))
         output.extend(_format_snapshot_statistics(snapshots))
-        output.extend(_format_efficiency_metrics(sessions, interruptions, by_type))
+        # _format_efficiency_metrics expects (sessions, interruptions, snapshots) dicts —
+        # not the by_type list. Earlier this passed by_type, breaking recovery_rate computation.
+        output.extend(_format_efficiency_metrics(sessions, interruptions, snapshots))
 
         # Check if we have any data
         if not _has_statistics_data(sessions, interruptions, snapshots):

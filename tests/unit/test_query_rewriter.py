@@ -710,3 +710,183 @@ class TestQueryRewriterIntegration:
         )
 
         assert result2.cache_hit is False
+
+
+class TestQueryRewriterEdgeCases:
+    """Additional tests targeting uncovered edge cases."""
+
+    @pytest.fixture
+    def rewriter(self) -> QueryRewriter:
+        return QueryRewriter()
+
+    def test_extract_rewritten_query_no_prefix(self, rewriter: QueryRewriter) -> None:
+        """Response with no quotes and no known prefix is returned unchanged."""
+        # Covers the else branch in the prefix-removal loop (no prefix matches)
+        assert (
+            rewriter._extract_rewritten_query("just a plain expanded query")
+            == "just a plain expanded query"
+        )
+
+    def test_extract_rewritten_query_alternate_prefix(self, rewriter: QueryRewriter) -> None:
+        """The 'The expanded query is:' prefix is recognised and stripped."""
+        assert (
+            rewriter._extract_rewritten_query("The expanded query is: fix the JWT bug")
+            == "fix the JWT bug"
+        )
+
+    def test_extract_rewritten_query_query_prefix(self, rewriter: QueryRewriter) -> None:
+        """The standalone 'Query:' prefix is recognised and stripped."""
+        assert (
+            rewriter._extract_rewritten_query("Query: how to deploy with uv")
+            == "how to deploy with uv"
+        )
+
+    def test_extract_rewritten_query_only_quotes(self, rewriter: QueryRewriter) -> None:
+        """A response containing only quotes (no inner prefix) is unquoted but not modified further."""
+        assert rewriter._extract_rewritten_query('"raw quoted body"') == "raw quoted body"
+
+    def test_extract_rewritten_query_whitespace_padded(self, rewriter: QueryRewriter) -> None:
+        """Leading/trailing whitespace is stripped before prefix matching."""
+        assert (
+            rewriter._extract_rewritten_query("   Expanded query: clean text   ")
+            == "clean text"
+        )
+
+    def test_compute_cache_key_none_project(self, rewriter: QueryRewriter) -> None:
+        """Cache key with project=None is stable across calls."""
+        key1 = rewriter._compute_cache_key("query", None)
+        key2 = rewriter._compute_cache_key("query", None)
+        assert key1 == key2
+        # Different from the same query with a real project
+        assert key1 != rewriter._compute_cache_key("query", "some-project")
+
+    def test_compute_cache_key_different_queries_same_project(
+        self, rewriter: QueryRewriter
+    ) -> None:
+        """Different queries in the same project produce different cache keys."""
+        key1 = rewriter._compute_cache_key("alpha", "project-x")
+        key2 = rewriter._compute_cache_key("beta", "project-x")
+        assert key1 != key2
+
+    @pytest.mark.asyncio
+    async def test_rewrite_query_with_no_conversations(self, rewriter: QueryRewriter) -> None:
+        """A context with empty recent_conversations and recent_files still rewrites."""
+        context = RewriteContext(
+            query="fix it",
+            recent_conversations=[],
+            project=None,
+            recent_files=[],
+            session_context={},
+        )
+
+        result = await rewriter.rewrite_query(
+            query=context.query,
+            context=context,
+            force_rewrite=False,
+        )
+
+        # "fix it" is PRONOUN_IT, so ambiguity is detected
+        assert result is not None
+        # Without a real LLM, the failure path falls back to returning the original
+        assert result.original_query == "fix it"
+        # Fallback sets was_rewritten=False on LLM failure
+        assert result.was_rewritten is False
+
+    @pytest.mark.asyncio
+    async def test_rewrite_query_uses_real_llm_when_available(
+        self, rewriter: QueryRewriter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When the LLM is available, the rewriter records the provider and a rewrite."""
+        fake_llm = MagicMock()
+        fake_llm.call_llm = AsyncMock(
+            return_value="Expanded query: replace with httpx retry"
+        )
+        fake_depends = types.SimpleNamespace(get_sync=MagicMock(return_value=fake_llm))
+
+        import session_buddy.di as di_pkg
+
+        monkeypatch.setattr(di_pkg, "depends", fake_depends, raising=False)
+        monkeypatch.setattr(
+            rewriter,
+            "_get_llm_provider",
+            AsyncMock(return_value="anthropic"),
+        )
+
+        context = RewriteContext(
+            query="update it",
+            recent_conversations=[
+                {"content": "we were discussing the retry policy"},
+            ],
+            project="session-buddy",
+            recent_files=["session_buddy/client.py"],
+            session_context={},
+        )
+
+        result = await rewriter.rewrite_query(
+            query=context.query,
+            context=context,
+            force_rewrite=False,
+        )
+
+        assert result.was_rewritten is True
+        assert result.rewritten_query == "replace with httpx retry"
+        assert result.llm_provider == "anthropic"
+        assert result.context_used is True
+        # Stats should be updated
+        assert rewriter._stats["total_rewrites"] == 1
+
+    @pytest.mark.asyncio
+    async def test_rewrite_query_falls_back_on_llm_failure(
+        self, rewriter: QueryRewriter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When _llm_expand_query raises, the rewriter falls back to the original query."""
+        monkeypatch.setattr(
+            rewriter,
+            "_llm_expand_query",
+            AsyncMock(side_effect=RuntimeError("LLM unavailable")),
+        )
+
+        context = RewriteContext(
+            query="delete it",
+            recent_conversations=[],
+            project=None,
+            recent_files=[],
+            session_context={},
+        )
+
+        result = await rewriter.rewrite_query(
+            query=context.query,
+            context=context,
+            force_rewrite=False,
+        )
+
+        # Should return original without rewriting
+        assert result.was_rewritten is False
+        assert result.rewritten_query == "delete it"
+        assert result.llm_provider is None
+        # LLM failure is recorded
+        assert rewriter._stats["llm_failures"] >= 1
+
+    def test_calculate_confidence_short_query_with_pronoun(
+        self, rewriter: QueryRewriter
+    ) -> None:
+        """Confidence boosts for both pronoun and short query combine up to the cap."""
+        detection = rewriter.detector.detect_ambiguity("fix it")
+        # base 0.5 + 0.3 (pronoun) + 0.2 (short) = 1.0
+        assert detection.confidence == pytest.approx(1.0, abs=1e-6)
+
+    def test_detector_ignores_empty_string(self, rewriter: QueryRewriter) -> None:
+        """Detector returns no ambiguity for an empty string."""
+        detection = rewriter.detector.detect_ambiguity("")
+        assert detection.is_ambiguous is False
+        assert detection.ambiguity_types == []
+        assert detection.confidence == 0.0
+
+    def test_detector_preserves_query_case(self, rewriter: QueryRewriter) -> None:
+        """Detector lowercases internally but matched_patterns stores the original pattern."""
+        detection = rewriter.detector.detect_ambiguity("WHAT DID I LEARN")
+        assert detection.is_ambiguous is True
+        # matched_patterns should retain at least one entry
+        assert detection.matched_patterns
+        # AmbiguityDetection is a dataclass with the expected fields
+        assert isinstance(detection.suggestions, list)
