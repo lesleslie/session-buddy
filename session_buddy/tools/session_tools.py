@@ -8,11 +8,11 @@ path.
 
 from __future__ import annotations
 
-from session_buddy.mcp.tools.session.session_tools import register_session_tools
 from session_buddy.mcp.tools.session.session_tools import (
     _checkpoint_impl,
     _end_impl,
     _start_impl,
+    register_session_tools,
 )
 
 

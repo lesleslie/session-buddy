@@ -9,7 +9,6 @@ Refactored to use utility modules for reduced code duplication.
 
 from __future__ import annotations
 
-import asyncio
 import shutil
 import subprocess  # nosec B404
 from contextlib import suppress
@@ -809,7 +808,11 @@ async def _checkpoint_impl(working_directory: str | None = None) -> str:
                 "recommendations": [],
             }
             result["quality_data"] = quality_data
-        elif result.get("success") and isinstance(quality_data, dict) and "total_score" not in quality_data:
+        elif (
+            result.get("success")
+            and isinstance(quality_data, dict)
+            and "total_score" not in quality_data
+        ):
             _get_logger().error(
                 "Quality data missing 'total_score' key. Keys: %s",
                 list(quality_data.keys()),

@@ -33,9 +33,7 @@ async def get_health_status(
         Dictionary with status, timestamp, version, uptime_seconds,
         components, and probe-specific keys (alive/ready, metadata).
     """
-    components: list[
-        ComponentHealth
-    ] = await health_checks.get_all_health_checks()
+    components: list[ComponentHealth] = await health_checks.get_all_health_checks()
 
     # Convert ComponentHealth dataclasses to dicts if needed
     serialised: list[dict[str, Any]] = []

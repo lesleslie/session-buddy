@@ -105,7 +105,7 @@ class TestCalculateOverdueTimeEdges:
         assert "Not yet due" in result
 
     def test_empty_string_returns_error(self) -> None:
-        """Empty input is unparseable - falls through to the except clause."""
+        """Empty input is unparsable - falls through to the except clause."""
         from session_buddy.advanced_features import _calculate_overdue_time
 
         result = _calculate_overdue_time("")

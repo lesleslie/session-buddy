@@ -9,18 +9,16 @@ import them from the conventional ``session_buddy.tools.search_tools`` path.
 from __future__ import annotations
 
 from session_buddy.mcp.tools.memory.search_tools import (
-    register_search_tools,
     _quick_search_impl,
     _reflection_stats_impl,
     _search_by_concept_impl,
     _search_code_impl,
     _store_reflection_impl,
+    register_search_tools,
 )
 
 
-async def store_reflection(
-    content: str, tags: list[str] | None = None
-) -> str:
+async def store_reflection(content: str, tags: list[str] | None = None) -> str:
     """Store an important insight or reflection for future reference."""
     return await _store_reflection_impl(content, tags)
 
@@ -42,9 +40,7 @@ async def search_by_concept(
     project: str | None = None,
 ) -> str:
     """Search for conversations about a specific development concept."""
-    return await _search_by_concept_impl(
-        concept, include_files, limit, project
-    )
+    return await _search_by_concept_impl(concept, include_files, limit, project)
 
 
 async def search_code(

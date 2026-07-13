@@ -198,8 +198,7 @@ class IntentDetector:
                     q = np.asarray(query_embedding, dtype=np.float64)
                     e = np.asarray(example_embedding, dtype=np.float64)
                     similarity = float(
-                        np.dot(q, e)
-                        / (np.linalg.norm(q) * np.linalg.norm(e))
+                        np.dot(q, e) / (np.linalg.norm(q) * np.linalg.norm(e))
                     )
 
                     if similarity > best_score:

@@ -17,14 +17,12 @@ import typer
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 warnings.filterwarnings("ignore", message=".*PyTorch.*TensorFlow.*Flax.*")
 
+
 from mcp_common import MCPServerCLIFactory, RuntimeHealthSnapshot
 from oneiric.core.config import OneiricMCPConfig
 
 from session_buddy.mcp.tools.monitoring.health_tools import get_health_status
 from session_buddy.utils.runtime_snapshots import update_telemetry_counter
-from typing import Any
-
-from typer import Typer
 
 
 class SessionBuddySettings(OneiricMCPConfig):
