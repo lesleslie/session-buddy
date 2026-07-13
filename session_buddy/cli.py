@@ -17,7 +17,8 @@ import typer
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 warnings.filterwarnings("ignore", message=".*PyTorch.*TensorFlow.*Flax.*")
 
-from mcp_common import MCPServerCLIFactory, MCPServerSettings, RuntimeHealthSnapshot
+from mcp_common import MCPServerCLIFactory, RuntimeHealthSnapshot
+from oneiric.core.config import OneiricMCPConfig
 
 from session_buddy.mcp.tools.monitoring.health_tools import get_health_status
 from session_buddy.utils.runtime_snapshots import update_telemetry_counter
@@ -26,8 +27,8 @@ from typing import Any
 from typer import Typer
 
 
-class SessionBuddySettings(MCPServerSettings):
-    """Session Buddy specific MCP server settings extending MCPServerSettings."""
+class SessionBuddySettings(OneiricMCPConfig):
+    """Session Buddy specific MCP server settings extending OneiricMCPConfig."""
 
     # Session Buddy specific settings
     server_name: str = "session-buddy"
@@ -118,7 +119,7 @@ def _port_holder(port: int) -> tuple[int, str] | None:
     return (pid, command)
 
 
-def _read_running_pid(settings: MCPServerSettings) -> int | None:
+def _read_running_pid(settings: OneiricMCPConfig) -> int | None:
     pid_path = settings.pid_path()
     if not pid_path.exists():
         return None
@@ -128,7 +129,7 @@ def _read_running_pid(settings: MCPServerSettings) -> int | None:
         return None
 
 
-def _run_health_probe(settings: MCPServerSettings) -> RuntimeHealthSnapshot:
+def _run_health_probe(settings: OneiricMCPConfig) -> RuntimeHealthSnapshot:
     pid = _read_running_pid(settings)
     health_state = asyncio.run(get_health_status(ready=False))
     snapshot = RuntimeHealthSnapshot(

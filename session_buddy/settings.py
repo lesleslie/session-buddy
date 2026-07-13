@@ -19,7 +19,7 @@ import os
 import typing as t
 from pathlib import Path
 
-from mcp_common import MCPBaseSettings
+from oneiric.core.config import OneiricMCPConfig
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -51,7 +51,7 @@ class LLMProvidersConfig(BaseModel):
     )
 
 
-class SessionMgmtSettings(MCPBaseSettings):
+class SessionMgmtSettings(OneiricMCPConfig):
     """Unified MCPBaseSettings for session-buddy.
 
     All configuration consolidated into a single flat structure
@@ -805,6 +805,95 @@ class SessionMgmtSettings(MCPBaseSettings):
         )
         raise ValueError(msg)
 
+    def get_api_key(self, key_name: str = "api_key") -> str:
+        """Backwards-compatible method preserved from MCPBaseSettings.
+
+        Returns the value of the named field on this instance with
+        validation. Raises ValueError if the key is missing or empty.
+        """
+        value = getattr(self, key_name, None)
+        if not isinstance(value, str) or not value.strip():
+            msg = f"API key {key_name!r} is missing or empty"
+            raise ValueError(msg)
+        return value
+
+    def get_api_key_secure(
+        self, key_name: str = "api_key", provider: str = "default"
+    ) -> str:
+        """Backwards-compatible secure getter preserved from MCPBaseSettings.
+
+        Returns the named API key after basic format validation. The
+        ``provider`` arg is accepted for API parity but does not affect
+        the returned value (no encryption layer in this implementation).
+        """
+        return self.get_api_key(key_name=key_name)
+
+    @classmethod
+    def load(
+        cls,
+        server_name: str,
+        config_path: str | Path | None = None,
+    ) -> SessionMgmtSettings:
+        """Backwards-compatible classmethod preserving MCPBaseSettings.load().
+
+        MCPBaseSettings.load read a flat YAML file (top-level keys map
+        to SessionMgmtSettings fields). Oneiric's loader reads a
+        nested OneiricSettings schema, so the flat fields don't
+        propagate. To preserve compat, this method:
+
+        1. Loads via oneiric.core.config.load_settings for the nested
+           schema defaults.
+        2. ALSO reads the flat YAML file directly (when one exists at
+           ``settings/{server_name}.yaml`` or the explicit
+           ``config_path``) and merges those top-level keys with
+           priority over the oneiric defaults.
+
+        Filters ``model_dump()`` to ``SessionMgmtSettings`` fields
+        with non-None values so OneiricMCPConfig's inherited
+        None-valued fields don't trip the type validator.
+        """
+        from pathlib import Path
+
+        import yaml
+        from oneiric.core.config import load_settings as _oneiric_load
+
+        loaded = _oneiric_load(
+            path=str(config_path) if config_path else None,
+            project_name=server_name,
+        )
+        relevant_data: dict[str, t.Any] = {
+            k: v
+            for k, v in loaded.model_dump().items()
+            if k in cls.model_fields and v is not None
+        }
+
+        # Read the flat YAML file (legacy MCPBaseSettings schema).
+        # MCPBaseSettings looked at settings/{server_name}.yaml first,
+        # then settings/local.yaml. We mirror that ordering.
+        if config_path:
+            flat_paths = [Path(config_path)]
+        else:
+            flat_paths = [
+                Path("settings") / f"{server_name}.yaml",
+                Path("settings") / "local.yaml",
+            ]
+        for flat_path in flat_paths:
+            if not flat_path.exists():
+                continue
+            try:
+                with flat_path.open() as f:
+                    flat_data = yaml.safe_load(f)
+            except (OSError, yaml.YAMLError):
+                continue
+            if not isinstance(flat_data, dict):
+                continue
+            # Flat keys map directly to SessionMgmtSettings fields.
+            for k, v in flat_data.items():
+                if k in cls.model_fields and v is not None:
+                    relevant_data[k] = v
+
+        return cls(**relevant_data)
+
 
 # Global settings instance
 _settings: SessionMgmtSettings | None = None
@@ -823,8 +912,14 @@ def get_settings(reload: bool = False) -> SessionMgmtSettings:
     global _settings
 
     if _settings is None or reload:
+        # Delegates to the classmethod ``load()`` which preserves
+        # backwards-compatible MCPBaseSettings.load(server_name) semantics
+        # on top of oneiric's layered loader. Tests patch this method to
+        # inject mocks; routing through ``cls.load`` keeps the patch point
+        # functional.
         _settings = t.cast(
-            "SessionMgmtSettings", SessionMgmtSettings.load("session-buddy")
+            "SessionMgmtSettings",
+            SessionMgmtSettings.load("session-buddy"),
         )
 
     # _settings is guaranteed non-None here

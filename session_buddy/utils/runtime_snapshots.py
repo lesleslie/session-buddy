@@ -5,12 +5,12 @@ import typing as t
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from mcp_common import MCPServerSettings
 from mcp_common.cli.health import (
     RuntimeHealthSnapshot,
     load_runtime_health,
     write_runtime_health,
 )
+from oneiric.core.config import OneiricMCPConfig
 
 if t.TYPE_CHECKING:  # pragma: no cover
     from pathlib import Path
@@ -36,13 +36,23 @@ class RuntimeTelemetrySnapshot:
 
 @dataclass
 class RuntimeSnapshotManager:
-    settings: MCPServerSettings
+    settings: OneiricMCPConfig
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     counters: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def for_server(cls, server_name: str) -> RuntimeSnapshotManager:
-        return cls(settings=MCPServerSettings.load(server_name))
+        # Migrated from MCPServerSettings.load(server_name) to oneiric's
+        # layered loader with project_name=server_name.
+        from oneiric.core.config import load_settings as _oneiric_load
+
+        loaded = _oneiric_load(project_name=server_name)
+        relevant_data = {
+            k: v
+            for k, v in loaded.model_dump().items()
+            if k in OneiricMCPConfig.model_fields and v is not None
+        }
+        return cls(settings=OneiricMCPConfig(**relevant_data))
 
     def record(self, name: str, amount: int = 1) -> None:
         self.counters[name] = self.counters.get(name, 0) + amount
@@ -110,7 +120,7 @@ def write_runtime_telemetry(path: Path, snapshot: RuntimeTelemetrySnapshot) -> N
 
 
 def update_telemetry_counter(
-    settings: MCPServerSettings,
+    settings: OneiricMCPConfig,
     name: str,
     amount: int = 1,
     pid: int | None = None,

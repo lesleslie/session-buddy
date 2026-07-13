@@ -27,14 +27,15 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from mcp_common import MCPServerCLIFactory, MCPServerSettings, RuntimeHealthSnapshot
+from mcp_common import MCPServerCLIFactory, RuntimeHealthSnapshot
+from oneiric.core.config import OneiricMCPConfig
 
 from session_buddy.mcp.tools.monitoring.health_tools import get_health_status
 from session_buddy.modes import get_mode
 from session_buddy.utils.runtime_snapshots import update_telemetry_counter
 
 
-class SessionBuddySettings(MCPServerSettings):
+class SessionBuddySettings(OneiricMCPConfig):
     """Session Buddy specific MCP server settings."""
 
     # Session Buddy specific settings
@@ -97,7 +98,7 @@ def start_server_handler(mode: str = "standard") -> None:
         sys.exit(1)
 
 
-def _read_running_pid(settings: MCPServerSettings) -> int | None:
+def _read_running_pid(settings: OneiricMCPConfig) -> int | None:
     """Read running PID from PID file.
 
     Args:
@@ -115,7 +116,7 @@ def _read_running_pid(settings: MCPServerSettings) -> int | None:
         return None
 
 
-def _run_health_probe(settings: MCPServerSettings) -> RuntimeHealthSnapshot:
+def _run_health_probe(settings: OneiricMCPConfig) -> RuntimeHealthSnapshot:
     """Run health probe on Session-Buddy server.
 
     Args:
