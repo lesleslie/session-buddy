@@ -4,6 +4,7 @@ Provides standalone ULID generation functions that can be imported
 without requiring the full storage layer.
 """
 
+import importlib
 import os
 import time
 
@@ -14,40 +15,41 @@ def generate_ulid() -> str:
     Returns:
         26-character Crockford Base32 ULID string
     """
-    # Try Druva first
+    # Try Druva first (dynamic import so static analyzers don't
+    # trip on an optional dependency that may not be installed).
     try:
-        from druva import (
-            generate as generate_ulid_impl,  # ty: ignore[unresolved-import]
-        )
-
-        return str(generate_ulid_impl())
+        druva = importlib.import_module("druva")
     except ImportError:
-        # Use timestamp-based fallback
+        druva = None
+    if druva is not None:
+        return str(druva.generate())
 
-        timestamp_ms = int(time.time() * 1000)
-        timestamp_bytes = timestamp_ms.to_bytes(6, byteorder="big")
+    # Use timestamp-based fallback
 
-        # Generate 10 bytes of randomness
-        randomness = os.urandom(10)
+    timestamp_ms = int(time.time() * 1000)
+    timestamp_bytes = timestamp_ms.to_bytes(6, byteorder="big")
 
-        # Combine: 6 bytes timestamp + 10 bytes randomness = 16 bytes
-        ulid_bytes = timestamp_bytes + randomness
+    # Generate 10 bytes of randomness
+    randomness = os.urandom(10)
 
-        # Encode to Crockford Base32 (Druva's alphabet)
-        alphabet = "0123456789abcdefghjkmnpqrstvwxyz"
+    # Combine: 6 bytes timestamp + 10 bytes randomness = 16 bytes
+    ulid_bytes = timestamp_bytes + randomness
 
-        # Convert 16 bytes to 128 bits, then encode as base32 (5 bits per char)
-        # This gives us 26 characters (last char only uses 3 bits)
-        result = []
-        value = int.from_bytes(ulid_bytes, byteorder="big")
+    # Encode to Crockford Base32 (Druva's alphabet)
+    alphabet = "0123456789abcdefghjkmnpqrstvwxyz"
 
-        for _ in range(26):
-            index = value & 0x1F  # Get lowest 5 bits
-            result.append(alphabet[index])
-            value >>= 5  # Shift right by 5 bits
+    # Convert 16 bytes to 128 bits, then encode as base32 (5 bits per char)
+    # This gives us 26 characters (last char only uses 3 bits)
+    result = []
+    value = int.from_bytes(ulid_bytes, byteorder="big")
 
-        # Reverse to get correct order (most significant first)
-        return "".join(reversed(result))
+    for _ in range(26):
+        index = value & 0x1F  # Get lowest 5 bits
+        result.append(alphabet[index])
+        value >>= 5  # Shift right by 5 bits
+
+    # Reverse to get correct order (most significant first)
+    return "".join(reversed(result))
 
 
 def is_valid_ulid(value: str) -> bool:

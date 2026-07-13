@@ -16,6 +16,24 @@ if t.TYPE_CHECKING:  # pragma: no cover
     from pathlib import Path
 
 
+class _SnapshotSettings(t.Protocol):
+    """Structural type for anything we treat as snapshot-eligible settings.
+
+    Both the production ``SessionMgmtSettings`` (migrated to
+    ``OneiricMCPConfig``) and the legacy ``MCPServerSettings`` used by
+    the upstream fixtures satisfy this. ``OneiricMCPConfig`` alone
+    does not — that's why we keep this Protocol narrow.
+    """
+
+    server_name: str
+
+    def pid_path(self) -> Path: ...
+
+    def health_snapshot_path(self) -> Path: ...
+
+    def telemetry_snapshot_path(self) -> Path: ...
+
+
 @dataclass
 class RuntimeTelemetrySnapshot:
     orchestrator_pid: int | None = None
@@ -36,7 +54,7 @@ class RuntimeTelemetrySnapshot:
 
 @dataclass
 class RuntimeSnapshotManager:
-    settings: OneiricMCPConfig
+    settings: _SnapshotSettings
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     counters: dict[str, int] = field(default_factory=dict)
 
@@ -52,7 +70,7 @@ class RuntimeSnapshotManager:
             for k, v in loaded.model_dump().items()
             if k in OneiricMCPConfig.model_fields and v is not None
         }
-        return cls(settings=OneiricMCPConfig(**relevant_data))
+        return cls(settings=t.cast("_SnapshotSettings", OneiricMCPConfig(**relevant_data)))
 
     def record(self, name: str, amount: int = 1) -> None:
         self.counters[name] = self.counters.get(name, 0) + amount
@@ -79,7 +97,9 @@ class RuntimeSnapshotManager:
             uptime_seconds=uptime_seconds,
             counters=self.counters.copy(),
         )
-        write_runtime_telemetry(self.settings.telemetry_snapshot_path(), snapshot)
+        write_runtime_telemetry(
+            self.settings.telemetry_snapshot_path(), snapshot
+        )
         return snapshot
 
 
@@ -120,7 +140,7 @@ def write_runtime_telemetry(path: Path, snapshot: RuntimeTelemetrySnapshot) -> N
 
 
 def update_telemetry_counter(
-    settings: OneiricMCPConfig,
+    settings: _SnapshotSettings,
     name: str,
     amount: int = 1,
     pid: int | None = None,

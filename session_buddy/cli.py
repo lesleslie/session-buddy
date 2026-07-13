@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import typing as t
 import warnings
 
 import typer
@@ -18,8 +19,18 @@ os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 warnings.filterwarnings("ignore", message=".*PyTorch.*TensorFlow.*Flax.*")
 
 
-from mcp_common import MCPServerCLIFactory, RuntimeHealthSnapshot
+from mcp_common import MCPServerCLIFactory, MCPServerSettings, RuntimeHealthSnapshot
 from oneiric.core.config import OneiricMCPConfig
+
+if t.TYPE_CHECKING:  # pragma: no cover
+    from pathlib import Path
+
+
+class _HasPidPath(t.Protocol):
+    """Structural type: anything with a callable ``pid_path()`` returning Path."""
+
+    def pid_path(self) -> Path: ...
+
 
 from session_buddy.mcp.tools.monitoring.health_tools import get_health_status
 from session_buddy.utils.runtime_snapshots import update_telemetry_counter
@@ -39,6 +50,19 @@ class SessionBuddySettings(OneiricMCPConfig):
     startup_timeout: int = 10
     shutdown_timeout: int = 10
     force_kill_timeout: int = 5
+
+    # Snapshot path helpers (migrated from MCPServerSettings via
+    # SessionMgmtSettings in settings.py; replicated here so the
+    # CLI-side settings class still satisfies the structural protocol
+    # in utils.runtime_snapshots).
+    def pid_path(self) -> Path:
+        return Path(self.cache_dir) / "mcp_server.pid"
+
+    def health_snapshot_path(self) -> Path:
+        return Path(self.cache_dir) / "runtime_health.json"
+
+    def telemetry_snapshot_path(self) -> Path:
+        return Path(self.cache_dir) / "runtime_telemetry.json"
 
 
 def start_server_handler() -> None:
@@ -117,7 +141,7 @@ def _port_holder(port: int) -> tuple[int, str] | None:
     return (pid, command)
 
 
-def _read_running_pid(settings: OneiricMCPConfig) -> int | None:
+def _read_running_pid(settings: _HasPidPath) -> int | None:
     pid_path = settings.pid_path()
     if not pid_path.exists():
         return None
@@ -127,7 +151,7 @@ def _read_running_pid(settings: OneiricMCPConfig) -> int | None:
         return None
 
 
-def _run_health_probe(settings: OneiricMCPConfig) -> RuntimeHealthSnapshot:
+def _run_health_probe(settings: SessionBuddySettings) -> RuntimeHealthSnapshot:
     pid = _read_running_pid(settings)
     health_state = asyncio.run(get_health_status(ready=False))
     snapshot = RuntimeHealthSnapshot(
@@ -150,9 +174,15 @@ def create_session_buddy_cli() -> MCPServerCLIFactory:
     settings = SessionBuddySettings()
 
     # Create the CLI factory with start handler
+    # ``MCPServerCLIFactory`` annotates ``settings`` as
+    # ``MCPServerSettings | None``. We pass ``SessionBuddySettings``
+    # (an ``OneiricMCPConfig`` subclass); the factory only reads
+    # ``.server_name``, never type-discriminates, so we cast through
+    # ``MCPServerSettings`` to satisfy ty without widening the
+    # upstream factory annotation.
     cli_factory = MCPServerCLIFactory(
         server_name=settings.server_name,
-        settings=settings,
+        settings=t.cast("MCPServerSettings", settings),
         start_handler=start_server_handler,
         health_probe_handler=lambda: _run_health_probe(settings),
     )

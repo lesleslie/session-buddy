@@ -599,10 +599,16 @@ async def sync_all_instances(
     """
     # Create embedding service if not provided
     if embedding_service is None:
+        # Dynamic import so static analyzers don't trip on the
+        # optional peer dependency. We deliberately surface a
+        # friendly ImportError when the package is missing.
+        import importlib
+
         try:
-            from akosha.processing.embeddings import (
-                EmbeddingService,  # ty: ignore[unresolved-import]
+            embeddings_module = importlib.import_module(
+                "akosha.processing.embeddings"
             )
+            EmbeddingService = embeddings_module.EmbeddingService
         except ImportError as e:
             raise ImportError(
                 "akosha is required for default embedding service. "

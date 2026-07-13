@@ -18,12 +18,16 @@ if TYPE_CHECKING:
 
     from session_buddy.di.container import depends
 
-# mcp-common HTTP client adapter (httpx based)
+# mcp-common HTTP client adapter (httpx based).
+# Dynamic import so static analyzers don't trip on the optional
+# peer dependency. Both the symbol and an availability flag are
+# resolved at runtime; ``TYPE_CHECKING`` keeps type checkers happy
+# with the declared annotations.
 try:
-    from mcp_common.adapters.http.client import (  # ty: ignore[unresolved-import]
-        HTTPClientAdapter,
+    _http_client_module = __import__(
+        "mcp_common.adapters.http.client", fromlist=["HTTPClientAdapter"]
     )
-
+    HTTPClientAdapter = _http_client_module.HTTPClientAdapter
     from session_buddy.di.container import depends
 
     HTTP_ADAPTER_AVAILABLE = True

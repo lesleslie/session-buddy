@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 try:
-    import tiktoken  # ty: ignore[unresolved-import]
+    import tiktoken
 except ImportError:
     tiktoken: Any = None
 

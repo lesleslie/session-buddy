@@ -29,7 +29,9 @@ class GeminiProvider(LLMProvider):
         """Get or create Gemini client."""
         if self._client is None:
             try:
-                import google.generativeai as genai  # ty: ignore[unresolved-import]
+                import importlib
+
+                genai = importlib.import_module("google.generativeai")
 
                 genai.configure(api_key=self.api_key)
                 self._client = genai

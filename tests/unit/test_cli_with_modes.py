@@ -78,14 +78,20 @@ class TestSessionBuddySettings:
         assert settings_lite.mode == "lite"
         assert settings_standard.mode == "standard"
 
-    def test_settings_inherits_mcp_server_settings(self) -> None:
-        """Test that SessionBuddySettings inherits from MCPServerSettings."""
+    def test_settings_inherits_oneiric_mcp_config(self) -> None:
+        """Test that SessionBuddySettings inherits from OneiricMCPConfig.
+
+        Note: this previously asserted ``MCPServerSettings`` as the
+        base class. session-buddy migrated from MCPServerSettings ->
+        OneiricMCPConfig; the assertion is updated to match the new
+        inheritance chain without changing the test's intent.
+        """
         from session_buddy.cli_with_modes import SessionBuddySettings
-        from mcp_common import MCPServerSettings
+        from oneiric.core.config import OneiricMCPConfig
 
         settings = SessionBuddySettings()
 
-        assert isinstance(settings, MCPServerSettings)
+        assert isinstance(settings, OneiricMCPConfig)
 
 
 # ============================================================================

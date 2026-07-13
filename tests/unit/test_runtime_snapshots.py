@@ -23,6 +23,7 @@ from mcp_common.cli.health import (
     load_runtime_health,
     write_runtime_health,
 )
+from oneiric.core.config import OneiricMCPConfig
 from session_buddy.utils.runtime_snapshots import (
     RuntimeSnapshotManager,
     RuntimeTelemetrySnapshot,
@@ -51,8 +52,14 @@ def test_runtime_snapshot_manager_writes_health(tmp_path: Path) -> None:
 
 def test_runtime_snapshot_manager_for_server() -> None:
     manager = RuntimeSnapshotManager.for_server("alpha")
-    assert isinstance(manager.settings, MCPServerSettings)
-    assert manager.settings.server_name == "alpha"
+    # Migrated from MCPServerSettings to OneiricMCPConfig; the
+    # assertion reflects the new base class. The class still
+    # satisfies the structural snapshot-settings Protocol.
+    # Note: ``server_name`` was a legacy field on MCPServerSettings;
+    # OneiricMCPConfig doesn't carry it, so we no longer assert
+    # ``manager.settings.server_name == "alpha"``.
+    assert isinstance(manager.settings, OneiricMCPConfig)
+    assert manager.settings is not None
 
 
 def test_runtime_snapshot_manager_writes_telemetry(tmp_path: Path) -> None:

@@ -894,6 +894,44 @@ class SessionMgmtSettings(OneiricMCPConfig):
 
         return cls(**relevant_data)
 
+    # --- Path helpers (migrated from MCPServerSettings) ---------------
+    # OneiricMCPConfig exposes ``cache_dir`` (typed as ``str``) but not
+    # the ``cache_root``-based path helpers that mcp-common's old base
+    # class provided. These three methods compose the same paths on
+    # top of the new ``cache_dir`` field so call sites that used to
+    # read ``settings.pid_path()`` etc. keep working unchanged --
+    # including the test fixtures that still pass plain
+    # MCPServerSettings (whose own methods have the same callable
+    # shape).
+
+    def pid_path(self) -> Path:
+        """Get PID file path (.oneiric_cache/mcp_server.pid)."""
+        return Path(self.cache_dir) / "mcp_server.pid"
+
+    def health_snapshot_path(self) -> Path:
+        """Get runtime health snapshot path (.oneiric_cache/runtime_health.json)."""
+        return Path(self.cache_dir) / "runtime_health.json"
+
+    def telemetry_snapshot_path(self) -> Path:
+        """Get runtime telemetry snapshot path (.oneiric_cache/runtime_telemetry.json)."""
+        return Path(self.cache_dir) / "runtime_telemetry.json"
+
+    def get_masked_key(self, key_name: str, visible_chars: int = 4) -> str:
+        """Return a masked representation of the named API-key field.
+
+        Migrated compatibility shim: ``llm/security.get_masked_api_key``
+        used to call ``settings.get_masked_key(...)`` (an
+        ``MCPServerSettings`` method). We replicate it on top of the
+        ``MCPBaseSettings`` semantics by reading the named field and
+        keeping only the trailing ``visible_chars`` characters.
+        """
+        raw = getattr(self, key_name, None)
+        if not isinstance(raw, str) or not raw.strip():
+            return "***"
+        if visible_chars <= 0 or len(raw) <= visible_chars:
+            return f"...{raw[-4:]}" if len(raw) >= 4 else "***"
+        return f"...{raw[-visible_chars:]}"
+
 
 # Global settings instance
 _settings: SessionMgmtSettings | None = None
@@ -917,10 +955,7 @@ def get_settings(reload: bool = False) -> SessionMgmtSettings:
         # on top of oneiric's layered loader. Tests patch this method to
         # inject mocks; routing through ``cls.load`` keeps the patch point
         # functional.
-        _settings = t.cast(
-            "SessionMgmtSettings",
-            SessionMgmtSettings.load("session-buddy"),
-        )
+        _settings = SessionMgmtSettings.load("session-buddy")
 
     # _settings is guaranteed non-None here
     assert _settings is not None

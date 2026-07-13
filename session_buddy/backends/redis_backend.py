@@ -49,9 +49,9 @@ class RedisStorage(SessionStorage):
         """Get or create Redis connection."""
         if self._redis is None:
             try:
-                import redis.asyncio as redis  # ty: ignore[unresolved-import]
+                import redis.asyncio as redis
 
-                self._redis = redis.Redis(  # type: ignore[assignment]
+                self._redis = redis.Redis(
                     host=self.host,
                     port=self.port,
                     db=self.db,
