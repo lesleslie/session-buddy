@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.19.20] - 2026-07-13
+
+### Changed
+
+- Session-buddy (quality: 65/100) - 2026-07-13 05:42:38
+- Session-buddy (quality: 67/100) - 2026-07-10 06:13:17
+- Session-buddy (quality: 67/100) - 2026-07-11 01:43:47
+- Session-buddy (quality: 77/100) - 2026-07-11 01:58:29
+- Session-buddy (quality: 77/100) - 2026-07-11 02:05:33
+- settings: Migrate session-buddy to OneiricMCPConfig
+
+### Fixed
+
+- session-buddy: Resolve 11 post-ty-migration issues
+
 ## [0.19.19] - 2026-07-04
 
 ### Added
