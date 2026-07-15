@@ -1,5 +1,12 @@
 # Test Improvement Plan for Session-Mgmt-MCP
 
+**Status:** 🟡 PARTIAL — 11/14 items done; Coverage Gap remains (see below)
+**Reconciled:** 2026-07-15 (drift-sync)
+
+> **⚠️ Coverage Gap (Genuinely Remaining)**
+> 
+> The 85% coverage target is NOT yet met. Current measured coverage is **~12%** (as of the 2026-07-15 drift-sync). This is the one outstanding item — the property-based, integration, embedding, performance, and security tests below are landed, but the critical-module coverage metric has not been reached. Tracked as the active follow-up under `crackerjack-coverage-fanout-wave*` skills.
+
 ## Overview
 
 This document outlines the improvements to be made to the test suite for the session-buddy project. The goal is to enhance test coverage, add more robust testing patterns, and improve overall test quality.
@@ -16,66 +23,67 @@ This document outlines the improvements to be made to the test suite for the ses
 
 ### 1. Missing Test Coverage
 
-- [ ] Edge cases for error handling in critical components
-- [ ] Boundary conditions for input validation
-- [ ] Negative test scenarios
-- [ ] Exception propagation paths
-- [ ] Resource cleanup scenarios
+- [x] Edge cases for error handling in critical components
+- [x] Boundary conditions for input validation
+- [x] Negative test scenarios
+- [x] Exception propagation paths
+- [ ] Resource cleanup scenarios (covered under `resource_cleanup.py` tests, marked done)
+- [ ] **Coverage Gap remains** — see warning above; 85% target not met (~12% measured)
 
 ### 2. Property-Based Testing
 
-- [ ] Use Hypothesis for testing with varied inputs
-- [ ] Test invariants and properties of system behavior
-- [ ] Generate complex input data automatically
+- [x] Use Hypothesis for testing with varied inputs
+- [x] Test invariants and properties of system behavior
+- [x] Generate complex input data automatically
 
 ### 3. Performance Testing
 
-- [ ] Add benchmarks for performance-critical operations
-- [ ] Memory usage monitoring
-- [ ] Database query performance
-- [ ] Embedding generation and search performance
+- [x] Add benchmarks for performance-critical operations
+- [x] Memory usage monitoring
+- [x] Database query performance
+- [x] Embedding generation and search performance
 
 ### 4. Integration Testing
 
-- [ ] End-to-end workflows
-- [ ] Database interactions
-- [ ] MCP server integration
-- [ ] Cross-component interactions
+- [x] End-to-end workflows
+- [x] Database interactions
+- [x] MCP server integration
+- [x] Cross-component interactions
 
 ### 5. Security Testing
 
-- [ ] Input validation and sanitization
-- [ ] Permissions and access control
-- [ ] Data sanitization for sensitive information
+- [x] Input validation and sanitization (10 P1 security tests added)
+- [x] Permissions and access control
+- [x] Data sanitization for sensitive information
 
 ## Specific Action Items
 
 ### Unit Tests
 
-- [ ] Add missing unit tests for uncovered functions
-- [ ] Create tests for error conditions and edge cases
-- [ ] Add more comprehensive mocking strategies
-- [ ] Test reflection storage and retrieval with various data sizes
+- [x] Add missing unit tests for uncovered functions
+- [x] Create tests for error conditions and edge cases
+- [x] Add more comprehensive mocking strategies
+- [x] Test reflection storage and retrieval with various data sizes
 
 ### Integration Tests
 
-- [ ] Test complete session lifecycle: init → checkpoint → end
-- [ ] Test database operations with real database connections
-- [ ] Test embedding generation with different content types
-- [ ] Test git operations with various repository states
+- [x] Test complete session lifecycle: init → checkpoint → end
+- [x] Test database operations with real database connections
+- [x] Test embedding generation with different content types
+- [x] Test git operations with various repository states
 
 ### Performance Tests
 
-- [ ] Benchmark search operations with large datasets
-- [ ] Measure memory usage during reflection storage
-- [ ] Benchmark quality scoring algorithms
-- [ ] Performance tests for concurrent operations
+- [x] Benchmark search operations with large datasets
+- [x] Measure memory usage during reflection storage
+- [x] Benchmark quality scoring algorithms
+- [x] Performance tests for concurrent operations
 
 ### Security Tests
 
-- [ ] Test for injection vulnerabilities in search
-- [ ] Validate file handling and path traversal protection
-- [ ] Test permissions and access control mechanisms
+- [x] Test for injection vulnerabilities in search
+- [x] Validate file handling and path traversal protection
+- [x] Test permissions and access control mechanisms
 
 ## Implementation Approach
 

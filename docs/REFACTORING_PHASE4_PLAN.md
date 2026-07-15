@@ -1,8 +1,22 @@
 # Phase 4 Refactoring Plan - Large Core Files
 
-**Start Date**: January 2025
+**Status:** ✅ SHIPPED — historical, retained for lineage  
+**Promoted 2026-07-15** after drift-sync verified all Phase 4 days + Phase 5 done.
 **Goal**: Target large core files (900+ lines) for modularization and refactoring
 **Estimated Impact**: 2,000-3,500 line reduction
+
+## Delivered LOC Reductions
+
+| File | Before | After | Reduction | Commit |
+|---|---|---|---|---|
+| crackerjack_integration.py | 1,632 | 1,147 | -485 | `350bf197` |
+| quality_engine.py | 1,256 | 1,023 | -233 | `2c945661` |
+| serverless_mode.py | 1,285 | 219 | -1,066 | `87638657` |
+| session_manager.py | 947 | (refactored) | - | `33306c93` |
+| llm_providers.py | 1,254 | 777 | -477 | `ead3ebd8` |
+| advanced_search.py | 1,023 | (Phase 5) | - | `18c198b9` |
+| server_core.py | 983 | (Phase 5) | - | `7944b5fa` |
+| natural_scheduler.py | 964 | (Phase 5) | - | `2e7e8988` |
 
 ## Phase 4 Overview
 

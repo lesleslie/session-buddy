@@ -1,5 +1,9 @@
 # Code Refactoring Plan
 
+**Status:** ✅ SHIPPED — historical, retained for lineage  
+**Promoted 2026-07-15** after drift-sync verified all phases done via commits `c9081d8f` through `7944b5fa`.  
+**Supersedes:** Phase 1 (quick wins), Phase 2 (consolidation), Phase 3 (structural), Phase 4 (tool-specific), Phase 5 (extraction). All 16 items across phases 4/5 verified delivered.
+
 ## Analysis Summary
 
 ### Largest Files (Lines of Code)

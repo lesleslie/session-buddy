@@ -1,8 +1,29 @@
 # Unified Roadmap: mcp-common + session-buddy
 
-**Date**: 2025-10-28
-**Duration**: 16 weeks
-**Status**: Week 2 Days 1-3 (HTTPClientAdapter implementation)
+**Date**: 2025-10-28 (original)
+**Reconciled**: 2026-07-15 (drift-sync)
+**Duration**: 16 weeks (original scope)
+**Status**: **Phases 1–2 done; Phases 3+ superseded** by PHASE3_PROPOSAL.md, REFACTORING_PLAN.md, PHASE4_MCP_TOOLS_IMPLEMENTATION.md, and related follow-on plans.
+
+### Reconciliation Summary (2026-07-15)
+
+| Week | Original Status | Reconciled Status | Notes |
+|---|---|---|---|
+| Week 1 | ✅ Complete | ✅ Done | ACB foundation + coverage ratchet operational |
+| Week 2 | 🔄 In Progress | ✅ Done | HTTPClientAdapter validated with 11x perf improvement |
+| Week 3 | ⏸ Not started | ⚠️ Superseded | HTTPClientAdapter extraction to mcp-common done via REFACTORING_PLAN phases |
+| Week 4 | ⏸ Not started | ✅ Done | Phase 2.7 ACB DI at `session_buddy/di/` |
+| Week 5 | ⏸ Not started | 🟡 Partial | Shutdown coordinator via `resource_cleanup.py` |
+| Week 6 | ⏸ Not started | ⚠️ Superseded | Ecosystem rollout overtaken by PHASE4_MCP_TOOLS_IMPLEMENTATION.md |
+| Weeks 7–16 | ⏸ Not started | ⚠️ SUPERSEDED | Template-based formatting, query interface, event-driven orchestration, etc. were superseded by PHASE3_PROPOSAL.md, REFACTORING_PLAN.md, and follow-on plans (see PLAN_INDEX.md for the full lineage). |
+
+### Supersession Pointers
+
+- **Weeks 7–8 (template formatting)** → superseded by `REFACTORING_PLAN.md` (Phase 5 extraction work).
+- **Weeks 9–10 (universal query interface)** → superseded by `PHASE3_PROPOSAL.md` + `REFACTORING_PLAN.md` phase 4/5.
+- **Weeks 11–12 (event-driven orchestration)** → superseded by `PHASE4_MCP_TOOLS_IMPLEMENTATION.md`.
+- **Weeks 13–14 (cross-repo consolidation)** → superseded by `REFACTORING_PLAN.md` and `PHASE3_INTEGRATION_GUIDE.md`.
+- **Weeks 15–16 (ecosystem docs + Phase 4 kickoff)** → superseded by `PHASE4_DEPLOYMENT_CHECKLIST.md`.
 
 ______________________________________________________________________
 
