@@ -54,8 +54,8 @@ class S3Storage(SessionStorage):
         """Get or create S3 client."""
         if self._s3_client is None:
             try:
-                import boto3  
-                from botocore.client import Config  
+                import boto3
+                from botocore.client import Config
 
                 session = boto3.Session(
                     aws_access_key_id=self.access_key_id,

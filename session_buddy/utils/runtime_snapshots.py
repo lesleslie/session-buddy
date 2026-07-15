@@ -70,7 +70,9 @@ class RuntimeSnapshotManager:
             for k, v in loaded.model_dump().items()
             if k in OneiricMCPConfig.model_fields and v is not None
         }
-        return cls(settings=t.cast("_SnapshotSettings", OneiricMCPConfig(**relevant_data)))
+        return cls(
+            settings=t.cast("_SnapshotSettings", OneiricMCPConfig(**relevant_data))
+        )
 
     def record(self, name: str, amount: int = 1) -> None:
         self.counters[name] = self.counters.get(name, 0) + amount
@@ -97,9 +99,7 @@ class RuntimeSnapshotManager:
             uptime_seconds=uptime_seconds,
             counters=self.counters.copy(),
         )
-        write_runtime_telemetry(
-            self.settings.telemetry_snapshot_path(), snapshot
-        )
+        write_runtime_telemetry(self.settings.telemetry_snapshot_path(), snapshot)
         return snapshot
 
 

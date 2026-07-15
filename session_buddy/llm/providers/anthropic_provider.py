@@ -29,7 +29,7 @@ class AnthropicProvider(LLMProvider):
     async def _get_client(self) -> Any:
         if self._client is None:
             try:
-                import anthropic  
+                import anthropic
 
                 self._client = anthropic.AsyncAnthropic(
                     api_key=self.api_key, base_url=self.base_url

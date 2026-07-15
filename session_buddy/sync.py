@@ -605,9 +605,7 @@ async def sync_all_instances(
         import importlib
 
         try:
-            embeddings_module = importlib.import_module(
-                "akosha.processing.embeddings"
-            )
+            embeddings_module = importlib.import_module("akosha.processing.embeddings")
             EmbeddingService = embeddings_module.EmbeddingService
         except ImportError as e:
             raise ImportError(

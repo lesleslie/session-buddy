@@ -11,6 +11,7 @@ import asyncio
 import os
 import typing as t
 import warnings
+from pathlib import Path
 
 import typer
 
@@ -63,6 +64,14 @@ class SessionBuddySettings(OneiricMCPConfig):
 
     def telemetry_snapshot_path(self) -> Path:
         return Path(self.cache_dir) / "runtime_telemetry.json"
+
+    # Shim for mcp-common compatibility: factory.py:387 calls
+    # ``self.settings.cache_root`` (Path), but OneiricMCPConfig only
+    # exposes ``cache_dir`` (str). Mirror the value into cache_root so
+    # mcp-common's ``validate_cache_ownership`` can read it.
+    @property
+    def cache_root(self) -> Path:
+        return Path(self.cache_dir)
 
 
 def start_server_handler() -> None:

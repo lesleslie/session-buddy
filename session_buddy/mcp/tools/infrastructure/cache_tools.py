@@ -17,6 +17,7 @@ from typing import Any
 from mcp_common.fastmcp import Context
 
 from session_buddy.cache.query_cache import QueryCacheManager
+from session_buddy.utils.instance_managers import get_reflection_database
 
 
 def register_cache_tools(mcp: Any) -> None:
@@ -48,10 +49,9 @@ async def query_cache_stats(
         JSON-formatted string with cache statistics
     """
     # Get cache manager from database adapter
-    from session_buddy.di import depends
 
     try:
-        db = depends.get_sync("ReflectionDatabaseAdapterOneiric")
+        db = await get_reflection_database()
         if not db or not db._query_cache:
             return json.dumps(
                 {
@@ -120,10 +120,9 @@ async def clear_query_cache(
     Returns:
         JSON-formatted string with operation result
     """
-    from session_buddy.di import depends
 
     try:
-        db = depends.get_sync("ReflectionDatabaseAdapterOneiric")
+        db = await get_reflection_database()
         if not db or not db._query_cache:
             return json.dumps(
                 {
@@ -196,7 +195,6 @@ async def warm_cache(
     Returns:
         JSON-formatted string with warming results
     """
-    from session_buddy.di import depends
 
     if not queries:
         return json.dumps(
@@ -208,7 +206,7 @@ async def warm_cache(
         )
 
     try:
-        db = depends.get_sync("ReflectionDatabaseAdapterOneiric")
+        db = await get_reflection_database()
         if not db or not db._query_cache:
             return json.dumps(
                 {
@@ -286,10 +284,9 @@ async def invalidate_cache(
     Returns:
         JSON-formatted string with invalidation result
     """
-    from session_buddy.di import depends
 
     try:
-        db = depends.get_sync("ReflectionDatabaseAdapterOneiric")
+        db = await get_reflection_database()
         if not db or not db._query_cache:
             return json.dumps(
                 {
@@ -350,10 +347,9 @@ async def optimize_cache(
     Returns:
         JSON-formatted string with optimization results
     """
-    from session_buddy.di import depends
 
     try:
-        db = depends.get_sync("ReflectionDatabaseAdapterOneiric")
+        db = await get_reflection_database()
         if not db or not db._query_cache:
             return json.dumps(
                 {

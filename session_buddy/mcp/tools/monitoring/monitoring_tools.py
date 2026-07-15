@@ -86,7 +86,15 @@ async def _start_app_monitoring_operation(
     monitor: Any, project_paths: list[str] | None
 ) -> str:
     """Start monitoring IDE activity and browser documentation usage."""
-    await monitor.start_monitoring(project_paths=project_paths)
+    # Update project_paths on both the parent monitor and its IDE child
+    # *before* start_monitoring(), because ApplicationMonitor.start_monitoring
+    # does not accept project_paths as a kwarg (paths are set at __init__).
+    if project_paths is not None:
+        paths_list = list(project_paths)
+        monitor.project_paths = paths_list
+        if hasattr(monitor, "ide_monitor"):
+            monitor.ide_monitor.project_paths = paths_list
+    await monitor.start_monitoring()
 
     lines = ["🔍 Application Monitoring Started", ""]
 
