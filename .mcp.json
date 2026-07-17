@@ -1,0 +1,6 @@
+{
+  "session-buddy": {
+    "type": "http",
+    "url": "http://localhost:8678/mcp"
+  }
+}
