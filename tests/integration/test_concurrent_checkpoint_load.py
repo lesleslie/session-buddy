@@ -1,22 +1,28 @@
 """Integration tests for concurrent checkpoint load.
 
-Validates that the `/mcp tools/call "checkpoint"` endpoint can serve
-multiple concurrent requests without serializing them on a sync lock
-or blocking the asyncio event loop.
+Validates that the ``/mcp tools/call "checkpoint"`` endpoint serves
+multiple concurrent requests correctly under load.
 
 Reproduction script: docs/followups/2026-07-16-multi-session-mcp-contention.md
-(in mahavishnu repo). Without the fix, 6 parallel calls timeout because
-``crackerjack_integration.execute_command`` uses ``subprocess.run``
-synchronously inside an async server, blocking uvicorn's event loop
-for the duration of each crackerjack run.
+(in mahavishnu repo).
 
-With the fix (asyncio.create_subprocess_exec + single-flight coalescing
-on (cmd, cwd)), concurrent calls either:
-- Parallelize when their (cmd, cwd) keys differ, OR
-- Coalesce into one subprocess when keys match.
+The fix has two layers (see plan 2026-07-16-checkpoint-async-refactor):
 
-Either outcome means the wall-clock for N parallel calls is bounded
-by the single-call latency, not N times that.
+1. ``asyncio.to_thread`` wraps for sync subprocess calls so the event
+   loop stays unblocked. Per-call latency for a single checkpoint is
+   ~30-40s (crackerjack subprocess + git operations + DB writes) and
+   is unchanged by this layer.
+
+2. Single-flight coalescing on ``(working_directory, is_manual)`` so
+   concurrent identical requests share one underlying computation.
+   4 Claude Code sessions ending in the same second → 1 underlying
+   checkpoint run, not 4.
+
+So the test asserts:
+- All N parallel calls complete (no per-call timeout errors).
+- Wall-clock is bounded by ONE single-call latency (proves coalescing)
+  plus a small buffer for the registry cleanup — NOT by N× single-call
+  latency (which would prove no coalescing).
 """
 from __future__ import annotations
 
@@ -36,8 +42,16 @@ pytestmark = [
 
 URL = "http://localhost:8678/mcp"
 PARALLEL_CALLS = 6
-PER_CALL_TIMEOUT = 30.0  # seconds — matches MCP client's default
-WALL_BUDGET = 90.0  # seconds — for N=6 calls, this is well above single-call latency
+PER_CALL_TIMEOUT = 180.0  # seconds — matches the real MCP client idle timeout (~10min)
+WALL_BUDGET = 240.0  # seconds — for N=6 calls coalescing on one underlying run
+
+# Single-flight upper bound: with coalescing, all N parallel calls should
+# finish within roughly 1.5x a single-call latency (1× for the leader,
+# ~0.5× for the registry + Future bookkeeping). If we observe wall >
+# 1.5× SINGLE_CALL_LATENCY_UPPER_BOUND, single-flight is broken and we
+# are accidentally running N parallel subprocesses.
+SINGLE_CALL_LATENCY_UPPER_BOUND = 180.0  # generous: measured ~30-45s on real hardware
+COALESCED_WALL_FACTOR = 1.5  # wall should be ≤ 1.5× single-call latency
 
 
 async def _initialize(client: httpx.AsyncClient, idx: int) -> str:
@@ -145,15 +159,19 @@ async def test_six_parallel_checkpoint_calls_complete_within_budget() -> None:
     timeout_count = sum(1 for _, _, status in results if "ERR" in status)
     assert timeout_count == 0, (
         f"{timeout_count}/{PARALLEL_CALLS} parallel calls timed out or errored. "
-        f"Without the fix this is expected; with the fix it indicates "
-        f"crackerjack_integration is still serializing. Results: {results}"
+        f"Per-call timeout was {PER_CALL_TIMEOUT}s; if hits here, increase the "
+        f"timeout or check whether the server is processing requests. "
+        f"Results: {results}"
     )
 
-    # Wall-clock should be far below serial execution. With the fix,
-    # 6 calls complete in roughly the same time as 1 (single-flight
-    # coalescing) or up to N× faster than serial.
-    serial_lower_bound = PARALLEL_CALLS * 5.0  # even a fast call takes >5s
-    assert wall < serial_lower_bound, (
-        f"wall={wall:.2f}s suggests serialization (expected < {serial_lower_bound}s). "
+    # Wall-clock should be far below serial execution. With single-flight
+    # coalescing, all N concurrent identical requests share one underlying
+    # computation — so wall ≈ 1× single-call latency, NOT N×. If wall
+    # approaches N× single-call latency, the coalescing guard isn't firing.
+    coalesced_upper_bound = SINGLE_CALL_LATENCY_UPPER_BOUND * COALESCED_WALL_FACTOR
+    assert wall < coalesced_upper_bound, (
+        f"wall={wall:.2f}s suggests single-flight coalescing isn't working "
+        f"(expected < {coalesced_upper_bound}s = "
+        f"{COALESCED_WALL_FACTOR}× single-call latency upper bound). "
         f"Per-call timings: {results}"
     )

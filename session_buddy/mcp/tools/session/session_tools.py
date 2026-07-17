@@ -9,6 +9,7 @@ Refactored to use utility modules for reduced code duplication.
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 import subprocess  # nosec B404
 from contextlib import suppress
@@ -777,6 +778,79 @@ async def _start_impl(working_directory: str | None = None) -> str:
     return output_builder.build()
 
 
+# ---------------------------------------------------------------------------
+# Single-flight coalescing
+# ---------------------------------------------------------------------------
+#
+# When multiple Claude Code sessions end within the same second (e.g. the
+# user closes three tabs at once, or a multi-session workflow fires Stop
+# hooks in burst), each session's ``sb_checkpoint.py`` invokes
+# ``tools/call "checkpoint"`` independently. Without coalescing, the heavy
+# ``_checkpoint_impl`` work (crackerjack subprocess + git operations +
+# DB writes) runs N times in parallel — saturating the worker thread pool
+# and producing client-side ``-32000 transport dropped`` timeouts.
+#
+# This guard coalesces concurrent identical requests on the same key
+# (``(working_directory, is_manual)``) into a single underlying execution:
+# the FIRST caller runs the computation, registers an ``asyncio.Future``,
+# and any concurrent identical caller awaits the same Future and receives
+# the same return value (or exception). The registry entry is removed in
+# a ``finally`` block so the next call after completion runs a fresh
+# computation (no stale caching).
+#
+# The check-and-set below does NOT use ``asyncio.Lock``: the asyncio event
+# loop is single-threaded, and the check (``dict.get``) and set
+# (``dict.__setitem__``) happen back-to-back with no ``await`` between,
+# so they are atomic w.r.t. other coroutines on the same loop. An
+# ``asyncio.Lock`` was tried and rejected — module-level locks bind to
+# whichever event loop is current at import time, breaking test isolation
+# (pytest-asyncio creates a fresh loop per test).
+#
+# Reference: mahavishnu followup 2026-07-16-multi-session-mcp-contention
+# and session-buddy plan 2026-07-16-checkpoint-async-refactor.
+
+_in_flight_checkpoints: dict[tuple[str | None, bool], "asyncio.Future[str]"] = {}
+
+
+async def _single_flight_checkpoint(working_directory: str | None = None) -> str:
+    """Single-flight wrapper around ``_checkpoint_impl``.
+
+    Concurrent identical requests coalesce into one underlying execution.
+    The key includes the (possibly auto-detected) ``working_directory``
+    so distinct projects do NOT coalesce.
+    """
+    # The tool always invokes ``_checkpoint_impl`` with ``is_manual=True``
+    # via this path. Other callers (the session_manager API, tests) bypass
+    # this guard and call ``_checkpoint_impl`` directly. Including
+    # ``is_manual=True`` in the key keeps tool-driven calls distinct from
+    # any future programmatic callers.
+    key = (working_directory, True)
+
+    # Fast path: existing identical request in flight — coalesce onto it.
+    # Atomic w.r.t. other coroutines (single-threaded asyncio, no await
+    # between the dict access and the assignment below).
+    existing = _in_flight_checkpoints.get(key)
+    if existing is not None:
+        return await existing
+
+    # We are the leader. Register a Future and run the work.
+    future: asyncio.Future[str] = asyncio.get_event_loop().create_future()
+    _in_flight_checkpoints[key] = future
+
+    try:
+        result = await _checkpoint_impl(working_directory)
+        future.set_result(result)
+        return result
+    except BaseException as exc:
+        # Propagate the same exception to every coalesced waiter so all
+        # callers observe the same failure (mirrors single-call semantics).
+        if not future.done():
+            future.set_exception(exc)
+        raise
+    finally:
+        _in_flight_checkpoints.pop(key, None)
+
+
 async def _checkpoint_impl(working_directory: str | None = None) -> str:
     """Implementation for checkpoint tool."""
     # Auto-detect client working directory if not provided
@@ -1038,7 +1112,7 @@ def register_session_tools(mcp_server: FastMCP) -> None:  # noqa: C901
     @mcp_server.tool()
     async def checkpoint(working_directory: str | None = None) -> str:
         """Perform mid-session quality checkpoint with workflow analysis and optimization recommendations."""
-        return await _checkpoint_impl(working_directory)
+        return await _single_flight_checkpoint(working_directory)
 
     @mcp_server.tool()
     async def end(working_directory: str | None = None) -> str:
