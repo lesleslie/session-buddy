@@ -1,8 +1,18 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: mcp-design
+---
+
 # Implementation Plan: Pathway 1 - Conscious Memory Architecture
 
 **Memori Integration with Multi-Provider LLM Cascade**
 
-**Status:** 🟢 Complete
+**Status:** 🟢 Complete  <!-- legacy status — see YAML frontmatter -->
 **Timeline:** 4-6 weeks (Standard)
 **Last Updated:** November 20, 2025
 

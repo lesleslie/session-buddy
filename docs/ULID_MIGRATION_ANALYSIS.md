@@ -1,7 +1,17 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: storage-consolidation
+---
+
 # Session-Buddy ULID Migration Analysis
 
 **Date:** 2026-02-12
-**Status:** Ready for Migration Design
+**Status:** Ready for Migration Design  <!-- legacy status — see YAML frontmatter -->
 **Priority:** HIGH (Session tracking is core to ecosystem coordination)
 
 ---

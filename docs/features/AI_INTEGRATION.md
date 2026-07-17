@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: learning-pipeline
+---
+
 # AI Integration Patterns
 
 Advanced patterns for integrating Claude Code with the Session Management MCP server. This guide shows how to leverage the memory system, workflow intelligence, and session management for optimal AI-assisted development.

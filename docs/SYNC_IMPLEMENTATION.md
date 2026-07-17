@@ -1,6 +1,16 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: storage-consolidation
+---
+
 # Session-Buddy to AkOSHA Memory Synchronization
 
-**Status**: ✅ COMPLETED
+**Status**: ✅ COMPLETED  <!-- legacy status — see YAML frontmatter -->
 **Implemented**: 2026-02-02
 **Effort**: 32 hours
 

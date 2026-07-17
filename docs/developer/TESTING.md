@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: lifecycle
+---
+
 # Testing Guide
 
 This document provides comprehensive guidance on testing the Session Management MCP server, including strategy, current status, and quality standards.

@@ -1,6 +1,16 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: oneiric-config
+---
+
 # Claude/Qwen Config Sync
 
-**Status**: ✅ Available
+**Status**: ✅ Available  <!-- legacy status — see YAML frontmatter -->
 **Migrated**: 2026-02-06 from Mahavishnu
 **Feature**: Bidirectional configuration synchronization between Claude Code and Qwen Code
 

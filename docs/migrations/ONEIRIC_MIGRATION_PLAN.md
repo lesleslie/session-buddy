@@ -1,6 +1,16 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: oneiric-config
+---
+
 # Session Buddy Oneiric + mcp-common Migration Plan
 
-**Status:** All Phases Complete ✅ | Production Ready
+**Status:** All Phases Complete ✅ | Production Ready  <!-- legacy status — see YAML frontmatter -->
 **Owner:** Platform Core
 **Phase 0 Completion Date:** 2024-01-15
 **Phase 1 Completion Date:** 2024-12-28

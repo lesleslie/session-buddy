@@ -1,3 +1,13 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: adapter-architecture
+---
+
 # Memori + session-buddy Integration Pathways
 
 **Document Version:** 1.0

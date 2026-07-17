@@ -1,7 +1,17 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: oneiric-config
+---
+
 # Oneiric MCP Server Analysis & Recommendations
 
 **Date**: 2025-01-25
-**Status**: Investigation Complete
+**Status**: Investigation Complete  <!-- legacy status — see YAML frontmatter -->
 **Purpose**: Analyze Oneiric's current MCP capabilities and adapter discovery
 
 ## Executive Summary

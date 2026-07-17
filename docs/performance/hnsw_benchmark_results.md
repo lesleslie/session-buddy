@@ -1,3 +1,13 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: observability
+---
+
 # HNSW Performance Benchmark Results
 
 **Date:** 2026-01-19
@@ -25,7 +35,7 @@ The HNSW indexing implementation has been **successfully completed and tested**,
 | P95 latency | 9.753 ms | 10.738 ms | - |
 | P99 latency | 11.425 ms | 13.837 ms | - |
 
-**Status:** ⚠️ Above \<5ms target (8.099ms)
+**Status:** ⚠️ Above \<5ms target (8.099ms)  <!-- legacy status — see YAML frontmatter -->
 **Analysis:** For small datasets, HNSW overhead outweighs benefits. Linear scan is fast enough.
 
 ______________________________________________________________________

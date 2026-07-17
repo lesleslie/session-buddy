@@ -1,3 +1,13 @@
+---
+status: active
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: lifecycle
+---
+
 # Session Buddy - Quick Start Guide
 
 Get up and running with the Session Management MCP server in under 5 minutes.

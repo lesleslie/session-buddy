@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: mcp-design
+---
+
 # Akosha Cloud Sync - User Guide
 
 Complete guide for configuring and using Session-Buddy's Akosha cloud synchronization feature.

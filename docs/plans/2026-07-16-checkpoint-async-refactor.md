@@ -1,7 +1,17 @@
+---
+status: shipped
+role: implementation
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: persistence
+---
+
 # Checkpoint Async Refactor (Multi-Session MCP Contention Fix)
 
 **Date:** 2026-07-16
-**Status:** shipped, implementation — single-flight + RED→GREEN integration test
+**Status:** shipped, implementation — single-flight + RED→GREEN integration test  <!-- legacy status — see YAML frontmatter -->
 **Owner:** Claude Code (mahavishnu session 854beabd, debug followup chain)
 **Scope:** Eliminate the per-call latency and concurrency bottleneck in
 session-buddy's `tools/call "checkpoint"` path so concurrent Claude Code

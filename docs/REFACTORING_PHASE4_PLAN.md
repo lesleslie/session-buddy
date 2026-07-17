@@ -1,6 +1,16 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
+
 # Phase 4 Refactoring Plan - Large Core Files
 
-**Status:** ✅ SHIPPED — historical, retained for lineage  
+**Status:** ✅ SHIPPED — historical, retained for lineage  <!-- legacy status — see YAML frontmatter -->
 **Promoted 2026-07-15** after drift-sync verified all Phase 4 days + Phase 5 done.
 **Goal**: Target large core files (900+ lines) for modularization and refactoring
 **Estimated Impact**: 2,000-3,500 line reduction

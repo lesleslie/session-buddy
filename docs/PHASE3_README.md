@@ -1,10 +1,20 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
+
 # Phase 3: Semantic Relationship Enhancement - Complete Implementation
 
 ## Overview
 
 Phase 3 transforms the Session Buddy knowledge graph from a basic graph with 6 generic relationship types (96% "related_to") into an intelligent semantic network with 15+ expressive types, confidence scoring, and automatic relationship discovery.
 
-**Status**: ✅ **IMPLEMENTATION COMPLETE**
+**Status**: ✅ **IMPLEMENTATION COMPLETE**  <!-- legacy status — see YAML frontmatter -->
 **Date**: 2025-02-09
 **Version**: 1.0
 

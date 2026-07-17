@@ -1,6 +1,16 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
+
 # Code Refactoring Plan
 
-**Status:** ✅ SHIPPED — historical, retained for lineage  
+**Status:** ✅ SHIPPED — historical, retained for lineage  <!-- legacy status — see YAML frontmatter -->
 **Promoted 2026-07-15** after drift-sync verified all phases done via commits `c9081d8f` through `7944b5fa`.  
 **Supersedes:** Phase 1 (quick wins), Phase 2 (consolidation), Phase 3 (structural), Phase 4 (tool-specific), Phase 5 (extraction). All 16 items across phases 4/5 verified delivered.
 

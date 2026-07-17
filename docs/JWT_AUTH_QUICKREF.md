@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: auth
+---
+
 # JWT Authentication Quick Reference
 
 ## Setup (30 seconds)
@@ -233,4 +243,4 @@ ______________________________________________________________________
 
 **Last Updated**: 2025-02-06
 **Version**: 1.0.0
-**Status**: ✅ Production Ready
+**Status**: ✅ Production Ready  <!-- legacy status — see YAML frontmatter -->

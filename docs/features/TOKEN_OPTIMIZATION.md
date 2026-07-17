@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: lifecycle
+---
+
 # Token Optimization Features
 
 This document describes the comprehensive token optimization system implemented in the session-buddy server to reduce token usage and costs while maintaining functionality.

@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
+
 # Hooks System and Causal Chain Tracking
 
 **Phase 1 Feature** - Enhanced Automation and Debugging Intelligence

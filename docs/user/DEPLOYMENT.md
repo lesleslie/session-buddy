@@ -1,3 +1,13 @@
+---
+status: active
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: lifecycle
+---
+
 # Session Buddy - Deployment Guide
 
 Comprehensive deployment strategies for the Session Management MCP server across different environments and platforms.

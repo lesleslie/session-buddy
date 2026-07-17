@@ -1,6 +1,16 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
+
 # Test Improvement Plan for Session-Mgmt-MCP
 
-**Status:** 🟡 PARTIAL — 11/14 items done; Coverage Gap remains (see below)
+**Status:** 🟡 PARTIAL — 11/14 items done; Coverage Gap remains (see below)  <!-- legacy status — see YAML frontmatter -->
 **Reconciled:** 2026-07-15 (drift-sync)
 
 > **⚠️ Coverage Gap (Genuinely Remaining)**

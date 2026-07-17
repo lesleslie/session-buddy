@@ -1,7 +1,17 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
+
 # Session-Buddy Service Dependencies
 
 **Last Updated**: 2026-02-09
-**Status**: Production Ready
+**Status**: Production Ready  <!-- legacy status — see YAML frontmatter -->
 
 ______________________________________________________________________
 

@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: mcp-design
+---
+
 # Real-Time WebSocket Server
 
 WebSocket server for real-time skill metrics broadcasting in Session-Buddy.

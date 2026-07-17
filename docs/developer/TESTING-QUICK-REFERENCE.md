@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: lifecycle
+---
+
 # Testing Quick Reference Guide
 
 Quick commands and patterns for testing session-buddy
@@ -240,5 +250,5 @@ ptw  # Auto-re-run on file changes
 ______________________________________________________________________
 
 **Last Updated:** October 26, 2025
-**Status:** Ready for use
+**Status:** Ready for use  <!-- legacy status — see YAML frontmatter -->
 **Coverage:** 68 tests, 100% passing

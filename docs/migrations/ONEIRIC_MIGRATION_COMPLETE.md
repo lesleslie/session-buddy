@@ -1,7 +1,17 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: oneiric-config
+---
+
 # Oneiric Migration Complete
 
 **Date**: 2026-01-20
-**Status**: ✅ COMPLETE (All 7 Phases)
+**Status**: ✅ COMPLETE (All 7 Phases)  <!-- legacy status — see YAML frontmatter -->
 
 ## Overview
 

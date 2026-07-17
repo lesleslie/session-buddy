@@ -1,3 +1,13 @@
+---
+status: active
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: mcp-design
+---
+
 # Session Buddy - MCP Tools Reference
 
 Complete reference guide for all Session Management MCP tools. Use these slash commands directly in Claude Code for comprehensive session management and intelligent conversation memory.

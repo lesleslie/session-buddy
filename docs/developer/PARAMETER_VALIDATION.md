@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
+
 # Parameter Validation Guide for Session-MGMT-MCP
 
 This comprehensive guide covers the implementation and usage of Pydantic parameter validation models for improved type safety and error handling across all MCP tools.

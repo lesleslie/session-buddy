@@ -1,3 +1,13 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
+
 # Phase 5: Rollout Plan and Operations
 
 This document describes a staged rollout of the Memori-inspired features behind feature flags, including migration, extraction, background optimization, and filesystem integration.

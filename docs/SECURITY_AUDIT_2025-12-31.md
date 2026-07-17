@@ -1,3 +1,13 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: auth
+---
+
 # Security Audit Report - 2025-12-31
 
 ## Executive Summary
@@ -162,5 +172,5 @@ ______________________________________________________________________
 
 **Audited By**: Claude Security Auditor
 **Date**: 2025-12-31
-**Status**: COMPLETE - 1 vulnerability identified and assessed as acceptable risk
+**Status**: COMPLETE - 1 vulnerability identified and assessed as acceptable risk  <!-- legacy status — see YAML frontmatter -->
 **Next Audit**: 2025-02-01 (or sooner if nbconvert update is released)

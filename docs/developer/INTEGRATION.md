@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
+
 # Integration Guide
 
 Comprehensive guide for integrating the Session Management MCP server with existing tools, workflows, and development environments.

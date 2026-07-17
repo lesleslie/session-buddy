@@ -1,7 +1,17 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
+
 # Protobuf Usage Analysis for Session Buddy
 
 **Date:** 2026-01-23
-**Status:** Complete Analysis
+**Status:** Complete Analysis  <!-- legacy status — see YAML frontmatter -->
 
 ## Executive Summary
 

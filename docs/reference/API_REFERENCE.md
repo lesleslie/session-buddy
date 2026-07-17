@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: mcp-design
+---
+
 # mcp_common API Reference
 
 Complete Python API reference for the `mcp_common` package - the ACB-native foundation library for MCP servers.

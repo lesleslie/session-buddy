@@ -1,3 +1,13 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: lifecycle
+---
+
 # Migration: Health Check Implementation
 
 Note: This document describes a planned HTTP health/metrics layer. The current Session Buddy server does not expose HTTP endpoints; use exec/import checks or build a wrapper if needed.

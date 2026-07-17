@@ -1,8 +1,18 @@
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: mcp-design
+---
+
 # WebSocket Server Delivery Report
 
 **Project**: Session-Buddy Phase 4 - Real-Time Monitoring
 **Date**: 2026-02-10
-**Status**: ✅ Complete
+**Status**: ✅ Complete  <!-- legacy status — see YAML frontmatter -->
 
 ______________________________________________________________________
 
