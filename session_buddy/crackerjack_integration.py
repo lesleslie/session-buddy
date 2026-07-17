@@ -13,7 +13,6 @@ import logging
 import operator
 import sqlite3
 import tempfile
-import threading
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
@@ -140,7 +139,6 @@ class CrackerjackIntegration:
             Path.home() / ".claude" / "data" / "crackerjack_integration.db",
         )
         self.parser = CrackerjackOutputParser()
-        self._lock = threading.Lock()
         try:
             self._init_database()
         except Exception:

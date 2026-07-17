@@ -13,6 +13,7 @@ Key improvements over V1:
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 import subprocess  # nosec B404
@@ -38,6 +39,25 @@ try:
     CRACKERJACK_AVAILABLE = True
 except ImportError:
     CRACKERJACK_AVAILABLE = False
+
+
+# ---------------------------------------------------------------------------
+# Async dispatch helper (asyncio.to_thread)
+# ---------------------------------------------------------------------------
+#
+# The scoring helpers below historically used ``subprocess.run`` synchronously.
+# In an async server (uvicorn), a sync ``subprocess.run`` blocks the event loop
+# for the duration of the subprocess — concurrent scoring requests queue up
+# behind whichever call holds the loop, eventually hitting client-side timeouts
+# (mahavishnu followup 2026-07-16-multi-session-mcp-contention).
+#
+# Resolution: keep the per-scoring helpers sync (so direct unit-test calls and
+# ``subprocess.run`` monkeypatches keep working unchanged) but dispatch them
+# from the async orchestrators (``_calculate_project_health``,
+# ``_calculate_dev_velocity``) via ``asyncio.to_thread``. The subprocess still
+# runs synchronously — but in a worker thread — so the uvicorn loop keeps
+# spinning while the git command executes. Concurrent checkpoint calls now
+# parallelize across worker threads instead of serializing on the event loop.
 
 
 @dataclass
@@ -226,8 +246,14 @@ async def _calculate_project_health(project_dir: Path) -> ProjectHealthScore:
     - tooling_score: 15 points (modern tooling)
     - maturity_score: 15 points (project maturity)
     """
-    tooling = _calculate_tooling_score(project_dir)
-    maturity = _calculate_maturity_score(project_dir)
+    # The sub-calculators (``_calculate_tooling_score``,
+    # ``_calculate_maturity_score``) are sync and may run ``git log`` /
+    # ``git branch`` synchronously via ``subprocess.run``. We dispatch them
+    # via ``asyncio.to_thread`` so the uvicorn event loop keeps spinning
+    # while the git subprocess runs (mahavishnu followup
+    # 2026-07-16-multi-session-mcp-contention).
+    tooling = await asyncio.to_thread(_calculate_tooling_score, project_dir)
+    maturity = await asyncio.to_thread(_calculate_maturity_score, project_dir)
 
     return ProjectHealthScore(
         tooling_score=round(tooling["score"], 2),
@@ -403,9 +429,13 @@ async def _calculate_dev_velocity(project_dir: Path) -> DevVelocityScore:
     Components:
     - git_activity: 10 points (commit frequency, quality)
     - dev_patterns: 10 points (issue tracking, branch strategy)
+
+    The sub-calculators run ``git log`` / ``git branch`` synchronously
+    via ``subprocess.run``; dispatch via ``asyncio.to_thread`` so the
+    uvicorn event loop keeps spinning while the subprocess runs.
     """
-    git_activity = _analyze_git_activity(project_dir)
-    dev_patterns = _analyze_dev_patterns(project_dir)
+    git_activity = await asyncio.to_thread(_analyze_git_activity, project_dir)
+    dev_patterns = await asyncio.to_thread(_analyze_dev_patterns, project_dir)
 
     return DevVelocityScore(
         git_activity=round(git_activity["score"], 2),
