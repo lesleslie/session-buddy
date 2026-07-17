@@ -1,3 +1,13 @@
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: observability
+---
+
 # Prometheus Metrics Exporter - Quick Start Guide
 
 ## Installation
@@ -298,6 +308,6 @@ curl http://localhost:9090/metrics
 
 ______________________________________________________________________
 
-**Status:** ✅ Production Ready
+**Status:** ✅ Production Ready  <!-- legacy status — see YAML frontmatter -->
 **Version:** 1.0.0
 **Last Updated:** 2026-02-10

@@ -1,3 +1,13 @@
+---
+status: active
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: plugin-standardization
+---
+
 # Checkpoint {{ checkpoint_number }} - {{ project_name }}
 
 **Session ID**: `{{ session_id }}`

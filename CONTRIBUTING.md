@@ -1,3 +1,13 @@
+---
+status: active
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-07-16
+superseded_by: null
+blocks_on: []
+topic: lifecycle
+---
+
 # Contributing to Session Buddy
 
 Thank you for your interest in contributing to Session Buddy! This document provides guidelines and instructions for contributing to the project.
