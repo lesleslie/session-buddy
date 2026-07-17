@@ -366,7 +366,12 @@ class SessionLifecycleManager:
 
         try:
             # Use the new git utilities
-            success, result, git_output = create_checkpoint_commit(
+            # Run via asyncio.to_thread so the uvicorn event loop keeps
+            # spinning while git operations complete (mahavishnu followup
+            # 2026-07-16-multi-session-mcp-contention). The helper itself
+            # remains sync so direct unit-test calls still work.
+            success, result, git_output = await asyncio.to_thread(
+                create_checkpoint_commit,
                 current_dir,
                 self.current_project or "Unknown",
                 quality_score,
@@ -421,7 +426,7 @@ class SessionLifecycleManager:
 
             # Check if we should only run when git is clean
             if settings.git_gc_only_when_clean:
-                if is_git_operation_in_progress(directory):
+                if await asyncio.to_thread(is_git_operation_in_progress, directory):
                     output.append("\n🔄 Git operation in progress - skipping gc")
                     self.logger.info(
                         "Git operation in progress, skipping gc, project=%s",
@@ -430,7 +435,8 @@ class SessionLifecycleManager:
                     return
 
             # Schedule automatic gc
-            success, message = schedule_automatic_git_gc(
+            success, message = await asyncio.to_thread(
+                schedule_automatic_git_gc,
                 directory,
                 prune_delay=settings.git_gc_prune_delay,
                 auto_threshold=settings.git_gc_auto_threshold,
