@@ -22,6 +22,7 @@ This index makes implementation plans easier to find during review and cleanup.
 - [REFACTORING_PHASE4_PLAN](../REFACTORING_PHASE4_PLAN.md) — ✅ shipped 2026-07-15
 - [REFACTORING_PLAN](../REFACTORING_PLAN.md) — ✅ shipped 2026-07-15
 - [UNIFIED_ROADMAP](../UNIFIED_ROADMAP.md) — 🟡 phases 1–2 done, 3+ superseded
+- [2026-07-16-checkpoint-async-refactor](../2026-07-16-checkpoint-async-refactor.md) — ✅ shipped 2026-07-16
 
 ## Maintenance Rules
 
