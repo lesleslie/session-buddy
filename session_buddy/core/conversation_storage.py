@@ -6,6 +6,7 @@ during checkpoints and session end operations.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import typing as t
 from datetime import datetime

@@ -224,18 +224,25 @@ class CrackerjackOutputParser:
             coverage_line_pattern = SAFE_PATTERNS[self.patterns["coverage_line"]]
             coverage_match = coverage_line_pattern.search(line)
             if coverage_match:
-                file_path, statements, missing, coverage = coverage_match.groups()
-                data["coverage_data"][file_path] = {
-                    "statements": int(statements),
-                    "missing": int(missing),
-                    "coverage": int(coverage.rstrip("%")),
-                }
+                groups = coverage_match.groups()
+                if len(groups) == 4:
+                    file_path, statements, missing, coverage = groups
+                    data["coverage_data"][file_path] = {
+                        "statements": int(statements),
+                        "missing": int(missing),
+                        "coverage": float(coverage.rstrip("%")),
+                    }
+                elif len(groups) == 1:
+                    # TOTAL-row variant — capture only the percent
+                    data["coverage_summary"]["total_coverage"] = float(
+                        groups[0].rstrip("%"),
+                    )
 
             # Total coverage
             pytest_coverage_pattern = SAFE_PATTERNS[self.patterns["pytest_coverage"]]
             total_match = pytest_coverage_pattern.search(line)
             if total_match:
-                total_coverage = int(total_match.group(1))
+                total_coverage = float(total_match.group(1))
                 data["coverage_summary"]["total_coverage"] = total_coverage
 
         return data

@@ -66,6 +66,7 @@ class PatternMappingsBuilder:
         """Add coverage-related patterns."""
         coverage_patterns = {
             "coverage_line": "coverage_summary",
+            "coverage_total": "coverage_total",
         }
         self._patterns.update(coverage_patterns)
         return self

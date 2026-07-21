@@ -392,13 +392,37 @@ SAFE_PATTERNS: dict[str, ValidatedPattern] = {
     ),
     "coverage_summary": ValidatedPattern(
         name="coverage_summary",
-        pattern=r"TOTAL\s+\d+\s+\d+\s+(\d+)%",
+        pattern=r"TOTAL\s+\d+\s+\d+\s+(\d+(?:\.\d+)?)%",
         replacement=r"COVERAGE: \1%",
-        description="Extract total coverage percentage from coverage reports",
+        description="Extract total coverage percentage from coverage reports (supports decimals)",
         test_cases=[
             ("TOTAL    1000    50    95%", "COVERAGE: 95%"),
             ("TOTAL    500    25    78%", "COVERAGE: 78%"),
+            ("TOTAL 52464 37163 29.16%", "COVERAGE: 29.16%"),
             ("subtotal   100    5    90%", "subtotal   100    5    90%"),  # No change
+        ],
+    ),
+    "coverage_line": ValidatedPattern(
+        name="coverage_line",
+        pattern=r"TOTAL\s+\d+\s+\d+\s+(\d+(?:\.\d+)?)%",
+        replacement=r"COVERAGE: \1%",
+        description="Extract coverage percentage from a TOTAL coverage row (supports decimals)",
+        test_cases=[
+            ("TOTAL    1000    50    95%", "COVERAGE: 95%"),
+            ("TOTAL 52464 37163 29.16%", "COVERAGE: 29.16%"),
+        ],
+    ),
+    "coverage_total": ValidatedPattern(
+        name="coverage_total",
+        pattern=r"TOTAL\s+(\d+)\s+(\d+)\s+(\d+(?:\.\d+)?)%",
+        replacement=r"COVERAGE TOTAL: \1 stmts, \2 miss, \3%",
+        description="Parse TOTAL coverage row capturing statements, missing, and percent (supports decimals)",
+        test_cases=[
+            (
+                "TOTAL 52464 37163 29.16%",
+                "COVERAGE TOTAL: 52464 stmts, 37163 miss, 29.16%",
+            ),
+            ("TOTAL 1000 50 95%", "COVERAGE TOTAL: 1000 stmts, 50 miss, 95%"),
         ],
     ),
     "ruff_error": ValidatedPattern(

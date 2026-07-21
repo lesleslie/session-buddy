@@ -80,3 +80,38 @@ def test_safe_patterns_apply_to_sample_strings() -> None:
         python_exception.replacement,
         "ValueError: invalid input",
     ) == "ValueError: <ERROR_MESSAGE_MASKED>"
+
+
+def test_coverage_line_pattern_supports_decimals() -> None:
+    """Regression: coverage_line must accept decimal percentages (e.g. 29.16%).
+
+    Mahavishnu's pytest coverage output emits 'TOTAL 52464 37163 29.16%' which
+    the legacy int-only regex `(\\d+)%` could not match.
+    """
+    pattern = SAFE_PATTERNS["coverage_line"]
+    match = pattern.search("TOTAL 52464 37163 29.16%")
+    assert match is not None
+    assert match.group(1) == "29.16"
+    assert float(match.group(1)) == 29.16
+
+    # Integer percentages must still match.
+    int_match = pattern.search("TOTAL 1000 50 95%")
+    assert int_match is not None
+    assert int_match.group(1) == "95"
+
+    # coverage_summary must also support decimals (same source pattern).
+    summary = SAFE_PATTERNS["coverage_summary"]
+    summary_match = summary.search("TOTAL 52464 37163 29.16%")
+    assert summary_match is not None
+    assert summary_match.group(1) == "29.16"
+
+
+def test_coverage_total_pattern_captures_stmts_missing_percent() -> None:
+    """coverage_total must capture stmts, miss, and percent (as floats)."""
+    pattern = SAFE_PATTERNS["coverage_total"]
+    match = pattern.search("TOTAL 52464 37163 29.16%")
+    assert match is not None
+    stmts, missing, percent = match.groups()
+    assert int(stmts) == 52464
+    assert int(missing) == 37163
+    assert float(percent) == 29.16
