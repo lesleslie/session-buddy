@@ -93,6 +93,23 @@ class TestSessionBuddySettings:
 
         assert isinstance(settings, OneiricMCPConfig)
 
+    def test_cache_root_shim_returns_path_from_cache_dir(self) -> None:
+        """Regression: OneiricMCPConfig exposes cache_dir (str) only.
+
+        mcp_common.cli.MCPServerCLIFactory calls
+        ``validate_cache_ownership(self.settings.cache_root)`` (factory.py:406).
+        ``cache_root`` is a Path on the legacy MCPServerSettings base; it was
+        dropped in the OneiricMCPConfig migration (commit 05bc2622). The shim
+        mirrors ``cache_dir`` into ``cache_root`` so startup does not raise
+        ``AttributeError``. This test pins the shim contract.
+        """
+        from session_buddy.cli_with_modes import SessionBuddySettings
+
+        settings = SessionBuddySettings()
+
+        assert isinstance(settings.cache_root, Path)
+        assert settings.cache_root == Path(settings.cache_dir)
+
 
 # ============================================================================
 # Test start_server_handler
