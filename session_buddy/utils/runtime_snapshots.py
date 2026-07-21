@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import typing as t
 from dataclasses import dataclass, field
@@ -174,8 +175,6 @@ async def run_snapshot_loop(
 
 
 async def _sleep(interval_seconds: float) -> None:
-    import asyncio
-
     await asyncio.sleep(interval_seconds)
 
 

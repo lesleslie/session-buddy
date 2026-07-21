@@ -6,6 +6,7 @@ indexed code graphs in Session-Buddy's reflection database.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import typing as t
 from datetime import UTC
@@ -457,8 +458,6 @@ def _register_code_graph_retrieval_tool(mcp: Any) -> None:
                 else t.cast(Any, reflection_db)._get_conn()
             )
 
-            import asyncio
-
             def _query() -> dict[str, Any] | None:
                 return _query_code_graph(conn, repo_path, commit_hash)
 
@@ -517,8 +516,6 @@ def _register_code_graph_list_tool(mcp: Any) -> None:
                 if hasattr(reflection_db, "execute")
                 else t.cast(Any, reflection_db)._get_conn()
             )
-
-            import asyncio
 
             def _query() -> list[dict[str, Any]]:
                 return _query_code_graphs_list(conn, repo_path, limit)

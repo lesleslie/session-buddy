@@ -12,6 +12,7 @@ Features:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
@@ -275,8 +276,6 @@ class SkillsEmbeddingService:
             # Use reflection embedding system (async, so run in a fresh event loop).
             # asyncio.run() creates a new loop and closes it when done —
             # correct for sync-in-thread-pool bridging.
-            import asyncio
-
             embedding_list = asyncio.run(generate_reflection_embedding(text))
 
             if embedding_list is None:

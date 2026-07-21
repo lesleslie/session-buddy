@@ -8,6 +8,7 @@ Phase 10.1: Production Hardening - Session Management Health Checks
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import os
 import sys
@@ -572,8 +573,6 @@ async def get_all_health_checks() -> list[ComponentHealth]:
     This is the main entry point for the health endpoint.
 
     """
-    import asyncio
-
     # Run all checks concurrently
     results = await asyncio.gather(
         check_python_environment_health(),

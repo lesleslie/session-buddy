@@ -8,6 +8,7 @@ Phase 10.2: Production Hardening - Resource Cleanup
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util as import_util
 import typing as t
 from contextlib import suppress
@@ -220,8 +221,6 @@ async def cleanup_background_tasks() -> None:
     logger.info("Cleaning up background tasks")
 
     try:
-        import asyncio
-
         # Get current event loop
         try:
             loop = asyncio.get_running_loop()

@@ -13,6 +13,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import typing as t
@@ -153,8 +154,6 @@ def _run_health_probe(settings: SessionBuddySettings) -> RuntimeHealthSnapshot:
     Returns:
         Runtime health snapshot
     """
-    import asyncio
-
     pid = _read_running_pid(settings)
     health_state = asyncio.run(get_health_status(ready=False))
     snapshot = RuntimeHealthSnapshot(

@@ -14,6 +14,7 @@ Extracted from server.py Phase 2.4 - Contains 17 MCP tool implementations:
 
 from __future__ import annotations
 
+import asyncio
 import typing as t
 from pathlib import Path
 
@@ -635,8 +636,6 @@ async def _get_advanced_search_engine() -> t.Any:
 def _get_advanced_search_engine_sync() -> t.Any:
     """Synchronous helper to get advanced search engine."""
     try:
-        import asyncio
-
         return asyncio.run(_get_advanced_search_engine())
     except Exception:
         return None
