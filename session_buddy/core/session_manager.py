@@ -5,6 +5,7 @@ This module handles session initialization, quality assessment, checkpoints,
 and cleanup operations.
 """
 
+import asyncio
 import logging
 import os
 import shutil
