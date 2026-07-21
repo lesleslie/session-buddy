@@ -1,12 +1,6 @@
----
-status: complete
-role: historical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: quality
----
+______________________________________________________________________
+
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: quality
 
 # session-buddy Test Failure Triage Report
 

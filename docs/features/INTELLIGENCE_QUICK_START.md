@@ -1,12 +1,6 @@
----
-status: complete
-role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: learning-pipeline
----
+______________________________________________________________________
+
+## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: learning-pipeline
 
 # Intelligence Features Quick Start Guide
 
@@ -753,5 +747,5 @@ Continue → /end → /search_insights "new feature"
 ______________________________________________________________________
 
 **Last Updated**: January 10, 2026
-**Status**: Production Ready ✅  <!-- legacy status — see YAML frontmatter -->
+**Status**: Production Ready ✅ <!-- legacy status — see YAML frontmatter -->
 **Test Coverage**: 62/62 tests passing (100%)

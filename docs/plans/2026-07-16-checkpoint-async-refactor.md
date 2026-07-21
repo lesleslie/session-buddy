@@ -1,17 +1,11 @@
----
-status: shipped
-role: implementation
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: persistence
----
+______________________________________________________________________
+
+## status: shipped role: implementation date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: persistence
 
 # Checkpoint Async Refactor (Multi-Session MCP Contention Fix)
 
 **Date:** 2026-07-16
-**Status:** shipped, implementation — single-flight + RED→GREEN integration test  <!-- legacy status — see YAML frontmatter -->
+**Status:** shipped, implementation — single-flight + RED→GREEN integration test <!-- legacy status — see YAML frontmatter -->
 **Owner:** Claude Code (mahavishnu session 854beabd, debug followup chain)
 **Scope:** Eliminate the per-call latency and concurrency bottleneck in
 session-buddy's `tools/call "checkpoint"` path so concurrent Claude Code
@@ -43,11 +37,10 @@ checkpoint calls.
 1. Convert all sync subprocess calls in the `tools/call "checkpoint"`
    code path to async-safe equivalents so the uvicorn event loop stays
    unblocked.
-2. Add **single-flight coalescing** keyed on `(working_directory,
-   is_manual, session_phase)` so concurrent identical requests share
+1. Add **single-flight coalescing** keyed on `(working_directory, is_manual, session_phase)` so concurrent identical requests share
    one computation. The 4-Stop-hook-firing-same-query case becomes
    effectively 1 subprocess run, not 4.
-3. Preserve backward compatibility: direct unit-test calls to internal
+1. Preserve backward compatibility: direct unit-test calls to internal
    helpers stay sync and accept `subprocess.run` monkeypatches.
 
 ## 3. Non-Goals
@@ -55,17 +48,18 @@ checkpoint calls.
 1. Reducing per-call latency below ~30s through caching or fast paths.
    The plan focuses on CONCURRENCY (multiple callers); serial latency
    optimization is a separate effort.
-2. Changing the crackerjack subprocess behavior (what it runs, how
+1. Changing the crackerjack subprocess behavior (what it runs, how
    long it runs).
-3. Multi-tenant isolation or per-session state partitioning. Single-flight
+1. Multi-tenant isolation or per-session state partitioning. Single-flight
    is keyed only on request parameters, not on caller identity.
-4. Replacing `subprocess.run` with `asyncio.create_subprocess_exec` in
+1. Replacing `subprocess.run` with `asyncio.create_subprocess_exec` in
    every helper. The `asyncio.to_thread(sync_fn)` pattern is sufficient
    for non-blocking I/O and keeps the helper signatures unchanged.
 
 ## 4. Current Findings
 
 ### Measured latency (2026-07-16, after partial fixes in commits `3c83f33d`
+
 and `d67a531c`):
 
 ```
@@ -109,14 +103,15 @@ The user explicitly chose the "do this right" path (comprehensive async refactor
 ### Three coordinated changes
 
 **A. Async-safe subprocess in the checkpoint path** (extends prior commits)
+
 - Continue `asyncio.to_thread(sync_fn, ...)` wrapping for the remaining
   sync subprocess sites in `git_operations.py`, `git_worktrees.py`,
   `quality_engine.py::perform_strategic_compaction`, and the auto-compaction
   path inside `_checkpoint_impl`.
 
 **B. Single-flight coalescing on `tools/call "checkpoint"`**
-- At the MCP-tool entry point (`mcp/tools/session/session_tools.py:
-  checkpoint_session_tool` → `_checkpoint_impl`), wrap the entire checkpoint
+
+- At the MCP-tool entry point (`mcp/tools/session/session_tools.py: checkpoint_session_tool` → `_checkpoint_impl`), wrap the entire checkpoint
   computation in a single-flight keyed on `(working_directory, is_manual)`.
 - First caller runs the computation; concurrent identical callers `await`
   the same `asyncio.Future` and receive the same result.
@@ -124,6 +119,7 @@ The user explicitly chose the "do this right" path (comprehensive async refactor
   Recommendation A+B (single-flight + non-blocking).
 
 **C. Test the new behavior with unit tests**
+
 - Add `tests/unit/test_session_tools_single_flight.py` with deterministic
   mocks verifying that 4 concurrent identical `checkpoint_session_tool`
   invocations invoke the underlying session-manager ONCE.
@@ -145,10 +141,11 @@ becomes irrelevant — only wall-clock matters, and that drops from `4 × 40s`
 in the checkpoint path, with classification: to_thread candidate vs no-op.
 
 **Tasks:**
+
 - Grep all sync subprocess calls under `session_buddy/` reachable from
   `tools/call "checkpoint"`.
 - For each, classify:
-  - **A1 — fast (<100ms)**: no async conversion needed
+  - **A1 — fast (\<100ms)**: no async conversion needed
   - **A2 — medium (100ms–5s)**: wrap caller with `asyncio.to_thread`
   - **A3 — slow (>5s)**: wrap caller + consider single-flight
 - Output: `docs/plans/2026-07-16-checkpoint-subprocess-audit.md` with the table.
@@ -171,6 +168,7 @@ has an owner line.
 subprocess in a worker thread instead of on the event loop.
 
 **Tasks:**
+
 - For each A2 site, add `asyncio.to_thread(sync_fn, ...)` at the caller.
 - For each A3 site, same + ensure the calling function is `async def`
   (if not already).
@@ -196,6 +194,7 @@ path returns only A1 sites or sites already wrapped.
 **Goal:** Concurrent identical checkpoint requests share one computation.
 
 **Tasks:**
+
 - Add `_in_flight_checkpoint: dict[FlightKey, asyncio.Future[dict]]` at
   module level in `mcp/tools/session/session_tools.py`.
 - Define `FlightKey = tuple[str, bool]` = `(working_directory, is_manual)`.
@@ -230,8 +229,7 @@ tests pass; existing unit tests for `_checkpoint_impl` still pass.
   `test_session_tools_single_flight.py` tests prove the coalescing.
 - **Rollback signal**: integration test fails again OR existing tests
   show non-coalesced behavior under concurrent identical requests.
-- **Observability added**: log line `"checkpoint_single_flight: key={key}
-  coalesced={count}"` per coalesced call.
+- **Observability added**: log line `"checkpoint_single_flight: key={key} coalesced={count}"` per coalesced call.
 
 ### Phase 4: Documentation + PLAN_INDEX update
 
@@ -239,6 +237,7 @@ tests pass; existing unit tests for `_checkpoint_impl` still pass.
 test that pins the regression.
 
 **Tasks:**
+
 - Update this plan's status to `shipped, implementation`.
 - Update `docs/plans/PLAN_INDEX.md` with a new active row.
 - Update the mahavishnu followup `docs/followups/2026-07-16-multi-session-mcp-contention.md`
@@ -273,7 +272,7 @@ shipped.
 
 | Tool / command | Expected outcome | Evidence location |
 |----------------|------------------|-------------------|
-| `RUN_PERFORMANCE_TESTS=1 pytest tests/integration/test_concurrent_checkpoint_load.py -v` | 1 passed in <90s | pytest output |
+| `RUN_PERFORMANCE_TESTS=1 pytest tests/integration/test_concurrent_checkpoint_load.py -v` | 1 passed in \<90s | pytest output |
 | `pytest tests/unit/ -v` | All unit tests pass (no regressions) | pytest output |
 | `pytest tests/unit/test_session_tools_single_flight.py -v` | New tests pass | pytest output |
 | `python3 -c "import asyncio; from session_buddy...; ..."` | 4 concurrent identical checkpoint calls → 1 underlying call | python repl or test output |

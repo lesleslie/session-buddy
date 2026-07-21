@@ -1,12 +1,6 @@
----
-status: active
-role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: lifecycle
----
+______________________________________________________________________
+
+## status: active role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: lifecycle
 
 # Session-Buddy Quickstart (5 minutes)
 
@@ -225,4 +219,4 @@ ______________________________________________________________________
 
 **Quickstart Version**: v1.0
 **Last Updated**: 2026-02-09
-**Status**: Production Ready  <!-- legacy status — see YAML frontmatter -->
+**Status**: Production Ready <!-- legacy status — see YAML frontmatter -->

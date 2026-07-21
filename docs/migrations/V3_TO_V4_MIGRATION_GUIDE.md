@@ -1,17 +1,11 @@
----
-status: complete
-role: historical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: oneiric-config
----
+______________________________________________________________________
+
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: oneiric-config
 
 # Session-Buddy V3 to V4 Migration Guide
 
 **Date:** 2026-02-10
-**Status:** ✅ Production Ready  <!-- legacy status — see YAML frontmatter -->
+**Status:** ✅ Production Ready <!-- legacy status — see YAML frontmatter -->
 **Breaking Changes:** None (V4 is purely additive)
 
 ______________________________________________________________________

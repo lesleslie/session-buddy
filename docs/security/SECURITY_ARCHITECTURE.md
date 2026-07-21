@@ -1,18 +1,12 @@
----
-status: complete
-role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: auth
----
+______________________________________________________________________
+
+## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: auth
 
 # Security Architecture
 
 **Last Updated**: 2026-02-03
 **Version**: 1.0
-**Status**: ✅ Phase 1 Complete (10 Priority 1 tests passing)  <!-- legacy status — see YAML frontmatter -->
+**Status**: ✅ Phase 1 Complete (10 Priority 1 tests passing) <!-- legacy status — see YAML frontmatter -->
 
 ## Overview
 

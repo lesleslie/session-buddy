@@ -1,17 +1,11 @@
----
-status: complete
-role: historical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: mcp-design
----
+______________________________________________________________________
+
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: mcp-design
 
 # Unhashable Type Bug Resolution
 
 **Date:** December 20, 2025
-**Status:** ✅ RESOLVED with Workaround  <!-- legacy status — see YAML frontmatter -->
+**Status:** ✅ RESOLVED with Workaround <!-- legacy status — see YAML frontmatter -->
 **Severity:** High - Blocked all checkpoint operations
 
 ## Summary

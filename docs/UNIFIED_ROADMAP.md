@@ -1,19 +1,13 @@
----
-status: complete
-role: historical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: convergence-control-plane
----
+______________________________________________________________________
+
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: convergence-control-plane
 
 # Unified Roadmap: mcp-common + session-buddy
 
 **Date**: 2025-10-28 (original)
 **Reconciled**: 2026-07-15 (drift-sync)
 **Duration**: 16 weeks (original scope)
-**Status**: **Phases 1–2 done; Phases 3+ superseded** by PHASE3_PROPOSAL.md, REFACTORING_PLAN.md, PHASE4_MCP_TOOLS_IMPLEMENTATION.md, and related follow-on plans.  <!-- legacy status — see YAML frontmatter -->
+**Status**: **Phases 1–2 done; Phases 3+ superseded** by PHASE3_PROPOSAL.md, REFACTORING_PLAN.md, PHASE4_MCP_TOOLS_IMPLEMENTATION.md, and related follow-on plans. <!-- legacy status — see YAML frontmatter -->
 
 ### Reconciliation Summary (2026-07-15)
 

@@ -1,17 +1,11 @@
----
-status: complete
-role: historical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: lifecycle
----
+______________________________________________________________________
+
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: lifecycle
 
 # Quality Tracking Integration with Crackerjack
 
 **Proposal Date**: 2026-02-03
-**Status**: 📋 Proposal for Discussion  <!-- legacy status — see YAML frontmatter -->
+**Status**: 📋 Proposal for Discussion <!-- legacy status — see YAML frontmatter -->
 
 ## Overview
 

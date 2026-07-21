@@ -1,19 +1,13 @@
----
-status: active
-role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: architecture
----
+______________________________________________________________________
+
+## status: active role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: architecture
 
 # Session-Buddy Architecture
 
 **Single Source of Truth for Session-Buddy Architecture**
 
 **Last Updated**: 2026-02-09
-**Status**: Production Ready  <!-- legacy status — see YAML frontmatter -->
+**Status**: Production Ready <!-- legacy status — see YAML frontmatter -->
 **Role**: Manager (Session and Memory Management)
 
 ______________________________________________________________________

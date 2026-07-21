@@ -1,16 +1,10 @@
----
-status: complete
-role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: learning-pipeline
----
+______________________________________________________________________
+
+## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: learning-pipeline
 
 # Cross-Project Skill Metrics Aggregation Design
 
-**Status:** Design Document  <!-- legacy status — see YAML frontmatter -->
+**Status:** Design Document <!-- legacy status — see YAML frontmatter -->
 **Author:** Multi-Agent Coordinator
 **Created:** 2025-02-10
 **Related:** Mahavishnu workflow orchestration, Crackerjack skill metrics

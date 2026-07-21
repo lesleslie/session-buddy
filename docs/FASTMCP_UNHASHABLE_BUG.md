@@ -1,17 +1,11 @@
----
-status: complete
-role: historical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: mcp-design
----
+______________________________________________________________________
+
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: mcp-design
 
 # FastMCP Unhashable CallToolRequestParams Bug
 
 **Date:** January 19, 2025
-**Status:** Workaround Implemented  <!-- legacy status — see YAML frontmatter -->
+**Status:** Workaround Implemented <!-- legacy status — see YAML frontmatter -->
 **Affects:** session-buddy v0.10.x with FastMCP 2.14.1
 
 ## Summary

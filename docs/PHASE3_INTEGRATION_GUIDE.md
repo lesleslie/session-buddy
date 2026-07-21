@@ -1,12 +1,6 @@
----
-status: complete
-role: historical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: architecture
----
+______________________________________________________________________
+
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: architecture
 
 # Phase 3 Integration Guide
 
@@ -319,6 +313,6 @@ For issues or questions:
 
 ______________________________________________________________________
 
-**Status**: Ready for integration  <!-- legacy status — see YAML frontmatter -->
+**Status**: Ready for integration <!-- legacy status — see YAML frontmatter -->
 **Estimated Time**: 1-2 hours
 **Risk Level**: Low (backward compatible, can be rolled back)

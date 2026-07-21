@@ -1,16 +1,10 @@
----
-status: complete
-role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: learning-pipeline
----
+______________________________________________________________________
+
+## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: learning-pipeline
 
 # Insights Capture & Deduplication System
 
-**Status**: ✅ **Phase 1-3 COMPLETE** (Multi-point capture with deduplication)  <!-- legacy status — see YAML frontmatter -->
+**Status**: ✅ **Phase 1-3 COMPLETE** (Multi-point capture with deduplication) <!-- legacy status — see YAML frontmatter -->
 **Implementation Date**: January 10, 2026
 **Test Coverage**: 62/62 tests passing (unit + integration + e2e)
 

@@ -1,12 +1,6 @@
----
-status: complete
-role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: architecture
----
+______________________________________________________________________
+
+## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: architecture
 
 # Dependency Injection (DI) Usage Guide
 
@@ -1196,4 +1190,4 @@ ______________________________________________________________________
 **Last Updated:** 2025-02-03
 **Phase:** 2.7 - Dependency Injection Architecture
 **Author:** Session Buddy Team
-**Status:** Production Ready  <!-- legacy status — see YAML frontmatter -->
+**Status:** Production Ready <!-- legacy status — see YAML frontmatter -->

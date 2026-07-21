@@ -1,20 +1,14 @@
----
-status: complete
-role: historical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: architecture
----
+______________________________________________________________________
+
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: architecture
 
 # Test Improvement Plan for Session-Mgmt-MCP
 
-**Status:** 🟡 PARTIAL — 11/14 items done; Coverage Gap remains (see below)  <!-- legacy status — see YAML frontmatter -->
+**Status:** 🟡 PARTIAL — 11/14 items done; Coverage Gap remains (see below) <!-- legacy status — see YAML frontmatter -->
 **Reconciled:** 2026-07-15 (drift-sync)
 
 > **⚠️ Coverage Gap (Genuinely Remaining)**
-> 
+>
 > The 85% coverage target is NOT yet met. Current measured coverage is **~12%** (as of the 2026-07-15 drift-sync). This is the one outstanding item — the property-based, integration, embedding, performance, and security tests below are landed, but the critical-module coverage metric has not been reached. Tracked as the active follow-up under `crackerjack-coverage-fanout-wave*` skills.
 
 ## Overview

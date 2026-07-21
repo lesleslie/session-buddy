@@ -1,9 +1,16 @@
 {
-  "schema_version": "1.0.0",
-  "name": "session-buddy",
-  "version": "0.1.0",
+  "author": {
+    "name": "Bodai"
+  },
   "description": "Bodai plugin for the Session-Buddy memory MCP server.",
-  "author": {"name": "Bodai"},
-  "keywords": ["bodai", "mcp", "session-buddy", "memory"],
-  "mcpServers": "./.mcp.json"
+  "keywords": [
+    "bodai",
+    "mcp",
+    "session-buddy",
+    "memory"
+  ],
+  "mcpServers": "./.mcp.json",
+  "name": "session-buddy",
+  "schema_version": "1.0.0",
+  "version": "0.1.0"
 }

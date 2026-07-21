@@ -1,16 +1,10 @@
----
-status: complete
-role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: learning-pipeline
----
+______________________________________________________________________
+
+## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: learning-pipeline
 
 # Natural Language Intent Detection
 
-**Status:** ✅ **COMPLETE** - All tests passing (17/17)  <!-- legacy status — see YAML frontmatter -->
+**Status:** ✅ **COMPLETE** - All tests passing (17/17) <!-- legacy status — see YAML frontmatter -->
 **Phase:** Phase 4 - Natural Language Support (P0 Priority)
 **Date:** 2026-01-19
 

@@ -1,12 +1,6 @@
----
-status: active
-role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: lifecycle
----
+______________________________________________________________________
+
+## status: active role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: lifecycle
 
 # Changelog
 
@@ -14,6 +8,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
+
+## [0.20.0] - 2026-07-21
+
+### Added
+
+- Add session-buddy plugin manifest + namespaced commands (additive)
+
+### Fixed
+
+- checkpoint: Add module-level 'import asyncio' to 7 files with antipattern
+- checkpoint: Import asyncio at module level in session_manager.py
+- checkpoint: Partial — remove dead lock + thread sync subprocess in scoring
+- Coverage parser decimals + asyncio import (checkpoint bugfix batch)
+- Dispatch git checkpoint ops via to_thread (partial)
+- Single-flight coalescing on tools/call "checkpoint"
+
+### Documentation
+
+- Mark refactor plans shipped and update PLAN_INDEX
+- plans: Async refactor plan for checkpoint contention
+- plans: Mark 2026-07-16-checkpoint-async-refactor as shipped
+- plans: Tick Phase 2-4 items shipped under refactor lineage
+- session-buddy: Copy validator + regenerator + schemas (P7.A seed)
+- session-buddy: Normalize loose docs/ + sub-store directories to unified frontmatter (P7.A sweep, batch 1/3)
+- session-buddy: Normalize root-level + commands/ + templates/ + plugin pkg files (P7.A sweep, batch 2/3)
+
+### Testing
+
+- integration: Pin concurrent-checkpoint contention (RED)
+
+### Internal
+
+- session-buddy: Remove LICENSE (consolidated to root-level LICENSE)
+- session-buddy: Sync uv.lock to pyproject.toml (0.19.21)
 
 ## [0.19.20] - 2026-07-13
 

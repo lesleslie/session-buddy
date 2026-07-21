@@ -1,12 +1,6 @@
----
-status: active
-role: implementation
-date: 2026-07-16
-last_reviewed: 2026-07-17
-superseded_by: null
-blocks_on: []
-topic: lifecycle
----
+______________________________________________________________________
+
+## status: active role: implementation date: 2026-07-16 last_reviewed: 2026-07-17 superseded_by: null blocks_on: [] topic: lifecycle
 
 # P7 Cross-Repo Plan-Lifecycle-Unification Playbook
 
@@ -16,9 +10,10 @@ topic: lifecycle
 **Source plan:** `docs/plans/2026-07-16-frontmatter-validator-wiring-plan.md` (Task 8 fan-out reads this).
 
 > **Read first (in order):**
+>
 > 1. Mahavishnu's `docs/schemas/document-frontmatter-v1.md` (and `docs/schemas/topic-vocabulary-v1.md`) — the canonical schema and topic vocabulary. This file is a *per-repo adoption guide*, not a schema amendment.
-> 2. Mahavishnu's `scripts/validate_document_frontmatter.py` and `scripts/regenerate_plan_index.py` — copy both verbatim into your repo under `scripts/`.
-> 3. Mahavishnu's `docs/superpowers/plans/2026-07-16-plan-lifecycle-unification.md` — read the "Approved Adjustments" section (Adjustment A — hybrid topic vocab; Adjustment B — two-pass migration). The two-pass pattern is load-bearing.
+> 1. Mahavishnu's `scripts/validate_document_frontmatter.py` and `scripts/regenerate_plan_index.py` — copy both verbatim into your repo under `scripts/`.
+> 1. Mahavishnu's `docs/superpowers/plans/2026-07-16-plan-lifecycle-unification.md` — read the "Approved Adjustments" section (Adjustment A — hybrid topic vocab; Adjustment B — two-pass migration). The two-pass pattern is load-bearing.
 
 ______________________________________________________________________
 
@@ -59,8 +54,8 @@ ______________________________________________________________________
 Two rules:
 
 1. **If a store directory doesn't exist, do not create it.** A repo with no `docs/adr/` should not get one just because Mahavishnu has one. Empty stores add entropy without value.
-2. **If a store exists but only contains generated or excluded files, do not normalize them.** For example, `docs/plans/PLAN_INDEX.md` is generated; the validator already excludes it. Adding frontmatter to it is unnecessary (the regenerator writes its own block).
-3. **If a store exists and has 1-3 files, treat it like a normal store** — small isn't the same as empty.
+1. **If a store exists but only contains generated or excluded files, do not normalize them.** For example, `docs/plans/PLAN_INDEX.md` is generated; the validator already excludes it. Adding frontmatter to it is unnecessary (the regenerator writes its own block).
+1. **If a store exists and has 1-3 files, treat it like a normal store** — small isn't the same as empty.
 
 ______________________________________________________________________
 
@@ -181,9 +176,9 @@ Capture the file count and `missing=` count from the summary line. This becomes 
 Use a Python helper modeled on `_frontmatter_apply_C1_2.py` (or a per-repo variant if structure is different):
 
 1. Walk every file path the validator just identified.
-2. Skip files that already have frontmatter.
-3. For each remaining file, build a per-file assignment table (status, role, topic) keyed on the relative path.
-4. Add legacy HTML comment (`<!-- legacy status ... see YAML frontmatter -->`) on the first `**Status:**` line so `--allow-nonstandard` stays green.
+1. Skip files that already have frontmatter.
+1. For each remaining file, build a per-file assignment table (status, role, topic) keyed on the relative path.
+1. Add legacy HTML comment (`<!-- legacy status ... see YAML frontmatter -->`) on the first `**Status:**` line so `--allow-nonstandard` stays green.
 
 Pass 1 must NOT run `--validate-links`. Forward-pointing `superseded_by`/`blocks_on` are written verbatim.
 
@@ -220,9 +215,9 @@ ______________________________________________________________________
 Per-scope, NOT all-at-once. Each fan-out subagent should produce 2-4 commits per target repo, mirroring Mahavishnu's Wave A-C pattern:
 
 1. **Commit 1**: `scripts/` + `docs/schemas/` (the validator, regenerator, schemas).
-2. **Commit 2**: Per-store normalization, ONE store per commit. For session-buddy: commit loose `docs/*.md` first, then `docs/plans/*.md`, then `commands/`/`templates/`/`session_buddy/`.
-3. **Commit 3**: Link-sweep fixes (only if anything was broken).
-4. **Commit 4**: Regenerated `docs/plans/PLAN_INDEX.md`.
+1. **Commit 2**: Per-store normalization, ONE store per commit. For session-buddy: commit loose `docs/*.md` first, then `docs/plans/*.md`, then `commands/`/`templates/`/`session_buddy/`.
+1. **Commit 3**: Link-sweep fixes (only if anything was broken).
+1. **Commit 4**: Regenerated `docs/plans/PLAN_INDEX.md`.
 
 ### Subject line format
 
@@ -282,7 +277,7 @@ The following recipe was executed 2026-07-16 and produced session-buddy's frontm
 
 - 124 `.md` files in scope across `docs/`, root-level loose, `commands/`, `templates/`, `session_buddy/analytics/`.
 - Of those, 2 are the schema/vocab files we copy in (treated as "pre-existing but new to this repo"); the rest get frontmatter.
-- 18 files were skipped on the first pass for "no assignment"; the second pass added entries for SKILL_METRICS_*, developer/*, AI_INTEGRATION, WEBSOCKET_API, JSON_SCHEMA_REFERENCE, plus all `commands/` and `templates/` plugin files.
+- 18 files were skipped on the first pass for "no assignment"; the second pass added entries for SKILL_METRICS\_*, developer/*, AI_INTEGRATION, WEBSOCKET_API, JSON_SCHEMA_REFERENCE, plus all `commands/` and `templates/` plugin files.
 
 ### Helper used
 
@@ -312,8 +307,8 @@ ______________________________________________________________________
 ## 9. Open Questions / Future Amendments
 
 1. **Cross-repo `superseded_by` representation.** Currently all cross-repo references fall back to `null`. A registry of `ext:<id>` identifiers is planned but not yet enforced. When two repos need to chain (e.g., session-buddy checkpoints → mahavishnu routing), prefer renaming to a same-repo entry over a `superseded_by` cross-link.
-2. **Schema amendments.** Any repo that needs a new lifecycle or role value should propose the amendment to `mahavishnu/docs/schemas/document-frontmatter-v1.md` first. P7 templates do not introduce new schema values; per-repo topic additions to `topic-vocabulary-v1.md` are an exception.
-3. **CI gating.** The P7.B agents should NOT add CI hooks for the frontmatter check — that's a separate decision (Mahavishnu is the canonical rules-enforcer, but only via Crackerjack post-Phase 1, not via per-repo CI). If a repo wants local enforcement, manually add a pre-commit hook and surface it in this playbook's local-customization section.
+1. **Schema amendments.** Any repo that needs a new lifecycle or role value should propose the amendment to `mahavishnu/docs/schemas/document-frontmatter-v1.md` first. P7 templates do not introduce new schema values; per-repo topic additions to `topic-vocabulary-v1.md` are an exception.
+1. **CI gating.** The P7.B agents should NOT add CI hooks for the frontmatter check — that's a separate decision (Mahavishnu is the canonical rules-enforcer, but only via Crackerjack post-Phase 1, not via per-repo CI). If a repo wants local enforcement, manually add a pre-commit hook and surface it in this playbook's local-customization section.
 
 ______________________________________________________________________
 

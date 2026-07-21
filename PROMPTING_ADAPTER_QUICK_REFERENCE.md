@@ -1,12 +1,6 @@
----
-status: complete
-role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
-superseded_by: null
-blocks_on: []
-topic: mcp-design
----
+______________________________________________________________________
+
+## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: mcp-design
 
 # Prompting Adapter - Dependency Strategy Quick Reference
 
@@ -329,4 +323,4 @@ ______________________________________________________________________
 
 **Last Updated:** 2025-02-09
 **Analyst:** Dependency Manager Agent
-**Status:** ✅ APPROVED - Production Ready  <!-- legacy status — see YAML frontmatter -->
+**Status:** ✅ APPROVED - Production Ready <!-- legacy status — see YAML frontmatter -->

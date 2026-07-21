@@ -809,7 +809,7 @@ async def _start_impl(working_directory: str | None = None) -> str:
 # Reference: mahavishnu followup 2026-07-16-multi-session-mcp-contention
 # and session-buddy plan 2026-07-16-checkpoint-async-refactor.
 
-_in_flight_checkpoints: dict[tuple[str | None, bool], "asyncio.Future[str]"] = {}
+_in_flight_checkpoints: dict[tuple[str | None, bool], asyncio.Future[str]] = {}
 
 
 async def _single_flight_checkpoint(working_directory: str | None = None) -> str:
