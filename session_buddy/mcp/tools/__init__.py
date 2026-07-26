@@ -93,6 +93,9 @@ from .session.session_tools import register_session_tools
 # Skills tools (Phase 4 Analytics)
 from .skills.phase4_tools import register_phase4_tools
 
+# Git worktree tools (used by Mahavishnu SessionBuddyWorktreeProvider)
+from .worktree_tools import register_worktree_tools
+
 __all__ = [
     # Advanced
     "register_conscious_agent_tools",
@@ -137,6 +140,8 @@ __all__ = [
     "register_session_tools",
     # Skills
     "register_phase4_tools",
+    # Worktree
+    "register_worktree_tools",
     # Subscribers
     "register_code_graph_tools",
     # Code analysis

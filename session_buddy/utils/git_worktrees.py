@@ -16,6 +16,8 @@ __all__ = [
     "get_git_root",
     "get_worktree_info",
     "list_worktrees",
+    "create_worktree",
+    "remove_worktree",
     "get_git_status",
     "stage_files",
     "get_staged_files",
@@ -33,6 +35,7 @@ class WorktreeInfo:
 
     path: Path
     branch: str
+    head: str = ""
     is_bare: bool = False
     is_detached: bool = False
     is_main_worktree: bool = False
@@ -202,12 +205,158 @@ def _parse_worktree_entry(entry: dict[str, Any]) -> WorktreeInfo:
     return WorktreeInfo(
         path=path,
         branch=str(branch),
+        head=str(entry.get("head", "")),
         is_bare=entry.get("bare", False),
         is_detached=entry.get("detached", False),
         is_main_worktree=is_main,
         locked=entry.get("locked", False),
         prunable=entry.get("prunable", False),
     )
+
+
+def _run_git_worktree_add(
+    repository_path: Path,
+    worktree_path: str,
+    branch: str,
+    create_branch: bool,
+) -> subprocess.CompletedProcess[str]:
+    """Run ``git worktree add`` and return the result (does not raise)."""
+    cmd = ["git", "worktree", "add"]
+    if create_branch:
+        cmd.extend(["-b", branch, worktree_path])
+    else:
+        cmd.extend([worktree_path, branch])
+    return subprocess.run(  # noqa: S603
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=str(repository_path),
+        check=False,
+    )
+
+
+def create_worktree(
+    repository_path: Path,
+    worktree_path: str,
+    branch: str,
+    create_branch: bool = False,
+) -> tuple[bool, dict[str, Any]]:
+    """Create a git worktree in ``repository_path`` at ``worktree_path``.
+
+    Returns:
+        ``(success, info)`` where ``info`` includes ``head`` and ``branch``
+        on success, or ``error``/``error_code`` on failure.
+    """
+    if not is_git_repository(repository_path):
+        return False, {
+            "error": f"Not a git repository: {repository_path}",
+            "error_code": "not_git_repository",
+        }
+
+    result = _run_git_worktree_add(repository_path, worktree_path, branch, create_branch)
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        return False, {
+            "error": stderr or f"git worktree add failed with code {result.returncode}",
+            "error_code": "worktree_add_failed",
+        }
+
+    # Capture the new worktree's HEAD SHA so callers have a stable identifier
+    head_result = subprocess.run(  # noqa: S603
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=worktree_path,
+        check=False,
+    )
+    head = head_result.stdout.strip() if head_result.returncode == 0 else ""
+    return True, {
+        "head": head,
+        "branch": branch,
+        "worktree_path": worktree_path,
+    }
+
+
+def _run_git_worktree_remove(
+    repository_path: Path,
+    worktree_path: str,
+    force: bool,
+) -> subprocess.CompletedProcess[str]:
+    """Run ``git worktree remove`` and return the result (does not raise)."""
+    cmd = ["git", "worktree", "remove"]
+    if force:
+        cmd.append("--force")
+    cmd.append(worktree_path)
+    return subprocess.run(  # noqa: S603
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=str(repository_path),
+        check=False,
+    )
+
+
+def remove_worktree(
+    repository_path: Path,
+    worktree_path: str,
+    force: bool = False,
+    force_reason: str | None = None,
+) -> tuple[bool, dict[str, Any]]:
+    """Remove a git worktree.
+
+    Returns:
+        ``(success, info)``. When the worktree has uncommitted changes and
+        ``force=False``, ``info`` includes ``force_required=True`` and
+        ``safety_check="uncommitted_changes"`` so the caller can escalate.
+
+        ``force_reason`` is preserved in ``info`` for audit trail purposes
+        (git worktree remove does not accept a reason flag).
+    """
+    if not is_git_repository(repository_path):
+        return False, {
+            "error": f"Not a git repository: {repository_path}",
+            "error_code": "not_git_repository",
+        }
+
+    # Pre-flight: refuse dirty worktrees unless the caller explicitly forces
+    if not force:
+        try:
+            status = subprocess.run(  # noqa: S603
+                ["git", "status", "--porcelain"],
+                capture_output=True,
+                text=True,
+                cwd=worktree_path,
+                check=False,
+            )
+            if status.returncode == 0 and status.stdout.strip():
+                return False, {
+                    "error": "Worktree has uncommitted changes; force required",
+                    "force_required": True,
+                    "safety_check": "uncommitted_changes",
+                }
+        except OSError:
+            # Path may not exist yet — let git worktree remove report
+            pass
+
+    result = _run_git_worktree_remove(repository_path, worktree_path, force)
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        if not force:
+            return False, {
+                "error": stderr or f"git worktree remove failed with code {result.returncode}",
+                "force_required": True,
+                "safety_check": "dependency_block",
+            }
+        return False, {
+            "error": stderr or f"git worktree remove failed with code {result.returncode}",
+            "error_code": "worktree_remove_failed",
+        }
+
+    return True, {
+        "force": force,
+        "force_reason": force_reason,
+        "worktree_path": worktree_path,
+    }
 
 
 def get_git_status(directory: Path) -> tuple[list[str], list[str]]:

@@ -71,6 +71,7 @@ from .tools import (
     register_session_tools,
     register_team_tools,
     register_workflow_metrics_tools,
+    register_worktree_tools,
 )
 
 # Import discovery tools (always registered)
@@ -120,6 +121,7 @@ _ALL_REGISTERS: dict[str, Any] = {
     "register_session_tools": register_session_tools,
     "register_team_tools": register_team_tools,
     "register_workflow_metrics_tools": register_workflow_metrics_tools,
+    "register_worktree_tools": register_worktree_tools,
 }
 
 # ---------------------------------------------------------------------------

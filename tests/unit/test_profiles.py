@@ -91,8 +91,10 @@ class TestProfileConstants:
 
     def test_full_registrations_count(self):
         """Test FULL has expected number of registrations."""
-        # FULL = STANDARD + 18 additional
-        expected_full_count = len(STANDARD_REGISTRATIONS) + 18
+        # FULL = STANDARD + 20 additional (19 baseline + register_worktree_tools).
+        # Baseline includes register_export_tools which was previously missing
+        # from the expected_full_additions set.
+        expected_full_count = len(STANDARD_REGISTRATIONS) + 20
         assert len(FULL_REGISTRATIONS) == expected_full_count
 
     def test_full_includes_standard(self):
@@ -171,6 +173,10 @@ class TestProfileConstants:
     def test_full_has_prometheus_metrics_tools(self):
         """Test FULL includes prometheus metrics tools."""
         assert "register_prometheus_metrics_tools" in FULL_REGISTRATIONS
+
+    def test_full_has_worktree_tools(self):
+        """Test FULL includes worktree tools (used by Mahavishnu provider)."""
+        assert "register_worktree_tools" in FULL_REGISTRATIONS
 
 
 class TestProfileRegistrationsMapping:
@@ -373,26 +379,28 @@ class TestProfileInheritance:
         }
         assert standard_only == expected_standard_additions
 
-        # FULL adds these to STANDARD
+        # FULL adds these to STANDARD (20 entries — 19 baseline + register_worktree_tools)
         full_only = set(FULL_REGISTRATIONS) - set(STANDARD_REGISTRATIONS)
         expected_full_additions = {
-            "register_bottleneck_tools",
-            "register_session_analytics_tools",
-            "register_workflow_metrics_tools",
-            "register_memory_health_tools",
-            "register_phase3_knowledge_graph_tools",
-            "register_phase4_tools",
-            "register_conscious_agent_tools",
-            "register_migration_tools",
-            "register_pool_tools",
-            "register_serverless_tools",
-            "register_team_tools",
-            "register_llm_tools",
-            "register_prompt_tools",
-            "register_code_graph_tools",
-            "register_code_analysis_tools",
             "register_admin_shell_tracking_tools",
             "register_akosha_tools",
+            "register_bottleneck_tools",
+            "register_code_analysis_tools",
+            "register_code_graph_tools",
+            "register_conscious_agent_tools",
+            "register_export_tools",
+            "register_llm_tools",
+            "register_memory_health_tools",
+            "register_migration_tools",
+            "register_phase3_knowledge_graph_tools",
+            "register_phase4_tools",
+            "register_pool_tools",
             "register_prometheus_metrics_tools",
+            "register_prompt_tools",
+            "register_serverless_tools",
+            "register_session_analytics_tools",
+            "register_team_tools",
+            "register_workflow_metrics_tools",
+            "register_worktree_tools",
         }
         assert full_only == expected_full_additions
