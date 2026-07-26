@@ -32,10 +32,49 @@ from ...utils.git_worktrees import (
     list_worktrees as _list_worktrees,
     create_worktree as _create_worktree,
     remove_worktree as _remove_worktree,
+    _sanitize_git_error,
 )
 
 logger = logging.getLogger(__name__)
 
+# Branch names can include alphanumeric, dash, underscore, slash (for
+# remote-style refs) and dot (for semver tags). Reject path-traversal and
+# any leading ``-`` so the value can't be parsed as a CLI flag by git.
+import re as _re_branch
+
+_BRANCH_PATTERN = _re_branch.compile(r"^[a-zA-Z0-9_/.-]+$")
+_MAX_BRANCH_LEN = 100
+_MAX_PATH_LEN = 500
+
+
+def _is_valid_branch(branch: str) -> bool:
+    if not branch or len(branch) >= _MAX_BRANCH_LEN:
+        return False
+    if branch.startswith("-"):  # defense against CLI flag injection
+        return False
+    if ".." in branch:
+        return False
+    return bool(_BRANCH_PATTERN.match(branch))
+
+
+def _is_safe_worktree_path(worktree_path: str) -> bool:
+    if not worktree_path or len(worktree_path) >= _MAX_PATH_LEN:
+        return False
+    if not worktree_path.startswith("/"):
+        return False  # require absolute
+    if ".." in worktree_path:
+        return False
+    # Defense against CLI flag injection: reject any path whose basename
+    # starts with ``-`` (e.g., ``/tmp/-rf``).
+    basename = worktree_path.rstrip("/").rsplit("/", 1)[-1]
+    if basename.startswith("-"):
+        return False
+    # Reject any ASCII control character (NUL, TAB, newline, etc.) — these
+    # either have special meaning to shells/filesystems or can mask
+    # downstream argument-injection attempts.
+    if any(ord(c) < 0x20 for c in worktree_path):
+        return False
+    return True
 
 def _serialize_worktrees(worktrees: list[Any]) -> list[dict[str, Any]]:
     """Convert WorktreeInfo dataclasses to JSON-safe dicts."""
@@ -123,6 +162,25 @@ def register_worktree_tools(mcp: FastMCP) -> None:
             JSON string with ``success``, ``head``, ``branch``, ``worktree_path``
             on success or ``error``/``error_code`` on failure.
         """
+        # Validate user-supplied inputs at the MCP boundary so a malicious
+        # caller cannot smuggle CLI flags or path-traversal sequences.
+        if not _is_valid_branch(branch):
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": "Invalid branch name",
+                    "error_code": "invalid_branch",
+                }
+            )
+        if not _is_safe_worktree_path(worktree_path):
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": "Invalid worktree path",
+                    "error_code": "invalid_worktree_path",
+                }
+            )
+
         try:
             repo = Path(repository_path)
             ok, info = _create_worktree(
@@ -165,6 +223,18 @@ def register_worktree_tools(mcp: FastMCP) -> None:
             and ``error`` fields. When ``success=False`` and ``force_required=True``,
             the caller should re-invoke with ``force=True`` (and ``force_reason``).
         """
+        # Validate user-supplied inputs at the MCP boundary
+        if not _is_safe_worktree_path(worktree_path):
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": "Invalid worktree path",
+                    "error_code": "invalid_worktree_path",
+                    "force_required": True,
+                    "safety_check": "invalid_input",
+                }
+            )
+
         try:
             repo = Path(repository_path)
             ok, info = _remove_worktree(

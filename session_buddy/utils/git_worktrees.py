@@ -3,11 +3,17 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess  # nosec B404
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# Default timeout for git subprocess calls (matches WorktreeManager).
+TIMEOUT_SECONDS = 30
 
 __all__ = [
     "WorktreeInfo",
@@ -18,6 +24,8 @@ __all__ = [
     "list_worktrees",
     "create_worktree",
     "remove_worktree",
+    "TIMEOUT_SECONDS",
+    "_sanitize_git_error",
     "get_git_status",
     "stage_files",
     "get_staged_files",
@@ -220,19 +228,45 @@ def _run_git_worktree_add(
     branch: str,
     create_branch: bool,
 ) -> subprocess.CompletedProcess[str]:
-    """Run ``git worktree add`` and return the result (does not raise)."""
-    cmd = ["git", "worktree", "add"]
+    """Run ``git worktree add`` and return the result (does not raise).
+
+    The ``--`` separator goes between options and positional arguments, so
+    a ``worktree_path`` that begins with ``-`` is treated as a path, not
+    a flag (defends against argument injection).
+    """
     if create_branch:
-        cmd.extend(["-b", branch, worktree_path])
+        # ``git worktree add -b <branch> [--] <path>``
+        cmd = ["git", "worktree", "add", "-b", branch, "--", worktree_path]
     else:
-        cmd.extend([worktree_path, branch])
+        # ``git worktree add [--] <path> <commit-ish>``
+        cmd = ["git", "worktree", "add", "--", worktree_path, branch]
     return subprocess.run(  # noqa: S603
         cmd,
         capture_output=True,
         text=True,
         cwd=str(repository_path),
         check=False,
+        timeout=TIMEOUT_SECONDS,
     )
+
+
+def _sanitize_git_error(stderr: str, worktree_path: str) -> str:
+    """Strip absolute paths and redact the worktree_path from git stderr.
+
+    Used by ``create_worktree`` and ``remove_worktree`` so the caller JSON
+    does not leak filesystem layout to operators / logs.
+    """
+    if not stderr:
+        return ""
+    sanitized = stderr
+    # Replace any absolute path with a generic marker
+    import re as _re_sanitize
+
+    sanitized = _re_sanitize.sub(r"/[\w./_-]+", "<path>", sanitized)
+    # Redact the specific worktree_path if present
+    if worktree_path:
+        sanitized = sanitized.replace(worktree_path, "<path>")
+    return sanitized.strip()
 
 
 def create_worktree(
@@ -253,11 +287,27 @@ def create_worktree(
             "error_code": "not_git_repository",
         }
 
-    result = _run_git_worktree_add(repository_path, worktree_path, branch, create_branch)
-    if result.returncode != 0:
-        stderr = (result.stderr or "").strip()
+    try:
+        result = _run_git_worktree_add(
+            repository_path, worktree_path, branch, create_branch
+        )
+    except subprocess.TimeoutExpired:
         return False, {
-            "error": stderr or f"git worktree add failed with code {result.returncode}",
+            "error": "git worktree add timed out",
+            "error_code": "timeout",
+        }
+
+    if result.returncode != 0:
+        stderr_snip = (result.stderr or "").strip()
+        logger.warning(
+            "git worktree add failed (rc=%s) for %s: %s",
+            result.returncode,
+            worktree_path,
+            stderr_snip,
+        )
+        return False, {
+            "error": _sanitize_git_error(stderr_snip, worktree_path)
+            or f"git worktree add failed with code {result.returncode}",
             "error_code": "worktree_add_failed",
         }
 
@@ -266,8 +316,9 @@ def create_worktree(
         ["git", "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
-        cwd=worktree_path,
+        cwd=str(worktree_path),
         check=False,
+        timeout=TIMEOUT_SECONDS,
     )
     head = head_result.stdout.strip() if head_result.returncode == 0 else ""
     return True, {
@@ -282,10 +333,15 @@ def _run_git_worktree_remove(
     worktree_path: str,
     force: bool,
 ) -> subprocess.CompletedProcess[str]:
-    """Run ``git worktree remove`` and return the result (does not raise)."""
+    """Run ``git worktree remove`` and return the result (does not raise).
+
+    The ``--`` separator ensures a ``worktree_path`` that begins with ``-``
+    is treated as a path, not a flag (defends against argument injection).
+    """
     cmd = ["git", "worktree", "remove"]
     if force:
         cmd.append("--force")
+    cmd.append("--")
     cmd.append(worktree_path)
     return subprocess.run(  # noqa: S603
         cmd,
@@ -293,6 +349,7 @@ def _run_git_worktree_remove(
         text=True,
         cwd=str(repository_path),
         check=False,
+        timeout=TIMEOUT_SECONDS,
     )
 
 
@@ -325,8 +382,9 @@ def remove_worktree(
                 ["git", "status", "--porcelain"],
                 capture_output=True,
                 text=True,
-                cwd=worktree_path,
+                cwd=str(worktree_path),
                 check=False,
+                timeout=TIMEOUT_SECONDS,
             )
             if status.returncode == 0 and status.stdout.strip():
                 return False, {
@@ -334,21 +392,40 @@ def remove_worktree(
                     "force_required": True,
                     "safety_check": "uncommitted_changes",
                 }
-        except OSError:
-            # Path may not exist yet — let git worktree remove report
+        except (OSError, subprocess.TimeoutExpired):
+            # Path may not exist / git hangs — let git worktree remove report
             pass
 
-    result = _run_git_worktree_remove(repository_path, worktree_path, force)
+    try:
+        result = _run_git_worktree_remove(repository_path, worktree_path, force)
+    except subprocess.TimeoutExpired:
+        return False, {
+            "error": "git worktree remove timed out",
+            "force_required": True,
+            "safety_check": "dependency_block",
+            "error_code": "timeout",
+        }
+
     if result.returncode != 0:
-        stderr = (result.stderr or "").strip()
+        stderr_snip = (result.stderr or "").strip()
+        logger.warning(
+            "git worktree remove failed (rc=%s, force=%s) for %s: %s",
+            result.returncode,
+            force,
+            worktree_path,
+            stderr_snip,
+        )
+        sanitized = _sanitize_git_error(stderr_snip, worktree_path)
         if not force:
             return False, {
-                "error": stderr or f"git worktree remove failed with code {result.returncode}",
+                "error": sanitized
+                or f"git worktree remove failed with code {result.returncode}",
                 "force_required": True,
                 "safety_check": "dependency_block",
             }
         return False, {
-            "error": stderr or f"git worktree remove failed with code {result.returncode}",
+            "error": sanitized
+            or f"git worktree remove failed with code {result.returncode}",
             "error_code": "worktree_remove_failed",
         }
 

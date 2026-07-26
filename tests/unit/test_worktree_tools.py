@@ -401,3 +401,100 @@ def mock_magic() -> MagicMock:
 def test_module_imports_cleanly() -> None:
     fn = _import_register_worktree_tools()
     assert callable(fn)
+
+
+
+# ---------------------------------------------------------------------------
+# Security hardening: input validation (worktree_tools.py) and stderr
+# sanitization (_sanitize_git_error)
+# ---------------------------------------------------------------------------
+
+
+class TestBranchValidation:
+    """Tests that ``_is_valid_branch`` rejects unsafe branch names."""
+
+    def test_rejects_branch_starting_with_dash(self) -> None:
+        """Branches starting with ``-`` could be parsed as CLI flags by git."""
+        from session_buddy.mcp.tools.worktree_tools import _is_valid_branch
+
+        assert _is_valid_branch("-rf") is False
+        assert _is_valid_branch("--upload-pack=evil") is False
+
+    def test_rejects_path_traversal(self) -> None:
+        from session_buddy.mcp.tools.worktree_tools import _is_valid_branch
+
+        assert _is_valid_branch("main..feature") is False
+
+    def test_rejects_empty(self) -> None:
+        from session_buddy.mcp.tools.worktree_tools import _is_valid_branch
+
+        assert _is_valid_branch("") is False
+
+    def test_rejects_overlong(self) -> None:
+        from session_buddy.mcp.tools.worktree_tools import _is_valid_branch
+
+        assert _is_valid_branch("a" * 100) is False
+
+    def test_accepts_normal_branch(self) -> None:
+        from session_buddy.mcp.tools.worktree_tools import _is_valid_branch
+
+        assert _is_valid_branch("feat/some-name_2.0") is True
+
+
+class TestWorktreePathValidation:
+    """Tests that ``_is_safe_worktree_path`` rejects unsafe paths."""
+
+    def test_rejects_relative_paths(self) -> None:
+        from session_buddy.mcp.tools.worktree_tools import _is_safe_worktree_path
+
+        assert _is_safe_worktree_path("relative/path") is False
+        assert _is_safe_worktree_path("./foo") is False
+
+    def test_rejects_path_traversal(self) -> None:
+        from session_buddy.mcp.tools.worktree_tools import _is_safe_worktree_path
+
+        assert _is_safe_worktree_path("/tmp/../etc/passwd") is False
+
+    def test_rejects_leading_dash(self) -> None:
+        """Defense against argument injection at git subprocess level."""
+        from session_buddy.mcp.tools.worktree_tools import _is_safe_worktree_path
+
+        assert _is_safe_worktree_path("/tmp/-rf") is False
+
+    def test_rejects_control_characters(self) -> None:
+        """Control characters (NUL, TAB, newline) must be rejected.
+
+        NUL bytes cannot appear in source code (PEP 751) so the test path
+        is built at runtime via ``chr(0)``.
+        """
+        from session_buddy.mcp.tools.worktree_tools import _is_safe_worktree_path
+
+        for ctrl in (chr(0), chr(9), chr(10), chr(13)):
+            bad_path = "/tmp/foo" + ctrl + "bar"
+            assert _is_safe_worktree_path(bad_path) is False, ctrl
+
+    def test_accepts_normal_absolute_path(self) -> None:
+        from session_buddy.mcp.tools.worktree_tools import _is_safe_worktree_path
+
+        assert _is_safe_worktree_path("/tmp/worktrees/mahavishnu/feat") is True
+
+
+class TestStderrSanitization:
+    """Tests that ``_sanitize_git_error`` redacts sensitive info."""
+
+    def test_redacts_absolute_paths(self) -> None:
+        from session_buddy.utils.git_worktrees import _sanitize_git_error
+
+        result = _sanitize_git_error(
+            "fatal: /Users/secret/owner/path/.git/worktrees/foo: bad ref",
+            "/Users/secret/owner/path/.git/worktrees/foo",
+        )
+        # Both the absolute path pattern AND the specific worktree path
+        # should be redacted
+        assert "secret" not in result
+        assert "bad ref" in result  # non-path text preserved
+
+    def test_empty_input_returns_empty(self) -> None:
+        from session_buddy.utils.git_worktrees import _sanitize_git_error
+
+        assert _sanitize_git_error("", "/anywhere") == ""
