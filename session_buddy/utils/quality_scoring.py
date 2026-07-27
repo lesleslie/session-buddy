@@ -761,9 +761,12 @@ def _parse_metrics_history(metrics_history: list[dict[str, Any]]) -> dict[str, A
     """Parse Crackerjack metrics history into structured format.
 
     Missing metric types surface as ``None`` so downstream consumers can
-    distinguish "no data" from "perfect score".
+    distinguish "no data" from "perfect score". When multiple entries
+    share the same metric_type, the *first* one wins (subsequent rows
+    are ignored); this preserves the historical stability guarantee
+    that ``code_coverage`` reported by the latest run cannot "rewind"
+    earlier historical coverage.
     """
-    # Start with None defaults for every metric
     metrics: dict[str, Any] = {
         "lint_score": None,
         "security_score": None,
@@ -772,10 +775,10 @@ def _parse_metrics_history(metrics_history: list[dict[str, Any]]) -> dict[str, A
 
     for metric in metrics_history[:10]:
         metric_type = metric.get("metric_type")
-        metric_value = metric.get("metric_value", 0)
-        if metric_type in {"code_coverage", "lint_score", "security_score", "complexity_score"}:
-            if metrics.get(metric_type) is None or metric_type == "code_coverage":
-                metrics[metric_type] = metric_value
+        if metric_type not in {"code_coverage", "lint_score", "security_score", "complexity_score"}:
+            continue
+        if metrics.get(metric_type) is None:
+            metrics[metric_type] = metric.get("metric_value", 0)
 
     return metrics
 
