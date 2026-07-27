@@ -41,6 +41,9 @@ dependencies = [
     "dhara>=0.9.7",
 ]
 
+[project.scripts]
+session-buddy = "session_buddy.__main__:main"
+
 [project.license]
 text = "BSD-3-CLAUSE"
 
