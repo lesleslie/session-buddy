@@ -433,7 +433,9 @@ async def test_security_helpers_and_trust_recommendations(
     monkeypatch.setattr(qs, "_get_crackerjack_metrics", AsyncMock(return_value={}))
     fallback_security = await qs._run_security_checks(tmp_path / "fallback")
     assert fallback_security["details"]["source"] == "fallback"
-    assert fallback_security["details"]["security_raw"] == 100
+    # after N2 default-missing, absent data surfaces as None, not 100.
+    assert fallback_security["details"]["security_raw"] is None
+    assert fallback_security["details"].get("security_missing") is True
 
     typed = tmp_path / "typed"
     typed.mkdir()
@@ -551,7 +553,8 @@ async def test_coverage_readers_and_metric_fallback_edges(
     metrics = await qs._get_crackerjack_metrics(str(tmp_path))
     assert metrics["lint_score"] == 81
     assert "code_coverage" not in metrics
-    assert metrics["security_score"] == 100
+    # after N2 default-missing, absent metric surfaces as None, not 100.
+    assert metrics["security_score"] is None
 
 
 @pytest.mark.asyncio
