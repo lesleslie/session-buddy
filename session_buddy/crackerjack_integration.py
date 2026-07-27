@@ -993,7 +993,7 @@ class CrackerjackIntegration:
         file with high complexity is not averaged with a 50-line script.
         """
         if not complexity_data:
-            return {"complexity_score": 100.0, "complexity_weighted_avg": 0.0}
+            return {"complexity_score": 100.0}
         total_lines = 0
         total_weighted = 0.0
         for entry in complexity_data.values():
@@ -1002,10 +1002,7 @@ class CrackerjackIntegration:
             total_lines += lines
             total_weighted += lines * complexity
         avg = total_weighted / total_lines if total_lines else 0.0
-        return {
-            "complexity_score": round(_complexity_score_from_avg(avg), 2),
-            "complexity_weighted_avg": round(avg, 2),
-        }
+        return {"complexity_score": round(_complexity_score_from_avg(avg), 2)}
 
     def _parse_stderr_metrics(self, stderr_content: str) -> dict[str, float]:
         """DEPRECATED: returns an empty dict and warns once per process.

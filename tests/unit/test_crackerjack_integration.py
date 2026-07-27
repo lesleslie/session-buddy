@@ -755,7 +755,6 @@ class TestQualityMetricsCalculation:
             "b.py": {"lines": 100, "complexity": 8.0},
         }
         metrics = integration._calculate_complexity_metrics(complexity_data)
-        assert metrics["complexity_weighted_avg"] == pytest.approx(7.0)
         # avg=7 → 100 - (7-5)*10 = 80
         assert metrics["complexity_score"] == pytest.approx(80.0)
 
@@ -763,7 +762,6 @@ class TestQualityMetricsCalculation:
         integration = CrackerjackIntegration()
         metrics = integration._calculate_complexity_metrics({})
         assert metrics["complexity_score"] == 100.0
-        assert metrics["complexity_weighted_avg"] == 0.0
 
     def test_calculate_quality_metrics_full(self):
         """Test _calculate_quality_metrics combines all metrics."""
