@@ -672,12 +672,37 @@ class TestQualityMetricsCalculation:
         assert metrics["lint_score"] == pytest.approx(100.0)
 
     def test_calculate_security_metrics(self):
-        """Test _calculate_security_metrics."""
+        """Severity-weighted security score (N3b). Empty list yields a perfect score."""
         integration = CrackerjackIntegration()
-        parsed_data = {"security_summary": {"total_issues": 3}}
-        metrics = integration._calculate_security_metrics(parsed_data)
-        assert "security_score" in metrics
-        assert metrics["security_score"] == 70.0  # 100 - (3 * 10)
+        metrics = integration._calculate_security_metrics([])
+        assert metrics["security_score"] == 100.0
+
+    def test_calculate_security_metrics_severity_weighted(self):
+        """Security score weights by bandit severity tier."""
+        integration = CrackerjackIntegration()
+        security_issues = [
+            {"id": "B001", "description": "x", "severity": "HIGH",   "confidence": "HIGH"},
+            {"id": "B002", "description": "y", "severity": "MEDIUM", "confidence": "MEDIUM"},
+            {"id": "B003", "description": "z", "severity": "LOW",    "confidence": "LOW"},
+        ]
+        metrics = integration._calculate_security_metrics(security_issues)
+        # 10+4+1 = 15; 100-15 = 85
+        assert metrics["security_score"] == pytest.approx(85.0)
+
+    def test_calculate_security_metrics_unknown_severity_treated_as_none(self):
+        """Unknown severity strings degrade to weight 0 (no false penalty)."""
+        integration = CrackerjackIntegration()
+        security_issues = [
+            {"id": "B001", "description": "x", "severity": "WEIRD", "confidence": "HIGH"},
+        ]
+        metrics = integration._calculate_security_metrics(security_issues)
+        assert metrics["security_score"] == pytest.approx(100.0)
+
+    def test_calculate_security_metrics_empty(self):
+        """Empty issue list yields a perfect score."""
+        integration = CrackerjackIntegration()
+        metrics = integration._calculate_security_metrics([])
+        assert metrics["security_score"] == pytest.approx(100.0)
 
     def test_calculate_complexity_metrics(self):
         """Test _calculate_complexity_metrics."""
@@ -698,7 +723,9 @@ class TestQualityMetricsCalculation:
                 {"tool": "ruff", "type": "E501", "file": "a.py", "line": 2, "column": 1, "message": ""},
                 {"tool": "ruff", "type": "E501", "file": "a.py", "line": 3, "column": 1, "message": ""},
             ],
-            "security_summary": {"total_issues": 1},
+            "security_issues": [
+                {"id": "B001", "description": "x", "severity": "LOW", "confidence": "HIGH"},
+            ],
             "complexity_summary": {"total_files": 5, "high_complexity_files": 1},
         }
         metrics = integration._calculate_quality_metrics(parsed_data, exit_code=0)
@@ -711,6 +738,8 @@ class TestQualityMetricsCalculation:
         assert metrics["build_status"] == 100.0
         # 3× LOW (E501) = 3 penalty; 100-3=97
         assert metrics["lint_score"] == pytest.approx(97.0)
+        # 1× LOW severity = 1 penalty; 100-1=99
+        assert metrics["security_score"] == pytest.approx(99.0)
 
 
 class TestGetRecentResults:
@@ -1060,10 +1089,14 @@ class TestEdgeCases:
         assert metrics["lint_score"] == 0.0  # Clamped to 0
 
     def test_calculate_security_metrics_many_issues(self):
-        """Test _calculate_security_metrics with many issues."""
+        """Test _calculate_security_metrics with many issues (clamped to 0)."""
         integration = CrackerjackIntegration()
-        parsed_data = {"security_summary": {"total_issues": 20}}
-        metrics = integration._calculate_security_metrics(parsed_data)
+        # 20 HIGH severity issues × 10 weight = 200 penalty → clamps to 0
+        security_issues = [
+            {"id": f"B{i:03d}", "description": "x", "severity": "HIGH", "confidence": "HIGH"}
+            for i in range(20)
+        ]
+        metrics = integration._calculate_security_metrics(security_issues)
         assert metrics["security_score"] == 0.0  # Clamped to 0
 
 

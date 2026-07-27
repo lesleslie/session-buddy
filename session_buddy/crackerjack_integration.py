@@ -98,6 +98,17 @@ def _lint_severity_for(issue: dict[str, Any]) -> str:
     return _ruff_lint_tier(issue.get("type", ""))
 
 
+_SECURITY_ALLOWED_TIERS = frozenset({"HIGH", "MEDIUM", "LOW", "NONE"})
+
+
+def _security_severity_tier(severity: str | None) -> str:
+    raw = (severity or "NONE").upper()
+    return raw if raw in _SECURITY_ALLOWED_TIERS else "NONE"
+
+
+
+
+
 @dataclass
 class CrackerjackResult:
     """Result of Crackerjack command execution."""
@@ -879,7 +890,9 @@ class CrackerjackIntegration:
         metrics.update(
             self._calculate_lint_metrics(parsed_data.get("lint_issues", []))
         )
-        metrics.update(self._calculate_security_metrics(parsed_data))
+        metrics.update(
+            self._calculate_security_metrics(parsed_data.get("security_issues", []))
+        )
         metrics.update(self._calculate_complexity_metrics(parsed_data))
 
         if stderr_content:
@@ -928,17 +941,22 @@ class CrackerjackIntegration:
         return {"lint_score": round(max(0.0, 100.0 - penalty), 2)}
 
     def _calculate_security_metrics(
-        self, parsed_data: dict[str, Any]
+        self, security_issues: list[dict[str, Any]]
     ) -> dict[str, float]:
-        """Calculate security score metrics (inverted so higher is better)."""
-        metrics = {}
-        security_summary = parsed_data.get("security_summary", {})
-        if "total_issues" in security_summary:
-            total_issues = security_summary["total_issues"]
-            metrics["security_score"] = float(
-                max(0, 100 - (total_issues * 10)) if total_issues < 10 else 0,
-            )
-        return metrics
+        """Compute security score by bandit severity tier.
+
+        Consumes parsed_data["security_issues"] (per-finding dicts already emitted
+        by output_parser._parse_security_output) and aggregates by severity tier.
+        Score = max(0, 100 - sum(weights)). Unknown severities fall back to
+        ``NONE`` (no penalty) rather than penalising the project for parser oddities.
+        """
+        if not security_issues:
+            return {"security_score": 100.0}
+        penalty = sum(
+            SEVERITY_TIER_WEIGHTS.get(_security_severity_tier(issue.get("severity")), 0)
+            for issue in security_issues
+        )
+        return {"security_score": round(max(0.0, 100.0 - penalty), 2)}
 
     def _calculate_complexity_metrics(
         self, parsed_data: dict[str, Any]
