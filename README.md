@@ -10,6 +10,12 @@ A session management MCP server for Claude Code.
 
 A dedicated MCP server that manages session lifecycle, searchable memory, and cross-project intelligence for Claude Code sessions.
 
+## Bodai Ecosystem Role
+
+Session Buddy is the **builder** of the [Bodai ecosystem](https://github.com/lesleslie/bodai) — it persists, indexes, and recovers the conversation context that flows through Mahavishnu, Crackerjack, and the other components. Its knowledge graph captures cross-session decisions, agent recommendations, and session archaeology.
+
+Standalone, Session Buddy is a session management MCP server for Claude Code — useful for any developer who wants searchable memory across multiple coding sessions. See [bodai/docs](https://github.com/lesleslie/bodai) for the full integration picture.
+
 ## Quick Links
 
 - [What Makes Session Buddy Unique?](#what-makes-session-buddy-unique)
