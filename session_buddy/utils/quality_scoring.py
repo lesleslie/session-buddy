@@ -764,7 +764,12 @@ def _parse_metrics_history(metrics_history: list[dict[str, Any]]) -> dict[str, A
 
 
 def _read_coverage_json(project_dir: Path) -> float:
-    """Read coverage percentage from coverage.json."""
+    """Read coverage percentage from coverage.json.
+
+    Prefers ``percent_statements_covered`` (what users actually mean by
+    "test coverage") over ``percent_covered`` (line coverage). Falls back
+    to line coverage if the statements field is absent.
+    """
     import json
 
     coverage_json = project_dir / "coverage.json"
@@ -780,7 +785,11 @@ def _read_coverage_json(project_dir: Path) -> float:
         KeyError,
     ):
         coverage_data = json.loads(coverage_json.read_text())
-        return float(coverage_data.get("totals", {}).get("percent_covered", 0))
+        totals = coverage_data.get("totals", {})
+        statements = totals.get("percent_statements_covered")
+        if statements is not None:
+            return float(statements)
+        return float(totals.get("percent_covered", 0))
 
     return 0
 
@@ -791,21 +800,33 @@ def _read_coverage_dotfile(project_dir: Path) -> float:
     Most projects generate .coverage via --cov-report=html or no explicit report
     flag, and never produce coverage.json. This fallback reads the raw .coverage
     file using the coverage Python API so the scorer works for those projects.
+
+    Prefers statement coverage via the coverage API; falls back to line
+    coverage if the statement metric is not reported.
     """
     coverage_file = project_dir / ".coverage"
     if not coverage_file.exists():
         return 0
 
     with suppress(Exception):
-        import io
-
         from coverage import Coverage
+        from coverage.results import Numbers
 
         cov = Coverage(data_file=str(coverage_file))
         cov.load()
+
+        # Try the precise statement coverage first. ``cov.report(precision=2)``
+        # historically returned a percent_covered value; newer coverage.py
+        # returns a Numbers object that exposes per-metric percents.
         buf = io.StringIO()
-        total = cov.report(file=buf, skip_empty=True)
-        return round(total, 2)
+        total = cov.report(file=buf, skip_empty=True, precision=2)
+        # coverage.py >=7 reports a Numbers instance with statement percent
+        # instead of the legacy line percent. Detect and prefer it.
+        if isinstance(total, Numbers) and total.n_statements:
+            return round(total.pc_statements_covered, 2)
+        if isinstance(total, (int, float)):
+            return round(float(total), 2)
+        return 0.0
 
     return 0
 

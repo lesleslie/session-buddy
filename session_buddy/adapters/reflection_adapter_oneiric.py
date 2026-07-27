@@ -111,7 +111,7 @@ class _CachedConnection:
         if self.ref_count <= 0:
             with suppress(Exception):
                 self.conn.close()
-            _connection_cache.pop(self.cache_key, None)
+            _typed_connection_cache.pop(self.cache_key, None)
 
 
 _typed_connection_cache: dict[str, _CachedConnection] = {}
@@ -374,14 +374,18 @@ class ReflectionDatabaseAdapterOneiric:
 
         # Now close the connection
         if self.conn:
-            # Release from shared connection cache with reference counting
+            # Release from shared connection cache with reference counting.
+            # The cached wrapper owns the underlying connection; closing the
+            # adapter directly would invalidate sibling adapters sharing it.
+            cached = None
             if self.db_path != ":memory:":
                 cache_key = str(Path(self.db_path).resolve())
                 cached = _typed_connection_cache.get(cache_key)
-                if cached is not None:
-                    cached.release()  # Decrements ref_count, closes if last reference
-            with suppress(Exception):
-                self.conn.close()
+                if cached is not None and cached.conn is self.conn:
+                    cached.release()
+            if cached is None or cached.conn is not self.conn:
+                with suppress(Exception):
+                    self.conn.close()
             self.conn = None
 
         self._cache_hits = 0

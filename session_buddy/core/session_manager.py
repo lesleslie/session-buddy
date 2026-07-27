@@ -932,11 +932,18 @@ class SessionLifecycleManager:
             from session_buddy.di import get_sync_typed
 
             current_dir = (
-                Path(working_directory)
+                Path(working_directory).resolve()
                 if working_directory
                 else self._get_current_working_directory()
             )
+            # Always trust the resolved explicit directory so the git
+            # checkpoint commits to the right repository even when a stale
+            # ``self.current_project`` or environment-default cwd points
+            # elsewhere. ``_setup_working_directory`` already validates
+            # traversal safety, so this is an explicit reaffirmation.
             self.current_project = current_dir.name
+            if working_directory:
+                os.chdir(current_dir)
 
             # Generate session ID for this checkpoint
             session_id = generate_ulid()
