@@ -597,7 +597,7 @@ class TestQualityMetricsCalculation:
     """Test quality metrics calculation methods."""
 
     def test_calculate_test_metrics_with_results(self):
-        """Test _calculate_test_metrics with test results."""
+        """_calculate_test_metrics returns {} regardless of input (N5)."""
         integration = CrackerjackIntegration()
         parsed_data = {
             "test_results": [
@@ -607,14 +607,31 @@ class TestQualityMetricsCalculation:
             ]
         }
         metrics = integration._calculate_test_metrics(parsed_data)
-        assert "test_pass_rate" in metrics
-        assert metrics["test_pass_rate"] == pytest.approx(66.67, rel=0.1)
+        assert metrics == {}
 
     def test_calculate_test_metrics_no_results(self):
         """Test _calculate_test_metrics with no results."""
         integration = CrackerjackIntegration()
         parsed_data = {}
         metrics = integration._calculate_test_metrics(parsed_data)
+        assert metrics == {}
+
+    def test_calculate_test_metrics_no_longer_emits_test_pass_rate(self):
+        """test_pass_rate is no longer written to quality_metrics (orphan field).
+
+        N5 from the quality-scoring field audit: the per-run emission had no
+        scoring consumer; trend code derives pass rates from
+        crackerjack_results.test_results on demand.
+        """
+        integration = CrackerjackIntegration()
+        parsed_data = {
+            "test_results": [
+                {"status": "passed"},
+                {"status": "failed"},
+            ],
+        }
+        metrics = integration._calculate_test_metrics(parsed_data)
+        assert "test_pass_rate" not in metrics
         assert metrics == {}
 
     def test_calculate_coverage_metrics(self):
@@ -768,7 +785,6 @@ class TestQualityMetricsCalculation:
             },
         }
         metrics = integration._calculate_quality_metrics(parsed_data, exit_code=0)
-        assert "test_pass_rate" in metrics
         assert "code_coverage" in metrics
         assert "lint_score" in metrics
         assert "security_score" in metrics

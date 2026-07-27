@@ -925,16 +925,16 @@ class CrackerjackIntegration:
         return metrics
 
     def _calculate_test_metrics(self, parsed_data: dict[str, Any]) -> dict[str, float]:
-        """Calculate test pass rate metrics."""
-        metrics = {}
-        test_results = parsed_data.get("test_results", [])
-        if test_results:
-            passed = sum(1 for t in test_results if t["status"] == "passed")
-            total = len(test_results)
-            metrics["test_pass_rate"] = float(
-                (passed / total) * 100 if total > 0 else 0,
-            )
-        return metrics
+        """Compute per-run test metrics.
+
+        Historically emitted ``test_pass_rate`` to ``quality_metrics``, but
+        no scoring consumer read it. The pass rate is recomputed on demand
+        by the trend code from ``crackerjack_results.test_results``.
+
+        Returns an empty dict. The shape is preserved to keep the caller
+        in :meth:`_calculate_quality_metrics` unchanged.
+        """
+        return {}
 
     def _calculate_coverage_metrics(
         self, parsed_data: dict[str, Any]
