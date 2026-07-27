@@ -32,7 +32,7 @@ dependencies = [
     "rich>=15.0.0",
     "structlog>=25.5.0",
     "typer>=0.26.6",
-    "crackerjack>=0.62.0",
+    "crackerjack>=0.70.0",
     "prometheus-client>=0.25.0",
     "scikit-learn>=1.9.0",
     "scipy>=1.17.1",
@@ -231,7 +231,7 @@ max_complexity = 15
 # Install with: uv sync --group dev --group storage --group llm --group telemetry --group treesitter
 [dependency-groups]
 dev = [
-    "crackerjack",
+    "crackerjack>=0.70.0",
     "deadcode>=2.4.1",
     "factory-boy>=3.3.3",
     "faker>=40.20.0",
