@@ -76,6 +76,28 @@ class QualityMetric(Enum):
     BUILD_STATUS = "build_status"
 
 
+# Severity tier weights shared by lint and security scoring (N3a + N3b).
+SEVERITY_TIER_WEIGHTS = {"HIGH": 10, "MEDIUM": 4, "LOW": 1}
+
+
+def _ruff_lint_tier(type_str: str) -> str:
+    """Map a ruff error code prefix to a severity tier."""
+    if not type_str:
+        return "LOW"
+    if type_str.startswith("RUF") or type_str[0] in {"B", "S", "T", "A"}:
+        return "HIGH"
+    if type_str[0] == "F":
+        return "MEDIUM"
+    return "LOW"
+
+
+def _lint_severity_for(issue: dict[str, Any]) -> str:
+    """Derive the severity tier for a single lint finding."""
+    if issue.get("tool") == "pyright":
+        return "HIGH" if issue.get("type") == "error" else "LOW"
+    return _ruff_lint_tier(issue.get("type", ""))
+
+
 @dataclass
 class CrackerjackResult:
     """Result of Crackerjack command execution."""
@@ -854,7 +876,9 @@ class CrackerjackIntegration:
 
         metrics.update(self._calculate_test_metrics(parsed_data))
         metrics.update(self._calculate_coverage_metrics(parsed_data))
-        metrics.update(self._calculate_lint_metrics(parsed_data))
+        metrics.update(
+            self._calculate_lint_metrics(parsed_data.get("lint_issues", []))
+        )
         metrics.update(self._calculate_security_metrics(parsed_data))
         metrics.update(self._calculate_complexity_metrics(parsed_data))
 
@@ -887,16 +911,21 @@ class CrackerjackIntegration:
             metrics["code_coverage"] = float(coverage_summary["total_coverage"])
         return metrics
 
-    def _calculate_lint_metrics(self, parsed_data: dict[str, Any]) -> dict[str, float]:
-        """Calculate lint score metrics (inverted so higher is better)."""
-        metrics = {}
-        lint_summary = parsed_data.get("lint_summary", {})
-        if "total_issues" in lint_summary:
-            total_issues = lint_summary["total_issues"]
-            metrics["lint_score"] = float(
-                max(0, 100 - total_issues) if total_issues < 100 else 0,
-            )
-        return metrics
+    def _calculate_lint_metrics(
+        self, lint_issues: list[dict[str, Any]]
+    ) -> dict[str, float]:
+        """Compute lint score by severity tier.
+
+        Consumes parsed_data["lint_issues"] (per-finding dicts already emitted
+        by output_parser._parse_lint_output) and aggregates by severity tier.
+        Score = max(0, 100 - sum(weights)).
+        """
+        if not lint_issues:
+            return {"lint_score": 100.0}
+        penalty = sum(
+            SEVERITY_TIER_WEIGHTS[_lint_severity_for(issue)] for issue in lint_issues
+        )
+        return {"lint_score": round(max(0.0, 100.0 - penalty), 2)}
 
     def _calculate_security_metrics(
         self, parsed_data: dict[str, Any]

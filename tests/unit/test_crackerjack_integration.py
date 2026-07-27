@@ -626,12 +626,50 @@ class TestQualityMetricsCalculation:
         assert metrics["code_coverage"] == 85.5
 
     def test_calculate_lint_metrics(self):
-        """Test _calculate_lint_metrics."""
+        """Empty issue list yields a perfect score; non-empty uses severity weighting."""
         integration = CrackerjackIntegration()
-        parsed_data = {"lint_summary": {"total_issues": 5}}
-        metrics = integration._calculate_lint_metrics(parsed_data)
-        assert "lint_score" in metrics
-        assert metrics["lint_score"] == 95.0  # 100 - 5
+        metrics = integration._calculate_lint_metrics([])
+        assert metrics["lint_score"] == 100.0
+
+    def test_calculate_lint_metrics_severity_weighted(self):
+        """Lint score aggregates by severity tier (HIGH=10, MEDIUM=4, LOW=1)."""
+        integration = CrackerjackIntegration()
+        # One HIGH (B006), one MEDIUM (F401), two LOW (E501, E501) → 10+4+1+1 = 16; 100-16=84
+        lint_issues = [
+            {"tool": "ruff", "type": "B006", "file": "a.py", "line": 1, "column": 1, "message": ""},
+            {"tool": "ruff", "type": "F401", "file": "a.py", "line": 2, "column": 1, "message": ""},
+            {"tool": "ruff", "type": "E501", "file": "a.py", "line": 3, "column": 1, "message": ""},
+            {"tool": "ruff", "type": "E501", "file": "a.py", "line": 4, "column": 1, "message": ""},
+        ]
+        metrics = integration._calculate_lint_metrics(lint_issues)
+        assert metrics["lint_score"] == pytest.approx(84.0)
+
+    def test_calculate_lint_metrics_pyright_severity(self):
+        """Pyright 'error' maps to HIGH; 'warning' maps to LOW."""
+        integration = CrackerjackIntegration()
+        lint_issues = [
+            {"tool": "pyright", "type": "error",   "file": "a.py", "line": 1, "column": 1, "message": ""},
+            {"tool": "pyright", "type": "warning", "file": "a.py", "line": 2, "column": 1, "message": ""},
+        ]
+        metrics = integration._calculate_lint_metrics(lint_issues)
+        # HIGH (10) + LOW (1) = 11; 100-11=89
+        assert metrics["lint_score"] == pytest.approx(89.0)
+
+    def test_calculate_lint_metrics_clamps_at_zero(self):
+        """Score clamps at 0 even when the deficit exceeds 100."""
+        integration = CrackerjackIntegration()
+        lint_issues = [
+            {"tool": "ruff", "type": f"B{i}", "file": "a.py", "line": i, "column": 1, "message": ""}
+            for i in range(20)
+        ]
+        metrics = integration._calculate_lint_metrics(lint_issues)
+        assert metrics["lint_score"] == 0.0
+
+    def test_calculate_lint_metrics_empty(self):
+        """Empty issue list yields a perfect score."""
+        integration = CrackerjackIntegration()
+        metrics = integration._calculate_lint_metrics([])
+        assert metrics["lint_score"] == pytest.approx(100.0)
 
     def test_calculate_security_metrics(self):
         """Test _calculate_security_metrics."""
@@ -655,7 +693,11 @@ class TestQualityMetricsCalculation:
         parsed_data = {
             "test_results": [{"status": "passed"}],
             "coverage_summary": {"total_coverage": 90.0},
-            "lint_summary": {"total_issues": 3},
+            "lint_issues": [
+                {"tool": "ruff", "type": "E501", "file": "a.py", "line": 1, "column": 1, "message": ""},
+                {"tool": "ruff", "type": "E501", "file": "a.py", "line": 2, "column": 1, "message": ""},
+                {"tool": "ruff", "type": "E501", "file": "a.py", "line": 3, "column": 1, "message": ""},
+            ],
             "security_summary": {"total_issues": 1},
             "complexity_summary": {"total_files": 5, "high_complexity_files": 1},
         }
@@ -667,6 +709,8 @@ class TestQualityMetricsCalculation:
         assert "complexity_score" in metrics
         assert "build_status" in metrics
         assert metrics["build_status"] == 100.0
+        # 3× LOW (E501) = 3 penalty; 100-3=97
+        assert metrics["lint_score"] == pytest.approx(97.0)
 
 
 class TestGetRecentResults:
@@ -1005,10 +1049,14 @@ class TestEdgeCases:
             assert "Unexpected error" in result["stderr"]
 
     def test_calculate_lint_metrics_high_issues(self):
-        """Test _calculate_lint_metrics with high issue count."""
+        """Test _calculate_lint_metrics with high severity-weighted penalty (clamped to 0)."""
         integration = CrackerjackIntegration()
-        parsed_data = {"lint_summary": {"total_issues": 150}}
-        metrics = integration._calculate_lint_metrics(parsed_data)
+        # 150 HIGH-severity issues × 10 weight = 1500 penalty → clamps to 0
+        lint_issues = [
+            {"tool": "ruff", "type": f"B{i}", "file": "a.py", "line": i, "column": 1, "message": ""}
+            for i in range(150)
+        ]
+        metrics = integration._calculate_lint_metrics(lint_issues)
         assert metrics["lint_score"] == 0.0  # Clamped to 0
 
     def test_calculate_security_metrics_many_issues(self):
