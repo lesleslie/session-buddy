@@ -79,6 +79,19 @@ class QualityMetric(Enum):
 # Severity tier weights shared by lint and security scoring (N3a + N3b).
 SEVERITY_TIER_WEIGHTS = {"HIGH": 10, "MEDIUM": 4, "LOW": 1}
 
+# Cyclomatic complexity breakpoints (N3c).
+COMPLEXITY_HIGH = 5
+COMPLEXITY_CEILING = 10
+
+
+def _complexity_score_from_avg(avg: float) -> float:
+    """Two-stage linear at canonical cyclomatic complexity breakpoints."""
+    if avg <= COMPLEXITY_HIGH:
+        return 100.0
+    if avg <= COMPLEXITY_CEILING:
+        return 100.0 - (avg - COMPLEXITY_HIGH) * 10
+    return max(0.0, 50.0 - (avg - COMPLEXITY_CEILING) * 10)
+
 
 def _ruff_lint_tier(type_str: str) -> str:
     """Map a ruff error code prefix to a severity tier."""
@@ -893,7 +906,11 @@ class CrackerjackIntegration:
         metrics.update(
             self._calculate_security_metrics(parsed_data.get("security_issues", []))
         )
-        metrics.update(self._calculate_complexity_metrics(parsed_data))
+        metrics.update(
+            self._calculate_complexity_metrics(
+                parsed_data.get("complexity_data", {})
+            )
+        )
 
         if stderr_content:
             metrics.update(self._parse_stderr_metrics(stderr_content))
@@ -959,18 +976,31 @@ class CrackerjackIntegration:
         return {"security_score": round(max(0.0, 100.0 - penalty), 2)}
 
     def _calculate_complexity_metrics(
-        self, parsed_data: dict[str, Any]
+        self, complexity_data: dict[str, dict[str, Any]]
     ) -> dict[str, float]:
-        """Calculate complexity score metrics (inverted so higher is better)."""
-        metrics = {}
-        complexity_summary = parsed_data.get("complexity_summary", {})
-        if complexity_summary:
-            total_files = complexity_summary.get("total_files", 0)
-            high_complexity = complexity_summary.get("high_complexity_files", 0)
-            if total_files > 0:
-                complexity_rate = (high_complexity / total_files) * 100
-                metrics["complexity_score"] = float(max(0, 100 - complexity_rate))
-        return metrics
+        """Compute complexity score from line-weighted average cyclomatic value.
+
+        ``complexity_data`` is the dict emitted by
+        :func:`output_parser._parse_complexity_output` -- a mapping of
+        file path to ``{"lines": int, "complexity": float}``.
+
+        The average is weighted by line count, not file count, so a 2000-line
+        file with high complexity is not averaged with a 50-line script.
+        """
+        if not complexity_data:
+            return {"complexity_score": 100.0, "complexity_weighted_avg": 0.0}
+        total_lines = 0
+        total_weighted = 0.0
+        for entry in complexity_data.values():
+            lines = int(entry.get("lines", 0))
+            complexity = float(entry.get("complexity", 0.0))
+            total_lines += lines
+            total_weighted += lines * complexity
+        avg = total_weighted / total_lines if total_lines else 0.0
+        return {
+            "complexity_score": round(_complexity_score_from_avg(avg), 2),
+            "complexity_weighted_avg": round(avg, 2),
+        }
 
     def _parse_stderr_metrics(self, stderr_content: str) -> dict[str, float]:
         """Parse quality metrics from structured logging in stderr."""

@@ -707,10 +707,46 @@ class TestQualityMetricsCalculation:
     def test_calculate_complexity_metrics(self):
         """Test _calculate_complexity_metrics."""
         integration = CrackerjackIntegration()
-        parsed_data = {"complexity_summary": {"total_files": 10, "high_complexity_files": 2}}
-        metrics = integration._calculate_complexity_metrics(parsed_data)
-        assert "complexity_score" in metrics
-        assert metrics["complexity_score"] == 80.0  # 100 - (2/10 * 100)
+        metrics = integration._calculate_complexity_metrics({})
+        assert metrics["complexity_score"] == 100.0
+
+    def test_calculate_complexity_metrics_three_regions(self):
+        """Two-stage linear at 5 and 10 maps each region correctly."""
+        integration = CrackerjackIntegration()
+        cases = [
+            # (avg, expected_score)
+            (4.0, 100.0),    # ≤5 → 100
+            (7.5, 75.0),     # (7.5−5)*10=25 penalty; 100−25=75
+            (12.0, 30.0),    # >10 → 50−(12−10)*10=30
+            (20.0, 0.0),     # saturates at 0
+        ]
+        for avg, expected in cases:
+            complexity_data = {"a.py": {"lines": 100, "complexity": avg}}
+            metrics = integration._calculate_complexity_metrics(complexity_data)
+            assert metrics["complexity_score"] == pytest.approx(expected), (
+                f"avg={avg} should score {expected}, got {metrics['complexity_score']}"
+            )
+
+    def test_calculate_complexity_metrics_line_weighted(self):
+        """Average is computed weighted by lines of code, not file count."""
+        integration = CrackerjackIntegration()
+        # file A: 100 lines, complexity 6 → contributes 600
+        # file B: 100 lines, complexity 8 → contributes 800
+        # weighted average = 1400 / 200 = 7.0
+        complexity_data = {
+            "a.py": {"lines": 100, "complexity": 6.0},
+            "b.py": {"lines": 100, "complexity": 8.0},
+        }
+        metrics = integration._calculate_complexity_metrics(complexity_data)
+        assert metrics["complexity_weighted_avg"] == pytest.approx(7.0)
+        # avg=7 → 100 - (7-5)*10 = 80
+        assert metrics["complexity_score"] == pytest.approx(80.0)
+
+    def test_calculate_complexity_metrics_empty(self):
+        integration = CrackerjackIntegration()
+        metrics = integration._calculate_complexity_metrics({})
+        assert metrics["complexity_score"] == 100.0
+        assert metrics["complexity_weighted_avg"] == 0.0
 
     def test_calculate_quality_metrics_full(self):
         """Test _calculate_quality_metrics combines all metrics."""
@@ -726,7 +762,10 @@ class TestQualityMetricsCalculation:
             "security_issues": [
                 {"id": "B001", "description": "x", "severity": "LOW", "confidence": "HIGH"},
             ],
-            "complexity_summary": {"total_files": 5, "high_complexity_files": 1},
+            "complexity_data": {
+                "a.py": {"lines": 200, "complexity": 6.0},
+                "b.py": {"lines": 800, "complexity": 7.0},
+            },
         }
         metrics = integration._calculate_quality_metrics(parsed_data, exit_code=0)
         assert "test_pass_rate" in metrics
@@ -740,6 +779,8 @@ class TestQualityMetricsCalculation:
         assert metrics["lint_score"] == pytest.approx(97.0)
         # 1× LOW severity = 1 penalty; 100-1=99
         assert metrics["security_score"] == pytest.approx(99.0)
+        # weighted_avg = (200×6 + 800×7) / 1000 = 6.8; score = 100 - (6.8 − 5)×10 = 82.0
+        assert metrics["complexity_score"] == pytest.approx(82.0)
 
 
 class TestGetRecentResults:
