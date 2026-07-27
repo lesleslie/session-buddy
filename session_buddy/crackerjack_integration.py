@@ -14,6 +14,7 @@ import operator
 import sqlite3
 import tempfile
 import time
+import warnings
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -25,6 +26,10 @@ from session_buddy.utils.crackerjack import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Module-level guard for the _parse_stderr_metrics deprecation warning so the
+# warning fires at most once per process even under heavy test load.
+_stderr_deprecation_warned = False
 
 
 class CrackerjackCommand(Enum):
@@ -1003,37 +1008,27 @@ class CrackerjackIntegration:
         }
 
     def _parse_stderr_metrics(self, stderr_content: str) -> dict[str, float]:
-        """Parse quality metrics from structured logging in stderr."""
-        metrics = {}
+        """DEPRECATED: returns an empty dict and warns once per process.
 
-        # Look for common structured logging patterns in stderr
-        lines = stderr_content.split("\n")
+        This method was a fragile first-match-wins grep over stderr log
+        noise. Its output (``parsed_quality``, ``parsed_metric``,
+        ``parsed_score``) was never consumed by scoring code and posed a
+        foot-gun for future readers because the field names collide with
+        primary metrics.
 
-        for line in lines:
-            # Parse structured log entries that might contain quality metrics
-            if '"quality"' in line or '"metric"' in line or '"score"' in line:
-                # This is a simplified approach - would in practice need to
-                # handle the actual structured format
-                import re
-
-                # Look for patterns like: "quality": value or "metric": value
-                quality_pattern = r'"quality"\s*:\s*(\d+\.?\d*)'
-                metric_pattern = r'"metric"\s*:\s*(\d+\.?\d*)'
-                score_pattern = r'"score"\s*:\s*(\d+\.?\d*)'
-
-                quality_match = re.search(quality_pattern, line)
-                if quality_match:
-                    metrics["parsed_quality"] = float(quality_match.group(1))
-
-                metric_match = re.search(metric_pattern, line)
-                if metric_match:
-                    metrics["parsed_metric"] = float(metric_match.group(1))
-
-                score_match = re.search(score_pattern, line)
-                if score_match:
-                    metrics["parsed_score"] = float(score_match.group(1))
-
-        return metrics
+        Removal happens in a follow-up commit once the call site in
+        :meth:`_calculate_quality_metrics` is re-routed to read from
+        ``parsed_data`` directly.
+        """
+        global _stderr_deprecation_warned
+        if not _stderr_deprecation_warned:
+            warnings.warn(
+                "_parse_stderr_metrics is deprecated and will be removed",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _stderr_deprecation_warned = True
+        return {}
 
     async def _store_result(self, result_id: str, result: CrackerjackResult) -> None:
         """Store Crackerjack result in database."""

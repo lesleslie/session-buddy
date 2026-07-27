@@ -782,6 +782,20 @@ class TestQualityMetricsCalculation:
         # weighted_avg = (200×6 + 800×7) / 1000 = 6.8; score = 100 - (6.8 − 5)×10 = 82.0
         assert metrics["complexity_score"] == pytest.approx(82.0)
 
+    def test_parse_stderr_metrics_is_deprecation_noop(self, recwarn):
+        """_parse_stderr_metrics returns {} and warns once across multiple calls."""
+        integration = CrackerjackIntegration()
+        result = integration._parse_stderr_metrics('{"quality": 95, "score": 80}')
+        assert result == {}
+        assert len([w for w in recwarn.list if issubclass(w.category, DeprecationWarning)]) == 1
+
+        # Second call must NOT emit a fresh warning
+        result2 = integration._parse_stderr_metrics("anything")
+        assert result2 == {}
+        assert (
+            len([w for w in recwarn.list if issubclass(w.category, DeprecationWarning)]) == 1
+        )
+
 
 class TestGetRecentResults:
     """Test get_recent_results method."""
