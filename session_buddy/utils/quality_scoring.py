@@ -207,9 +207,16 @@ async def _calculate_code_quality(project_dir: Path) -> CodeQualityScore:
     test_coverage = (coverage_pct / 100) * 15
 
     # Lint score (0-10 points)
-    # Crackerjack lint_score is already 0-100, normalized
-    lint_raw = metrics.get("lint_score", 100)  # Default to perfect if not available
-    lint_score = (lint_raw / 100) * 10
+    # Crackerjack lint_score is already 0-100, normalized.
+    # Missing data defaults to 0 with a ``lint_missing`` flag rather than
+    # a perfect 100, so absent metrics cannot silently pass the gate.
+    lint_raw = metrics.get("lint_score")
+    if lint_raw is None:
+        lint_score = 0.0
+        lint_missing = True
+    else:
+        lint_score = (float(lint_raw) / 100) * 10
+        lint_missing = False
 
     # Type coverage (0-10 points)
     # Try to extract from pyright/mypy via Crackerjack
@@ -217,9 +224,16 @@ async def _calculate_code_quality(project_dir: Path) -> CodeQualityScore:
     type_coverage = (type_pct / 100) * 10
 
     # Complexity score (0-5 points, inverse)
-    complexity_raw = metrics.get("complexity_score", 100)
-    # complexity_score is 0-100 where 100 is best (low complexity)
-    complexity_score = (complexity_raw / 100) * 5
+    # Missing data defaults to 0 with a ``complexity_missing`` flag rather
+    # than a perfect 100, mirroring the lint handling above.
+    complexity_raw = metrics.get("complexity_score")
+    if complexity_raw is None:
+        complexity_score = 0.0
+        complexity_missing = True
+    else:
+        # complexity_score is 0-100 where 100 is best (low complexity)
+        complexity_score = (float(complexity_raw) / 100) * 5
+        complexity_missing = False
 
     total = test_coverage + lint_score + type_coverage + complexity_score
 
@@ -234,6 +248,8 @@ async def _calculate_code_quality(project_dir: Path) -> CodeQualityScore:
             "lint_raw": lint_raw,
             "type_pct": type_pct,
             "complexity_raw": complexity_raw,
+            "lint_missing": lint_missing,
+            "complexity_missing": complexity_missing,
             "metrics_source": "crackerjack" if metrics else "fallback",
         },
     )
@@ -627,15 +643,22 @@ async def _run_security_checks(project_dir: Path) -> dict[str, Any]:
     """Run security tools via Crackerjack (0-5 points)."""
     metrics = await _get_crackerjack_metrics(project_dir)
 
-    security_score_raw = metrics.get("security_score", 100)  # Default to safe
-    # Security score from Crackerjack is 0-100, 100 is best
-
-    score = (security_score_raw / 100) * 5
+    security_score_raw = metrics.get("security_score")
+    if security_score_raw is None:
+        # Missing data defaults to 0 with ``security_missing`` flag rather
+        # than silently awarding a perfect score.
+        score = 0
+        security_missing = True
+    else:
+        # Security score from Crackerjack is 0-100, 100 is best
+        score = (float(security_score_raw) / 100) * 5
+        security_missing = False
 
     return {
         "score": score,
         "details": {
             "security_raw": security_score_raw,
+            "security_missing": security_missing,
             "source": "crackerjack" if metrics else "fallback",
         },
     }
@@ -735,30 +758,27 @@ def _get_cached_metrics(cache_key: str) -> dict[str, Any] | None:
 
 
 def _parse_metrics_history(metrics_history: list[dict[str, Any]]) -> dict[str, Any]:
-    """Parse Crackerjack metrics history into structured format."""
-    # Start with only defaults for non-coverage metrics
+    """Parse Crackerjack metrics history into structured format.
+
+    Missing metric types surface as ``None`` so downstream consumers can
+    distinguish "no data" from "perfect score". When multiple entries
+    share the same metric_type, the *first* one wins (subsequent rows
+    are ignored); this preserves the historical stability guarantee
+    that ``code_coverage`` reported by the latest run cannot "rewind"
+    earlier historical coverage.
+    """
     metrics: dict[str, Any] = {
-        "lint_score": 100,  # Default if not found
-        "security_score": 100,
-        "complexity_score": 100,
+        "lint_score": None,
+        "security_score": None,
+        "complexity_score": None,
     }
 
-    # Parse all recent metrics and only include what we find
-    for metric in metrics_history[:10]:  # Last 10 metrics
+    for metric in metrics_history[:10]:
         metric_type = metric.get("metric_type")
-        metric_value = metric.get("metric_value", 0)
-
-        # Add metrics that exist in the history
-        if metric_type == "code_coverage" and "code_coverage" not in metrics:
-            # First coverage metric found
-            metrics["code_coverage"] = metric_value
-        elif metric_type in {
-            "lint_score",
-            "security_score",
-            "complexity_score",
-        }:  # FURB109
-            # Update these if found
-            metrics[metric_type] = metric_value
+        if metric_type not in {"code_coverage", "lint_score", "security_score", "complexity_score"}:
+            continue
+        if metrics.get(metric_type) is None:
+            metrics[metric_type] = metric.get("metric_value", 0)
 
     return metrics
 

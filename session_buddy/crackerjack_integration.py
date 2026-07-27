@@ -14,6 +14,7 @@ import operator
 import sqlite3
 import tempfile
 import time
+import warnings
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -25,6 +26,10 @@ from session_buddy.utils.crackerjack import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Module-level guard for the _parse_stderr_metrics deprecation warning so the
+# warning fires at most once per process even under heavy test load.
+_stderr_deprecation_warned = False
 
 
 class CrackerjackCommand(Enum):
@@ -74,6 +79,52 @@ class QualityMetric(Enum):
     SECURITY_SCORE = "security_score"
     TEST_PASS_RATE = "test_pass_rate"  # nosec B105
     BUILD_STATUS = "build_status"
+
+
+# Severity tier weights shared by lint and security scoring (N3a + N3b).
+SEVERITY_TIER_WEIGHTS = {"HIGH": 10, "MEDIUM": 4, "LOW": 1}
+
+# Cyclomatic complexity breakpoints (N3c).
+COMPLEXITY_HIGH = 5
+COMPLEXITY_CEILING = 10
+
+
+def _complexity_score_from_avg(avg: float) -> float:
+    """Two-stage linear at canonical cyclomatic complexity breakpoints."""
+    if avg <= COMPLEXITY_HIGH:
+        return 100.0
+    if avg <= COMPLEXITY_CEILING:
+        return 100.0 - (avg - COMPLEXITY_HIGH) * 10
+    return max(0.0, 50.0 - (avg - COMPLEXITY_CEILING) * 10)
+
+
+def _ruff_lint_tier(type_str: str) -> str:
+    """Map a ruff error code prefix to a severity tier."""
+    if not type_str:
+        return "LOW"
+    if type_str.startswith("RUF") or type_str[0] in {"B", "S", "T", "A"}:
+        return "HIGH"
+    if type_str[0] == "F":
+        return "MEDIUM"
+    return "LOW"
+
+
+def _lint_severity_for(issue: dict[str, Any]) -> str:
+    """Derive the severity tier for a single lint finding."""
+    if issue.get("tool") == "pyright":
+        return "HIGH" if issue.get("type") == "error" else "LOW"
+    return _ruff_lint_tier(issue.get("type", ""))
+
+
+_SECURITY_ALLOWED_TIERS = frozenset({"HIGH", "MEDIUM", "LOW", "NONE"})
+
+
+def _security_severity_tier(severity: str | None) -> str:
+    raw = (severity or "NONE").upper()
+    return raw if raw in _SECURITY_ALLOWED_TIERS else "NONE"
+
+
+
 
 
 @dataclass
@@ -854,9 +905,17 @@ class CrackerjackIntegration:
 
         metrics.update(self._calculate_test_metrics(parsed_data))
         metrics.update(self._calculate_coverage_metrics(parsed_data))
-        metrics.update(self._calculate_lint_metrics(parsed_data))
-        metrics.update(self._calculate_security_metrics(parsed_data))
-        metrics.update(self._calculate_complexity_metrics(parsed_data))
+        metrics.update(
+            self._calculate_lint_metrics(parsed_data.get("lint_issues", []))
+        )
+        metrics.update(
+            self._calculate_security_metrics(parsed_data.get("security_issues", []))
+        )
+        metrics.update(
+            self._calculate_complexity_metrics(
+                parsed_data.get("complexity_data", {})
+            )
+        )
 
         if stderr_content:
             metrics.update(self._parse_stderr_metrics(stderr_content))
@@ -866,16 +925,16 @@ class CrackerjackIntegration:
         return metrics
 
     def _calculate_test_metrics(self, parsed_data: dict[str, Any]) -> dict[str, float]:
-        """Calculate test pass rate metrics."""
-        metrics = {}
-        test_results = parsed_data.get("test_results", [])
-        if test_results:
-            passed = sum(1 for t in test_results if t["status"] == "passed")
-            total = len(test_results)
-            metrics["test_pass_rate"] = float(
-                (passed / total) * 100 if total > 0 else 0,
-            )
-        return metrics
+        """Compute per-run test metrics.
+
+        Historically emitted ``test_pass_rate`` to ``quality_metrics``, but
+        no scoring consumer read it. The pass rate is recomputed on demand
+        by the trend code from ``crackerjack_results.test_results``.
+
+        Returns an empty dict. The shape is preserved to keep the caller
+        in :meth:`_calculate_quality_metrics` unchanged.
+        """
+        return {}
 
     def _calculate_coverage_metrics(
         self, parsed_data: dict[str, Any]
@@ -887,76 +946,86 @@ class CrackerjackIntegration:
             metrics["code_coverage"] = float(coverage_summary["total_coverage"])
         return metrics
 
-    def _calculate_lint_metrics(self, parsed_data: dict[str, Any]) -> dict[str, float]:
-        """Calculate lint score metrics (inverted so higher is better)."""
-        metrics = {}
-        lint_summary = parsed_data.get("lint_summary", {})
-        if "total_issues" in lint_summary:
-            total_issues = lint_summary["total_issues"]
-            metrics["lint_score"] = float(
-                max(0, 100 - total_issues) if total_issues < 100 else 0,
-            )
-        return metrics
+    def _calculate_lint_metrics(
+        self, lint_issues: list[dict[str, Any]]
+    ) -> dict[str, float]:
+        """Compute lint score by severity tier.
+
+        Consumes parsed_data["lint_issues"] (per-finding dicts already emitted
+        by output_parser._parse_lint_output) and aggregates by severity tier.
+        Score = max(0, 100 - sum(weights)).
+        """
+        if not lint_issues:
+            return {"lint_score": 100.0}
+        penalty = sum(
+            SEVERITY_TIER_WEIGHTS[_lint_severity_for(issue)] for issue in lint_issues
+        )
+        return {"lint_score": round(max(0.0, 100.0 - penalty), 2)}
 
     def _calculate_security_metrics(
-        self, parsed_data: dict[str, Any]
+        self, security_issues: list[dict[str, Any]]
     ) -> dict[str, float]:
-        """Calculate security score metrics (inverted so higher is better)."""
-        metrics = {}
-        security_summary = parsed_data.get("security_summary", {})
-        if "total_issues" in security_summary:
-            total_issues = security_summary["total_issues"]
-            metrics["security_score"] = float(
-                max(0, 100 - (total_issues * 10)) if total_issues < 10 else 0,
-            )
-        return metrics
+        """Compute security score by bandit severity tier.
+
+        Consumes parsed_data["security_issues"] (per-finding dicts already emitted
+        by output_parser._parse_security_output) and aggregates by severity tier.
+        Score = max(0, 100 - sum(weights)). Unknown severities fall back to
+        ``NONE`` (no penalty) rather than penalising the project for parser oddities.
+        """
+        if not security_issues:
+            return {"security_score": 100.0}
+        penalty = sum(
+            SEVERITY_TIER_WEIGHTS.get(_security_severity_tier(issue.get("severity")), 0)
+            for issue in security_issues
+        )
+        return {"security_score": round(max(0.0, 100.0 - penalty), 2)}
 
     def _calculate_complexity_metrics(
-        self, parsed_data: dict[str, Any]
+        self, complexity_data: dict[str, dict[str, Any]]
     ) -> dict[str, float]:
-        """Calculate complexity score metrics (inverted so higher is better)."""
-        metrics = {}
-        complexity_summary = parsed_data.get("complexity_summary", {})
-        if complexity_summary:
-            total_files = complexity_summary.get("total_files", 0)
-            high_complexity = complexity_summary.get("high_complexity_files", 0)
-            if total_files > 0:
-                complexity_rate = (high_complexity / total_files) * 100
-                metrics["complexity_score"] = float(max(0, 100 - complexity_rate))
-        return metrics
+        """Compute complexity score from line-weighted average cyclomatic value.
+
+        ``complexity_data`` is the dict emitted by
+        :func:`output_parser._parse_complexity_output` -- a mapping of
+        file path to ``{"lines": int, "complexity": float}``.
+
+        The average is weighted by line count, not file count, so a 2000-line
+        file with high complexity is not averaged with a 50-line script.
+        """
+        if not complexity_data:
+            return {"complexity_score": 100.0}
+        total_lines = 0
+        total_weighted = 0.0
+        for entry in complexity_data.values():
+            lines = int(entry.get("lines", 0))
+            complexity = float(entry.get("complexity", 0.0))
+            total_lines += lines
+            total_weighted += lines * complexity
+        avg = total_weighted / total_lines if total_lines else 0.0
+        return {"complexity_score": round(_complexity_score_from_avg(avg), 2)}
 
     def _parse_stderr_metrics(self, stderr_content: str) -> dict[str, float]:
-        """Parse quality metrics from structured logging in stderr."""
-        metrics = {}
+        """DEPRECATED: returns an empty dict and warns once per process.
 
-        # Look for common structured logging patterns in stderr
-        lines = stderr_content.split("\n")
+        This method was a fragile first-match-wins grep over stderr log
+        noise. Its output (``parsed_quality``, ``parsed_metric``,
+        ``parsed_score``) was never consumed by scoring code and posed a
+        foot-gun for future readers because the field names collide with
+        primary metrics.
 
-        for line in lines:
-            # Parse structured log entries that might contain quality metrics
-            if '"quality"' in line or '"metric"' in line or '"score"' in line:
-                # This is a simplified approach - would in practice need to
-                # handle the actual structured format
-                import re
-
-                # Look for patterns like: "quality": value or "metric": value
-                quality_pattern = r'"quality"\s*:\s*(\d+\.?\d*)'
-                metric_pattern = r'"metric"\s*:\s*(\d+\.?\d*)'
-                score_pattern = r'"score"\s*:\s*(\d+\.?\d*)'
-
-                quality_match = re.search(quality_pattern, line)
-                if quality_match:
-                    metrics["parsed_quality"] = float(quality_match.group(1))
-
-                metric_match = re.search(metric_pattern, line)
-                if metric_match:
-                    metrics["parsed_metric"] = float(metric_match.group(1))
-
-                score_match = re.search(score_pattern, line)
-                if score_match:
-                    metrics["parsed_score"] = float(score_match.group(1))
-
-        return metrics
+        Removal happens in a follow-up commit once the call site in
+        :meth:`_calculate_quality_metrics` is re-routed to read from
+        ``parsed_data`` directly.
+        """
+        global _stderr_deprecation_warned
+        if not _stderr_deprecation_warned:
+            warnings.warn(
+                "_parse_stderr_metrics is deprecated and will be removed",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _stderr_deprecation_warned = True
+        return {}
 
     async def _store_result(self, result_id: str, result: CrackerjackResult) -> None:
         """Store Crackerjack result in database."""

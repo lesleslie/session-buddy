@@ -212,12 +212,12 @@ class TestCodeQualityCalculation:
 
         result = await _calculate_code_quality(tmp_path)
 
-        # Fallback defaults (perfect lint/complexity, no coverage, low types)
+        # after N2 default-missing, absent metric surfaces as 0.0 (raw=None).
         assert result.test_coverage == 0.0  # No coverage data
-        assert result.lint_score == 10.0  # Default perfect
+        assert result.lint_score == 0.0  # Raw metric missing
         assert result.type_coverage == 3.0  # 30% * 10
-        assert result.complexity_score == 5.0  # Default perfect
-        assert result.total == 18.0
+        assert result.complexity_score == 0.0  # Raw metric missing
+        assert result.total == 3.0
 
 
 @pytest.mark.asyncio
