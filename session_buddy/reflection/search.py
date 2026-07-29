@@ -144,8 +144,8 @@ async def _semantic_search_conversations(
             for row in filtered
         ]
 
-    except Exception as e:
-        logger.error(f"Semantic search failed: {e}")
+    except Exception:
+        logger.exception("Semantic search failed")
         # Fallback to text search on error
         return await _text_search_conversations(
             conn, query, limit, project, is_temp_db, lock
@@ -351,8 +351,8 @@ async def _semantic_search_reflections(
             for row in filtered
         ]
 
-    except Exception as e:
-        logger.error(f"Semantic search failed: {e}")
+    except Exception:
+        logger.exception("Semantic search failed")
         # Fallback to text search on error
         return await _text_search_reflections(
             conn, query, limit, project, is_temp_db, lock

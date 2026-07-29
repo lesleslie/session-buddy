@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Application-Aware Context Monitoring for Session Management MCP Server.
 
 Monitors IDE activity and browser documentation to enrich session context.
@@ -15,6 +16,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     import psutil
@@ -165,7 +168,7 @@ class ProjectActivityMonitor:
 
     def get_recent_activity(self, minutes: int = 30) -> list[ActivityEvent]:
         """Get recent activity within specified minutes."""
-        cutoff = datetime.now() - timedelta(minutes=minutes)
+        cutoff = utc_now() - timedelta(minutes=minutes)
         cutoff_str = cutoff.isoformat()
 
         return [
@@ -189,7 +192,7 @@ class ProjectActivityMonitor:
             latest_event = max(events, key=lambda e: e.timestamp)
 
             # Boost score for recent activity
-            time_diff = datetime.now() - datetime.fromisoformat(latest_event.timestamp)
+            time_diff = utc_now() - datetime.fromisoformat(latest_event.timestamp)
             if time_diff.total_seconds() < 300:  # 5 minutes
                 score *= 2
 
@@ -275,7 +278,7 @@ class IDEFileHandler(FileSystemEventHandler):
     ) -> ActivityEvent:
         """Create an activity event for file modification."""
         return ActivityEvent(
-            timestamp=datetime.now().isoformat(),
+            timestamp=utc_now().isoformat(),
             event_type="file_change",
             application="ide",
             details={
@@ -372,7 +375,7 @@ class IDEFileHandler(FileSystemEventHandler):
                         (file_path, now),
                     )
                 conn.commit()
-        except Exception:
+        except Exception:  # noqa: BLE001 - dedup probe: any DB failure means "not seen recently" so we re-process and avoid silently dropping events
             # On any error, fall back to allowing processing to avoid missing events
             return False
         return False
@@ -548,7 +551,7 @@ class BrowserDocumentationMonitor:
         context = self.extract_documentation_context(url)
 
         activity_event = ActivityEvent(
-            timestamp=datetime.now().isoformat(),
+            timestamp=utc_now().isoformat(),
             event_type="browser_nav",
             application="browser",
             details={
@@ -630,7 +633,7 @@ class ApplicationFocusMonitor:
     def add_focus_event(self, app_info: dict[str, Any]) -> None:
         """Add application focus event."""
         activity_event = ActivityEvent(
-            timestamp=datetime.now().isoformat(),
+            timestamp=utc_now().isoformat(),
             event_type="app_focus",
             application=app_info["name"],
             details={"category": app_info["category"], "pid": app_info["pid"]},
@@ -739,7 +742,7 @@ class ActivityDatabase:
 
     def cleanup_old_events(self, days_to_keep: int = 30) -> None:
         """Remove old activity events."""
-        cutoff = datetime.now() - timedelta(days=days_to_keep)
+        cutoff = utc_now() - timedelta(days=days_to_keep)
         cutoff_str = cutoff.isoformat()
 
         with sqlite3.connect(self.db_path) as conn:
@@ -815,7 +818,7 @@ class ApplicationMonitor:
                 await asyncio.sleep(30)  # Check every 30 seconds
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - monitoring loop must continue across arbitrary per-cycle failures (DB, network, etc.)
                 await self._handle_monitoring_error(e)
 
     async def _process_monitoring_cycle(self) -> None:
@@ -867,7 +870,7 @@ class ApplicationMonitor:
 
     def get_activity_summary(self, hours: int = 2) -> dict[str, Any]:
         """Get activity summary for specified hours."""
-        start_time = (datetime.now() - timedelta(hours=hours)).isoformat()
+        start_time = (utc_now() - timedelta(hours=hours)).isoformat()
         events = self.db.get_events(start_time=start_time, limit=500)
 
         summary = self._create_activity_summary_template(hours, events)
@@ -921,7 +924,7 @@ class ApplicationMonitor:
 
     def get_context_insights(self, hours: int = 1) -> dict[str, Any]:
         """Get contextual insights from recent activity."""
-        start_time = (datetime.now() - timedelta(hours=hours)).isoformat()
+        start_time = (utc_now() - timedelta(hours=hours)).isoformat()
         events = self.db.get_events(start_time=start_time, limit=200)
 
         insights = self._create_insights_template()

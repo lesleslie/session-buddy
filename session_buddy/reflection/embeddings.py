@@ -53,10 +53,14 @@ async def _try_llama_server(text: str) -> list[float] | None:
             if not isinstance(embedding_data, list) or not embedding_data:
                 return None
             embedding = embedding_data[0].get("embedding")
-            if embedding and isinstance(embedding, list) and len(embedding) == 384:
-                if all(isinstance(x, (int, float)) for x in embedding):
-                    return embedding
-    except Exception as e:
+            if (
+                embedding
+                and isinstance(embedding, list)
+                and len(embedding) == 384
+                and all(isinstance(x, (int, float)) for x in embedding)
+            ):
+                return embedding
+    except Exception as e:  # noqa: BLE001 - embedding probe: any HTTP/JSON/network failure is logged and yields None so the next provider can be tried
         logger.debug(f"llama-server embedding failed: {e}")
     return None
 
@@ -81,10 +85,14 @@ async def _try_ollama(text: str) -> list[float] | None:
                 embedding = embeddings[0]
             else:
                 embedding = data.get("embedding", [])
-            if embedding and isinstance(embedding, list) and len(embedding) == 384:
-                if all(isinstance(x, (int, float)) for x in embedding):
-                    return embedding
-    except Exception as e:
+            if (
+                embedding
+                and isinstance(embedding, list)
+                and len(embedding) == 384
+                and all(isinstance(x, (int, float)) for x in embedding)
+            ):
+                return embedding
+    except Exception as e:  # noqa: BLE001 - embedding probe: any HTTP/JSON/network failure is logged and yields None so the next provider can be tried
         logger.debug(f"Ollama embedding failed: {e}")
     return None
 
@@ -166,7 +174,6 @@ async def generate_embedding(text: str) -> list[float] | None:
 
 def clear_embedding_cache() -> None:
     """Clear the embedding cache."""
-    global _embedding_cache
     with _embedding_cache_lock:
         _embedding_cache.clear()
     logger.info("Embedding cache cleared")
@@ -201,8 +208,8 @@ def get_embedding_system_info() -> dict[str, Any]:
 # These were removed in Phase 5 but are kept as no-op stubs for any
 # code that imports them. Remove them when you find usages.
 def initialize_embedding_system(
-    model_dir: str | None = None,  # noqa: ARG001
-    allow_download: bool = False,  # noqa: ARG001
+    model_dir: str | None = None,
+    allow_download: bool = False,
 ) -> None:
     """No-op. ONNX embedding removed in Phase 5.
 
@@ -213,8 +220,8 @@ def initialize_embedding_system(
 
 
 __all__ = [
-    "generate_embedding",
     "clear_embedding_cache",
+    "generate_embedding",
     "get_embedding_system_info",
     "initialize_embedding_system",  # backward compat
 ]

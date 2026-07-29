@@ -127,7 +127,7 @@ def _register_session_logger(logs_dir: Path, force: bool) -> None:
     # Create SessionLogger instance with fallback to temp logs if needed
     try:
         session_logger = SessionLogger(logs_dir)
-    except Exception:
+    except OSError:
         tmp_logs = Path(tempfile.gettempdir()) / "session-buddy" / "logs"
         tmp_logs.mkdir(parents=True, exist_ok=True)
         depends.set(LOGS_DIR_KEY, tmp_logs)

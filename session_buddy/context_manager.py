@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Auto-Context Loading for Session Management MCP Server.
 
 Automatically detects current development context and loads relevant conversations.
@@ -8,9 +9,11 @@ import hashlib
 import json
 import operator
 import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+from session_buddy.utils.time import utc_now
 
 from .reflection_tools import ReflectionDatabase
 from .utils.git_worktrees import get_worktree_info, list_worktrees
@@ -134,11 +137,11 @@ class ContextDetector:
         recent_files = []
 
         try:
-            recent_threshold = datetime.now() - timedelta(hours=2)
+            recent_threshold = utc_now() - timedelta(hours=2)
 
             for file_path in working_path.rglob("*"):
                 if file_path.is_file() and not self._should_ignore_file(file_path):
-                    mod_time = datetime.fromtimestamp(file_path.stat().st_mtime)
+                    mod_time = datetime.fromtimestamp(file_path.stat().st_mtime, UTC)
 
                     if mod_time > recent_threshold:
                         recent_files.append(
@@ -403,7 +406,7 @@ class RelevanceScorer:
 
         with suppress(ValueError, TypeError):
             conv_time = datetime.fromisoformat(conversation.get("timestamp", ""))
-            time_diff = datetime.now() - conv_time
+            time_diff = utc_now() - conv_time
             if time_diff.days == 0:
                 return self.scoring_weights["recency"]
             if time_diff.days <= 7:
@@ -488,7 +491,7 @@ class AutoContextLoader:
         # Check cache
         if context_hash in self.cache:
             cached_time, cached_result = self.cache[context_hash]
-            if datetime.now() - cached_time < timedelta(seconds=self.cache_timeout):
+            if utc_now() - cached_time < timedelta(seconds=self.cache_timeout):
                 return cached_result  # type: ignore[no-any-return]
 
         # Get all conversations from database
@@ -536,7 +539,7 @@ class AutoContextLoader:
         }
 
         # Cache result
-        self.cache[context_hash] = (datetime.now(), result)
+        self.cache[context_hash] = (utc_now(), result)
 
         return result
 

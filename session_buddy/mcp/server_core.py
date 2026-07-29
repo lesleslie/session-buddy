@@ -14,6 +14,7 @@ Extracted Components:
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess  # nosec B404
@@ -29,6 +30,8 @@ if TYPE_CHECKING:
 
     from session_buddy.core.permissions import SessionPermissionsManager
     from session_buddy.utils.logging import SessionLogger
+
+logger = logging.getLogger(__name__)
 
 # Re-export for backward compatibility in tests and integrations.
 
@@ -135,6 +138,7 @@ def _load_mcp_config() -> dict[str, Any]:
             "http_enabled": session_config.get("http_enabled", False),
         }
     except Exception as e:
+        logger.exception("Failed to load MCP config from pyproject.toml")
         if SERVERPANELS_AVAILABLE:
             ServerPanels.warning(
                 title="Configuration Warning",
@@ -211,8 +215,8 @@ async def _initialize_git_session(
         else:
             session_logger.warning(f"Auto-init failed: {result['error']}")
 
-    except Exception as e:
-        session_logger.warning(f"Auto-init failed (non-critical): {e}")
+    except Exception:
+        session_logger.exception("Auto-init failed (non-critical)")
 
 
 def _store_connection_info(result: dict[str, Any]) -> None:
@@ -256,8 +260,8 @@ async def _end_git_session(
             session_logger.info("Auto-ended session for git repository")
         else:
             session_logger.warning(f"Auto-cleanup failed: {result['error']}")
-    except Exception as e:
-        session_logger.warning(f"Auto-cleanup failed (non-critical): {e}")
+    except Exception:
+        session_logger.exception("Auto-cleanup failed (non-critical)")
 
 
 # =====================================
@@ -304,9 +308,9 @@ async def auto_setup_git_working_directory(session_logger: SessionLogger) -> Non
                 "No git repository detected in current directory - skipping auto-setup",
             )
 
-    except Exception as e:
+    except Exception:
         # Graceful fallback - don't break server startup
-        session_logger.debug(f"Git auto-setup failed (non-critical): {e}")
+        session_logger.exception("Git auto-setup failed (non-critical)")
 
 
 async def initialize_new_features(
@@ -427,6 +431,7 @@ async def health_check(
         # Test FastMCP availability
         health_status["checks"]["mcp_server"] = "✅ Active"
     except Exception as e:
+        session_logger.exception("MCP server health probe failed")
         health_status["checks"]["mcp_server"] = "❌ Error"
         health_status["errors"].append(f"MCP server issue: {e}")
         health_status["overall_healthy"] = False
@@ -460,6 +465,7 @@ async def health_check(
             f"Active ({permissions_status['session_id']})"
         )
     except Exception as e:
+        session_logger.exception("Permissions system health probe failed")
         health_status["checks"]["permissions_system"] = "❌ Error"
         health_status["errors"].append(f"Permissions system issue: {e}")
         health_status["overall_healthy"] = False

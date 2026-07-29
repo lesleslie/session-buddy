@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Database resolution utilities for MCP tools.
 
 This module provides reusable database resolution and operation patterns to eliminate
@@ -122,7 +123,7 @@ async def safe_database_operation_with_message[T](
         return str(result)
     except DatabaseUnavailableError as e:
         return f"❌ {e!s}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - database tool error envelope: must return a user-facing failure string for any internal database error
         _get_logger().exception(f"Error in {error_message}: {e}")
         return f"❌ {error_message} failed: {e!s}"
 
@@ -166,7 +167,7 @@ async def batch_database_operation[T](
             try:
                 result = await operation(db, item)
                 batch_results.append(result)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - best-effort batch item processing: log the failure and continue with the remaining items rather than abort the batch
                 _get_logger().exception(f"Error processing item {item}: {e}")
                 batch_results.append(None)
 
@@ -227,7 +228,7 @@ async def get_database_stats() -> dict[str, Any]:
             "total_reflections": 0,
             "total_conversations": 0,
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - database stats contract: must always return the structured fallback dict for any internal failure
         _get_logger().exception(f"Error getting database stats: {e}")
         return {
             "available": False,

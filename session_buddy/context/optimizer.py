@@ -7,8 +7,11 @@ of each token while staying within context window limits.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ContextOptimizer:
@@ -173,6 +176,7 @@ class ContextOptimizer:
             }
 
         except Exception:
+            logger.exception("Context inspection failed")
             return {
                 "extension_counts": {},
                 "total_files": 0,

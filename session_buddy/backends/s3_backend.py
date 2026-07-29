@@ -126,9 +126,9 @@ class S3Storage(SessionStorage):
 
             return True
 
-        except Exception as e:
+        except Exception:
             self.logger.exception(
-                f"Failed to store session {session_state.session_id}: {e}",
+                f"Failed to store session {session_state.session_id}",
             )
             return False
 
@@ -152,8 +152,8 @@ class S3Storage(SessionStorage):
 
             return SessionState.from_dict(session_data)
 
-        except Exception as e:
-            self.logger.exception(f"Failed to retrieve session {session_id}: {e}")
+        except Exception:
+            self.logger.exception(f"Failed to retrieve session {session_id}")
             return None
 
     async def delete_session(self, session_id: str) -> bool:
@@ -170,8 +170,8 @@ class S3Storage(SessionStorage):
 
             return True
 
-        except Exception as e:
-            self.logger.exception(f"Failed to delete session {session_id}: {e}")
+        except Exception:
+            self.logger.exception(f"Failed to delete session {session_id}")
             return False
 
     async def list_sessions(
@@ -199,8 +199,8 @@ class S3Storage(SessionStorage):
 
             return session_ids
 
-        except Exception as e:
-            self.logger.exception(f"Failed to list sessions: {e}")
+        except Exception:
+            self.logger.exception("Failed to list sessions")
             return []
 
     async def _get_s3_objects(self, s3_client: Any) -> list[dict[str, Any]]:
@@ -275,7 +275,7 @@ class S3Storage(SessionStorage):
                 if age_days > 30:  # Cleanup sessions older than 30 days
                     await loop.run_in_executor(
                         None,
-                        lambda: s3_client.delete_object(
+                        lambda obj=obj: s3_client.delete_object(
                             Bucket=self.bucket_name,
                             Key=obj["Key"],
                         ),
@@ -284,8 +284,8 @@ class S3Storage(SessionStorage):
 
             return cleaned
 
-        except Exception as e:
-            self.logger.exception(f"Failed to cleanup expired sessions: {e}")
+        except Exception:
+            self.logger.exception("Failed to cleanup expired sessions")
             return 0
 
     async def is_available(self) -> bool:
@@ -301,5 +301,5 @@ class S3Storage(SessionStorage):
             )
 
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - is_available contract: any S3/AWS/network failure means "not available"
             return False

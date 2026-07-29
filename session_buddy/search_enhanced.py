@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Enhanced Search Capabilities for Session Management MCP Server.
 
 Provides multi-modal search including code snippets, error patterns, and time-based queries.
@@ -8,6 +9,8 @@ import ast
 import contextlib
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
+
+from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from dateutil.parser import parse as parse_date
@@ -306,7 +309,7 @@ class TemporalSearchParser:
     ) -> TimeRange:
         """Parse time expression into start and end datetime."""
         expression = expression.lower().strip()
-        now = datetime.now()
+        now = utc_now()
 
         # Try different parsing strategies
         parsers = [

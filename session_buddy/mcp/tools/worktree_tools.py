@@ -28,11 +28,16 @@ from typing import Any
 from mcp_common.fastmcp import FastMCP
 
 from ...utils.git_worktrees import (
-    is_git_repository,
-    list_worktrees as _list_worktrees,
     create_worktree as _create_worktree,
+)
+from ...utils.git_worktrees import (
+    is_git_repository,
+)
+from ...utils.git_worktrees import (
+    list_worktrees as _list_worktrees,
+)
+from ...utils.git_worktrees import (
     remove_worktree as _remove_worktree,
-    _sanitize_git_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,9 +77,8 @@ def _is_safe_worktree_path(worktree_path: str) -> bool:
     # Reject any ASCII control character (NUL, TAB, newline, etc.) — these
     # either have special meaning to shells/filesystems or can mask
     # downstream argument-injection attempts.
-    if any(ord(c) < 0x20 for c in worktree_path):
-        return False
-    return True
+    return not any(ord(c) < 0x20 for c in worktree_path)
+
 
 def _serialize_worktrees(worktrees: list[Any]) -> list[dict[str, Any]]:
     """Convert WorktreeInfo dataclasses to JSON-safe dicts."""
@@ -132,7 +136,7 @@ def register_worktree_tools(mcp: FastMCP) -> None:
                 }
             )
         except Exception as exc:
-            logger.error("list_worktrees failed: %s", exc)
+            logger.exception("list_worktrees failed")
             return json.dumps(
                 {
                     "success": False,
@@ -193,7 +197,7 @@ def register_worktree_tools(mcp: FastMCP) -> None:
             payload.update(info)
             return json.dumps(payload)
         except Exception as exc:
-            logger.error("create_worktree failed: %s", exc)
+            logger.exception("create_worktree failed")
             return json.dumps(
                 {
                     "success": False,
@@ -247,7 +251,7 @@ def register_worktree_tools(mcp: FastMCP) -> None:
             payload.update(info)
             return json.dumps(payload)
         except Exception as exc:
-            logger.error("remove_worktree failed: %s", exc)
+            logger.exception("remove_worktree failed")
             return json.dumps(
                 {
                     "success": False,

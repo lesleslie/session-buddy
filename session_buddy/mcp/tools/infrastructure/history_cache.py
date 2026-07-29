@@ -7,12 +7,14 @@ performance and lifecycle management while maintaining backwards-compatible API.
 from datetime import datetime
 from typing import Any, TypeVar
 
+from session_buddy.utils.time import utc_now
+
 T = TypeVar("T")
 
 
 def _ttl_hash() -> str:
     """Generate hash based on current time (for TTL tracking)."""
-    return datetime.now().isoformat()
+    return utc_now().isoformat()
 
 
 class HistoryAnalysisCache:
@@ -21,7 +23,7 @@ class HistoryAnalysisCache:
     def __init__(self, ttl: float = 300.0):
         self._cache: dict[str, tuple[Any, datetime]] = {}
         self._ttl = ttl
-        self._created_at = datetime.now()
+        self._created_at = utc_now()
 
     def get(self, key: str, default: T | None = None) -> Any | None:
         """Get value from cache if not expired."""
@@ -29,7 +31,7 @@ class HistoryAnalysisCache:
             return default
 
         value, timestamp = self._cache[key]
-        age = (datetime.now() - timestamp).total_seconds()
+        age = (utc_now() - timestamp).total_seconds()
 
         if age > self._ttl:
             del self._cache[key]
@@ -39,7 +41,7 @@ class HistoryAnalysisCache:
 
     def set(self, key: str, value: Any) -> None:
         """Set value in cache with current timestamp."""
-        self._cache[key] = (value, datetime.now())
+        self._cache[key] = (value, utc_now())
 
     def clear(self) -> None:
         """Clear all cached data."""
@@ -50,8 +52,8 @@ class HistoryAnalysisCache:
         if key not in self._cache:
             return True
 
-        value, timestamp = self._cache[key]
-        age = (datetime.now() - timestamp).total_seconds()
+        _value, timestamp = self._cache[key]
+        age = (utc_now() - timestamp).total_seconds()
         return age > self._ttl
 
 

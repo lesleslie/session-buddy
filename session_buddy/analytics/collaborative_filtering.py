@@ -22,13 +22,9 @@ import sqlite3
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
-
+from session_buddy.utils.time import utc_now
 
 # ============================================================================
 # Exceptions
@@ -509,7 +505,7 @@ class CollaborativeFilteringEngine:
                     # still useful even if the derived ranking cannot be updated.
                     pass
 
-                timestamp = datetime.now().isoformat()
+                timestamp = utc_now().isoformat()
 
                 return {
                     "status": "updated",

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """LLM provider management MCP tools.
 
 This module provides tools for managing and interacting with LLM providers
@@ -89,7 +90,7 @@ async def _execute_llm_operation(
         return await operation(manager)
     except RuntimeError as e:
         return f"❌ {e!s}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any provider/runtime failure (httpx, JSON, rate-limits, etc.)
         _get_logger().exception(f"Error in {operation_name}: {e}")
         return ToolMessages.operation_failed(operation_name, e)
 

@@ -17,11 +17,12 @@ from __future__ import annotations
 import gzip
 import json
 import warnings
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from session_buddy.backends.base import SessionState, SessionStorage
+from session_buddy.utils.time import utc_now
 
 
 class LocalFileStorage(SessionStorage):
@@ -69,9 +70,9 @@ class LocalFileStorage(SessionStorage):
 
             return True
 
-        except Exception as e:
+        except Exception:
             self.logger.exception(
-                f"Failed to store session {session_state.session_id}: {e}",
+                f"Failed to store session {session_state.session_id}",
             )
             return False
 
@@ -92,8 +93,8 @@ class LocalFileStorage(SessionStorage):
 
             return SessionState.from_dict(session_data)
 
-        except Exception as e:
-            self.logger.exception(f"Failed to retrieve session {session_id}: {e}")
+        except Exception:
+            self.logger.exception(f"Failed to retrieve session {session_id}")
             return None
 
     async def delete_session(self, session_id: str) -> bool:
@@ -107,8 +108,8 @@ class LocalFileStorage(SessionStorage):
 
             return False
 
-        except Exception as e:
-            self.logger.exception(f"Failed to delete session {session_id}: {e}")
+        except Exception:
+            self.logger.exception(f"Failed to delete session {session_id}")
             return False
 
     async def list_sessions(
@@ -124,8 +125,8 @@ class LocalFileStorage(SessionStorage):
                 if await self._should_include_session(session_id, user_id, project_id):
                     session_ids.append(session_id)
             return session_ids
-        except Exception as e:
-            self.logger.exception(f"Failed to list sessions: {e}")
+        except Exception:
+            self.logger.exception("Failed to list sessions")
             return []
 
     def _extract_session_id(self, session_file: Path) -> str:
@@ -162,12 +163,14 @@ class LocalFileStorage(SessionStorage):
     async def cleanup_expired_sessions(self) -> int:
         """Clean up old session files."""
         try:
-            now = datetime.now()
+            now = utc_now()
             cleaned = 0
 
             for session_file in self.storage_dir.glob("*.json.gz"):
                 # Check file age
-                file_age = now - datetime.fromtimestamp(session_file.stat().st_mtime)
+                file_age = now - datetime.fromtimestamp(
+                    session_file.stat().st_mtime, tz=UTC
+                )
 
                 if file_age.days > 7:  # Cleanup sessions older than 7 days
                     session_file.unlink()
@@ -175,8 +178,8 @@ class LocalFileStorage(SessionStorage):
 
             return cleaned
 
-        except Exception as e:
-            self.logger.exception(f"Failed to cleanup expired sessions: {e}")
+        except Exception:
+            self.logger.exception("Failed to cleanup expired sessions")
             return 0
 
     async def is_available(self) -> bool:

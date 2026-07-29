@@ -20,11 +20,10 @@ Usage:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from session_buddy.core.hooks import Hook, HookContext, HooksManager, HookType
-    from session_buddy.rewriting.query_rewriter import QueryRewriter, RewriteContext
+from session_buddy.core.hooks import Hook, HookContext, HooksManager, HookType
+from session_buddy.rewriting.query_rewriter import QueryRewriter, RewriteContext
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +138,7 @@ async def _query_rewriting_handler(
             return HookResult(success=True)
 
     except Exception as e:
-        logger.error(f"Query rewriting hook failed: {e}", exc_info=True)
+        logger.exception("Query rewriting hook failed")
         # Don't fail the search if rewriting fails
         from session_buddy.core.hooks import HookResult
 

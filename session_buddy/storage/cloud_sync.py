@@ -456,8 +456,8 @@ class CloudSyncMethod(SyncMethod):
 
             except Exception as e:
                 last_error = e
-                logger.warning(
-                    f"Upload attempt {attempt + 1}/{self.config.max_retries} failed: {e}"
+                logger.exception(
+                    f"Upload attempt {attempt + 1}/{self.config.max_retries} failed"
                 )
 
                 # Exponential backoff before retry

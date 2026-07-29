@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Formatting and output utilities for session management.
 
 This module provides text formatting and display functionality following

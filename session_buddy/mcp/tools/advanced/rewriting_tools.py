@@ -15,11 +15,14 @@ Usage:
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from mcp_common.fastmcp import Context
 
 from session_buddy.rewriting.query_rewriter import QueryRewriter, RewriteContext
+
+logger = logging.getLogger(__name__)
 
 
 async def rewrite_query(
@@ -60,14 +63,16 @@ async def rewrite_query(
         >>> await rewrite_query(ctx, "what did I learn about async?")
     """
     try:
-        # Get or create rewriter
-        from session_buddy.di import depends
+        # Get or create rewriter. Use the canonical getter that registers
+        # the singleton under its class key. The previous bare-string
+        # ``depends.get_sync("QueryRewriter")`` raised KeyError because
+        # nothing registered that string — same Bug 1 anti-pattern as
+        # ``progressive_search``.
+        from session_buddy.utils.instance_managers import get_query_rewriter
 
-        rewriter = depends.get_sync("QueryRewriter")
+        rewriter = await get_query_rewriter()
         if not rewriter:
             rewriter = QueryRewriter()
-            # Store in DI container for reuse
-            # Note: This is a simple singleton pattern for the session
 
         # Build context
         rewrite_context = RewriteContext(
@@ -115,6 +120,7 @@ async def rewrite_query(
         )
 
     except Exception as e:
+        logger.exception("Query rewriting failed")
         return json.dumps(
             {
                 "success": False,
@@ -147,9 +153,10 @@ async def query_rewrite_stats(
         JSON-formatted string with rewriting statistics and health metrics
     """
     try:
-        from session_buddy.di import depends
+        # Same Bug 1 fix as above: canonical getter, class-key registration.
+        from session_buddy.utils.instance_managers import get_query_rewriter
 
-        rewriter = depends.get_sync("QueryRewriter")
+        rewriter = await get_query_rewriter()
         if not rewriter:
             return _format_error_response(
                 "Query rewriter not initialized. Start a session first."
@@ -168,6 +175,7 @@ async def query_rewrite_stats(
         )
 
     except Exception as e:
+        logger.exception("Failed to retrieve rewrite stats")
         return _format_error_response(f"Failed to retrieve rewrite stats: {e}")
 
 

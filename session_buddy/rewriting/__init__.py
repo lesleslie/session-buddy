@@ -33,8 +33,8 @@ from session_buddy.rewriting.query_rewriter import (
 __all__ = [
     "AmbiguityDetector",
     "AmbiguityType",
-    "QueryRewriter",
     "QueryRewriteResult",
+    "QueryRewriter",
     "RewriteContext",
     "initialize_query_rewriting_hooks",
 ]

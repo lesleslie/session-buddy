@@ -97,7 +97,7 @@ async def pool_execute(
             "result": result,
         }
     except Exception as e:
-        logger.error(f"Failed to execute task on pool {pool_id}: {e}")
+        logger.exception(f"Failed to execute task on pool {pool_id}")
         return {
             "success": False,
             "pool_id": pool_id,
@@ -153,7 +153,7 @@ async def pool_execute_batch(
             "results": [str(r) for r in results],
         }
     except Exception as e:
-        logger.error(f"Failed to execute batch on pool {pool_id}: {e}")
+        logger.exception(f"Failed to execute batch on pool {pool_id}")
         return {
             "success": False,
             "pool_id": pool_id,
@@ -206,7 +206,7 @@ async def pool_route_task(
             "result": result,
         }
     except Exception as e:
-        logger.error(f"Failed to route task: {e}")
+        logger.exception("Failed to route task")
         return {
             "success": False,
             "error": str(e),
@@ -276,7 +276,7 @@ async def pool_status(pool_id: str) -> dict[str, Any]:
             "status": status,
         }
     except Exception as e:
-        logger.error(f"Failed to get status for pool {pool_id}: {e}")
+        logger.exception(f"Failed to get status for pool {pool_id}")
         return {
             "success": False,
             "pool_id": pool_id,
@@ -328,7 +328,7 @@ async def pool_health(pool_id: str | None = None) -> dict[str, Any]:
                 "health": health,
             }
     except Exception as e:
-        logger.error(f"Failed to get health status: {e}")
+        logger.exception("Failed to get health status")
         return {
             "success": False,
             "error": str(e),
@@ -366,7 +366,7 @@ async def pool_delete(pool_id: str, timeout: float = 5.0) -> dict[str, Any]:
             "deleted": deleted,
         }
     except Exception as e:
-        logger.error(f"Failed to delete pool {pool_id}: {e}")
+        logger.exception(f"Failed to delete pool {pool_id}")
         return {
             "success": False,
             "pool_id": pool_id,

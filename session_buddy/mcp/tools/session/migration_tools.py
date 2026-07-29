@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+# ruff: noqa: EXE001
 import typing as t
 from typing import TYPE_CHECKING
 

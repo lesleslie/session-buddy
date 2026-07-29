@@ -125,7 +125,13 @@ class MemoryGuardAdapter:
             with path.open() as f:
                 policy = yaml.safe_load(f)
             self._extra_rules = policy.get("rules", [])
-        except Exception as exc:
+        except (
+            OSError,
+            ImportError,
+            AttributeError,
+            ValueError,
+            yaml.YAMLError,
+        ) as exc:
             logger.warning("memory_guard: failed to load policy from %s: %s", path, exc)
 
     def screen(self, content: str, tags: list[str] | None) -> GuardDecision:

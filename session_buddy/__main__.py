@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Session Management MCP Server - Module Entry Point.
 
 Provides MCP Common CLI with standard lifecycle commands.

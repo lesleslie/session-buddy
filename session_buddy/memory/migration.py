@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from session_buddy.utils.time import utc_now
+
 try:
     import duckdb
 except ImportError:
@@ -90,7 +92,7 @@ def _get_schema_version(conn: duckdb.DuckDBPyConnection) -> str:
         try:
             conn.execute(f"SELECT 1 FROM {name} LIMIT 1")
             v2_count += 1
-        except Exception:
+        except duckdb.Error:
             continue
     if v2_count >= 2:
         return "v2"
@@ -99,7 +101,7 @@ def _get_schema_version(conn: duckdb.DuckDBPyConnection) -> str:
     try:
         conn.execute("SELECT 1 FROM conversations LIMIT 1")
         return "v1"
-    except Exception:
+    except duckdb.Error:
         return "unknown"
 
 
@@ -129,7 +131,7 @@ def count_v1_conversations(conn: duckdb.DuckDBPyConnection) -> int:
     try:
         row = conn.execute("SELECT COUNT(*) FROM conversations").fetchone()
         return int(row[0]) if row else 0
-    except Exception:
+    except duckdb.Error:
         return 0
 
 
@@ -137,7 +139,7 @@ def count_v2_conversations(conn: duckdb.DuckDBPyConnection) -> int:
     try:
         row = conn.execute("SELECT COUNT(*) FROM conversations_v2").fetchone()
         return int(row[0]) if row else 0
-    except Exception:
+    except duckdb.Error:
         return 0
 
 
@@ -146,7 +148,7 @@ def create_backup(backup_dir: Path | None = None) -> Path:
     db_path = get_database_path()
     backup_root = backup_dir or db_path.parent
     backup_root.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = utc_now().strftime("%Y%m%d_%H%M%S")
     backup_path = backup_root / f"backup_v1_{ts}.duckdb"
     shutil.copy2(db_path, backup_path)
     return backup_path
@@ -236,7 +238,7 @@ def migrate_v1_to_v2(
     if dry_run and (rollback or verify_only):
         raise ValueError("Cannot specify dry_run with rollback or verify_only")
 
-    start = datetime.now()
+    start = utc_now()
     path = Path(db_path) if db_path else get_database_path()
 
     if rollback:
@@ -261,7 +263,7 @@ def migrate_v1_to_v2(
             if verify_only and result.success and result.stats is not None:
                 result.stats["verify_only"] = True
             return result
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - migration contract is to return MigrationResult with error; duckdb/SQL/IO failures are all reported uniformly
             return _handle_migration_exception(conn, mig_id, start, e)
 
 
@@ -276,7 +278,7 @@ def _handle_rollback(path: Path, start: datetime) -> MigrationResult:
     return MigrationResult(
         success=True,
         stats={"rolled_back": True, "backup_path": str(backup_path)},
-        duration_seconds=(datetime.now() - start).total_seconds(),
+        duration_seconds=(utc_now() - start).total_seconds(),
     )
 
 
@@ -289,7 +291,7 @@ def _handle_dry_run(
     return MigrationResult(
         success=True,
         stats=stats,
-        duration_seconds=(datetime.now() - start).total_seconds(),
+        duration_seconds=(utc_now() - start).total_seconds(),
     )
 
 
@@ -341,7 +343,7 @@ def _handle_migration_success(
     return MigrationResult(
         success=True,
         stats=stats,
-        duration_seconds=(datetime.now() - start).total_seconds(),
+        duration_seconds=(utc_now() - start).total_seconds(),
     )
 
 
@@ -362,7 +364,7 @@ def _handle_migration_failure(
         success=False,
         error=err,
         stats={"v1": v1_count, "v2": v2_count},
-        duration_seconds=(datetime.now() - start).total_seconds(),
+        duration_seconds=(utc_now() - start).total_seconds(),
     )
 
 
@@ -378,7 +380,7 @@ def _handle_migration_exception(
     return MigrationResult(
         success=False,
         error=str(exception),
-        duration_seconds=(datetime.now() - start).total_seconds(),
+        duration_seconds=(utc_now() - start).total_seconds(),
     )
 
 
@@ -391,7 +393,7 @@ def get_migration_status(db_path: Path | None = None) -> dict[str, t.Any]:
             mig_history = conn.execute(
                 "SELECT id, from_version, to_version, started_at, completed_at, status FROM schema_migrations ORDER BY started_at DESC LIMIT 10"
             ).fetchall()
-        except Exception:
+        except duckdb.Error:
             mig_history = []
 
         return {

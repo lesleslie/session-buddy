@@ -3,8 +3,12 @@
 
 from __future__ import annotations
 
+# ruff: noqa: EXE001
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
+
+from session_buddy.utils.error_management import _get_logger
+from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from mcp_common.fastmcp import FastMCP
@@ -28,7 +32,7 @@ def register_access_log_tools(mcp: FastMCP) -> None:
             from session_buddy.settings import get_database_path
 
             db_path = get_database_path()
-            cutoff = datetime.now() - timedelta(hours=hours)
+            cutoff = utc_now() - timedelta(hours=hours)
 
             with duckdb.connect(
                 db_path, config={"allow_unsigned_extensions": True}
@@ -52,7 +56,8 @@ def register_access_log_tools(mcp: FastMCP) -> None:
                     "recent": recent,
                     "filters": {"project": project, "namespace": namespace},
                 }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error dict on any duckdb/SQL/filesystem failure (missing DB, schema, permissions)
+            _get_logger().exception("Access log statistics query failed")
             return {
                 "error": f"Access log stats unavailable: {e}",
                 "hint": "Ensure schema_v2 is enabled and memory_access_log exists.",

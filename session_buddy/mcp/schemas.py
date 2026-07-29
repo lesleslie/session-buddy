@@ -125,10 +125,7 @@ class SchemaRegistry:
             >>> print(schemas["SessionStartEvent"]["title"])
             SessionStartEvent
         """
-        return {
-            model_name: self.get_schema(model_name)
-            for model_name in self._models.keys()
-        }
+        return {model_name: self.get_schema(model_name) for model_name in self._models}
 
     def validate_json(
         self,

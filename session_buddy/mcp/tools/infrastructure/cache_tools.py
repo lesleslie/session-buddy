@@ -12,12 +12,15 @@ Cache Architecture:
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 from mcp_common.fastmcp import Context
 
 from session_buddy.cache.query_cache import QueryCacheManager
 from session_buddy.utils.instance_managers import get_reflection_database
+
+logger = logging.getLogger(__name__)
 
 
 def register_cache_tools(mcp: Any) -> None:
@@ -91,6 +94,7 @@ async def query_cache_stats(
         )
 
     except Exception as e:
+        logger.exception("Failed to retrieve cache stats")
         return json.dumps(
             {
                 "success": False,
@@ -163,6 +167,7 @@ async def clear_query_cache(
         )
 
     except Exception as e:
+        logger.exception("Failed to clear cache")
         return json.dumps(
             {
                 "success": False,
@@ -233,6 +238,7 @@ async def warm_cache(
                     }
                 )
             except Exception as e:
+                logger.exception(f"Failed to warm cache for query: {query}")
                 results.append(
                     {
                         "query": query,
@@ -255,6 +261,7 @@ async def warm_cache(
         )
 
     except Exception as e:
+        logger.exception("Failed to warm cache")
         return json.dumps(
             {
                 "success": False,
@@ -314,6 +321,7 @@ async def invalidate_cache(
         )
 
     except Exception as e:
+        logger.exception("Failed to invalidate cache entry")
         return json.dumps(
             {
                 "success": False,
@@ -386,6 +394,7 @@ async def optimize_cache(
         )
 
     except Exception as e:
+        logger.exception("Failed to optimize cache")
         return json.dumps(
             {
                 "success": False,

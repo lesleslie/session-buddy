@@ -51,11 +51,11 @@ class ServiceContainer:
             raise KeyError(msg)
         if isinstance(candidate.factory, str):
             msg = f"Cannot instantiate string factory reference: {candidate.factory}"
-            raise RuntimeError(msg)
+            raise TypeError(msg)
         instance = candidate.factory()
         if inspect.isawaitable(instance):
             msg = f"Async factory registered for sync get: {name}"
-            raise RuntimeError(msg)
+            raise TypeError(msg)
         self._instances[name] = instance
         return instance
 
@@ -72,7 +72,7 @@ class ServiceContainer:
             raise KeyError(msg)
         if isinstance(candidate.factory, str):
             msg = f"Cannot instantiate string factory reference: {candidate.factory}"
-            raise RuntimeError(msg)
+            raise TypeError(msg)
         instance = candidate.factory()
         if inspect.isawaitable(instance):
             instance = await instance

@@ -5,12 +5,15 @@ category evolution system.
 """
 
 import asyncio
+import logging
 from typing import Any
 
 from session_buddy.memory.category_evolution import (
     CategoryEvolutionEngine,
     TopLevelCategory,
 )
+
+logger = logging.getLogger(__name__)
 
 # Module-level singleton instance and lock
 _evolution_engine: CategoryEvolutionEngine | None = None
@@ -91,11 +94,8 @@ async def _fetch_category_memories(
 
         return memories
 
-    except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error fetching memories for category {category.value}: {e}")
+    except Exception:
+        logger.exception(f"Error fetching memories for category {category.value}")
         return []
 
 
@@ -252,10 +252,7 @@ async def evolve_categories(
         return result
 
     except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error during category evolution: {e}")
+        logger.exception("Error during category evolution")
         return {
             "success": False,
             "category": category,
@@ -303,11 +300,8 @@ async def assign_memory_subcategory(
 
         db = await get_reflection_database()
         embedding = await db._generate_embedding(content)
-    except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.warning(f"Failed to generate embedding: {e}")
+    except Exception:
+        logger.exception("Failed to generate embedding")
 
     # Generate fingerprint for the content
     fingerprint = None
@@ -316,11 +310,8 @@ async def assign_memory_subcategory(
 
         fp_obj = MinHashSignature.from_text(content)
         fingerprint = fp_obj.to_bytes()
-    except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.warning(f"Failed to generate fingerprint: {e}")
+    except Exception:
+        logger.exception("Failed to generate fingerprint")
 
     # Create memory dictionary with generated embedding and fingerprint
     memory = {

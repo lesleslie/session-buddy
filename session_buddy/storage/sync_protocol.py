@@ -145,8 +145,6 @@ class CloudUploadError(SyncError):
         ... )
     """
 
-    pass
-
 
 class HTTPSyncError(SyncError):
     """HTTP sync to Akosha failed.
@@ -164,8 +162,6 @@ class HTTPSyncError(SyncError):
         ...     original=ConnectionRefusedError(...)
         ... )
     """
-
-    pass
 
 
 class HybridSyncError(SyncError):
@@ -194,9 +190,9 @@ class HybridSyncError(SyncError):
 
 
 __all__ = [
-    "SyncMethod",
-    "SyncError",
     "CloudUploadError",
     "HTTPSyncError",
     "HybridSyncError",
+    "SyncError",
+    "SyncMethod",
 ]

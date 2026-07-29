@@ -39,6 +39,14 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
+class IPFSStorageError(Exception):
+    """Raised when an IPFS storage or retrieval operation fails.
+
+    Module-specific exception class for the IPFS storage backend so that
+    callers can distinguish IPFS failures from other library errors.
+    """
+
+
 class IPFSStorage:
     """IPFS-based distributed storage for Session-Buddy.
 
@@ -119,7 +127,7 @@ class IPFSStorage:
             )
 
             if response.status_code != 200:
-                raise Exception(f"IPFS add failed: {response.text}")
+                raise IPFSStorageError(f"IPFS add failed: {response.text}")
 
             result = response.json()
             cid = result["Hash"]
@@ -161,7 +169,7 @@ class IPFSStorage:
             response = await self.client.get(f"{self.gateway_url}/{cid}")
 
             if response.status_code != 200:
-                raise Exception(f"IPFS retrieval failed: {response.text}")
+                raise IPFSStorageError(f"IPFS retrieval failed: {response.text}")
 
             memory_data: dict[str, Any] = response.json()
 
@@ -222,8 +230,8 @@ class IPFSStorage:
             else:
                 logger.debug(f"Pinned CID: {cid}")
 
-        except Exception as e:
-            logger.warning(f"Failed to pin CID {cid}: {e}")
+        except Exception:
+            logger.exception(f"Failed to pin CID {cid}")
 
     async def unpin_cid(self, cid: str) -> None:
         """Unpin CID to allow garbage collection.
@@ -239,8 +247,8 @@ class IPFSStorage:
             else:
                 logger.debug(f"Unpinned CID: {cid}")
 
-        except Exception as e:
-            logger.warning(f"Failed to unpin CID {cid}: {e}")
+        except Exception:
+            logger.exception(f"Failed to unpin CID {cid}")
 
     async def get_stats(self) -> dict[str, Any]:
         """Get IPFS node statistics.
@@ -263,9 +271,9 @@ class IPFSStorage:
             else:
                 return {"status": "unhealthy", "error": "Failed to get stats"}
 
-        except Exception as e:
-            logger.error(f"Failed to get IPFS stats: {e}")
-            return {"status": "error", "error": str(e)}
+        except Exception as exc:
+            logger.exception("Failed to get IPFS stats")
+            return {"status": "error", "error": str(exc)}
 
     async def close(self) -> None:
         """Close IPFS client connection."""
@@ -400,8 +408,8 @@ class DistributedMemoryAggregator:
                 memory = await self.ipfs_storage.retrieve_memory(cid)
                 if query.lower() in memory.get("content", "").lower():
                     results.append(memory)
-            except Exception as e:
-                logger.warning(f"Failed to retrieve CID {cid}: {e}")
+            except Exception:
+                logger.exception(f"Failed to retrieve CID {cid}")
 
         logger.info(f"Found {len(results)} matching memories")
         return results
@@ -442,8 +450,8 @@ class DistributedMemoryAggregator:
                 else:
                     logger.warning(f"Akosha sync failed: {response.status_code}")
 
-        except Exception as e:
-            logger.warning(f"Failed to sync to Akosha: {e}")
+        except Exception:
+            logger.exception("Failed to sync to Akosha")
 
     async def get_aggregation_stats(self) -> dict[str, Any]:
         """Get memory aggregation statistics.

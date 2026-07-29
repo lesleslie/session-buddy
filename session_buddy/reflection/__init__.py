@@ -51,18 +51,14 @@ from session_buddy.reflection.storage import (
 )
 
 __all__ = [
-    # Core database
     "DatabaseLockedError",
     "ReflectionDatabase",
-    "get_reflection_database",
-    # Embeddings
-    "generate_embedding",
     "clear_embedding_cache",
+    "generate_embedding",
+    "get_reflection_database",
     "initialize_embedding_system",
-    # Search
     "search_conversations",
     "search_reflections",
-    # Storage
     "store_conversation",
     "store_reflection",
 ]

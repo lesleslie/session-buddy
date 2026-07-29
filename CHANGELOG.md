@@ -9,6 +9,47 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.21.0] - 2026-07-29
+
+### Added
+
+- complexity-score: Line-weighted cyclomatic average
+- lint-score: Severity-tier weighting replaces issue count
+- mcp: Add list_worktrees, create_worktree, remove_worktree tools
+- security-score: Bandit severity tiers drive the score
+
+### Changed
+
+- Session-buddy (quality: 66/100) - 2026-07-27 02:35:44
+
+### Fixed
+
+- complexity-score: Drop complexity_weighted_avg orphan
+- quality: Default-missing instead of default-perfect
+- quality: First-wins semantic for all four metric slots
+- worktree: Harden against argument injection, resource exhaustion, info disclosure
+
+### Documentation
+
+- Quality-scoring field audit implementation plan
+- readme: Add Bodai Ecosystem Role section
+- spec: Quality-scoring field audit design
+
+### Testing
+
+- Pin SessionBuddySettings.cache_root for both classes
+- quality-scoring: Add metrics-registry regression net
+- quality: Update fixtures for default-missing semantics
+- registry: Whitelist build_status as diagnostic
+
+### Internal
+
+- deps: Bump crackerjack>=0.70.0; remove duplicated validator script; fix spec frontmatter
+- Normalize LICENSE attribution to Robert Leslie and Wedgwood Web Works
+- pyproject: Add [project.scripts] entry for session-buddy CLI
+- stderr-parsing: Deprecate _parse_stderr_metrics
+- test-pass-rate: Drop orphan metric from quality_metrics
+
 ## [0.20.0] - 2026-07-21
 
 ### Added

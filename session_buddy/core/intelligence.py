@@ -319,9 +319,8 @@ class IntelligenceEngine:
                 created_at_value = datetime.fromisoformat(created_at_value)
 
             last_used_value = row[8]
-            if last_used_value:
-                if isinstance(last_used_value, str):
-                    last_used_value = datetime.fromisoformat(last_used_value)
+            if last_used_value and isinstance(last_used_value, str):
+                last_used_value = datetime.fromisoformat(last_used_value)
                 # else: already a datetime object
 
             # DuckDB may auto-deserialize JSON columns to Python objects
@@ -1022,13 +1021,15 @@ class IntelligenceEngine:
         """Detect pattern: added type hints to improve code."""
         for edit in edit_history:
             content = edit.get("content", "").lower()
-            if "def " in content and ("->" in content or ": " in content):
-                # Check for type annotation additions
-                if any(
+            if (
+                "def " in content
+                and ("->" in content or ": " in content)
+                and any(
                     word in content
                     for word in ("str", "int", "bool", "float", "list", "dict")
-                ):
-                    return True
+                )
+            ):
+                return True
         return False
 
     def _detect_test_refactor_pattern(
@@ -1521,8 +1522,6 @@ class IntelligenceEngine:
             "ours",
             "yours",
             "mine",
-            "yours",
-            "hers",
         }
 
         # Extract keywords from dict values only (not keys)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Crackerjack integration tools for session-mgmt-mcp.
 
 Following crackerjack architecture patterns for quality monitoring,
@@ -437,7 +438,7 @@ def _get_logger() -> t.Any:
     """Lazy logger resolution using the session logger."""
     try:
         return get_session_logger()
-    except Exception:
+    except (ImportError, AttributeError):
         return logger
 
 
@@ -705,7 +706,7 @@ async def _execute_crackerjack_command_impl(
     except ImportError:
         _get_logger().warning("Crackerjack integration not available")
         return "❌ Crackerjack integration not available. Install crackerjack package"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - Crackerjack tool contract: must return a user-visible error string for any internal failure rather than propagate
         _get_logger().exception(f"Crackerjack execution failed: {e}")
         return f"❌ Crackerjack execution failed: {e!s}"
 
@@ -865,7 +866,7 @@ async def _store_execution_result(
 
         return "📝 Execution stored in session history\n"
 
-    except Exception as e:
+    except OSError as e:
         _get_logger().debug(f"Failed to store crackerjack execution: {e}")
         return ""
 
@@ -988,7 +989,7 @@ async def _crackerjack_run_impl(
 
         return output
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - enhanced Crackerjack run contract: must return a structured, multi-line error envelope for any internal failure
         error_type = type(e).__name__
         error_msg = f"❌ **Enhanced crackerjack run failed**: {error_type}\n\n"
         error_msg += f"**Error Details**: {e!s}\n\n"
@@ -1108,14 +1109,16 @@ async def _crackerjack_history_impl(
 ) -> str:
     """View crackerjack execution history with trends and patterns."""
     try:
-        from datetime import datetime, timedelta
+        from datetime import timedelta
+
+        from session_buddy.utils.time import utc_now
 
         db = await _get_reflection_db()
         if not db:
             return "❌ Reflection database not available for crackerjack history"
 
         async with db:
-            end_date = datetime.now()
+            end_date = utc_now()
             start_date = end_date - timedelta(days=days)
 
             results = await db.search_conversations(
@@ -1131,7 +1134,7 @@ async def _crackerjack_history_impl(
 
         return _format_history_output(filtered_results, days)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - Crackerjack history tool contract: must return a user-visible error string for any internal failure
         _get_logger().exception(f"Crackerjack history failed: {e}")
         return f"❌ History retrieval failed: {e!s}"
 
@@ -1254,7 +1257,7 @@ async def _crackerjack_metrics_impl(
         )
         if history:
             return _format_quality_metrics_history(days, history)
-    except Exception:
+    except Exception:  # noqa: BLE001 - quality metrics primary read failed: must fall through to the legacy reflection-DB path rather than abort
         _get_logger().exception(
             "Integration quality_metrics_history read failed",
             extra={"project_path": project_path, "days": days},
@@ -1284,7 +1287,7 @@ async def _crackerjack_metrics_impl(
         keywords = _extract_quality_keywords(results)
         return _format_quality_metrics_output(days, summary, keywords)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - legacy metrics analysis contract: must return a user-visible error string for any internal failure
         _get_logger().exception(f"Metrics analysis failed: {e}")
         return f"❌ Metrics analysis failed: {e!s}"
 
@@ -1418,7 +1421,7 @@ async def _crackerjack_patterns_impl(
 
         return output
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - failure-pattern analysis tool contract: must return a user-visible error string for any internal failure
         _get_logger().exception(f"Pattern analysis failed: {e}")
         return f"❌ Pattern analysis failed: {e!s}"
 
@@ -1493,7 +1496,7 @@ async def _crackerjack_quality_trends_impl(
 
         return output
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - quality-trend analysis tool contract: must return a user-visible error string for any internal failure
         _get_logger().exception(f"Trend analysis failed: {e}")
         return f"❌ Trend analysis failed: {e!s}"
 
@@ -1574,6 +1577,7 @@ def _format_trend_recommendations(success_rate: float) -> str:
 
 async def _crackerjack_health_check_impl() -> str:
     """Check Crackerjack integration health and provide diagnostics."""
+    import asyncio
     import os
     import subprocess  # nosec B404
 
@@ -1582,7 +1586,8 @@ async def _crackerjack_health_check_impl() -> str:
     try:
         env = os.environ.copy()
 
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             ["python", "-m", "crackerjack", "--version"],
             check=False,
             capture_output=True,
@@ -1603,7 +1608,7 @@ async def _crackerjack_health_check_impl() -> str:
     except FileNotFoundError:
         output += "❌ **Crackerjack Installation**: Not found\n"
         output += "   💡 Install with: `uv add crackerjack`\n"
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         output += f"❌ **Crackerjack Installation**: Error - {e!s}\n"
 
     # Check integration components
@@ -1634,7 +1639,7 @@ async def _crackerjack_health_check_impl() -> str:
             output += f"   Conversations: {stats.get('conversation_count', 0)}\n"
         else:
             output += "⚠️ **History Storage**: Reflection database unavailable\n"
-    except Exception as e:
+    except (OSError, AttributeError) as e:
         output += f"⚠️ **History Storage**: Limited - {e!s}\n"
 
     output += "\n**Recommendations**:\n"

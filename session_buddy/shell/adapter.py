@@ -108,7 +108,7 @@ class SessionBuddyShell(AdminShell):
             import importlib.metadata as importlib_metadata
 
             return importlib_metadata.version("session-buddy")
-        except Exception:
+        except importlib_metadata.PackageNotFoundError:
             return "unknown"
 
     def _get_adapters_info(self) -> list[str]:
@@ -187,8 +187,8 @@ Type 'help()' for Python help or %help_shell for shell commands
                 logger.debug(
                     "Session tracking unavailable (Session-Buddy MCP not reachable)"
                 )
-        except Exception as e:
-            logger.debug(f"Failed to emit session start: {e}")
+        except Exception:
+            logger.exception("Failed to emit session start")
 
     async def _emit_session_end(self) -> None:
         """Emit session end event."""
@@ -201,8 +201,8 @@ Type 'help()' for Python help or %help_shell for shell commands
                 metadata={},
             )
             logger.info(f"Session-Buddy shell session ended: {self._session_id}")
-        except Exception as e:
-            logger.debug(f"Failed to emit session end: {e}")
+        except Exception:
+            logger.exception("Failed to emit session end")
         finally:
             self._session_id = None
 

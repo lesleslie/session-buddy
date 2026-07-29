@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Admin shell session tracking MCP tools.
 
 This module provides MCP tools for tracking admin shell session lifecycle events
@@ -199,11 +200,10 @@ def register_admin_shell_tracking_tools(mcp_server: FastMCP) -> None:
         except Exception as e:
             error_msg = f"Session start tracking failed: {e}"
             logger.exception(
-                "Session start tracking exception: component=%s, shell_type=%s, pid=%d, error=%s",
+                "Session start tracking exception: component=%s, shell_type=%s, pid=%d",
                 component_name,
                 shell_type,
                 pid,
-                e,
             )
             # Return error result
             return SessionStartResult(
@@ -251,9 +251,8 @@ def register_admin_shell_tracking_tools(mcp_server: FastMCP) -> None:
         except Exception as e:
             error_msg = f"Session end tracking failed: {e}"
             logger.exception(
-                "Session end tracking exception: session_id=%s, error=%s",
+                "Session end tracking exception: session_id=%s",
                 session_id,
-                e,
             )
             # Return error result
             return SessionEndResult(

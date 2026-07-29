@@ -530,13 +530,19 @@ class TestQueryRewriter:
     @pytest.mark.asyncio
     async def test_llm_expand_query_happy_path(self, rewriter, mock_context, monkeypatch):
         """Test the direct LLM expansion path with context and response cleanup."""
-        fake_llm = MagicMock()
+        # Production code calls ``get_llm_manager()`` from
+        # ``utils.instance_managers``. Patching the DI container
+        # directly doesn't reach that reference (it's bound at
+        # import time), and ``spec=LLMManager`` doesn't make
+        # ``isinstance`` checks pass reliably. Patch the canonical
+        # getter instead — simpler and more direct.
+        from session_buddy.llm_providers import LLMManager as _LLMManager_cls
+
+        fake_llm = MagicMock(spec=_LLMManager_cls)
         fake_llm.call_llm = AsyncMock(return_value="Expanded query: session buddy async patterns")
-        fake_depends = types.SimpleNamespace(get_sync=MagicMock(return_value=fake_llm))
+        import session_buddy.utils.instance_managers as im_pkg
 
-        import session_buddy.di as di_pkg
-
-        monkeypatch.setattr(di_pkg, "depends", fake_depends, raising=False)
+        monkeypatch.setattr(im_pkg, "get_llm_manager", AsyncMock(return_value=fake_llm))
         monkeypatch.setattr(rewriter, "_get_llm_provider", AsyncMock(return_value="openai"))
 
         rewritten = await rewriter._llm_expand_query(mock_context.query, mock_context)
@@ -568,13 +574,16 @@ class TestQueryRewriter:
     @pytest.mark.asyncio
     async def test_get_llm_provider_returns_first_provider(self, rewriter, monkeypatch):
         """Test selecting the first available provider."""
-        fake_llm = MagicMock()
+        # Patch ``get_llm_manager`` directly — see note in
+        # ``test_llm_expand_query_happy_path`` for why DI-level
+        # patching is unreliable.
+        from session_buddy.llm_providers import LLMManager as _LLMManager_cls
+
+        fake_llm = MagicMock(spec=_LLMManager_cls)
         fake_llm.list_providers.return_value = ["openai", "anthropic"]
-        fake_depends = types.SimpleNamespace(get_sync=MagicMock(return_value=fake_llm))
+        import session_buddy.utils.instance_managers as im_pkg
 
-        import session_buddy.di as di_pkg
-
-        monkeypatch.setattr(di_pkg, "depends", fake_depends, raising=False)
+        monkeypatch.setattr(im_pkg, "get_llm_manager", AsyncMock(return_value=fake_llm))
 
         provider = await rewriter._get_llm_provider()
 
@@ -583,11 +592,9 @@ class TestQueryRewriter:
     @pytest.mark.asyncio
     async def test_get_llm_provider_returns_none_when_missing(self, rewriter, monkeypatch):
         """Test the no-provider branch when the DI container returns nothing."""
-        fake_depends = types.SimpleNamespace(get_sync=MagicMock(return_value=None))
+        import session_buddy.utils.instance_managers as im_pkg
 
-        import session_buddy.di as di_pkg
-
-        monkeypatch.setattr(di_pkg, "depends", fake_depends, raising=False)
+        monkeypatch.setattr(im_pkg, "get_llm_manager", AsyncMock(return_value=None))
 
         provider = await rewriter._get_llm_provider()
 
@@ -596,13 +603,13 @@ class TestQueryRewriter:
     @pytest.mark.asyncio
     async def test_get_llm_provider_returns_none_for_empty_provider_list(self, rewriter, monkeypatch):
         """Test the empty-provider-list branch."""
-        fake_llm = MagicMock()
+        from session_buddy.llm_providers import LLMManager as _LLMManager_cls
+
+        fake_llm = MagicMock(spec=_LLMManager_cls)
         fake_llm.list_providers.return_value = []
-        fake_depends = types.SimpleNamespace(get_sync=MagicMock(return_value=fake_llm))
+        import session_buddy.utils.instance_managers as im_pkg
 
-        import session_buddy.di as di_pkg
-
-        monkeypatch.setattr(di_pkg, "depends", fake_depends, raising=False)
+        monkeypatch.setattr(im_pkg, "get_llm_manager", AsyncMock(return_value=fake_llm))
 
         provider = await rewriter._get_llm_provider()
 
@@ -797,15 +804,18 @@ class TestQueryRewriterEdgeCases:
         self, rewriter: QueryRewriter, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """When the LLM is available, the rewriter records the provider and a rewrite."""
-        fake_llm = MagicMock()
+        # Patch ``get_llm_manager`` directly — see note in
+        # ``test_llm_expand_query_happy_path`` for why DI-level
+        # patching is unreliable.
+        from session_buddy.llm_providers import LLMManager as _LLMManager_cls
+
+        fake_llm = MagicMock(spec=_LLMManager_cls)
         fake_llm.call_llm = AsyncMock(
             return_value="Expanded query: replace with httpx retry"
         )
-        fake_depends = types.SimpleNamespace(get_sync=MagicMock(return_value=fake_llm))
+        import session_buddy.utils.instance_managers as im_pkg
 
-        import session_buddy.di as di_pkg
-
-        monkeypatch.setattr(di_pkg, "depends", fake_depends, raising=False)
+        monkeypatch.setattr(im_pkg, "get_llm_manager", AsyncMock(return_value=fake_llm))
         monkeypatch.setattr(
             rewriter,
             "_get_llm_provider",

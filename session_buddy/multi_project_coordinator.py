@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Multi-Project Session Coordination.
 
 Manages relationships and coordination between multiple projects and their sessions.
@@ -664,7 +665,19 @@ class MultiProjectCoordinator:
                 )
 
         # Sort by frequency
-        patterns.sort(key=lambda x: int(x["frequency"]), reverse=True)  # type: ignore[arg-type,call-overload]
+        def _frequency_value(value: object) -> int:
+            """Coerce a possibly-untyped frequency value to int for sorting."""
+            if isinstance(value, bool):
+                return int(value)
+            if isinstance(value, int):
+                return value
+            if isinstance(value, str):
+                return int(value)
+            raise TypeError(
+                f"Expected int or str for frequency, got {type(value).__name__}",
+            )
+
+        patterns.sort(key=lambda x: _frequency_value(x["frequency"]), reverse=True)
         return patterns[:10]  # Return top 10 patterns
 
     def _clear_dependency_cache(self, project: str) -> None:

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Export + lint MCP tools for session-buddy reflections.
 
 Plan 3 Phase 1 Tier 1 Item #3 — closes the "memory is opaque" gap.
@@ -27,6 +28,7 @@ test-injected ``db`` argument when one is supplied.
 from __future__ import annotations
 
 import base64
+import binascii
 import html
 import re
 from operator import itemgetter
@@ -266,7 +268,8 @@ def _find_base64_issues(content: str) -> list[dict[str, Any]]:
         candidate = m.group(0)
         try:
             decoded = base64.b64decode(candidate, validate=True)
-        except Exception:  # noqa: BLE001 — b64decode raises on bad padding/charset
+        except (binascii.Error, ValueError):  # narrow catch for invalid base64
+            _logger.debug("Skipping invalid base64 candidate", exc_info=True)
             continue
         if not decoded:
             continue
@@ -334,8 +337,8 @@ async def _resolve_reflection(
     if db is None:
         try:
             db = await require_reflection_database()
-        except DatabaseUnavailableError as e:
-            _logger.exception("export_markdown: db unavailable: %s", e)
+        except DatabaseUnavailableError:
+            _logger.exception("export_markdown: db unavailable")
             return None
     getter = getattr(db, "get_reflection_by_id", None)
     if getter is None:
@@ -415,11 +418,11 @@ async def lint_memory(
 
     try:
         reflection = await _resolve_reflection(reflection_id, db)
-    except DatabaseUnavailableError as e:
-        _logger.exception("lint_memory: db unavailable: %s", e)
+    except DatabaseUnavailableError:
+        _logger.exception("lint_memory: db unavailable")
         return []
-    except Exception as e:  # noqa: BLE001 — MCP boundary
-        _logger.exception("lint_memory failed for %s: %s", reflection_id, e)
+    except Exception:
+        _logger.exception("lint_memory failed for %s", reflection_id)
         return []
 
     if reflection is None:
@@ -484,8 +487,8 @@ async def _export_markdown_async_wrapper(reflection_id: str, format: str) -> str
         reflection = await _resolve_reflection(reflection_id, None)
     except DatabaseUnavailableError as e:
         return ToolMessages.not_available("Export markdown", str(e))
-    except Exception as e:  # noqa: BLE001 — MCP boundary
-        _logger.exception("export_markdown failed for %s: %s", reflection_id, e)
+    except Exception as e:
+        _logger.exception("export_markdown failed for %s", reflection_id)
         return ToolMessages.operation_failed("Export markdown", e)
 
     if reflection is None:
@@ -503,11 +506,11 @@ async def _lint_memory_async_wrapper(
     """Async body for the registered ``lint_memory`` tool."""
     try:
         reflection = await _resolve_reflection(reflection_id, None)
-    except DatabaseUnavailableError as e:
-        _logger.exception("lint_memory: db unavailable: %s", e)
+    except DatabaseUnavailableError:
+        _logger.exception("lint_memory: db unavailable")
         return []
-    except Exception as e:  # noqa: BLE001 — MCP boundary
-        _logger.exception("lint_memory failed for %s: %s", reflection_id, e)
+    except Exception:
+        _logger.exception("lint_memory failed for %s", reflection_id)
         return []
     if reflection is None:
         return []

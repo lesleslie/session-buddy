@@ -13,13 +13,10 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import yaml
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +89,8 @@ class IntentDetector:
                 f"{', '.join(self.patterns.keys())}"
             )
 
-        except Exception as e:
-            logger.error(f"Failed to load intent patterns: {e}")
+        except Exception:
+            logger.exception("Failed to load intent patterns")
             self._load_default_patterns()
 
     def _load_default_patterns(self) -> None:
@@ -216,8 +213,8 @@ class IntentDetector:
                 "Embedding system unavailable, skipping semantic match. "
                 "Pattern matching will be used instead."
             )
-        except Exception as e:
-            logger.error(f"Semantic matching failed: {e}")
+        except Exception:
+            logger.exception("Semantic matching failed")
 
         return None
 

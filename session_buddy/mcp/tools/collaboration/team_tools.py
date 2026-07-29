@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Team collaboration tools for session-mgmt-mcp.
 
 Following crackerjack architecture patterns for knowledge sharing,
@@ -53,7 +54,7 @@ async def _execute_team_operation(
         return f"❌ {e!s}"
     except ValueError as e:
         return f"❌ {operation_name} failed: {e!s}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any backend/runtime failure (network, redis, etc.)
         _get_logger().exception(f"Error in {operation_name}: {e}")
         return ToolMessages.operation_failed(operation_name, e)
 

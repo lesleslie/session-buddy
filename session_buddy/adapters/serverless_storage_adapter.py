@@ -24,6 +24,7 @@ import typing as t
 from datetime import datetime, timedelta
 
 from session_buddy.backends.base import SessionState, SessionStorage
+from session_buddy.utils.time import utc_now
 
 if t.TYPE_CHECKING:
     from session_buddy.adapters.session_storage_adapter import (
@@ -106,7 +107,7 @@ class ServerlessStorageAdapter(SessionStorage):
 
             # Add TTL metadata if provided
             if ttl_seconds:
-                expires_at = datetime.now() + timedelta(seconds=ttl_seconds)
+                expires_at = utc_now() + timedelta(seconds=ttl_seconds)
                 state_dict["_ttl"] = {
                     "ttl_seconds": ttl_seconds,
                     "expires_at": expires_at.isoformat(),
@@ -126,10 +127,8 @@ class ServerlessStorageAdapter(SessionStorage):
 
             return True
 
-        except Exception as e:
-            self.logger.exception(
-                f"Failed to store session {session_state.session_id}: {e}"
-            )
+        except Exception:
+            self.logger.exception(f"Failed to store session {session_state.session_id}")
             return False
 
     async def retrieve_session(self, session_id: str) -> SessionState | None:
@@ -158,7 +157,7 @@ class ServerlessStorageAdapter(SessionStorage):
             ttl_info = state_dict.get("_ttl", {})
             if ttl_info and "expires_at" in ttl_info:
                 expires_at = datetime.fromisoformat(ttl_info["expires_at"])
-                if datetime.now() > expires_at:
+                if utc_now() > expires_at:
                     # Session expired, delete it
                     await self.delete_session(session_id)
                     return None
@@ -170,8 +169,8 @@ class ServerlessStorageAdapter(SessionStorage):
             # Convert dict back to SessionState
             return SessionState.from_dict(state_dict)
 
-        except Exception as e:
-            self.logger.exception(f"Failed to retrieve session {session_id}: {e}")
+        except Exception:
+            self.logger.exception(f"Failed to retrieve session {session_id}")
             return None
 
     async def delete_session(self, session_id: str) -> bool:
@@ -195,8 +194,8 @@ class ServerlessStorageAdapter(SessionStorage):
 
             return success
 
-        except Exception as e:
-            self.logger.exception(f"Failed to delete session {session_id}: {e}")
+        except Exception:
+            self.logger.exception(f"Failed to delete session {session_id}")
             return False
 
     async def list_sessions(
@@ -231,7 +230,7 @@ class ServerlessStorageAdapter(SessionStorage):
             expires_at_str = metadata.get("expires_at")
             if expires_at_str:
                 expires_at = datetime.fromisoformat(expires_at_str)
-                if datetime.now() > expires_at:
+                if utc_now() > expires_at:
                     continue
 
             matching_sessions.append(session_id)
@@ -259,7 +258,7 @@ class ServerlessStorageAdapter(SessionStorage):
 
             try:
                 expires_at = datetime.fromisoformat(expires_at_str)
-                if datetime.now() > expires_at:
+                if utc_now() > expires_at:
                     expired_sessions.append(session_id)
             except ValueError:
                 # Invalid timestamp, skip
@@ -271,10 +270,8 @@ class ServerlessStorageAdapter(SessionStorage):
                 success = await self.delete_session(session_id)
                 if success:
                     deleted_count += 1
-            except Exception as e:
-                self.logger.warning(
-                    f"Failed to delete expired session {session_id}: {e}"
-                )
+            except Exception:
+                self.logger.exception(f"Failed to delete expired session {session_id}")
 
         if deleted_count > 0:
             self.logger.info(f"Cleaned up {deleted_count} expired sessions")
@@ -304,8 +301,8 @@ class ServerlessStorageAdapter(SessionStorage):
 
             return result is not None
 
-        except Exception as e:
-            self.logger.warning(f"Storage backend unavailable: {e}")
+        except Exception:
+            self.logger.exception("Storage backend unavailable")
             return False
 
 

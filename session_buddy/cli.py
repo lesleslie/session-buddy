@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """MCP Common CLI Factory for Session Management MCP Server.
 
 Replaces the custom Typer-based CLI with mcp-common's MCPServerCLIFactory
@@ -22,9 +23,6 @@ warnings.filterwarnings("ignore", message=".*PyTorch.*TensorFlow.*Flax.*")
 
 from mcp_common import MCPServerCLIFactory, MCPServerSettings, RuntimeHealthSnapshot
 from oneiric.core.config import OneiricMCPConfig
-
-if t.TYPE_CHECKING:  # pragma: no cover
-    from pathlib import Path
 
 
 class _HasPidPath(t.Protocol):
@@ -201,7 +199,7 @@ def create_session_buddy_cli() -> MCPServerCLIFactory:
     # Register session-buddy-specific subcommands. The factory only owns
     # the lifecycle verbs (start/stop/restart/status/health); session-buddy
     # adds ``doctor`` here.
-    from session_buddy.doctor import register_doctor_command  # noqa: PLC0415
+    from session_buddy.doctor import register_doctor_command
 
     register_doctor_command(app)
 

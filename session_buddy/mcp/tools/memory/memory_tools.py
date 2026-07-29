@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Memory and reflection management MCP tools.
 
 This module provides tools for storing, searching, and managing reflections and conversation memories.
@@ -11,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import operator
 import typing as t
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.security.memory_guard_adapter import MemoryGuardBlockedError
@@ -23,6 +23,7 @@ from session_buddy.utils.error_management import (
     validate_required,
 )
 from session_buddy.utils.messages import ToolMessages
+from session_buddy.utils.time import utc_now
 from session_buddy.utils.tool_wrapper import format_reflection_result
 
 if TYPE_CHECKING:
@@ -85,7 +86,7 @@ async def _execute_database_tool(
         return ToolMessages.validation_error(operation_name, str(e))
     except DatabaseUnavailableError as e:
         return ToolMessages.not_available(operation_name, str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - memory tool error envelope contract: must return ToolMessages.operation_failed for any unanticipated failure
         _get_logger().exception(f"Error in {operation_name}: {e}")
         return ToolMessages.operation_failed(operation_name, e)
 
@@ -99,7 +100,7 @@ async def _execute_simple_database_tool(
         return await operation(db)
     except DatabaseUnavailableError as e:
         return ToolMessages.not_available(operation_name, str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - simple memory tool contract: must return ToolMessages.operation_failed envelope for any internal error
         _get_logger().exception(f"Error in {operation_name}: {e}")
         return ToolMessages.operation_failed(operation_name, e)
 
@@ -123,7 +124,7 @@ async def _store_reflection_operation(
         "success": success,
         "content": content,
         "tags": tags,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": utc_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
 
@@ -172,7 +173,7 @@ async def _store_reflection_impl(content: str, tags: list[str] | None = None) ->
         return ToolMessages.validation_error("Store reflection", str(e))
     except DatabaseUnavailableError as e:
         return ToolMessages.not_available("Store reflection", str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - store-reflection tool contract: must return a user-visible error string for any internal failure rather than propagate
         _get_logger().exception(f"Error storing reflection: {e}")
         return f"Error storing reflection: {e}"
 
@@ -188,12 +189,22 @@ async def _quick_search_operation(
     project: str | None,
     min_score: float,
 ) -> str:
-    """Execute quick search operation and format results."""
-    results = await db.search_conversations(
+    """Execute quick search operation and format results.
+
+    Bug 2 fix: search the ``reflections`` table (where ``store_reflection``
+    writes) rather than ``conversations``. The previous ``search_conversations``
+    call always returned "No results found" for stored reflections because
+    the two paths target different tables (``conversations_v2`` vs
+    ``reflections_v2`` in the v2 schema).
+
+    Note: ``search_reflections`` does not yet accept ``project`` or
+    ``min_score`` — those are part of Bug 3's fix. For now we pass the
+    supported kwargs only.
+    """
+    results = await db.search_reflections(
         query=query,
-        project=project,
         limit=1,
-        min_score=min_score,
+        use_embeddings=False,
     )
 
     lines = [f"🔍 Quick search for: '{query}'"]
@@ -336,12 +347,18 @@ async def _search_summary_operation(
     project: str | None,
     min_score: float,
 ) -> str:
-    """Execute search summary operation."""
-    results = await db.search_conversations(
+    """Execute search summary operation.
+
+    Bug 2 fix: search the reflections table (where ``store_reflection``
+    writes) rather than conversations. ``search_reflections`` does not
+    currently accept ``min_score``; the parameter is held at the wrapper
+    layer for future use.
+    """
+    results = await db.search_reflections(
         query=query,
-        project=project,
         limit=20,
-        min_score=min_score,
+        use_embeddings=False,
+        project=project,
     )
     return await _format_search_summary(query, results)
 
@@ -360,7 +377,7 @@ async def _search_summary_impl(
         return await _search_summary_operation(db, query, project, min_score)
     except DatabaseUnavailableError as e:
         return ToolMessages.not_available("Search summary", str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - search-summary tool contract: must return a user-visible error string for any internal failure rather than propagate
         _get_logger().exception(f"Search summary error: {e}")
         return f"Search summary error: {e}"
 
@@ -411,11 +428,15 @@ async def _search_by_file_operation(
     limit: int,
     project: str | None,
 ) -> str:
-    """Execute file search operation."""
-    results = await db.search_conversations(
+    """Execute file search operation.
+
+    Bug 2 fix: search reflections rather than conversations.
+    """
+    results = await db.search_reflections(
         query=file_path,
-        project=project,
         limit=limit,
+        use_embeddings=False,
+        project=project,
     )
     return await _format_file_search_results(file_path, results)
 
@@ -434,7 +455,7 @@ async def _search_by_file_impl(
         return await _search_by_file_operation(db, file_path, limit, project)
     except DatabaseUnavailableError as e:
         return ToolMessages.not_available("Search by file", str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - search-by-file tool contract: must return a user-visible error string for any internal failure rather than propagate
         _get_logger().exception(f"File search error: {e}")
         return f"File search error: {e}"
 
@@ -492,11 +513,15 @@ async def _search_by_concept_operation(
     limit: int,
     project: str | None,
 ) -> str:
-    """Execute concept search operation."""
-    results = await db.search_conversations(
+    """Execute concept search operation.
+
+    Bug 2 fix: search reflections rather than conversations.
+    """
+    results = await db.search_reflections(
         query=concept,
         project=project,
         limit=limit,
+        use_embeddings=False,
     )
     return await _format_concept_search_results(concept, results, include_files)
 
@@ -518,7 +543,7 @@ async def _search_by_concept_impl(
         )
     except DatabaseUnavailableError as e:
         return ToolMessages.not_available("Search by concept", str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - search-by-concept tool contract: must return a user-visible error string for any internal failure rather than propagate
         _get_logger().exception(f"Concept search error: {e}")
         return f"Concept search error: {e}"
 
@@ -679,7 +704,7 @@ async def _reset_reflection_database_impl() -> str:
         ]
         return "\n".join(lines)
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - reset-database tool contract: must return ToolMessages.operation_failed for any internal failure rather than propagate
         return ToolMessages.operation_failed("Reset database", e)
 
 

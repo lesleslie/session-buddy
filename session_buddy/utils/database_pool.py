@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Database connection pooling for DuckDB.
 
 This module provides efficient connection pooling and management for DuckDB operations.
@@ -35,7 +36,7 @@ def _get_logger() -> t.Any:
     if _logger is None:
         try:
             _logger = get_session_logger()
-        except Exception:
+        except Exception:  # noqa: BLE001 - lazy logger initialization: must fall back to stdlib logging when DI is not yet bootstrapped, regardless of failure mode
             # Fallback to basic logging if DI not initialized
             import logging
 
@@ -119,8 +120,8 @@ class DatabaseConnectionPool:
                 else:
                     try:
                         conn.close()
-                    except Exception as e:
-                        _get_logger().warning(f"Error closing excess connection: {e}")
+                    except Exception as e:  # noqa: BLE001 - best-effort connection close during pool management: must log and continue rather than propagate
+                        _get_logger().exception(f"Error closing excess connection: {e}")
 
     @asynccontextmanager
     async def get_async_connection(self) -> AsyncIterator[Any]:
@@ -213,15 +214,15 @@ class DatabaseConnectionPool:
             for conn in self._pool:
                 try:
                     conn.close()
-                except Exception as e:
-                    _get_logger().warning(f"Error closing pooled connection: {e}")
+                except Exception as e:  # noqa: BLE001 - best-effort pool shutdown: log and continue so all remaining connections are still closed
+                    _get_logger().exception(f"Error closing pooled connection: {e}")
 
             # Close active connections
             for conn in self._active_connections.values():
                 try:
                     conn.close()
-                except Exception as e:
-                    _get_logger().warning(f"Error closing active connection: {e}")
+                except Exception as e:  # noqa: BLE001 - best-effort pool shutdown: log and continue so all remaining connections are still closed
+                    _get_logger().exception(f"Error closing active connection: {e}")
 
             self._pool.clear()
             self._active_connections.clear()

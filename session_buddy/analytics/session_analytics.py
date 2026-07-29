@@ -310,8 +310,8 @@ class SessionAnalytics:
             logger.info(f"Found {len(sessions)} active sessions")
             return sessions
 
-        except Exception as e:
-            logger.error(f"Failed to get active sessions: {e}")
+        except Exception:
+            logger.exception("Failed to get active sessions")
             return []
 
     async def get_session_stats(
@@ -379,8 +379,8 @@ class SessionAnalytics:
             )
             return stats
 
-        except Exception as e:
-            logger.error(f"Failed to get session stats: {e}")
+        except Exception:
+            logger.exception("Failed to get session stats")
             return []
 
     async def get_sessions_by_time_range(
@@ -459,8 +459,8 @@ class SessionAnalytics:
             )
             return sessions
 
-        except Exception as e:
-            logger.error(f"Failed to get sessions by time range: {e}")
+        except Exception:
+            logger.exception("Failed to get sessions by time range")
             return []
 
     async def get_average_session_duration(
@@ -510,8 +510,8 @@ class SessionAnalytics:
             logger.info(f"Calculated average durations for {len(durations)} components")
             return durations
 
-        except Exception as e:
-            logger.error(f"Failed to get average session duration: {e}")
+        except Exception:
+            logger.exception("Failed to get average session duration")
             return {}
 
     async def get_most_active_components(
@@ -566,8 +566,8 @@ class SessionAnalytics:
             )
             return components
 
-        except Exception as e:
-            logger.error(f"Failed to get most active components: {e}")
+        except Exception:
+            logger.exception("Failed to get most active components")
             return []
 
     async def get_session_error_rate(
@@ -634,8 +634,8 @@ class SessionAnalytics:
             logger.info(f"Calculated error rates for {len(error_stats)} components")
             return error_stats
 
-        except Exception as e:
-            logger.error(f"Failed to get session error rate: {e}")
+        except Exception:
+            logger.exception("Failed to get session error rate")
             return {}
 
     # Export methods

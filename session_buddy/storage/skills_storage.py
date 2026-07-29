@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Druva-backed persistent storage for skills metrics.
 
 Provides ACID-compliant storage for skills tracking with:
@@ -22,11 +23,7 @@ from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, NotRequired, TypedDict
-
-if TYPE_CHECKING:
-    pass
-
+from typing import NotRequired, Self, TypedDict
 
 # ============================================================================
 # Logging
@@ -193,7 +190,7 @@ class SkillsStorage:
             self._conn.close()
             self._conn = None
 
-    def __enter__(self) -> SkillsStorage:
+    def __enter__(self) -> Self:
         """Context manager entry."""
         return self
 
@@ -323,13 +320,9 @@ class SkillsStorage:
                 selection_rank=row["selection_rank"],
                 follow_up_actions=row["follow_up_actions"],
                 error_type=row["error_type"],
-                embedding=row["embedding"] if "embedding" in row.keys() else None,
-                workflow_phase=row["workflow_phase"]
-                if "workflow_phase" in row.keys()
-                else None,
-                workflow_step_id=row["workflow_step_id"]
-                if "workflow_step_id" in row.keys()
-                else None,
+                embedding=row.get("embedding"),
+                workflow_phase=row.get("workflow_phase"),
+                workflow_step_id=row.get("workflow_step_id"),
             )
 
     def get_session_invocations(self, session_id: str) -> list[StoredInvocation]:
@@ -371,13 +364,9 @@ class SkillsStorage:
                     selection_rank=row["selection_rank"],
                     follow_up_actions=row["follow_up_actions"],
                     error_type=row["error_type"],
-                    embedding=row["embedding"] if "embedding" in row.keys() else None,
-                    workflow_phase=row["workflow_phase"]
-                    if "workflow_phase" in row.keys()
-                    else None,
-                    workflow_step_id=row["workflow_step_id"]
-                    if "workflow_step_id" in row.keys()
-                    else None,
+                    embedding=row.get("embedding"),
+                    workflow_phase=row.get("workflow_phase"),
+                    workflow_step_id=row.get("workflow_step_id"),
                 )
                 for row in rows
             ]
@@ -557,18 +546,16 @@ class SkillsStorage:
                     continue
                 else:
                     # Rollback and raise
-                    with self._get_connection() as conn:
-                        with suppress(Exception):
-                            conn.execute("ROLLBACK")
+                    with self._get_connection() as conn, suppress(Exception):
+                        conn.execute("ROLLBACK")
                     raise TransactionError(
                         f"Transaction failed after {attempt + 1} attempts: {e}",
                         cause=e,
                     ) from e
             except Exception:
                 # Rollback and re-raise
-                with self._get_connection() as conn:
-                    with suppress(Exception):
-                        conn.execute("ROLLBACK")
+                with self._get_connection() as conn, suppress(Exception):
+                    conn.execute("ROLLBACK")
                 raise
 
     # ========================================================================
@@ -895,9 +882,9 @@ class SkillsStorage:
                     )
                     results.append((invocation, similarity))
 
-            except Exception as e:
-                logger.warning(
-                    f"Failed to calculate similarity for invocation {row['id']}: {e}"
+            except Exception:
+                logger.exception(
+                    f"Failed to calculate similarity for invocation {row['id']}"
                 )
                 continue
 
@@ -1343,21 +1330,13 @@ class SkillsStorage:
                 completed=bool(row["completed"]),
                 duration_seconds=row["duration_seconds"],
                 user_query=row["user_query"],
-                alternatives_considered=row["alternatives_considered"]
-                if "alternatives_considered" in row.keys()
-                else None,
-                selection_rank=row["selection_rank"]
-                if "selection_rank" in row.keys()
-                else None,
-                follow_up_actions=row["follow_up_actions"]
-                if "follow_up_actions" in row.keys()
-                else None,
-                error_type=row["error_type"] if "error_type" in row.keys() else None,
+                alternatives_considered=row.get("alternatives_considered"),
+                selection_rank=row.get("selection_rank"),
+                follow_up_actions=row.get("follow_up_actions"),
+                error_type=row.get("error_type"),
                 embedding=row["embedding"],
                 workflow_phase=row["workflow_phase"],
-                workflow_step_id=row["workflow_step_id"]
-                if "workflow_step_id" in row.keys()
-                else None,
+                workflow_step_id=row.get("workflow_step_id"),
             )
 
             # Calculate semantic similarity
@@ -1584,8 +1563,18 @@ class SkillsStorage:
                             }
                         )
 
+                def _abs_deviation(item: dict[str, object]) -> float:
+                    value = item["deviation_score"]
+                    if isinstance(value, (int, float)):
+                        return abs(value)
+                    if isinstance(value, str):
+                        return abs(float(value))
+                    raise TypeError(
+                        f"Expected numeric deviation_score, got {type(value).__name__}",
+                    )
+
                 return sorted(
-                    anomalies, key=lambda x: abs(x["deviation_score"]), reverse=True
+                    anomalies, key=_abs_deviation, reverse=True
                 )
 
             except sqlite3.OperationalError as e:

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Tool wrapper utilities for MCP tools.
 
 This module provides high-level wrappers that combine error handling, database resolution,
@@ -87,7 +88,7 @@ async def execute_database_tool[T](
         return ToolMessages.validation_error(operation_name, str(e))
     except DatabaseUnavailableError as e:
         return ToolMessages.not_available(operation_name, str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any backend/runtime failure (duckdb, sql, IO)
         _get_logger().exception(f"Error in {operation_name}: {e}")
         return ToolMessages.operation_failed(operation_name, e)
 
@@ -120,7 +121,7 @@ async def execute_simple_database_tool(
         return await operation(db)
     except DatabaseUnavailableError as e:
         return ToolMessages.not_available(operation_name, str(e))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any backend/runtime failure
         _get_logger().exception(f"Error in {operation_name}: {e}")
         return ToolMessages.operation_failed(operation_name, e)
 
@@ -167,7 +168,7 @@ async def execute_database_tool_with_dict(
         }
     except DatabaseUnavailableError as e:
         return {"success": False, "error": str(e)}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error dict on any backend/runtime failure
         _get_logger().exception(f"Error in {operation_name}: {e}")
         return {"success": False, "error": f"{operation_name} failed: {e!s}"}
 
@@ -207,7 +208,7 @@ async def execute_no_database_tool[T](
     try:
         result = await operation(*args, **kwargs)
         return formatter(result)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any backend/runtime failure
         _get_logger().exception(f"Error in {operation_name}: {e}")
         return ToolMessages.operation_failed(operation_name, e)
 

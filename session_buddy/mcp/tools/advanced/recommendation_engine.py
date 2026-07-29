@@ -11,6 +11,7 @@ from session_buddy.mcp.tools.intelligence.agent_analyzer import (
     AgentRecommendation,
     AgentType,
 )
+from session_buddy.utils.time import utc_now
 
 
 @dataclass
@@ -107,11 +108,10 @@ class RecommendationEngine:
 
         """
         # Check cache first
-        if use_cache:
-            if cached_result := await cls._get_cached_result(project, days):
-                return cached_result
+        if use_cache and (cached_result := await cls._get_cached_result(project, days)):
+            return cached_result
 
-        end_date = datetime.now()
+        end_date = utc_now()
         start_date = end_date - timedelta(days=days)
 
         # Search for crackerjack executions with agent recommendations
@@ -230,7 +230,7 @@ class RecommendationEngine:
             FailurePattern(
                 pattern_signature=signature,
                 occurrences=data["occurrences"],
-                last_seen=data["last_seen"] or datetime.now(),
+                last_seen=data["last_seen"] or utc_now(),
                 successful_fixes=data["successful_fixes"],
                 failed_fixes=data["failed_fixes"],
                 avg_fix_time=(
@@ -390,9 +390,7 @@ class RecommendationEngine:
             f"({most_common.occurrences} occurrences)",
         )
 
-        recent_patterns = [
-            p for p in patterns if (datetime.now() - p.last_seen).days <= 7
-        ]
+        recent_patterns = [p for p in patterns if (utc_now() - p.last_seen).days <= 7]
         if len(recent_patterns) > 3:
             insights.append(
                 f"⚠️ {len(recent_patterns)} different failure patterns in last 7 days - "
@@ -446,8 +444,10 @@ class RecommendationEngine:
 
         if reliable_fixes:
             return [
-                f"✅ {len(reliable_fixes)} patterns have consistent successful fixes - "
-                f"good agent-pattern matching",
+                (
+                    f"✅ {len(reliable_fixes)} patterns have consistent successful fixes - "
+                    "good agent-pattern matching"
+                ),
             ]
         return []
 

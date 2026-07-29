@@ -14,8 +14,9 @@ Phase 4 adds advanced analytics capabilities for the skills tracking system.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
+
+from session_buddy.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -93,16 +94,16 @@ async def get_real_time_metrics(
         return {
             "success": True,
             "top_skills": metrics,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "message": f"Found {len(metrics)} skills in the last {time_window_hours} hours",
         }
 
     except Exception as e:
-        logger.error(f"Failed to get real-time metrics: {e}")
+        logger.exception("Failed to get real-time metrics")
         return {
             "success": False,
             "top_skills": [],
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "message": f"Error: {e}",
         }
 
@@ -167,16 +168,16 @@ async def detect_anomalies(
         return {
             "success": True,
             "anomalies": anomalies,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "message": f"Detected {len(anomalies)} anomaly(ies) with Z-score >= {threshold}",
         }
 
     except Exception as e:
-        logger.error(f"Failed to detect anomalies: {e}")
+        logger.exception("Failed to detect anomalies")
         return {
             "success": False,
             "anomalies": [],
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "message": f"Error: {e}",
         }
 
@@ -249,11 +250,11 @@ async def get_skill_trend(
             "end_value": trend_analysis.end_value,
             "change_percent": trend_analysis.change_percent,
             "confidence": trend_analysis.confidence,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
         }
 
     except Exception as e:
-        logger.error(f"Failed to get skill trend: {e}")
+        logger.exception("Failed to get skill trend")
         return {
             "success": False,
             "skill_name": skill_name,
@@ -263,7 +264,7 @@ async def get_skill_trend(
             "end_value": 0.0,
             "change_percent": 0.0,
             "confidence": 1.0,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "error": e,
         }
 
@@ -345,17 +346,17 @@ async def get_collaborative_recommendations(
             "success": True,
             "user_id": user_id,
             "recommendations": clean_recommendations,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "message": f"Generated {len(clean_recommendations)} recommendations for {user_id}",
         }
 
     except Exception as e:
-        logger.error(f"Failed to get collaborative recommendations: {e}")
+        logger.exception("Failed to get collaborative recommendations")
         return {
             "success": False,
             "user_id": user_id,
             "recommendations": [],
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "message": f"Error: {e}",
         }
 
@@ -415,16 +416,16 @@ async def get_community_baselines(
         return {
             "success": True,
             "baselines": baselines,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "message": f"Retrieved {len(baselines)} community baselines",
         }
 
     except Exception as e:
-        logger.error(f"Failed to get community baselines: {e}")
+        logger.exception("Failed to get community baselines")
         return {
             "success": False,
             "baselines": [],
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "message": f"Error: {e}",
         }
 
@@ -545,16 +546,16 @@ async def get_skill_dependencies(
             "success": True,
             "skill_name": skill_name,
             "dependencies": dependencies,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "message": f"Found {len(dependencies)} skills with lift >= {min_lift}",
         }
 
     except Exception as e:
-        logger.error(f"Failed to get skill dependencies: {e}")
+        logger.exception("Failed to get skill dependencies")
         return {
             "success": False,
             "skill_name": skill_name,
             "dependencies": [],
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "message": f"Error: {e}",
         }

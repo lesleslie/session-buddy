@@ -10,14 +10,12 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 
-if TYPE_CHECKING:
-    pass
+from session_buddy.utils.time import utc_now
 
 
 @dataclass
@@ -99,7 +97,7 @@ class SkillSuccessPredictor:
         Returns:
             Dictionary mapping feature names to float values
         """
-        now = datetime.now()
+        now = utc_now()
 
         # Feature 1: hour_of_day (0-23)
         hour_of_day = float(now.hour)

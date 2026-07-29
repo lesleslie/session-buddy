@@ -142,7 +142,12 @@ async def _extract_pattern_relationships_impl(
                     created += 1
                 else:
                     failed += 1
-            except Exception:
+            except Exception:  # noqa: BLE001 - batch relation creation must continue past per-relation failures
+                _get_logger().exception(
+                    "Failed to create relation %s -> %s",
+                    rel.get("from_name"),
+                    rel.get("to_name"),
+                )
                 failed += 1
 
         lines = [
@@ -269,8 +274,8 @@ async def _execute_kg_operation(
             return await operation(kg)
     except RuntimeError as e:
         return f"❌ {e!s}. Install dependencies: uv sync"
-    except Exception as e:
-        _get_logger().exception(f"Error in {operation_name}: {e}")
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any backend/runtime failure (DB, network, etc.)
+        _get_logger().exception("Error in %s", operation_name)
         return ToolMessages.operation_failed(operation_name, e)
 
 
@@ -306,8 +311,8 @@ def register_phase3_knowledge_graph_tools(mcp_server: Any) -> None:
 
 
 __all__ = [
-    "register_phase3_knowledge_graph_tools",
     "_discover_transitive_relationships_impl",
     "_extract_pattern_relationships_impl",
     "_get_relationship_confidence_stats_impl",
+    "register_phase3_knowledge_graph_tools",
 ]

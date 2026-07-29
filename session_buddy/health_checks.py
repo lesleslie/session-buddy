@@ -138,12 +138,12 @@ async def check_database_health() -> ComponentHealth:
             },
         )
 
-    except Exception as e:
+    except Exception:  # noqa: BLE001 - database health-check contract: must return an UNHEALTHY ComponentHealth for any internal error rather than propagate
         latency_ms = (time.perf_counter() - start_time) * 1000
         return ComponentHealth(
             name="database",
             status=HealthStatus.UNHEALTHY,
-            message=f"Database error: {str(e)[:100]}",
+            message="Database error: unexpected failure",
             latency_ms=latency_ms,
         )
 
@@ -212,12 +212,12 @@ async def check_file_system_health() -> ComponentHealth:
             latency_ms=latency_ms,
         )
 
-    except Exception as e:
+    except Exception:  # noqa: BLE001 - file system health-check contract: must return an UNHEALTHY ComponentHealth for any internal error rather than propagate
         latency_ms = (time.perf_counter() - start_time) * 1000
         return ComponentHealth(
             name="file_system",
             status=HealthStatus.UNHEALTHY,
-            message=f"File system error: {str(e)[:100]}",
+            message="File system error: unexpected failure",
             latency_ms=latency_ms,
         )
 
@@ -233,7 +233,7 @@ def _module_available(name: str) -> bool:
     """
     try:
         return importlib.util.find_spec(name) is not None
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort module availability check: any failure in find_spec is treated as "not available" so health checks never crash
         return name in sys.modules
 
 
@@ -288,7 +288,7 @@ def _is_safe_url(url: str) -> bool:
     try:
         parsed = httpx.URL(url)
         host = parsed.host or ""
-    except Exception:
+    except Exception:  # noqa: BLE001 - SSRF guard: unparsable URL is treated as not-safe, never propagates from the validation helper
         return False
 
     # Fast path: loopback is always safe (operator's own machine).
@@ -314,7 +314,7 @@ def _is_safe_url(url: str) -> bool:
     # Hostname: resolve and re-evaluate.
     try:
         infos = socket.getaddrinfo(host, None)
-    except Exception:
+    except Exception:  # noqa: BLE001 - SSRF guard: DNS resolution failure means the host is not safe to call
         # If we cannot resolve, fail safe (treat as not safe).
         return False
 
@@ -324,9 +324,12 @@ def _is_safe_url(url: str) -> bool:
             resolved_addr = ipaddress.ip_address(resolved_ip)
             if resolved_addr.is_link_local:
                 return False
-            if resolved_addr.is_private and not resolved_addr.is_loopback:
-                if not _private_network_allowed():
-                    return False
+            if (
+                resolved_addr.is_private
+                and not resolved_addr.is_loopback
+                and not _private_network_allowed()
+            ):
+                return False
     return True
 
 
@@ -399,7 +402,7 @@ async def _check_provider(
         return f"{name} (timeout)"
     except httpx.ConnectError:
         return f"{name} (connection refused)"
-    except Exception:
+    except Exception:  # noqa: BLE001 - embedding-provider health probe: any error from a specific provider is recorded as "(error)" so the rest of the health report still renders
         return f"{name} (error)"
 
 
@@ -554,12 +557,12 @@ async def check_python_environment_health() -> ComponentHealth:
             },
         )
 
-    except Exception as e:
+    except Exception:  # noqa: BLE001 - python env health-check contract: must return an UNHEALTHY ComponentHealth for any internal error rather than propagate
         latency_ms = (time.perf_counter() - start_time) * 1000
         return ComponentHealth(
             name="python_env",
             status=HealthStatus.UNHEALTHY,
-            message=f"Environment check failed: {str(e)[:100]}",
+            message="Environment check failed: unexpected error",
             latency_ms=latency_ms,
         )
 

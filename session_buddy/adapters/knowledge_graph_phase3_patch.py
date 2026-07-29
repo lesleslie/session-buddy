@@ -11,12 +11,12 @@ the _infer_relationship_type method.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import typing as t
 from contextlib import suppress
 
-if t.TYPE_CHECKING:
-    pass
+logger = logging.getLogger(__name__)
 
 
 def phase3_infer_relationship_type(
@@ -234,6 +234,7 @@ async def discover_transitive_relationships(
                     created += 1
                     visited.add(relation_key)
                 except Exception:
+                    logger.debug("Skipping failed patch relationship", exc_info=True)
                     skipped += 1
                     continue
 
@@ -328,10 +329,10 @@ async def create_entity_with_patterns(
 
 # Export all functions
 __all__ = [
-    "phase3_infer_relationship_type",
     "_extract_pattern_from_text",
     "_extract_relationships_from_observations",
-    "discover_transitive_relationships",
     "_infer_transitive_type",
     "create_entity_with_patterns",
+    "discover_transitive_relationships",
+    "phase3_infer_relationship_type",
 ]

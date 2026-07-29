@@ -9,15 +9,13 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 import numpy as np
 from scipy import stats
 
-if TYPE_CHECKING:
-    pass
+from session_buddy.utils.time import utc_now
 
 
 @dataclass
@@ -239,7 +237,7 @@ class ABTestFramework:
                     test_id, user_id, group_name, assigned_at
                 ) VALUES (?, ?, ?, ?)
                 """,
-                (test_id, user_id, group, datetime.now().isoformat()),
+                (test_id, user_id, group, utc_now().isoformat()),
             )
 
         return group
@@ -292,7 +290,7 @@ class ABTestFramework:
                     1 if outcome.completed else 0,
                     outcome.duration_seconds,
                     outcome.user_rating,
-                    datetime.now().isoformat(),
+                    utc_now().isoformat(),
                 ),
             )
 
@@ -390,7 +388,7 @@ class ABTestFramework:
         control_completion = [1 if o["completed"] else 0 for o in control_outcomes]
         treatment_completion = [1 if o["completed"] else 0 for o in treatment_outcomes]
 
-        t_stat, p_value = stats.ttest_ind(control_completion, treatment_completion)
+        _t_stat, p_value = stats.ttest_ind(control_completion, treatment_completion)
 
         # Determine winner
         if p_value < 0.05:  # Statistically significant
@@ -536,7 +534,7 @@ class ABTestFramework:
 
             cursor.execute(
                 "UPDATE ab_test_configs SET status = 'stopped', end_date = ? WHERE test_id = ?",
-                (datetime.now().isoformat(), test_id),
+                (utc_now().isoformat(), test_id),
             )
 
             if cursor.rowcount == 0:

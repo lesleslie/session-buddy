@@ -476,12 +476,19 @@ class ProgressiveSearchEngine:
 
         start_time = time.perf_counter()
 
-        # Get database adapter
+        # Get database adapter. Use the canonical resolver from
+        # ``utils.database_tools`` so the lookup key matches what
+        # ``adapters/lifecycle.init_reflection_adapter`` registers under
+        # (the fully-qualified class name). The previous bare-string key
+        # ``"ReflectionDatabaseAdapter"`` never matched the class key and
+        # raised ``KeyError: 'Service not registered'`` at runtime.
         db = self._db
         if db is None:
-            from session_buddy.di import depends
+            from session_buddy.utils.database_tools import (
+                require_reflection_database,
+            )
 
-            db = depends.get_sync("ReflectionDatabaseAdapter")
+            db = await require_reflection_database()
 
         # Search based on tier type
         if tier == SearchTier.CATEGORIES:

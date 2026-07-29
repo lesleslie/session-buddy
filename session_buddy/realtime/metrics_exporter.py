@@ -23,12 +23,8 @@ Example:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

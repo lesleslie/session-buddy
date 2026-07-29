@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Quality Scoring Algorithm V2 - Measures actual code quality.
 
 This module implements a comprehensive quality scoring system that focuses on
@@ -14,18 +15,19 @@ Key improvements over V1:
 from __future__ import annotations
 
 import asyncio
+import io
 import os
 import re
 import subprocess  # nosec B404
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from pathlib import Path
+from session_buddy.utils.time import utc_now
 
+if TYPE_CHECKING:
     from session_buddy.crackerjack_integration import (
         get_quality_metrics_history,
     )
@@ -187,7 +189,7 @@ async def calculate_quality_score_v2(
         security=security,
         trust_score=trust_score,
         recommendations=recommendations,
-        timestamp=datetime.now().isoformat(),
+        timestamp=utc_now().isoformat(),
     )
 
 
@@ -340,7 +342,7 @@ def _score_dependency_management(project_dir: Path) -> tuple[float, dict[str, st
 
     with suppress(OSError, PermissionError, FileNotFoundError, ValueError):
         lockfile_age_days = (
-            datetime.now() - datetime.fromtimestamp(lockfile.stat().st_mtime)
+            utc_now() - datetime.fromtimestamp(lockfile.stat().st_mtime, tz=UTC)
         ).days
 
         if lockfile_age_days < 30:
@@ -469,7 +471,7 @@ def _analyze_git_activity(project_dir: Path) -> dict[str, Any]:
 
     try:
         commits = _collect_recent_commits(project_dir)
-    except Exception as exc:
+    except (OSError, subprocess.SubprocessError) as exc:
         return {"score": 0, "details": {"error": f"git analysis failed: {exc}"}}
 
     frequency_score, frequency_details = _score_commit_frequency(commits)
@@ -483,7 +485,7 @@ def _analyze_git_activity(project_dir: Path) -> dict[str, Any]:
 
 def _collect_recent_commits(project_dir: Path) -> list[str]:
     """Return commit messages for the last 30 days."""
-    since_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    since_date = (utc_now() - timedelta(days=30)).strftime("%Y-%m-%d")
     # Constrain git to the project_dir subtree so a test's empty
     # ``.git`` cannot silently walk up and return the parent
     # repo's history (which would inflate the dev_velocity score).
@@ -567,7 +569,7 @@ def _score_issue_tracking(project_dir: Path) -> tuple[int, dict[str, str]]:
             timeout=5,
             env={**os.environ, "GIT_CEILING_DIRECTORIES": ceiling},
         )
-    except Exception as exc:
+    except (OSError, subprocess.SubprocessError) as exc:
         return 0, {"issue_tracking": f"analysis failed: {exc}"}
 
     if result.returncode != 0 or not result.stdout.strip():
@@ -601,7 +603,7 @@ def _score_branch_strategy(project_dir: Path) -> tuple[int, dict[str, str]]:
             timeout=5,
             env={**os.environ, "GIT_CEILING_DIRECTORIES": ceiling},
         )
-    except Exception as exc:
+    except (OSError, subprocess.SubprocessError) as exc:
         return 0, {"branch_strategy": f"analysis failed: {exc}"}
 
     if result.returncode != 0 or not result.stdout.strip():
@@ -752,7 +754,7 @@ def _get_cached_metrics(cache_key: str) -> dict[str, Any] | None:
         return None
 
     cached_metrics, cached_time = _metrics_cache[cache_key]
-    if datetime.now() - cached_time < timedelta(minutes=_CACHE_TTL_MINUTES):
+    if utc_now() - cached_time < timedelta(minutes=_CACHE_TTL_MINUTES):
         return cached_metrics
     return None
 
@@ -775,7 +777,12 @@ def _parse_metrics_history(metrics_history: list[dict[str, Any]]) -> dict[str, A
 
     for metric in metrics_history[:10]:
         metric_type = metric.get("metric_type")
-        if metric_type not in {"code_coverage", "lint_score", "security_score", "complexity_score"}:
+        if metric_type not in {
+            "code_coverage",
+            "lint_score",
+            "security_score",
+            "complexity_score",
+        }:
             continue
         if metrics.get(metric_type) is None:
             metrics[metric_type] = metric.get("metric_value", 0)
@@ -843,7 +850,10 @@ def _read_coverage_dotfile(project_dir: Path) -> float:
         # coverage.py >=7 reports a Numbers instance with statement percent
         # instead of the legacy line percent. Detect and prefer it.
         if isinstance(total, Numbers) and total.n_statements:
-            return round(total.pc_statements_covered, 2)
+            pct_attr = getattr(total, "pc_statements_covered", None)
+            if isinstance(pct_attr, (int, float)):
+                return round(float(pct_attr), 2)
+            return 0.0
         if isinstance(total, (int, float)):
             return round(float(total), 2)
         return 0.0
@@ -879,7 +889,7 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
         )
         if coverage_pct:
             fallback_metrics = _create_fallback_metrics(coverage_pct)
-            _metrics_cache[cache_key] = (fallback_metrics, datetime.now())
+            _metrics_cache[cache_key] = (fallback_metrics, utc_now())
             return fallback_metrics
         return {}
 
@@ -903,7 +913,7 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
                     metrics["code_coverage"] = coverage_pct
 
             # Cache the result
-            _metrics_cache[cache_key] = (metrics, datetime.now())
+            _metrics_cache[cache_key] = (metrics, utc_now())
             return metrics
 
     # Complete fallback: No Crackerjack data at all, try coverage.json then .coverage
@@ -912,7 +922,7 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
     )
     if coverage_pct:
         fallback_metrics = _create_fallback_metrics(coverage_pct)
-        _metrics_cache[cache_key] = (fallback_metrics, datetime.now())
+        _metrics_cache[cache_key] = (fallback_metrics, utc_now())
         return fallback_metrics
 
     return {}

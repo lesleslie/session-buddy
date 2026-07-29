@@ -44,6 +44,8 @@ except ImportError:
     WATCHDOG_AVAILABLE = False
     Observer: Any = object  # type: ignore[assignment,misc]
 
+from session_buddy.utils.time import utc_now
+
 # gzip is always available in Python stdlib
 COMPRESSION_AVAILABLE = True
 
@@ -142,8 +144,8 @@ class FocusTracker:
             try:
                 self._check_focus_change()
                 time.sleep(1.0)  # Check every second
-            except Exception as e:
-                logger.exception(f"Focus monitoring error: {e}")
+            except Exception:
+                logger.exception("Focus monitoring error")
                 time.sleep(5.0)  # Wait longer on error
 
     def _check_focus_change(self) -> None:
@@ -165,7 +167,7 @@ class FocusTracker:
                             "source_app": self.current_app,
                             "target_app": current_app,
                             "focus_duration": focus_duration,
-                            "timestamp": datetime.now(),
+                            "timestamp": utc_now(),
                         },
                     )
 
@@ -184,7 +186,7 @@ class FocusTracker:
                             "target_window": current_window,
                             "app": current_app,
                             "focus_duration": focus_duration,
-                            "timestamp": datetime.now(),
+                            "timestamp": utc_now(),
                         },
                     )
 
@@ -193,8 +195,8 @@ class FocusTracker:
 
             self.last_check = now
 
-        except Exception as e:
-            logger.debug(f"Focus check failed: {e}")
+        except Exception:
+            logger.exception("Focus check failed")
 
     def _get_active_application(self) -> str | None:
         """Get currently active application name."""
@@ -218,7 +220,7 @@ class FocusTracker:
 
             return None
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort GUI process detection: any psutil/platform error means no active window, just return None
             return None
 
     def _get_active_window(self) -> str | None:
@@ -247,9 +249,11 @@ class FileChangeHandler(FileSystemEventHandler):
         file_path = event.src_path
 
         # Debounce rapid changes
-        if file_path in self.last_events:
-            if now - self.last_events[file_path] < self.debounce_time:
-                return
+        if (
+            file_path in self.last_events
+            and now - self.last_events[file_path] < self.debounce_time
+        ):
+            return
 
         self.last_events[file_path] = now
 
@@ -259,7 +263,7 @@ class FileChangeHandler(FileSystemEventHandler):
                     "type": InterruptionType.FILE_CHANGE,
                     "file_path": file_path,
                     "event_type": "modified",
-                    "timestamp": datetime.now(),
+                    "timestamp": utc_now(),
                 },
             )
 
@@ -274,7 +278,7 @@ class FileChangeHandler(FileSystemEventHandler):
                     "type": InterruptionType.FILE_CHANGE,
                     "file_path": event.src_path,
                     "event_type": "created",
-                    "timestamp": datetime.now(),
+                    "timestamp": utc_now(),
                 },
             )
 
@@ -289,7 +293,7 @@ class FileChangeHandler(FileSystemEventHandler):
                     "type": InterruptionType.FILE_CHANGE,
                     "file_path": event.src_path,
                     "event_type": "deleted",
-                    "timestamp": datetime.now(),
+                    "timestamp": utc_now(),
                 },
             )
 
@@ -395,8 +399,8 @@ class InterruptionManager:
                     recursive=True,
                 )
                 self.file_observer.start()
-            except Exception as e:
-                logger.warning(f"Failed to start file monitoring: {e}")
+            except Exception:
+                logger.exception("Failed to start file monitoring")
 
     def stop_monitoring(self) -> None:
         """Stop interruption monitoring."""
@@ -409,8 +413,8 @@ class InterruptionManager:
                 if self.file_observer:
                     self.file_observer.stop()
                     self.file_observer.join(timeout=2.0)
-            except Exception as e:
-                logger.warning(f"Error stopping file observer: {e}")
+            except Exception:
+                logger.exception("Error stopping file observer")
             finally:
                 self.file_observer = None
 
@@ -434,7 +438,7 @@ class InterruptionManager:
             cursor_positions={},
             environment_vars=os.environ.copy() if "os" in globals() else {},
             process_state={},
-            last_activity=datetime.now(),
+            last_activity=utc_now(),
             focus_duration=0.0,
             interruption_count=0,
             recovery_attempts=0,
@@ -455,8 +459,8 @@ class InterruptionManager:
                     project_id,
                     json.dumps(asdict(context)),
                     ContextState.ACTIVE.value,
-                    datetime.now(),
-                    datetime.now(),
+                    utc_now(),
+                    utc_now(),
                 ),
             )
 
@@ -478,7 +482,7 @@ class InterruptionManager:
             # Create context snapshot
             snapshot_data = {
                 "context": asdict(context),
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": utc_now().isoformat(),
                 "preservation_reason": "manual" if force else "auto",
                 "environment": self._capture_environment_state(),
             }
@@ -489,8 +493,8 @@ class InterruptionManager:
                 try:
                     serialized = json.dumps(snapshot_data).encode()
                     compressed_data = gzip.compress(serialized)
-                except Exception as e:
-                    logger.warning(f"Compression failed: {e}")
+                except (OSError, MemoryError):
+                    logger.exception("Compression failed")
                     compressed_data = json.dumps(snapshot_data).encode()
             else:
                 compressed_data = json.dumps(snapshot_data).encode()
@@ -508,7 +512,7 @@ class InterruptionManager:
                         snapshot_id,
                         session_id,
                         "preservation",
-                        datetime.now(),
+                        utc_now(),
                         compressed_data,
                         json.dumps(
                             {
@@ -528,8 +532,8 @@ class InterruptionManager:
                 """,
                     (
                         ContextState.PRESERVED.value,
-                        datetime.now(),
-                        datetime.now(),
+                        utc_now(),
+                        utc_now(),
                         session_id,
                     ),
                 )
@@ -538,13 +542,13 @@ class InterruptionManager:
             for callback in self._preservation_callbacks:
                 try:
                     await callback(context, snapshot_data)
-                except Exception as e:
-                    logger.exception(f"Preservation callback error: {e}")
+                except Exception:
+                    logger.exception("Preservation callback error")
 
             return True
 
-        except Exception as e:
-            logger.exception(f"Context preservation failed: {e}")
+        except Exception:
+            logger.exception("Context preservation failed")
             return False
 
     async def restore_context(self, session_id: str) -> SessionContext | None:
@@ -574,8 +578,13 @@ class InterruptionManager:
                     try:
                         decompressed = gzip.decompress(compressed_data)
                         snapshot_data = json.loads(decompressed.decode())
-                    except Exception as e:
-                        logger.warning(f"Decompression failed: {e}")
+                    except (
+                        OSError,
+                        gzip.BadGzipFile,
+                        json.JSONDecodeError,
+                        UnicodeDecodeError,
+                    ):
+                        logger.exception("Decompression failed")
                         snapshot_data = json.loads(compressed_data.decode())
                 else:
                     snapshot_data = json.loads(compressed_data.decode())
@@ -594,20 +603,20 @@ class InterruptionManager:
                     SET state = ?, updated_at = ?, restore_count = restore_count + 1
                     WHERE session_id = ?
                 """,
-                    (ContextState.RESTORED.value, datetime.now(), session_id),
+                    (ContextState.RESTORED.value, utc_now(), session_id),
                 )
 
             # Execute restoration callbacks
             for callback in self._restoration_callbacks:
                 try:
                     await callback(context, snapshot_data)
-                except Exception as e:
-                    logger.exception(f"Restoration callback error: {e}")
+                except Exception:
+                    logger.exception("Restoration callback error")
 
             return context
 
-        except Exception as e:
-            logger.exception(f"Context restoration failed: {e}")
+        except Exception:
+            logger.exception("Context restoration failed")
             return None
 
     async def get_interruption_history(
@@ -616,7 +625,7 @@ class InterruptionManager:
         hours: int = 24,
     ) -> list[dict[str, Any]]:
         """Get recent interruption history."""
-        since = datetime.now() - timedelta(hours=hours)
+        since = utc_now() - timedelta(hours=hours)
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -759,8 +768,8 @@ class InterruptionManager:
                 self.current_context.interruption_count += 1
                 self.current_context.last_activity = timestamp
 
-        except Exception as e:
-            logger.exception(f"Interruption handling error: {e}")
+        except Exception:
+            logger.exception("Interruption handling error")
 
     async def _store_interruption(self, interruption: InterruptionEvent) -> None:
         """Store interruption event in database."""
@@ -785,13 +794,13 @@ class InterruptionManager:
                         interruption.project_id,
                     ),
                 )
-        except Exception as e:
-            logger.exception(f"Failed to store interruption: {e}")
+        except Exception:
+            logger.exception("Failed to store interruption")
 
     def _capture_environment_state(self) -> dict[str, Any]:
         """Capture current environment state."""
         state: dict[str, Any] = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "cwd": Path.cwd().as_posix(),
             "processes": [],
         }
@@ -811,8 +820,8 @@ class InterruptionManager:
                             )
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
-            except Exception as e:
-                logger.debug(f"Process capture failed: {e}")
+            except Exception:
+                logger.exception("Process capture failed")
 
         return state
 

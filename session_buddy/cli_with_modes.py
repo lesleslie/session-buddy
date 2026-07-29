@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Session-Buddy CLI with operational mode support.
 
 This CLI provides mode-based initialization for Session-Buddy:
@@ -14,11 +15,14 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 import typing as t
 import warnings
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Suppress transformers warnings
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
@@ -123,6 +127,7 @@ def start_server_handler(mode: str = "standard") -> None:
         print(f"❌ Error: {e}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
+        logger.exception("Server startup failed")
         print(f"❌ Failed to start server: {e}", file=sys.stderr)
         sys.exit(1)
 

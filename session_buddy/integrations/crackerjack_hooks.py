@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import operator
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from session_buddy.core.skills_tracker import SkillsTracker
@@ -80,7 +81,7 @@ class CrackerjackIntegration:
     """
 
     # Mapping from crackerjack phases to Oneiric workflow phases
-    PHASE_MAPPING: dict[str, str] = {
+    PHASE_MAPPING: ClassVar[dict[str, str]] = {
         "fast_hooks": "setup",
         "tests": "execution",
         "comprehensive_hooks": "verification",
@@ -88,7 +89,7 @@ class CrackerjackIntegration:
     }
 
     # Common crackerjack tools by phase
-    PHASE_TOOLS: dict[str, list[str]] = {
+    PHASE_TOOLS: ClassVar[dict[str, list[str]]] = {
         "fast_hooks": [
             "ruff-format",
             "ruff-check",
@@ -277,7 +278,7 @@ class CrackerjackIntegration:
             "",
             f"Project: {self.crackerjack_project_path}",
             f"Session: {self.skills_tracker.session_id}",
-            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Generated: {utc_now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
         ]
 

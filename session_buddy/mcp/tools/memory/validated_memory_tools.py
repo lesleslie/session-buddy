@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Example integration of parameter validation models with MCP tools.
 
 This module demonstrates how to integrate Pydantic parameter validation
@@ -18,7 +19,6 @@ from __future__ import annotations
 # Helper Functions
 # ============================================================================
 from contextlib import suppress
-from datetime import datetime
 from typing import Any
 
 from session_buddy.adapters.reflection_adapter import ReflectionDatabaseAdapter
@@ -31,6 +31,7 @@ from session_buddy.parameter_models import (
 )
 from session_buddy.reflection_tools import ReflectionDatabase
 from session_buddy.utils.error_management import ValidationError, _get_logger
+from session_buddy.utils.time import utc_now
 
 # Define type alias for backward compatibility during migration
 # NOTE: With 'from __future__ import annotations', we use the actual types, not strings
@@ -148,7 +149,7 @@ async def _execute_store_reflection(
         "id": reflection_id,
         "content": params_obj.content,
         "tags": params_obj.tags or [],
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": utc_now().isoformat(),
     }
 
 
@@ -210,9 +211,9 @@ async def _store_reflection_validated_impl(**params: Any) -> str:
         error_msg = "Failed to connect to reflection database: Import error"
         _get_logger().error(error_msg)
         return error_msg
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - validated store-reflection tool contract: must return a user-visible error string for any internal failure
         error_msg = f"Failed to store reflection: {e}"
-        _get_logger().error(error_msg)
+        _get_logger().exception(error_msg)
         return error_msg
 
 
@@ -282,9 +283,9 @@ async def _quick_search_validated_impl(**params: Any) -> str:
         error_msg = "Failed to connect to reflection database: Import error"
         _get_logger().error(error_msg)
         return error_msg
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - validated quick-search tool contract: must return a user-visible error string for any internal failure
         error_msg = f"Failed to perform quick search: {e}"
-        _get_logger().error(error_msg)
+        _get_logger().exception(error_msg)
         return error_msg
 
 
@@ -363,9 +364,9 @@ async def _search_by_file_validated_impl(**params: Any) -> str:
         error_msg = "Failed to connect to reflection database: Import error"
         _get_logger().error(error_msg)
         return error_msg
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - validated file-search tool contract: must return a user-visible error string for any internal failure
         error_msg = f"Failed to perform file search: {e}"
-        _get_logger().error(error_msg)
+        _get_logger().exception(error_msg)
         return error_msg
 
 
@@ -429,9 +430,9 @@ async def _search_by_concept_validated_impl(**params: Any) -> str:
         error_msg = "Failed to connect to reflection database: Import error"
         _get_logger().error(error_msg)
         return error_msg
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - validated concept-search tool contract: must return a user-visible error string for any internal failure
         error_msg = f"Failed to perform concept search: {e}"
-        _get_logger().error(error_msg)
+        _get_logger().exception(error_msg)
         return error_msg
 
 
@@ -556,7 +557,8 @@ def _check_reflection_tools_available() -> bool:
         available = spec is not None
         _reflection_tools_available = available
         return available
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort reflection-tools availability probe: any failure means the tools are unavailable, cache False
+        _get_logger().exception("Reflection tools availability probe failed")
         _reflection_tools_available = False
         return False
 
@@ -598,8 +600,9 @@ async def _get_reflection_database_async() -> ReflectionDatabaseType | None:
     except ImportError:
         # Re-raise import errors as they indicate unavailability
         raise
-    except Exception:
+    except Exception:  # noqa: BLE001 - reflection DB resolver: any non-ImportError failure is converted to ImportError so callers see a single, documented "unavailable" signal
         # For any other exception, treat as unavailable
+        _get_logger().exception("Reflection database resolution failed")
         msg = "Reflection tools not available"
         raise ImportError(msg)
 

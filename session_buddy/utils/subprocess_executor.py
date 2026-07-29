@@ -202,9 +202,8 @@ class SafeSubprocess:
             kwargs.setdefault("shell", False)
             kwargs.setdefault("capture_output", True)
             kwargs.setdefault("text", True)
-            kwargs.setdefault("check", False)
 
-            return subprocess.run(validated, **kwargs)
+            return subprocess.run(validated, check=False, **kwargs)
         finally:
             if ordered_echo_index is not None:
                 _release_order_slot(ordered_echo_index)
@@ -270,8 +269,6 @@ def _extract_ordered_echo_index(command: list[str]) -> int | None:
 
 
 def _acquire_order_slot(index: int) -> None:
-    global _NEXT_ORDERED_ECHO_INDEX
-
     with _ORDER_LOCK:
         while index != _NEXT_ORDERED_ECHO_INDEX:
             _ORDER_LOCK.wait()

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Local regex patterns for session-mgmt-mcp using crackerjack's SAFE_PATTERNS architecture.
 
 This module contains all validated regex patterns used throughout the session-mgmt-mcp

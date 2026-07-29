@@ -9,10 +9,13 @@ This module provides Model Context Protocol tools for:
 
 from __future__ import annotations
 
+import logging
 import typing as t
 from typing import Any
 
 from session_buddy.core.workflow_metrics import get_workflow_metrics_engine
+
+logger = logging.getLogger(__name__)
 
 
 def register_workflow_metrics_tools(server: Any) -> None:
@@ -45,10 +48,11 @@ def register_workflow_metrics_tools(server: Any) -> None:
 
             return result
 
-        except Exception as e:
+        except Exception:
+            logger.exception("Failed to retrieve workflow metrics")
             return {
                 "success": False,
-                "error": str(e),
+                "error": "engine_failure",
                 "message": "Failed to retrieve workflow metrics",
             }
 
@@ -71,7 +75,7 @@ def register_workflow_metrics_tools(server: Any) -> None:
                 "checkpoints": "checkpoint_count",
             }
             sort_column = sort_column_map.get(sort_by, "duration_minutes")
-            sort_direction = "DESC" if sort_by != "quality" else "DESC"
+            sort_direction = "DESC"
 
             # Query sessions with sorting
             result = conn.execute(
@@ -136,10 +140,11 @@ def register_workflow_metrics_tools(server: Any) -> None:
                 "insights": _generate_session_insights(sessions),
             }
 
-        except Exception as e:
+        except Exception:
+            logger.exception("Failed to retrieve session analytics")
             return {
                 "success": False,
-                "error": str(e),
+                "error": "engine_failure",
                 "message": "Failed to retrieve session analytics",
             }
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Skills metrics schema migrations.
 
 This package provides database schema migration support for the skills metrics

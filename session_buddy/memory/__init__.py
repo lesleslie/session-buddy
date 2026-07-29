@@ -9,7 +9,7 @@ This module contains memory-related features including:
 - Category evolution system (Phase 5)
 """
 
-from session_buddy.memory.category_evolution import (  # noqa: F401
+from session_buddy.memory.category_evolution import (
     CategoryAssignment,
     CategoryEvolutionEngine,
     KeywordExtractor,

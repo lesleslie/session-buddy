@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Error handling utilities for MCP tools.
 
 This module provides reusable error handling patterns to eliminate code duplication
@@ -71,7 +72,7 @@ async def handle_tool_errors[T](
     except ValidationError as e:
         # Don't log validation errors as exceptions - they're user errors
         return f"❌ {error_prefix} validation failed: {e!s}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - tool error envelope contract: must return user-facing failure message for any internal error
         _get_logger().exception(f"Error in {error_prefix}: {e}")
         return f"❌ {error_prefix} failed: {e!s}"
 
@@ -114,7 +115,7 @@ async def handle_tool_errors_with_result[T](
             "success": False,
             "error": f"{error_prefix} validation failed: {e!s}",
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - tool error envelope contract: must return structured {success: False, error: ...} for any internal error
         _get_logger().exception(f"Error in {error_prefix}: {e}")
         return {"success": False, "error": f"{error_prefix} failed: {e!s}"}
 

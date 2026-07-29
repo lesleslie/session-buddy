@@ -19,12 +19,16 @@ Example:
 from __future__ import annotations
 
 import json
+import logging
 import typing as t
 from contextlib import suppress
-from datetime import datetime
+
+from session_buddy.utils.time import utc_now
 
 if t.TYPE_CHECKING:
     from session_buddy.adapters.storage_oneiric import StorageBaseOneiric
+
+logger = logging.getLogger(__name__)
 
 # Default bucket for session storage
 DEFAULT_SESSION_BUCKET = "sessions"
@@ -136,7 +140,7 @@ class SessionStorageAdapter:
         enhanced_state = state | {
             "_metadata": {
                 "session_id": session_id,
-                "stored_at": datetime.now().isoformat(),
+                "stored_at": utc_now().isoformat(),
                 "backend": self.backend,
             },
         }
@@ -274,7 +278,9 @@ class SessionStorageAdapter:
             exists: bool = await adapter.exists(self.bucket, path)
             return exists
         except Exception:
-            # On any error, assume session doesn't exist
+            logger.exception(
+                "Session existence probe failed for %s; assuming absent", session_id
+            )
             return False
 
     async def get_session_metadata(
@@ -308,11 +314,15 @@ class SessionStorageAdapter:
             }
         except FileNotFoundError:
             return None
-        except Exception:
-            # Return minimal metadata on error
+        except Exception as exc:
+            logger.exception(
+                "Session metadata stat failed for %s; returning minimal envelope",
+                session_id,
+            )
             return {
                 "session_id": session_id,
                 "backend": self.backend,
+                "error": str(exc),
             }
 
     async def list_sessions(self) -> list[str]:

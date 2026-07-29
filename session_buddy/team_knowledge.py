@@ -20,6 +20,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from session_buddy.utils.time import utc_now
+
 DUCKDB_AVAILABLE = importlib.util.find_spec("duckdb") is not None
 AIOFILES_AVAILABLE = importlib.util.find_spec("aiofiles") is not None
 
@@ -210,8 +212,8 @@ class TeamKnowledgeManager:
             email=email,
             role=role,
             teams=[],
-            created_at=datetime.now(),
-            last_active=datetime.now(),
+            created_at=utc_now(),
+            last_active=utc_now(),
             permissions=self._get_default_permissions(role),
         )
 
@@ -257,7 +259,7 @@ class TeamKnowledgeManager:
             owner_id=owner_id,
             members={owner_id},
             projects=set(),
-            created_at=datetime.now(),
+            created_at=utc_now(),
             settings={"auto_approve_members": False, "public_reflections": True},
         )
 
@@ -312,8 +314,8 @@ class TeamKnowledgeManager:
             team_id=team_id,
             project_id=project_id,
             author_id=author_id,
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+            created_at=utc_now(),
+            updated_at=utc_now(),
             votes=0,
             viewers=set(),
             editors=set(),
@@ -502,7 +504,7 @@ class TeamKnowledgeManager:
                 SET votes = votes + ?, updated_at = ?
                 WHERE id = ?
             """,
-                (vote_delta, datetime.now(), reflection_id),
+                (vote_delta, utc_now(), reflection_id),
             )
 
         await self._log_access(
@@ -526,9 +528,12 @@ class TeamKnowledgeManager:
             return False
 
         # Check if requester has permission to add users
-        if requester_id and requester_id != user_id:
-            if not await self._can_manage_team(requester_id, team_id):
-                return False
+        if (
+            requester_id
+            and requester_id != user_id
+            and not await self._can_manage_team(requester_id, team_id)
+        ):
+            return False
 
         await self._add_user_to_team(user_id, team_id)
         await self._log_access(
@@ -581,7 +586,7 @@ class TeamKnowledgeManager:
                 FROM team_reflections
                 WHERE team_id = ? AND created_at > ?
             """,
-                (team_id, datetime.now() - timedelta(days=7)),
+                (team_id, utc_now() - timedelta(days=7)),
             ).fetchone()
 
             stats = {
@@ -695,7 +700,7 @@ class TeamKnowledgeManager:
                     teams.append(team_id)
                     conn.execute(
                         "UPDATE users SET teams = ?, last_active = ? WHERE user_id = ?",
-                        (json.dumps(teams), datetime.now(), user_id),
+                        (json.dumps(teams), utc_now(), user_id),
                     )
 
     async def _get_user_teams(self, user_id: str) -> list[str]:
@@ -807,7 +812,7 @@ class TeamKnowledgeManager:
                     action,
                     resource_id,
                     resource_type,
-                    datetime.now(),
+                    utc_now(),
                     json.dumps(details),
                 ),
             )

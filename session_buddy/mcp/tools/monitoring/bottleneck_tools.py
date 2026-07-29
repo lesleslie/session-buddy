@@ -9,9 +9,12 @@ This module provides Model Context Protocol tools for:
 
 from __future__ import annotations
 
+import logging
 import typing as t
 
 from session_buddy.core.bottleneck_detector import get_bottleneck_detector
+
+logger = logging.getLogger(__name__)
 
 
 def register_bottleneck_tools(server: t.Any) -> None:
@@ -44,6 +47,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
             return result
 
         except Exception as e:
+            logger.exception("Failed to detect quality bottlenecks")
             return {
                 "success": False,
                 "error": str(e),
@@ -73,6 +77,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
             return result
 
         except Exception as e:
+            logger.exception("Failed to detect velocity bottlenecks")
             return {
                 "success": False,
                 "error": str(e),
@@ -102,6 +107,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
             return result
 
         except Exception as e:
+            logger.exception("Failed to detect session pattern bottlenecks")
             return {
                 "success": False,
                 "error": str(e),
@@ -131,6 +137,7 @@ def register_bottleneck_tools(server: t.Any) -> None:
             return result
 
         except Exception as e:
+            logger.exception("Failed to generate bottleneck insights")
             return {
                 "success": False,
                 "error": str(e),

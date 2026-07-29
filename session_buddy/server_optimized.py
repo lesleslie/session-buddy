@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Optimized Session Management MCP Server.
 
 This is the refactored, modular version of the session management server.
 It's organized into focused modules for better maintainability and performance.
 """
 
-import asyncio  # noqa: TC003 — runtime use (sleep, create_task), not just type annotations
+import asyncio
 import itertools
 import os
+import subprocess  # nosec B404
 import sys
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
@@ -18,7 +20,7 @@ from typing import Any
 # Get version from package metadata
 try:
     __version__ = pkg_version("session-buddy")
-except Exception:
+except Exception:  # noqa: BLE001 - module import probe; any metadata failure (missing/partial install) yields the fallback version
     __version__ = "0.0.0-unknown"
 
 # Add project root to Python path
@@ -117,7 +119,7 @@ async def _register_to_dhara_once(dhara_url: str, key: str, mcp_url: str) -> boo
             )
             response.raise_for_status()
             return True
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError, OSError):
         return False
 
 
@@ -199,11 +201,11 @@ async def _delayed_session_init(current_dir: Path) -> None:
                     }
                 else:
                     logger.warning(f"Auto-init failed: {result['error']}")
-            except Exception as e:
+            except (OSError, ValueError, KeyError, TypeError, RuntimeError) as e:
                 logger.warning(f"Auto-init failed (non-critical): {e}")
         else:
             logger.debug("Non-git directory - skipping auto-initialization")
-    except Exception as e:
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError) as e:
         logger.warning(f"Delayed session init failed: {e}")
 
 
@@ -224,7 +226,7 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     # Registration needs server to be UP (HTTP POST to self), so it must come after yield
     try:
         asyncio.create_task(_register_component_to_dhara("http://127.0.0.1:8678/mcp"))
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError) as e:
         logger.warning(f"Dhara registration task failed (non-critical): {e}")
 
     # Fire expensive initialization in background AFTER yield
@@ -239,7 +241,7 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
                 logger.info("✅ Auto-ended session for git repository")
             else:
                 logger.warning(f"Auto-cleanup failed: {result['error']}")
-        except Exception as e:
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError) as e:
             logger.warning(f"Auto-cleanup failed (non-critical): {e}")
 
 
@@ -566,7 +568,7 @@ def _check_git_activity(current_dir: Path) -> tuple[int, int] | None:
 
         return recent_commits, modified_files
 
-    except (subprocess.TimeoutExpired, Exception):
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError):
         return None
 
 
@@ -653,8 +655,9 @@ def should_suggest_compact() -> tuple[bool, str]:
         # Default to not suggesting unless we have clear indicators
         return False, _get_default_compaction_reason()
 
-    except Exception:
+    except (OSError, ValueError, subprocess.SubprocessError) as e:
         # If we can't determine, err on the side of suggesting compaction for safety
+        logger.warning(f"Compaction evaluation failed, suggesting fallback: {e}")
         return True, _get_fallback_compaction_reason()
 
 
@@ -664,7 +667,7 @@ async def _execute_auto_compact() -> str:
         # This would trigger the same logic as /compact but automatically
         # For now, we use the memory system's auto-compaction
         return "✅ Context automatically optimized via intelligent memory management"
-    except Exception as e:
+    except (OSError, ValueError, RuntimeError) as e:
         logger.warning(f"Auto-compact execution failed: {e}")
         return f"⚠️ Auto-compact failed: {e!s} - recommend manual /compact"
 
@@ -743,8 +746,8 @@ def run_server(host: str = "127.0.0.1", port: int = 8678) -> None:
         else:
             logger.warning("Running in mock mode - FastMCP not available")
 
-    except Exception as e:
-        logger.exception(f"Server startup failed: {e}")
+    except Exception:
+        logger.exception("Server startup failed")
         sys.exit(1)
 
 

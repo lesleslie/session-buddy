@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Knowledge Graph MCP tools for semantic memory management.
 
 This module provides MCP tools for interacting with the DuckPGQ-based knowledge graph,
@@ -65,8 +66,8 @@ async def _execute_kg_operation(
             return await operation(kg)
     except RuntimeError as e:
         return f"❌ {e!s}. Install dependencies: uv sync"
-    except Exception as e:
-        _get_logger().exception(f"Error in {operation_name}: {e}")
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any backend/runtime failure (network, DB, etc.)
+        _get_logger().exception("Error in %s", operation_name)
         return ToolMessages.operation_failed(operation_name, e)
 
 
@@ -629,7 +630,8 @@ async def _create_single_entity(
             properties=entity_data.get("properties", {}),
         )
         return entity["name"], None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - batch create must continue past per-entity failures (DB constraint, validation, etc.)
+        _get_logger().exception("Failed to create entity %s", entity_data.get("name"))
         return None, (entity_data["name"], str(e))
 
 

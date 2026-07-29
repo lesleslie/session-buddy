@@ -4,9 +4,10 @@ import json
 import operator
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from session_buddy.utils.time import utc_now
 
 
 @dataclass
@@ -102,7 +103,7 @@ class SkillsTracker:
     ) -> Callable[..., None]:
         invocation = SkillInvocation(
             skill_name=skill_name,
-            invoked_at=datetime.now().isoformat(),
+            invoked_at=utc_now().isoformat(),
             session_id=self.session_id,
             workflow_path=workflow_path,
             user_query=user_query,
@@ -426,8 +427,6 @@ def _section_4_phasespecific_recommendations(
 
     lines.extend(["", "", "=" * 70])
 
-    return None
-
 
 def _compute_to_phase(
     self: Any, db_path: Path | None = None, session_id: str | None = None
@@ -465,7 +464,7 @@ def _compute_to_phase(
         "=" * 70,
         "",
         f"Session: {session_id or 'All Sessions'}",
-        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Generated: {utc_now().strftime('%Y-%m-%d %H:%M:%S')}",
         "",
     ]
 

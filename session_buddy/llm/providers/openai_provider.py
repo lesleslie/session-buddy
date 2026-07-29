@@ -6,11 +6,11 @@ OpenAI Python SDK for chat completions and streaming.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.llm.base import LLMProvider
 from session_buddy.llm.models import LLMMessage, LLMResponse
+from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -88,12 +88,12 @@ class OpenAIProvider(LLMProvider):
                     else 0,
                 },
                 finish_reason=response.choices[0].finish_reason,
-                timestamp=datetime.now().isoformat(),
+                timestamp=utc_now().isoformat(),
                 metadata={"response_id": response.id},
             )
 
-        except Exception as e:
-            self.logger.exception(f"OpenAI generation failed: {e}")
+        except Exception:
+            self.logger.exception("OpenAI generation failed")
             raise
 
     async def stream_generate(  # ty: ignore[invalid-method-override]
@@ -126,8 +126,8 @@ class OpenAIProvider(LLMProvider):
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
 
-        except Exception as e:
-            self.logger.exception(f"OpenAI streaming failed: {e}")
+        except Exception:
+            self.logger.exception("OpenAI streaming failed")
             raise
 
     async def is_available(self) -> bool:
@@ -140,7 +140,7 @@ class OpenAIProvider(LLMProvider):
             # Test with a simple request
             await client.models.list()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - is_available contract: any network/auth/SDK failure means "not available"
             return False
 
     def get_models(self) -> list[str]:

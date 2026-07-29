@@ -22,7 +22,7 @@ def _get_logger() -> t.Any:
     """Get logger with lazy initialization to avoid DI issues during import."""
     try:
         return get_session_logger()
-    except Exception:
+    except Exception:  # noqa: BLE001 - logger probe: any DI/import failure must fall back to stdlib logger
         import logging
 
         return logging.getLogger(__name__)
@@ -368,7 +368,7 @@ class ShutdownManager:
                     if self._handle_task_timeout(task):
                         break
 
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - shutdown loop must continue across all registered cleanup tasks; each task can raise arbitrary errors
                     if self._handle_task_failure(task, e):
                         break
 

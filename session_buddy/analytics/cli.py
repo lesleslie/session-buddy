@@ -332,7 +332,7 @@ def analytics_report(
             try:
                 output_path.write_text(report)
                 typer.echo(f"Report saved to: {output_path}", err=True)
-            except Exception as e:
+            except OSError as e:
                 typer.echo(f"Error saving report: {e}", err=True)
                 raise typer.Exit(1)
         else:

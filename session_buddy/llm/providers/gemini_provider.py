@@ -6,11 +6,11 @@ Generative AI SDK for chat completions and streaming.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.llm.base import LLMProvider
 from session_buddy.llm.models import LLMMessage, LLMResponse
+from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -125,11 +125,11 @@ class GeminiProvider(LLMProvider):
                     else 0,
                 },
                 finish_reason="stop",  # Gemini doesn't provide detailed finish reasons
-                timestamp=datetime.now().isoformat(),
+                timestamp=utc_now().isoformat(),
             )
 
-        except Exception as e:
-            self.logger.exception(f"Gemini generation failed: {e}")
+        except Exception:
+            self.logger.exception("Gemini generation failed")
             raise
 
     async def stream_generate(  # ty: ignore[invalid-method-override]
@@ -176,8 +176,8 @@ class GeminiProvider(LLMProvider):
                 if chunk.text:
                     yield chunk.text
 
-        except Exception as e:
-            self.logger.exception(f"Gemini streaming failed: {e}")
+        except Exception:
+            self.logger.exception("Gemini streaming failed")
             raise
 
     async def is_available(self) -> bool:
@@ -190,7 +190,7 @@ class GeminiProvider(LLMProvider):
             # Test with a simple model list request
             list(genai.list_models())
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - is_available contract: any network/auth/SDK failure means "not available"
             return False
 
     def get_models(self) -> list[str]:

@@ -10,12 +10,9 @@ import asyncio
 import logging
 import typing as t
 from datetime import UTC
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from session_buddy.utils.database_tools import require_reflection_database
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +329,7 @@ def _register_code_graph_storage_tool(mcp: Any) -> None:
             }
 
         except Exception as e:
-            logger.error(f"Failed to store code graph from Mahavishnu: {e}")
+            logger.exception("Failed to store code graph from Mahavishnu")
             return {
                 "status": "error",
                 "graph_id": "",
@@ -481,7 +478,7 @@ def _register_code_graph_retrieval_tool(mcp: Any) -> None:
             }
 
         except Exception as e:
-            logger.error(f"Failed to retrieve code graph: {e}")
+            logger.exception("Failed to retrieve code graph")
             return {
                 "status": "error",
                 "message": f"Failed to retrieve code graph: {e}",
@@ -535,7 +532,7 @@ def _register_code_graph_list_tool(mcp: Any) -> None:
             }
 
         except Exception as e:
-            logger.error(f"Failed to list code graphs: {e}")
+            logger.exception("Failed to list code graphs")
             return {
                 "status": "error",
                 "message": f"Failed to list code graphs: {e}",
@@ -636,7 +633,7 @@ def _register_code_call_chain_tool(mcp: Any) -> None:
             }
 
         except Exception as e:
-            logger.error(f"Failed to resolve call chain for '{symbol_name}': {e}")
+            logger.exception(f"Failed to resolve call chain for '{symbol_name}'")
             return {
                 "root_symbol": symbol_name,
                 "chains": [],
@@ -756,7 +753,7 @@ def _register_code_impact_analysis_tool(mcp: Any) -> None:
             }
 
         except Exception as e:
-            logger.error(f"Failed to analyze impact for '{symbol_name}': {e}")
+            logger.exception(f"Failed to analyze impact for '{symbol_name}'")
             return {
                 "target": symbol_name,
                 "direct_dependents": [],

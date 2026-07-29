@@ -24,6 +24,7 @@ from typing import Any
 from session_buddy.utils.crackerjack import (
     CrackerjackOutputParser,
 )
+from session_buddy.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -124,9 +125,6 @@ def _security_severity_tier(severity: str | None) -> str:
     return raw if raw in _SECURITY_ALLOWED_TIERS else "NONE"
 
 
-
-
-
 @dataclass
 class CrackerjackResult:
     """Result of Crackerjack command execution."""
@@ -192,7 +190,7 @@ class CrackerjackIntegration:
         self.parser = CrackerjackOutputParser()
         try:
             self._init_database()
-        except Exception:
+        except Exception:  # noqa: BLE001 - CrackerjackIntegration.__init__ must absorb any DB-init failure and fall back to a temp-writable path
             # Fall back to a temp-writable path if the default is not writable
             tmp_db = (
                 Path(tempfile.gettempdir())
@@ -251,6 +249,7 @@ class CrackerjackIntegration:
                 "success": False,
             }
         except Exception as e:
+            logger.exception("Crackerjack command execution failed")
             return {"stdout": "", "stderr": str(e), "returncode": -2, "success": False}
 
     def _init_database(self) -> None:
@@ -425,7 +424,7 @@ class CrackerjackIntegration:
             stdout="",
             stderr=stderr,
             execution_time=execution_time,
-            timestamp=datetime.now(),
+            timestamp=utc_now(),
             working_directory=working_directory,
             parsed_data={},
             quality_metrics={},
@@ -480,7 +479,7 @@ class CrackerjackIntegration:
                 stdout=stdout_text,
                 stderr=stderr_text,
                 execution_time=execution_time,
-                timestamp=datetime.now(),
+                timestamp=utc_now(),
                 working_directory=working_directory,
                 parsed_data=parsed_data,
                 quality_metrics=quality_metrics,
@@ -506,6 +505,7 @@ class CrackerjackIntegration:
             return error_result
 
         except Exception as e:
+            logger.exception(f"Crackerjack execution error for command: {command}")
             execution_time = time.time() - start_time
             error_result = self._create_error_result(
                 command,
@@ -524,7 +524,7 @@ class CrackerjackIntegration:
         command: str | None = None,
     ) -> list[dict[str, Any]]:
         """Get recent Crackerjack execution results."""
-        since = datetime.now() - timedelta(hours=hours)
+        since = utc_now() - timedelta(hours=hours)
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -566,7 +566,7 @@ class CrackerjackIntegration:
         days: int = 30,
     ) -> list[dict[str, Any]]:
         """Get quality metrics history for trend analysis."""
-        since = datetime.now() - timedelta(days=days)
+        since = utc_now() - timedelta(days=days)
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -590,7 +590,7 @@ class CrackerjackIntegration:
 
     async def get_test_failure_patterns(self, days: int = 7) -> dict[str, Any]:
         """Analyze test failure patterns for insights."""
-        since = datetime.now() - timedelta(days=days)
+        since = utc_now() - timedelta(days=days)
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -842,6 +842,7 @@ class CrackerjackIntegration:
             health["database_accessible"] = False
             health["recommendations"].append(f"❌ Database error: {e}")
         except Exception as e:
+            logger.exception("Crackerjack health check failed")
             health["error"] = str(e)
             health["recommendations"].append(f"❌ Health check error: {e}")
 
@@ -905,16 +906,12 @@ class CrackerjackIntegration:
 
         metrics.update(self._calculate_test_metrics(parsed_data))
         metrics.update(self._calculate_coverage_metrics(parsed_data))
-        metrics.update(
-            self._calculate_lint_metrics(parsed_data.get("lint_issues", []))
-        )
+        metrics.update(self._calculate_lint_metrics(parsed_data.get("lint_issues", [])))
         metrics.update(
             self._calculate_security_metrics(parsed_data.get("security_issues", []))
         )
         metrics.update(
-            self._calculate_complexity_metrics(
-                parsed_data.get("complexity_data", {})
-            )
+            self._calculate_complexity_metrics(parsed_data.get("complexity_data", {}))
         )
 
         if stderr_content:
@@ -1093,7 +1090,7 @@ class CrackerjackIntegration:
                             result_id,
                         ),
                     )
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort metric persistence: any DB error means the integration is sandboxed, skip silently
             # In sandboxed/readonly environments, skip persistence
             return
 
@@ -1133,7 +1130,7 @@ class CrackerjackIntegration:
                             json.dumps(result.memory_insights),
                         ),
                     )
-            except Exception:
+            except Exception:  # noqa: BLE001 - best-effort progress-snapshot persistence: any DB error means the integration is sandboxed, skip silently
                 # In sandboxed/readonly environments, skip persistence
                 return
 

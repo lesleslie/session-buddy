@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import logging
 import typing as t
-from datetime import datetime
 
 from session_buddy.core.session_manager import SessionLifecycleManager
+from session_buddy.utils.time import utc_now
 
 
 def get_conversation_logger() -> logging.Logger:
@@ -61,7 +61,7 @@ async def capture_conversation_context(
         [
             f"# Conversation Context: {checkpoint_type.upper()}",
             f"Project: {manager.current_project or 'Unknown'}",
-            f"Timestamp: {datetime.now().isoformat()}",
+            f"Timestamp: {utc_now().isoformat()}",
             "",
         ]
     )
@@ -181,7 +181,7 @@ async def store_conversation_checkpoint(
             "checkpoint_type": checkpoint_type,
             "is_manual": is_manual,
             "quality_score": quality_score,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
         }
 
         # Check minimum length requirement
@@ -237,10 +237,9 @@ async def store_conversation_checkpoint(
                 manager.current_project,
             )
         else:
-            logger.warning(
-                "Failed to store conversation checkpoint, project=%s, error=%s",
+            logger.exception(
+                "Failed to store conversation checkpoint, project=%s",
                 manager.current_project,
-                str(e),
             )
         result["error"] = str(e)
 
@@ -354,7 +353,7 @@ async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]
             db.close()
 
     except Exception as e:
-        logger.warning("Failed to get conversation stats: %s", str(e))
+        logger.exception("Failed to get conversation stats")
         stats["error"] = str(e)
 
     return stats

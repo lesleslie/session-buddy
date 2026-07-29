@@ -17,10 +17,9 @@ import typing as t
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    pass
+from session_buddy.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -236,8 +235,8 @@ class ConsciousAgent:
                 await asyncio.sleep(self.analysis_interval.total_seconds())
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.exception(f"Conscious agent error: {e}")
+            except Exception:
+                logger.exception("Conscious agent error")
                 # Continue running despite errors
                 await asyncio.sleep(300)  # Wait 5 minutes before retry
 
@@ -266,7 +265,7 @@ class ConsciousAgent:
         # 1. Analyze access patterns (legacy — opens its own DB)
         try:
             patterns = await self._analyze_access_patterns()
-        except Exception as exc:  # noqa: BLE001 — best-effort
+        except Exception as exc:
             logger.exception("Conscious agent: access-pattern analysis failed")
             periodic_errors.append(f"analyze_access_patterns: {exc!r}")
             patterns = []
@@ -274,7 +273,7 @@ class ConsciousAgent:
         # 2. Calculate priority scores (pure function on patterns)
         try:
             candidates = await self._calculate_promotion_priorities(patterns)
-        except Exception as exc:  # noqa: BLE001 — best-effort
+        except Exception as exc:
             logger.exception("Conscious agent: priority calculation failed")
             periodic_errors.append(f"calculate_promotion_priorities: {exc!r}")
             candidates = []
@@ -282,7 +281,7 @@ class ConsciousAgent:
         # 3. Promote high-priority memories (legacy — opens its own DB)
         try:
             promoted = await self._promote_memories(candidates)
-        except Exception as exc:  # noqa: BLE001 — best-effort
+        except Exception as exc:
             logger.exception("Conscious agent: promote failed")
             periodic_errors.append(f"promote_memories: {exc!r}")
             promoted = []
@@ -290,7 +289,7 @@ class ConsciousAgent:
         # 4. Demote stale memories (legacy — opens its own DB)
         try:
             demoted = await self._demote_stale_memories()
-        except Exception as exc:  # noqa: BLE001 — best-effort
+        except Exception as exc:
             logger.exception("Conscious agent: demote failed")
             periodic_errors.append(f"demote_stale_memories: {exc!r}")
             demoted = []
@@ -309,7 +308,7 @@ class ConsciousAgent:
         periodic_errors.extend(periodic_results["errors"])
 
         results = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": utc_now().isoformat(),
             "patterns_analyzed": len(patterns),
             "promotion_candidates": len(candidates),
             "promoted_count": len(promoted),
@@ -376,21 +375,21 @@ class ConsciousAgent:
         # Job 1: prune provenance older than 90 days.
         try:
             provenance_pruned = await self._periodic_prune_provenance(days=90)
-        except Exception as exc:  # noqa: BLE001 — best-effort
+        except Exception as exc:
             logger.exception("Conscious agent: provenance prune failed")
             errors.append(f"provenance_prune: {exc!r}")
 
         # Job 2: prune causal links older than 90 days.
         try:
             causal_links_pruned = await self._periodic_prune_causal_links(days=90)
-        except Exception as exc:  # noqa: BLE001 — best-effort
+        except Exception as exc:
             logger.exception("Conscious agent: causal-link prune failed")
             errors.append(f"causal_links_prune: {exc!r}")
 
         # Job 3: distill skills from current session activity.
         try:
             skills_distilled = await self._periodic_distill_skills()
-        except Exception as exc:  # noqa: BLE001 — best-effort
+        except Exception as exc:
             logger.exception("Conscious agent: skill distillation failed")
             errors.append(f"distill_skills: {exc!r}")
 
@@ -520,6 +519,7 @@ class ConsciousAgent:
                 config={"allow_unsigned_extensions": True},
             )
         except Exception:
+            logger.exception("DuckDB connect failed in _analyze_access_patterns")
             return patterns
 
         try:
@@ -546,7 +546,7 @@ class ConsciousAgent:
                 """
             ).fetchall()
 
-            now = datetime.now()
+            now = utc_now()
             for r in rows:
                 memory_id = str(r[0])
                 access_count = int(r[1])
@@ -560,6 +560,9 @@ class ConsciousAgent:
                     hours = max((now - first_access).total_seconds() / 3600.0, 1e-6)
                     velocity = access_count / hours
                 except Exception:
+                    logger.exception(
+                        "Velocity computation failed; falling back to raw access_count"
+                    )
                     velocity = float(access_count)
 
                 # Coerce last_accessed to datetime if needed
@@ -567,6 +570,7 @@ class ConsciousAgent:
                     try:
                         last_accessed = datetime.fromisoformat(str(last_accessed))
                     except Exception:
+                        logger.exception("Failed to parse last_accessed timestamp")
                         last_accessed = now
 
                 patterns.append(
@@ -580,6 +584,7 @@ class ConsciousAgent:
                     )
                 )
         except Exception:
+            logger.exception("Access pattern analysis query failed")
             # If tables missing or query fails, return empty list
             return []
         finally:
@@ -648,7 +653,7 @@ class ConsciousAgent:
             float: Recency score (1.0 = accessed now, 0.0 = very old)
 
         """
-        time_delta = datetime.now() - last_accessed
+        time_delta = utc_now() - last_accessed
         hours_ago = time_delta.total_seconds() / 3600
 
         # Exponential decay: score = e^(-hours/24)
@@ -688,7 +693,7 @@ class ConsciousAgent:
         if pattern.access_count > 5:
             reasons.append(f"high access frequency ({pattern.access_count}x)")
 
-        recency_hours = (datetime.now() - pattern.last_accessed).total_seconds() / 3600
+        recency_hours = (utc_now() - pattern.last_accessed).total_seconds() / 3600
         if recency_hours < 6:
             reasons.append("recently accessed")
 
@@ -747,8 +752,8 @@ class ConsciousAgent:
                     f"Promoted memory {candidate.memory_id}: {candidate.reason}"
                 )
 
-            except Exception as e:
-                logger.exception(f"Failed to promote memory {candidate.memory_id}: {e}")
+            except Exception:
+                logger.exception(f"Failed to promote memory {candidate.memory_id}")
 
         return promoted
 

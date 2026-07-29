@@ -101,7 +101,7 @@ async def sync_to_akosha(
         return result
 
     except Exception as e:
-        logger.error(f"Akasha sync failed: {e}")
+        logger.exception("Akasha sync failed")
 
         return {
             "method": method,
@@ -182,7 +182,7 @@ def register_akosha_tools(mcp_instance: Any) -> None:
 
 
 __all__ = [
-    "sync_to_akosha",
     "akosha_sync_status",
     "register_akosha_tools",
+    "sync_to_akosha",
 ]

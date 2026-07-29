@@ -197,9 +197,9 @@ class Worker:
             except asyncio.CancelledError:
                 logger.info(f"Worker {self.worker_id} task processing cancelled")
                 break
-            except Exception as e:
+            except Exception:
                 logger.exception(
-                    f"Worker {self.worker_id} error in task processing loop: {e}"
+                    f"Worker {self.worker_id} error in task processing loop"
                 )
                 # Mark unhealthy but continue processing
                 async with self._health_lock:
@@ -248,7 +248,7 @@ class Worker:
             )
 
         except Exception as e:
-            logger.exception(f"Worker {self.worker_id} failed task {task.task_id}: {e}")
+            logger.exception(f"Worker {self.worker_id} failed task {task.task_id}")
 
             # Mark task as failed
             await task.set_error(e)

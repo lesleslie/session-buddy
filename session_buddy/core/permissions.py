@@ -9,9 +9,10 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from session_buddy.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class SessionPermissionsManager:
             cwd = Path.cwd()
         except FileNotFoundError:
             cwd = Path.home()
-        session_data = f"{datetime.now().isoformat()}_{cwd}"
+        session_data = f"{utc_now().isoformat()}_{cwd}"
         return hashlib.md5(session_data.encode(), usedforsecurity=False).hexdigest()[
             :12
         ]
@@ -95,7 +96,7 @@ class SessionPermissionsManager:
 
     def _save_permissions(self) -> None:
         """Save current trusted permissions."""
-        now = datetime.now().isoformat()
+        now = utc_now().isoformat()
         self._last_updated = now
         data = {
             "trusted_operations": list(self.trusted_operations),
@@ -136,7 +137,7 @@ class SessionPermissionsManager:
             "trusted_operations_count": len(self.trusted_operations),
             "trusted_operations": list(self.trusted_operations),
             "permissions_file": str(self.permissions_file),
-            "last_updated": self._last_updated or datetime.now().isoformat(),
+            "last_updated": self._last_updated or utc_now().isoformat(),
         }
 
     def configure_auto_checkpoint(

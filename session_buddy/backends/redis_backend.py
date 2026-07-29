@@ -106,9 +106,9 @@ class RedisStorage(SessionStorage):
 
             return True
 
-        except Exception as e:
+        except Exception:
             self.logger.exception(
-                f"Failed to store session {session_state.session_id}: {e}",
+                f"Failed to store session {session_state.session_id}",
             )
             return False
 
@@ -128,8 +128,8 @@ class RedisStorage(SessionStorage):
 
             return SessionState.from_dict(session_data)
 
-        except Exception as e:
-            self.logger.exception(f"Failed to retrieve session {session_id}: {e}")
+        except Exception:
+            self.logger.exception(f"Failed to retrieve session {session_id}")
             return None
 
     async def delete_session(self, session_id: str) -> bool:
@@ -157,8 +157,8 @@ class RedisStorage(SessionStorage):
 
             return deleted > 0
 
-        except Exception as e:
-            self.logger.exception(f"Failed to delete session {session_id}: {e}")
+        except Exception:
+            self.logger.exception(f"Failed to delete session {session_id}")
             return False
 
     async def list_sessions(
@@ -196,8 +196,8 @@ class RedisStorage(SessionStorage):
                 for key in keys
             ]
 
-        except Exception as e:
-            self.logger.exception(f"Failed to list sessions: {e}")
+        except Exception:
+            self.logger.exception("Failed to list sessions")
             return []
 
     async def cleanup_expired_sessions(self) -> int:
@@ -214,8 +214,8 @@ class RedisStorage(SessionStorage):
 
             return cleaned
 
-        except Exception as e:
-            self.logger.exception(f"Failed to cleanup expired sessions: {e}")
+        except Exception:
+            self.logger.exception("Failed to cleanup expired sessions")
             return 0
 
     async def _get_index_keys(self, redis_client: Any) -> list[str]:
@@ -253,5 +253,5 @@ class RedisStorage(SessionStorage):
             redis_client = await self._get_redis()
             await redis_client.ping()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - is_available contract: any Redis/network/auth failure means "not available"
             return False

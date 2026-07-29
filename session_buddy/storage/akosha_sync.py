@@ -95,7 +95,7 @@ class HttpSyncMethod(SyncMethod):
             if self._sync_state_file.exists():
                 with self._sync_state_file.open() as f:
                     self._last_sync_timestamp = json.load(f)
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.debug(f"Could not load sync state: {e}")
             self._last_sync_timestamp = {}
 
@@ -105,7 +105,7 @@ class HttpSyncMethod(SyncMethod):
             self._sync_state_file.parent.mkdir(parents=True, exist_ok=True)
             with self._sync_state_file.open("w") as f:
                 json.dump(self._last_sync_timestamp, f, indent=2)
-        except Exception as e:
+        except OSError as e:
             logger.warning(f"Could not save sync state: {e}")
 
     def is_available(self) -> bool:
@@ -217,7 +217,7 @@ class HttpSyncMethod(SyncMethod):
                 original=e,
             ) from e
         except Exception as e:
-            logger.error(f"HTTP sync failed: {e}")
+            logger.exception("HTTP sync failed")
             raise HTTPSyncError(
                 message=f"Akosha HTTP sync failed: {e}",
                 method="http",
@@ -417,7 +417,7 @@ class HttpSyncMethod(SyncMethod):
 
             return conversations
 
-        except Exception as e:
+        except (duckdb.Error, OSError, ValueError) as e:
             logger.error(f"Failed to fetch conversations: {e}")
             return []
 
@@ -522,7 +522,7 @@ class HttpSyncMethod(SyncMethod):
                         }
                     )
 
-            except Exception as e:
+            except (httpx.HTTPError, json.JSONDecodeError) as e:
                 errors.append({"id": reflection["id"], "error": str(e)})
 
         return {"count": uploaded, "bytes": total_bytes, "errors": errors}
@@ -595,7 +595,7 @@ class HttpSyncMethod(SyncMethod):
 
             return reflections
 
-        except Exception as e:
+        except (duckdb.Error, OSError, ValueError) as e:
             logger.error(f"Failed to fetch reflections: {e}")
             return []
 
@@ -680,7 +680,7 @@ class HttpSyncMethod(SyncMethod):
                         }
                     )
 
-            except Exception as e:
+            except (httpx.HTTPError, json.JSONDecodeError) as e:
                 errors.append({"type": "entity", "id": entity["id"], "error": str(e)})
 
         # Sync relationships
@@ -712,7 +712,7 @@ class HttpSyncMethod(SyncMethod):
                         }
                     )
 
-            except Exception as e:
+            except (httpx.HTTPError, json.JSONDecodeError) as e:
                 errors.append(
                     {"type": "relationship", "id": rel["id"], "error": str(e)}
                 )
@@ -787,7 +787,7 @@ class HttpSyncMethod(SyncMethod):
 
             return entities
 
-        except Exception as e:
+        except (duckdb.Error, OSError, ValueError, json.JSONDecodeError) as e:
             logger.error(f"Failed to fetch entities: {e}")
             return []
 
@@ -853,7 +853,7 @@ class HttpSyncMethod(SyncMethod):
 
             return relationships
 
-        except Exception as e:
+        except (duckdb.Error, OSError, ValueError, json.JSONDecodeError) as e:
             logger.error(f"Failed to fetch relationships: {e}")
             return []
 
@@ -983,7 +983,7 @@ class HttpSyncMethod(SyncMethod):
                             }
                         )
 
-                except Exception as e:
+                except (httpx.HTTPError, json.JSONDecodeError) as e:
                     all_errors.append(
                         {
                             "batch": i // batch_size,
@@ -1071,7 +1071,7 @@ class HttpSyncMethod(SyncMethod):
             response = httpx.get(f"{url}/status", timeout=1.0)
             return response.status_code < 500
 
-        except Exception:
+        except (httpx.HTTPError, OSError):
             return False
 
 
@@ -1180,7 +1180,7 @@ class HybridAkoshaSync:
                 logger.warning(f"Method '{method_name}' reported failure: {error_msg}")
                 errors.append({"method": method_name, "error": error_msg})
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - hybrid sync must attempt every method; each can raise network/auth/serialization errors that the loop aggregates
                 logger.warning(f"Method '{method_name}' raised exception: {e}")
                 errors.append({"method": method_name, "error": str(e)})
 
@@ -1211,6 +1211,6 @@ class HybridAkoshaSync:
 
 
 __all__ = [
-    "HybridAkoshaSync",
     "HttpSyncMethod",
+    "HybridAkoshaSync",
 ]

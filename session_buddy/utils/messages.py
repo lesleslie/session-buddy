@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Message formatting utilities for MCP tools.
 
 This module provides consistent message formatting across all tool implementations,
@@ -9,6 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+
+from session_buddy.utils.time import utc_now
 
 
 class ToolMessages:
@@ -162,7 +165,7 @@ class ToolMessages:
 
         """
         if dt is None:
-            dt = datetime.now()
+            dt = utc_now()
         return dt.strftime("%Y-%m-%d %H:%M:%S")
 
     @staticmethod

@@ -232,8 +232,11 @@ class TestRewriteQuery:
         mock_rewriter = MagicMock()
         mock_rewriter.rewrite_query = AsyncMock(return_value=mock_rewriter_result)
 
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_depends.get_sync.return_value = mock_rewriter
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            new_callable=AsyncMock,
+        ) as mock_getter:
+            mock_getter.return_value = mock_rewriter
 
             result = await rewrite_query(mock_context, "what did I learn")
 
@@ -258,10 +261,16 @@ class TestRewriteQuery:
         mock_result.cache_hit = False
         mock_instance.rewrite_query = AsyncMock(return_value=mock_result)
 
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_depends.get_sync.return_value = None
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            new_callable=AsyncMock,
+        ) as mock_getter:
+            mock_getter.return_value = None
 
-            with patch("session_buddy.mcp.tools.advanced.rewriting_tools.QueryRewriter", return_value=mock_instance):
+            with patch(
+                "session_buddy.mcp.tools.advanced.rewriting_tools.QueryRewriter",
+                return_value=mock_instance,
+            ):
                 result = await rewrite_query(mock_context, "test query")
 
         parsed = json.loads(result)
@@ -283,8 +292,11 @@ class TestRewriteQuery:
         mock_rewriter = MagicMock()
         mock_rewriter.rewrite_query = AsyncMock(return_value=mock_result)
 
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_depends.get_sync.return_value = mock_rewriter
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            new_callable=AsyncMock,
+        ) as mock_getter:
+            mock_getter.return_value = mock_rewriter
 
             result = await rewrite_query(mock_context, "test", project="my-project")
 
@@ -308,8 +320,11 @@ class TestRewriteQuery:
         mock_rewriter = MagicMock()
         mock_rewriter.rewrite_query = AsyncMock(return_value=mock_result)
 
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_depends.get_sync.return_value = mock_rewriter
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            new_callable=AsyncMock,
+        ) as mock_getter:
+            mock_getter.return_value = mock_rewriter
 
             result = await rewrite_query(mock_context, "test", force_rewrite=True)
 
@@ -319,8 +334,11 @@ class TestRewriteQuery:
     @pytest.mark.asyncio
     async def test_rewrite_query_exception(self, mock_context):
         """Test rewrite_query handles exceptions."""
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_depends.get_sync.side_effect = Exception("Database error")
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            new_callable=AsyncMock,
+        ) as mock_getter:
+            mock_getter.side_effect = Exception("Database error")
 
             result = await rewrite_query(mock_context, "test query")
 
@@ -344,8 +362,11 @@ class TestRewriteQuery:
         mock_rewriter = MagicMock()
         mock_rewriter.rewrite_query = AsyncMock(return_value=mock_result)
 
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_depends.get_sync.return_value = mock_rewriter
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            new_callable=AsyncMock,
+        ) as mock_getter:
+            mock_getter.return_value = mock_rewriter
 
             result = await rewrite_query(mock_context, "list all projects")
 
@@ -370,8 +391,11 @@ class TestRewriteQuery:
         mock_rewriter = MagicMock()
         mock_rewriter.rewrite_query = AsyncMock(return_value=mock_result)
 
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_depends.get_sync.return_value = mock_rewriter
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            new_callable=AsyncMock,
+        ) as mock_getter:
+            mock_getter.return_value = mock_rewriter
 
             result = await rewrite_query(mock_context, "what did I learn")
 
@@ -392,17 +416,19 @@ class TestQueryRewriteStats:
     @pytest.mark.asyncio
     async def test_stats_success(self, mock_context):
         """Test successful stats retrieval."""
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_rewriter = MagicMock()
-            mock_depends.get_sync.return_value = mock_rewriter
+        mock_rewriter = MagicMock()
+        mock_rewriter.get_stats.return_value = {
+            "total_rewrites": 150,
+            "cache_hit_rate": 0.75,
+            "llm_failures": 3,
+            "avg_latency_ms": 120.0,
+        }
 
-            mock_rewriter.get_stats.return_value = {
-                "total_rewrites": 150,
-                "cache_hit_rate": 0.75,
-                "llm_failures": 3,
-                "avg_latency_ms": 120.0,
-            }
-
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            new_callable=AsyncMock,
+        ) as mock_getter:
+            mock_getter.return_value = mock_rewriter
             result = await query_rewrite_stats(mock_context)
 
         parsed = json.loads(result)
@@ -415,9 +441,14 @@ class TestQueryRewriteStats:
     @pytest.mark.asyncio
     async def test_stats_no_rewriter(self, mock_context):
         """Test stats when rewriter not initialized."""
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_depends.get_sync.return_value = None
-
+        # Patch the canonical getter that production calls. DI-level
+        # patching of ``session_buddy.di.depends`` doesn't reach
+        # ``utils.instance_managers`` because the latter captures
+        # the reference at import time.
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            AsyncMock(return_value=None),
+        ):
             result = await query_rewrite_stats(mock_context)
 
         parsed = json.loads(result)
@@ -427,9 +458,10 @@ class TestQueryRewriteStats:
     @pytest.mark.asyncio
     async def test_stats_exception(self, mock_context):
         """Test stats handles exceptions."""
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_depends.get_sync.side_effect = Exception("Connection failed")
-
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            AsyncMock(side_effect=Exception("Connection failed")),
+        ):
             result = await query_rewrite_stats(mock_context)
 
         parsed = json.loads(result)
@@ -439,17 +471,18 @@ class TestQueryRewriteStats:
     @pytest.mark.asyncio
     async def test_stats_health_calculation(self, mock_context):
         """Test that health is calculated correctly from stats."""
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_rewriter = MagicMock()
-            mock_depends.get_sync.return_value = mock_rewriter
+        mock_rewriter = MagicMock()
+        mock_rewriter.get_stats.return_value = {
+            "total_rewrites": 300,
+            "cache_hit_rate": 0.45,
+            "llm_failures": 0,
+            "avg_latency_ms": 80.0,
+        }
 
-            mock_rewriter.get_stats.return_value = {
-                "total_rewrites": 300,
-                "cache_hit_rate": 0.45,
-                "llm_failures": 0,
-                "avg_latency_ms": 80.0,
-            }
-
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            AsyncMock(return_value=mock_rewriter),
+        ):
             result = await query_rewrite_stats(mock_context)
 
         parsed = json.loads(result)
@@ -461,17 +494,18 @@ class TestQueryRewriteStats:
     @pytest.mark.asyncio
     async def test_stats_with_high_failure_rate(self, mock_context):
         """Test stats with high LLM failure rate."""
-        with patch("session_buddy.di.depends") as mock_depends:
-            mock_rewriter = MagicMock()
-            mock_depends.get_sync.return_value = mock_rewriter
+        mock_rewriter = MagicMock()
+        mock_rewriter.get_stats.return_value = {
+            "total_rewrites": 1000,
+            "cache_hit_rate": 0.9,
+            "llm_failures": 50,
+            "avg_latency_ms": 300.0,
+        }
 
-            mock_rewriter.get_stats.return_value = {
-                "total_rewrites": 1000,
-                "cache_hit_rate": 0.9,
-                "llm_failures": 50,
-                "avg_latency_ms": 300.0,
-            }
-
+        with patch(
+            "session_buddy.utils.instance_managers.get_query_rewriter",
+            AsyncMock(return_value=mock_rewriter),
+        ):
             result = await query_rewrite_stats(mock_context)
 
         parsed = json.loads(result)

@@ -220,9 +220,9 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
                 self.conn.execute(f"INSTALL {extension} FROM community")
                 self.conn.execute(f"LOAD {extension}")
             self._duckpgq_installed = True
-        except Exception as e:
+        except Exception:
             self._duckpgq_installed = False
-            logger.warning(f"DuckPGQ extension unavailable (non-fatal): {e}")
+            logger.exception("DuckPGQ extension unavailable (non-fatal)")
 
         # Create schema (sync operations, complete quickly)
         await self._create_schema()
@@ -489,7 +489,7 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
 
         try:
             return await generate_embedding(text)
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort optional embedding; any provider failure must yield None so storage proceeds without it
             # Silently fail - embeddings are optional
             return None
 
@@ -629,6 +629,7 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
                 )
                 created.append(relation)
             except Exception:
+                logger.debug("Skipping relation creation failure", exc_info=True)
                 # Silently skip failures (duplicates, etc.)
                 continue
 
@@ -1145,7 +1146,7 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
                     generated += 1
                 else:
                     failed += 1
-            except Exception:
+            except Exception:  # noqa: BLE001 - batch embedding generation must continue past per-entity failures and report aggregate counts
                 failed += 1
 
         return {
@@ -1210,6 +1211,9 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
                 relationships_created += len(created)
                 entities_processed += 1
             except Exception:
+                logger.debug(
+                    "Skipping entity relationship discovery failure", exc_info=True
+                )
                 # Silently skip failures
                 continue
 

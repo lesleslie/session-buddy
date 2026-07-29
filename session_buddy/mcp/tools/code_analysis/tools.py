@@ -25,7 +25,7 @@ async def _code_ingest_file_impl(
         )
         return {"status": "success"} | result
     except Exception as e:
-        logger.error(f"Failed to ingest file: {e}")
+        logger.exception("Failed to ingest file")
         return {"status": "error", "error": str(e), "file_path": file_path}
 
 
@@ -45,7 +45,7 @@ async def _code_ingest_directory_impl(
         )
         return {"status": "success"} | result
     except Exception as e:
-        logger.error(f"Failed to ingest directory: {e}")
+        logger.exception("Failed to ingest directory")
         return {"status": "error", "error": e, "directory": directory}
 
 
@@ -93,7 +93,7 @@ async def _code_search_symbols_impl(
                 ],
             }
     except Exception as e:
-        logger.error(f"Failed to search symbols: {e}")
+        logger.exception("Failed to search symbols")
         return {
             "status": "error",
             "error": str(e),
@@ -136,7 +136,7 @@ async def _code_get_symbol_graph_impl(
                 "relationships": relationships,
             }
     except Exception as e:
-        logger.error(f"Failed to get symbol graph: {e}")
+        logger.exception("Failed to get symbol graph")
         return {"status": "error", "error": str(e), "symbol_name": symbol_name}
 
 
@@ -164,7 +164,7 @@ async def _code_list_projects_impl() -> dict[str, Any]:
                 "total_projects": len(projects),
             }
     except Exception as e:
-        logger.error(f"Failed to list projects: {e}")
+        logger.exception("Failed to list projects")
         return {"status": "error", "error": str(e), "projects": []}
 
 

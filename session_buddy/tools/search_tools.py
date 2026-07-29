@@ -59,10 +59,10 @@ async def reflection_stats() -> str:
 
 
 __all__ = [
-    "register_search_tools",
-    "store_reflection",
     "quick_search",
+    "reflection_stats",
+    "register_search_tools",
     "search_by_concept",
     "search_code",
-    "reflection_stats",
+    "store_reflection",
 ]

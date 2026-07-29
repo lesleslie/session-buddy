@@ -138,15 +138,15 @@ def render() -> str:
 
 
 __all__ = [
-    "registry",
-    "provenance_pruned_total",
     "causal_links_pruned_total",
-    "skills_distilled_total",
     "periodic_jobs_errors_total",
-    "record_provenance_pruned",
+    "provenance_pruned_total",
     "record_causal_links_pruned",
-    "record_skills_distilled",
     "record_periodic_job_error",
     "record_periodic_job_errors",
+    "record_provenance_pruned",
+    "record_skills_distilled",
+    "registry",
     "render",
+    "skills_distilled_total",
 ]

@@ -94,8 +94,8 @@ async def reflect_on_past(
                     query=query,
                     max_tokens=max_tokens,
                 )
-            except Exception as exc:
-                session_logger.warning(f"Token optimization failed: {exc}")
+            except Exception:
+                session_logger.exception("Token optimization failed")
                 optimization_info = {}
 
         lines = _format_reflection_results(query, results, optimization_info)
@@ -110,8 +110,8 @@ async def reflect_on_past(
 
         return "\n".join(lines)
 
-    except Exception as e:
-        return f"❌ Error searching conversations: {e}"
+    except Exception as exc:  # noqa: BLE001 - public-facing tool must return a user-readable error string instead of propagating
+        return f"❌ Error searching conversations: {exc}"
 
 
 async def get_reflection_database() -> Any:
@@ -295,26 +295,26 @@ REFLECTION_TOOLS_AVAILABLE = False
 
 
 __all__ = [
-    "mcp",
-    "health_check",
-    "permissions_manager",
-    "session_logger",
-    "main",
-    "run_server",
-    "get_reflection_database",
-    "calculate_quality_score",
-    "reflect_on_past",
-    "optimize_memory_usage",
-    "optimize_search_response",
-    "track_token_usage",
-    "get_token_usage_stats",
-    "get_cached_chunk",
+    "RATE_LIMITING_AVAILABLE",
+    "REFLECTION_TOOLS_AVAILABLE",
+    "SECURITY_AVAILABLE",
+    "SERVERPANELS_AVAILABLE",
+    "TOKEN_OPTIMIZER_AVAILABLE",
     "_build_feature_list",
     "_display_http_startup",
     "_display_stdio_startup",
-    "SECURITY_AVAILABLE",
-    "RATE_LIMITING_AVAILABLE",
-    "SERVERPANELS_AVAILABLE",
-    "TOKEN_OPTIMIZER_AVAILABLE",
-    "REFLECTION_TOOLS_AVAILABLE",
+    "calculate_quality_score",
+    "get_cached_chunk",
+    "get_reflection_database",
+    "get_token_usage_stats",
+    "health_check",
+    "main",
+    "mcp",
+    "optimize_memory_usage",
+    "optimize_search_response",
+    "permissions_manager",
+    "reflect_on_past",
+    "run_server",
+    "session_logger",
+    "track_token_usage",
 ]

@@ -18,13 +18,11 @@ from __future__ import annotations
 
 import typing as t
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from session_buddy.adapters.settings import StorageAdapterSettings
-
-if t.TYPE_CHECKING:
-    pass
+from session_buddy.utils.time import utc_now
 
 
 class StorageProtocol(t.Protocol):
@@ -252,8 +250,8 @@ class StorageBaseOneiric:
         stat_info = file_path.stat()
         return {
             "size": stat_info.st_size,
-            "mtime": datetime.fromtimestamp(stat_info.st_mtime).isoformat(),
-            "created": datetime.fromtimestamp(stat_info.st_ctime).isoformat(),
+            "mtime": datetime.fromtimestamp(stat_info.st_mtime, UTC).isoformat(),
+            "created": datetime.fromtimestamp(stat_info.st_ctime, UTC).isoformat(),
         }
 
     def _get_file_path(self, bucket: str, path: str) -> Path:
@@ -306,8 +304,8 @@ class StorageBaseOneiric:
         data = self._memory_store[key]
         return {
             "size": len(data),
-            "mtime": datetime.now().isoformat(),
-            "created": datetime.now().isoformat(),
+            "mtime": utc_now().isoformat(),
+            "created": utc_now().isoformat(),
         }
 
     def _get_memory_key(self, bucket: str, path: str) -> str:

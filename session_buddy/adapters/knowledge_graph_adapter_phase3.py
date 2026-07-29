@@ -12,12 +12,12 @@ These methods can be mixed into KnowledgeGraphDatabaseAdapterOneiric.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import typing as t
 from contextlib import suppress
 
-if t.TYPE_CHECKING:
-    pass
+logger = logging.getLogger(__name__)
 
 
 class Phase3RelationshipMixin:
@@ -128,7 +128,7 @@ class Phase3RelationshipMixin:
     # ========================================================================
 
     # Regex patterns for relationship extraction
-    _RELATIONSHIP_PATTERNS: dict[str, str] = {
+    _RELATIONSHIP_PATTERNS: t.ClassVar[dict[str, str]] = {
         "uses": r"\buses\s+(\w+)",
         "extends": r"\bextends\s+(\w+)",
         "depends_on": r"\bdepends\s+on\s+(\w+)",
@@ -300,8 +300,8 @@ class Phase3RelationshipMixin:
 
         # Pre-populate visited set with all existing relationships for duplicate detection
         visited: set[tuple[str, str]] = set()
-        for from_e in graph:
-            for to_e, _, _ in graph[from_e]:
+        for from_e, relations in graph.items():
+            for to_e, _, _ in relations:
                 visited.add((from_e, to_e))
 
         for from_entity in graph:
@@ -368,7 +368,7 @@ class Phase3RelationshipMixin:
                         created += 1
                         visited.add(relation_key)
                     except Exception:
-                        # Silently skip failures (duplicates, missing entities)
+                        logger.debug("Skipping failed relationship", exc_info=True)
                         skipped += 1
                         continue
 

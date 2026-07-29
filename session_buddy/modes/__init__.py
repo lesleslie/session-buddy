@@ -17,8 +17,8 @@ from session_buddy.modes.lite import LiteMode
 from session_buddy.modes.standard import StandardMode
 
 __all__ = [
-    "OperationMode",
     "LiteMode",
+    "OperationMode",
     "StandardMode",
     "get_mode",
 ]

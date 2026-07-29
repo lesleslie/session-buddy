@@ -6,11 +6,14 @@ when sessions end, including quality assessment, recommendations, and context.
 
 from __future__ import annotations
 
+import logging
 import typing as t
-from datetime import datetime
+from datetime import UTC, datetime
 
 if t.TYPE_CHECKING:
     from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def build_handoff_header(summary: dict[str, t.Any]) -> list[str]:
@@ -78,13 +81,14 @@ def save_handoff_documentation(content: str, working_dir: Path) -> Path | None:
         handoff_dir = working_dir / ".claude" / "handoff"
         handoff_dir.mkdir(parents=True, exist_ok=True)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         handoff_path = handoff_dir / f"session_handoff_{timestamp}.md"
 
         handoff_path.write_text(content)
         return handoff_path
 
     except Exception:
+        logger.exception("Handoff document generation failed")
         return None
 
 

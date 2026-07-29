@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from session_buddy.utils.time import utc_now
+
 if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter_oneiric import (
         ReflectionDatabaseAdapterOneiric,
@@ -250,7 +252,7 @@ class CausalChainTracker:
                     error,
                     context.get("error_type", "unknown"),
                     json.dumps(context),
-                    datetime.now(),
+                    utc_now(),
                     session_id,
                     embedding,
                 ),
@@ -302,7 +304,7 @@ class CausalChainTracker:
                     action_taken,
                     code_changes,
                     successful,
-                    datetime.now(),
+                    utc_now(),
                 ),
             )
 
@@ -368,7 +370,7 @@ class CausalChainTracker:
             (id, error_id, successful_fix_id, resolution_time_minutes, created_at)
             VALUES (?, ?, ?, ?, ?)
         """,
-            (chain_id, error_id, successful_fix_id, resolution_time, datetime.now()),
+            (chain_id, error_id, successful_fix_id, resolution_time, utc_now()),
         )
 
         self.logger.info(

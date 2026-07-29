@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """MCP prompt management tools.
 
 This module provides all MCP prompt definitions following crackerjack

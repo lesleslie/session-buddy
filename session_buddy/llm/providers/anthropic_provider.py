@@ -6,11 +6,11 @@ API key is unavailable, the provider reports as unavailable.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.llm.base import LLMProvider
 from session_buddy.llm.models import LLMMessage, LLMResponse
+from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -125,10 +125,10 @@ class AnthropicProvider(LLMProvider):
                     ),
                 },
                 finish_reason="stop",
-                timestamp=datetime.now().isoformat(),
+                timestamp=utc_now().isoformat(),
             )
-        except Exception as e:
-            self.logger.exception(f"Anthropic generation failed: {e}")
+        except Exception:
+            self.logger.exception("Anthropic generation failed")
             raise
 
     async def stream_generate(
@@ -148,7 +148,7 @@ class AnthropicProvider(LLMProvider):
         try:
             await self._get_client()
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 - is_available contract: any network/auth/SDK failure means "not available"
             return False
 
     def get_models(self) -> list[str]:

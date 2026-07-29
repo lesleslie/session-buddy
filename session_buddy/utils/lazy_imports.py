@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Lazy loading utilities for optional dependencies.
 
 This module provides lazy loading for heavy or optional dependencies to improve
@@ -22,7 +23,7 @@ def _get_logger() -> Any:
     if _logger is None:
         try:
             _logger = get_session_logger()
-        except Exception:
+        except (ImportError, AttributeError, RuntimeError):
             # Fallback to basic logging if DI not initialized
             import logging
 

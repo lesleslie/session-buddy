@@ -393,7 +393,7 @@ class ReflectionDatabaseAdapterOneiric:
 
         self._initialized = False
 
-    async def initialize(self) -> None:  # noqa: C901
+    async def initialize(self) -> None:
         """Initialize DuckDB connection and create tables if needed."""
         if self._initialized:
             return
@@ -482,7 +482,7 @@ class ReflectionDatabaseAdapterOneiric:
                     cached.conn.execute("SELECT 1")
                     cached.ref_count += 1
                     return cached.conn
-                except Exception:
+                except (duckdb.Error, OSError):
                     # Stale connection; remove and create a fresh one
                     cached.release()
                     _typed_connection_cache.pop(cache_key, None)
@@ -951,11 +951,11 @@ class ReflectionDatabaseAdapterOneiric:
         for stmt in statements:
             try:
                 self.conn.execute(stmt)
-            except Exception as e:  # noqa: BLE001 — best-effort bootstrap
+            except duckdb.Error as e:
                 logger.debug("v2 schema statement skipped: %s", e)
                 # DuckDB marks the transaction aborted on any failed DDL.
                 # Roll back so subsequent statements can still execute.
-                with suppress(Exception):  # noqa: BLE001 — best-effort
+                with suppress(duckdb.Error):
                     self.conn.execute("ROLLBACK")
 
     def _create_hnsw_indexes(self) -> None:
@@ -977,7 +977,7 @@ class ReflectionDatabaseAdapterOneiric:
             self.conn.execute("INSTALL 'vss';")
             self.conn.execute("LOAD 'vss';")
             logger.info("VSS extension loaded successfully")
-        except Exception as e:
+        except (duckdb.Error, ImportError, OSError) as e:
             logger.warning(
                 f"VSS extension not available, HNSW indexing disabled: {e}. "
                 "Vector search will use array_cosine_similarity (slower)."
@@ -1035,10 +1035,10 @@ class ReflectionDatabaseAdapterOneiric:
             try:
                 self.conn.execute("CHECKPOINT")
                 logger.debug("Database checkpointed after HNSW index creation")
-            except Exception as ckpt_err:
+            except (duckdb.Error, OSError) as ckpt_err:
                 logger.debug(f"Checkpoint after HNSW creation skipped: {ckpt_err}")
 
-        except Exception as e:
+        except (duckdb.Error, OSError) as e:
             self._hnsw_available = False
             logger.warning(
                 f"Failed to create HNSW indexes: {e}. Falling back to array_cosine_similarity."
@@ -1051,7 +1051,7 @@ class ReflectionDatabaseAdapterOneiric:
         HTTP providers (llama-server/Ollama) are called directly.
         Kept as no-op for backward compatibility.
         """
-        pass  # HTTP embedding is stateless — no initialization needed
+        # HTTP embedding is stateless — no initialization needed
 
     async def _generate_embedding(self, text: str) -> list[float] | None:
         """Generate embedding for text via HTTP provider chain.
@@ -1069,8 +1069,8 @@ class ReflectionDatabaseAdapterOneiric:
 
         try:
             return await http_generate_embedding(text)
-        except Exception as e:
-            logger.warning(f"HTTP embedding failed: {e}")
+        except Exception:
+            logger.exception("HTTP embedding failed")
             return None
 
     def _quantize_embedding(self, embedding: list[float]) -> list[int] | None:
@@ -1247,8 +1247,8 @@ class ReflectionDatabaseAdapterOneiric:
                             "content_type": content_type,
                         }
                     )
-            except Exception as e:
-                logger.warning(f"Error comparing fingerprints: {e}")
+            except Exception:
+                logger.exception("Error comparing fingerprints")
                 continue
 
         # Sort by similarity (highest first)
@@ -1995,6 +1995,7 @@ class ReflectionDatabaseAdapterOneiric:
         tags: list[str] | None = None,
         deduplicate: bool = False,
         dedup_threshold: float = 0.85,
+        project: str | None = None,
     ) -> str:
         """Store a reflection with optional tags.
 
@@ -2003,6 +2004,12 @@ class ReflectionDatabaseAdapterOneiric:
             tags: Optional list of tags for categorization
             deduplicate: If True, check for duplicates before storing (Phase 4)
             dedup_threshold: Minimum Jaccard similarity to consider a duplicate (0.0 to 1.0)
+            project: Optional project identifier to scope the reflection to.
+
+        Bug 3 fix: ``project`` is now accepted and threaded into the INSERT.
+        The previous signature dropped the project field silently, which
+        meant project-scoped recall (and the ``reflection_stats`` project
+        aggregation) saw every reflection as belonging to no project.
 
         Returns:
             Unique reflection ID (existing ID if duplicate found and deduplicate=True)
@@ -2043,6 +2050,7 @@ class ReflectionDatabaseAdapterOneiric:
             try:
                 embedding = await self._generate_embedding(content)
             except Exception:
+                logger.exception("Failed to generate embedding for reflection")
                 embedding = None
 
         # Convert MinHash fingerprint to bytes for storage
@@ -2076,7 +2084,7 @@ class ReflectionDatabaseAdapterOneiric:
                     "long_term",  # memory_tier default
                     tags or [],
                     None,  # related_entities (not threaded through here)
-                    None,  # project (not threaded through here)
+                    project,  # Bug 3 fix: thread caller-provided project
                     "default",  # namespace
                     now,  # timestamp (v2)
                     now,  # created_at (legacy)
@@ -2109,7 +2117,7 @@ class ReflectionDatabaseAdapterOneiric:
                     "long_term",  # memory_tier default
                     tags or [],
                     None,  # related_entities
-                    None,  # project
+                    project,  # Bug 3 fix: thread caller-provided project
                     "default",  # namespace
                     now,  # timestamp
                     now,  # created_at
@@ -2155,6 +2163,7 @@ class ReflectionDatabaseAdapterOneiric:
         limit: int = 10,
         use_embeddings: bool = True,
         use_cache: bool = True,
+        project: str | None = None,
     ) -> list[dict[str, t.Any]]:
         """Search reflections by content or tags.
 
@@ -2163,6 +2172,11 @@ class ReflectionDatabaseAdapterOneiric:
             limit: Maximum number of results
             use_embeddings: Whether to use semantic search if embeddings available
             use_cache: Whether to use query cache (Phase 1: Query Cache)
+            project: Optional project filter; when set, only reflections in
+                this project are returned. Bug 3 fix: project was previously
+                accepted as a kwarg but silently ignored because the search
+                path never threaded it into the SQL ``WHERE`` clause.
+
 
         Returns:
             List of matching reflections
@@ -2185,6 +2199,7 @@ class ReflectionDatabaseAdapterOneiric:
             query=query,
             limit=limit,
             use_embeddings=use_embeddings,
+            project=project,
         )
 
         # Populate cache for future searches (Phase 1: Query Cache)
@@ -2262,6 +2277,7 @@ class ReflectionDatabaseAdapterOneiric:
         query: str,
         limit: int,
         use_embeddings: bool,
+        project: str | None = None,
     ) -> list[dict[str, t.Any]]:
         """Search reflections using semantic or text search.
 
@@ -2269,14 +2285,15 @@ class ReflectionDatabaseAdapterOneiric:
             query: Search query
             limit: Maximum number of results
             use_embeddings: Whether to use semantic search if available
+            project: Optional project filter (Bug 3 fix)
 
         Returns:
             List of matching reflections
 
         """
         if use_embeddings and self.settings.enable_embeddings:
-            return await self._semantic_search_reflections(query, limit)
-        return await self._text_search_reflections(query, limit)
+            return await self._semantic_search_reflections(query, limit, project)
+        return await self._text_search_reflections(query, limit, project)
 
     def _cache_reflection_results(
         self,
@@ -2313,11 +2330,12 @@ class ReflectionDatabaseAdapterOneiric:
         )
 
     async def _semantic_search_reflections(
-        self, query: str, limit: int = 10
+        self, query: str, limit: int = 10, project: str | None = None
     ) -> list[dict[str, t.Any]]:
         """Perform semantic search on reflections using embeddings.
 
         Filters for insight_type IS NULL to only return reflections, not insights.
+        Bug 3 fix: accepts ``project`` and adds it to the ``WHERE`` clause.
         """
         if not self._initialized:
             await self.initialize()
@@ -2325,9 +2343,14 @@ class ReflectionDatabaseAdapterOneiric:
         # Generate query embedding
         query_embedding = await self._generate_embedding(query)
         if not query_embedding:
-            return await self._text_search_reflections(query, limit)
+            return await self._text_search_reflections(query, limit, project)
 
-        # Perform vector similarity search
+        project_clause = "AND project = ?" if project is not None else ""
+        params: list[t.Any] = [query_embedding]
+        if project is not None:
+            params.append(project)
+        params.append(limit)
+
         results = self.conn.execute(
             f"""
             SELECT id, content, tags, created_at, updated_at,
@@ -2335,10 +2358,11 @@ class ReflectionDatabaseAdapterOneiric:
             FROM {self._table("reflections")}
             WHERE embedding IS NOT NULL
                 AND insight_type IS NULL
+                {project_clause}
             ORDER BY similarity DESC
             LIMIT ?
             """,
-            (query_embedding, limit),
+            params,
         ).fetchall()
 
         return [
@@ -2354,14 +2378,21 @@ class ReflectionDatabaseAdapterOneiric:
         ]
 
     async def _text_search_reflections(
-        self, query: str, limit: int = 10
+        self, query: str, limit: int = 10, project: str | None = None
     ) -> list[dict[str, t.Any]]:
         """Perform text search on reflections.
 
         Filters for insight_type IS NULL to only return reflections, not insights.
+        Bug 3 fix: accepts ``project`` and adds it to the ``WHERE`` clause.
         """
         if not self._initialized:
             await self.initialize()
+
+        project_clause = "AND project = ?" if project is not None else ""
+        params: list[t.Any] = [f"%{query}%", query]
+        if project is not None:
+            params.append(project)
+        params.append(limit)
 
         results = self.conn.execute(
             f"""
@@ -2369,10 +2400,11 @@ class ReflectionDatabaseAdapterOneiric:
             FROM {self._table("reflections")}
             WHERE insight_type IS NULL
                 AND (content LIKE ? OR list_contains(tags, ?))
+                {project_clause}
             ORDER BY created_at DESC
             LIMIT ?
             """,
-            (f"%{query}%", query, limit),
+            params,
         ).fetchall()
 
         return [
@@ -2627,6 +2659,7 @@ class ReflectionDatabaseAdapterOneiric:
             self.conn.execute("SELECT 1").fetchone()
             return True
         except Exception:
+            logger.exception("Health check failed")
             return False
 
     # ========================================================================
@@ -2692,6 +2725,7 @@ class ReflectionDatabaseAdapterOneiric:
             try:
                 embedding = await self._generate_embedding(content)
             except Exception:
+                logger.exception("Failed to generate embedding for insight")
                 embedding = None
 
         # Build metadata
@@ -2969,7 +3003,7 @@ class ReflectionDatabaseAdapterOneiric:
                 (datetime.now(tz=UTC), datetime.now(tz=UTC), insight_id),
             )
             return True
-        except Exception:
+        except (duckdb.Error, OSError):
             return False
 
     async def get_insights_statistics(self) -> dict[str, t.Any]:

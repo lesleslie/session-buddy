@@ -18,6 +18,10 @@ import asyncio
 import typing as t
 from pathlib import Path
 
+from session_buddy.utils.error_management import _get_logger
+
+logger = _get_logger()
+
 if t.TYPE_CHECKING:
     from session_buddy.utils.logging import SessionLogger
 
@@ -126,6 +130,7 @@ async def create_natural_reminder(
     except ImportError:
         return "❌ Natural scheduling tools not available. Install: pip install python-dateutil schedule python-crontab"
     except Exception as e:
+        logger.exception("Error creating reminder")
         return f"❌ Error creating reminder: {e}"
 
 
@@ -155,6 +160,7 @@ async def list_user_reminders(
     except ImportError:
         return "❌ Natural scheduling tools not available"
     except Exception as e:
+        logger.exception("Error listing reminders")
         return f"❌ Error listing reminders: {e}"
 
 
@@ -181,16 +187,17 @@ async def cancel_user_reminder(reminder_id: str) -> str:
     except ImportError:
         return "❌ Natural scheduling tools not available"
     except Exception as e:
+        logger.exception("Error cancelling reminder")
         return f"❌ Error cancelling reminder: {e}"
 
 
 def _calculate_overdue_time(scheduled_for: str) -> str:
     """Calculate and format overdue time."""
     try:
-        from datetime import datetime
+        from session_buddy.utils.time import parse_utc_timestamp, utc_now
 
-        scheduled = datetime.fromisoformat(scheduled_for)
-        now = datetime.now()
+        scheduled = parse_utc_timestamp(scheduled_for)
+        now = utc_now()
         overdue = now - scheduled
 
         if overdue.total_seconds() > 0:
@@ -200,7 +207,7 @@ def _calculate_overdue_time(scheduled_for: str) -> str:
                 return f"⏱️ Overdue: {hours}h {minutes}m"
             return f"⏱️ Overdue: {minutes}m"
         return "⏱️ Not yet due"
-    except Exception as e:
+    except ValueError as e:
         return f"❌ Error checking due reminders: {e}"
 
 
@@ -237,6 +244,7 @@ async def start_reminder_service() -> str:
     except ImportError:
         return "❌ Natural scheduling tools not available"
     except Exception as e:
+        logger.exception("Error starting reminder service")
         return f"❌ Error starting reminder service: {e}"
 
 
@@ -263,6 +271,7 @@ async def stop_reminder_service() -> str:
     except ImportError:
         return "❌ Natural scheduling tools not available"
     except Exception as e:
+        logger.exception("Error stopping reminder service")
         return f"❌ Error stopping reminder service: {e}"
 
 
@@ -314,6 +323,7 @@ async def get_interruption_statistics(user_id: str) -> str:
     except ImportError:
         return "❌ Interruption management tools not available"
     except Exception as e:
+        logger.exception("Error getting statistics")
         return f"❌ Error getting statistics: {e}"
 
 
@@ -374,6 +384,7 @@ async def create_project_group(
 The project group is now available for cross-project coordination and knowledge sharing."""
 
     except Exception as e:
+        logger.exception("Failed to create project group")
         return f"❌ Failed to create project group: {e}"
 
 
@@ -406,6 +417,7 @@ async def add_project_dependency(
 This relationship will be used for cross-project search and coordination."""
 
     except Exception as e:
+        logger.exception("Failed to add project dependency")
         return f"❌ Failed to add project dependency: {e}"
 
 
@@ -447,6 +459,7 @@ async def search_across_projects(
         return "\n".join(output)
 
     except Exception as e:
+        logger.exception("Search across projects failed")
         return f"❌ Search failed: {e}"
 
 
@@ -466,6 +479,7 @@ async def get_project_insights(projects: list[str], time_range_days: int = 30) -
         return _format_project_insights(insights, time_range_days)
 
     except Exception as e:
+        logger.exception("Failed to get project insights")
         return f"❌ Failed to get insights: {e}"
 
 
@@ -480,6 +494,7 @@ async def _get_multi_project_coordinator() -> t.Any:
         db = await get_reflection_database()
         return MultiProjectCoordinator(db)
     except Exception:
+        logger.exception("Failed to initialize multi-project coordinator")
         return None
 
 
@@ -520,6 +535,7 @@ async def advanced_search(
         return _format_advanced_search_results(results)
 
     except Exception as e:
+        logger.exception("Advanced search failed")
         return f"❌ Advanced search failed: {e}"
 
 
@@ -587,6 +603,7 @@ async def search_suggestions(query: str, field: str = "content", limit: int = 5)
         return "\n".join(output)
 
     except Exception as e:
+        logger.exception("Failed to get search suggestions")
         return f"❌ Failed to get suggestions: {e}"
 
 
@@ -616,6 +633,7 @@ async def get_search_metrics(metric_type: str, timeframe: str = "30d") -> str:
         return "\n".join(output)
 
     except Exception as e:
+        logger.exception("Failed to get search metrics")
         return f"❌ Failed to get metrics: {e}"
 
 
@@ -630,6 +648,7 @@ async def _get_advanced_search_engine() -> t.Any:
         db = await get_reflection_database()
         return AdvancedSearchEngine(db)  # ty: ignore[invalid-argument-type]
     except Exception:
+        logger.exception("Failed to initialize advanced search engine")
         return None
 
 
@@ -637,7 +656,7 @@ def _get_advanced_search_engine_sync() -> t.Any:
     """Synchronous helper to get advanced search engine."""
     try:
         return asyncio.run(_get_advanced_search_engine())
-    except Exception:
+    except RuntimeError:
         return None
 
 
@@ -715,7 +734,7 @@ async def git_worktree_add(
         return "\n".join(output)
 
     except Exception as e:
-        session_logger.exception(f"git_worktree_add failed: {e}")
+        session_logger.exception("git_worktree_add failed")
         return f"❌ Failed to create worktree: {e}"
 
 
@@ -767,7 +786,7 @@ async def git_worktree_remove(
         return "\n".join(output)
 
     except Exception as e:
-        session_logger.exception(f"git_worktree_remove failed: {e}")
+        session_logger.exception("git_worktree_remove failed")
         return f"❌ Failed to remove worktree: {e}"
 
 
@@ -828,7 +847,7 @@ async def git_worktree_switch(from_path: str, to_path: str) -> str:
         return _format_worktree_switch_result(result)
 
     except Exception as e:
-        session_logger.exception(f"git_worktree_switch failed: {e}")
+        session_logger.exception("git_worktree_switch failed")
         return f"❌ Failed to switch worktree context: {e}"
 
 

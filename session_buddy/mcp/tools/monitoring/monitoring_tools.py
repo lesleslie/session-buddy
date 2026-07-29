@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Application monitoring and activity tracking MCP tools.
 
 This module provides tools for monitoring application activity, tracking interruptions,
@@ -58,8 +59,8 @@ async def _execute_monitor_operation(
         return await operation(monitor)
     except RuntimeError as e:
         return f"❌ {e!s}"
-    except Exception as e:
-        _get_logger().exception(f"Error in {operation_name}: {e}")
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any monitor/backend failure
+        _get_logger().exception("Error in %s", operation_name)
         return ToolMessages.operation_failed(operation_name, e)
 
 
@@ -72,8 +73,8 @@ async def _execute_interruption_operation(
         return await operation(manager)
     except RuntimeError as e:
         return f"❌ {e!s}"
-    except Exception as e:
-        _get_logger().exception(f"Error in {operation_name}: {e}")
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any manager/runtime failure
+        _get_logger().exception("Error in %s", operation_name)
         return ToolMessages.operation_failed(operation_name, e)
 
 

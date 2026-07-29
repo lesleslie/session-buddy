@@ -183,8 +183,8 @@ class PyCharmMCPAdapter:
         try:
             result = await self._mcp.get_symbol_info(symbol_name=symbol_name)
             return result
-        except Exception as e:
-            self._logger.error(f"Failed to get symbol info: {e}")
+        except Exception:
+            self._logger.exception("Failed to get symbol info")
             return None
 
     async def find_usages(self, symbol_name: str) -> list[dict[str, t.Any]]:
@@ -260,8 +260,8 @@ class PyCharmMCPAdapter:
         except TimeoutError:
             self._logger.warning(f"Search timed out for pattern: {pattern[:50]}")
             return []
-        except Exception as e:
-            self._logger.error(f"Search failed: {e}")
+        except Exception:
+            self._logger.exception("Search failed")
             return []
 
     async def _get_file_problems_impl(
@@ -278,8 +278,8 @@ class PyCharmMCPAdapter:
                 errors_only=errors_only,
             )
             return list(problems) if problems else []
-        except Exception as e:
-            self._logger.error(f"Failed to get file problems: {e}")
+        except Exception:
+            self._logger.exception("Failed to get file problems")
             return []
 
     async def _find_usages_impl(self, symbol_name: str) -> list[dict[str, t.Any]]:
@@ -289,8 +289,8 @@ class PyCharmMCPAdapter:
         try:
             usages = await self._mcp.find_usages(symbol_name=symbol_name)
             return list(usages) if usages else []
-        except Exception as e:
-            self._logger.error(f"Failed to find usages: {e}")
+        except Exception:
+            self._logger.exception("Failed to find usages")
             return []
 
     def _fallback_search(
@@ -313,6 +313,7 @@ class PyCharmMCPAdapter:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                check=False,
             )
 
             for line in proc.stdout.split("\n")[: self._max_results]:
@@ -328,7 +329,7 @@ class PyCharmMCPAdapter:
                             )
                         )
 
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             self._logger.debug(f"Fallback search failed: {e}")
 
         return results
@@ -368,10 +369,7 @@ class PyCharmMCPAdapter:
             return False
 
         # Prevent null bytes
-        if "\x00" in file_path:
-            return False
-
-        return True
+        return "\x00" not in file_path
 
     async def _execute_with_circuit_breaker(
         self,
@@ -388,9 +386,9 @@ class PyCharmMCPAdapter:
             result = await func(*args, **kwargs)
             self._circuit_breaker.record_success()
             return result
-        except Exception as e:
+        except Exception:
             self._circuit_breaker.record_failure()
-            self._logger.error(f"Operation failed (circuit breaker): {e}")
+            self._logger.exception("Operation failed (circuit breaker)")
             raise
 
     def _get_cached(self, key: str) -> t.Any | None:
@@ -467,7 +465,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
             )
 
         except Exception as e:
-            logger.error(f"Failed to get IDE diagnostics: {e}")
+            logger.exception("Failed to get IDE diagnostics")
             return json.dumps(
                 {
                     "success": False,
@@ -508,7 +506,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
             )
 
         except Exception as e:
-            logger.error(f"Failed to search code patterns: {e}")
+            logger.exception("Failed to search code patterns")
             return json.dumps(
                 {
                     "success": False,
@@ -538,7 +536,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
             )
 
         except Exception as e:
-            logger.error(f"Failed to get symbol info: {e}")
+            logger.exception("Failed to get symbol info")
             return json.dumps(
                 {
                     "success": False,
@@ -574,7 +572,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
             )
 
         except Exception as e:
-            logger.error(f"Failed to find usages: {e}")
+            logger.exception("Failed to find usages")
             return json.dumps(
                 {
                     "success": False,
@@ -592,7 +590,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
             )
 
         except Exception as e:
-            logger.error(f"Health check failed: {e}")
+            logger.exception("Health check failed")
             return json.dumps(
                 {
                     "success": False,
@@ -604,7 +602,7 @@ def register_ide_tools(mcp: FastMCP) -> None:
 
 
 __all__ = [
-    "register_ide_tools",
     "PyCharmMCPAdapter",
     "get_pycharm_adapter",
+    "register_ide_tools",
 ]

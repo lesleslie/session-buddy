@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Knowledge Graph Database using DuckDB + DuckPGQ Extension.
 
 This module provides semantic memory (knowledge graph) capabilities
@@ -110,11 +111,10 @@ class KnowledgeGraphDatabase:
         if self.conn:
             try:
                 self.conn.close()
-            except Exception:
-                # nosec B110 - intentionally suppressing exceptions during cleanup
-                pass  # Ignore errors during cleanup
-            finally:
-                self.conn = None
+            except Exception:  # best-effort cleanup on context manager exit; any close-time error must be swallowed
+                logger.debug(
+                    "ignored error during DB connection cleanup", exc_info=True
+                )
 
     def __del__(self) -> None:
         """Destructor to ensure cleanup."""
@@ -147,7 +147,7 @@ class KnowledgeGraphDatabase:
             self.conn.execute("INSTALL duckpgq FROM community")
             self.conn.execute("LOAD duckpgq")
             self._duckpgq_installed = True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - optional DuckPGQ extension load: any failure (extension missing, network) falls back to non-DuckPGQ mode
             self._duckpgq_installed = False
             logger.warning(f"DuckPGQ extension unavailable (non-fatal): {e}")
 
@@ -722,6 +722,7 @@ class KnowledgeGraphDatabase:
                 )
             return paths
         except Exception:
+            logger.exception("DuckPGQ path-finding failed; returning empty result")
             # Fallback to simple check if SQL/PGQ fails
             # (This can happen if graph is complex)
             return []

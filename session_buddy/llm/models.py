@@ -7,8 +7,9 @@ messages, responses, streaming chunks, and generation options.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
+
+from session_buddy.utils.time import utc_now
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,7 @@ class LLMMessage:
 
     def __post_init__(self) -> None:
         if self.timestamp is None:
-            self.timestamp = datetime.now().isoformat()
+            self.timestamp = utc_now().isoformat()
         if self.metadata is None:
             self.metadata = {}
 

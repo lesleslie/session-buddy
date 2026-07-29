@@ -25,7 +25,7 @@ import logging
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any, Self
 
 import websockets
 from websockets.asyncio.server import ServerConnection
@@ -36,9 +36,6 @@ from session_buddy.realtime.auth import (
     get_authenticator,
 )
 from session_buddy.storage.skills_storage import SkillsStorage
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -173,8 +170,8 @@ class RealTimeMetricsServer:
                 result = subscriber(payload)
                 if inspect.isawaitable(result):
                     await result
-            except Exception as exc:
-                logger.warning("Metrics subscriber failed: %s", exc)
+            except Exception:
+                logger.exception("Metrics subscriber failed")
 
     async def _authenticate_connection(
         self, websocket: ServerConnection
@@ -228,8 +225,8 @@ class RealTimeMetricsServer:
                 f"Authentication failed: Invalid JSON from {websocket.remote_address}"  # type: ignore[attr-defined]
             )
             return None
-        except Exception as e:
-            logger.error(f"Authentication error: {e}")
+        except Exception:
+            logger.exception("Authentication error")
             return None
 
     async def broadcast_metrics(self) -> None:
@@ -307,8 +304,8 @@ class RealTimeMetricsServer:
                                 f"Client disconnected: {client.remote_address}"  # type: ignore[attr-defined]
                             )
                             disconnected.add(client)
-                        except Exception as e:
-                            logger.error(f"Error sending to client: {e}")
+                        except Exception:
+                            logger.exception("Error sending to client")
                             disconnected.add(client)
 
                     # Clean up disconnected clients
@@ -318,8 +315,8 @@ class RealTimeMetricsServer:
                 # Wait for next interval
                 await asyncio.sleep(self.update_interval)
 
-            except Exception as e:
-                logger.error(f"Error in broadcast_metrics: {e}", exc_info=True)
+            except Exception:
+                logger.exception("Error in broadcast_metrics")
                 await asyncio.sleep(self.update_interval)
 
         logger.info("Metrics broadcaster stopped")
@@ -369,8 +366,8 @@ class RealTimeMetricsServer:
                 rows = cursor.fetchall()
                 return [dict(row) for row in rows]
 
-        except Exception as e:
-            logger.warning(f"Failed to detect anomalies: {e}")
+        except Exception:
+            logger.exception("Failed to detect anomalies")
             return []
 
     async def handle_client_message(
@@ -407,8 +404,8 @@ class RealTimeMetricsServer:
 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON from client: {e}")
-        except Exception as e:
-            logger.error(f"Error handling client message: {e}")
+        except Exception:
+            logger.exception("Error handling client message")
 
     async def handle_subscription(
         self, websocket: ServerConnection, skill_name: str | None
@@ -494,8 +491,8 @@ class RealTimeMetricsServer:
 
         except ConnectionClosed:
             logger.info(f"Client disconnected: {websocket.remote_address}")  # type: ignore[attr-defined]
-        except Exception as e:
-            logger.error(f"Error in client handler: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Error in client handler")
         finally:
             self.unregister_client(websocket)
 
@@ -569,7 +566,7 @@ class RealTimeMetricsServer:
 
         logger.info("WebSocket server stopped")
 
-    async def __aenter__(self) -> RealTimeMetricsServer:
+    async def __aenter__(self) -> Self:
         """Async context manager entry."""
         await self.start()
         return self

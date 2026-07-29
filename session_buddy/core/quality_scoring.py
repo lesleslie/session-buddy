@@ -59,7 +59,6 @@ class QualityScorer(ABC):
             >>> score = await scorer.calculate_quality_score(Path("/path/to/project"))
             >>> print(f"Quality: {score['overall']}/100")
         """
-        pass
 
     @abstractmethod
     def get_permissions_score(self) -> int:
@@ -74,7 +73,6 @@ class QualityScorer(ABC):
             >>> score = scorer.get_permissions_score()
             >>> print(f"Permissions: {score}/20")
         """
-        pass
 
 
 class DefaultQualityScorer(QualityScorer):

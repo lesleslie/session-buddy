@@ -33,9 +33,9 @@ from session_buddy.search.progressive_search import (
 
 __all__ = [
     "ProgressiveSearchEngine",
+    "ProgressiveSearchResult",
     "SearchTier",
     "SufficiencyConfig",
     "SufficiencyEvaluator",
     "TierSearchResult",
-    "ProgressiveSearchResult",
 ]

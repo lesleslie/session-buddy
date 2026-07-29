@@ -169,41 +169,33 @@ _alias_submodule(
 )
 
 __all__ = [
-    # Advanced
-    "register_conscious_agent_tools",
-    "register_extraction_tools",
-    "register_fingerprint_tools",
-    "register_intent_tools",
-    # Collaboration
-    "register_team_tools",
-    "register_knowledge_graph_tools",
-    # Infrastructure
-    "register_access_log_tools",
-    "register_cache_tools",
-    "register_feature_flags_tools",
-    "register_pool_tools",
-    "register_serverless_tools",
-    # Intelligence
     "AgentAnalyzer",
     "AgentType",
-    "register_llm_tools",
-    # Memory
-    "register_memory_tools",
-    "register_category_tools",
-    "register_search_tools",
-    "register_validated_memory_tools",
-    # Monitoring
+    "register_access_log_tools",
     "register_bottleneck_tools",
-    "register_memory_health_tools",
-    "register_monitoring_tools",
-    "register_session_analytics_tools",
-    "register_workflow_metrics_tools",
-    # Session
-    "register_session_tools",
-    "register_crackerjack_tools",
-    "register_hooks_tools",
-    "register_migration_tools",
-    "register_prompt_tools",
-    # Subscribers
+    "register_cache_tools",
+    "register_category_tools",
     "register_code_graph_tools",
+    "register_conscious_agent_tools",
+    "register_crackerjack_tools",
+    "register_extraction_tools",
+    "register_feature_flags_tools",
+    "register_fingerprint_tools",
+    "register_hooks_tools",
+    "register_intent_tools",
+    "register_knowledge_graph_tools",
+    "register_llm_tools",
+    "register_memory_health_tools",
+    "register_memory_tools",
+    "register_migration_tools",
+    "register_monitoring_tools",
+    "register_pool_tools",
+    "register_prompt_tools",
+    "register_search_tools",
+    "register_serverless_tools",
+    "register_session_analytics_tools",
+    "register_session_tools",
+    "register_team_tools",
+    "register_validated_memory_tools",
+    "register_workflow_metrics_tools",
 ]

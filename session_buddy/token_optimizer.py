@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Token Optimization for Session Management MCP Server.
 
 Provides response chunking, content truncation, and context window monitoring
@@ -11,6 +12,8 @@ import operator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
+
+from session_buddy.utils.time import utc_now
 
 try:
     import tiktoken
@@ -104,7 +107,7 @@ class TokenOptimizer:
             return None
         try:
             return tiktoken.get_encoding("cl100k_base")  # GPT-4 encoding
-        except Exception:
+        except (ValueError, KeyError):
             # Fallback to approximate counting
             return None
 
@@ -326,7 +329,7 @@ class TokenOptimizer:
             return results, {"strategy": "prioritize_recent", "action": "no_results"}
 
         # Calculate priority scores
-        now = datetime.now()
+        now = utc_now()
         scored_results = []
 
         for result in results:
@@ -434,7 +437,7 @@ class TokenOptimizer:
     ) -> str:
         """Create cache entry for chunked results."""
         cache_key = hashlib.md5(
-            f"chunks_{datetime.now().isoformat()}_{len(chunks)}".encode(),
+            f"chunks_{utc_now().isoformat()}_{len(chunks)}".encode(),
             usedforsecurity=False,
         ).hexdigest()
 
@@ -444,8 +447,8 @@ class TokenOptimizer:
             current_chunk=1,
             cache_key=cache_key,
             metadata={
-                "created": datetime.now().isoformat(),
-                "expires": (datetime.now() + timedelta(hours=1)).isoformat(),
+                "created": utc_now().isoformat(),
+                "expires": (utc_now() + timedelta(hours=1)).isoformat(),
             },
         )
 
@@ -529,7 +532,7 @@ class TokenOptimizer:
             request_tokens=request_tokens,
             response_tokens=response_tokens,
             total_tokens=request_tokens + response_tokens,
-            timestamp=datetime.now().isoformat(),
+            timestamp=utc_now().isoformat(),
             operation=operation,
             optimization_applied=optimization_applied,
         )
@@ -542,7 +545,7 @@ class TokenOptimizer:
 
     def get_usage_stats(self, hours: int = 24) -> dict[str, Any]:
         """Get token usage statistics."""
-        cutoff = datetime.now() - timedelta(hours=hours)
+        cutoff = utc_now() - timedelta(hours=hours)
 
         recent_usage = [
             m

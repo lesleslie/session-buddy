@@ -139,8 +139,8 @@ async def query_local_traces(
         logger.info(f"query_local_traces: system={system_id}, matched={len(filtered)}")
         return filtered
 
-    except Exception as e:
-        logger.exception(f"Error querying traces: {e}")
+    except Exception:
+        logger.exception("Error querying traces")
         return []
 
 

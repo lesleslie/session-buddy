@@ -6,11 +6,14 @@ information from handoff files and session summaries.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,7 @@ def find_latest_handoff_file(working_dir: Path) -> Path | None:
         return max(handoff_files, key=lambda f: f.name)
 
     except Exception:
+        logger.exception("Failed to find latest handoff file")
         return None
 
 
@@ -86,6 +90,7 @@ async def read_file_safely(file_path: Path) -> str:
         with file_path.open(encoding="utf-8") as f:
             return f.read()
     except Exception:
+        logger.exception("Failed to read file safely: %s", file_path)
         return ""
 
 
@@ -130,6 +135,7 @@ async def parse_session_file(file_path: Path) -> SessionInfo:
         return SessionInfo.from_dict(info_dict)
 
     except Exception:
+        logger.exception("Failed to parse session file: %s", file_path)
         return SessionInfo.empty()
 
 
@@ -150,4 +156,5 @@ async def read_previous_session_info(handoff_file: Path) -> dict[str, str] | Non
         return None
 
     except Exception:
+        logger.exception("Failed to read previous session info: %s", handoff_file)
         return None

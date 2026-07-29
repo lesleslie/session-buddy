@@ -2,8 +2,6 @@
 
 import logging as _stdlib_logging
 
-import session_buddy.utils.quality_scoring as quality_utils_v2  # noqa: F401
-
 from .database_pool import DatabaseConnectionPool, get_database_pool
 from .filesystem import (
     _cleanup_session_logs,
@@ -51,7 +49,14 @@ from .quality_score_parser import (
 )
 
 # Compatibility import: quality_utils_v2 was renamed to quality_scoring
-from .quality_scoring import *  # noqa: F401, F403
+from .quality_scoring import (
+    CodeQualityScore,
+    DevVelocityScore,
+    ProjectHealthScore,
+    QualityScoreV2,
+    SecurityScore,
+    TrustScore,
+)
 from .reflection_utils import (
     AutoStoreDecision,
     CheckpointReason,
@@ -73,10 +78,16 @@ __all__ = [
     # Existing utilities
     "AutoStoreDecision",
     "CheckpointReason",
+    "CodeQualityScore",
     "DatabaseConnectionPool",
+    "DevVelocityScore",
     "LazyImport",
     "LazyLoader",
+    "ProjectHealthScore",
+    "QualityScoreV2",
+    "SecurityScore",
     "SessionLogger",
+    "TrustScore",
     "_analyze_quality_trend",
     "_build_search_header",
     # New extracted utilities

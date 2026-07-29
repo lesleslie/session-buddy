@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Quality analysis utilities for session management.
 
 This module provides quality assessment and analysis functionality following

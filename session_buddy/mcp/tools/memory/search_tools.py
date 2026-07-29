@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Search and reflection tools for session-mgmt-mcp.
 
 Following crackerjack architecture patterns with focused, single-responsibility tools
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import json
 import operator
+import re
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -21,6 +23,7 @@ from session_buddy.utils.error_management import (
     validate_required,
 )
 from session_buddy.utils.messages import ToolMessages
+from session_buddy.utils.time import utc_now
 from session_buddy.utils.tool_wrapper import (
     execute_database_tool,
     execute_simple_database_tool,
@@ -30,8 +33,8 @@ if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter import (
         ReflectionDatabaseAdapter as ReflectionDatabase,
     )
-    from session_buddy.search.progressive_search import SearchTier
 
+from session_buddy.search.progressive_search import SearchTier
 
 # Progressive search imports
 
@@ -69,7 +72,7 @@ async def _optimize_search_results_impl(
     except ImportError:
         _get_logger().info("Token optimizer not available, returning results as-is")
         return {"results": results, "optimized": False, "token_count": 0}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - search optimization fallback: must return the unoptimized result envelope with the error recorded for any internal failure
         _get_logger().exception(f"Search optimization failed: {e}")
         return {"results": results, "optimized": False, "error": str(e)}
 
@@ -374,7 +377,7 @@ def _extract_mentioned_files(results: list[dict[str, Any]]) -> list[str]:
             files.extend(matches)
 
         return list(set(files))[:10] if files else []
-    except Exception:
+    except (re.error, AttributeError, TypeError):
         return []
 
 
@@ -822,7 +825,7 @@ def _classify_skill_status(
         except (TypeError, ValueError):
             reinforced_dt = None
         if reinforced_dt is not None:
-            now = datetime.now()
+            now = utc_now()
             if now - reinforced_dt > threshold:
                 return "stale"
 
@@ -920,7 +923,7 @@ async def _distilled_skill_health_impl(
     except DatabaseUnavailableError as e:
         _get_logger().exception(f"Distilled skill health: {e}")
         return []
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - distilled-skill health probe: any error means no skills are available, return an empty list rather than propagate
         _get_logger().exception(f"Distilled skill health: {e}")
         return []
 
@@ -935,7 +938,7 @@ async def _reset_reflection_database_impl() -> str:
     try:
         await require_reflection_database()
         return "✅ Reflection database connection verified successfully"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - reset-database tool contract: must return ToolMessages.operation_failed for any internal failure
         return ToolMessages.operation_failed("Database reset", e)
 
 
@@ -971,7 +974,7 @@ async def _session_learning_report_impl(
         return await db.generate_session_differential(session_id, window_hours)
     except DatabaseUnavailableError as e:
         return {"error": str(e), "session_id": session_id}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - session learning report tool contract: must return a structured error dict for any internal failure rather than propagate
         _get_logger().exception(f"Error in Session learning report: {e}")
         return {"error": str(e), "session_id": session_id}
 
@@ -989,7 +992,7 @@ def _extract_code_blocks_from_content(content: str) -> list[str]:
         code_pattern = SAFE_PATTERNS["generic_code_block"]
         matches = code_pattern.findall(content)
         return matches if matches is not None else []
-    except Exception:
+    except (ImportError, re.error, KeyError, AttributeError, TypeError):
         return []
 
 
@@ -1146,7 +1149,7 @@ async def _search_errors_impl(
 
 def _parse_time_expression(time_expression: str) -> datetime | None:
     """Parse natural language time expression into datetime."""
-    now = datetime.now()
+    now = utc_now()
 
     if "yesterday" in time_expression.lower():
         return now - timedelta(days=1)
@@ -1762,7 +1765,7 @@ async def _progressive_search_impl(
             "error": "Progressive search engine not available",
             "query": query,
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - progressive-search tool contract: must return a structured error envelope for any internal failure rather than propagate
         _get_logger().exception(f"Progressive search failed: {e}")
         return {
             "success": False,
@@ -1841,7 +1844,7 @@ async def _configure_tiers_impl(
             "success": False,
             "error": "Progressive search configuration not available",
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - tier configuration tool contract: must return a structured error envelope for any internal failure
         _get_logger().exception(f"Tier configuration failed: {e}")
         return {
             "success": False,
@@ -1893,7 +1896,7 @@ async def _tier_stats_impl() -> dict[str, Any]:
             "success": False,
             "error": "Progressive search statistics not available",
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - tier stats tool contract: must return a structured error envelope for any internal failure
         _get_logger().exception(f"Tier stats retrieval failed: {e}")
         return {
             "success": False,

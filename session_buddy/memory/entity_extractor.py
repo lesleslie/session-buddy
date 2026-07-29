@@ -11,10 +11,11 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+from session_buddy.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +189,7 @@ class LLMEntityExtractor:
         """
         await self.initialize()
 
-        start_time = datetime.now()
+        start_time = utc_now()
 
         # Build prompt requesting JSON compatible with ProcessedMemory
         system = (
@@ -224,7 +225,7 @@ class LLMEntityExtractor:
                 msg = "Unsupported provider in LLMEntityExtractor"
                 raise RuntimeError(msg)
 
-            extraction_time = (datetime.now() - start_time).total_seconds() * 1000
+            extraction_time = (utc_now() - start_time).total_seconds() * 1000
             return EntityExtractionResult(
                 processed_memory=processed_memory,
                 entities_count=len(processed_memory.entities),
@@ -233,8 +234,7 @@ class LLMEntityExtractor:
                 llm_provider=self.llm_provider,
             )
         except Exception:
-            # Fall back to a minimal default to avoid hard failure
-            logger.info("LLM extraction failed; falling back to default output")
+            logger.exception("LLM extraction failed; falling back to default output")
             processed_memory = ProcessedMemory(
                 category="context",
                 importance_score=0.5,
@@ -242,7 +242,7 @@ class LLMEntityExtractor:
                 searchable_content=f"{user_input} {ai_output}",
                 reasoning="LLM extraction fallback",
             )
-            extraction_time = (datetime.now() - start_time).total_seconds() * 1000
+            extraction_time = (utc_now() - start_time).total_seconds() * 1000
             return EntityExtractionResult(
                 processed_memory=processed_memory,
                 entities_count=0,
@@ -319,7 +319,7 @@ class EntityExtractionEngine:
         ]
 
         providers = ["openai", "anthropic", "gemini"]
-        start_time = datetime.now()
+        start_time = utc_now()
 
         for provider in providers:
             try:
@@ -341,7 +341,7 @@ class EntityExtractionEngine:
                         continue
                 assert resp is not None  # Type narrowing for pyright
                 pm = ProcessedMemory.model_validate_json(resp.content)
-                extraction_time = (datetime.now() - start_time).total_seconds() * 1000
+                extraction_time = (utc_now() - start_time).total_seconds() * 1000
                 return EntityExtractionResult(
                     processed_memory=pm,
                     entities_count=len(pm.entities),
@@ -349,13 +349,13 @@ class EntityExtractionEngine:
                     extraction_time_ms=extraction_time,
                     llm_provider=provider,
                 )
-            except Exception as e:
-                logger.warning(f"{provider} extraction failed: {e}")
+            except Exception:
+                logger.exception(f"{provider} extraction failed")
                 continue
 
         # Final fallback: pattern-based
         pm = await self.fallback_extractor.extract_entities(user_input, ai_output)
-        extraction_time = (datetime.now() - start_time).total_seconds() * 1000
+        extraction_time = (utc_now() - start_time).total_seconds() * 1000
         return EntityExtractionResult(
             processed_memory=pm,
             entities_count=len(pm.entities),

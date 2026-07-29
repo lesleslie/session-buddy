@@ -122,10 +122,9 @@ class SessionTracker:
             try:
                 self.metrics = get_metrics()  # type: ignore[assignment]
                 self.logger.debug("SessionMetrics initialized for SessionTracker")
-            except Exception as e:
-                self.logger.warning(
-                    "Failed to initialize SessionMetrics, metrics disabled: %s",
-                    str(e),
+            except Exception:
+                self.logger.exception(
+                    "Failed to initialize SessionMetrics, metrics disabled",
                 )
                 self.enable_metrics = False
                 self.metrics = None
@@ -196,10 +195,9 @@ class SessionTracker:
                             status="error",
                             duration_seconds=duration,
                         )
-                    except Exception as metrics_error:
-                        self.logger.warning(
-                            "Failed to record metrics for failed session start: %s",
-                            str(metrics_error),
+                    except Exception:
+                        self.logger.exception(
+                            "Failed to record metrics for failed session start",
                         )
 
                 self.logger.error(
@@ -238,10 +236,9 @@ class SessionTracker:
                             quality_score=float(quality_score),
                         )
 
-                except Exception as metrics_error:
-                    self.logger.warning(
-                        "Failed to record session start metrics: %s",
-                        str(metrics_error),
+                except Exception:
+                    self.logger.exception(
+                        "Failed to record session start metrics",
                     )
 
             self.logger.info(
@@ -273,18 +270,16 @@ class SessionTracker:
                         error_type=type(e).__name__,
                         duration_seconds=duration,
                     )
-                except Exception as metrics_error:
-                    self.logger.warning(
-                        "Failed to record exception metrics: %s",
-                        metrics_error,
+                except Exception:
+                    self.logger.exception(
+                        "Failed to record exception metrics",
                     )
 
             self.logger.exception(
-                "Session start exception: component=%s, shell_type=%s, pid=%d, error=%s",
+                "Session start exception: component=%s, shell_type=%s, pid=%d",
                 event.component_name,
                 event.shell_type,
                 event.pid,
-                str(e),
             )
             return SessionStartResult(
                 session_id=None,
@@ -348,10 +343,9 @@ class SessionTracker:
                             status="error",
                             duration_seconds=duration,
                         )
-                    except Exception as metrics_error:
-                        self.logger.warning(
-                            "Failed to record metrics for failed session end: %s",
-                            str(metrics_error),
+                    except Exception:
+                        self.logger.exception(
+                            "Failed to record metrics for failed session end",
                         )
 
                 self.logger.error(
@@ -386,10 +380,9 @@ class SessionTracker:
                             quality_score=float(quality_score),
                         )
 
-                except Exception as metrics_error:
-                    self.logger.warning(
-                        "Failed to record session end metrics: %s",
-                        str(metrics_error),
+                except Exception:
+                    self.logger.exception(
+                        "Failed to record session end metrics",
                     )
 
             self.logger.info(
@@ -425,16 +418,14 @@ class SessionTracker:
                         error_type=type(e).__name__,
                         duration_seconds=duration,
                     )
-                except Exception as metrics_error:
-                    self.logger.warning(
-                        "Failed to record exception metrics: %s",
-                        metrics_error,
+                except Exception:
+                    self.logger.exception(
+                        "Failed to record exception metrics",
                     )
 
             self.logger.exception(
-                "Session end exception: session_id=%s, error=%s",
+                "Session end exception: session_id=%s",
                 event.session_id,
-                str(e),
             )
             return SessionEndResult(
                 session_id=event.session_id,

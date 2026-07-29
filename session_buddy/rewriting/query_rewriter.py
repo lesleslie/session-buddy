@@ -27,10 +27,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +81,7 @@ class AmbiguityDetector:
     """
 
     # Pronoun patterns
-    PRONOUN_PATTERNS = {
+    PRONOUN_PATTERNS: ClassVar[dict[AmbiguityType, list[str]]] = {
         AmbiguityType.PRONOUN_I: [
             r"\bwhat did i\b",
             r"\bhow do i\b",
@@ -113,7 +110,7 @@ class AmbiguityDetector:
     }
 
     # Temporal demonstrative patterns
-    TEMPORAL_PATTERNS = {
+    TEMPORAL_PATTERNS: ClassVar[dict[AmbiguityType, list[str]]] = {
         AmbiguityType.DEMONSTRATIVE_TEMPORAL: [
             r"\b(?:yesterday|last (?:week|month|time)|recently|lately)\b",
             r"\bthe (?:previous|last|past)\b",
@@ -122,7 +119,7 @@ class AmbiguityDetector:
     }
 
     # Spatial demonstrative patterns
-    SPATIAL_PATTERNS = {
+    SPATIAL_PATTERNS: ClassVar[dict[AmbiguityType, list[str]]] = {
         AmbiguityType.DEMONSTRATIVE_SPATIAL: [
             r"\bthat (?:file|path|directory|folder)\b",
             r"\bthe (?:other|previous|different)\b (?:file|class|method)\b",
@@ -131,7 +128,7 @@ class AmbiguityDetector:
     }
 
     # Query structure patterns
-    STRUCTURE_PATTERNS = {
+    STRUCTURE_PATTERNS: ClassVar[dict[AmbiguityType, list[str]]] = {
         AmbiguityType.TOO_SHORT: [
             r"^(?:\S+\s+){0,1}\S+\s*$",  # <2 words (1 word or empty)
         ],
@@ -149,7 +146,7 @@ class AmbiguityDetector:
     }
 
     # Referential patterns
-    REFERENTIAL_PATTERNS = {
+    REFERENTIAL_PATTERNS: ClassVar[dict[AmbiguityType, list[str]]] = {
         AmbiguityType.REFERS_TO_PREVIOUS: [
             r"\b(?:before|earlier|previously|last time)\b",
             r"\b(?:continue|ongoing|following)\b",
@@ -205,10 +202,9 @@ class AmbiguityDetector:
         # Check each pattern group
         for ambiguity_type, patterns in self._all_patterns.items():
             for pattern in patterns:
-                if pattern.search(query_lower):
-                    if ambiguity_type not in detected_types:
-                        detected_types.append(ambiguity_type)
-                        matched_patterns.append(pattern.pattern)
+                if pattern.search(query_lower) and ambiguity_type not in detected_types:
+                    detected_types.append(ambiguity_type)
+                    matched_patterns.append(pattern.pattern)
 
         # Calculate confidence based on number and severity of ambiguities
         confidence = self._calculate_confidence(detected_types, query, min_confidence)
@@ -457,9 +453,9 @@ class QueryRewriter:
 
             return result
 
-        except Exception as e:
+        except Exception:
             self._stats["llm_failures"] += 1
-            logger.error(f"LLM query rewrite failed: {e}")
+            logger.exception("LLM query rewrite failed")
 
             # Fallback: return original query
             latency_ms = (time.perf_counter() - start_time) * 1000
@@ -496,10 +492,18 @@ class QueryRewriter:
             if not llm_provider:
                 raise RuntimeError("No LLM provider available")
 
-            # Call LLM
-            from session_buddy.di import depends
+            # Call LLM. Use the canonical getter — it creates the
+            # singleton on demand and registers it under the class key.
+            # The previous ``depends.get_sync("LLMManager")`` (bare
+            # string key) would raise ``KeyError`` because the
+            # registration site (``utils/instance_managers.py:74``)
+            # uses the fully-qualified class name. Same Bug 1 pattern
+            # that broke ``progressive_search``.
+            from session_buddy.utils.instance_managers import get_llm_manager
 
-            llm = depends.get_sync("LLMManager")
+            llm = await get_llm_manager()
+            if llm is None:
+                raise RuntimeError("LLM manager not initialized")
 
             # Generate rewritten query using LLM
             messages = [
@@ -513,7 +517,7 @@ class QueryRewriter:
                 },
             ]
 
-            response = await llm.call_llm(
+            response = await llm.call_llm(  # ty: ignore[unresolved-attribute] -- call_llm is provided via runtime LLM implementation
                 provider=llm_provider,
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more focused rewrites
@@ -526,7 +530,7 @@ class QueryRewriter:
             return rewritten_query
 
         except Exception as e:
-            logger.error(f"LLM expansion failed: {e}")
+            logger.exception("LLM expansion failed")
             raise RuntimeError(f"LLM query expansion failed: {e}")
 
     def _build_context_prompt(self, query: str, context: RewriteContext) -> str:
@@ -591,9 +595,9 @@ class QueryRewriter:
         response = llm_response.strip()
 
         # Remove quotes if present
-        if response.startswith('"') and response.endswith('"'):
-            response = response[1:-1]
-        elif response.startswith("'") and response.endswith("'"):
+        if (response.startswith('"') and response.endswith('"')) or (
+            response.startswith("'") and response.endswith("'")
+        ):
             response = response[1:-1]
 
         # Remove explanatory prefixes
@@ -633,23 +637,25 @@ class QueryRewriter:
             LLM provider name or None if unavailable
         """
         try:
-            from session_buddy.di import depends
+            # Same Bug 1 fix as the rewrite path above: use the canonical
+            # getter instead of the bare-string DI lookup.
+            from session_buddy.utils.instance_managers import get_llm_manager
 
-            llm = depends.get_sync("LLMManager")
+            llm = await get_llm_manager()
             if not llm:
                 return None
 
             # Get available providers
             providers = llm.list_providers()
-            if providers and len(providers) > 0:
+            if providers:
                 # Return first available provider
                 provider = providers[0]
-                return str(provider) if provider is not None else None
+                return provider if provider is not None else None
 
             return None
 
-        except Exception as e:
-            logger.warning(f"Failed to get LLM provider: {e}")
+        except Exception:
+            logger.exception("Failed to get LLM provider")
             return None
 
     def get_stats(self) -> dict[str, Any]:

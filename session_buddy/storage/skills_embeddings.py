@@ -14,14 +14,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from functools import lru_cache
-from typing import TYPE_CHECKING
 
 import numpy as np
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +183,7 @@ class SkillsEmbeddingService:
             max_workers=2, thread_name_prefix="skills_embedding"
         )
         self._initialized = False
+        self._lru_cache: OrderedDict[str, np.ndarray | None] = OrderedDict()
 
     def initialize(self) -> bool:
         """Initialize the embedding system.
@@ -209,8 +206,8 @@ class SkillsEmbeddingService:
             logger.info("Skills embedding service initialized (HTTP providers)")
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to initialize embedding system: {e}")
+        except Exception:
+            logger.exception("Failed to initialize embedding system")
             return False
 
     def generate_embedding(
@@ -247,11 +244,10 @@ class SkillsEmbeddingService:
             else:
                 return self._generate_embedding_impl(text.strip())
 
-        except Exception as e:
-            logger.error(f"Failed to generate embedding: {e}")
+        except Exception:
+            logger.exception("Failed to generate embedding")
             return None
 
-    @lru_cache(maxsize=1024)
     def _generate_embedding_cached(self, text: str) -> np.ndarray | None:
         """Generate embedding with LRU cache.
 
@@ -261,7 +257,15 @@ class SkillsEmbeddingService:
         Returns:
             Embedding or None
         """
-        return self._generate_embedding_impl(text)
+        cache = self._lru_cache
+        if text in cache:
+            cache.move_to_end(text)
+            return cache[text]
+        result = self._generate_embedding_impl(text)
+        cache[text] = result
+        if len(cache) > 1024:
+            cache.popitem(last=False)
+        return result
 
     def _generate_embedding_impl(self, text: str) -> np.ndarray | None:
         """Generate embedding without cache.
@@ -284,8 +288,8 @@ class SkillsEmbeddingService:
             # Convert to numpy array
             return np.array(embedding_list, dtype=np.float32)
 
-        except Exception as e:
-            logger.error(f"Embedding generation failed for '{text[:50]}...': {e}")
+        except Exception:
+            logger.exception(f"Embedding generation failed for '{text[:50]}...'")
             return None
 
     def generate_batch(
@@ -328,7 +332,7 @@ class SkillsEmbeddingService:
             >>> # Next call will regenerate
         """
         if self.cache_enabled:
-            self._generate_embedding_cached.cache_clear()
+            self._lru_cache.clear()
             logger.debug("Embedding cache cleared")
 
     def shutdown(self) -> None:

@@ -12,6 +12,7 @@ from __future__ import annotations
 import typing as t
 
 from session_buddy.core.memory_health import get_memory_health_analyzer
+from session_buddy.utils.logging import get_session_logger
 
 
 def register_memory_health_tools(server: t.Any) -> None:
@@ -20,6 +21,7 @@ def register_memory_health_tools(server: t.Any) -> None:
     Args:
         server: SessionBuddyServer instance to register tools on
     """
+    logger = get_session_logger()
 
     @server.tool()  # type: ignore[untyped-decorator]
     async def get_reflection_health(stale_threshold_days: int = 90) -> dict[str, t.Any]:
@@ -41,6 +43,7 @@ def register_memory_health_tools(server: t.Any) -> None:
             return result
 
         except Exception as e:
+            logger.exception("Failed to retrieve reflection health metrics")
             return {
                 "success": False,
                 "error": str(e),
@@ -65,6 +68,7 @@ def register_memory_health_tools(server: t.Any) -> None:
             return result
 
         except Exception as e:
+            logger.exception("Failed to retrieve error hot-spot metrics")
             return {
                 "success": False,
                 "error": str(e),
@@ -104,6 +108,7 @@ def register_memory_health_tools(server: t.Any) -> None:
             }
 
         except Exception as e:
+            logger.exception("Failed to generate cleanup recommendations")
             return {
                 "success": False,
                 "error": str(e),

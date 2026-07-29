@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+# ruff: noqa: EXE001
 import typing as t
 from typing import TYPE_CHECKING
 
 from session_buddy.config.feature_flags import get_feature_flags
 from session_buddy.memory.entity_extractor import EntityExtractionEngine
 from session_buddy.memory.persistence import insert_processed_memory
+from session_buddy.utils.error_management import _get_logger
 
 if TYPE_CHECKING:
     from mcp_common.fastmcp import FastMCP
@@ -48,7 +50,8 @@ async def extract_and_store_memory(
 
         async with ReflectionDatabaseAdapterOneiric() as db:
             embedding = await db._generate_embedding(content)
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort optional embedding; any model/DB failure must fall through to persist without embedding
+        _get_logger().exception("Optional embedding generation failed")
         # Optional dependency or model not available; persist without embedding
         embedding = None
 

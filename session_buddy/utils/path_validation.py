@@ -6,6 +6,7 @@ traversal attacks and other path-based vulnerabilities.
 
 from __future__ import annotations
 
+import typing as t
 from pathlib import Path
 
 
@@ -20,13 +21,16 @@ class PathValidator:
     - Permission and existence checking
     """
 
-    ALLOWED_SCHEMES = {"file", ""}  # Only file:// URIs allowed, no http/https
-    MAX_PATH_LENGTH = 4096  # POSIX PATH_MAX limit
+    ALLOWED_SCHEMES: t.ClassVar[set[str]] = {
+        "file",
+        "",
+    }  # Only file:// URIs allowed, no http/https
+    MAX_PATH_LENGTH: t.ClassVar[int] = 4096  # POSIX PATH_MAX limit
 
     def __init__(self) -> None:
         self.allowed_directories: set[Path] = set()
 
-    def validate_user_path(  # noqa: C901
+    def validate_user_path(
         self,
         path: str | Path,
         allow_traversal: bool = False,

@@ -18,6 +18,7 @@ Records with a ``type`` other than ``user`` or ``assistant`` (e.g.
 from __future__ import annotations
 
 import json
+import typing as t
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -143,7 +144,7 @@ class ClaudeCodeTranscriptIngester:
         self._parent_id_by_uuid[parent_uuid] = row_id
 
     # Initialised lazily so we don't shadow the param in __init__.
-    _parent_id_by_uuid: dict[str, str] = {}
+    _parent_id_by_uuid: t.ClassVar[dict[str, str]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -254,4 +255,4 @@ def _extract_token_usage(record: dict[str, Any]) -> dict[str, int] | None:
     return out or None
 
 
-__all__ = ["ClaudeCodeTranscriptIngester", "SOURCE_TYPE"]
+__all__ = ["SOURCE_TYPE", "ClaudeCodeTranscriptIngester"]

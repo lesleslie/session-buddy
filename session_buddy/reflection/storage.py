@@ -90,7 +90,7 @@ def _serialize_metadata(metadata: dict[str, Any] | None) -> str | None:
 
     try:
         return json.dumps(metadata)
-    except Exception as e:
+    except (TypeError, ValueError, OverflowError, RecursionError) as e:
         logger.warning(f"Failed to serialize metadata: {e}")
         return None
 
@@ -109,7 +109,7 @@ def _parse_metadata(metadata_str: str | None) -> dict[str, Any]:
 
     try:
         return cast(dict[str, Any], json.loads(metadata_str))
-    except Exception:
+    except (TypeError, ValueError):
         logger.warning(f"Failed to parse metadata: {metadata_str[:100]}...")
         return {}
 
@@ -119,6 +119,7 @@ def _table_columns(conn: Any, table_name: str) -> set[str]:
     try:
         rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
     except Exception:
+        logger.exception("Failed to inspect table columns")
         return set()
 
     columns: set[str] = set()

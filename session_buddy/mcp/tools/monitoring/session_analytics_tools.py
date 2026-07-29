@@ -13,6 +13,7 @@ from __future__ import annotations
 import typing as t
 
 from session_buddy.core.session_analytics import get_session_analytics
+from session_buddy.utils.error_management import _get_logger
 
 
 def register_session_analytics_tools(server: t.Any) -> None:
@@ -44,7 +45,10 @@ def register_session_analytics_tools(server: t.Any) -> None:
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - MCP tool contract: must return a structured error envelope for any internal failure rather than propagate
+            _get_logger().exception(
+                "Failed to retrieve session length distribution: %s", e
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -73,7 +77,8 @@ def register_session_analytics_tools(server: t.Any) -> None:
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - MCP tool contract: must return a structured error envelope for any internal failure rather than propagate
+            _get_logger().exception("Failed to retrieve temporal patterns: %s", e)
             return {
                 "success": False,
                 "error": str(e),
@@ -102,7 +107,8 @@ def register_session_analytics_tools(server: t.Any) -> None:
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - MCP tool contract: must return a structured error envelope for any internal failure rather than propagate
+            _get_logger().exception("Failed to retrieve activity correlations: %s", e)
             return {
                 "success": False,
                 "error": str(e),
@@ -131,7 +137,8 @@ def register_session_analytics_tools(server: t.Any) -> None:
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - MCP tool contract: must return a structured error envelope for any internal failure rather than propagate
+            _get_logger().exception("Failed to retrieve session streaks: %s", e)
             return {
                 "success": False,
                 "error": str(e),
@@ -160,7 +167,8 @@ def register_session_analytics_tools(server: t.Any) -> None:
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - MCP tool contract: must return a structured error envelope for any internal failure rather than propagate
+            _get_logger().exception("Failed to generate productivity insights: %s", e)
             return {
                 "success": False,
                 "error": str(e),

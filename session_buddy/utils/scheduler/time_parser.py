@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import contextlib
 import re
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from re import Match
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    pass
+from session_buddy.utils.time import utc_now
 
 # Try to import dateutil for better date handling
 try:
@@ -149,6 +148,7 @@ class NaturalLanguageParser:
                         parsed_date.hour,
                         parsed_date.minute,
                         parsed_date.second,
+                        tzinfo=UTC,
                     )
             except (ValueError, TypeError):
                 with contextlib.suppress(ValueError, TypeError):
@@ -189,7 +189,7 @@ class NaturalLanguageParser:
         if not normalized_expression:
             return None
 
-        base_time = base_time or datetime.now()
+        base_time = base_time or utc_now()
         return self._try_parsing_strategies(normalized_expression, base_time)
 
     def parse_recurrence(self, expression: str) -> str | None:
@@ -215,7 +215,7 @@ class NaturalLanguageParser:
 
     def _parse_tomorrow(self, match: Match[str]) -> datetime:
         """Parse 'tomorrow' with optional time."""
-        tomorrow = datetime.now() + timedelta(days=1)
+        tomorrow = utc_now() + timedelta(days=1)
 
         if match.group(2) and match.group(3):  # Has time
             hour = int(match.group(2))
@@ -244,7 +244,7 @@ class NaturalLanguageParser:
         }
 
         target_weekday = weekdays[match.group(1)]
-        today = datetime.now()
+        today = utc_now()
         days_ahead = target_weekday - today.weekday()
 
         if days_ahead <= 0:  # Target day already happened this week
@@ -263,7 +263,7 @@ class NaturalLanguageParser:
         elif am_pm and am_pm.lower() == "am" and hour == 12:
             hour = 0
 
-        target_time = datetime.now().replace(
+        target_time = utc_now().replace(
             hour=hour,
             minute=minute,
             second=0,
@@ -271,7 +271,7 @@ class NaturalLanguageParser:
         )
 
         # If time has passed today, schedule for tomorrow
-        if target_time <= datetime.now():
+        if target_time <= utc_now():
             target_time += timedelta(days=1)
 
         return target_time
@@ -283,7 +283,7 @@ class NaturalLanguageParser:
             match.group(2), match.group(3), match.group(4)
         )
 
-        today = datetime.now()
+        today = utc_now()
         days_ahead = self._calculate_days_ahead(target_weekday, today, hour, minute)
 
         target_date = today + timedelta(days=days_ahead)

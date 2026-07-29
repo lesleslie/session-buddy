@@ -3,7 +3,6 @@ import logging
 import os
 import time
 from collections.abc import AsyncGenerator
-from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -12,6 +11,7 @@ from mcp_common.llm import FallbackChain, LLMSettings
 
 from session_buddy.llm.models import LLMMessage, LLMResponse
 from session_buddy.settings import get_settings
+from session_buddy.utils.time import utc_now
 
 try:
     from mcp_common.security import APIKeyValidator
@@ -23,17 +23,17 @@ except ImportError:  # pragma: no cover - optional dependency
 
 
 __all__ = [
+    "SECURITY_AVAILABLE",
     "APIKeyValidator",
     "LLMManager",
     "LLMMessage",
     "LLMResponse",
-    "SECURITY_AVAILABLE",
-    "get_masked_api_key",
-    "validate_llm_api_keys_at_startup",
     "_get_configured_providers",
     "_get_provider_api_key_and_env",
     "_validate_provider_basic",
     "_validate_provider_with_security",
+    "get_masked_api_key",
+    "validate_llm_api_keys_at_startup",
 ]
 
 
@@ -193,17 +193,17 @@ def _sync_commands_source_to_dest_impl(
                 dst_md_file.write_text(dst_md)
                 stats["commands_synced"] += 1
                 self.logger.debug(f"Converted: {rel_path} → {md_name}")
-            except Exception as e:
-                error_msg = f"Failed to convert {md_file}: {e}"
-                self.logger.warning(error_msg)
+            except Exception:
+                error_msg = f"Failed to convert {md_file}"
+                self.logger.exception(error_msg)
                 stats["errors"].append(error_msg)
                 stats["commands_skipped"] += 1
         self.logger.info(
             f"✅ Synced {stats['commands_synced']} commands to {destination}"
         )
-    except Exception as e:
-        error_msg = f"Failed to sync commands: {e}"
-        self.logger.error(error_msg)
+    except Exception:
+        error_msg = "Failed to sync commands"
+        self.logger.exception(error_msg)
         stats["errors"].append(error_msg)
     return stats
 
@@ -327,9 +327,9 @@ async def _helper_functions(
                     f"{', '.join(skip_servers)}"
                     ")"
                 )
-        except Exception as e:
-            error_msg = f"Failed to sync MCP servers: {e}"
-            self.logger.error(error_msg)
+        except Exception:
+            error_msg = "Failed to sync MCP servers"
+            self.logger.exception(error_msg)
             stats["errors"].append(error_msg)
 
     # Sync extensions (tracking only - manual install required)
@@ -343,7 +343,7 @@ async def _helper_functions(
                 stats["plugins_found"] = len(enabled_plugins)
 
                 plugin_names: list[str] = []
-                for plugin_id in enabled_plugins.keys():
+                for plugin_id in enabled_plugins:
                     name = plugin_id.split("@")[0]
                     plugin_names.append(name)
 
@@ -351,9 +351,9 @@ async def _helper_functions(
                     f"Found {len(plugin_names)} Claude plugins to potentially sync"
                 )
                 # Note: Actual extension installation requires manual action
-        except Exception as e:
-            error_msg = f"Failed to sync extensions: {e}"
-            self.logger.error(error_msg)
+        except Exception:
+            error_msg = "Failed to sync extensions"
+            self.logger.exception(error_msg)
             stats["errors"].append(error_msg)
 
     # Sync commands
@@ -588,7 +588,7 @@ class LLMManager:
             try:
                 if await provider.health_check():
                     available.append(provider.name)
-            except Exception:
+            except (ConnectionError, TimeoutError, OSError, RuntimeError, ValueError):
                 continue
         return available
 
@@ -624,7 +624,7 @@ class LLMManager:
             provider=result.get("provider", ""),
             usage=result.get("usage", {}),
             finish_reason="stop",
-            timestamp=datetime.now().isoformat(),
+            timestamp=utc_now().isoformat(),
         )
 
     async def generate_text(
@@ -653,7 +653,7 @@ class LLMManager:
                 "model": response.model,
                 "error": "",
             }
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - LLM generate contract: must return a structured error envelope for any provider/auth/network failure rather than propagate
             return {
                 "success": False,
                 "content": "",
@@ -688,7 +688,7 @@ class LLMManager:
                 "model": response.model,
                 "error": "",
             }
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - LLM chat contract: must return a structured error envelope for any provider/auth/network failure rather than propagate
             return {
                 "success": False,
                 "content": "",
@@ -709,17 +709,14 @@ class LLMManager:
         **kwargs: Any,
     ) -> AsyncGenerator[str]:
         """Yield non-streaming result as a single chunk (FallbackChain has no streaming)."""
-        try:
-            response = await self.generate(
-                messages,
-                model=model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                task_type=task_type,
-            )
-            yield response.content
-        except RuntimeError:
-            raise
+        response = await self.generate(
+            messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            task_type=task_type,
+        )
+        yield response.content
 
     async def test_all_providers(self) -> dict[str, dict[str, Any]]:
         results: dict[str, dict[str, Any]] = {}
@@ -738,7 +735,7 @@ class LLMManager:
                     "model": result.get("model", ""),
                     "error": "",
                 }
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - health probe must record a per-provider failure entry for any internal error so the report is complete
                 results[provider.name] = {
                     "success": False,
                     "response_time_ms": (time.perf_counter() - start) * 1000,

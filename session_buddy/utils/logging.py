@@ -3,17 +3,18 @@
 
 from __future__ import annotations
 
+# ruff: noqa: EXE001
 import json
 import logging
 import sys
 import tempfile
 import typing as t
 from contextlib import suppress
-from datetime import datetime
 from pathlib import Path
 
 from session_buddy.di import get_sync_typed
 from session_buddy.di.container import depends
+from session_buddy.utils.time import utc_now
 
 
 class SessionLogger:
@@ -23,7 +24,7 @@ class SessionLogger:
         self.log_dir = log_dir
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.log_file = (
-            log_dir / f"session_management_{datetime.now().strftime('%Y%m%d')}.log"
+            log_dir / f"session_management_{utc_now().strftime('%Y%m%d')}.log"
         )
 
         # Configure logger
@@ -56,8 +57,7 @@ class SessionLogger:
             fallback_dir.mkdir(parents=True, exist_ok=True)
             self.log_dir = fallback_dir
             self.log_file = (
-                fallback_dir
-                / f"session_management_{datetime.now().strftime('%Y%m%d')}.log"
+                fallback_dir / f"session_management_{utc_now().strftime('%Y%m%d')}.log"
             )
             _replace_file_handlers(self.logger, self.log_file)
             file_handler = logging.FileHandler(self.log_file)
@@ -158,7 +158,7 @@ def _get_file_handler(
             try:
                 if Path(handler.baseFilename) == log_file:
                     return handler
-            except Exception:
+            except (OSError, ValueError, AttributeError):
                 continue
     return None
 

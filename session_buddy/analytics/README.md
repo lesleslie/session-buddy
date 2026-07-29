@@ -115,6 +115,7 @@ session-buddy analytics sql session_stats --days 30 > grafana_query.sql
 
 ```python
 import duckdb
+
 conn = duckdb.connect("~/.claude/data/reflection.duckdb")
 df = conn.execute("SELECT * FROM sessions").df()
 print(df.describe())
@@ -124,12 +125,14 @@ print(df.describe())
 
 ```python
 from session_buddy.analytics import SessionAnalytics
+
 analytics = SessionAnalytics()
 stats = await analytics.get_session_stats(days=30)
 
 import pandas as pd
+
 df = pd.DataFrame([s.to_dict() for s in stats])
-df.plot(kind='bar', x='component_name', y='total_sessions')
+df.plot(kind="bar", x="component_name", y="total_sessions")
 ```
 
 ## Testing

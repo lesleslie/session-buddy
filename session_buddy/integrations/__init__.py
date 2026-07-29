@@ -21,10 +21,10 @@ from session_buddy.integrations.ide_plugin import (
 )
 
 __all__ = [
-    "CrackerjackIntegration",
-    "IDEPluginProtocol",
-    "IDEContext",
-    "IDESuggestion",
     "CICDTracker",
     "CIPipelineContext",
+    "CrackerjackIntegration",
+    "IDEContext",
+    "IDEPluginProtocol",
+    "IDESuggestion",
 ]

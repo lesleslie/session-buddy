@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Session management MCP tools.
 
 This module provides tools for managing Claude session lifecycle including
@@ -141,9 +142,9 @@ def _queue_akosha_sync_background() -> None:
         logger = _get_logger()
         logger.info("✅ Akosha sync queued (background task)")
 
-    except Exception as e:
+    except Exception:
         logger = _get_logger()
-        logger.error(f"Failed to queue Akosha sync: {e}")
+        logger.exception("Failed to queue Akosha sync")
 
 
 async def _akosha_sync_background_task() -> None:
@@ -184,9 +185,9 @@ async def _akosha_sync_background_task() -> None:
                 f"⚠️ Akosha sync failed: {result.get('error', 'Unknown error')}"
             )
 
-    except Exception as e:
+    except Exception:
         logger = _get_logger()
-        logger.error(f"❌ Akosha sync background task failed: {e}", exc_info=True)
+        logger.exception("❌ Akosha sync background task failed")
 
 
 # ============================================================================
@@ -277,7 +278,7 @@ This will:
                 shortcut_path.write_text(shortcut_data["content"])
                 created_shortcuts.append(shortcut_name)
                 _get_logger().info(f"Created slash command shortcut: /{shortcut_name}")
-            except Exception as e:
+            except OSError as e:
                 _get_logger().exception(
                     f"Failed to create shortcut /{shortcut_name}: {e}",
                 )
@@ -352,7 +353,7 @@ def _safe_get_mtime(repo_path: Path) -> float | None:
     """Safely get modification time of a repository."""
     try:
         return repo_path.stat().st_mtime
-    except Exception:
+    except OSError:
         return None
 
 
@@ -384,9 +385,8 @@ def _find_recent_git_repository() -> str | None:
             continue
 
         git_repos = _collect_git_repos(projects_path)
-        if git_repos:
-            if repo := _get_most_recent_client_repo(git_repos):
-                return repo
+        if git_repos and (repo := _get_most_recent_client_repo(git_repos)):
+            return repo
 
     return None
 
@@ -472,7 +472,7 @@ def _setup_uv_dependencies(current_dir: Path) -> list[str]:
             output.append(
                 "⚠️ UV sync timed out - dependencies may need manual attention",
             )
-        except Exception as e:
+        except OSError as e:
             output.append(f"⚠️ UV sync error: {e}")
     else:
         output.extend(
@@ -654,8 +654,8 @@ async def _handle_auto_store_reflection(
             # Store the reflection
             await db.store_reflection(checkpoint_content, tags)
             output.append(f"\n{result['auto_store_summary']}")
-        except Exception as e:
-            _get_logger().exception(f"Failed to store checkpoint reflection: {e}")
+        except Exception as e:  # noqa: BLE001 - best-effort auto-store reflection: a failure must be logged and surfaced, not abort the checkpoint
+            _get_logger().exception("Failed to store checkpoint reflection")
             output.append(f"⚠️ Reflection storage failed: {e}")
     else:
         # Show why we skipped auto-store
@@ -677,7 +677,7 @@ async def _handle_auto_compaction(output: list[str]) -> None:
         try:
             await _execute_auto_compact()
             output.append("✅ Context automatically optimized")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - best-effort auto-compact: a failure must be surfaced in the output, not abort the session
             output.extend(
                 (
                     f"⚠️ Auto-compact skipped: {e!s}",
@@ -769,8 +769,8 @@ async def _start_impl(working_directory: str | None = None) -> str:
                 f"❌ Session initialization failed: {result['error']}",
             )
 
-    except Exception as e:
-        _get_logger().exception("Session initialization error: %s", str(e))
+    except Exception as e:  # noqa: BLE001 - session init tool contract: must return a structured error envelope for any internal failure rather than propagate
+        _get_logger().exception("Session initialization error")
         output_builder.add_simple_item(
             f"❌ Unexpected error during initialization: {e}",
         )
@@ -904,7 +904,7 @@ async def _checkpoint_impl(working_directory: str | None = None) -> str:
             # Handle selective auto-store reflection
             try:
                 await _handle_auto_store_reflection(result, output)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - checkpoint must continue past auto-store-reflection failures (non-critical path)
                 _get_logger().warning(
                     f"Auto-store reflection error (non-critical): {e}"
                 )
@@ -913,7 +913,7 @@ async def _checkpoint_impl(working_directory: str | None = None) -> str:
             # Auto-compact when needed
             try:
                 await _handle_auto_compaction(output)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - checkpoint must continue past auto-compaction failures (non-critical path)
                 _get_logger().warning(f"Auto-compaction error (non-critical): {e}")
                 output.append(f"\n⚠️ Auto-compaction skipped: {e!s}")
 
@@ -926,8 +926,8 @@ async def _checkpoint_impl(working_directory: str | None = None) -> str:
         else:
             output.append(f"❌ Checkpoint failed: {result['error']}")
 
-    except Exception as e:
-        _get_logger().exception("Checkpoint error: %s", str(e))
+    except Exception as e:  # noqa: BLE001 - checkpoint tool contract: must return a user-visible error string for any internal failure rather than propagate
+        _get_logger().exception("Checkpoint error")
         output.append(f"❌ Unexpected checkpoint error: {e}")
 
     return "\n".join(output)
@@ -956,8 +956,8 @@ async def _end_impl(working_directory: str | None = None) -> str:
         else:
             output.append(f"❌ Session end failed: {result['error']}")
 
-    except Exception as e:
-        _get_logger().exception("Session end error: %s", str(e))
+    except Exception as e:  # noqa: BLE001 - session-end tool contract: must return a user-visible error string for any internal failure rather than propagate
+        _get_logger().exception("Session end error")
         output.append(f"❌ Unexpected error during session end: {e}")
 
     return "\n".join(output)
@@ -992,8 +992,8 @@ async def _status_impl(working_directory: str | None = None) -> str:
         else:
             output_builder.add_simple_item(f"❌ Status check failed: {result['error']}")
 
-    except Exception as e:
-        _get_logger().exception("Status check error: %s", str(e))
+    except Exception as e:  # noqa: BLE001 - status-check tool contract: must return a structured error envelope for any internal failure rather than propagate
+        _get_logger().exception("Status check error")
         output_builder.add_simple_item(f"❌ Unexpected error during status check: {e}")
 
     return output_builder.build()
@@ -1083,14 +1083,14 @@ async def _pre_compact_sync_impl() -> dict[str, Any]:
                 f"Pre-compact sync completed: reflection_id={reflection_id}, project={project}"
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - pre-compact reflection storage is best-effort: a failure must be recorded in the result and the surrounding sync continues
             logger.warning(f"Failed to store pre-compact reflection: {e}")
             result["reflection_error"] = str(e)
 
         result["success"] = True
 
     except Exception as e:
-        logger.error(f"Pre-compact sync failed: {e}")
+        logger.exception("Pre-compact sync failed")
         result["error"] = str(e)
 
     return result
@@ -1101,7 +1101,7 @@ async def _pre_compact_sync_impl() -> dict[str, Any]:
 # ============================================================================
 
 
-def register_session_tools(mcp_server: FastMCP) -> None:  # noqa: C901
+def register_session_tools(mcp_server: FastMCP) -> None:
     """Register all session management tools with the MCP server."""
 
     @mcp_server.tool()
@@ -1183,7 +1183,7 @@ Timestamp: {health_info["timestamp"]}
 
 ✅ Server is running and accessible."""
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - server-info tool contract: must return a user-visible error string for any internal failure
             return f"⚠️ Server info error: {e!s}"
 
     @mcp_server.tool()

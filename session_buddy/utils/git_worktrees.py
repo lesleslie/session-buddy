@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+# ruff: noqa: EXE001
 import logging
 import subprocess  # nosec B404
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from session_buddy.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -16,24 +18,24 @@ logger = logging.getLogger(__name__)
 TIMEOUT_SECONDS = 30
 
 __all__ = [
+    "TIMEOUT_SECONDS",
     "WorktreeInfo",
+    "_optimize_git_repository",
+    "_sanitize_git_error",
+    "create_checkpoint_commit",
+    "create_commit",
+    "create_worktree",
+    "get_git_root",
+    "get_git_status",
+    "get_staged_files",
+    "get_worktree_info",
+    "is_git_operation_in_progress",
     "is_git_repository",
     "is_git_worktree",
-    "get_git_root",
-    "get_worktree_info",
     "list_worktrees",
-    "create_worktree",
     "remove_worktree",
-    "TIMEOUT_SECONDS",
-    "_sanitize_git_error",
-    "get_git_status",
-    "stage_files",
-    "get_staged_files",
-    "create_commit",
-    "create_checkpoint_commit",
-    "is_git_operation_in_progress",
     "schedule_automatic_git_gc",
-    "_optimize_git_repository",
+    "stage_files",
 ]
 
 
@@ -240,7 +242,7 @@ def _run_git_worktree_add(
     else:
         # ``git worktree add [--] <path> <commit-ish>``
         cmd = ["git", "worktree", "add", "--", worktree_path, branch]
-    return subprocess.run(  # noqa: S603
+    return subprocess.run(
         cmd,
         capture_output=True,
         text=True,
@@ -312,11 +314,11 @@ def create_worktree(
         }
 
     # Capture the new worktree's HEAD SHA so callers have a stable identifier
-    head_result = subprocess.run(  # noqa: S603
+    head_result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
-        cwd=str(worktree_path),
+        cwd=worktree_path,
         check=False,
         timeout=TIMEOUT_SECONDS,
     )
@@ -341,9 +343,8 @@ def _run_git_worktree_remove(
     cmd = ["git", "worktree", "remove"]
     if force:
         cmd.append("--force")
-    cmd.append("--")
-    cmd.append(worktree_path)
-    return subprocess.run(  # noqa: S603
+    cmd.extend(("--", worktree_path))
+    return subprocess.run(
         cmd,
         capture_output=True,
         text=True,
@@ -378,11 +379,11 @@ def remove_worktree(
     # Pre-flight: refuse dirty worktrees unless the caller explicitly forces
     if not force:
         try:
-            status = subprocess.run(  # noqa: S603
+            status = subprocess.run(
                 ["git", "status", "--porcelain"],
                 capture_output=True,
                 text=True,
-                cwd=str(worktree_path),
+                cwd=worktree_path,
                 check=False,
                 timeout=TIMEOUT_SECONDS,
             )
@@ -578,7 +579,7 @@ def _create_checkpoint_message(
     worktree_info: WorktreeInfo | None,
 ) -> str:
     """Create the checkpoint commit message."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = utc_now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Enhanced commit message with worktree info
     worktree_suffix = ""
@@ -639,7 +640,7 @@ def _perform_staging_and_commit(
     output = []
 
     # Create commit message
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = utc_now().strftime("%Y-%m-%d %H:%M:%S")
     commit_message = (
         f"checkpoint: {project} (quality: {quality_score}/100) - {timestamp}"
     )
@@ -736,7 +737,7 @@ def create_checkpoint_commit(
             )
             return False, "No staged changes", output
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - best-effort git operations wrapper: must return a (False, error_msg, output) tuple so the caller can render the failure
         error_msg = f"Git operations error: {e}"
         output.append(f"⚠️ {error_msg}")
         return False, error_msg, output
@@ -926,7 +927,7 @@ def schedule_automatic_git_gc(
 
         return True, f"Scheduled git gc (prune delay: {prune_delay})"
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - best-effort git gc scheduler: must return (False, message) so caller renders the failure rather than receiving an unhandled exception
         return False, f"Failed to schedule git gc: {e}"
 
 

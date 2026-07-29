@@ -21,7 +21,7 @@ def _get_logger() -> t.Any:
         from session_buddy.utils.logging import get_session_logger
 
         return get_session_logger()
-    except Exception:
+    except ImportError:
         import logging
 
         return logging.getLogger(__name__)
@@ -99,7 +99,7 @@ async def cleanup_http_clients() -> None:
         try:
             http_adapter = depends.get_sync(HTTPClientAdapter)
         except Exception:
-            logger.debug("HTTPClientAdapter not available; skipping HTTP cleanup")
+            logger.exception("HTTPClientAdapter not available; skipping HTTP cleanup")
             return
 
         cleanup = getattr(http_adapter, "_cleanup_resources", None)
@@ -276,6 +276,7 @@ async def cleanup_logging_handlers() -> None:
 
 def _cleanup_handler(handler: t.Any) -> None:
     """Detach, flush, and close a single logging handler safely."""
+    logger = _get_logger()
     try:
         if hasattr(handler, "remove") and not hasattr(handler, "flush"):
             return
@@ -290,8 +291,8 @@ def _cleanup_handler(handler: t.Any) -> None:
         if "_LoggerProxy.remove()" in str(e) and "handler_id" in str(e):
             return
         raise
-    except Exception as e:
-        print(f"Error closing log handler: {e}", file=__import__("sys").stderr)
+    except Exception:
+        logger.exception("Error closing log handler")
 
 
 def register_all_cleanup_handlers(

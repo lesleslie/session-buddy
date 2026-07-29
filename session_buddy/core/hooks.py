@@ -13,6 +13,7 @@ Architecture:
 from __future__ import annotations
 
 import logging
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -125,7 +126,6 @@ class CodeFormatter(ABC):
         Returns:
             True if formatting succeeded, False otherwise
         """
-        pass
 
 
 class DefaultCodeFormatter(CodeFormatter):
@@ -234,10 +234,9 @@ class HooksManager:
         try:
             self._intelligence_engine = IntelligenceEngine()
             await self._intelligence_engine.initialize()
-        except Exception as e:
-            self.logger.warning(
-                "Intelligence engine initialization failed: %s. Pattern learning will be disabled.",
-                e,
+        except Exception:
+            self.logger.exception(
+                "Intelligence engine initialization failed. Pattern learning will be disabled.",
             )
             self._intelligence_engine = None
 
@@ -328,9 +327,9 @@ class HooksManager:
                 continue
 
             try:
-                start_time = datetime.now()
+                start_monotonic = time.monotonic()
                 result = await hook.handler(context)
-                execution_time = (datetime.now() - start_time).total_seconds() * 1000
+                execution_time = (time.monotonic() - start_monotonic) * 1000
 
                 result.execution_time_ms = execution_time
                 results.append(result)
@@ -352,23 +351,19 @@ class HooksManager:
                 )
 
             except Exception as e:
-                self.logger.error(
-                    "Hook %s failed: %s",
+                self.logger.exception(
+                    "Hook %s failed",
                     hook.name,
-                    str(e),
-                    exc_info=True,
                 )
 
                 # Try error handler if available
                 if hook.error_handler:
                     try:
                         await hook.error_handler(e)
-                    except Exception as eh:
-                        self.logger.error(
-                            "Hook error handler failed for %s: %s",
+                    except Exception:
+                        self.logger.exception(
+                            "Hook error handler failed for %s",
                             hook.name,
-                            str(eh),
-                            exc_info=True,
                         )
 
                 results.append(HookResult(success=False, error=str(e)))
@@ -467,10 +462,9 @@ class HooksManager:
             success = await self.formatter.format_file(Path(file_path), timeout=30)
             return HookResult(success=success)
         except Exception as e:
-            self.logger.warning(
-                "Auto-format failed for %s: %s",
+            self.logger.exception(
+                "Auto-format failed for %s",
                 file_path,
-                str(e),
             )
             return HookResult(success=False, error=str(e))
 
@@ -539,13 +533,11 @@ class HooksManager:
                         quality_score,
                     )
 
-            except Exception as e:
+            except Exception:
                 # Don't fail the checkpoint if learning fails
-                self.logger.warning(
-                    "Pattern learning failed (quality=%s): %s",
+                self.logger.exception(
+                    "Pattern learning failed (quality=%s)",
                     quality_score,
-                    e,
-                    exc_info=True,
                 )
 
         return HookResult(success=True)
@@ -577,10 +569,8 @@ class HooksManager:
 
             return HookResult(success=True, causal_chain_id=chain_id)
         except Exception as e:
-            self.logger.error(
-                "Causal chain tracking failed: %s",
-                str(e),
-                exc_info=True,
+            self.logger.exception(
+                "Causal chain tracking failed",
             )
             return HookResult(success=False, error=str(e))
 
@@ -625,12 +615,10 @@ class HooksManager:
             )
             return HookResult(success=True)
 
-        except Exception as e:
-            self.logger.warning(
-                "Workflow metrics collection failed for session %s: %s",
+        except Exception:
+            self.logger.exception(
+                "Workflow metrics collection failed for session %s",
                 context.session_id,
-                str(e),
-                exc_info=False,
             )
             # Don't fail checkpoint if metrics collection fails
             return HookResult(success=True)

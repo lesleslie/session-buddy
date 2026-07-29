@@ -237,6 +237,7 @@ class ReflectionDatabase:
         except DatabaseLockedError:
             raise
         except Exception as e:
+            logger.exception("DuckDB connect failed; attempting WAL retry")
             temp_conn = self._connect_with_wal_retry(e)
 
         try:
@@ -352,6 +353,9 @@ class ReflectionDatabase:
             try:
                 embedding = await self.get_embedding(content)
             except Exception:
+                logger.exception(
+                    "Embedding generation failed for conversation; storing without embedding"
+                )
                 embedding = None  # Fallback to no embedding
 
         # Store using storage module
@@ -400,6 +404,9 @@ class ReflectionDatabase:
             try:
                 embedding = await self.get_embedding(content)
             except Exception:
+                logger.exception(
+                    "Embedding generation failed for reflection; storing without embedding"
+                )
                 embedding = None  # Fallback to no embedding
 
         # Build metadata
@@ -447,6 +454,9 @@ class ReflectionDatabase:
             try:
                 query_embedding = await self.get_embedding(query)
             except Exception:
+                logger.exception(
+                    "Embedding generation failed for conversation search; falling back to text search"
+                )
                 query_embedding = None
 
         # Search using search module
@@ -500,6 +510,9 @@ class ReflectionDatabase:
             try:
                 query_embedding = await self.get_embedding(query)
             except Exception:
+                logger.exception(
+                    "Embedding generation failed for reflection search; falling back to text search"
+                )
                 query_embedding = None
 
         # Search using search module
@@ -764,6 +777,7 @@ class ReflectionDatabase:
                 "database_path": self.db_path,
             }
         except Exception as e:
+            logger.exception("get_stats failed")
             return {"error": f"Failed to get stats: {e}"}
 
     async def _get_conversation_count(self) -> int:

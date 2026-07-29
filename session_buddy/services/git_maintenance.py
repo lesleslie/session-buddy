@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Git maintenance service with hook-based architecture.
 
 This service provides automatic git garbage collection with:
@@ -21,6 +22,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from subprocess import Popen
@@ -112,7 +115,7 @@ class GitProcessTracker:
 
         tracked = TrackedProcess(
             popen=popen,
-            start_time=datetime.now(),
+            start_time=utc_now(),
             repository=repository,
             prune_delay=prune_delay,
             threshold=threshold,
@@ -142,9 +145,7 @@ class GitProcessTracker:
                     "Git gc process finished",
                     process_id=process_id,
                     return_code=tracked.popen.returncode,
-                    duration_seconds=(
-                        datetime.now() - tracked.start_time
-                    ).total_seconds(),
+                    duration_seconds=(utc_now() - tracked.start_time).total_seconds(),
                 )
 
         # Remove dead processes from active list
@@ -184,11 +185,10 @@ class GitProcessTracker:
             try:
                 tracked.popen.terminate()
                 logger.warning("Terminated git gc process", process_id=process_id)
-            except Exception as e:
-                logger.error(
+            except Exception:
+                logger.exception(
                     "Failed to terminate git gc process",
                     process_id=process_id,
-                    error=str(e),
                 )
 
         self.active_processes.clear()
@@ -281,10 +281,9 @@ class GitMaintenanceService:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, self.perform_maintenance, repository)
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "Git maintenance hook error",
                 repository=str(repository),
-                error=str(e),
             )
             return HookResult(success=False, error=str(e))
 
@@ -320,8 +319,8 @@ class GitMaintenanceService:
                 logger.debug("Git gc lock busy", lock_file=str(lock_file))
                 return False
 
-        except Exception as e:
-            logger.error("Failed to acquire git gc lock", error=str(e))
+        except Exception:
+            logger.exception("Failed to acquire git gc lock")
             return False
 
     def _release_lock(self) -> None:
@@ -332,8 +331,8 @@ class GitMaintenanceService:
                 os.close(self._lock_file_handle)
                 self._lock_file_handle = None
                 logger.debug("Released git gc lock")
-            except Exception as e:
-                logger.error("Failed to release git gc lock", error=str(e))
+            except Exception:
+                logger.exception("Failed to release git gc lock")
 
     def _check_rate_limit(self, repository: Path) -> bool:
         """Check if rate limit allows gc to run.
@@ -348,7 +347,7 @@ class GitMaintenanceService:
 
         # Check if we've run gc recently
         if repo_key in self.last_gc_time:
-            elapsed = datetime.now() - self.last_gc_time[repo_key]
+            elapsed = utc_now() - self.last_gc_time[repo_key]
             min_interval = timedelta(seconds=self.config.min_gc_interval)
 
             if elapsed < min_interval:
@@ -377,9 +376,8 @@ class GitMaintenanceService:
         if not self._check_rate_limit(repository):
             return False, "Rate limit: gc too recent"
 
-        if self.config.only_when_clean:
-            if is_git_operation_in_progress(repository):
-                return False, "Git operation in progress"
+        if self.config.only_when_clean and is_git_operation_in_progress(repository):
+            return False, "Git operation in progress"
 
         if self.process_tracker.get_active_count() >= self.config.max_concurrent_gc:
             return False, "Max concurrent gc processes reached"
@@ -450,7 +448,7 @@ class GitMaintenanceService:
 
                 if success:
                     repo_key = str(repository)
-                    self.last_gc_time[repo_key] = datetime.now()
+                    self.last_gc_time[repo_key] = utc_now()
 
                     result["success"] = True
                     result["message"] = message
@@ -473,11 +471,9 @@ class GitMaintenanceService:
 
         except Exception as e:
             result["message"] = f"Exception: {e}"
-            logger.error(
+            logger.exception(
                 "Git maintenance exception",
-                repository=str(repository),
-                error=str(e),
-                exc_info=True,
+                extra={"repository": str(repository), "error": str(e)},
             )
             self._release_lock()
 

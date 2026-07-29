@@ -23,7 +23,7 @@ import logging
 import os
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 from session_buddy.mcp.auth import require_auth
 from session_buddy.mcp.event_models import ChannelSessionEvent, ChannelSessionResult
@@ -75,14 +75,14 @@ class DharaChannelPublisher:
                     },
                 },
             )
-        except Exception as exc:
-            logger.debug("Dhara channel publish failed (non-fatal): %s", exc)
+        except Exception:
+            logger.exception("Dhara channel publish failed (non-fatal)")
 
     async def aclose(self) -> None:
         """Close the underlying HTTP client."""
         await self._client.aclose()
 
-    async def __aenter__(self) -> DharaChannelPublisher:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *_: object) -> None:
@@ -195,7 +195,7 @@ def _make_dhara_publisher() -> DharaChannelPublisher | None:
             raw = get_settings().dhara_url
             if isinstance(raw, str) and raw.strip():
                 url = raw.strip()
-        except Exception:
+        except ImportError:
             # Settings not yet initialised (e.g. during early import).
             pass
 
@@ -326,7 +326,7 @@ def register_channel_tracking_tools(
             ).model_dump()
 
         except Exception as exc:
-            logger.exception("channel_session tracking failed: %s", exc)
+            logger.exception("channel_session tracking failed")
             return ChannelSessionResult(
                 event_id=event_id,
                 status="error",
@@ -370,5 +370,5 @@ def register_channel_tracking_tools(
                 "queried_at": datetime.now(UTC).isoformat(),
             }
         except Exception as exc:
-            logger.exception("get_channel_sessions failed: %s", exc)
+            logger.exception("get_channel_sessions failed")
             return {"status": "error", "error": str(exc)}

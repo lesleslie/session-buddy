@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from session_buddy.utils.time import utc_now
+
 DATEUTIL_AVAILABLE = importlib.util.find_spec("dateutil") is not None
 CRONTAB_AVAILABLE = importlib.util.find_spec("python_crontab") is not None
 SCHEDULE_AVAILABLE = importlib.util.find_spec("schedule") is not None
@@ -143,7 +145,7 @@ class ReminderScheduler:
             scheduled_time=scheduled_time,
             action=title or description,
             status=ReminderStatus.PENDING,
-            created_at=datetime.now(),
+            created_at=utc_now(),
             executed_at=None,
             recurrence_pattern=recurrence_pattern,
             metadata=reminder_metadata,
@@ -229,7 +231,7 @@ class ReminderScheduler:
         check_time: datetime | None = None,
     ) -> list[dict[str, Any]]:
         """Get reminders that are due for execution."""
-        check_time = check_time or datetime.now()
+        check_time = check_time or utc_now()
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -284,6 +286,7 @@ class ReminderScheduler:
                 "failed",
                 {"error": str(e)},
             )
+            logger.exception("Reminder execution failed for %s", reminder_id)
             return False
 
     async def _get_reminder_by_id(self, reminder_id: str) -> dict[str, Any] | None:
@@ -319,8 +322,8 @@ class ReminderScheduler:
         for callback in callbacks:
             try:
                 await callback(reminder_data)
-            except Exception as e:
-                logger.exception(f"Callback error for reminder {reminder_id}: {e}")
+            except Exception:
+                logger.exception(f"Callback error for reminder {reminder_id}")
 
     async def _handle_recurring_reminder(
         self,
@@ -363,7 +366,7 @@ class ReminderScheduler:
 
     async def _mark_reminder_executed(self, reminder_id: str) -> bool:
         """Mark reminder as executed in database."""
-        now = datetime.now()
+        now = utc_now()
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
@@ -409,6 +412,7 @@ class ReminderScheduler:
                 "failed",
                 {"error": str(e)},
             )
+            logger.exception("Reminder cancel failed for %s", reminder_id)
             return False
 
     def register_notification_callback(
@@ -447,8 +451,8 @@ class ReminderScheduler:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(self._check_and_execute_reminders())
-            except Exception as e:
-                logger.exception(f"Scheduler loop error: {e}")
+            except Exception:
+                logger.exception("Scheduler loop error")
             finally:
                 if loop and not loop.is_closed():
                     loop.close()
@@ -523,6 +527,7 @@ class ReminderScheduler:
         try:
             return self._calculate_simple_occurrence(last_time, recurrence_rule)
         except Exception:
+            logger.exception("Simple recurrence calculation failed")
             return None
 
     def _attempt_interval_calculation(
@@ -534,6 +539,7 @@ class ReminderScheduler:
         try:
             return self._calculate_interval_occurrence(last_time, recurrence_rule)
         except Exception:
+            logger.exception("Interval recurrence calculation failed")
             return None
 
     def _calculate_next_occurrence(
@@ -556,8 +562,8 @@ class ReminderScheduler:
             if result:
                 return result
 
-        except Exception as e:
-            logger.exception(f"Error calculating next occurrence: {e}")
+        except Exception:
+            logger.exception("Error calculating next occurrence")
 
         return None
 
@@ -575,7 +581,7 @@ class ReminderScheduler:
                 INSERT INTO reminder_history (reminder_id, action, timestamp, result, details)
                 VALUES (?, ?, ?, ?, ?)
             """,
-                (reminder_id, action, datetime.now(), result, json.dumps(details)),
+                (reminder_id, action, utc_now(), result, json.dumps(details)),
             )
 
 

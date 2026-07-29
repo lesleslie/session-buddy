@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """File and directory utilities for session management.
 
 This module provides file system operations following crackerjack
@@ -176,7 +177,7 @@ def _cleanup_uv_cache() -> str:
         return "⚠️ UV not found, skipping cache cleanup"
     except subprocess.TimeoutExpired:
         return "⚠️ UV cache cleanup timed out after 30 seconds"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - best-effort UV cache cleanup: must return a warning string for any subprocess failure rather than propagate
         return f"⚠️ UV cache cleanup error: {e}"
 
 
@@ -190,7 +191,7 @@ def validate_claude_directory() -> dict[str, Any]:
         _setup_subdirectories(claude_dir, results)
         _calculate_directory_size(claude_dir, results)
         _validate_permissions(claude_dir, results)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - validate_claude_directory contract: must always return a results dict and report any setup failure rather than raise
         results["success"] = False
         results["error"] = str(e)
 

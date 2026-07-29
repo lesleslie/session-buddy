@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Pydantic parameter validation models for MCP tools.
 
 This module provides reusable parameter validation models that can be integrated
@@ -17,7 +18,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -679,11 +680,8 @@ def validate_mcp_params(
             params=validated_model,
             errors=None,
         )
-    except Exception as e:
+    except (ValidationError, TypeError, ValueError) as e:
         # Convert Pydantic validation errors to more user-friendly messages
-        # Import ValidationError for runtime type checking
-        from pydantic import ValidationError
-
         if isinstance(e, ValidationError):
             error_messages = []
             for error in e.errors():
@@ -730,9 +728,9 @@ def create_mcp_validator(
             return await func(**params_dict)
 
         # Preserve function metadata
-        setattr(wrapper, "__name__", getattr(func, "__name__", "wrapper"))
-        setattr(wrapper, "__doc__", getattr(func, "__doc__", None))
-        setattr(wrapper, "__annotations__", getattr(func, "__annotations__", {}))
+        wrapper.__name__ = getattr(func, "__name__", "wrapper")
+        wrapper.__doc__ = getattr(func, "__doc__", None)
+        wrapper.__annotations__ = getattr(func, "__annotations__", {})
 
         return wrapper
 

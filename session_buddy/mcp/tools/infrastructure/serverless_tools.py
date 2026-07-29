@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Serverless session management MCP tools.
 
 This module provides tools for managing serverless sessions with external storage
@@ -47,7 +48,7 @@ async def _execute_serverless_operation(
         return await operation(manager)
     except RuntimeError as e:
         return f"❌ {e!s}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any backend/runtime failure (redis, boto3, network, etc.)
         _get_logger().exception(f"Error in {operation_name}: {e}")
         return ToolMessages.operation_failed(operation_name, e)
 

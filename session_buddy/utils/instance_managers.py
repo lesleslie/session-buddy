@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from session_buddy.app_monitor import ApplicationMonitor
     from session_buddy.interruption_manager import InterruptionManager
     from session_buddy.llm_providers import LLMManager
+    from session_buddy.rewriting.query_rewriter import QueryRewriter
     from session_buddy.serverless_mode import ServerlessSessionManager
 
 
@@ -73,6 +74,29 @@ async def get_llm_manager() -> LLMManager | None:
     manager = LLMManager(str(config_path) if config_path.exists() else None)
     depends.set(LLMManager, manager)
     return manager
+
+
+async def get_query_rewriter() -> QueryRewriter | None:
+    """Resolve query rewriter via DI, creating it on demand.
+
+    Bug 1 follow-up: ``QueryRewriter`` was previously not registered with
+    DI, so ``depends.get_sync("QueryRewriter")`` (the bare-string lookup
+    in ``rewriting_tools.py``) raised ``KeyError`` on first exercise.
+    This helper registers the singleton under its class key.
+    """
+    try:
+        from session_buddy.rewriting.query_rewriter import QueryRewriter
+    except ImportError:
+        return None
+
+    with suppress(Exception):
+        rewriter = get_sync_typed(QueryRewriter)
+        if isinstance(rewriter, QueryRewriter):
+            return rewriter
+
+    rewriter = QueryRewriter()
+    depends.set(QueryRewriter, rewriter)
+    return rewriter
 
 
 async def get_serverless_manager() -> ServerlessSessionManager | None:

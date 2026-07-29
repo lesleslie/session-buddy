@@ -132,7 +132,7 @@ class KGExtractor:
             }
 
         except Exception as e:
-            logger.error(f"Failed to store in knowledge graph: {e}")
+            logger.exception("Failed to store in knowledge graph")
             return {
                 "entities": 0,
                 "relationships": 0,
@@ -191,8 +191,8 @@ class KGExtractor:
                 )
                 entity_ids[symbol.name] = entity.get("id", "")
 
-            except Exception as e:
-                logger.warning(f"Failed to store symbol {symbol.name}: {e}")
+            except Exception:
+                logger.exception(f"Failed to store symbol {symbol.name}")
                 continue
 
         return entity_ids
@@ -224,8 +224,8 @@ class KGExtractor:
                     properties=rel.metadata,
                 )
                 count += 1
-            except Exception as e:
-                logger.debug(f"Failed to store relationship: {e}")
+            except Exception:
+                logger.exception("Failed to store relationship")
                 continue
 
         return count

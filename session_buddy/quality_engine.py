@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Quality Engine for session-mgmt-mcp.
 
 This module contains all quality-related functions extracted from server.py
@@ -17,14 +18,13 @@ from __future__ import annotations
 import asyncio
 import os
 from contextlib import suppress
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from session_buddy.reflection_tools import ReflectionDatabase
 
-# Import utility functions
+from session_buddy.utils.error_management import _get_logger
 from session_buddy.utils.filesystem import (
     _cleanup_session_logs,
     _cleanup_temp_files,
@@ -76,6 +76,9 @@ from session_buddy.utils.quality_score_parser import (
 )
 from session_buddy.utils.quality_utils_v2 import calculate_quality_score_v2
 from session_buddy.utils.session_formatters import _add_current_session_context
+from session_buddy.utils.time import utc_now
+
+logger = _get_logger()
 
 # Extracted functions (compaction, recommendations, summary helpers) have been moved
 # to session_buddy.utils.quality module for better modularity and reusability.
@@ -124,6 +127,7 @@ def should_suggest_compact() -> tuple[bool, str]:
         return False, _get_default_compaction_reason()
 
     except Exception:
+        logger.exception("Failed to evaluate compaction suggestion")
         # If we can't determine, err on the side of suggesting compaction for safety
         return True, _get_fallback_compaction_reason()
 
@@ -162,6 +166,7 @@ async def _optimize_reflection_database() -> str:
     except ImportError:
         return "ℹ️ Database: Reflection tools not available"
     except Exception as e:
+        logger.exception("Reflection database optimization failed")
         return f"⚠️ Database: Optimization skipped - {str(e)[:50]}"
 
 
@@ -190,6 +195,7 @@ async def _analyze_context_compaction() -> list[str]:
             )
 
     except Exception as e:
+        logger.exception("Context compaction analysis failed")
         results.append(f"⚠️ Compaction analysis skipped: {str(e)[:50]}")
 
     return results
@@ -275,6 +281,7 @@ async def monitor_proactive_quality() -> dict[str, Any]:
         }
 
     except Exception as e:
+        logger.exception("Proactive quality monitoring failed")
         return _get_quality_error_result(e)
 
 
@@ -358,11 +365,13 @@ async def summarize_current_conversation() -> dict[str, Any]:
         except ImportError:
             summary = _get_fallback_summary()
         except Exception:
+            logger.exception("Reflection summary processing failed")
             summary = _get_fallback_summary()
 
         return summary
 
     except Exception as e:
+        logger.exception("Conversation summarization failed")
         return _get_error_summary(e)
 
 
@@ -379,6 +388,7 @@ async def analyze_token_usage_patterns() -> dict[str, Any]:
         return _finalize_token_analysis(analysis)
 
     except Exception as error:
+        logger.exception("Token usage analysis failed")
         return {
             "needs_attention": False,
             "status": "analysis_failed",
@@ -505,6 +515,7 @@ async def analyze_conversation_flow() -> dict[str, Any]:
             pattern_type = "basic_session"
             recommendations = ["Enable reflection tools for advanced flow analysis"]
         except Exception:
+            logger.exception("Reflection flow analysis failed")
             pattern_type = "analysis_unavailable"
             recommendations = [
                 "Use regular checkpoints to establish workflow patterns",
@@ -517,6 +528,7 @@ async def analyze_conversation_flow() -> dict[str, Any]:
         }
 
     except Exception as e:
+        logger.exception("Conversation flow analysis failed")
         return {
             "pattern_type": "analysis_failed",
             "recommendations": ["Use basic workflow patterns"],
@@ -565,7 +577,7 @@ async def analyze_memory_patterns(db: Any, conv_count: int) -> dict[str, Any]:
             ],
         }
 
-    except Exception as e:
+    except TypeError as e:
         return {
             "summary": "Memory analysis unavailable",
             "proactive_suggestions": [
@@ -588,7 +600,7 @@ async def analyze_project_workflow_patterns(current_dir: Path) -> dict[str, Any]
             "project_characteristics": project_characteristics,
         }
 
-    except Exception as e:
+    except OSError as e:
         return {
             "workflow_recommendations": ["Use basic project workflow patterns"],
             "error": str(e),
@@ -707,6 +719,7 @@ async def _analyze_reflection_based_intelligence() -> list[str]:
     except ImportError:
         return []
     except Exception:
+        logger.exception("Reflection intelligence analysis failed")
         return ["Enable reflection analysis for session trend intelligence"]
 
     return []
@@ -715,7 +728,7 @@ async def _analyze_reflection_based_intelligence() -> list[str]:
 async def generate_session_intelligence() -> dict[str, Any]:
     """Phase 3A: Generate proactive session intelligence and priority actions."""
     try:
-        current_time = datetime.now()
+        current_time = utc_now()
 
         # Gather all recommendation sources
         priority_actions = []
@@ -730,6 +743,7 @@ async def generate_session_intelligence() -> dict[str, Any]:
         }
 
     except Exception as e:
+        logger.exception("Session intelligence generation failed")
         return _get_intelligence_error_result(e)
 
 
@@ -770,7 +784,8 @@ async def _perform_quality_analysis() -> tuple[str, list[str], bool]:
             quality_alerts.extend(drift_alerts)
             recommend_checkpoint = recommend_checkpoint or drift_checkpoint
 
-    except (ImportError, Exception):
+    except Exception:
+        logger.exception("Quality monitoring analysis failed")
         quality_alerts.append("Quality monitoring analysis unavailable")
 
     return quality_trend, quality_alerts, recommend_checkpoint
@@ -848,6 +863,7 @@ async def _analyze_memory_recommendations(results: list[str]) -> None:
     except ImportError:
         pass
     except Exception:
+        logger.exception("Memory recommendations failed")
         results.append("📚 Memory system available for conversation search")
 
 
@@ -884,6 +900,7 @@ async def analyze_context_usage() -> list[str]:
         await _analyze_quality_monitoring_recommendations(results)
 
     except Exception as e:
+        logger.exception("Context usage analysis failed")
         await _add_fallback_recommendations(results, e)
 
     return results

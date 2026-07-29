@@ -26,9 +26,11 @@ from __future__ import annotations
 import json
 import operator
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from session_buddy.storage.skills_storage import SkillsStorage
@@ -140,7 +142,7 @@ class CICDTracker:
     """
 
     # Mapping from CI/CD stages to Oneiric workflow phases
-    STAGE_MAPPING: dict[str, str] = {
+    STAGE_MAPPING: ClassVar[dict[str, str]] = {
         "build": "setup",
         "test": "execution",
         "lint": "verification",
@@ -150,7 +152,7 @@ class CICDTracker:
     }
 
     # Common CI/CD skills by stage
-    STAGE_SKILLS: dict[str, list[str]] = {
+    STAGE_SKILLS: ClassVar[dict[str, list[str]]] = {
         "build": [
             "uv-install",
             "npm-install",
@@ -311,7 +313,7 @@ class CICDTracker:
         # Create skill invocation record
         self.storage.store_invocation(
             skill_name=skill_name,
-            invoked_at=datetime.now().isoformat(),
+            invoked_at=utc_now().isoformat(),
             session_id=session_id,
             workflow_phase=self.STAGE_MAPPING[stage_name],
             completed=completed,
@@ -350,12 +352,11 @@ class CICDTracker:
             "pipeline_context": context.to_dict(),
             "stage_name": stage_name,
             "artifacts": artifacts or [],
-            "stored_at": datetime.now().isoformat(),
+            "stored_at": utc_now().isoformat(),
         }
 
         # Could be stored in a separate ci_metadata table
         # For now, this is a placeholder for future implementation
-        pass
 
     def get_workflow_phase(self, stage_name: str) -> str:
         """Get Oneiric workflow phase for a CI/CD stage.
@@ -401,7 +402,7 @@ class CICDTracker:
             >>> analytics = tracker.get_pipeline_analytics("test-pipeline", days=30)
             >>> print(f"Success rate: {analytics['overall_success_rate']:.1f}%")
         """
-        cutoff_date = datetime.now() - timedelta(days=days)
+        cutoff_date = utc_now() - timedelta(days=days)
 
         # Query database for pipeline runs in time window
         # This is a simplified implementation
@@ -409,7 +410,7 @@ class CICDTracker:
             "pipeline_name": pipeline_name,
             "time_window_days": days,
             "from_date": cutoff_date.isoformat(),
-            "to_date": datetime.now().isoformat(),
+            "to_date": utc_now().isoformat(),
             "stage_analytics": {},
             "overall_success_rate": 0.0,
             "bottlenecks": [],
@@ -592,7 +593,7 @@ class CICDTracker:
             "",
             f"Pipeline: {pipeline_name}",
             f"Time Window: Last {days} days",
-            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"Generated: {utc_now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             f"Overall Success Rate: {analytics['overall_success_rate']:.1f}%",
             "",

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Memory Optimization for Session Management MCP Server.
 
 Provides conversation consolidation, summarization, and memory compression capabilities.
@@ -10,6 +11,8 @@ import operator
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Any
+
+from session_buddy.utils.time import utc_now
 
 from .reflection_tools import ReflectionDatabase
 from .utils.regex_patterns import SAFE_PATTERNS
@@ -321,7 +324,7 @@ class ConversationSummarizer:
         try:
             summary = self.summarization_strategies[strategy](content)
             return summary or "Unable to generate summary"
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, KeyError) as e:
             return f"Summary generation failed: {str(e)[:100]}"
 
 
@@ -443,7 +446,7 @@ class RetentionPolicyManager:
 
         with suppress(ValueError, TypeError):
             conv_time = datetime.fromisoformat(conversation.get("timestamp", ""))
-            days_old = (datetime.now() - conv_time).days
+            days_old = (utc_now() - conv_time).days
             if days_old < 7:
                 score += self.importance_factors["recent_access"]
             elif days_old < 30:
@@ -483,7 +486,7 @@ class RetentionPolicyManager:
             reverse=True,
         )
 
-        cutoff_date = datetime.now() - timedelta(days=policy["consolidation_age_days"])
+        cutoff_date = utc_now() - timedelta(days=policy["consolidation_age_days"])
         max_conversations = policy["max_conversations"]
         importance_threshold = policy["importance_threshold"]
 
@@ -716,7 +719,7 @@ class MemoryOptimizer:
         """Update internal compression statistics."""
         self.compression_stats.update(
             {
-                "last_run": datetime.now().isoformat(),
+                "last_run": utc_now().isoformat(),
                 "conversations_processed": len(consolidate_conversations),
                 "conversations_consolidated": sum(
                     len(cluster) for cluster in clusters if len(cluster) > 1
@@ -734,7 +737,7 @@ class MemoryOptimizer:
         """Create a new consolidated conversation and remove originals."""
         # Create new consolidated conversation
         consolidated_id = hashlib.md5(
-            f"consolidated_{datetime.now().isoformat()}".encode(),
+            f"consolidated_{utc_now().isoformat()}".encode(),
             usedforsecurity=False,
         ).hexdigest()
 
@@ -761,7 +764,7 @@ class MemoryOptimizer:
                     ", ".join(consolidated_conv.projects)
                     if consolidated_conv.projects
                     else "multiple",
-                    datetime.now().isoformat(),
+                    utc_now().isoformat(),
                     json.dumps(metadata),
                 ),
             )

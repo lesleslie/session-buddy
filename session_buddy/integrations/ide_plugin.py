@@ -26,7 +26,7 @@ import re
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from session_buddy.storage.skills_storage import SkillsStorage
@@ -144,7 +144,7 @@ class IDEPluginProtocol:
     """
 
     # Language-specific skill patterns
-    LANGUAGE_PATTERNS: dict[str, dict[str, list[str]]] = {
+    LANGUAGE_PATTERNS: ClassVar[dict[str, dict[str, list[str]]]] = {
         "python": {
             "testing": ["pytest-run", "pytest-coverage", "pytest-debug"],
             "formatting": ["ruff-format", "black-format"],
@@ -166,7 +166,7 @@ class IDEPluginProtocol:
     }
 
     # Code pattern detection for contextual recommendations
-    PATTERN_MAPPINGS: dict[str, list[str]] = {
+    PATTERN_MAPPINGS: ClassVar[dict[str, list[str]]] = {
         # Test patterns
         r"\b(def test_|class Test|@pytest|@unittest)": [
             "pytest-run",

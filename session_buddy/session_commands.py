@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Session command definitions for MCP prompts.
 
 This module contains the SESSION_COMMANDS dictionary with all command

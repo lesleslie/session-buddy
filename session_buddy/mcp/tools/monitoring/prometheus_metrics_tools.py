@@ -153,9 +153,9 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
                 conscious_data = generate_latest(REGISTRY)
                 return session_data.decode("utf-8") + conscious_data.decode("utf-8")
 
-            except Exception as e:
-                logger.error("Failed to export Prometheus metrics: %s", e)
-                return f"# Error exporting metrics: {e}"
+            except Exception:
+                logger.exception("Failed to export Prometheus metrics")
+                return "# Error exporting metrics: see server logs"
 
     @mcp.tool()
     async def list_session_metrics() -> dict[str, Any]:
@@ -269,7 +269,7 @@ def register_prometheus_metrics_tools(mcp: FastMCP) -> None:
             return summary
 
         except Exception as e:
-            logger.error("Failed to get metrics summary: %s", e)
+            logger.exception("Failed to get metrics summary")
             return {
                 "error": str(e),
                 "total_sessions_started": 0,

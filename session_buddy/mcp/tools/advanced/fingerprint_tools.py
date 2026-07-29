@@ -112,7 +112,7 @@ async def find_duplicates(
             }
 
     except Exception as e:
-        logger.error(f"Error finding duplicates: {e}")
+        logger.exception("Error finding duplicates")
         return {
             "success": False,
             "duplicates": [],
@@ -226,7 +226,7 @@ async def fingerprint_search(
         }
 
     except Exception as e:
-        logger.error(f"Error in fingerprint search: {e}")
+        logger.exception("Error in fingerprint search")
         return {
             "success": False,
             "results": [],
@@ -378,7 +378,7 @@ async def deduplication_stats(
             )
 
     except Exception as e:
-        logger.error(f"Error computing deduplication stats: {e}")
+        logger.exception("Error computing deduplication stats")
         return _format_stats_error(str(e))
 
 
@@ -446,7 +446,7 @@ async def _count_duplicates_in_table(
                 duplicate_count += 1
             else:
                 seen_fingerprints.add(fingerprint_bytes)
-        except Exception:
+        except (TypeError, ValueError, AttributeError):
             continue
 
     return duplicate_count
@@ -584,7 +584,7 @@ async def deduplicate_content(
                 )
 
     except Exception as e:
-        logger.error(f"Error deduplicating content: {e}")
+        logger.exception("Error deduplicating content")
         return _format_deduplication_error(str(e))
 
 
@@ -675,7 +675,7 @@ async def _find_duplicates_in_table(
             else:
                 seen_fingerprints.add(fingerprint_bytes)
 
-        except Exception:
+        except (TypeError, ValueError, AttributeError):
             continue
 
     return duplicates
@@ -774,8 +774,8 @@ async def _delete_duplicate_content(
             duplicates_removed += 1
             ids_removed.append(item_id)
 
-        except Exception as e:
-            logger.warning(f"Failed to delete {item_type} {item_id}: {e}")
+        except Exception:
+            logger.exception(f"Failed to delete {item_type} {item_id}")
             continue
 
     return {

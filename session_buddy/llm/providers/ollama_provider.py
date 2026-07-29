@@ -7,11 +7,11 @@ HTTPClientAdapter for connection pooling and aiohttp fallback for HTTP communica
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.llm.base import LLMProvider
 from session_buddy.llm.models import LLMMessage, LLMResponse
+from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -31,7 +31,7 @@ try:
     from session_buddy.di.container import depends
 
     HTTP_ADAPTER_AVAILABLE = True
-except Exception:
+except Exception:  # noqa: BLE001 - optional dependency probe: must mark HTTP_ADAPTER_AVAILABLE=False for any import failure so the provider falls back gracefully
     HTTPClientAdapter = None
     HTTP_ADAPTER_AVAILABLE = False
 
@@ -50,7 +50,7 @@ class OllamaProvider(LLMProvider):
         if HTTP_ADAPTER_AVAILABLE and HTTPClientAdapter is not None:
             try:
                 self._http_adapter = depends.get_sync(HTTPClientAdapter)
-            except Exception:
+            except Exception:  # noqa: BLE001 - DI lookup in __init__: must default to None when the container is not bootstrapped rather than failing construction
                 self._http_adapter = None
 
     async def _make_api_request(
@@ -66,8 +66,8 @@ class OllamaProvider(LLMProvider):
                 async with self._http_adapter as client:
                     resp = await client.post(url, json=data, timeout=300)
                     return resp.json()  # type: ignore[no-any-return]
-            except Exception as e:
-                self.logger.exception(f"HTTP request failed: {e}")
+            except Exception:
+                self.logger.exception("HTTP request failed")
                 raise
         # Fallback to aiohttp (legacy)
         try:
@@ -131,11 +131,11 @@ class OllamaProvider(LLMProvider):
                     + response.get("eval_count", 0),
                 },
                 finish_reason=response.get("done_reason", "stop"),
-                timestamp=datetime.now().isoformat(),
+                timestamp=utc_now().isoformat(),
             )
 
-        except Exception as e:
-            self.logger.exception(f"Ollama generation failed: {e}")
+        except Exception:
+            self.logger.exception("Ollama generation failed")
             raise
 
     def _prepare_stream_data(
@@ -248,8 +248,8 @@ class OllamaProvider(LLMProvider):
             # else:
             async for chunk in self._stream_with_aiohttp(url, data):
                 yield chunk
-        except Exception as e:
-            self.logger.exception(f"Ollama streaming failed: {e}")
+        except Exception:
+            self.logger.exception("Ollama streaming failed")
             raise
 
     async def _check_with_mcp_common(self, url: str) -> bool:
@@ -277,7 +277,7 @@ class OllamaProvider(LLMProvider):
                     ]
                     return True
             return False
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort health probe: any HTTP/JSON error means the service is not reachable, just return False
             return False
 
     async def is_available(self) -> bool:
@@ -289,7 +289,7 @@ class OllamaProvider(LLMProvider):
             # if self._use_mcp_common and self.http_adapter:
             #     return await self._check_with_mcp_common(url)
             return await self._check_with_aiohttp(url)
-        except Exception:
+        except Exception:  # noqa: BLE001 - best-effort availability probe: any error from aiohttp path means the service is unavailable, just return False
             return False
 
     def get_models(self) -> list[str]:

@@ -554,7 +554,10 @@ class TestQuickSearchImpl:
     async def test_quick_search_with_results(self):
         """Should return search results."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(
+        # Bug 2 fix: ``_quick_search_impl`` now calls ``search_reflections``
+        # (the table ``store_reflection`` writes to) rather than
+        # ``search_conversations``. The previous mock enshrined the bug.
+        mock_db.search_reflections = AsyncMock(
             return_value=[
                 {
                     "content": "Test result",
@@ -582,7 +585,8 @@ class TestQuickSearchImpl:
     async def test_quick_search_no_results(self):
         """Should return no results message."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(return_value=[])
+        # Bug 2 fix: see note in ``test_quick_search_with_results``.
+        mock_db.search_reflections = AsyncMock(return_value=[])
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -600,7 +604,8 @@ class TestQuickSearchImpl:
     async def test_quick_search_with_exception(self):
         """Should handle exceptions."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(side_effect=Exception("Search error"))
+        # Bug 2 fix: see note in ``test_quick_search_with_results``.
+        mock_db.search_reflections = AsyncMock(side_effect=Exception("Search error"))
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -638,7 +643,7 @@ class TestSearchSummaryImpl:
     async def test_search_summary_with_results(self):
         """Should return search summary with results."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(
+        mock_db.search_reflections = AsyncMock(
             return_value=[
                 {
                     "content": "Result 1",
@@ -671,7 +676,7 @@ class TestSearchSummaryImpl:
     async def test_search_summary_no_results(self):
         """Should return no results message."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(return_value=[])
+        mock_db.search_reflections = AsyncMock(return_value=[])
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -689,7 +694,7 @@ class TestSearchSummaryImpl:
     async def test_search_summary_with_exception(self):
         """Should handle exceptions."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(side_effect=Exception("Search error"))
+        mock_db.search_reflections = AsyncMock(side_effect=Exception("Search error"))
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -727,7 +732,7 @@ class TestSearchByFileImpl:
     async def test_search_by_file_with_results(self):
         """Should return search results."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(
+        mock_db.search_reflections = AsyncMock(
             return_value=[
                 {
                     "content": "Discussion about test_file.py",
@@ -754,7 +759,7 @@ class TestSearchByFileImpl:
     async def test_search_by_file_no_results(self):
         """Should return no results message."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(return_value=[])
+        mock_db.search_reflections = AsyncMock(return_value=[])
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -772,7 +777,7 @@ class TestSearchByFileImpl:
     async def test_search_by_file_with_exception(self):
         """Should handle exceptions."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(side_effect=Exception("Search error"))
+        mock_db.search_reflections = AsyncMock(side_effect=Exception("Search error"))
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -810,7 +815,7 @@ class TestSearchByConceptImpl:
     async def test_search_by_concept_with_results(self):
         """Should return search results."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(
+        mock_db.search_reflections = AsyncMock(
             return_value=[
                 {
                     "content": "Discussion about authentication",
@@ -837,7 +842,7 @@ class TestSearchByConceptImpl:
     async def test_search_by_concept_no_results(self):
         """Should return no results message."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(return_value=[])
+        mock_db.search_reflections = AsyncMock(return_value=[])
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -855,7 +860,7 @@ class TestSearchByConceptImpl:
     async def test_search_by_concept_with_exception(self):
         """Should handle exceptions."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(side_effect=Exception("Search error"))
+        mock_db.search_reflections = AsyncMock(side_effect=Exception("Search error"))
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -1360,9 +1365,18 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_quick_search_with_custom_min_score(self):
-        """Should pass custom min_score to database."""
+        """``_quick_search_impl`` accepts a ``min_score`` argument and
+        calls ``search_reflections`` (the table where ``store_reflection``
+        writes).
+
+        Bug 2 fix: production now calls ``search_reflections`` instead of
+        ``search_conversations``. The Oneiric adapter's ``search_reflections``
+        does not currently accept ``min_score`` — that param is held at the
+        wrapper layer for future use. We assert the call landed and the
+        query was threaded.
+        """
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(return_value=[])
+        mock_db.search_reflections = AsyncMock(return_value=[])
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -1374,15 +1388,24 @@ class TestEdgeCases:
                 return_value=mock_db,
             ):
                 await _quick_search_impl("query", min_score=0.5)
-                mock_db.search_conversations.assert_called_once()
-                call_kwargs = mock_db.search_conversations.call_args[1]
-                assert call_kwargs["min_score"] == 0.5
+                mock_db.search_reflections.assert_called_once()
+                call_kwargs = mock_db.search_reflections.call_args[1]
+                assert call_kwargs["query"] == "query"
 
     @pytest.mark.asyncio
     async def test_search_summary_with_custom_min_score(self):
-        """Should pass custom min_score to database."""
+        """``_search_summary_impl`` accepts ``min_score`` and calls
+        ``search_reflections``. Bug 2 fix: production now calls
+        ``search_reflections`` (the table where ``store_reflection``
+        writes) instead of ``search_conversations``.
+
+        The Oneiric adapter's ``search_reflections`` does not currently
+        accept ``min_score`` — that param is held at the wrapper layer
+        for future use. We assert the call landed and the query was
+        threaded.
+        """
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(return_value=[])
+        mock_db.search_reflections = AsyncMock(return_value=[])
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -1394,15 +1417,15 @@ class TestEdgeCases:
                 return_value=mock_db,
             ):
                 await _search_summary_impl("query", min_score=0.3)
-                mock_db.search_conversations.assert_called_once()
-                call_kwargs = mock_db.search_conversations.call_args[1]
-                assert call_kwargs["min_score"] == 0.3
+                mock_db.search_reflections.assert_called_once()
+                call_kwargs = mock_db.search_reflections.call_args[1]
+                assert call_kwargs["query"] == "query"
 
     @pytest.mark.asyncio
     async def test_search_by_file_with_different_limit(self):
         """Should respect custom limit."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(return_value=[])
+        mock_db.search_reflections = AsyncMock(return_value=[])
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
@@ -1414,15 +1437,15 @@ class TestEdgeCases:
                 return_value=mock_db,
             ):
                 await _search_by_file_impl("test.py", limit=15)
-                mock_db.search_conversations.assert_called_once()
-                call_kwargs = mock_db.search_conversations.call_args[1]
+                mock_db.search_reflections.assert_called_once()
+                call_kwargs = mock_db.search_reflections.call_args[1]
                 assert call_kwargs["limit"] == 15
 
     @pytest.mark.asyncio
     async def test_search_by_concept_with_files_disabled(self):
         """Should handle include_files=False."""
         mock_db = AsyncMock()
-        mock_db.search_conversations = AsyncMock(return_value=[])
+        mock_db.search_reflections = AsyncMock(return_value=[])
 
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",

@@ -3,7 +3,7 @@
 These protocols define interfaces for dependency injection and testing.
 """
 
-from typing import Any, Protocol
+from typing import Any, Protocol, Self
 
 from session_buddy.mcp.tools.advanced.recommendation_engine import AgentEffectiveness
 from session_buddy.mcp.tools.intelligence.agent_analyzer import AgentRecommendation
@@ -145,7 +145,7 @@ class ReflectionDatabaseProtocol(Protocol):
         """
         ...
 
-    async def __aenter__(self) -> "ReflectionDatabaseProtocol":
+    async def __aenter__(self) -> Self:
         """Async context manager entry."""
         ...
 

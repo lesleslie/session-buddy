@@ -6,17 +6,17 @@ skill performance metrics over time.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast
+from typing import Literal, cast
 
 import numpy as np
 from scipy import stats
 
-if TYPE_CHECKING:
-    pass
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -335,6 +335,7 @@ class TimeSeriesAnalyzer:
                 trend = self.detect_trend(skill_name, metric, window_days)
                 trends[skill_name] = trend
             except Exception:
+                logger.exception("Trend analysis failed for skill %s", skill_name)
                 # Skip skills that fail analysis
                 continue
 

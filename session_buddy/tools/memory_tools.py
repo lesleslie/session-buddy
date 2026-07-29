@@ -87,10 +87,10 @@ async def search_reflections(
 
 
 __all__ = [
-    "register_memory_tools",
-    "store_reflection",
     "quick_search",
+    "reflection_stats",
+    "register_memory_tools",
     "search_by_concept",
     "search_reflections",
-    "reflection_stats",
+    "store_reflection",
 ]

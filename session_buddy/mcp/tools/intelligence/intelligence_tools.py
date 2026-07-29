@@ -9,10 +9,13 @@ This module provides MCP tools for:
 
 from __future__ import annotations
 
+import logging
 import typing as t
 
 from session_buddy.core.intelligence import IntelligenceEngine
 from session_buddy.mcp.server import mcp
+
+logger = logging.getLogger(__name__)
 
 # Global intelligence engine instance (initialized at startup)
 _intelligence_engine: IntelligenceEngine | None = None
@@ -289,6 +292,7 @@ async def capture_successful_pattern(
             "outcome_score": outcome_score,
         }
     except Exception as e:
+        logger.exception("Failed to capture pattern")
         return {
             "success": False,
             "error": f"Failed to capture pattern: {e}",
@@ -352,6 +356,7 @@ async def search_similar_patterns(
             ),
         }
     except Exception as e:
+        logger.exception("Failed to search patterns")
         return {
             "success": False,
             "error": f"Failed to search patterns: {e}",
@@ -405,6 +410,7 @@ async def apply_pattern(
             f"after evaluating the pattern's effectiveness",
         }
     except Exception as e:
+        logger.exception("Failed to apply pattern")
         return {
             "success": False,
             "error": f"Failed to apply pattern: {e}",
@@ -453,6 +459,7 @@ async def rate_pattern_outcome(
             "feedback_recorded": feedback is not None,
         }
     except Exception as e:
+        logger.exception("Failed to rate outcome")
         return {
             "success": False,
             "error": f"Failed to rate outcome: {e}",

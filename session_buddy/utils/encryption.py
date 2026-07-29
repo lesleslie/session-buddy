@@ -4,6 +4,7 @@ This module provides Fernet-based encryption for sensitive session data,
 including session content, API keys, and user credentials.
 """
 
+import binascii
 import os
 from base64 import b64encode
 from contextlib import suppress
@@ -17,19 +18,13 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 class EncryptionError(Exception):
     """Base exception for encryption errors."""
 
-    pass
-
 
 class KeyNotFoundError(EncryptionError):
     """Raised when encryption key is not found or invalid."""
 
-    pass
-
 
 class DecryptionError(EncryptionError):
     """Raised when decryption fails."""
-
-    pass
 
 
 class DataEncryption:
@@ -197,11 +192,9 @@ class DataEncryption:
 
         result = data.copy()
         for field in fields:
-            if field in result and result[field]:
-                value = result[field]
-                if isinstance(value, str):
-                    result[field] = self.encrypt(value)
-                elif isinstance(value, bytes):
+            value = result.get(field)
+            if value:
+                if isinstance(value, (str, bytes)):
                     result[field] = self.encrypt(value)
                 elif isinstance(value, (list, dict)):
                     # Skip complex types for now
@@ -243,12 +236,11 @@ class DataEncryption:
 
         result = data.copy()
         for field in fields:
-            if field in result and result[field]:
-                value = result[field]
-                if isinstance(value, bytes):
-                    with suppress(DecryptionError):
-                        # Field might not be encrypted, skip
-                        result[field] = self.decrypt(value)
+            value = result.get(field)
+            if value and isinstance(value, bytes):
+                with suppress(DecryptionError):
+                    # Field might not be encrypted, skip
+                    result[field] = self.decrypt(value)
 
         return result
 
@@ -347,7 +339,7 @@ def is_encrypted(data: bytes) -> bool:
         decoded = base64.urlsafe_b64decode(data + b"=" * (-len(data) % 4))
         # Fernet tokens decode to at least 1 byte (version) + 8 bytes (timestamp)
         return len(decoded) >= 9
-    except Exception:
+    except (ValueError, TypeError, binascii.Error):
         return False
 
 

@@ -209,7 +209,7 @@ def _build_tools_info(detector: Any) -> dict[str, Any]:
         Dictionary of tool information
     """
     tools_info = {}
-    for tool_name in detector.patterns.keys():
+    for tool_name in detector.patterns:
         tools_info[tool_name] = {
             "patterns": detector.patterns.get(tool_name, []),
             "semantic_examples": detector.semantic_examples.get(tool_name, []),
@@ -274,7 +274,7 @@ async def detect_intent(
     try:
         return await _detect_intent_impl(user_message, confidence_threshold)
     except Exception as e:
-        logger.error(f"Intent detection failed: {e}")
+        logger.exception("Intent detection failed")
         return _format_intent_error(str(e))
 
 
@@ -308,7 +308,7 @@ async def get_intent_suggestions(user_message: str, limit: int = 5) -> dict[str,
     try:
         return await _get_intent_suggestions_impl(user_message, limit)
     except Exception as e:
-        logger.error(f"Intent suggestions failed: {e}")
+        logger.exception("Intent suggestions failed")
         return _format_suggestions_error(str(e))
 
 
@@ -340,7 +340,7 @@ async def list_supported_intents() -> dict[str, Any]:
     try:
         return await _list_supported_intents_impl()
     except Exception as e:
-        logger.error(f"Listing intents failed: {e}")
+        logger.exception("Listing intents failed")
         return _format_list_intents_error(str(e))
 
 

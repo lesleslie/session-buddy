@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Git operation utilities for session management.
 
 This module provides Git-related functionality following crackerjack
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "WorktreeInfo",
+    "_validate_prune_delay",
     "create_checkpoint_commit",
     "create_commit",
     "get_git_status",
@@ -23,7 +25,6 @@ __all__ = [
     "is_git_operation_in_progress",
     "is_git_repository",
     "schedule_automatic_git_gc",
-    "_validate_prune_delay",
     "stage_files",
 ]
 
@@ -70,7 +71,7 @@ def _stage_and_commit_files(
             return False, output
 
         return _commit_staged_changes(current_dir, commit_message, output)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - best-effort git staging helper: must return (False, output) so callers can render the failure rather than receive an unhandled exception
         output.append(f"❌ Git operation error: {exc}")
         return False, output
 
@@ -172,7 +173,7 @@ def _optimize_git_repository(current_dir: Path) -> list[str]:
                 "ℹ️ Remote pruning skipped (no remote or access issues)",
             )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - best-effort git optimization: must append a warning message and return results rather than propagate
         optimization_results.append(f"⚠️ Git optimization error: {e}")
 
     return optimization_results
@@ -180,7 +181,7 @@ def _optimize_git_repository(current_dir: Path) -> list[str]:
 
 # Compatibility imports: These functions were moved to git_worktrees.py
 # Re-export them here for backward compatibility
-from session_buddy.utils.git_worktrees import (  # noqa: F401
+from session_buddy.utils.git_worktrees import (
     WorktreeInfo,
     _validate_prune_delay,
     create_checkpoint_commit,

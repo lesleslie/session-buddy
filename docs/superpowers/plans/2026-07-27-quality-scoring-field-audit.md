@@ -21,17 +21,19 @@
 - **Do not modify `quality_scoring.py`'s point budget** — `CodeQualityScore` totals stay at 40.
 - **Do not introduce a SQLite schema migration** — new rows use the new formulas; old rows stay.
 
----
+______________________________________________________________________
 
 ## Task 1: N2 — Default-missing instead of default-perfect in `_parse_metrics_history`
 
 **Files:**
+
 - Modify: `session_buddy/utils/quality_scoring.py:737-763`
 - Modify: `session_buddy/utils/quality_scoring.py:194-239` (`_calculate_code_quality`)
 - Modify: `session_buddy/utils/quality_scoring.py:626-641` (`_run_security_checks`)
 - Test: `tests/unit/test_quality_scoring.py`
 
 **Interfaces:**
+
 - Consumes: existing — `metrics_history: list[dict[str, Any]]` passed to `_parse_metrics_history`.
 - Produces: `_parse_metrics_history` returns `dict[str, Any]` where missing keys hold `None` (not `100`); `_calculate_code_quality` and `_run_security_checks` consume `None` and emit `0.0` plus a `"missing": True` flag in `details`.
 
@@ -151,11 +153,12 @@ Tests cover: parse returns None for missing; consumers emit
 0.0 + missing flag."
 ```
 
----
+______________________________________________________________________
 
 ## Task 2: N3a — Severity-weighted lint score
 
 **Files:**
+
 - Modify: `session_buddy/crackerjack_integration.py:890-899` (`_calculate_lint_metrics`)
 - Modify: `session_buddy/crackerjack_integration.py:846-866` (`_calculate_quality_metrics` caller)
 - Modify: `session_buddy/crackerjack_integration.py:73-76` (top-of-file constants)
@@ -163,6 +166,7 @@ Tests cover: parse returns None for missing; consumers emit
 - Test: `tests/unit/test_crackerjack_integration.py` (append to `TestQualityMetricsCalculation`)
 
 **Interfaces:**
+
 - Consumes: `parsed_data["lint_issues"]` (list of dicts with `tool`, `type`).
 - Produces: New function signature:
   ```python
@@ -350,11 +354,12 @@ Score = max(0, 100 - sum(weights)). Tests cover empty input,
 mixed severity, pyright, and clamp behavior."
 ```
 
----
+______________________________________________________________________
 
 ## Task 3: N3b — Severity-weighted security score
 
 **Files:**
+
 - Modify: `session_buddy/crackerjack_integration.py:901-912` (`_calculate_security_metrics`)
 - Modify: `session_buddy/crackerjack_integration.py:858` (caller in `_calculate_quality_metrics`)
 - Modify: `tests/unit/test_crackerjack_integration.py:636-642`
@@ -494,11 +499,12 @@ penalising the project for parser oddities. Tests cover mixed
 severity, unknown severities, empty input."
 ```
 
----
+______________________________________________________________________
 
 ## Task 4: N3c — Line-weighted complexity score
 
 **Files:**
+
 - Modify: `session_buddy/crackerjack_integration.py:914-926` (`_calculate_complexity_metrics`)
 - Modify: `session_buddy/crackerjack_integration.py:859` (caller)
 - Modify: `session_buddy/crackerjack_integration.py:73-76` (top-of-file constants)
@@ -647,6 +653,7 @@ def test_calculate_complexity_metrics(self):
 ```
 
 Update its assertion:
+
 - weighted_avg = (200×6 + 800×7) / 1000 = 6.8
 - score = 100 - (6.8 − 5)×10 = 82.0
 
@@ -683,11 +690,12 @@ Tests cover each region of the formula, line-weighting across
 multiple files, and empty input."
 ```
 
----
+______________________________________________________________________
 
 ## Task 5: N4 — Deprecate `_parse_stderr_metrics`
 
 **Files:**
+
 - Modify: `session_buddy/crackerjack_integration.py:928-959` (`_parse_stderr_metrics`)
 - Modify: `session_buddy/crackerjack_integration.py:1-25` (top-of-file imports)
 - Test: `tests/unit/test_crackerjack_integration.py`
@@ -798,11 +806,12 @@ _calculate_quality_metrics no longer invokes it.
 Test asserts the no-op behaviour and the once-per-process warning."
 ```
 
----
+______________________________________________________________________
 
 ## Task 6: N5 — Drop `test_pass_rate` from `quality_metrics` (with consumer audit)
 
 **Files:**
+
 - Inspect first: `session_buddy/`, `mcp/` (no edits before audit)
 - Modify: `session_buddy/crackerjack_integration.py:868-878` (`_calculate_test_metrics`)
 - Modify (conditional): same file `_calculate_quality_metrics` (line 855)
@@ -919,11 +928,12 @@ If you need a pass rate, compute it from
 crackerjack_results.test_results in the trend layer."
 ```
 
----
+______________________________________________________________________
 
 ## Task 7: Regression net test — metric dict consumers match a registry
 
 **Files:**
+
 - Create: `tests/unit/test_quality_scoring_metrics_registry.py`
 
 **Interfaces:** New test file. Imports `quality_scoring._parse_metrics_history` and `crackerjack_integration.CrackerjackIntegration._calculate_quality_metrics`. Asserts that every key the metrics layer emits is consumed by `_parse_metrics_history`. Catches future re-introductions of orphan fields (N5) and unreachable defaults (N2).
@@ -1058,7 +1068,7 @@ defect class) trips the first test; one that adds a new default-
 perfect path trips the third."
 ```
 
----
+______________________________________________________________________
 
 ## Self-review
 

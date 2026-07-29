@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Advanced Search Engine for Session Management.
 
 Provides enhanced search capabilities with faceted filtering, full-text search,
@@ -7,6 +8,7 @@ and intelligent result ranking.
 
 import hashlib
 import json
+import sqlite3
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -172,7 +174,7 @@ class AdvancedSearchEngine:
             ).fetchall()
 
             return [{"text": row[0], "frequency": row[1]} for row in results]
-        except Exception:
+        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
             # Table doesn't exist yet, will be created during index rebuild
             return []
 
@@ -201,7 +203,7 @@ class AdvancedSearchEngine:
 
             if not result:
                 return []
-        except Exception:
+        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
             # Table doesn't exist yet, will be created during index rebuild
             return []
 
@@ -351,7 +353,7 @@ class AdvancedSearchEngine:
                 if results
                 else [],
             }
-        except Exception:
+        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
             # Table doesn't exist yet, will be created during index rebuild
             return {
                 "metric_type": metric_type,
@@ -385,7 +387,7 @@ class AdvancedSearchEngine:
                     dt = dt.replace(tzinfo=UTC)
                 return dt if isinstance(dt, datetime) else None
             return None
-        except Exception:
+        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
             # Table doesn't exist yet, will be created during index rebuild
             return None
 
@@ -544,7 +546,7 @@ class AdvancedSearchEngine:
                     datetime.now(UTC),
                 ],
             )
-        except Exception:
+        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
             # Table doesn't exist yet, will be created during index rebuild
             return
 
@@ -678,7 +680,7 @@ class AdvancedSearchEngine:
                     datetime.now(UTC).isoformat(),
                 ],
             )
-        except Exception:
+        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
             # Table doesn't exist yet, will be created during index rebuild
             return
 
@@ -693,7 +695,7 @@ class AdvancedSearchEngine:
             for facet_value, _count in results:
                 if self._should_process_facet_value(facet_value):
                     self._insert_facet_value(facet_name, facet_value)
-        except Exception:
+        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
             # Table doesn't exist yet, will be created during index rebuild
             return
 
@@ -714,7 +716,7 @@ class AdvancedSearchEngine:
             # Commit all changes
             if self.reflection_db.conn:
                 self.reflection_db.conn.commit()
-        except Exception:
+        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
             # Table doesn't exist yet, will be created during index rebuild
             return
 
@@ -833,7 +835,7 @@ class AdvancedSearchEngine:
                 self._prepare_sql_params(sql_result.params),
             ).fetchall()
             return self._convert_sql_results_to_search_results(results)
-        except Exception:
+        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
             # Table doesn't exist yet, will be created during index rebuild
             return []
 
@@ -1007,52 +1009,68 @@ class AdvancedSearchEngine:
 
             # Dispatch to appropriate filter handler
             operator_handlers = {
-                "eq": lambda: self._apply_eq_filter(
-                    sql_field,
-                    negation,
-                    filter_obj.value,
-                    params,
+                "eq": lambda sql_field=sql_field, negation=negation, filter_obj=filter_obj, params=params: (
+                    self._apply_eq_filter(
+                        sql_field,
+                        negation,
+                        filter_obj.value,
+                        params,
+                    )
                 ),
-                "ne": lambda: self._apply_ne_filter(
-                    sql_field,
-                    negation,
-                    filter_obj.value,
-                    params,
+                "ne": lambda sql_field=sql_field, negation=negation, filter_obj=filter_obj, params=params: (
+                    self._apply_ne_filter(
+                        sql_field,
+                        negation,
+                        filter_obj.value,
+                        params,
+                    )
                 ),
-                "in": lambda: self._apply_in_filter(
-                    sql_field,
-                    negation,
-                    filter_obj.value,
-                    params,
+                "in": lambda sql_field=sql_field, negation=negation, filter_obj=filter_obj, params=params: (
+                    self._apply_in_filter(
+                        sql_field,
+                        negation,
+                        filter_obj.value,
+                        params,
+                    )
                 ),
-                "not_in": lambda: self._apply_not_in_filter(
-                    sql_field,
-                    negation,
-                    filter_obj.value,
-                    params,
+                "not_in": lambda sql_field=sql_field, negation=negation, filter_obj=filter_obj, params=params: (
+                    self._apply_not_in_filter(
+                        sql_field,
+                        negation,
+                        filter_obj.value,
+                        params,
+                    )
                 ),
-                "contains": lambda: self._apply_contains_filter(
-                    sql_field,
-                    negation,
-                    filter_obj.value,
-                    params,
+                "contains": lambda sql_field=sql_field, negation=negation, filter_obj=filter_obj, params=params: (
+                    self._apply_contains_filter(
+                        sql_field,
+                        negation,
+                        filter_obj.value,
+                        params,
+                    )
                 ),
-                "starts_with": lambda: self._apply_starts_with_filter(
-                    sql_field,
-                    negation,
-                    filter_obj.value,
-                    params,
+                "starts_with": lambda sql_field=sql_field, negation=negation, filter_obj=filter_obj, params=params: (
+                    self._apply_starts_with_filter(
+                        sql_field,
+                        negation,
+                        filter_obj.value,
+                        params,
+                    )
                 ),
-                "ends_with": lambda: self._apply_ends_with_filter(
-                    sql_field,
-                    negation,
-                    filter_obj.value,
-                    params,
+                "ends_with": lambda sql_field=sql_field, negation=negation, filter_obj=filter_obj, params=params: (
+                    self._apply_ends_with_filter(
+                        sql_field,
+                        negation,
+                        filter_obj.value,
+                        params,
+                    )
                 ),
-                "range": lambda: self._apply_range_filter(
-                    sql_field,
-                    filter_obj,
-                    params,
+                "range": lambda sql_field=sql_field, filter_obj=filter_obj, params=params: (
+                    self._apply_range_filter(
+                        sql_field,
+                        filter_obj,
+                        params,
+                    )
                 ),
             }
 
@@ -1208,7 +1226,12 @@ class AdvancedSearchEngine:
                         ],
                         facet_type=str(facet_config["type"]),
                     )
-                except Exception:
+                except (
+                    sqlite3.DatabaseError,
+                    sqlite3.IntegrityError,
+                    TypeError,
+                    ValueError,
+                ):
                     # Table doesn't exist yet, will be created during index rebuild
                     continue
 

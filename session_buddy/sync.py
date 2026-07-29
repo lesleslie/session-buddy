@@ -19,7 +19,7 @@ import inspect
 import json
 import os
 from datetime import UTC, datetime, timedelta
-from typing import Any, cast
+from typing import Any, Self, cast
 
 import httpx
 
@@ -49,12 +49,12 @@ class MemorySyncClient:
         self.timeout = timeout
         self._client: httpx.AsyncClient | None = None
 
-    async def __aenter__(self) -> MemorySyncClient:
+    async def __aenter__(self) -> Self:
         """Async context manager entry."""
         self._client = httpx.AsyncClient(timeout=self.timeout)
         return self
 
-    async def __aexit__(self, *args: Any) -> None:
+    async def __aexit__(self, *args: object) -> None:
         """Async context manager exit."""
         if self._client:
             await self._client.aclose()
@@ -356,7 +356,7 @@ class AkoshaSync:
                 self.stats["memories_synced"] += instance_stats.get("synced", 0)
 
             except Exception as e:
-                logger.error(f"Failed to sync from {url}: {e}")
+                logger.exception(f"Failed to sync from {url}")
                 errors_list = cast("list[dict[str, Any]]", self.stats["errors"])
                 errors_list.append({"url": url, "error": str(e)})
 
@@ -406,8 +406,8 @@ class AkoshaSync:
                     await self._sync_memory(memory, source=base_url)
                     synced += 1
                 except Exception as e:
-                    logger.error(
-                        f"Failed to sync memory {memory.get('id', 'unknown')}: {e}"
+                    logger.exception(
+                        f"Failed to sync memory {memory.get('id', 'unknown')}"
                     )
                     errors_list = cast("list[dict[str, Any]]", self.stats["errors"])
                     errors_list.append(
@@ -537,7 +537,7 @@ class AkoshaSync:
             logger.error(f"Failed to store memory in AkOSHA: {e}")
             return {"status": "failed", "error": str(e)}
         except Exception as e:
-            logger.error(f"Unexpected error storing memory in AkOSHA: {e}")
+            logger.exception("Unexpected error storing memory in AkOSHA")
             return {"status": "failed", "error": str(e)}
         #         "source_type": "session_buddy",
         #         "timestamp": datetime.now(UTC).isoformat(),

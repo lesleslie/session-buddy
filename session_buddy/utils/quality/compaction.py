@@ -102,7 +102,12 @@ def check_git_activity(current_dir: Path) -> tuple[int, int] | None:
 
         return recent_commits, modified_files
 
-    except (subprocess.TimeoutExpired, Exception):
+    except (
+        subprocess.TimeoutExpired,
+        subprocess.CalledProcessError,
+        OSError,
+        ValueError,
+    ):
         return None
 
 

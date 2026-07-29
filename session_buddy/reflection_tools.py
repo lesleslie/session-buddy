@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Reflection Tools for Claude Session Management.
 
 DEPRECATION NOTICE (Phase 2 - February 2025):
@@ -81,8 +82,8 @@ async def get_reflection_database(
 __all__ = [
     "ReflectionDatabase",
     "ReflectionDatabaseAdapter",
-    "get_reflection_database",
     "generate_embedding",
+    "get_reflection_database",
 ]
 
 # Import generate_embedding from the new modular implementation

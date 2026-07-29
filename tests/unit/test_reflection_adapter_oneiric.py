@@ -326,7 +326,10 @@ class TestConversationStorage:
 
         # Can retrieve it
         results = await adapter.search_conversations("O'Reilly", limit=1)
-        assert len(results) >= 1
+        assert any(r["id"] == conv_id for r in results), (
+            f"Stored conversation {conv_id!r} not found via search. "
+            f"Got ids: {[r['id'] for r in results]!r}"
+        )
 
     async def test_store_conversation_deduplicate_disabled(self, adapter):
         """Test storing duplicate content when deduplicate=False."""
@@ -513,10 +516,19 @@ class TestReflectionSearch:
             assert result.get("insight_type") is None
 
     async def test_search_uses_text_fallback(self, adapter):
-        """Test text search fallback when no embeddings."""
-        await adapter.store_reflection("Specific reflection content ABC123")
+        """Test text search fallback when no embeddings.
+
+        Tightened: assert the specific record we stored is returned,
+        not just any record matching the search term.
+        """
+        reflection_id = await adapter.store_reflection(
+            "Specific reflection content ABC123"
+        )
         results = await adapter.search_reflections("ABC123", use_cache=False)
-        assert len(results) >= 1
+        assert any(r["id"] == reflection_id for r in results), (
+            f"Stored reflection {reflection_id!r} not found via text "
+            f"search. Got ids: {[r['id'] for r in results]!r}"
+        )
 
 
 # =============================================================================
@@ -1058,7 +1070,16 @@ class TestIntegrationScenarios:
     """Test realistic integration scenarios."""
 
     async def test_full_workflow(self, adapter):
-        """Test full workflow: store, search, retrieve."""
+        """Test full workflow: store, search, retrieve.
+
+        Round-trip identity: the search must return the SAME records
+        we stored (matching ULID), not just any record. The previous
+        ``assert len(...) >= 1`` passed for any matching substring,
+        including unrelated records, so a bug that swapped the search
+        index would still pass. Tightening to identity checks would
+        have caught Bug 2 (wrong-table in ``_quick_search_impl``)
+        end-to-end instead of only via roundtrip integration tests.
+        """
         # Store conversations
         conv_id1 = await adapter.store_conversation(
             "How to use async/await properly",
@@ -1079,12 +1100,18 @@ class TestIntegrationScenarios:
             tags=["python", "types"],
         )
 
-        # Search
+        # Search — verify identity, not just count.
         conv_results = await adapter.search_conversations("async", limit=10)
         refl_results = await adapter.search_reflections("context", limit=10)
 
-        assert len(conv_results) >= 1
-        assert len(refl_results) >= 1
+        assert any(r["id"] == conv_id1 for r in conv_results), (
+            f"Stored conversation {conv_id1!r} not found in search. "
+            f"Got ids: {[r['id'] for r in conv_results]!r}"
+        )
+        assert any(r["id"] == refl_id1 for r in refl_results), (
+            f"Stored reflection {refl_id1!r} not found in search. "
+            f"Got ids: {[r['id'] for r in refl_results]!r}"
+        )
 
         # Get stats
         stats = await adapter.get_stats()

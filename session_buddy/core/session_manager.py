@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Session lifecycle management for session-buddy.
 
 This module handles session initialization, quality assessment, checkpoints,
@@ -9,10 +10,10 @@ import asyncio
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import typing as t
 from contextlib import suppress
-from datetime import datetime
 from pathlib import Path
 
 from session_buddy.core.hooks import HooksManager
@@ -26,6 +27,7 @@ from session_buddy.utils.git_operations import (
     is_git_repository,
     schedule_automatic_git_gc,
 )
+from session_buddy.utils.time import utc_now
 
 
 def get_session_logger() -> logging.Logger:
@@ -62,7 +64,7 @@ class SessionLifecycleManager:
 
             try:
                 self.quality_scorer = get_sync_typed(QualityScorer)
-            except Exception:
+            except (ImportError, KeyError, AttributeError):
                 # Fallback to DefaultQualityScorer if DI not configured
                 from session_buddy.core.quality_scoring import DefaultQualityScorer
 
@@ -99,7 +101,7 @@ class SessionLifecycleManager:
                 "Templates environment initialized, templates_dir=%s",
                 str(templates_dir),
             )
-        except Exception as e:
+        except (ImportError, OSError) as e:
             self.logger.warning(
                 "Templates environment initialization failed, using fallback, error=%s",
                 str(e),
@@ -391,11 +393,10 @@ class SessionLifecycleManager:
                 # Schedule automatic git gc after successful checkpoint
                 await self._schedule_git_maintenance(current_dir, output)
 
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError, ValueError) as e:
             output.append(f"\n⚠️ Git operations error: {e}")
             self.logger.exception(
-                "Git checkpoint error occurred, error=%s, project=%s",
-                str(e),
+                "Git checkpoint error occurred, project=%s",
                 self.current_project,
             )
 
@@ -426,14 +427,15 @@ class SessionLifecycleManager:
                 return
 
             # Check if we should only run when git is clean
-            if settings.git_gc_only_when_clean:
-                if await asyncio.to_thread(is_git_operation_in_progress, directory):
-                    output.append("\n🔄 Git operation in progress - skipping gc")
-                    self.logger.info(
-                        "Git operation in progress, skipping gc, project=%s",
-                        self.current_project,
-                    )
-                    return
+            if settings.git_gc_only_when_clean and await asyncio.to_thread(
+                is_git_operation_in_progress, directory
+            ):
+                output.append("\n🔄 Git operation in progress - skipping gc")
+                self.logger.info(
+                    "Git operation in progress, skipping gc, project=%s",
+                    self.current_project,
+                )
+                return
 
             # Schedule automatic gc
             success, message = await asyncio.to_thread(
@@ -458,7 +460,7 @@ class SessionLifecycleManager:
                     message,
                 )
 
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             # Don't fail checkpoint if gc scheduling fails
             self.logger.warning(
                 "Git maintenance scheduling failed (continuing), project=%s, error=%s",
@@ -788,14 +790,12 @@ class SessionLifecycleManager:
         self, summary: dict[str, t.Any], quality_data: dict[str, t.Any]
     ) -> str:
         """Generate handoff documentation based on session summary and quality data."""
-        from datetime import datetime
-
         # Format as markdown document
         markdown_content: list[str] = []
         markdown_content.extend(
             (
                 f"# Session Handoff Report - {summary.get('project', 'unknown')}",
-                f"\n**Session ended:** {summary.get('session_end_time', datetime.now().isoformat())}",
+                f"\n**Session ended:** {summary.get('session_end_time', utc_now().isoformat())}",
             )
         )
         markdown_content.extend(
@@ -826,18 +826,16 @@ class SessionLifecycleManager:
         self, content: str, current_dir: Path
     ) -> Path | None:
         """Save handoff documentation to a file."""
-        from datetime import datetime
-
         try:
             # Save to .claude/handoff/ directory instead of project root
             handoff_dir = current_dir / ".claude" / "handoff"
             handoff_dir.mkdir(parents=True, exist_ok=True)
 
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = utc_now().strftime("%Y%m%d_%H%M%S")
             handoff_file = handoff_dir / f"session_handoff_{timestamp}.md"
             handoff_file.write_text(content)
             return handoff_file
-        except Exception:
+        except (OSError, TypeError, ValueError):
             # Return None on any failure to save
             return None
 
@@ -880,7 +878,7 @@ class SessionLifecycleManager:
             }
 
         except Exception as e:
-            self.logger.exception("Session initialization failed: %s", str(e))
+            self.logger.exception("Session initialization failed")
             return {"success": False, "error": str(e)}
 
     def get_previous_quality_score(self, project: str) -> int | None:
@@ -952,7 +950,7 @@ class SessionLifecycleManager:
             hooks_manager: HooksManager | None = None
             try:
                 hooks_manager = get_sync_typed(HooksManager)
-            except Exception as e:
+            except (ImportError, KeyError, AttributeError) as e:
                 self.logger.warning("Failed to get hooks manager from DI: %s", str(e))
 
             # Execute PRE_CHECKPOINT hooks (quality validation, etc.)
@@ -962,7 +960,7 @@ class SessionLifecycleManager:
                     pre_context = HookContext(
                         hook_type=HookType.PRE_CHECKPOINT,
                         session_id=session_id,
-                        timestamp=datetime.now(),
+                        timestamp=utc_now(),
                         metadata={
                             "working_directory": str(current_dir),
                             "is_manual": is_manual,
@@ -971,7 +969,7 @@ class SessionLifecycleManager:
                     pre_hooks_results = await hooks_manager.execute_hooks(
                         HookType.PRE_CHECKPOINT, pre_context
                     )
-                except Exception as e:
+                except (AttributeError, RuntimeError) as e:
                     self.logger.warning("PRE_CHECKPOINT hooks failed: %s", str(e))
 
             # Quality assessment
@@ -1031,7 +1029,7 @@ class SessionLifecycleManager:
                     post_context = HookContext(
                         hook_type=HookType.POST_CHECKPOINT,
                         session_id=session_id,
-                        timestamp=datetime.now(),
+                        timestamp=utc_now(),
                         metadata={
                             "quality_score": quality_score,
                             "previous_score": previous_score,
@@ -1047,7 +1045,7 @@ class SessionLifecycleManager:
                     post_hooks_results = await hooks_manager.execute_hooks(
                         HookType.POST_CHECKPOINT, post_context
                     )
-                except Exception as e:
+                except (AttributeError, RuntimeError) as e:
                     self.logger.warning("POST_CHECKPOINT hooks failed: %s", str(e))
 
             # Format results
@@ -1067,7 +1065,7 @@ class SessionLifecycleManager:
                 "quality_data": quality_data,
                 "quality_output": quality_output,
                 "git_output": git_output,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": utc_now().isoformat(),
                 "auto_store_decision": auto_store_decision,
                 "auto_store_summary": format_auto_store_summary(auto_store_decision),
                 "insights_extracted": insights_extracted,
@@ -1079,7 +1077,7 @@ class SessionLifecycleManager:
         except Exception as e:
             import traceback
 
-            self.logger.exception("Session checkpoint failed, error=%s", str(e))
+            self.logger.exception("Session checkpoint failed")
             traceback.print_exc()  # Print full traceback for debugging
             return {"success": False, "error": f"{type(e).__name__}: {e}"}
 
@@ -1169,7 +1167,7 @@ class SessionLifecycleManager:
                     len(insights) - insights_extracted,
                 )
 
-        except Exception as e:
+        except (AttributeError, RuntimeError, ValueError) as e:
             # Don't fail operation if insight extraction fails
             self.logger.warning(
                 "Insight extraction failed at %s (continuing), error=%s",
@@ -1250,7 +1248,7 @@ class SessionLifecycleManager:
 
             return result
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             # Don't fail checkpoint if conversation storage fails
             self.logger.warning(
                 "Conversation storage failed (continuing), project=%s, error=%s",
@@ -1276,9 +1274,7 @@ class SessionLifecycleManager:
             self.current_project = current_dir.name
 
             # Generate session ID for this session end
-            session_id = (
-                f"{self.current_project}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-            )
+            session_id = f"{self.current_project}-{utc_now().strftime('%Y%m%d-%H%M%S')}"
 
             # Execute PRE_SESSION_END hooks (cleanup preparation, etc.)
             pre_hooks_results = []
@@ -1287,7 +1283,7 @@ class SessionLifecycleManager:
                 pre_context = HookContext(
                     hook_type=HookType.PRE_SESSION_END,
                     session_id=session_id,
-                    timestamp=datetime.now(),
+                    timestamp=utc_now(),
                     metadata={
                         "working_directory": str(current_dir),
                     },
@@ -1295,7 +1291,7 @@ class SessionLifecycleManager:
                 pre_hooks_results = await hooks_manager.execute_hooks(
                     HookType.PRE_SESSION_END, pre_context
                 )
-            except Exception as e:
+            except (AttributeError, RuntimeError) as e:
                 self.logger.warning("PRE_SESSION_END hooks failed: %s", str(e))
 
             # Final quality assessment
@@ -1320,7 +1316,7 @@ class SessionLifecycleManager:
             summary = {
                 "project": self.current_project,
                 "final_quality_score": quality_score,
-                "session_end_time": datetime.now().isoformat(),
+                "session_end_time": utc_now().isoformat(),
                 "working_directory": str(current_dir),
                 "recommendations": quality_data.get("recommendations", []),
             }
@@ -1343,7 +1339,7 @@ class SessionLifecycleManager:
                 post_context = HookContext(
                     hook_type=HookType.SESSION_END,
                     session_id=session_id,
-                    timestamp=datetime.now(),
+                    timestamp=utc_now(),
                     metadata={
                         "quality_score": quality_score,
                         "insights_extracted": insights_extracted,
@@ -1358,7 +1354,7 @@ class SessionLifecycleManager:
                 post_hooks_results = await hooks_manager.execute_hooks(
                     HookType.SESSION_END, post_context
                 )
-            except Exception as e:
+            except (AttributeError, RuntimeError) as e:
                 self.logger.warning("SESSION_END hooks failed: %s", str(e))
 
             self.logger.info(
@@ -1383,8 +1379,8 @@ class SessionLifecycleManager:
                 "post_hooks_results": post_hooks_results,
             }
 
-        except Exception as e:
-            self.logger.exception("Session end failed, error=%s", str(e))
+        except Exception:
+            self.logger.exception("Session end failed")
             return {"success": False, "error": str(e)}
 
     async def get_session_status(
@@ -1426,9 +1422,9 @@ class SessionLifecycleManager:
                     "git_repository": git_available,
                     "claude_directory": claude_dir_exists,
                 },
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": utc_now().isoformat(),
             }
 
         except Exception as e:
-            self.logger.exception("Failed to get session status, error=%s", str(e))
+            self.logger.exception("Failed to get session status")
             return {"success": False, "error": str(e)}

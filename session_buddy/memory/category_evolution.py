@@ -20,6 +20,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import logging
 import operator
 import re
@@ -27,15 +28,12 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import Any, ClassVar
 
 import numpy as np
 
 from session_buddy.memory.evolution_config import DecayResult, EvolutionConfig
 from session_buddy.utils.fingerprint import MinHashSignature
-
-if TYPE_CHECKING:
-    import json
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +146,7 @@ class KeywordExtractor:
     """
 
     # Common English stop words
-    STOP_WORDS = {
+    STOP_WORDS: ClassVar[set[str]] = {
         "a",
         "an",
         "and",
@@ -179,7 +177,6 @@ class KeywordExtractor:
         "we",
         "they",
         "this",
-        "that",
         "these",
         "those",
         "am",
@@ -195,14 +192,8 @@ class KeywordExtractor:
         "or",
         "if",
         "because",
-        "as",
         "until",
         "while",
-        "of",
-        "at",
-        "by",
-        "for",
-        "with",
         "about",
         "against",
         "between",
@@ -213,13 +204,9 @@ class KeywordExtractor:
         "after",
         "above",
         "below",
-        "to",
-        "from",
         "up",
         "down",
-        "in",
         "out",
-        "on",
         "off",
         "over",
         "under",
@@ -254,7 +241,6 @@ class KeywordExtractor:
         "too",
         "very",
         "can",
-        "will",
         "just",
         "don",
         "should",
@@ -270,10 +256,6 @@ class KeywordExtractor:
         "also",
         "well",
         "back",
-        "into",
-        "over",
-        "just",
-        "can",
         "need",
         "required",
         "based",
@@ -291,7 +273,7 @@ class KeywordExtractor:
     }
 
     # Technical term patterns (programming, tools, concepts)
-    TECH_PATTERNS = [
+    TECH_PATTERNS: ClassVar[list[str]] = [
         r"\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b",  # CamelCase
         r"\b[a-z]+_[a-z_]+\b",  # snake_case
         r"\b__[a-z_]+__\b",  # Python dunder
@@ -607,14 +589,17 @@ class SubcategoryClusterer:
         best_similarity = 0.0
 
         for other_cat in subcategories:
-            if self._is_valid_merge_target(small_cat, other_cat):
-                if small_cat.centroid is not None and other_cat.centroid is not None:
-                    similarity = self._cosine_similarity(
-                        small_cat.centroid, other_cat.centroid
-                    )
-                    if similarity > best_similarity:
-                        best_similarity = similarity
-                        best_match = other_cat
+            if (
+                self._is_valid_merge_target(small_cat, other_cat)
+                and small_cat.centroid is not None
+                and other_cat.centroid is not None
+            ):
+                similarity = self._cosine_similarity(
+                    small_cat.centroid, other_cat.centroid
+                )
+                if similarity > best_similarity:
+                    best_similarity = similarity
+                    best_match = other_cat
 
         if best_match and best_similarity >= self.similarity_threshold:
             return best_match
@@ -992,8 +977,8 @@ class CategoryEvolutionEngine:
                 )
 
             logger.info(f"Archived {len(subcategories)} subcategories")
-        except Exception as e:
-            logger.error(f"Error archiving subcategories: {e}")
+        except Exception:
+            logger.exception("Error archiving subcategories")
 
     async def _delete_subcategories(
         self,
@@ -1023,8 +1008,8 @@ class CategoryEvolutionEngine:
                 )
 
             logger.info(f"Deleted {len(subcategories)} subcategories")
-        except Exception as e:
-            logger.error(f"Error deleting subcategories: {e}")
+        except Exception:
+            logger.exception("Error deleting subcategories")
 
     def get_subcategories(self, category: TopLevelCategory) -> list[Subcategory]:
         """Get all subcategories for a top-level category."""
@@ -1074,8 +1059,8 @@ class CategoryEvolutionEngine:
             X_array = np.array(X)
             score = silhouette_score(X_array, labels)
             return float(score)
-        except Exception as e:
-            logger.warning(f"Failed to calculate silhouette score: {e}")
+        except (ValueError, np.linalg.LinAlgError):
+            logger.exception("Failed to calculate silhouette score")
             return 0.0  # Return neutral score on error
 
     def _is_memory_in_subcategory(
@@ -1257,8 +1242,8 @@ class CategoryEvolutionEngine:
 
             logger.info(f"Successfully persisted {len(subcategories)} subcategories")
 
-        except Exception as e:
-            logger.error(f"Failed to persist subcategories: {e}")
+        except Exception:
+            logger.exception("Failed to persist subcategories")
 
     async def _load_subcategories(self) -> None:
         """Load subcategories from database on initialization.
@@ -1335,8 +1320,8 @@ class CategoryEvolutionEngine:
                 f"Successfully loaded {loaded_count} subcategories from database"
             )
 
-        except Exception as e:
-            logger.error(f"Failed to load subcategories: {e}")
+        except Exception:
+            logger.exception("Failed to load subcategories")
 
     async def _save_evolution_snapshot(
         self,
@@ -1404,8 +1389,8 @@ class CategoryEvolutionEngine:
 
             logger.info(f"Saved evolution snapshot {snapshot.id}")
 
-        except Exception as e:
-            logger.error(f"Failed to save evolution snapshot: {e}")
+        except Exception:
+            logger.exception("Failed to save evolution snapshot")
 
     async def get_evolution_history(
         self,
@@ -1431,8 +1416,8 @@ class CategoryEvolutionEngine:
             logger.info(f"Retrieved {len(snapshots)} evolution snapshots")
             return snapshots
 
-        except Exception as e:
-            logger.error(f"Failed to get evolution history: {e}")
+        except Exception:
+            logger.exception("Failed to get evolution history")
             return []
 
     def _query_evolution_snapshots(
@@ -1481,10 +1466,10 @@ class CategoryEvolutionEngine:
             cat,
             before_count,
             before_sil,
-            before_memories,
+            _before_memories,
             after_count,
             after_sil,
-            after_memories,
+            _after_memories,
             decayed,
             archived,
             bytes_freed,

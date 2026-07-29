@@ -38,8 +38,8 @@ async def end_session_tool(
 
 
 __all__ = [
-    "register_session_tools",
-    "start_session_tool",
     "checkpoint_session_tool",
     "end_session_tool",
+    "register_session_tools",
+    "start_session_tool",
 ]

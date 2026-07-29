@@ -103,7 +103,7 @@ async def check_v2_migration(db_path: Path | None = None) -> ComponentHealth:
         from session_buddy.memory.migration import get_migration_status
 
         status = get_migration_status(db_path)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - doctor health check must report ComponentHealth even on any DB/import failure
         return ComponentHealth(
             name=name,
             status=HealthStatus.UNHEALTHY,
@@ -214,7 +214,7 @@ async def check_code_index_round_trip() -> ComponentHealth:
             search = await _code_search_symbols_impl(
                 marker, project="doctor_round_trip", limit=5
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - doctor round-trip check must report ComponentHealth even on any code-analysis failure
             return ComponentHealth(
                 name=name,
                 status=HealthStatus.UNHEALTHY,
@@ -300,7 +300,7 @@ async def check_auto_capture_recent(db_path: Path | None = None) -> ComponentHea
             db_path=str(db_path),
         )
         await db.initialize()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - diagnostic contract: must return a DEGRADED ComponentHealth for any internal failure rather than propagate
         return ComponentHealth(
             name=name,
             status=HealthStatus.DEGRADED,
@@ -332,7 +332,7 @@ async def check_auto_capture_recent(db_path: Path | None = None) -> ComponentHea
             "WHERE created_at >= ? ORDER BY created_at DESC LIMIT 200",
             [cutoff_24h],
         ).fetchall()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - diagnostic contract: must return a DEGRADED ComponentHealth for any DB query failure rather than propagate
         return ComponentHealth(
             name=name,
             status=HealthStatus.DEGRADED,
@@ -496,7 +496,8 @@ async def check_server_port_bound(port: int = 8678) -> ComponentHealth:
             message="lsof not available; cannot probe port",
         )
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
             capture_output=True,
             text=True,
@@ -566,7 +567,7 @@ async def run_all_doctor_checks() -> list[ComponentHealth]:
     for coro in coros:
         try:
             results.append(await coro)
-        except Exception as exc:  # defensive: never let one crash stop the rest
+        except Exception as exc:  # noqa: BLE001 - batch diagnostic runner: must record a UNHEALTHY ComponentHealth for any crashed check so the doctor report stays complete
             name = getattr(coro, "__name__", "unknown")
             logger.warning("doctor_check_crashed", check=name, error=str(exc))
             results.append(
@@ -599,7 +600,7 @@ def register_doctor_command(app: typer.Typer) -> None:
             "--json",
             help="Emit JSON instead of a colored table.",
         ),
-        only: list[str] | None = typer.Option(
+        only: list[str] | None = typer.Option(  # noqa: B008 - typer idiom: default must live in typer.Option
             None,
             "--check",
             help="Run only the named check (repeatable: --check v2_migration).",

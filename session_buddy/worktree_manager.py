@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Git Worktree Management for Session Management MCP Server.
 
 Provides high-level worktree operations and coordination with session management.
 """
 
+import asyncio
 import json
 import os
 import shutil
 import subprocess  # nosec B404
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from session_buddy.utils.time import utc_now
 
 from .utils.git_worktrees import (
     WorktreeInfo,
@@ -127,9 +130,7 @@ class WorktreeManager:
             return False
         # Reject ``..`` to prevent path-traversal style names like
         # ``main..parent``.
-        if ".." in branch:
-            return False
-        return True
+        return ".." not in branch
 
     def _is_safe_path(self, path: Path) -> bool:
         """Security: Validate path is safe and reasonable."""
@@ -188,7 +189,7 @@ class WorktreeManager:
                 "total_count": len(worktree_data),
             }
 
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             self._log(f"Failed to list worktrees: {e}", level="error")
             return {"success": False, "error": str(e), "worktrees": []}
 
@@ -304,7 +305,7 @@ class WorktreeManager:
             error_msg = e.stderr.strip() if e.stderr else str(e)
             self._log(f"Failed to create worktree: {error_msg}", level="error")
             return GitOperationResult.error_result(error_msg)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - public API must return GitOperationResult error envelope for any unexpected failure
             self._log(f"Unexpected error creating worktree: {e}", level="error")
             return GitOperationResult.error_result(str(e))
 
@@ -396,7 +397,8 @@ class WorktreeManager:
                 }
 
             # Execute git worktree remove with security hardening
-            result = subprocess.run(  # nosec B603 - Command validated via _validate_git_command()
+            result = await asyncio.to_thread(  # nosec B603 - Command validated via _validate_git_command()
+                subprocess.run,
                 cmd,
                 cwd=repository_path,
                 capture_output=True,
@@ -418,7 +420,7 @@ class WorktreeManager:
             error_msg = e.stderr.strip() if e.stderr else str(e)
             self._log(f"Failed to remove worktree: {error_msg}", level="error")
             return {"success": False, "error": error_msg}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - public API must return structured error envelope for any unexpected failure
             self._log(f"Unexpected error removing worktree: {e}", level="error")
             return {"success": False, "error": str(e)}
 
@@ -440,7 +442,8 @@ class WorktreeManager:
                 }
 
             # Execute git worktree prune with security hardening
-            result = subprocess.run(  # nosec B603 - Command validated via _validate_git_command()
+            result = await asyncio.to_thread(  # nosec B603 - Command validated via _validate_git_command()
+                subprocess.run,
                 cmd,
                 cwd=repository_path,
                 capture_output=True,
@@ -450,8 +453,12 @@ class WorktreeManager:
                 shell=False,  # Security: Explicit shell=False to prevent injection
             )
 
+            output_text = (
+                result.stdout.decode() if isinstance(result.stdout, bytes) else result.stdout
+            )
+            stripped = output_text.strip()
             output_lines = (
-                result.stdout.strip().split("\n") if result.stdout.strip() else []
+                stripped.split("\n") if stripped else []
             )
             pruned_count = len([line for line in output_lines if "Removing" in line])
 
@@ -509,7 +516,7 @@ class WorktreeManager:
                 "session_summary": self._get_session_summary(all_worktrees),
             }
 
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             self._log(f"Failed to get worktree status: {e}", level="error")
             return {"success": False, "error": str(e)}
 
@@ -565,7 +572,7 @@ class WorktreeManager:
         """Save the current session state for preservation during worktree switching."""
         try:
             state = {
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": utc_now().isoformat(),
                 "worktree_path": str(worktree_path),
                 "working_directory": str(Path.cwd()),
                 "environment": os.environ.copy(),
@@ -582,7 +589,7 @@ class WorktreeManager:
                 json.dump(state, f, indent=2)
 
             return state
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             self._log(f"Failed to save session state: {e}", level="warning")
             return None
 
@@ -605,7 +612,7 @@ class WorktreeManager:
                 recent_files=len(state.get("recent_files", [])),
             )
             return True
-        except Exception as e:
+        except (KeyError, OSError) as e:
             self._log(f"Failed to restore session state: {e}", level="warning")
             return False
 
@@ -629,7 +636,7 @@ class WorktreeManager:
                         continue
 
             return recent_files[:20]  # Limit to 20 most recent files
-        except Exception:
+        except (OSError, ValueError):
             return []
 
     def _get_git_status(self, worktree_path: Path) -> dict[str, Any]:
@@ -643,7 +650,7 @@ class WorktreeManager:
                 "untracked_files": untracked,
                 "has_changes": len(modified) > 0 or len(untracked) > 0,
             }
-        except Exception:
+        except (ImportError, subprocess.SubprocessError):
             return {"modified_files": [], "untracked_files": [], "has_changes": False}
 
     async def switch_worktree_context(
@@ -707,7 +714,8 @@ class WorktreeManager:
                     "session_state_restored": restored_state,
                     "message": f"Switched from {from_worktree.branch} to {to_worktree.branch}",
                 }
-            except Exception as session_error:
+            except Exception as session_error:  # noqa: BLE001 - best-effort session-preservation fallback, must absorb any error to complete the worktree switch
+                # Fallback to basic switching if session preservation fails
                 # Fallback to basic switching if session preservation fails
                 self._log(
                     f"Session preservation failed, using basic switching: {session_error}",
@@ -736,6 +744,6 @@ class WorktreeManager:
                     "message": f"Switched from {from_worktree.branch} to {to_worktree.branch} (session preservation failed)",
                 }
 
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             self._log(f"Failed to switch worktree context: {e}", level="error")
             return {"success": False, "error": str(e)}

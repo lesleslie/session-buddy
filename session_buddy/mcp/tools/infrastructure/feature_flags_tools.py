@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+# ruff: noqa: EXE001
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.config.feature_flags import get_feature_flags

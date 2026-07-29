@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: EXE001
 """Stateless/Serverless Mode for Session Management MCP Server.
 
 Enables request-scoped sessions with Oneiric storage backends and keeps session
@@ -8,12 +9,12 @@ state external to the request lifecycle.
 import hashlib
 import json
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from session_buddy.adapters.serverless_storage_adapter import ServerlessStorageAdapter
 from session_buddy.backends import SessionState, SessionStorage
+from session_buddy.utils.time import utc_now
 
 CONFIG_LOGGER = logging.getLogger("serverless.config")
 
@@ -43,8 +44,8 @@ class ServerlessSessionManager:
             session_id=session_id,
             user_id=user_id,
             project_id=project_id,
-            created_at=datetime.now().isoformat(),
-            last_activity=datetime.now().isoformat(),
+            created_at=utc_now().isoformat(),
+            last_activity=utc_now().isoformat(),
             permissions=[],
             conversation_history=[],
             reflection_data={},
@@ -93,7 +94,7 @@ class ServerlessSessionManager:
                 setattr(session_state, key, value)
 
         # Update last activity
-        session_state.last_activity = datetime.now().isoformat()
+        session_state.last_activity = utc_now().isoformat()
 
         # Store updated state
         ttl_seconds = ttl_hours * 3600 if ttl_hours else None
@@ -126,7 +127,7 @@ class ServerlessSessionManager:
 
     def _generate_session_id(self, user_id: str, project_id: str) -> str:
         """Generate unique session ID."""
-        timestamp = datetime.now().isoformat()
+        timestamp = utc_now().isoformat()
         data = f"{user_id}:{project_id}:{timestamp}"
         return hashlib.sha256(data.encode()).hexdigest()[:16]
 
@@ -214,6 +215,9 @@ class ServerlessConfigManager:
                 results[backend_name] = await storage.is_available()
 
             except Exception:
+                CONFIG_LOGGER.exception(
+                    "Backend %s availability check failed", backend_name
+                )
                 results[backend_name] = False
 
         return results
