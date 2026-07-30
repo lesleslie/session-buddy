@@ -850,7 +850,7 @@ def _read_coverage_dotfile(project_dir: Path) -> float:
         # coverage.py >=7 reports a Numbers instance with statement percent
         # instead of the legacy line percent. Detect and prefer it.
         if isinstance(total, Numbers) and total.n_statements:
-            pct_attr = getattr(total, "pc_statements_covered", None)
+            pct_attr = getattr(total, "pc_statements", None)
             if isinstance(pct_attr, (int, float)):
                 return round(float(pct_attr), 2)
             return 0.0

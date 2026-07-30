@@ -682,8 +682,28 @@ class TestQueryRewriterIntegration:
         assert stats["total_rewrites"] == 0
 
     @pytest.mark.asyncio
-    async def test_cache_invalidation_on_clear(self, rewriter):
+    async def test_cache_invalidation_on_clear(self, rewriter, monkeypatch: pytest.MonkeyPatch):
         """Test that clear_cache() invalidates all cached rewrites."""
+        # Mock the LLM so this test doesn't make real network calls; the
+        # assertion below is about cache state, not LLM behavior. Use a fake
+        # provider list to keep the rewriter from short-circuiting on the
+        # "no providers available" path before our mock is consulted.
+        from session_buddy.llm_providers import LLMManager as _LLMManager_cls
+
+        fake_llm = MagicMock(spec=_LLMManager_cls)
+        fake_llm.list_providers.return_value = ["anthropic"]
+        fake_llm.call_llm = AsyncMock(
+            return_value="Expanded query: replace with httpx retry"
+        )
+        import session_buddy.utils.instance_managers as im_pkg
+
+        monkeypatch.setattr(im_pkg, "get_llm_manager", AsyncMock(return_value=fake_llm))
+        monkeypatch.setattr(
+            rewriter,
+            "_get_llm_provider",
+            AsyncMock(return_value="anthropic"),
+        )
+
         # Create a clear context that won't trigger LLM
         context = RewriteContext(
             query="FastAPI authentication",
@@ -693,23 +713,23 @@ class TestQueryRewriterIntegration:
             session_context={},
         )
 
-        # First call (no rewrite, no cache)
+        # First call (mocked LLM does the rewrite; cache is populated)
         result1 = await rewriter.rewrite_query(
             query=context.query,
             context=context,
             force_rewrite=False,
         )
 
-        # Verify cache is empty (no rewrite for clear query)
-        assert len(rewriter._cache) == 0
+        # Cache holds the rewritten entry from the mocked LLM call
+        assert len(rewriter._cache) == 1
 
         # Clear cache explicitly
         rewriter.clear_cache()
 
-        # Verify cache is still empty
+        # Verify cache is empty after clear
         assert len(rewriter._cache) == 0
 
-        # Next call should also not cache (clear query)
+        # Next call should also be a cache miss (clear query → fresh LLM call)
         result2 = await rewriter.rewrite_query(
             query=context.query,
             context=context,
@@ -717,6 +737,7 @@ class TestQueryRewriterIntegration:
         )
 
         assert result2.cache_hit is False
+        assert len(rewriter._cache) == 1
 
 
 class TestQueryRewriterEdgeCases:
@@ -776,8 +797,30 @@ class TestQueryRewriterEdgeCases:
         assert key1 != key2
 
     @pytest.mark.asyncio
-    async def test_rewrite_query_with_no_conversations(self, rewriter: QueryRewriter) -> None:
+    async def test_rewrite_query_with_no_conversations(
+        self, rewriter: QueryRewriter, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A context with empty recent_conversations and recent_files still rewrites."""
+        # Mock the LLM to raise so the rewriter exercises its fallback path,
+        # matching the original test's intent of verifying behavior when the
+        # LLM is unavailable. Without this, ``LLMManager.call_llm`` is real
+        # and the test would make a live network call.
+        from session_buddy.llm_providers import LLMManager as _LLMManager_cls
+
+        fake_llm = MagicMock(spec=_LLMManager_cls)
+        fake_llm.list_providers.return_value = ["anthropic"]
+        fake_llm.call_llm = AsyncMock(
+            side_effect=RuntimeError("LLM provider unavailable")
+        )
+        import session_buddy.utils.instance_managers as im_pkg
+
+        monkeypatch.setattr(im_pkg, "get_llm_manager", AsyncMock(return_value=fake_llm))
+        monkeypatch.setattr(
+            rewriter,
+            "_get_llm_provider",
+            AsyncMock(return_value="anthropic"),
+        )
+
         context = RewriteContext(
             query="fix it",
             recent_conversations=[],

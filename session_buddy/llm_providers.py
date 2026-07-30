@@ -627,6 +627,33 @@ class LLMManager:
             timestamp=utc_now().isoformat(),
         )
 
+    async def call_llm(
+        self,
+        provider: str | None = None,
+        messages: list[dict[str, str]] | None = None,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        **_unused: Any,
+    ) -> str:
+        """Adapter that delegates to :meth:`generate` and returns just the text.
+
+        Accepts the ``messages`` as a list of plain ``{"role", "content"}`` dicts
+        (matching the interface callers expect from a chat-style helper) and
+        unwraps the ``LLMResponse.content`` for convenience. The ``provider``
+        argument is accepted for backward compatibility with the legacy
+        ``call_llm`` callers — the actual routing is controlled by
+        ``FallbackChain`` inside :meth:`generate`, so the value is intentionally
+        ignored here.
+        """
+        llm_messages = [LLMMessage(role=m["role"], content=m["content"]) for m in messages or []]
+        response = await self.generate(
+            llm_messages,
+            provider=provider,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return response.content
+
     async def generate_text(
         self,
         prompt: str,

@@ -517,7 +517,7 @@ class QueryRewriter:
                 },
             ]
 
-            response = await llm.call_llm(  # ty: ignore[unresolved-attribute] -- call_llm is provided via runtime LLM implementation
+            response = await llm.call_llm(
                 provider=llm_provider,
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more focused rewrites

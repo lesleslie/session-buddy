@@ -23,7 +23,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from session_buddy.utils.error_management import _get_logger
 
@@ -309,7 +309,7 @@ class AkoshaSyncConfig:
         force_method_raw = _string("akosha_force_method", "auto")
         if force_method_raw not in {"auto", "cloud", "http"}:
             force_method_raw = "auto"
-        force_method = cast(Literal["auto", "cloud", "http"], force_method_raw)
+        force_method: Literal["auto", "cloud", "http"] = force_method_raw
 
         return cls(
             # Cloud settings
