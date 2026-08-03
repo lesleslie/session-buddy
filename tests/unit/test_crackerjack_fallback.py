@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 
 import pytest
 
+from session_buddy import metrics as sb_metrics
 from session_buddy.utils.crackerjack.output_parser import CrackerjackOutputParser
 from session_buddy.config import feature_flags
 from session_buddy.config.feature_flags import FeatureFlags
@@ -510,3 +512,286 @@ async def test_timeout_override_propagates(monkeypatch, tmp_path):
         project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}), timeout=5.0,
     )
     assert captured_timeout[0] == 5.0
+
+
+# ---------------------------------------------------------------------------
+# Task 7: observability tests (counter, log level, log fields, OTel span)
+# ---------------------------------------------------------------------------
+
+
+def _capture_counters(monkeypatch) -> list:
+    """Patch _emit_counter to record (command, outcome, caller) calls."""
+    captured: list = []
+    monkeypatch.setattr(
+        "session_buddy.utils.crackerjack.fallback._emit_counter",
+        lambda command, outcome, caller: captured.append((command, outcome, caller)),
+    )
+    return captured
+
+
+@pytest.mark.parametrize("setup_failure", [
+    "success", "disabled", "timeout", "cancelled", "nonzero_exit",
+    "parse_error", "empty_stdout", "missing_executable",
+    "permission_error", "os_error",
+])
+@pytest.mark.asyncio
+async def test_helper_emits_counter_for_every_outcome(monkeypatch, tmp_path, setup_failure):
+    """Every one of the 10 outcomes must increment the counter exactly once."""
+    _enable_flag(monkeypatch)
+    captured = _capture_counters(monkeypatch)
+
+    # Default: a successful invocation
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    # `await awaitable` makes wait_for forward the proc's actual
+    # communicate() result, so the helper sees the proc's real stdout
+    # (important for the empty_stdout branch, which would otherwise
+    # see the literal `b"{}"` from a hardcoded mock return).
+    async def fake_wait_for(awaitable, timeout):
+        return await awaitable
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    if setup_failure == "success":
+        parsed_data = {"lint_issues": []}
+        # parse_output returns (parsed_data, memory_insights) — see Task 0
+        # commit 54df5a4a. The brief's stub returns just parsed_data, but
+        # the helper does `parsed_data, _memory_insights = ...`, so a
+        # dict would raise TypeError and land us in parse_error instead.
+        monkeypatch.setattr(
+            CrackerjackOutputParser, "parse_output",
+            classmethod(lambda cls, command, stdout, stderr: (parsed_data, [])),
+        )
+    elif setup_failure == "disabled":
+        _enable_flag(monkeypatch, enable=False)
+    elif setup_failure == "timeout":
+        async def fake_wait_for_timeout(awaitable, timeout):
+            raise asyncio.TimeoutError()
+        monkeypatch.setattr(asyncio, "wait_for", fake_wait_for_timeout)
+    elif setup_failure == "cancelled":
+        async def fake_wait_for_cancel(awaitable, timeout):
+            raise asyncio.CancelledError()
+        monkeypatch.setattr(asyncio, "wait_for", fake_wait_for_cancel)
+    elif setup_failure == "nonzero_exit":
+        proc.returncode = 1
+    elif setup_failure == "parse_error":
+        def boom(*a, **k): raise ValueError("simulated")
+        monkeypatch.setattr(CrackerjackOutputParser, "parse_output", classmethod(boom))
+        proc._make_process_mock_args = (1, b"non-empty", b"")
+    elif setup_failure == "empty_stdout":
+        proc = _make_process_mock(returncode=0, stdout=b"", stderr=b"")
+        async def fake_spawn_empty(*args, **kwargs): return proc
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_empty)
+    elif setup_failure == "missing_executable":
+        async def fake_spawn_fnf(*args, **kwargs):
+            raise FileNotFoundError("python not on PATH")
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_fnf)
+    elif setup_failure == "permission_error":
+        async def fake_spawn_perm(*args, **kwargs):
+            raise PermissionError(13, "denied", "/cwd")
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_perm)
+    elif setup_failure == "os_error":
+        async def fake_spawn_os(*args, **kwargs):
+            raise OSError(28, "no space")
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_os)
+
+    if setup_failure in ("disabled",):
+        result = await try_crackerjack_cli(
+            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+        )
+        assert result is None
+    elif setup_failure in ("cancelled",):
+        with pytest.raises(asyncio.CancelledError):
+            await try_crackerjack_cli(
+                project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+            )
+    elif setup_failure == "success":
+        # Success returns `{}` (an empty dict) when the subprocess ran but
+        # produced none of the requested keys — see helper docstring.
+        result = await try_crackerjack_cli(
+            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+        )
+        assert result == {}
+    else:
+        result = await try_crackerjack_cli(
+            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+        )
+        assert result is None
+
+    assert len(captured) == 1, f"expected exactly 1 counter call, got {len(captured)}"
+    assert captured[0][1] == setup_failure
+
+
+@pytest.mark.parametrize("outcome,expected_level", [
+    ("timeout", logging.WARNING),
+    ("cancelled", logging.WARNING),
+    ("nonzero_exit", logging.WARNING),
+    ("parse_error", logging.WARNING),
+    ("empty_stdout", logging.WARNING),
+    ("permission_error", logging.WARNING),
+    ("os_error", logging.WARNING),
+])
+@pytest.mark.asyncio
+async def test_helper_logs_warning_for_actionable_failures(monkeypatch, tmp_path, caplog, outcome, expected_level):
+    """The 7 WARNING-level outcomes all log at WARNING (success is INFO, not WARNING)."""
+    _enable_flag(monkeypatch)
+    _capture_counters(monkeypatch)
+
+    proc = _make_process_mock(returncode=0, stdout=b"non-empty", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"non-empty", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    if outcome == "timeout":
+        async def fake_wf(*a, **k): raise asyncio.TimeoutError()
+        monkeypatch.setattr(asyncio, "wait_for", fake_wf)
+    elif outcome == "cancelled":
+        async def fake_wf(*a, **k): raise asyncio.CancelledError()
+        monkeypatch.setattr(asyncio, "wait_for", fake_wf)
+    elif outcome == "nonzero_exit":
+        proc.returncode = 1
+    elif outcome == "parse_error":
+        def boom(*a, **k): raise ValueError("sim")
+        monkeypatch.setattr(CrackerjackOutputParser, "parse_output", classmethod(boom))
+    elif outcome == "empty_stdout":
+        proc = _make_process_mock(returncode=0, stdout=b"", stderr=b"")
+        async def fake_spawn_e(*a, **k): return proc
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_e)
+    elif outcome == "permission_error":
+        async def fake_spawn_p(*a, **k): raise PermissionError(13, "d", "/cwd")
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_p)
+    elif outcome == "os_error":
+        async def fake_spawn_o(*a, **k): raise OSError(28, "ns")
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_o)
+
+    with caplog.at_level(logging.DEBUG, logger="session_buddy.utils.crackerjack.fallback"):
+        if outcome == "cancelled":
+            with pytest.raises(asyncio.CancelledError):
+                await try_crackerjack_cli(
+                    project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+                )
+        else:
+            await try_crackerjack_cli(
+                project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+            )
+
+    records = [r for r in caplog.records if "crackerjack fallback invoked" in r.message]
+    assert any(r.levelno == expected_level for r in records), (
+        f"outcome={outcome!r} expected level={expected_level}, got {[r.levelno for r in records]}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_helper_logs_info_on_success(monkeypatch, tmp_path, caplog):
+    _enable_flag(monkeypatch)
+    parsed_data = {"lint_issues": []}
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout):
+        return await awaitable
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+    # parse_output returns (parsed_data, memory_insights); see Task 0 54df5a4a.
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output",
+        classmethod(lambda cls, command, stdout, stderr: (parsed_data, [])),
+    )
+
+    with caplog.at_level(logging.INFO, logger="session_buddy.utils.crackerjack.fallback"):
+        await try_crackerjack_cli(
+            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+        )
+
+    info_records = [r for r in caplog.records if "crackerjack fallback invoked" in r.message]
+    assert info_records and info_records[0].levelno == logging.INFO
+
+
+@pytest.mark.asyncio
+async def test_helper_logs_debug_on_disabled(monkeypatch, tmp_path, caplog):
+    _enable_flag(monkeypatch, enable=False)
+
+    with caplog.at_level(logging.DEBUG, logger="session_buddy.utils.crackerjack.fallback"):
+        result = await try_crackerjack_cli(
+            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+        )
+    assert result is None
+    debug_records = [r for r in caplog.records if "crackerjack fallback invoked" in r.message]
+    assert debug_records and debug_records[0].levelno == logging.DEBUG
+
+
+@pytest.mark.asyncio
+async def test_helper_logs_error_on_missing_executable(monkeypatch, tmp_path, caplog):
+    _enable_flag(monkeypatch)
+    async def fake_spawn(*args, **kwargs): raise FileNotFoundError("python not on PATH")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+
+    with caplog.at_level(logging.ERROR, logger="session_buddy.utils.crackerjack.fallback"):
+        await try_crackerjack_cli(
+            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+        )
+    error_records = [r for r in caplog.records if "crackerjack fallback invoked" in r.message]
+    assert error_records and error_records[0].levelno == logging.ERROR
+
+
+@pytest.mark.asyncio
+async def test_log_includes_all_required_fields(monkeypatch, tmp_path, caplog):
+    """Every spec-required log field must be set on the record."""
+    _enable_flag(monkeypatch)
+    parsed_data = {"lint_issues": []}
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout):
+        return await awaitable
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+    # parse_output returns (parsed_data, memory_insights); see Task 0 54df5a4a.
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output",
+        classmethod(lambda cls, command, stdout, stderr: (parsed_data, [])),
+    )
+
+    with caplog.at_level(logging.INFO, logger="session_buddy.utils.crackerjack.fallback"):
+        await try_crackerjack_cli(
+            project_dir=tmp_path,
+            missing_metrics=frozenset({"lint_score"}),
+            caller="producer_retry",
+            correlation_context={"session_id": "abc-123"},
+        )
+
+    rec = next(r for r in caplog.records if "crackerjack fallback invoked" in r.message)
+    required_fields = [
+        "command", "project_dir", "project_name", "missing_metrics",
+        "duration_seconds", "outcome", "caller", "session_id", "workflow_id",
+    ]
+    for field in required_fields:
+        assert hasattr(rec, field), f"log record missing field: {field}"
+    assert rec.caller == "producer_retry"
+    assert rec.project_name == tmp_path.name
+    assert rec.session_id == "abc-123"
+    assert rec.missing_metrics == ["lint_score"]  # sorted
+
+
+@pytest.mark.asyncio
+async def test_missing_metrics_sorted_in_log(monkeypatch, tmp_path, caplog):
+    _enable_flag(monkeypatch)
+    parsed_data = {"lint_issues": []}
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout):
+        return await awaitable
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+    # parse_output returns (parsed_data, memory_insights); see Task 0 54df5a4a.
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output",
+        classmethod(lambda cls, command, stdout, stderr: (parsed_data, [])),
+    )
+
+    with caplog.at_level(logging.INFO, logger="session_buddy.utils.crackerjack.fallback"):
+        await try_crackerjack_cli(
+            project_dir=tmp_path,
+            missing_metrics=frozenset({"security_score", "lint_score", "code_coverage"}),
+        )
+    rec = next(r for r in caplog.records if "crackerjack fallback invoked" in r.message)
+    assert rec.missing_metrics == ["code_coverage", "lint_score", "security_score"]

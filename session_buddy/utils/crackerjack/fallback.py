@@ -198,127 +198,253 @@ async def try_crackerjack_cli(
         Returns {} (not None) when the subprocess succeeded but produced none of
         the requested keys.
     """
-    # Disabled check (early)
-    if not feature_flags.get_feature_flags().enable_crackerjack_fallback:
-        # TODO: log DEBUG with outcome=disabled and emit counter (Task 7)
-        return None
+    # Normalize project_dir to a Path so the log + span attributes have a
+    # stable type (avoids the str-vs-Path divergence that previously caused
+    # log "extra" serialization to differ between callers).
+    project_path = project_dir if isinstance(project_dir, Path) else Path(project_dir)
+    start_time = time.monotonic()
+    # Pick the semantic command up-front so the OTel span's `command`
+    # attribute is populated even on the early disabled-return path.
+    semantic_command, _flag_args = _pick_invocation(missing_metrics)
 
-    # OTel span start (Task 7 fills in the span attributes; this scaffold is
-    # intentionally minimal so the test at Task 7 can verify the span
-    # wrapping works end-to-end)
-    # TODO: with tracer.start_as_current_span("crackerjack.fallback", attributes={...}):
-
-    # Lock
-    async with _FALLBACK_LOCK:
-        # Disabled re-check inside lock
+    # OTel span (Task 7). Use a real span when OTel is configured, fall
+    # back to a no-op context manager so the `with` block works the same
+    # way whether or not OTel is wired up.
+    tracer = _get_tracer()
+    span_cm = (
+        tracer.start_as_current_span(
+            "crackerjack.fallback",
+            attributes={
+                "command": semantic_command,
+                "caller": caller,
+                "missing_metrics": sorted(missing_metrics),
+            },
+        )
+        if tracer is not None
+        else _NoOpSpan()
+    )
+    span: object
+    with span_cm as span:
+        # Disabled check (early)
         if not feature_flags.get_feature_flags().enable_crackerjack_fallback:
-            # TODO: log DEBUG with outcome=disabled and emit counter (Task 7)
-            return None
-
-        # Pick the smallest crackerjack invocation that fills the gaps
-        semantic_command, flag_args = _pick_invocation(missing_metrics)
-        argv = [sys.executable, "-m", "crackerjack", "run", *flag_args]
-
-        # Spawn subprocess (catch OS-level failures)
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *argv,
-                cwd=str(project_dir),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            _finalize(
+                "disabled",
+                semantic_command,
+                caller,
+                project_path,
+                missing_metrics,
+                time.monotonic() - start_time,
+                correlation_context,
+                span=span,
             )
-        except FileNotFoundError:
-            # TODO: log ERROR + counter missing_executable (Task 7)
-            return None
-        except PermissionError:
-            # TODO: log WARNING + counter permission_error (Task 7)
-            return None
-        except OSError:
-            # TODO: log WARNING + counter os_error (Task 7)
             return None
 
-        # Wait with timeout. Split handlers: TimeoutError -> None after
-        # cleanup; CancelledError -> finalize observability THEN re-raise
-        # after cleanup.
-        try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except TimeoutError:
-            if proc.returncode is None:
-                proc.kill()
-                await proc.wait()
-            # TODO: log WARNING + counter timeout (Task 7)
-            return None
-        except asyncio.CancelledError:
-            if proc.returncode is None:
-                proc.kill()
-                await proc.wait()
-            # TODO: log WARNING + counter cancelled (Task 7)
-            raise
+        # Lock
+        async with _FALLBACK_LOCK:
+            # Disabled re-check inside lock
+            if not feature_flags.get_feature_flags().enable_crackerjack_fallback:
+                _finalize(
+                    "disabled",
+                    semantic_command,
+                    caller,
+                    project_path,
+                    missing_metrics,
+                    time.monotonic() - start_time,
+                    correlation_context,
+                    span=span,
+                )
+                return None
 
-        # Check exit code
-        if proc.returncode != 0:
-            # TODO: log WARNING + counter nonzero_exit (Task 7)
-            return None
+            # Pick the smallest crackerjack invocation that fills the gaps
+            semantic_command, flag_args = _pick_invocation(missing_metrics)
+            argv = [sys.executable, "-m", "crackerjack", "run", *flag_args]
 
-        # Empty-stdout guard BEFORE parsing (a parse exception on empty
-        # bytes would otherwise classify this as parse_error, not
-        # empty_stdout)
-        if not stdout:
-            # TODO: log WARNING + counter empty_stdout (Task 7)
-            return None
+            # Spawn subprocess (catch OS-level failures)
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *argv,
+                    cwd=str(project_path),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+            except FileNotFoundError:
+                _finalize(
+                    "missing_executable",
+                    semantic_command,
+                    caller,
+                    project_path,
+                    missing_metrics,
+                    time.monotonic() - start_time,
+                    correlation_context,
+                    span=span,
+                )
+                return None
+            except PermissionError:
+                _finalize(
+                    "permission_error",
+                    semantic_command,
+                    caller,
+                    project_path,
+                    missing_metrics,
+                    time.monotonic() - start_time,
+                    correlation_context,
+                    span=span,
+                )
+                return None
+            except OSError:
+                _finalize(
+                    "os_error",
+                    semantic_command,
+                    caller,
+                    project_path,
+                    missing_metrics,
+                    time.monotonic() - start_time,
+                    correlation_context,
+                    span=span,
+                )
+                return None
 
-        # Parse output (catch any exception from the parser). Note:
-        # parse_output returns (parsed_data, memory_insights) — the
-        # parsed_data dict is the first element; insights is the
-        # memory-side artifact and does not feed back into the metric
-        # filling. Verified in Task 0 (commit 54df5a4a).
-        try:
-            parsed_data, _memory_insights = CrackerjackOutputParser.parse_output(
-                semantic_command, stdout, stderr
+            # Wait with timeout. Split handlers: TimeoutError -> None after
+            # cleanup; CancelledError -> finalize observability THEN re-raise
+            # after cleanup.
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            except TimeoutError:
+                if proc.returncode is None:
+                    proc.kill()
+                    await proc.wait()
+                _finalize(
+                    "timeout",
+                    semantic_command,
+                    caller,
+                    project_path,
+                    missing_metrics,
+                    time.monotonic() - start_time,
+                    correlation_context,
+                    span=span,
+                )
+                return None
+            except asyncio.CancelledError:
+                if proc.returncode is None:
+                    proc.kill()
+                    await proc.wait()
+                # Observability v2 review C2: emit counter BEFORE raise so
+                # the cancelled invocation shows up in metrics even though
+                # the exception propagates to the caller.
+                _finalize(
+                    "cancelled",
+                    semantic_command,
+                    caller,
+                    project_path,
+                    missing_metrics,
+                    time.monotonic() - start_time,
+                    correlation_context,
+                    span=span,
+                )
+                raise
+
+            # Check exit code
+            if proc.returncode != 0:
+                _finalize(
+                    "nonzero_exit",
+                    semantic_command,
+                    caller,
+                    project_path,
+                    missing_metrics,
+                    time.monotonic() - start_time,
+                    correlation_context,
+                    span=span,
+                )
+                return None
+
+            # Empty-stdout guard BEFORE parsing (a parse exception on empty
+            # bytes would otherwise classify this as parse_error, not
+            # empty_stdout)
+            if not stdout:
+                _finalize(
+                    "empty_stdout",
+                    semantic_command,
+                    caller,
+                    project_path,
+                    missing_metrics,
+                    time.monotonic() - start_time,
+                    correlation_context,
+                    span=span,
+                )
+                return None
+
+            # Parse output (catch any exception from the parser). Note:
+            # parse_output returns (parsed_data, memory_insights) — the
+            # parsed_data dict is the first element; insights is the
+            # memory-side artifact and does not feed back into the metric
+            # filling. Verified in Task 0 (commit 54df5a4a).
+            try:
+                parsed_data, _memory_insights = CrackerjackOutputParser.parse_output(
+                    semantic_command, stdout, stderr
+                )
+            except Exception:
+                _finalize(
+                    "parse_error",
+                    semantic_command,
+                    caller,
+                    project_path,
+                    missing_metrics,
+                    time.monotonic() - start_time,
+                    correlation_context,
+                    span=span,
+                )
+                return None
+
+            # Section keys for each scoring metric. An empty section means
+            # the metric was not measured; do NOT synthesize a 100.
+            SECTION_FOR_KEY = {
+                "code_coverage": "coverage_summary",
+                "lint_score": "lint_issues",
+                "security_score": "security_issues",
+                "complexity_score": "complexity_data",
+            }
+            # _calculate_*_metrics are @staticmethods on CrackerjackIntegration
+            # (Task 2). Call them via the class — instantiating
+            # CrackerjackIntegration() would write to SQLite on disk.
+            def _get_crackerjack_integration_class():
+                """Lazy import to avoid a hard dependency at module import time."""
+                from session_buddy.crackerjack_integration import CrackerjackIntegration
+                return CrackerjackIntegration
+
+            cls = _get_crackerjack_integration_class()
+            candidate: dict[str, float] = {}
+            for key in missing_metrics:
+                section_key = SECTION_FOR_KEY.get(key)
+                if section_key is None:
+                    continue
+                section = parsed_data.get(section_key)
+                # An empty section (None, [], {}, etc.) means the metric
+                # was NOT measured — skip the candidate to avoid the
+                # synthesize-100s antipattern.
+                if not section:
+                    continue
+                if key == "code_coverage":
+                    # _calculate_coverage_metrics expects parsed_data (with
+                    # a `coverage_summary` key inside), unlike the other three
+                    # helpers which take the section directly.
+                    candidate.update(cls._calculate_coverage_metrics(parsed_data))
+                elif key == "lint_score":
+                    candidate.update(cls._calculate_lint_metrics(section))
+                elif key == "security_score":
+                    candidate.update(cls._calculate_security_metrics(section))
+                elif key == "complexity_score":
+                    candidate.update(cls._calculate_complexity_metrics(section))
+
+            # Only return the keys the caller actually asked for.
+            result = {k: v for k, v in candidate.items() if k in missing_metrics}
+            _finalize(
+                "success",
+                semantic_command,
+                caller,
+                project_path,
+                missing_metrics,
+                time.monotonic() - start_time,
+                correlation_context,
+                span=span,
             )
-        except Exception:
-            # TODO: log WARNING + counter parse_error (Task 7)
-            return None
-
-        # Section keys for each scoring metric. An empty section means
-        # the metric was not measured; do NOT synthesize a 100.
-        SECTION_FOR_KEY = {
-            "code_coverage": "coverage_summary",
-            "lint_score": "lint_issues",
-            "security_score": "security_issues",
-            "complexity_score": "complexity_data",
-        }
-        # _calculate_*_metrics are @staticmethods on CrackerjackIntegration
-        # (Task 2). Call them via the class — instantiating
-        # CrackerjackIntegration() would write to SQLite on disk.
-        def _get_crackerjack_integration_class():
-            """Lazy import to avoid a hard dependency at module import time."""
-            from session_buddy.crackerjack_integration import CrackerjackIntegration
-            return CrackerjackIntegration
-
-        cls = _get_crackerjack_integration_class()
-        candidate: dict[str, float] = {}
-        for key in missing_metrics:
-            section_key = SECTION_FOR_KEY.get(key)
-            if section_key is None:
-                continue
-            section = parsed_data.get(section_key)
-            # An empty section (None, [], {}, etc.) means the metric
-            # was NOT measured — skip the candidate to avoid the
-            # synthesize-100s antipattern.
-            if not section:
-                continue
-            if key == "code_coverage":
-                # _calculate_coverage_metrics expects parsed_data (with
-                # a `coverage_summary` key inside), unlike the other three
-                # helpers which take the section directly.
-                candidate.update(cls._calculate_coverage_metrics(parsed_data))
-            elif key == "lint_score":
-                candidate.update(cls._calculate_lint_metrics(section))
-            elif key == "security_score":
-                candidate.update(cls._calculate_security_metrics(section))
-            elif key == "complexity_score":
-                candidate.update(cls._calculate_complexity_metrics(section))
-
-        # Only return the keys the caller actually asked for.
-        return {k: v for k, v in candidate.items() if k in missing_metrics}
+            return result
