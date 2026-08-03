@@ -1,38 +1,67 @@
-# Quality-Scoring Crackerjack CLI Fallback — Implementation Plan
+# Quality-Scoring Crackerjack CLI Fallback — Implementation Plan (v2)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a CLI-invocation fallback layer to session-buddy's `quality_scoring` module that recovers from failed/missing metrics reads by invoking crackerjack on-demand, and unconditionally eliminate the synthesize-100s antipattern from the terminal fallback.
 
-**Architecture:** New `try_crackerjack_cli` helper in `session_buddy/utils/crackerjack/fallback.py` invokes crackerjack via `asyncio.create_subprocess_exec` with the v0.47+ `run` subcommand + flag combinations. Wired into the producer's `TimeoutError` path and the consumer's missing-keys chain tier. The terminal synthesis function is rewritten to emit `None` + `unavailable: True` instead of perfect scores. Module-level `asyncio.Lock` serializes invocations. OTel span wraps every invocation. Prometheus counters use `session_buddy_*_total` naming.
+**Architecture:** New `try_crackerjack_cli` helper in `session_buddy/utils/crackerjack/fallback.py` invokes crackerjack via `asyncio.create_subprocess_exec` with the v0.47+ `run` subcommand + flag combinations (selected from a Task 0 preflight). Wired into the producer's `TimeoutError` path and the consumer's missing-keys chain tier. The terminal synthesis function is rewritten to emit `None` + `unavailable: True` instead of perfect scores. Module-level `asyncio.Lock` serializes invocations. OTel span wraps every invocation. Prometheus counters use `session_buddy_*_total` naming. Plan reordered vs. v1: Task 10 (synthesis) precedes Task 8 (consumer wiring) so the synthesis contract exists before the chain tests it.
 
-**Tech Stack:** Python 3.13, `asyncio.create_subprocess_exec`, `prometheus_client`, `opentelemetry.trace`, `pytest` + `pytest-asyncio`, `monkeypatch.setattr` for subprocess mocking.
+**Tech Stack:** Python 3.13, `asyncio.create_subprocess_exec` + `asyncio.wait_for` with split timeout/cancellation handlers, `prometheus_client.Counter/Histogram`, `opentelemetry.trace.Tracer` (lazy-init), `pytest` + `pytest-asyncio`, `monkeypatch.setattr` for subprocess mocking, `unittest.mock.MagicMock` for `CrackerjackResult` fixtures.
+
+## What changed from v1
+
+The v1 plan had 28 Critical issues from a 5-agent review. Key changes:
+
+| Issue | Source | v2 fix |
+|---|---|---|
+| Plan wrote wrong signatures (`_format_metrics_section(quality_metrics: dict)`, `_create_error_result(exit_code=..., quality_metrics=...)`) | MCP C1/C2, Python C1 | Use actual signatures: `_format_metrics_section(result: CrackerjackResult)`; `_create_error_result(command, exit_code, stderr, execution_time, working_directory, memory_insight)` |
+| Task 9 monkeypatches a name that doesn't exist (helper imported locally) | Python I7, game-dev C11 | Move `from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli` to top of `crackerjack_integration.py` |
+| Task 0 verifies metric-to-flag mapping but Task 4 never consumes it | Python I8, game-dev C7 | Task 4's helper uses the mapping table (recorded in Task 0) to pick flags from `missing_metrics` |
+| `try/except (TimeoutError, asyncio.CancelledError)` swallows cancellation | Python C3, game-dev C4 | Split handlers: `TimeoutError` returns `None`; `CancelledError` re-raises after cleanup |
+| `try/finally` subprocess cleanup mandated but never written | game-dev C5 | Task 4's helper has explicit `try/finally` with `proc.kill()` + `proc.wait()` |
+| Subprocess mock defines `kill()` as async; real `asyncio.subprocess.Process.kill()` is sync | game-dev C6 | Mock's `kill()` is sync; `wait()` is async; separate tracking |
+| Task 8 tests new synthesis contract before Task 10 implements it | game-dev C9 | Reorder: Task 10 (synthesis) precedes Task 8 (consumer wiring) |
+| `Histogram` not imported in `metrics.py` — NameError at import | Python I6 | Add `Histogram` to existing `from prometheus_client import ...` line |
+| OTel span is `# TODO` with no test | Observability C1 | Concrete `tracer.start_as_current_span(...)` block; 2 OTel tests added |
+| Counter increments not asserted for any of 10 outcomes | Observability C2 | Parametrized test over all 10 outcomes |
+| WARNING log level routing not tested | Observability C3 | Parametrized test over 7 WARNING outcomes |
+| Missing "synthesis reached only when CLI attempted" regression | Observability C4 | Two regression tests added |
+| `_flags` module global doesn't exist; `monkeypatch.setattr(feature_flags, "_flags", ...)` is a no-op | Python C4, Oneiric I2 | Replace with `monkeypatch.setattr(feature_flags, "get_feature_flags", lambda: ...)` |
+| Task 1 says "add after `enable_crackerjack`" but that field doesn't exist in `FeatureFlags` | Oneiric C1 | Add new section comment to `FeatureFlags`; place field under it |
+| `SESSION_BUDDY_CRACKERJACK_FALLBACK` env var documented but never wired | Oneiric C2 | Add wiring step in `get_feature_flags()` |
+| YAML literal had 2 leading spaces (file is flat) | Oneiric C3 | Fix indentation; add verification step |
+| Task 5's post-filter logic is broken (`parsed_data.get(...)` returns the dict, not None) | Python I5 | Refactor with `SECTION_FOR_KEY` constant; check `section` truthiness |
+| Task 11 banner is dead code (synthesis dict never reaches `_format_metrics_section`) | MCP C1, C2 | Refactor: `_format_metrics_section` inspects `result.quality_metrics`; the synthesis dict is threaded into a `CrackerjackResult` in the consumer path |
+| Task 12 always sees fallback disabled (test never enables flag) | game-dev C12 | Use the same `_enable_flag` helper as unit tests |
+| Task 12 not valid TDD (no failing test, accepts dep failure without skip) | game-dev C13 | `pytest.importorskip("crackerjack")`; assert metric was extracted |
+| Task 9 local import inside exception handler | Python I7 | Move import to module top |
+| Spec's alert guidance not in plan | Observability I3 | New Task 13 |
 
 ## Global Constraints
 
-These apply to every task. The spec is the source of truth for any disagreement; this list is a digest.
-
 - **Spec**: `/Users/les/Projects/session-buddy/docs/superpowers/specs/2026-07-27-quality-scoring-crackerjack-fallback-design.md` (v2)
-- **Crackerjack CLI shape**: v0.47+ uses `python -m crackerjack run --comp|--fast --quick|--security|--run-tests [args]`. Bare `crackerjack check` / `crackerjack lint` do not exist. Verify in Task 0.
-- **Opt-in default**: `enable_crackerjack_fallback: bool = False`. Synthesis change is unconditional; the flag controls only whether the CLI attempt fires.
-- **Env var**: `SESSION_BUDDY_CRACKERJACK_FALLBACK` (per Oneiric project-name strip, not `MAHAVISHNU_`).
-- **YAML key (flat)**: `enable_crackerjack_fallback` in `settings/session-buddy.yaml`. `SessionMgmtSettings.load()` only reads flat top-level keys.
-- **Counter naming**: `session_buddy_crackerjack_fallback_invocations_total{command, outcome, caller}` and `session_buddy_crackerjack_fallback_duration_seconds{command, caller}` (Prometheus `_total` suffix, `session_buddy_` prefix). No dedicated `timeout`/`disabled` counters — use the `outcome` label.
-- **Log levels**: `success` → INFO, `disabled` → DEBUG, `missing_executable` → ERROR, all other failures → WARNING.
+- **Crackerjack CLI shape** (verified in Task 0): `python -m crackerjack run --comp|--fast --quick|--security|--run-tests [args]`. Bare `crackerjack check` / `crackerjack lint` do not exist. The parser's `parser_map` is keyed on the *semantic* command name (`lint`, `check`, `security`, `test`); pass the semantic name to `parse_output`, not `"run"`.
+- **Opt-in default**: `enable_crackerjack_fallback: bool = False`. Synthesis change is unconditional.
+- **Env var**: `SESSION_BUDDY_CRACKERJACK_FALLBACK` (per Oneiric project-name strip).
+- **YAML key (flat)**: `enable_crackerjack_fallback` in `settings/session-buddy.yaml`. `SessionMgmtSettings.load()` only reads flat top-level keys; 0 leading spaces.
+- **Counter naming**: `session_buddy_crackerjack_fallback_invocations_total{command, outcome, caller}` and `session_buddy_crackerjack_fallback_duration_seconds{command, caller}`. The Histogram import must be added to `session_buddy/metrics.py`.
+- **Log levels**: `success` → INFO, `disabled` → DEBUG, `missing_executable` → ERROR, all other failures → WARNING. Test all routes.
 - **Helper signature**: `async def try_crackerjack_cli(project_dir: str | Path, missing_metrics: frozenset[str], timeout: float = 30.0, caller: Literal["producer_retry", "consumer_chain"] = "consumer_chain", correlation_context: dict[str, str] | None = None) -> dict[str, float] | None`
-- **Subprocess cleanup**: `try/finally` with `proc.kill()` + `await proc.wait()` on timeout/cancellation.
+- **Cancellation handling**: `TimeoutError` returns `None` after subprocess cleanup; `asyncio.CancelledError` re-raises after cleanup. Single `try/finally` block with both `proc.kill()` and `proc.wait()` in the `finally`.
+- **Subprocess mock API**: real `asyncio.subprocess.Process.kill()` is sync; `wait()` is async. The mock must match.
 - **Interpreter**: `sys.executable`, not `"python"`.
 - **Outcome taxonomy**: 10 values: `success`, `timeout`, `cancelled`, `nonzero_exit`, `parse_error`, `empty_stdout`, `missing_executable`, `permission_error`, `os_error`, `disabled`.
-- **frozenset**: `missing_metrics` is `frozenset[str]`. The set is sorted lexicographically before logging.
+- **frozenset**: `missing_metrics` is `frozenset[str]`. Sorted lexicographically before logging.
 - **Module-level `asyncio.Lock`**: `_FALLBACK_LOCK` in `fallback.py`, acquired inside the helper.
-- **Pure helper refactor**: `_calculate_lint_metrics` etc. become `@staticmethod` so the helper can call them without instantiating `CrackerjackIntegration` (which writes to SQLite on `__init__`).
-- **`coverage_pct` parameter**: dropped from `_create_fallback_metrics()` entirely. Per Bodai pre-1.0 merge policy, no external callers.
+- **Pure helper refactor**: `_calculate_lint_metrics` etc. become `@staticmethod` so the helper can call them via `CrackerjackIntegration._calculate_X(args)` (no instance).
+- **`coverage_pct` parameter**: dropped from `_create_fallback_metrics()` entirely. Both internal callers (lines 891 and 924 of `quality_scoring.py`) currently pass `coverage_pct`; the rename to bare `_create_fallback_metrics()` requires updating both call sites.
 - **`CrackerjackResult.fallback_used`**: new `bool = False` field.
-- **Mock strategy**: helper uses `import asyncio` (not `from asyncio import create_subprocess_exec`). Tests use `monkeypatch.setattr("asyncio.create_subprocess_exec", ...)`.
+- **`_format_metrics_section(result: CrackerjackResult)`**: takes the dataclass (not a dict), inspects `result.quality_metrics` for the `unavailable` flag.
+- **Mock strategy**: helper uses `import asyncio`. Tests use `monkeypatch.setattr(asyncio, "create_subprocess_exec", ...)`. For `get_feature_flags`, use `monkeypatch.setattr(feature_flags, "get_feature_flags", lambda: FeatureFlags(...))` (no `_flags` global exists).
 - **Pytest markers**: existing markers only — `unit`, `integration`, `requires_network`, `slow`. Do not invent new markers.
 - **Pre-existing test pollution**: `tests/unit/test_quality_scoring.py` collection fails on `ModuleNotFoundError: duckdb`; `tests/unit/test_crackerjack_integration.py` collection fails on the conftest `sys.modules` pollution pattern. Run tests narrowly with `--noconftest --override-ini="addopts="` when needed.
 - **No `assert` in production code** (bandit B101). Use the `session_buddy/core/errors.py` exception hierarchy.
-- **Bodai pre-1.0 merge policy**: components merge directly to `main`; no PRs, no review gates. Branch + squash/ff-merge into `main` is the expected flow.
+- **Bodai pre-1.0 merge policy**: components merge directly to `main`; no PRs.
 - **Coverage target**: 100% line + branch for the new helper; ≥95% for modified sections of existing modules.
 
 ---
@@ -41,26 +70,31 @@ These apply to every task. The spec is the source of truth for any disagreement;
 
 | File | Role | Action |
 |---|---|---|
-| `session_buddy/utils/crackerjack/fallback.py` | New helper + lock + OTel span | NEW |
+| `session_buddy/utils/crackerjack/fallback.py` | New helper + lock + OTel span + env-flag wiring | NEW |
 | `session_buddy/utils/crackerjack/__init__.py` | Export new helper | MODIFY (1 line) |
-| `session_buddy/utils/quality_scoring.py` | Consumer chain tier + synthesis replacement + drop `coverage_pct` | MODIFY |
-| `session_buddy/crackerjack_integration.py` | Producer retry + `fallback_used` field + helper `@staticmethod` refactor | MODIFY |
-| `session_buddy/mcp/tools/session/crackerjack_tools.py` | Banner rendering + `None` handling | MODIFY |
-| `session_buddy/config/feature_flags.py` | Add `enable_crackerjack_fallback` field | MODIFY |
-| `session_buddy/metrics.py` (or new `session_buddy/mcp/fallback_metrics.py`) | Prometheus counters | MODIFY or NEW |
-| `settings/session-buddy.yaml` | Default for opt-in flag | MODIFY |
+| `session_buddy/config/feature_flags.py` | Add `enable_crackerjack_fallback` field; wire `SESSION_BUDDY_CRACKERJACK_FALLBACK` into `get_feature_flags()` | MODIFY |
+| `session_buddy/settings.py` | Add `enable_crackerjack_fallback: bool = Field(default=False, ...)` to `SessionMgmtSettings` | MODIFY |
+| `settings/session-buddy.yaml` | Flat YAML key `enable_crackerjack_fallback: false` | MODIFY |
+| `session_buddy/utils/quality_scoring.py` | Synthesis replacement (drop `coverage_pct`, emit None + unavailable) | MODIFY |
+| `session_buddy/utils/quality_scoring.py` | Consumer chain tier (after synthesis; use top-level import) | MODIFY |
+| `session_buddy/crackerjack_integration.py` | Producer retry (top-level helper import, 6-arg `_create_error_result` call) | MODIFY |
+| `session_buddy/mcp/tools/session/crackerjack_tools.py` | `_format_metrics_section` inspects `result.quality_metrics` for `unavailable`; banner rendering; `None` handling | MODIFY |
+| `session_buddy/metrics.py` | Add `Histogram` to import; register `CRACKERJACK_FALLBACK_INVOCATIONS` and `CRACKERJACK_FALLBACK_DURATION_SECONDS` | MODIFY |
+| `docs/observability/crackerjack-fallback-alerts.md` | PromQL alert rules + dashboard panel stub (Task 13) | NEW |
 | `tests/unit/test_crackerjack_fallback.py` | Helper unit tests | NEW |
 | `tests/unit/test_pure_helpers_purity.py` | Helper-purity regression | NEW |
+| `tests/unit/test_enable_crackerjack_fallback.py` | Feature flag + env-var override tests | NEW |
 | `tests/unit/test_crackerjack_integration.py` | Producer retry tests | MODIFY |
-| `tests/unit/test_quality_scoring.py` | Consumer chain + synthesis tests | MODIFY |
+| `tests/unit/test_quality_scoring.py` | Synthesis + consumer chain tests | MODIFY |
 | `tests/unit/test_crackerjack_tools.py` | MCP banner tests | MODIFY |
 | `tests/integration/test_crackerjack_fallback_real.py` | Real-subprocess smoke | NEW |
+| `docs/superpowers/plans/2026-07-27-cli-flag-mapping.md` | Task 0 evidence file (committed as part of Task 0) | NEW (or no commit) |
 
 ---
 
 ## Task 0: Preflight — Verify Crackerjack CLI flag-to-metric mapping
 
-**Files:** None modified. Run real crackerjack and capture `parsed_data` shape for each flag combination. This task gates the design — if the mapping differs from the spec's table, the implementer updates the plan and re-derives the metric→flag map.
+**Files:** None modified. Run real crackerjack and capture `parsed_data` shape for each flag combination. This task gates the design — Task 4 reads the recorded mapping to pick flags. If the mapping differs from the v2 spec's table, the implementer updates the spec and re-derives the metric→flag map.
 
 **Step 0.1: Set up a test project**
 
@@ -68,7 +102,7 @@ These apply to every task. The spec is the source of truth for any disagreement;
 cd /Users/les/Projects/session-buddy
 mkdir -p /tmp/lychee-cli-verify && cd /tmp/lychee-cli-verify
 echo 'def add(a, b): return a + b' > mathlib.py
-echo 'def add(a, b): return a + b' > test_mathlib.py
+echo 'def test_add(): assert add(1, 2) == 3' > test_mathlib.py
 ```
 
 **Step 0.2: Probe each flag combination**
@@ -76,55 +110,73 @@ echo 'def add(a, b): return a + b' > test_mathlib.py
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -c "
-from session_buddy.utils.crackerjack.output_parser import CrackerjackOutputParser
-import subprocess, sys, json
-for cmd_name, flags in [
-    ('all', ['run', '--comp']),
-    ('coverage', ['run', '--run-tests']),
-    ('lint', ['run', '--fast', '--quick']),
-    ('security', ['run', '--security']),
-]:
+from session_buddy.utils.crackerjack.output_parser import CrackerjackOutputParser, _get_applicable_parsers
+import subprocess, sys
+for semantic_command in ['lint', 'security', 'check', 'test']:
+    applicable = _get_applicable_parsers(semantic_command)
+    print(f'=== semantic_command={semantic_command!r} -> applicable_parsers={[type(p).__name__ for p in applicable]} ===')
+    print(f'  default parsed_data keys: {sorted(_get_applicable_parsers(semantic_command) and CrackerjackOutputParser.parse_output(semantic_command, b\"{\", b\"\").keys() or [])}')
+
+# Also probe actual CLI invocations
+for argv_tail in [['run', '--comp'], ['run', '--run-tests'], ['run', '--fast', '--quick'], ['run', '--security']]:
     result = subprocess.run(
-        [sys.executable, '-m', 'crackerjack', *flags],
+        [sys.executable, '-m', 'crackerjack', *argv_tail],
         cwd='/tmp/lychee-cli-verify', capture_output=True, timeout=60,
     )
-    parsed = CrackerjackOutputParser.parse_output(cmd_name, result.stdout, result.stderr)
-    print(f'=== {cmd_name} ({\" \".join(flags)}) ===')
-    print(f'exit: {result.returncode}')
-    print(f'parsed keys: {sorted(parsed.keys())}')
-    print()
+    # The parser is keyed on semantic names; try each
+    for semantic in ['check', 'lint', 'test', 'security']:
+        parsed = CrackerjackOutputParser.parse_output(semantic, result.stdout, result.stderr)
+        non_empty = {k: v for k, v in parsed.items() if v}
+        if non_empty:
+            print(f'argv={\" \".join(argv_tail)} semantic={semantic} -> keys: {sorted(non_empty.keys())}')
 "
 ```
 
 **Step 0.3: Record findings in `docs/superpowers/plans/2026-07-27-cli-flag-mapping.md`**
 
-Document the actual parsed_data keys for each flag combination. Compare to the spec's "metric-to-flag map" table. If they differ:
-- Update Task 5 of this plan with the actual mapping
-- Update the spec's table in `2026-07-27-quality-scoring-crackerjack-fallback-design.md`
-- Commit the spec update on the same branch
+The file MUST contain a markdown table mapping `crackerjack` CLI invocations to the parser's semantic command name AND the resulting `parsed_data` keys. Task 4 reads this file. Example:
 
-If they match the spec, this task is a no-op beyond recording the table.
+```markdown
+# Crackerjack CLI flag mapping (verified 2026-07-27)
+
+| CLI invocation | Semantic command (for `parse_output`) | `parsed_data` keys produced |
+|---|---|---|
+| `run --comp` | `check` | `coverage_summary`, `lint_issues`, `security_issues`, `complexity_data` |
+| `run --run-tests` | `test` | `test_results`, `coverage_summary` |
+| `run --fast --quick` | `lint` | `lint_issues` |
+| `run --security` | `security` | `security_issues` |
+```
 
 **Step 0.4: Skip if crackerjack not installed**
 
 If the probe fails with `ModuleNotFoundError: crackerjack`:
-- Document "crackerjack not installed in this environment — Task 0 cannot complete; using spec's CLI shape as the design"
-- Note this in the plan
-- The integration test in Task 12 will catch any actual shape mismatch at runtime
+- Create the mapping file with a note: "crackerjack not installed; mapping inferred from `_get_applicable_parsers` at `output_parser.py:71-82`. Task 4 implementation must use this mapping and the integration test in Task 12 must `importorskip("crackerjack")`."
+- The integration test in Task 12 is the runtime check.
 
-**No commit for this task.** Task 0 produces evidence, not code.
+**Step 0.5: Commit the evidence file**
+
+```bash
+cd /Users/les/Projects/session-buddy
+git add docs/superpowers/plans/2026-07-27-cli-flag-mapping.md
+git -c user.name="les" -c user.email="les@local" commit -m "docs(preflight): record crackerjack CLI flag-to-metric mapping
+
+Task 0 of the quality-scoring crackerjack fallback plan. Task 4
+reads this file to pick crackerjack flags from missing_metrics.
+Verified by running crackerjack against /tmp/lychee-cli-verify
+and capturing parsed_data keys per flag combination."
+```
 
 ---
 
-## Task 1: Add `enable_crackerjack_fallback` to feature flags
+## Task 1: Add `enable_crackerjack_fallback` to feature flags (with full wiring)
 
 **Files:**
-- Modify: `session_buddy/config/feature_flags.py:5-39` (add field to `FeatureFlags` dataclass)
-- Modify: `session_buddy/settings.py` (add `enable_crackerjack_fallback: bool = False` to `SessionMgmtSettings` near the existing `enable_crackerjack` field)
-- Modify: `settings/session-buddy.yaml` (add the flat key with `false` default)
-- Test: `tests/unit/test_feature_flags.py` (if exists; otherwise new file `tests/unit/test_enable_crackerjack_fallback.py`)
+- Modify: `session_buddy/config/feature_flags.py` (add field to `FeatureFlags`; wire env var in `get_feature_flags()`)
+- Modify: `session_buddy/settings.py` (add `enable_crackerjack_fallback: bool = Field(default=False, description="...")` to `SessionMgmtSettings`)
+- Modify: `settings/session-buddy.yaml` (add the flat YAML key with 0 leading spaces)
+- Test: `tests/unit/test_enable_crackerjack_fallback.py` (NEW)
 
-**Step 1.1: Write the failing test**
+**Step 1.1: Write the failing tests**
 
 In `tests/unit/test_enable_crackerjack_fallback.py`:
 
@@ -138,66 +190,127 @@ def test_enable_crackerjack_fallback_defaults_to_false():
     assert flags.enable_crackerjack_fallback is False
 
 
-def test_get_feature_flags_returns_enable_crackerjack_fallback():
-    """Resolver exposes the new field."""
-    flags = get_feature_flags()
-    assert hasattr(flags, "enable_crackerjack_fallback")
+def test_get_feature_flags_resolves_yaml_default(monkeypatch, tmp_path):
+    """When YAML is loaded and env var is unset, the resolver returns the YAML value."""
+    # The default is False; no YAML override -> False
+    monkeypatch.delenv("SESSION_BUDDY_CRACKERJACK_FALLBACK", raising=False)
+    assert get_feature_flags().enable_crackerjack_fallback is False
+
+
+def test_env_var_true_overrides_default(monkeypatch):
+    monkeypatch.setenv("SESSION_BUDDY_CRACKERJACK_FALLBACK", "true")
+    assert get_feature_flags().enable_crackerjack_fallback is True
+
+
+def test_env_var_one_overrides_default(monkeypatch):
+    """_get_env_bool accepts 1/0/yes/no/on/off in addition to true/false."""
+    monkeypatch.setenv("SESSION_BUDDY_CRACKERJACK_FALLBACK", "1")
+    assert get_feature_flags().enable_crackerjack_fallback is True
+
+
+def test_env_var_zero_overrides_default(monkeypatch):
+    """Operators can disable via =0; the rollback path uses this."""
+    monkeypatch.setenv("SESSION_BUDDY_CRACKERJACK_FALLBACK", "0")
+    assert get_feature_flags().enable_crackerjack_fallback is False
 ```
 
-**Step 1.2: Run test to verify it fails**
+**Step 1.2: Run tests to verify they fail**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_enable_crackerjack_fallback.py -v --override-ini="addopts="
 ```
 
-Expected: FAIL with `AttributeError: type object 'FeatureFlags' has no attribute 'enable_crackerjack_fallback'`
+Expected: All 5 tests FAIL with `AttributeError` (no field), or with the env-var returns not propagating.
 
-**Step 1.3: Add field to `FeatureFlags` dataclass**
+**Step 1.3: Add field to `FeatureFlags`**
 
-In `session_buddy/config/feature_flags.py`, add to the `FeatureFlags` dataclass (after the existing `enable_crackerjack: bool` field):
+In `session_buddy/config/feature_flags.py`, after the `enable_filesystem_extraction` field, add a new section comment + field:
 
 ```python
+    # === Quality scoring (crackerjack CLI fallback) ===
     enable_crackerjack_fallback: bool = False
 ```
 
-**Step 1.4: Add field to `SessionMgmtSettings`**
+**Step 1.4: Wire the env var in `get_feature_flags()`**
 
-In `session_buddy/settings.py`, find the `enable_crackerjack` field (around line 379) and add a sibling field:
+In the same file, find the `get_feature_flags()` function. It builds a `base = FeatureFlags(...)` instance and then constructs a return `FeatureFlags(...)` with per-field env-var overrides via `_get_env_bool(...)`. Add the new field to both the base constructor and the return constructor:
 
 ```python
-    enable_crackerjack_fallback: bool = False
+    base = FeatureFlags(
+        use_schema_v2=...,
+        enable_llm_entity_extraction=...,
+        enable_anthropic=...,
+        enable_ollama=...,
+        enable_conscious_agent=...,
+        enable_filesystem_extraction=...,
+        enable_crackerjack_fallback=getattr(settings, "enable_crackerjack_fallback", False),
+    )
+    return FeatureFlags(
+        use_schema_v2=...,
+        enable_llm_entity_extraction=...,
+        enable_anthropic=...,
+        enable_ollama=...,
+        enable_conscious_agent=...,
+        enable_filesystem_extraction=...,
+        enable_crackerjack_fallback=_get_env_bool(
+            "SESSION_BUDDY_CRACKERJACK_FALLBACK", base.enable_crackerjack_fallback
+        ),
+    )
 ```
 
-**Step 1.5: Add the flat YAML key**
+(Replace the `...` with the existing field arguments already in the function.)
 
-In `settings/session-buddy.yaml`, find the `enable_crackerjack` key and add a sibling:
+**Step 1.5: Add field to `SessionMgmtSettings`**
+
+In `session_buddy/settings.py`, find the `enable_crackerjack: bool = Field(default=True, description="Enable Crackerjack code quality integration")` line (around line 379) and add a sibling:
+
+```python
+    enable_crackerjack_fallback: bool = Field(
+        default=False,
+        description="Enable the Crackerjack CLI fallback layer when metrics are missing (opt-in; default off)",
+    )
+```
+
+**Step 1.6: Add the flat YAML key (0 leading spaces)**
+
+In `settings/session-buddy.yaml`, find the `enable_crackerjack: true` line and add a sibling at the same indent level:
 
 ```yaml
-  enable_crackerjack_fallback: false
+enable_crackerjack_fallback: false
 ```
 
-(Indentation matches the existing `enable_crackerjack` key.)
+**Step 1.7: Verify YAML parses correctly**
 
-**Step 1.6: Run test to verify it passes**
+```bash
+cd /Users/les/Projects/session-buddy
+.venv/bin/python -c "import yaml; data = yaml.safe_load(open('settings/session-buddy.yaml')); assert data['enable_crackerjack_fallback'] is False; print('YAML OK')"
+```
+
+Expected: `YAML OK`. If the literal parse produced `{"enable_crackerjack": {"true": None, "fallback": false}}`, fix the indentation.
+
+**Step 1.8: Run tests to verify they pass**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_enable_crackerjack_fallback.py -v --override-ini="addopts="
 ```
 
-Expected: PASS (2/2)
+Expected: PASS (5/5).
 
-**Step 1.7: Commit**
+**Step 1.9: Commit**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 git add session_buddy/config/feature_flags.py session_buddy/settings.py settings/session-buddy.yaml tests/unit/test_enable_crackerjack_fallback.py
-git -c user.name="les" -c user.email="les@local" commit -m "feat(feature-flags): add enable_crackerjack_fallback opt-in flag
+git -c user.name="les" -c user.email="les@local" commit -m "feat(feature-flags): add enable_crackerjack_fallback with full wiring
 
-Default false (per project's safe-rollout pattern). Synthesis
-change ships regardless; this flag controls only whether the
-new try_crackerjack_cli helper fires."
+- Add field to FeatureFlags under a new section comment
+- Add flat YAML key (0 indent) to settings/session-buddy.yaml
+- Add Pydantic Field to SessionMgmtSettings
+- Wire SESSION_BUDDY_CRACKERJACK_FALLBACK env var through
+  _get_env_bool in get_feature_flags() (handles 1/0/yes/no/on/off)
+- 5 tests cover default, YAML-only, env-var true, env-var 1, env-var 0"
 ```
 
 ---
@@ -205,10 +318,8 @@ new try_crackerjack_cli helper fires."
 ## Task 2: Refactor pure helpers to `@staticmethod`
 
 **Files:**
-- Modify: `session_buddy/crackerjack_integration.py:946-1002` (`_calculate_lint_metrics`, `_calculate_security_metrics`, `_calculate_complexity_metrics`, `_calculate_coverage_metrics`)
+- Modify: `session_buddy/crackerjack_integration.py:946-1002`
 - Test: `tests/unit/test_pure_helpers_purity.py` (NEW)
-
-**Why this task comes before the helper itself:** the helper must call these without instantiating `CrackerjackIntegration` (which writes to SQLite on `__init__`). Decoupling them first.
 
 **Step 2.1: Write the failing purity test**
 
@@ -217,59 +328,55 @@ In `tests/unit/test_pure_helpers_purity.py`:
 ```python
 import inspect
 
-from session_buddy.crackerjack_integration import (
-    CrackerjackIntegration,
-    _calculate_lint_metrics,
-    _calculate_security_metrics,
-    _calculate_complexity_metrics,
-    _calculate_coverage_metrics,
-)
+from session_buddy.crackerjack_integration import CrackerjackIntegration
 
 
-HELPERS = [
-    _calculate_lint_metrics,
-    _calculate_security_metrics,
-    _calculate_complexity_metrics,
-    _calculate_coverage_metrics,
+HELPER_NAMES = [
+    "_calculate_lint_metrics",
+    "_calculate_security_metrics",
+    "_calculate_complexity_metrics",
+    "_calculate_coverage_metrics",
 ]
 
 
-def test_helpers_do_not_access_self():
-    """After refactor, the four pure helpers must be @staticmethod and not touch self."""
-    for fn in HELPERS:
-        assert isinstance(inspect.getattr_static(CrackerjackIntegration, fn.__name__), staticmethod), (
-            f"{fn.__name__} must be a @staticmethod on CrackerjackIntegration"
+def test_helpers_are_staticmethod_on_class():
+    """After refactor, the four pure helpers must be @staticmethod on CrackerjackIntegration."""
+    for name in HELPER_NAMES:
+        attr = inspect.getattr_static(CrackerjackIntegration, name)
+        assert isinstance(attr, staticmethod), (
+            f"{name} must be a @staticmethod on CrackerjackIntegration; got {type(attr).__name__}"
         )
 
 
-def test_helpers_callable_without_instance():
-    """The four helpers must be callable as CrackerjackIntegration._calculate_X(args)
-    without instantiating CrackerjackIntegration (whose __init__ writes to SQLite)."""
-    for fn in HELPERS:
-        # Calling via the class (not an instance) requires @staticmethod
-        # This must work without raising TypeError for missing self.
-        if fn is _calculate_lint_metrics:
-            fn([])
-        elif fn is _calculate_security_metrics:
-            fn([])
-        elif fn is _calculate_complexity_metrics:
-            fn({})
-        elif fn is _calculate_coverage_metrics:
-            fn({})
+def test_helpers_callable_via_class_without_instance():
+    """Helper invocation must work via CrackerjackIntegration._calculate_X(args) without instantiating."""
+    assert isinstance(CrackerjackIntegration._calculate_lint_metrics([]), dict)
+    assert isinstance(CrackerjackIntegration._calculate_security_metrics([]), dict)
+    assert isinstance(CrackerjackIntegration._calculate_complexity_metrics({}), dict)
+    assert isinstance(CrackerjackIntegration._calculate_coverage_metrics({}), dict)
+
+
+def test_helpers_have_no_self_access():
+    """Static body check: each helper's source must not access self (other than the def line)."""
+    import inspect
+    for name in HELPER_NAMES:
+        source = inspect.getsource(getattr(CrackerjackIntegration, name))
+        # Crude but effective: no "self." accesses anywhere in the body
+        assert "self." not in source, f"{name} accesses self: {source}"
 ```
 
-**Step 2.2: Run test to verify it fails**
+**Step 2.2: Run tests to verify they fail**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_pure_helpers_purity.py -v --override-ini="addopts="
 ```
 
-Expected: FAIL on `test_helpers_callable_without_instance` with `TypeError: ... missing 1 required positional argument: 'self'`. The first test may also fail because the methods aren't yet `staticmethod`.
+Expected: At least `test_helpers_are_staticmethod_on_class` and `test_helpers_callable_via_class_without_instance` FAIL (TypeError on missing self).
 
-**Step 2.3: Read each helper's body to confirm no `self.X` access**
+**Step 2.3: Manually verify each helper's body does not access self**
 
-Before refactoring, manually verify each helper's body does not access `self` (otherwise the refactor breaks the function). Use `Read` on lines 946-1002 of `crackerjack_integration.py`. If any helper does touch `self`, STOP and report — the refactor needs a different design.
+Read `session_buddy/crackerjack_integration.py:946-1002`. For each of the four helpers, confirm no `self.X` access in the body. If any helper does touch `self`, STOP and report — the refactor breaks behavior.
 
 **Step 2.4: Add `@staticmethod` decorator to each helper**
 
@@ -281,22 +388,22 @@ For each of the four helpers, add the `@staticmethod` decorator one line above t
         # ... existing body unchanged ...
 ```
 
-(Repeat for `_calculate_security_metrics`, `_calculate_complexity_metrics`, `_calculate_coverage_metrics`.)
+(Repeat for the other three.)
 
-**Step 2.5: Run test to verify it passes**
+**Step 2.5: Run tests to verify they pass**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_pure_helpers_purity.py -v --override-ini="addopts="
 ```
 
-Expected: PASS (2/2)
+Expected: PASS (3/3).
 
 **Step 2.6: Run existing crackerjack_integration tests to confirm no regression**
 
 ```bash
 cd /Users/les/Projects/session-buddy
-.venv/bin/python -m pytest tests/unit/test_crackerjack_integration.py::TestQualityMetricsCalculation -v --override-ini="addopts="
+.venv/bin/python -m pytest tests/unit/test_crackerjack_integration.py::TestQualityMetricsCalculation -v --override-ini="addopts=" --noconftest
 ```
 
 Expected: PASS (existing 19/19 in `TestQualityMetricsCalculation`). If any fail, the refactor changed observable behavior — STOP and investigate.
@@ -309,10 +416,13 @@ git add session_buddy/crackerjack_integration.py tests/unit/test_pure_helpers_pu
 git -c user.name="les" -c user.email="les@local" commit -m "refactor(crackerjack): make pure calculation helpers @staticmethod
 
 Decouples the four calculation helpers from CrackerjackIntegration
-state so the new fallback helper can call them without instantiating
+state so the new fallback helper can call them via
+CrackerjackIntegration._calculate_X(args) without instantiating
 CrackerjackIntegration (whose __init__ writes to SQLite on disk).
 
-No behavior change; all existing tests pass."
+Three regression tests lock in the staticmethod contract and
+the no-self-access invariant. No behavior change; existing
+TestQualityMetricsCalculation tests still pass."
 ```
 
 ---
@@ -322,28 +432,35 @@ No behavior change; all existing tests pass."
 **Files:**
 - Create: `session_buddy/utils/crackerjack/fallback.py`
 - Modify: `session_buddy/utils/crackerjack/__init__.py` (add export)
-- Test: `tests/unit/test_crackerjack_fallback.py` (NEW — start with one test)
+- Test: `tests/unit/test_crackerjack_fallback.py` (NEW)
 
 **Step 3.1: Write the failing test for the disabled path**
 
 In `tests/unit/test_crackerjack_fallback.py`:
 
 ```python
+import asyncio
+
 import pytest
 
 from session_buddy.config.feature_flags import FeatureFlags
+from session_buddy.config import feature_flags
 from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
+
+
+def _enable_flag(monkeypatch, enable: bool = True):
+    """Patch get_feature_flags to return a FeatureFlags with the requested value."""
+    monkeypatch.setattr(
+        feature_flags,
+        "get_feature_flags",
+        lambda: FeatureFlags(enable_crackerjack_fallback=enable),
+    )
 
 
 @pytest.mark.asyncio
 async def test_disabled_flag_returns_none(monkeypatch, tmp_path):
     """When enable_crackerjack_fallback is False, helper returns None without invoking subprocess."""
-    from session_buddy.config import feature_flags
-    monkeypatch.setattr(
-        feature_flags,
-        "_flags",
-        FeatureFlags(enable_crackerjack_fallback=False),
-    )
+    _enable_flag(monkeypatch, enable=False)
 
     spawn_called = False
 
@@ -352,7 +469,6 @@ async def test_disabled_flag_returns_none(monkeypatch, tmp_path):
         spawn_called = True
         raise AssertionError("subprocess should not have been spawned")
 
-    import asyncio
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
 
     result = await try_crackerjack_cli(
@@ -386,6 +502,7 @@ requested metric keys (subset of parsed_data), or None on any failure.
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -393,7 +510,10 @@ from typing import TYPE_CHECKING, Literal
 from session_buddy.config.feature_flags import get_feature_flags
 
 if TYPE_CHECKING:
-    pass
+    from opentelemetry.trace import Tracer
+
+
+logger = logging.getLogger(__name__)
 
 
 # Module-level lock serializes fallback invocations to prevent N parallel
@@ -414,8 +534,7 @@ async def try_crackerjack_cli(
     Args:
         project_dir: project root; the crackerjack subprocess runs with cwd=project_dir.
         missing_metrics: the scoring keys the caller still needs. frozenset to enforce
-            immutability (matches existing codebase patterns at crackerjack_integration.py:120,
-            ingesters/redaction.py:21, memory/causal.py:60).
+            immutability.
         timeout: subprocess timeout in seconds. Default 30.0 (distinct from the producer's 300s).
         caller: identifies which integration point invoked the helper. Used in logs and metrics
             so an operator can tell whether the timeout came from a user MCP call or a
@@ -432,16 +551,19 @@ async def try_crackerjack_cli(
         # TODO: log DEBUG with outcome=disabled and emit counter (Task 7)
         return None
 
-    # OTel span (Task 7 fills in the attributes)
-    # TODO: with tracer.start_as_current_span("crackerjack.fallback", ...):
+    # OTel span start (Task 7 fills in the span attributes; this scaffold is
+    # intentionally minimal so the test at Task 7 can verify the span
+    # wrapping works end-to-end)
+    # TODO: with tracer.start_as_current_span("crackerjack.fallback", attributes={...}):
 
     # Lock
     async with _FALLBACK_LOCK:
         # Disabled re-check inside lock
         if not get_feature_flags().enable_crackerjack_fallback:
+            # TODO: log DEBUG with outcome=disabled and emit counter (Task 7)
             return None
 
-        # Placeholder for the rest of the pipeline (filled in Tasks 4-6)
+        # Placeholder for the rest of the pipeline (filled in Task 4+)
         return None
 ```
 
@@ -464,7 +586,7 @@ cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_crackerjack_fallback.py::test_disabled_flag_returns_none -v --override-ini="addopts="
 ```
 
-Expected: PASS (1/1)
+Expected: PASS (1/1).
 
 **Step 3.6: Commit**
 
@@ -476,68 +598,73 @@ git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): help
 Creates the try_crackerjack_cli module-level lock and the early
 disabled-return path. Subsequent tasks fill in subprocess invocation,
 parse, and observability. The helper is callable but currently a
-no-op when the opt-in flag is set; that completes in Tasks 4-7."
+no-op when the opt-in flag is set; that completes in Task 4+.
+
+The helper is NOT yet exported via __init__.py until Task 4 lands,
+to prevent an intermediate commit that exports a non-functional
+symbol."
 ```
+
+Actually, the export is needed for the test. Adjust: keep the export in Step 3.4 as written.
 
 ---
 
-## Task 4: Subprocess invocation + timeout + kill + exit-code check
+## Task 4: Subprocess invocation + cleanup + flag selection from Task 0
 
 **Files:**
-- Modify: `session_buddy/utils/crackerjack/fallback.py` (extend the helper body inside the lock)
+- Modify: `session_buddy/utils/crackerjack/fallback.py` (extend helper body inside the lock)
+
+This task consumes the Task 0 mapping file. The metric-to-flag selection is the central piece of the design.
 
 **Step 4.1: Write the failing tests**
 
 Add to `tests/unit/test_crackerjack_fallback.py`:
 
 ```python
-import asyncio
 import sys
 
 
 def _make_process_mock(returncode: int, stdout: bytes, stderr: bytes = b""):
-    """Build an async-mock Process that satisfies .communicate() and .returncode."""
+    """Build a Process mock that matches asyncio.subprocess.Process API:
+    - kill() is sync
+    - wait() is async
+    - communicate() is async
+    """
     class _Proc:
         def __init__(self):
-            self.returncode = returncode
-            self.killed = False
+            self.returncode: int | None = returncode
+            self.kill_called = False
+            self.wait_called = False
+
+        def kill(self) -> None:
+            """Real asyncio.subprocess.Process.kill() is sync."""
+            self.kill_called = True
+            self.returncode = -9
+
+        async def wait(self) -> int:
+            self.wait_called = True
+            return self.returncode if self.returncode is not None else 0
 
         async def communicate(self):
             return stdout, stderr
 
-        async def wait(self):
-            return self.returncode
-
-        async def kill(self):
-            self.killed = True
-            self.returncode = -9
-
     return _Proc()
-
-
-def _enable_flag(monkeypatch):
-    from session_buddy.config import feature_flags
-    from session_buddy.config.feature_flags import FeatureFlags
-    monkeypatch.setattr(
-        feature_flags, "_flags", FeatureFlags(enable_crackerjack_fallback=True)
-    )
 
 
 @pytest.mark.asyncio
 async def test_timeout_kills_subprocess_and_returns_none(monkeypatch, tmp_path):
-    """wait_for TimeoutError -> proc.kill() + proc.wait() + return None."""
+    """wait_for TimeoutError -> proc.kill() + proc.wait() + return None.
+    The test must NOT pre-cleanup; the production code does it.
+    """
     _enable_flag(monkeypatch)
-
     proc = _make_process_mock(returncode=None, stdout=b"", stderr=b"")
-    killed = []
 
     async def fake_spawn(*args, **kwargs):
         return proc
 
     async def fake_wait_for(awaitable, timeout):
-        # Simulate timeout by killing the process and raising
-        await proc.kill()
-        await proc.wait()
+        # Raise TimeoutError WITHOUT calling kill() — let the production
+        # code do the cleanup
         raise asyncio.TimeoutError()
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
@@ -549,28 +676,46 @@ async def test_timeout_kills_subprocess_and_returns_none(monkeypatch, tmp_path):
         timeout=30.0,
     )
     assert result is None
-    assert proc.killed is True
+    assert proc.kill_called is True
+    assert proc.wait_called is True
 
 
 @pytest.mark.asyncio
-async def test_nonzero_exit_returns_none(monkeypatch, tmp_path):
-    """Subprocess exits non-zero -> return None."""
+async def test_cancelled_propagates_after_cleanup(monkeypatch, tmp_path):
+    """asyncio.CancelledError re-raises after subprocess cleanup."""
     _enable_flag(monkeypatch)
-
-    proc = _make_process_mock(returncode=1, stdout=b"", stderr=b"some error")
+    proc = _make_process_mock(returncode=None, stdout=b"", stderr=b"")
 
     async def fake_spawn(*args, **kwargs):
         return proc
 
     async def fake_wait_for(awaitable, timeout):
-        return b"", b"some error"
+        raise asyncio.CancelledError()
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
     monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
 
+    with pytest.raises(asyncio.CancelledError):
+        await try_crackerjack_cli(
+            project_dir=tmp_path,
+            missing_metrics=frozenset({"lint_score"}),
+            timeout=30.0,
+        )
+    assert proc.kill_called is True
+    assert proc.wait_called is True
+
+
+@pytest.mark.asyncio
+async def test_nonzero_exit_returns_none(monkeypatch, tmp_path):
+    _enable_flag(monkeypatch)
+    proc = _make_process_mock(returncode=1, stdout=b"", stderr=b"some error")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"", b"some error"
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
     result = await try_crackerjack_cli(
-        project_dir=tmp_path,
-        missing_metrics=frozenset({"lint_score"}),
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
     )
     assert result is None
 
@@ -579,25 +724,85 @@ async def test_nonzero_exit_returns_none(monkeypatch, tmp_path):
 async def test_uses_sys_executable(monkeypatch, tmp_path):
     """Helper must use sys.executable, not 'python', to pin the interpreter."""
     _enable_flag(monkeypatch)
-    captured_argv = []
+    captured_argv: list = []
 
     proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
-
     async def fake_spawn(*args, **kwargs):
         captured_argv.extend(args)
         return proc
+    async def fake_wait_for(awaitable, timeout): return b"{}", b""
 
-    async def fake_wait_for(awaitable, timeout):
-        return b"{}", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    await try_crackerjack_cli(
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+    )
+    assert captured_argv[0] == sys.executable
+
+
+@pytest.mark.asyncio
+async def test_helper_picks_run_comp_for_all_four_metrics(monkeypatch, tmp_path):
+    """When all four scoring keys are missing, the helper invokes 'run --comp'."""
+    _enable_flag(monkeypatch)
+    captured_argv: list = []
+
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs):
+        captured_argv.extend(args)
+        return proc
+    async def fake_wait_for(awaitable, timeout): return b"{}", b""
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
     monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
 
     await try_crackerjack_cli(
         project_dir=tmp_path,
-        missing_metrics=frozenset({"lint_score"}),
+        missing_metrics=frozenset({"code_coverage", "lint_score", "security_score", "complexity_score"}),
     )
-    assert captured_argv[0] == sys.executable
+    # argv[0] = sys.executable, argv[1] = '-m', argv[2] = 'crackerjack', argv[3:] = flags
+    assert captured_argv[1:4] == ["-m", "crackerjack", "run"]
+    assert "--comp" in captured_argv
+
+
+@pytest.mark.asyncio
+async def test_helper_picks_run_run_tests_for_only_coverage(monkeypatch, tmp_path):
+    """When only code_coverage is missing, the helper invokes 'run --run-tests'."""
+    _enable_flag(monkeypatch)
+    captured_argv: list = []
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs):
+        captured_argv.extend(args)
+        return proc
+    async def fake_wait_for(awaitable, timeout): return b"{}", b""
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    await try_crackerjack_cli(
+        project_dir=tmp_path,
+        missing_metrics=frozenset({"code_coverage"}),
+    )
+    assert "--run-tests" in captured_argv
+
+
+@pytest.mark.asyncio
+async def test_default_timeout_is_30s(monkeypatch, tmp_path):
+    """No-arg invocation uses 30s default."""
+    _enable_flag(monkeypatch)
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    captured_timeout: list = []
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout):
+        captured_timeout.append(timeout)
+        return b"{}", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    await try_crackerjack_cli(
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+    )
+    assert captured_timeout[0] == 30.0
 ```
 
 **Step 4.2: Run tests to verify they fail**
@@ -607,68 +812,135 @@ cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_crackerjack_fallback.py -v --override-ini="addopts="
 ```
 
-Expected: All three new tests FAIL (the helper still returns None at the lock-exit placeholder).
+Expected: 6 new tests FAIL (the helper still returns None at the lock-exit placeholder).
 
-**Step 4.3: Replace the placeholder with subprocess invocation**
+**Step 4.3: Read the Task 0 mapping**
 
-In `session_buddy/utils/crackerjack/fallback.py`, replace the `# Placeholder for the rest of the pipeline` block with:
+```bash
+cat docs/superpowers/plans/2026-07-27-cli-flag-mapping.md
+```
+
+This gives the verified mapping: `{"lint": "run --fast --quick", "security": "run --security", "test": "run --run-tests", "check": "run --comp"}`.
+
+**Step 4.4: Add the flag-selection helper and replace the placeholder**
+
+In `session_buddy/utils/crackerjack/fallback.py`, add at the top (after the logger):
 
 ```python
-        # Build argv via CrackerjackIntegration's existing helper so we use
-        # the right flag combinations for the crackerjack v0.47+ CLI.
-        from session_buddy.crackerjack_integration import CrackerjackIntegration
-        command = "run"  # crackerjack v0.47+ uses 'run' subcommand with flag combos
-        flag_args = CrackerjackIntegration._build_command_flags(command, ai_agent_mode=False)
-        argv = [sys.executable, "-m", "crackerjack", *flag_args]
+# Crackerjack v0.47+ uses 'run' subcommand with flag combinations. The
+# semantic command name (lint, security, check, test) is what the
+# parser's _get_applicable_parsers keys on. Mapping recorded in
+# docs/superpowers/plans/2026-07-27-cli-flag-mapping.md (Task 0).
+_METRIC_TO_FLAG: dict[str, tuple[str, tuple[str, ...]]] = {
+    "code_coverage": ("test", ("--run-tests",)),
+    "lint_score":    ("lint", ("--fast", "--quick")),
+    "security_score": ("security", ("--security",)),
+    "complexity_score": ("check", ()),  # complexity only from --comp
+}
+# All-four convenience: pick the most general semantic command that
+# produces every requested key.
+def _pick_invocation(missing: frozenset[str]) -> tuple[str, tuple[str, ...]]:
+    """Select the smallest crackerjack invocation that fills the requested gaps.
 
-        # Spawn subprocess
-        proc = await asyncio.create_subprocess_exec(
-            *argv,
-            cwd=str(project_dir),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+    If the caller wants all four scoring keys, use 'check' (--comp)
+    which produces all of them in one go. Otherwise pick per-metric
+    flags, but if multiple are needed, prefer 'check' (it covers all
+    four — even if some keys aren't strictly needed, the post-filter
+    drops the surplus).
+    """
+    if not missing:
+        return ("check", ())
+    if missing == frozenset({"complexity_score"}):
+        # complexity only comes from --comp; any other combo needs check too
+        return ("check", ("--comp",))
+    if len(missing) == 1:
+        semantic, flags = _METRIC_TO_FLAG[next(iter(missing))]
+        return (semantic, flags)
+    # Multiple keys: use 'check' (covers all four)
+    return ("check", ("--comp",))
+```
 
-        # Wait with timeout + cleanup on cancel
+Then replace the `# Placeholder for the rest of the pipeline` block with:
+
+```python
+        # Pick the smallest crackerjack invocation that fills the gaps
+        semantic_command, flag_args = _pick_invocation(missing_metrics)
+        argv = [sys.executable, "-m", "crackerjack", "run", *flag_args]
+
+        # Spawn subprocess (catch OS-level failures)
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                cwd=str(project_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except FileNotFoundError:
+            # TODO: log ERROR + counter missing_executable (Task 7)
+            return None
+        except PermissionError:
+            # TODO: log WARNING + counter permission_error (Task 7)
+            return None
+        except OSError:
+            # TODO: log WARNING + counter os_error (Task 7)
+            return None
+
+        # Wait with timeout. Split handlers: TimeoutError -> None after
+        # cleanup; CancelledError -> re-raise after cleanup (per PEP 654).
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except (TimeoutError, asyncio.CancelledError):
+        except TimeoutError:
             if proc.returncode is None:
                 proc.kill()
                 await proc.wait()
-            # TODO: log + counter (Task 7)
+            # TODO: log WARNING + counter timeout (Task 7)
             return None
+        except asyncio.CancelledError:
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
+            raise
 
         # Check exit code
         if proc.returncode != 0:
-            # TODO: log + counter (Task 7)
+            # TODO: log WARNING + counter nonzero_exit (Task 7)
             return None
 
         # TODO: parse + extract (Task 5)
         return None
 ```
 
-**Step 4.4: Run tests to verify they pass**
+**Step 4.5: Run tests to verify they pass**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_crackerjack_fallback.py -v --override-ini="addopts="
 ```
 
-Expected: PASS (4/4 — the disabled test plus the three new ones).
+Expected: PASS (8/8 — the 1 disabled + 7 new).
 
-**Step 4.5: Commit**
+**Step 4.6: Commit**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 git add session_buddy/utils/crackerjack/fallback.py tests/unit/test_crackerjack_fallback.py
-git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): subprocess invocation with timeout and exit-code check
+git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): subprocess invocation with split timeout/cancel handlers
 
 Spawns crackerjack via asyncio.create_subprocess_exec using
-sys.executable. wait_for timeout / CancelledError triggers
-proc.kill() + proc.wait() to prevent zombie subprocesses.
-Non-zero exit returns None. Future tasks add parse, extract,
-and observability."
+sys.executable. _pick_invocation selects the smallest crackerjack
+flag combination that fills the requested metric gaps (mapping
+verified in Task 0).
+
+Subprocess cleanup:
+- TimeoutError -> proc.kill() + proc.wait() -> return None
+- CancelledError -> proc.kill() + proc.wait() -> raise (per PEP 654;
+  parent shutdown should not block on a 30s subprocess)
+- FileNotFoundError / PermissionError / OSError on spawn -> None
+- Non-zero exit -> None
+
+7 new tests cover: timeout cleanup, cancellation propagation,
+non-zero exit, sys.executable, --comp for all-four, --run-tests
+for coverage-only, 30s default timeout."
 ```
 
 ---
@@ -676,13 +948,15 @@ and observability."
 ## Task 5: Parse output + post-filter + success-path return
 
 **Files:**
-- Modify: `session_buddy/utils/crackerjack/fallback.py` (replace `# TODO: parse + extract` block)
+- Modify: `session_buddy/utils/crackerjack/fallback.py` (replace `# TODO: parse + extract` block; pass the `semantic_command` to the parser instead of `"run"`)
 
 **Step 5.1: Write the failing tests for success / partial / empty-success**
 
 Add to `tests/unit/test_crackerjack_fallback.py`:
 
 ```python
+from unittest.mock import MagicMock
+
 from session_buddy.crackerjack_integration import (
     _calculate_complexity_metrics,
     _calculate_coverage_metrics,
@@ -701,18 +975,9 @@ async def test_success_returns_requested_metrics(monkeypatch, tmp_path):
         "complexity_data": {},
         "coverage_summary": {"total_coverage": 87.5},
     }
-    parser_payload = _make_parser_payload(parsed_data)
-
-    proc = _make_process_mock(
-        returncode=0, stdout=parser_payload.encode(), stderr=b""
-    )
-
-    async def fake_spawn(*args, **kwargs):
-        return proc
-
-    async def fake_wait_for(awaitable, timeout):
-        return parser_payload.encode(), b""
-
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"{}", b""
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
     monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
     monkeypatch.setattr(
@@ -726,23 +991,27 @@ async def test_success_returns_requested_metrics(monkeypatch, tmp_path):
     )
     assert result is not None
     assert result["code_coverage"] == 87.5
-    assert result["lint_score"] == 100.0  # no lint issues found -> default perfect is OK here
+    # Empty lint_issues -> 100.0 (synthesize-perfection is OK here, no data was the success)
+    assert result["lint_score"] == 100.0
 
 
 @pytest.mark.asyncio
 async def test_partial_success_returns_subset(monkeypatch, tmp_path):
-    """When parse yields some requested keys and not others, return the subset."""
+    """When parse yields some requested keys and not others, return the subset.
+    Specifically: if a section (e.g. coverage_summary) is missing from
+    parsed_data entirely, the post-filter drops that key (defends
+    against the empty-section -> 100 antipattern re-emerging).
+    """
     _enable_flag(monkeypatch)
     parsed_data = {
         "lint_issues": [{"code": "E501"}],
         "security_issues": [],
+        # coverage_summary missing -> no coverage in result
         "complexity_data": {},
-        "coverage_summary": {},
     }
     proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
     async def fake_spawn(*args, **kwargs): return proc
     async def fake_wait_for(awaitable, timeout): return b"{}", b""
-
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
     monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
     monkeypatch.setattr(
@@ -754,16 +1023,47 @@ async def test_partial_success_returns_subset(monkeypatch, tmp_path):
         project_dir=tmp_path,
         missing_metrics=frozenset({"code_coverage", "lint_score", "security_score"}),
     )
-    # code_coverage NOT returned because coverage_summary is empty (post-filter)
     assert result is not None
-    assert "code_coverage" not in result
-    assert "lint_score" in result
-    assert "security_score" in result  # no issues -> 100
+    assert "code_coverage" not in result  # dropped: section absent
+    assert result["lint_score"] == 100.0
+    assert result["security_score"] == 100.0
+
+
+@pytest.mark.asyncio
+async def test_empty_section_drops_metric_to_protect_against_antipattern(monkeypatch, tmp_path):
+    """If parsed_data has complexity_data: {} (empty), the post-filter must
+    drop complexity_score (not return 100). This is the regression guard
+    against _calculate_complexity_metrics({}) -> 100.0.
+    """
+    _enable_flag(monkeypatch)
+    parsed_data = {
+        "lint_issues": [],
+        "security_issues": [],
+        "complexity_data": {},  # empty section -> drop complexity_score
+        "coverage_summary": {"total_coverage": 80.0},
+    }
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"{}", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output",
+        classmethod(lambda cls, command, stdout, stderr: parsed_data),
+    )
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path,
+        missing_metrics=frozenset({"complexity_score", "code_coverage"}),
+    )
+    assert result is not None
+    assert "complexity_score" not in result  # post-filter dropped it
+    assert result["code_coverage"] == 80.0
 
 
 @pytest.mark.asyncio
 async def test_no_relevant_metrics_returns_empty_dict(monkeypatch, tmp_path):
-    """When parse succeeds but no requested keys are present, return {} (falsy, not None)."""
+    """When parse succeeds but no requested keys are present, return {} (falsy but logs as success)."""
     _enable_flag(monkeypatch)
     parsed_data = {
         "lint_issues": [],
@@ -774,7 +1074,6 @@ async def test_no_relevant_metrics_returns_empty_dict(monkeypatch, tmp_path):
     proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
     async def fake_spawn(*args, **kwargs): return proc
     async def fake_wait_for(awaitable, timeout): return b"{}", b""
-
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
     monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
     monkeypatch.setattr(
@@ -786,12 +1085,7 @@ async def test_no_relevant_metrics_returns_empty_dict(monkeypatch, tmp_path):
         project_dir=tmp_path,
         missing_metrics=frozenset({"code_coverage", "lint_score"}),
     )
-    assert result == {}  # falsy but logs as success
-
-
-def _make_parser_payload(parsed_data: dict) -> str:
-    """Helper for tests — the parser mock ignores the actual stdout content."""
-    return "{}"
+    assert result == {}
 ```
 
 **Step 5.2: Run tests to verify they fail**
@@ -801,79 +1095,103 @@ cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_crackerjack_fallback.py -v --override-ini="addopts="
 ```
 
-Expected: The three new tests FAIL (helper still returns None after exit-code check).
+Expected: 4 new tests FAIL (helper still returns None after exit-code check).
 
 **Step 5.3: Replace the parse placeholder**
 
 In `session_buddy/utils/crackerjack/fallback.py`, replace `# TODO: parse + extract (Task 5)` with:
 
 ```python
-        # Parse output
-        try:
-            parsed_data = CrackerjackOutputParser.parse_output(command, stdout, stderr)
-        except Exception:
-            # TODO: log + counter (Task 7)
+        # Empty-stdout guard BEFORE parsing (a parse exception on empty
+        # bytes would otherwise classify this as parse_error, not
+        # empty_stdout)
+        if not stdout:
+            # TODO: log WARNING + counter empty_stdout (Task 7)
             return None
 
-        # Extract requested metrics via the now-static helpers
-        candidate: dict[str, float] = {}
-        if "lint_issues" in parsed_data and "lint_score" in missing_metrics:
-            candidate.update(_calculate_lint_metrics(parsed_data["lint_issues"]))
-        if "security_issues" in parsed_data and "security_score" in missing_metrics:
-            candidate.update(_calculate_security_metrics(parsed_data["security_issues"]))
-        if "complexity_data" in parsed_data and "complexity_score" in missing_metrics:
-            candidate.update(_calculate_complexity_metrics(parsed_data["complexity_data"]))
-        if "coverage_summary" in parsed_data and "code_coverage" in missing_metrics:
-            candidate.update(_calculate_coverage_metrics(parsed_data["coverage_summary"]))
+        # Parse output (catch any exception from the parser)
+        try:
+            parsed_data = CrackerjackOutputParser.parse_output(semantic_command, stdout, stderr)
+        except Exception:
+            # TODO: log WARNING + counter parse_error (Task 7)
+            return None
 
-        # Post-filter: drop keys whose parsed section was empty
-        # (defends against _calculate_complexity_metrics empty-input -> 100 antipattern)
-        result: dict[str, float] = {}
+        # Section keys for each scoring metric. An empty section means
+        # the metric was not measured; do NOT synthesize a 100.
+        SECTION_FOR_KEY = {
+            "code_coverage": "coverage_summary",
+            "lint_score": "lint_issues",
+            "security_score": "security_issues",
+            "complexity_score": "complexity_data",
+        }
+        # _calculate_*_metrics now requires instance-free calls (Task 2)
+        CrackerjackIntegration = _get_crackerjack_integration_class()  # noqa: F841
+        candidate: dict[str, float] = {}
         for key in missing_metrics:
-            if key in candidate and parsed_data.get({
-                "code_coverage": "coverage_summary",
-                "lint_score": "lint_issues",
-                "security_score": "security_issues",
-                "complexity_score": "complexity_data",
-            }.get(key, ""), None):
-                result[key] = candidate[key]
-        return result
+            section_key = SECTION_FOR_KEY.get(key)
+            if section_key is None:
+                continue
+            section = parsed_data.get(section_key)
+            # An empty section (None, [], {}, etc.) means the metric
+            # was NOT measured — skip the candidate to avoid the
+            # synthesize-100s antipattern.
+            if not section:
+                continue
+            if key == "code_coverage":
+                candidate.update(_calculate_coverage_metrics(section))
+            elif key == "lint_score":
+                candidate.update(_calculate_lint_metrics(section))
+            elif key == "security_score":
+                candidate.update(_calculate_security_metrics(section))
+            elif key == "complexity_score":
+                candidate.update(_calculate_complexity_metrics(section))
+
+        # Only return the keys the caller actually asked for.
+        return {k: v for k, v in candidate.items() if k in missing_metrics}
 ```
 
-**Step 5.4: Add the import at the top of `fallback.py`**
+And add at the top of `fallback.py`:
 
 ```python
-from session_buddy.utils.crackerjack.output_parser import CrackerjackOutputParser
+def _get_crackerjack_integration_class():
+    """Lazy import to avoid a hard dependency at module import time."""
+    from session_buddy.crackerjack_integration import CrackerjackIntegration
+    return CrackerjackIntegration
 ```
 
-**Step 5.5: Run tests to verify they pass**
+**Step 5.4: Run tests to verify they pass**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_crackerjack_fallback.py -v --override-ini="addopts="
 ```
 
-Expected: PASS (7/7).
+Expected: PASS (12/12).
 
-**Step 5.6: Commit**
+**Step 5.5: Commit**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 git add session_buddy/utils/crackerjack/fallback.py tests/unit/test_crackerjack_fallback.py
-git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): parse output, extract metrics, post-filter empty sections
+git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): parse output, post-filter empty sections, success return
 
-Calls the four now-static helpers on the requested metric keys
-and post-filters to drop keys whose parsed section was empty
-(defends against _calculate_complexity_metrics empty-input
-re-introducing the synthesize-100s antipattern)."
+Calls the four now-static helpers on the requested metric keys.
+The post-filter drops keys whose parsed section was empty or
+absent (defends against _calculate_*_metrics({}) -> 100.0
+re-introducing the synthesize-100s antipattern).
+
+Empty-stdout check happens BEFORE the parse call (so empty bytes
+classify as empty_stdout, not parse_error). The semantic command
+name (lint/check/security/test) is what the parser is keyed on,
+not the literal 'run' subcommand."
 ```
 
 ---
 
-## Task 6: Error-path coverage (cancelled, parse_error, empty_stdout, missing_executable, permission_error, os_error)
+## Task 6: Error-path coverage (cancelled, parse, empty, missing, permission, os_error)
 
 **Files:**
-- Modify: `session_buddy/utils/crackerjack/fallback.py` (fill in the `# TODO: log + counter` markers with the right outcomes and error handling)
+- Modify: `session_buddy/utils/crackerjack/fallback.py` (the cancelled re-raise is already in Task 4; add the parse_error and empty_stdout counters and the os_error test)
 
 **Step 6.1: Write the failing tests for each error path**
 
@@ -882,30 +1200,27 @@ Add to `tests/unit/test_crackerjack_fallback.py`:
 ```python
 @pytest.mark.asyncio
 async def test_cancelled_propagates(monkeypatch, tmp_path):
-    """asyncio.CancelledError propagates without returning a value."""
+    """asyncio.CancelledError propagates after subprocess cleanup."""
     _enable_flag(monkeypatch)
     proc = _make_process_mock(returncode=None, stdout=b"", stderr=b"")
     async def fake_spawn(*args, **kwargs): return proc
     async def fake_wait_for(awaitable, timeout):
-        await proc.kill()
-        await proc.wait()
         raise asyncio.CancelledError()
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
     monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
 
     with pytest.raises(asyncio.CancelledError):
         await try_crackerjack_cli(
-            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"})
+            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
         )
 
 
 @pytest.mark.asyncio
 async def test_parse_error_returns_none(monkeypatch, tmp_path):
     _enable_flag(monkeypatch)
-    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    proc = _make_process_mock(returncode=0, stdout=b"non-empty", stderr=b"")
     async def fake_spawn(*args, **kwargs): return proc
-    async def fake_wait_for(awaitable, timeout): return b"{}", b""
-
+    async def fake_wait_for(awaitable, timeout): return b"non-empty", b""
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
     monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
 
@@ -917,7 +1232,7 @@ async def test_parse_error_returns_none(monkeypatch, tmp_path):
     )
 
     result = await try_crackerjack_cli(
-        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"})
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
     )
     assert result is None
 
@@ -932,7 +1247,7 @@ async def test_empty_stdout_returns_none(monkeypatch, tmp_path):
     monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
 
     result = await try_crackerjack_cli(
-        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"})
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
     )
     assert result is None
 
@@ -940,13 +1255,12 @@ async def test_empty_stdout_returns_none(monkeypatch, tmp_path):
 @pytest.mark.asyncio
 async def test_missing_executable_returns_none(monkeypatch, tmp_path):
     _enable_flag(monkeypatch)
-
     async def fake_spawn(*args, **kwargs):
         raise FileNotFoundError("python not on PATH")
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
 
     result = await try_crackerjack_cli(
-        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"})
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
     )
     assert result is None
 
@@ -959,9 +1273,42 @@ async def test_permission_error_returns_none(monkeypatch, tmp_path):
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
 
     result = await try_crackerjack_cli(
-        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"})
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
     )
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_os_error_returns_none(monkeypatch, tmp_path):
+    """Generic OSError (e.g. ENOSPC) on spawn -> None."""
+    _enable_flag(monkeypatch)
+    async def fake_spawn(*args, **kwargs):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+    )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_timeout_override_propagates(monkeypatch, tmp_path):
+    """Caller passes timeout=5.0 -> wait_for receives timeout=5.0."""
+    _enable_flag(monkeypatch)
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    captured_timeout: list = []
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout):
+        captured_timeout.append(timeout)
+        return b"{}", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    await try_crackerjack_cli(
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}), timeout=5.0,
+    )
+    assert captured_timeout[0] == 5.0
 ```
 
 **Step 6.2: Run tests to verify they fail**
@@ -971,47 +1318,11 @@ cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_crackerjack_fallback.py -v --override-ini="addopts="
 ```
 
-Expected: 5 new tests FAIL (3 pass: parse_error because the try/except already handles it; the others have no handling yet).
+Expected: 7 new tests FAIL (the helper still returns None at the lock-exit placeholder for most; some fail because the lock-exit placeholder doesn't raise CancelledError).
 
-**Step 6.3: Wrap subprocess spawn in try/except and add the empty_stdout guard**
+**Step 6.3: Verify the helper already handles the error paths from Task 4 + 5**
 
-In `session_buddy/utils/crackerjack/fallback.py`, replace the `# Spawn subprocess` block with:
-
-```python
-        # Spawn subprocess (catch OS-level failures)
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *argv,
-                cwd=str(project_dir),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-        except FileNotFoundError:
-            # TODO: log ERROR + counter missing_executable (Task 7)
-            return None
-        except PermissionError:
-            # TODO: log WARNING + counter permission_error (Task 7)
-            return None
-        except OSError:
-            # TODO: log WARNING + counter os_error (Task 7)
-            return None
-```
-
-And replace the `# Parse output` block with:
-
-```python
-        # Parse output (catch any exception from the parser)
-        try:
-            parsed_data = CrackerjackOutputParser.parse_output(command, stdout, stderr)
-        except Exception:
-            # TODO: log WARNING + counter parse_error (Task 7)
-            return None
-
-        # Empty stdout / no parsed data -> empty_stdout
-        if not stdout:
-            # TODO: log WARNING + counter empty_stdout (Task 7)
-            return None
-```
+Tasks 4 and 5 already added the error handling. This task verifies the existing handlers and adds nothing new to the production code. Re-run the tests to confirm they pass.
 
 **Step 6.4: Run tests to verify they pass**
 
@@ -1020,20 +1331,20 @@ cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_crackerjack_fallback.py -v --override-ini="addopts="
 ```
 
-Expected: PASS (12/12).
+Expected: PASS (19/19 — 12 from earlier + 7 new).
 
 **Step 6.5: Commit**
 
 ```bash
 cd /Users/les/Projects/session-buddy
-git add session_buddy/utils/crackerjack/fallback.py tests/unit/test_crackerjack_fallback.py
-git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): error-path coverage for cancelled, parse, empty, missing, permission
+git add tests/unit/test_crackerjack_fallback.py
+git -c user.name="les" -c user.email="les@local" commit -m "test(fallback): 7 error-path tests covering all 10 outcomes
 
-Completes the 10-outcome taxonomy: success, timeout, cancelled,
-nonzero_exit, parse_error, empty_stdout, missing_executable,
-permission_error, os_error, disabled. asyncio.CancelledError
-propagates (host shutdown should not block on a 30s subprocess).
-Other failures map to None; observability hooks in Task 7."
+Tests cover: timeout, cancelled (re-raises), nonzero_exit,
+parse_error, empty_stdout, missing_executable, permission_error,
+os_error, plus timeout-override. The production code in Tasks
+4 and 5 already handles all of these; this task adds the
+regression coverage."
 ```
 
 ---
@@ -1041,20 +1352,199 @@ Other failures map to None; observability hooks in Task 7."
 ## Task 7: Observability — Prometheus counters, structured logs, OTel span
 
 **Files:**
-- Modify: `session_buddy/utils/crackerjack/fallback.py` (fill in the `# TODO: log + counter` markers)
-- Modify: `session_buddy/metrics.py` (register the two new counters)
+- Modify: `session_buddy/utils/crackerjack/fallback.py` (fill in all `# TODO: log + counter` markers; add OTel span; add Histogram observation)
+- Modify: `session_buddy/metrics.py` (add `Histogram` to the import; register the two new metrics)
 - Test: extend `tests/unit/test_crackerjack_fallback.py`
 
-**Step 7.1: Write the failing tests for log levels, log fields, and counter emission**
+**Step 7.1: Add `Histogram` to `session_buddy/metrics.py`**
+
+In `session_buddy/metrics.py:33`, change the import line to:
+
+```python
+from prometheus_client import REGISTRY, CollectorRegistry, Counter, Histogram, generate_latest
+```
+
+(Adjust if the file uses a different import style. If `Histogram` is already imported, no change needed.)
+
+**Step 7.2: Register the two new metrics**
+
+Find `session_buddy_provenance_pruned_total` in `session_buddy/metrics.py` and add near it:
+
+```python
+CRACKERJACK_FALLBACK_INVOCATIONS = Counter(
+    "session_buddy_crackerjack_fallback_invocations_total",
+    "Crackerjack CLI fallback invocations",
+    ["command", "outcome", "caller"],
+)
+
+CRACKERJACK_FALLBACK_DURATION_SECONDS = Histogram(
+    "session_buddy_crackerjack_fallback_duration_seconds",
+    "Crackerjack CLI fallback invocation duration in seconds",
+    ["command", "caller"],
+)
+```
+
+**Step 7.3: Write the failing observability tests**
 
 Add to `tests/unit/test_crackerjack_fallback.py`:
 
 ```python
 import logging
+import time
+from unittest.mock import MagicMock, patch
+
+from session_buddy import metrics as sb_metrics
+
+
+def _capture_counters(monkeypatch) -> list:
+    """Patch _emit_counter to record (command, outcome, caller) calls."""
+    captured: list = []
+    monkeypatch.setattr(
+        "session_buddy.utils.crackerjack.fallback._emit_counter",
+        lambda command, outcome, caller: captured.append((command, outcome, caller)),
+    )
+    return captured
+
+
+@pytest.mark.parametrize("setup_failure", [
+    "success", "disabled", "timeout", "cancelled", "nonzero_exit",
+    "parse_error", "empty_stdout", "missing_executable",
+    "permission_error", "os_error",
+])
+@pytest.mark.asyncio
+async def test_helper_emits_counter_for_every_outcome(monkeypatch, tmp_path, setup_failure):
+    """Every one of the 10 outcomes must increment the counter exactly once."""
+    _enable_flag(monkeypatch)
+    captured = _capture_counters(monkeypatch)
+
+    # Default: a successful invocation
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"{}", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    if setup_failure == "success":
+        parsed_data = {"lint_issues": []}
+        monkeypatch.setattr(
+            CrackerjackOutputParser, "parse_output",
+            classmethod(lambda cls, command, stdout, stderr: parsed_data),
+        )
+    elif setup_failure == "disabled":
+        _enable_flag(monkeypatch, enable=False)
+    elif setup_failure == "timeout":
+        async def fake_wait_for_timeout(awaitable, timeout):
+            raise asyncio.TimeoutError()
+        monkeypatch.setattr(asyncio, "wait_for", fake_wait_for_timeout)
+    elif setup_failure == "cancelled":
+        async def fake_wait_for_cancel(awaitable, timeout):
+            raise asyncio.CancelledError()
+        monkeypatch.setattr(asyncio, "wait_for", fake_wait_for_cancel)
+    elif setup_failure == "nonzero_exit":
+        proc.returncode = 1
+    elif setup_failure == "parse_error":
+        def boom(*a, **k): raise ValueError("simulated")
+        monkeypatch.setattr(CrackerjackOutputParser, "parse_output", classmethod(boom))
+        proc._make_process_mock_args = (1, b"non-empty", b"")
+    elif setup_failure == "empty_stdout":
+        proc = _make_process_mock(returncode=0, stdout=b"", stderr=b"")
+        async def fake_spawn_empty(*args, **kwargs): return proc
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_empty)
+    elif setup_failure == "missing_executable":
+        async def fake_spawn_fnf(*args, **kwargs):
+            raise FileNotFoundError("python not on PATH")
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_fnf)
+    elif setup_failure == "permission_error":
+        async def fake_spawn_perm(*args, **kwargs):
+            raise PermissionError(13, "denied", "/cwd")
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_perm)
+    elif setup_failure == "os_error":
+        async def fake_spawn_os(*args, **kwargs):
+            raise OSError(28, "no space")
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_os)
+
+    if setup_failure in ("disabled",):
+        result = await try_crackerjack_cli(
+            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+        )
+        assert result is None
+    elif setup_failure in ("cancelled",):
+        with pytest.raises(asyncio.CancelledError):
+            await try_crackerjack_cli(
+                project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+            )
+    else:
+        result = await try_crackerjack_cli(
+            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+        )
+        assert result is None
+
+    assert len(captured) == 1, f"expected exactly 1 counter call, got {len(captured)}"
+    assert captured[0][1] == setup_failure
+
+
+@pytest.mark.parametrize("outcome,expected_level", [
+    ("timeout", logging.WARNING),
+    ("cancelled", logging.WARNING),
+    ("nonzero_exit", logging.WARNING),
+    ("parse_error", logging.WARNING),
+    ("empty_stdout", logging.WARNING),
+    ("permission_error", logging.WARNING),
+    ("os_error", logging.WARNING),
+])
+@pytest.mark.asyncio
+async def test_helper_logs_warning_for_actionable_failures(monkeypatch, tmp_path, caplog, outcome, expected_level):
+    """The 7 WARNING-level outcomes all log at WARNING (success is INFO, not WARNING)."""
+    _enable_flag(monkeypatch)
+    _capture_counters(monkeypatch)
+
+    proc = _make_process_mock(returncode=0, stdout=b"non-empty", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"non-empty", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    if outcome == "timeout":
+        async def fake_wf(*a, **k): raise asyncio.TimeoutError()
+        monkeypatch.setattr(asyncio, "wait_for", fake_wf)
+    elif outcome == "cancelled":
+        async def fake_wf(*a, **k): raise asyncio.CancelledError()
+        monkeypatch.setattr(asyncio, "wait_for", fake_wf)
+    elif outcome == "nonzero_exit":
+        proc.returncode = 1
+    elif outcome == "parse_error":
+        def boom(*a, **k): raise ValueError("sim")
+        monkeypatch.setattr(CrackerjackOutputParser, "parse_output", classmethod(boom))
+    elif outcome == "empty_stdout":
+        proc = _make_process_mock(returncode=0, stdout=b"", stderr=b"")
+        async def fake_spawn_e(*a, **k): return proc
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_e)
+    elif outcome == "permission_error":
+        async def fake_spawn_p(*a, **k): raise PermissionError(13, "d", "/cwd")
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_p)
+    elif outcome == "os_error":
+        async def fake_spawn_o(*a, **k): raise OSError(28, "ns")
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_o)
+
+    with caplog.at_level(logging.DEBUG, logger="session_buddy.utils.crackerjack.fallback"):
+        if outcome == "cancelled":
+            with pytest.raises(asyncio.CancelledError):
+                await try_crackerjack_cli(
+                    project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+                )
+        else:
+            await try_crackerjack_cli(
+                project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+            )
+
+    records = [r for r in caplog.records if "crackerjack fallback invoked" in r.message]
+    assert any(r.levelno == expected_level for r in records), (
+        f"outcome={outcome!r} expected level={expected_level}, got {[r.levelno for r in records]}"
+    )
 
 
 @pytest.mark.asyncio
-async def test_success_logs_at_info(monkeypatch, tmp_path, caplog):
+async def test_helper_logs_info_on_success(monkeypatch, tmp_path, caplog):
     _enable_flag(monkeypatch)
     parsed_data = {"lint_issues": []}
     proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
@@ -1072,44 +1562,40 @@ async def test_success_logs_at_info(monkeypatch, tmp_path, caplog):
             project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
         )
 
-    info_records = [r for r in caplog.records if r.levelno == logging.INFO]
-    assert any("crackerjack fallback invoked" in r.message for r in info_records)
+    info_records = [r for r in caplog.records if "crackerjack fallback invoked" in r.message]
+    assert info_records and info_records[0].levelno == logging.INFO
 
 
 @pytest.mark.asyncio
-async def test_disabled_logs_at_debug(monkeypatch, tmp_path, caplog):
-    from session_buddy.config import feature_flags
-    from session_buddy.config.feature_flags import FeatureFlags
-    monkeypatch.setattr(
-        feature_flags, "_flags", FeatureFlags(enable_crackerjack_fallback=False),
-    )
+async def test_helper_logs_debug_on_disabled(monkeypatch, tmp_path, caplog):
+    _enable_flag(monkeypatch, enable=False)
 
     with caplog.at_level(logging.DEBUG, logger="session_buddy.utils.crackerjack.fallback"):
         result = await try_crackerjack_cli(
             project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
         )
     assert result is None
-    debug_records = [r for r in caplog.records if r.levelno == logging.DEBUG]
-    assert any("crackerjack fallback invoked" in r.message for r in debug_records)
+    debug_records = [r for r in caplog.records if "crackerjack fallback invoked" in r.message]
+    assert debug_records and debug_records[0].levelno == logging.DEBUG
 
 
 @pytest.mark.asyncio
-async def test_missing_executable_logs_at_error(monkeypatch, tmp_path, caplog):
+async def test_helper_logs_error_on_missing_executable(monkeypatch, tmp_path, caplog):
     _enable_flag(monkeypatch)
-    async def fake_spawn(*args, **kwargs):
-        raise FileNotFoundError("python not on PATH")
+    async def fake_spawn(*args, **kwargs): raise FileNotFoundError("python not on PATH")
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
 
     with caplog.at_level(logging.ERROR, logger="session_buddy.utils.crackerjack.fallback"):
         await try_crackerjack_cli(
             project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
         )
-    error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
-    assert any("crackerjack fallback invoked" in r.message for r in error_records)
+    error_records = [r for r in caplog.records if "crackerjack fallback invoked" in r.message]
+    assert error_records and error_records[0].levelno == logging.ERROR
 
 
 @pytest.mark.asyncio
-async def test_log_includes_caller_and_project_name(monkeypatch, tmp_path, caplog):
+async def test_log_includes_all_required_fields(monkeypatch, tmp_path, caplog):
+    """Every spec-required log field must be set on the record."""
     _enable_flag(monkeypatch)
     parsed_data = {"lint_issues": []}
     proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
@@ -1129,10 +1615,18 @@ async def test_log_includes_caller_and_project_name(monkeypatch, tmp_path, caplo
             caller="producer_retry",
             correlation_context={"session_id": "abc-123"},
         )
+
     rec = next(r for r in caplog.records if "crackerjack fallback invoked" in r.message)
-    assert getattr(rec, "caller", None) == "producer_retry"
-    assert getattr(rec, "project_name", None) == tmp_path.name
-    assert getattr(rec, "session_id", None) == "abc-123"
+    required_fields = [
+        "command", "project_dir", "project_name", "missing_metrics",
+        "duration_seconds", "outcome", "caller", "session_id", "workflow_id",
+    ]
+    for field in required_fields:
+        assert hasattr(rec, field), f"log record missing field: {field}"
+    assert rec.caller == "producer_retry"
+    assert rec.project_name == tmp_path.name
+    assert rec.session_id == "abc-123"
+    assert rec.missing_metrics == ["lint_score"]  # sorted
 
 
 @pytest.mark.asyncio
@@ -1152,49 +1646,115 @@ async def test_missing_metrics_sorted_in_log(monkeypatch, tmp_path, caplog):
     with caplog.at_level(logging.INFO, logger="session_buddy.utils.crackerjack.fallback"):
         await try_crackerjack_cli(
             project_dir=tmp_path,
-            # Intentionally unsorted
             missing_metrics=frozenset({"security_score", "lint_score", "code_coverage"}),
         )
     rec = next(r for r in caplog.records if "crackerjack fallback invoked" in r.message)
-    assert getattr(rec, "missing_metrics", None) == ["code_coverage", "lint_score", "security_score"]
+    assert rec.missing_metrics == ["code_coverage", "lint_score", "security_score"]
+
+
+@pytest.mark.asyncio
+async def test_helper_serializes_concurrent_invocations(monkeypatch, tmp_path):
+    """Two concurrent invocations are serialized by the module-level lock."""
+    _enable_flag(monkeypatch)
+    invocation_times: list = []
+
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_slow_wait_for(awaitable, timeout):
+        awaitable_coro = awaitable  # not awaited inside wait_for in our test
+        # Just record when this is called and sleep briefly to simulate work
+        import time
+        invocation_times.append(time.monotonic())
+        time.sleep(0.05)  # 50ms each
+        return b"{}", b""
+    monkeypatch.setattr(asyncio, "wait_for", fake_slow_wait_for)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", lambda *a, **k: proc)
+
+    import time
+    start = time.monotonic()
+    await asyncio.gather(
+        try_crackerjack_cli(project_dir=tmp_path, missing_metrics=frozenset({"lint_score"})),
+        try_crackerjack_cli(project_dir=tmp_path, missing_metrics=frozenset({"lint_score"})),
+    )
+    elapsed = time.monotonic() - start
+    # If serialized: ~100ms; if parallel: ~50ms. Allow some slop.
+    assert elapsed >= 0.09, f"concurrent invocations took {elapsed}s; expected serialized >= 0.09s"
+
+
+def test_duration_histogram_label_set_is_bounded():
+    """Counter naming convention: command cardinality <= 5, caller in {producer_retry, consumer_chain}."""
+    labelnames = sb_metrics.CRACKERJACK_FALLBACK_DURATION_SECONDS._labelnames
+    assert labelnames == ("command", "caller")
 ```
 
-**Step 7.2: Run tests to verify they fail**
+**Step 7.4: Run tests to verify they fail**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_crackerjack_fallback.py -v --override-ini="addopts="
 ```
 
-Expected: 5 new tests FAIL (no logging yet, just `# TODO: log + counter` comments).
+Expected: Most new tests FAIL (counters and logs not yet wired).
 
-**Step 7.3: Add the logger and counter-emit helpers to the top of `fallback.py`**
+**Step 7.5: Add the observability helpers and wire them into the helper**
 
-Above the existing code in `session_buddy/utils/crackerjack/fallback.py`, add:
+Add to `session_buddy/utils/crackerjack/fallback.py` (after the logger):
 
 ```python
-import time
-import logging
+# OTel tracer (lazy import; no-op when not configured)
+_TRACER = None
 
-logger = logging.getLogger(__name__)
+
+def _get_tracer():
+    """Lazy-init the OpenTelemetry tracer. Returns None when not configured."""
+    global _TRACER
+    if _TRACER is not None:
+        return _TRACER
+    try:
+        from opentelemetry import trace
+        _TRACER = trace.get_tracer(__name__)
+    except Exception:
+        _TRACER = None
+    return _TRACER
 
 
 def _emit_counter(command: str, outcome: str, caller: str) -> None:
     """Increment the unified invocation counter with command+outcome+caller labels."""
-    from session_buddy.metrics import CRACKERJACK_FALLBACK_INVOCATIONS
-    CRACKERJACK_FALLBACK_INVOCATIONS.labels(command=command, outcome=outcome, caller=caller).inc()
+    try:
+        from session_buddy.metrics import CRACKERJACK_FALLBACK_INVOCATIONS
+        CRACKERJACK_FALLBACK_INVOCATIONS.labels(
+            command=command, outcome=outcome, caller=caller
+        ).inc()
+    except Exception:
+        pass  # metrics are best-effort
 
 
-def _log_invocation(
-    level: int,
+def _observe_duration(command: str, caller: str, duration_seconds: float) -> None:
+    """Record the invocation duration in the histogram."""
+    try:
+        from session_buddy.metrics import CRACKERJACK_FALLBACK_DURATION_SECONDS
+        CRACKERJACK_FALLBACK_DURATION_SECONDS.labels(
+            command=command, caller=caller
+        ).observe(duration_seconds)
+    except Exception:
+        pass
+
+
+def _finalize(
+    outcome: str,
     command: str,
+    caller: str,
     project_dir: Path,
     missing_metrics: frozenset[str],
-    outcome: str,
-    caller: str,
     duration_seconds: float,
     correlation_context: dict[str, str] | None,
 ) -> None:
+    """Single point of observability emission. Exactly one log + one counter + one histogram observation per invocation."""
+    level_map = {
+        "success": logging.INFO,
+        "disabled": logging.DEBUG,
+        "missing_executable": logging.ERROR,
+    }
+    level = level_map.get(outcome, logging.WARNING)
     logger.log(
         level,
         "crackerjack fallback invoked",
@@ -1210,99 +1770,231 @@ def _log_invocation(
             "workflow_id": (correlation_context or {}).get("workflow_id"),
         },
     )
+    _emit_counter(command, outcome, caller)
+    _observe_duration(command, caller, duration_seconds)
 ```
 
-**Step 7.4: Register the counters in `session_buddy/metrics.py`**
+Then modify the helper to use `_finalize` at every return point. The disabled paths get `_finalize("disabled", ...)`, the success path gets `_finalize("success", ...)`, the timeout/cancel/nonzero/parse/empty/perm/os paths each get their respective outcome.
 
-Find an existing counter declaration in `session_buddy/metrics.py` (e.g., `session_buddy_provenance_pruned_total`) and add near it:
+**Step 7.6: Wrap the helper body in an OTel span**
+
+Replace the body of `try_crackerjack_cli` (from the start of the function to the `async with _FALLBACK_LOCK:` line) with span-aware code. The span starts at function entry, and the span's outcome attribute is set inside the `_finalize` helper:
 
 ```python
-from prometheus_client import Counter, Histogram
-
-CRACKERJACK_FALLBACK_INVOCATIONS = Counter(
-    "session_buddy_crackerjack_fallback_invocations_total",
-    "Crackerjack CLI fallback invocations",
-    ["command", "outcome", "caller"],
-)
-
-CRACKERJACK_FALLBACK_DURATION_SECONDS = Histogram(
-    "session_buddy_crackerjack_fallback_duration_seconds",
-    "Crackerjack CLI fallback invocation duration in seconds",
-    ["command", "caller"],
-)
+async def try_crackerjack_cli(...):
+    start_time = time.monotonic()
+    tracer = _get_tracer()
+    span_cm = tracer.start_as_current_span(
+        "crackerjack.fallback",
+        attributes={
+            "command": _pick_invocation(missing_metrics)[0],  # will be refined inside
+            "caller": caller,
+            "missing_metrics": sorted(missing_metrics),
+        },
+    ) if tracer else _NoOpSpan()
+    with span_cm as span:
+        # ... existing helper body, with _finalize calls instead of # TODO: ...
+        ...
 ```
 
-(Adjust the import line to match the file's existing style. If the file already has `from prometheus_client import Counter, Histogram`, no new import line is needed.)
+(Implementation detail: `_NoOpSpan` is a context manager that does nothing; needed because the OTel API requires a real span or None.)
 
-**Step 7.5: Fill in all the `# TODO: log + counter` markers in `fallback.py`**
-
-Each marker gets a structured-log call + counter increment. Map of outcomes to log levels:
-
-- `success` → INFO
-- `disabled` → DEBUG
-- `missing_executable` → ERROR
-- all other failures → WARNING
-
-Replace each `# TODO: log + counter (Task 7)` block with the appropriate `_log_invocation(...)` + `_emit_counter(...)` calls. Use a `time.monotonic()` start time captured at function entry, compute `duration_seconds` at each return point. The `command` is the literal `"run"` (crackerjack v0.47+).
-
-**Step 7.6: Run tests to verify they pass**
+**Step 7.7: Run tests to verify they pass**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_crackerjack_fallback.py -v --override-ini="addopts="
 ```
 
-Expected: PASS (17/17).
+Expected: PASS (all tests).
 
-**Step 7.7: Commit**
+**Step 7.8: Commit**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 git add session_buddy/utils/crackerjack/fallback.py session_buddy/metrics.py tests/unit/test_crackerjack_fallback.py
-git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): observability — Prometheus counters, structured logs, log levels
+git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): observability - counters, logs (parametrized), OTel span
 
-success logs at INFO (the new normal), disabled at DEBUG,
-missing_executable at ERROR, other failures at WARNING. Log
-fields include caller, project_name (basename for dashboards),
-sorted missing_metrics, optional session_id / workflow_id
-from correlation_context. Counters use
-session_buddy_crackerjack_fallback_invocations_total naming
-to match the existing Prometheus convention."
+- Add Histogram to metrics.py imports
+- Register CRACKERJACK_FALLBACK_INVOCATIONS (counter) and
+  CRACKERJACK_FALLBACK_DURATION_SECONDS (histogram) with
+  command, outcome, caller labels
+- _finalize() is the single point of observability emission
+  (exactly one log + one counter + one histogram per invocation)
+- OTel span wraps the entire helper (lazy-init; no-op when not
+  configured)
+- Parametrized tests cover all 10 outcomes for counter emission
+  and the 7 WARNING outcomes for log-level routing
+- Concurrency test asserts the module-level lock serializes
+  parallel invocations"
 ```
 
 ---
 
-## Task 8: Wire helper into consumer chain (`_get_crackerjack_metrics`)
+## Task 8: Synthesis replacement — drop `coverage_pct`, emit `None` + `unavailable: True`
 
 **Files:**
-- Modify: `session_buddy/utils/quality_scoring.py` (insert new tier between coverage-file fallback and `_create_fallback_metrics`)
-- Test: `tests/unit/test_quality_scoring.py` (extend)
+- Modify: `session_buddy/utils/quality_scoring.py` (rewrite `_create_fallback_metrics`; update both internal callers at lines 891 and 924 to remove `coverage_pct=` argument)
 
-**Step 8.1: Write the failing tests for the consumer-chain tier**
+**Step 8.1: Search for any callers passing `coverage_pct`**
 
-Add to `tests/unit/test_quality_scoring.py` (this file currently has collection issues per the SDD ledger — run with `--override-ini="addopts=" --noconftest` to bypass the conftest pollution; if the file still won't import, write the tests in a new file `tests/unit/test_consumer_chain_fallback_tier.py`):
+```bash
+cd /Users/les/Projects/session-buddy
+grep -rn "_create_fallback_metrics(coverage_pct" --include="*.py"
+```
+
+Document each hit. The plan assumes two internal callers; verify.
+
+**Step 8.2: Write the failing tests for the new synthesis contract**
+
+In `tests/unit/test_quality_scoring.py` (or a new file `tests/unit/test_synthesis_replacement.py` if the existing file's collection is blocked):
+
+```python
+from session_buddy.utils.quality_scoring import _create_fallback_metrics
+
+
+def test_synthesis_replacement_emits_none_values():
+    result = _create_fallback_metrics()
+    assert result["code_coverage"] is None
+    assert result["lint_score"] is None
+    assert result["security_score"] is None
+    assert result["complexity_score"] is None
+    assert result["unavailable"] is True
+
+
+def test_synthesis_replacement_does_not_emit_perfect_scores():
+    """Regression guard: no key synthesizes 100."""
+    result = _create_fallback_metrics()
+    for key in ("code_coverage", "lint_score", "security_score", "complexity_score"):
+        assert result[key] != 100, f"{key} unexpectedly synthesized as 100"
+
+
+def test_synthesis_drops_coverage_pct_parameter():
+    """API cleanup: legacy coverage_pct parameter is removed (Bodai pre-1.0: no external callers)."""
+    import inspect
+    sig = inspect.signature(_create_fallback_metrics)
+    assert "coverage_pct" not in sig.parameters
+```
+
+**Step 8.3: Run tests to verify they fail**
+
+```bash
+cd /Users/les/Projects/session-buddy
+.venv/bin/python -m pytest tests/unit/test_quality_scoring.py::test_synthesis_replacement_emits_none_values -v --override-ini="addopts=" --noconftest
+```
+
+(If the existing test file won't collect, run a single test by name with `--noconftest`.)
+
+Expected: FAIL (current implementation returns 100s).
+
+**Step 8.4: Rewrite `_create_fallback_metrics`**
+
+In `session_buddy/utils/quality_scoring.py`, replace the body:
+
+```python
+def _create_fallback_metrics() -> dict[str, Any]:
+    """Last-resort fallback. Returns explicit unavailable markers, never perfect scores.
+
+    Invoked only when every other tier (DB, reflection-DB, coverage-file, CLI) failed
+    or was disabled. The ``unavailable: True`` flag is the explicit signal that no
+    measurement occurred.
+    """
+    return {
+        "code_coverage": None,
+        "lint_score": None,
+        "security_score": None,
+        "complexity_score": None,
+        "unavailable": True,
+    }
+```
+
+**Step 8.5: Update internal callers**
+
+The two callers at lines 891 and 924 of `quality_scoring.py` pass `coverage_pct` (a local variable). After the parameter is removed, drop the argument:
+
+```python
+# Before
+return _create_fallback_metrics(coverage_pct)
+# After
+return _create_fallback_metrics()
+```
+
+(Apply at both call sites.)
+
+**Step 8.6: Run tests to verify they pass**
+
+```bash
+cd /Users/les/Projects/session-buddy
+.venv/bin/python -m pytest tests/unit/test_quality_scoring.py -v --override-ini="addopts=" --noconftest -k "synthesis"
+```
+
+Expected: PASS (3/3 synthesis tests).
+
+**Step 8.7: Run existing tests to confirm no regression**
+
+```bash
+cd /Users/les/Projects/session-buddy
+.venv/bin/python -m pytest tests/unit/test_quality_scoring.py -v --override-ini="addopts=" --noconftest
+```
+
+If any test fails because it expected 100s from `_create_fallback_metrics`, update those tests as part of this commit.
+
+**Step 8.8: Commit**
+
+```bash
+cd /Users/les/Projects/session-buddy
+git add session_buddy/utils/quality_scoring.py tests/unit/test_quality_scoring.py
+git -c user.name="les" -c user.email="les@local" commit -m "feat(quality-scoring): synthesis emits None + unavailable: True
+
+Unconditional rewrite of _create_fallback_metrics. The
+synthesize-100s antipattern is gone regardless of the opt-in
+flag's value. Both internal callers (lines 891 and 924)
+updated to drop the legacy coverage_pct argument."
+```
+
+---
+
+## Task 9: Wire helper into consumer chain (`_get_crackerjack_metrics`)
+
+**Files:**
+- Modify: `session_buddy/utils/quality_scoring.py` (insert new tier; use top-level import)
+- Test: `tests/unit/test_quality_scoring.py` (extend; add regression tests from Observability C4)
+
+**Step 9.1: Add top-level import in `quality_scoring.py`**
+
+In `session_buddy/utils/quality_scoring.py`, add at the top of the file (with other imports):
+
+```python
+from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
+```
+
+**Step 9.2: Write the failing tests**
+
+Add to `tests/unit/test_quality_scoring.py`:
 
 ```python
 import pytest
 
 from session_buddy.utils import quality_scoring
+from session_buddy.utils.quality_scoring import _create_fallback_metrics
 
 
 @pytest.mark.asyncio
 async def test_consumer_chain_invokes_helper_after_coverage_file_miss(monkeypatch, tmp_path):
     """DB miss + reflection miss + coverage miss -> helper called with all 4 keys missing."""
-    # Make all upstream tiers miss
-    async def empty_history(*args, **kwargs):
-        return []
+    async def empty_history(*args, **kwargs): return []
     monkeypatch.setattr(quality_scoring, "get_quality_metrics_history", empty_history)
 
-    # Helper returns one metric
+    captured: dict = {}
     async def fake_helper(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
         return {"lint_score": 80.0}
     monkeypatch.setattr(quality_scoring, "try_crackerjack_cli", fake_helper)
 
     result = await quality_scoring._get_crackerjack_metrics(tmp_path)
     assert result["lint_score"] == 80.0
+    assert captured["kwargs"]["caller"] == "consumer_chain"
 
 
 @pytest.mark.asyncio
@@ -1320,17 +2012,27 @@ async def test_consumer_chain_helper_none_falls_through_to_synthesis(monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_consumer_chain_helper_raises_falls_through_to_synthesis(monkeypatch, tmp_path):
+    """Helper raises -> falls through to synthesis (defensive)."""
+    async def empty_history(*args, **kwargs): return []
+    monkeypatch.setattr(quality_scoring, "get_quality_metrics_history", empty_history)
+
+    async def fake_helper(*args, **kwargs): raise RuntimeError("simulated")
+    monkeypatch.setattr(quality_scoring, "try_crackerjack_cli", fake_helper)
+
+    result = await quality_scoring._get_crackerjack_metrics(tmp_path)
+    assert result["unavailable"] is True
+
+
+@pytest.mark.asyncio
 async def test_consumer_chain_db_hit_skips_helper(monkeypatch, tmp_path):
     """DB returns metrics -> helper never called."""
     calls = []
-
     async def fake_history(*args, **kwargs):
         return [{"code_coverage": 80.0, "lint_score": 90.0, "security_score": 100.0, "complexity_score": 85.0}]
-
     async def fake_helper(*args, **kwargs):
         calls.append((args, kwargs))
         return None
-
     monkeypatch.setattr(quality_scoring, "get_quality_metrics_history", fake_history)
     monkeypatch.setattr(quality_scoring, "try_crackerjack_cli", fake_helper)
 
@@ -1339,100 +2041,140 @@ async def test_consumer_chain_db_hit_skips_helper(monkeypatch, tmp_path):
     assert result["code_coverage"] == 80.0
 ```
 
-**Step 8.2: Run tests to verify they fail**
+**Step 9.3: Run tests to verify they fail**
 
 ```bash
 cd /Users/les/Projects/session-buddy
-.venv/bin/python -m pytest tests/unit/test_quality_scoring.py -v --override-ini="addopts=" --noconftest 2>&1 | head -40
+.venv/bin/python -m pytest tests/unit/test_quality_scoring.py -v --override-ini="addopts=" --noconftest -k "consumer_chain"
 ```
 
-If the conftest pollution blocks collection, fall back to running individual test functions:
+Expected: All 4 tests FAIL (the chain doesn't call the helper yet).
 
-```bash
-cd /Users/les/Projects/session-buddy
-.venv/bin/python -m pytest tests/unit/test_quality_scoring.py::TestQualityMetricsCalculation -v --override-ini="addopts=" --noconftest
-```
+**Step 9.4: Insert the helper tier into `_get_crackerjack_metrics`**
 
-Expected: New tests FAIL (the chain doesn't call the helper yet).
-
-**Step 8.3: Insert the helper tier into `_get_crackerjack_metrics`**
-
-In `session_buddy/utils/quality_scoring.py`, find the `_get_crackerjack_metrics` function. After the coverage-file fallback block (the `if metrics.get("code_coverage") is None: ...` block) and before the final `if not metrics: return _create_fallback_metrics(...)` check, insert:
+In `session_buddy/utils/quality_scoring.py`, find the `_get_crackerjack_metrics` function. After the coverage-file fallback block and before the final synthesis-fallback check, insert:
 
 ```python
-    # CLI fallback tier (Task 8 of the quality-scoring crackerjack fallback plan)
-    from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
+    # CLI fallback tier (Task 9 of the quality-scoring crackerjack fallback plan)
     SCORING_KEYS = frozenset({"code_coverage", "lint_score", "security_score", "complexity_score"})
     missing = frozenset(k for k in SCORING_KEYS if metrics.get(k) is None)
     if missing:
-        fallback = await try_crackerjack_cli(
-            project_dir=project_dir,
-            missing_metrics=missing,
-            timeout=30.0,
-            caller="consumer_chain",
-        )
+        try:
+            fallback = await try_crackerjack_cli(
+                project_dir=project_dir,
+                missing_metrics=missing,
+                timeout=30.0,
+                caller="consumer_chain",
+            )
+        except Exception:
+            fallback = None
         if fallback:
             metrics.update(fallback)
+
+    if not any(metrics.get(k) is not None for k in SCORING_KEYS):
+        return _create_fallback_metrics()
+    return metrics
 ```
 
-And at the top of `quality_scoring.py`, add the import:
-
-```python
-from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
-```
-
-**Step 8.4: Run tests to verify they pass**
+**Step 9.5: Run tests to verify they pass**
 
 ```bash
 cd /Users/les/Projects/session-buddy
-.venv/bin/python -m pytest tests/unit/test_quality_scoring.py::TestQualityMetricsCalculation -v --override-ini="addopts=" --noconftest
+.venv/bin/python -m pytest tests/unit/test_quality_scoring.py -v --override-ini="addopts=" --noconftest -k "consumer_chain"
 ```
 
-Expected: PASS (existing 19/19 + the 3 new ones = 22/22 in this class).
+Expected: PASS (4/4 new tests).
 
-**Step 8.5: Commit**
+**Step 9.6: Commit**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 git add session_buddy/utils/quality_scoring.py tests/unit/test_quality_scoring.py
 git -c user.name="les" -c user.email="les@local" commit -m "feat(quality-scoring): wire try_crackerjack_cli into consumer chain
 
-After the coverage-file tier and before _create_fallback_metrics.
-The helper is called with the set of scoring keys still missing
-and its result is merged into the metrics dict. DB-hit path
-skips the helper (early-return guard)."
+Top-level import of the helper (avoids the local-import
+monkeypatch-target issue from the v1 plan review). The helper
+is called with the set of scoring keys still missing and its
+result is merged into the metrics dict.
+
+Defensive try/except around the helper invocation: a buggy
+helper or a transient network error cannot crash the consumer
+chain. DB-hit path still skips the helper (early-return guard)."
 ```
 
 ---
 
-## Task 9: Wire helper into producer retry (`execute_crackerjack_command`)
+## Task 10: Wire helper into producer retry (`execute_crackerjack_command`)
 
 **Files:**
-- Modify: `session_buddy/crackerjack_integration.py` (add the `fallback_used` field to `CrackerjackResult`; add the retry in `execute_crackerjack_command`)
-- Test: `tests/unit/test_crackerjack_integration.py` (extend)
+- Modify: `session_buddy/crackerjack_integration.py` (top-level helper import; producer retry; add `fallback_used` field; add `quality_metrics` parameter to `_create_error_result`)
 
-**Step 9.1: Write the failing tests for the producer retry**
+**Step 10.1: Add top-level import in `crackerjack_integration.py`**
 
-Add to `tests/unit/test_crackerjack_integration.py`:
+In `session_buddy/crackerjack_integration.py`, add at the top of the file (with other imports):
+
+```python
+from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
+```
+
+**Step 10.2: Add `fallback_used: bool = False` to `CrackerjackResult`**
+
+Find the `CrackerjackResult` dataclass and add the field:
+
+```python
+    fallback_used: bool = False
+```
+
+**Step 10.3: Add `quality_metrics: dict[str, float] | None = None` and `fallback_used: bool = False` parameters to `_create_error_result`**
+
+Find the existing `_create_error_result(self, command, exit_code, stderr, execution_time, working_directory, memory_insight)` method and add the new parameters:
+
+```python
+    def _create_error_result(
+        self,
+        command: str,
+        exit_code: int,
+        stderr: str,
+        execution_time: float,
+        working_directory: str,
+        memory_insight: str,
+        quality_metrics: dict[str, float] | None = None,
+        fallback_used: bool = False,
+    ) -> CrackerjackResult:
+        return CrackerjackResult(
+            command=command,
+            exit_code=exit_code,
+            stdout="",
+            stderr=stderr,
+            execution_time=execution_time,
+            timestamp=utc_now(),
+            working_directory=working_directory,
+            parsed_data={},
+            quality_metrics=quality_metrics or {},
+            test_results=[],
+            memory_insights=[memory_insight],
+            fallback_used=fallback_used,
+        )
+```
+
+Also update the two existing call sites at lines 496 and 510 to either pass `quality_metrics=None, fallback_used=False` explicitly or rely on the default.
+
+**Step 10.4: Write the failing tests**
+
+Add to `tests/unit/test_crackerjack_integration.py` (place the new tests inside `TestQualityMetricsCalculation` class so the test selectors in the run command work):
 
 ```python
 @pytest.mark.asyncio
 async def test_producer_timeout_invokes_fallback_before_error_result(monkeypatch, tmp_path):
     """On TimeoutError, the helper runs once; if it returns a dict, that's the metrics."""
-
-    from session_buddy.crackerjack_integration import CrackerjackIntegration
-
     async def fake_helper(*args, **kwargs):
         return {"lint_score": 75.0, "security_score": 100.0}
-
     monkeypatch.setattr(
-        "session_buddy.crackerjack_integration.try_crackerjack_cli",
-        fake_helper,
+        "session_buddy.crackerjack_integration.try_crackerjack_cli", fake_helper,
     )
 
     async def fake_subprocess(*args, **kwargs):
         raise asyncio.TimeoutError()
-
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_subprocess)
 
     integration = CrackerjackIntegration()
@@ -1445,10 +2187,6 @@ async def test_producer_timeout_invokes_fallback_before_error_result(monkeypatch
 
 @pytest.mark.asyncio
 async def test_producer_timeout_helper_none_returns_empty_metrics(monkeypatch, tmp_path):
-    """Helper returns None -> result has quality_metrics={} and fallback_used=False."""
-
-    from session_buddy.crackerjack_integration import CrackerjackIntegration
-
     async def fake_helper(*args, **kwargs): return None
     monkeypatch.setattr(
         "session_buddy.crackerjack_integration.try_crackerjack_cli", fake_helper,
@@ -1468,9 +2206,6 @@ async def test_producer_timeout_helper_none_returns_empty_metrics(monkeypatch, t
 @pytest.mark.asyncio
 async def test_producer_normal_path_does_not_invoke_fallback(monkeypatch, tmp_path):
     """Successful subprocess run -> helper never called."""
-
-    from session_buddy.crackerjack_integration import CrackerjackIntegration
-
     calls = []
     async def fake_helper(*args, **kwargs):
         calls.append((args, kwargs))
@@ -1479,7 +2214,6 @@ async def test_producer_normal_path_does_not_invoke_fallback(monkeypatch, tmp_pa
         "session_buddy.crackerjack_integration.try_crackerjack_cli", fake_helper,
     )
 
-    # Simulate a successful subprocess that emits nothing parseable
     class _Proc:
         returncode = 0
         async def communicate(self): return b"{}", b""
@@ -1494,31 +2228,13 @@ async def test_producer_normal_path_does_not_invoke_fallback(monkeypatch, tmp_pa
     assert calls == []
 ```
 
-**Step 9.2: Run tests to verify they fail**
+**Step 10.5: Add the retry on `TimeoutError`**
 
-```bash
-cd /Users/les/Projects/session-buddy
-.venv/bin/python -m pytest tests/unit/test_crackerjack_integration.py::TestQualityMetricsCalculation -v --override-ini="addopts=" --noconftest
-```
-
-Expected: 3 new tests FAIL (`fallback_used` doesn't exist on `CrackerjackResult`; no retry path yet).
-
-**Step 9.3: Add `fallback_used: bool = False` to `CrackerjackResult`**
-
-In `session_buddy/crackerjack_integration.py`, find the `CrackerjackResult` dataclass (search for `@dataclass` near the class definition) and add the field:
-
-```python
-    fallback_used: bool = False
-```
-
-**Step 9.4: Add the retry on `TimeoutError`**
-
-In `session_buddy/crackerjack_integration.py`, find the `except TimeoutError:` block inside `execute_crackerjack_command`. Replace the existing handler with:
+In `session_buddy/crackerjack_integration.py`, find the `except TimeoutError:` block inside `execute_crackerjack_command`. Replace it with:
 
 ```python
     except TimeoutError:
         # CLI fallback: one attempt before degrading to empty metrics
-        from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
         try:
             fallback_metrics = await try_crackerjack_cli(
                 project_dir=working_directory,
@@ -1532,145 +2248,48 @@ In `session_buddy/crackerjack_integration.py`, find the `except TimeoutError:` b
             fallback_metrics = None
         if fallback_metrics:
             return self._create_error_result(
-                exit_code=-1,
+                command, -1,
+                f"Command '{command}' timed out after {timeout}s; recovered via CLI fallback",
+                execution_time, working_directory,
+                f"Command '{command}' recovered via CLI fallback",
                 quality_metrics=fallback_metrics,
                 fallback_used=True,
             )
-        return self._create_error_result(exit_code=-1, quality_metrics={})
+        return self._create_error_result(
+            command, -1,
+            f"Command '{command}' timed out after {timeout}s",
+            execution_time, working_directory,
+            f"Command '{command}' failed (timeout, no fallback available)",
+        )
 ```
 
-**Step 9.5: Update `_create_error_result` to accept `fallback_used`**
-
-In `session_buddy/crackerjack_integration.py`, find `_create_error_result`. Add `fallback_used: bool = False` as a parameter, and pass it through to the `CrackerjackResult` it returns.
-
-**Step 9.6: Run tests to verify they pass**
+**Step 10.6: Run tests to verify they pass**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/unit/test_crackerjack_integration.py::TestQualityMetricsCalculation -v --override-ini="addopts=" --noconftest
 ```
 
-Expected: PASS (existing tests + 3 new ones).
+Expected: PASS (existing 19 + 3 new = 22 in this class).
 
-**Step 9.7: Commit**
+**Step 10.7: Commit**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 git add session_buddy/crackerjack_integration.py tests/unit/test_crackerjack_integration.py
 git -c user.name="les" -c user.email="les@local" commit -m "feat(crackerjack): producer retry invokes try_crackerjack_cli on TimeoutError
 
-On subprocess timeout, the helper runs once with all four scoring
-keys marked missing. If the helper returns a dict, the result has
-fallback_used=True and the metrics come from the CLI. Otherwise
-falls through to the existing _create_error_result({}) behavior.
-asyncio.CancelledError propagates without invoking the helper
-(host shutdown should not block on a 30s subprocess)."
-```
-
----
-
-## Task 10: Synthesis replacement — drop `coverage_pct`, emit `None` + `unavailable: True`
-
-**Files:**
-- Modify: `session_buddy/utils/quality_scoring.py` (rewrite `_create_fallback_metrics`; update any internal callers that pass `coverage_pct`)
-- Test: `tests/unit/test_quality_scoring.py` (extend)
-
-**Step 10.1: Search for any callers passing `coverage_pct`**
-
-```bash
-cd /Users/les/Projects/session-buddy
-grep -rn "_create_fallback_metrics" --include="*.py" | head -20
-```
-
-Document each call site. The spec says there are two internal callers (`quality_scoring.py:891` and `:924`) that do NOT pass `coverage_pct`. If any external caller does pass it, update them in this task.
-
-**Step 10.2: Write the failing tests for the new synthesis contract**
-
-Add to `tests/unit/test_quality_scoring.py` (or to the new test file from Task 8 if you created one):
-
-```python
-def test_synthesis_replacement_emits_none_values():
-    from session_buddy.utils.quality_scoring import _create_fallback_metrics
-    result = _create_fallback_metrics()
-    assert result["code_coverage"] is None
-    assert result["lint_score"] is None
-    assert result["security_score"] is None
-    assert result["complexity_score"] is None
-    assert result["unavailable"] is True
-
-
-def test_synthesis_replacement_does_not_emit_perfect_scores():
-    """Regression guard: the synthesize-100s antipattern must not return."""
-    from session_buddy.utils.quality_scoring import _create_fallback_metrics
-    result = _create_fallback_metrics()
-    for key in ("code_coverage", "lint_score", "security_score", "complexity_score"):
-        assert result[key] != 100, f"{key} unexpectedly synthesized as 100"
-
-
-def test_synthesis_drops_coverage_pct_parameter():
-    """Backward-compat: callers that passed coverage_pct=... no longer need to."""
-    from session_buddy.utils.quality_scoring import _create_fallback_metrics
-    # The function must not accept coverage_pct (Bodai pre-1.0: no external callers)
-    import inspect
-    sig = inspect.signature(_create_fallback_metrics)
-    assert "coverage_pct" not in sig.parameters
-```
-
-**Step 10.3: Run tests to verify they fail**
-
-```bash
-cd /Users/les/Projects/session-buddy
-.venv/bin/python -m pytest tests/unit/test_quality_scoring.py::test_synthesis_replacement_emits_none_values -v --override-ini="addopts=" --noconftest
-```
-
-Expected: FAIL (current implementation returns 100s for the four keys).
-
-**Step 10.4: Rewrite `_create_fallback_metrics`**
-
-In `session_buddy/utils/quality_scoring.py`, replace the body of `_create_fallback_metrics`:
-
-```python
-def _create_fallback_metrics() -> dict[str, Any]:
-    """Last-resort fallback. Returns explicit unavailable markers, never perfect scores.
-
-    Invoked only when every other tier (DB, reflection-DB, coverage-file, CLI) failed
-    or was disabled. The ``unavailable: True`` flag is the explicit signal that no
-    measurement occurred.
-    """
-    return {
-        "code_coverage": None,
-        "lint_score": None,
-        "security_score": None,
-        "complexity_score": None,
-        "unavailable": True,
-    }
-```
-
-**Step 10.5: Update internal callers**
-
-If any caller in `quality_scoring.py` passed `coverage_pct=...` to `_create_fallback_metrics`, remove the argument. The two known callers (lines 891 and 924) do not pass it per the spec, but verify with `grep` from Step 10.1.
-
-**Step 10.6: Run tests to verify they pass**
-
-```bash
-cd /Users/les/Projects/session-buddy
-.venv/bin/python -m pytest tests/unit/test_quality_scoring.py -v --override-ini="addopts=" --noconftest -k "synthesis"
-```
-
-Expected: PASS (3/3 synthesis tests).
-
-**Step 10.7: Commit**
-
-```bash
-cd /Users/les/Projects/session-buddy
-git add session_buddy/utils/quality_scoring.py tests/unit/test_quality_scoring.py
-git -c user.name="les" -c user.email="les@local" commit -m "feat(quality-scoring): synthesis emits None + unavailable: True
-
-Unconditional rewrite of _create_fallback_metrics. The
-synthesize-100s antipattern is gone regardless of the opt-in
-flag's value. The opt-in flag controls only whether the CLI
-attempt fires before synthesis (per the v2 spec's design
-decision: 'the synthesis change is unconditional')."
+- Top-level import of the helper (so monkeypatch.setattr works
+  on the module attribute; the v1 plan's local import was a
+  patch-target bug)
+- Add fallback_used: bool = False to CrackerjackResult
+- Extend _create_error_result with quality_metrics and
+  fallback_used parameters
+- On subprocess timeout: one CLI fallback attempt; if it
+  returns a dict, the result has fallback_used=True and the
+  metrics come from the CLI
+- All 6 required positional args are now passed (the v1 plan
+  used a 3-arg form that would TypeError at runtime)"
 ```
 
 ---
@@ -1678,59 +2297,84 @@ decision: 'the synthesis change is unconditional')."
 ## Task 11: Harden `_format_metrics_section` and add unavailable banner
 
 **Files:**
-- Modify: `session_buddy/mcp/tools/session/crackerjack_tools.py` (find `_format_metrics_section` around line 661)
-- Test: `tests/unit/test_crackerjack_tools.py` (extend, or create new file if it doesn't exist)
+- Modify: `session_buddy/mcp/tools/session/crackerjack_tools.py` (find `_format_metrics_section` around line 655; harden against `None`; inspect `result.quality_metrics` for `unavailable` flag; render banner)
+- Test: `tests/unit/test_crackerjack_tools.py` (extend the existing `TestFormatMetricsSection` class)
 
 **Step 11.1: Write the failing tests**
 
-In `tests/unit/test_crackerjack_tools.py` (create if missing):
+In `tests/unit/test_crackerjack_tools.py`, add to the existing `TestFormatMetricsSection` class:
 
 ```python
+from unittest.mock import MagicMock
+
+from session_buddy.crackerjack_integration import CrackerjackResult
 from session_buddy.mcp.tools.session.crackerjack_tools import _format_metrics_section
 
 
 def test_format_metrics_section_handles_none_values():
     """None values must render as 'unavailable', not crash on f-string."""
-    output = _format_metrics_section({"code_coverage": None, "lint_score": 80.0})
+    result = MagicMock(spec=CrackerjackResult)
+    result.quality_metrics = {"code_coverage": None, "lint_score": 80.0}
+    output = _format_metrics_section(result)
     assert "unavailable" in output
     assert "80.0" in output
 
 
 def test_format_metrics_section_renders_unavailable_banner():
-    """When unavailable: True is set, a banner appears at the top."""
-    output = _format_metrics_section({
+    """When unavailable: True is in quality_metrics, a banner appears."""
+    result = MagicMock(spec=CrackerjackResult)
+    result.quality_metrics = {
         "code_coverage": None,
         "lint_score": None,
         "security_score": None,
         "complexity_score": None,
         "unavailable": True,
-    })
-    assert "Quality metrics unavailable" in output or "unavailable" in output.lower()
+    }
+    output = _format_metrics_section(result)
+    assert output.startswith("⚠️ Quality metrics unavailable")
+    assert "Quality metrics unavailable" in output
+
+
+def test_format_metrics_section_banner_overrides_partial_metrics():
+    """When unavailable: True, partial metrics are NOT shown — banner is all-or-nothing."""
+    result = MagicMock(spec=CrackerjackResult)
+    result.quality_metrics = {
+        "code_coverage": 80.0,
+        "lint_score": None,
+        "security_score": 100.0,
+        "complexity_score": None,
+        "unavailable": True,
+    }
+    output = _format_metrics_section(result)
+    # Banner appears, partial metrics do NOT
+    assert "Quality metrics unavailable" in output
+    assert "80.0" not in output
+    assert "100.0" not in output
 ```
 
 **Step 11.2: Run tests to verify they fail**
 
 ```bash
 cd /Users/les/Projects/session-buddy
-.venv/bin/python -m pytest tests/unit/test_crackerjack_tools.py -v --override-ini="addopts="
+.venv/bin/python -m pytest tests/unit/test_crackerjack_tools.py::TestFormatMetricsSection -v --override-ini="addopts="
 ```
 
-Expected: Both tests FAIL (current formatter crashes on None and doesn't render a banner).
+Expected: All 3 new tests FAIL (current formatter doesn't render banner, may crash on None).
 
 **Step 11.3: Harden `_format_metrics_section`**
 
-In `session_buddy/mcp/tools/session/crackerjack_tools.py`, find `_format_metrics_section` and replace the body with:
+In `session_buddy/mcp/tools/session/crackerjack_tools.py`, find `_format_metrics_section` (around line 655) and replace the body. The function takes a `CrackerjackResult`, not a dict:
 
 ```python
-def _format_metrics_section(quality_metrics: dict) -> str:
+def _format_metrics_section(result: CrackerjackResult) -> str:
     """Format a quality metrics dict for the MCP tool output.
 
-    Renders an unavailable banner when the dict carries ``unavailable: True``.
-    Handles None values defensively (replaces with 'unavailable' string instead
-    of crashing on f-string formatting).
+    Renders an unavailable banner when ``quality_metrics`` carries
+    ``unavailable: True``. Handles None values defensively.
     """
+    quality_metrics = result.quality_metrics
     if quality_metrics.get("unavailable") is True:
-        return "⚠️ Quality metrics unavailable — every tier failed or was disabled.\n"
+        return "⚠️ Quality metrics unavailable\n"
 
     output = "📊 **Quality Metrics**\n\n"
     for metric, value in quality_metrics.items():
@@ -1741,34 +2385,49 @@ def _format_metrics_section(quality_metrics: dict) -> str:
     return output
 ```
 
-**Step 11.4: Run tests to verify they pass**
+**Step 11.4: Wire the synthesis dict into a `CrackerjackResult`**
+
+The synthesis dict from `_create_fallback_metrics` is currently only returned to the consumer. The MCP tool's banner is in `_format_metrics_section` which takes a `CrackerjackResult`. To give the synthesis a real consumer, the consumer chain in `quality_scoring.py` should wrap the synthesis dict in a `CrackerjackResult` for any MCP layer that consumes it.
+
+In `session_buddy/utils/quality_scoring.py`, the `return _create_fallback_metrics()` line in `_get_crackerjack_metrics` returns the bare dict. If MCP tools need a `CrackerjackResult` (some do, some don't), wrap accordingly. For now, the most important consumer is the MCP `crackerjack_metrics` tool which calls `_crackerjack_metrics_impl` and reads from history. The synthesis dict flows into history via the producer's `_store_result` only when the producer invokes the fallback. The synthesis from the consumer side does NOT reach the MCP banner today.
+
+**Decision**: add a docstring note in `quality_scoring.py` explaining that the consumer-side synthesis dict is consumed by downstream callers (e.g., `_calculate_code_quality` in the same file) but does not reach the MCP banner via `_format_metrics_section` because that function consumes producer-side `CrackerjackResult` only. Future work: thread the synthesis through a new MCP tool or add a parallel formatter.
+
+**Step 11.5: Run tests to verify they pass**
 
 ```bash
 cd /Users/les/Projects/session-buddy
-.venv/bin/python -m pytest tests/unit/test_crackerjack_tools.py -v --override-ini="addopts="
+.venv/bin/python -m pytest tests/unit/test_crackerjack_tools.py::TestFormatMetricsSection -v --override-ini="addopts="
 ```
 
-Expected: PASS (2/2).
+Expected: PASS (existing 4 + 3 new = 7 in this class).
 
-**Step 11.5: Commit**
+**Step 11.6: Commit**
 
 ```bash
 cd /Users/les/Projects/session-buddy
-git add session_buddy/mcp/tools/session/crackerjack_tools.py tests/unit/test_crackerjack_tools.py
+git add session_buddy/mcp/tools/session/crackerjack_tools.py session_buddy/utils/quality_scoring.py tests/unit/test_crackerjack_tools.py
 git -c user.name="les" -c user.email="les@local" commit -m "feat(crackerjack-tools): harden _format_metrics_section and add unavailable banner
 
-The formatter previously crashed with TypeError on None values
-(f'{value:.1f}' raised unsupported format string for NoneType).
-It now detects unavailable: True upfront and renders a banner,
-and replaces None values with the literal 'unavailable' string.
+The formatter takes a CrackerjackResult (not a dict; the v1 plan
+got the signature wrong). It inspects result.quality_metrics for
+the unavailable flag and renders a banner. None values render
+as 'unavailable' instead of crashing on f-string formatting.
 
-This gives the synthesis dict's flag a real consumer (per the
-v2 spec's 'MCP banner rendering' integration point)."
+The consumer-side synthesis dict from _create_fallback_metrics
+is consumed by downstream callers in quality_scoring.py
+(_calculate_code_quality, _run_security_checks) but does not
+reach _format_metrics_section because that function operates
+on producer-side CrackerjackResult instances. The banner is
+therefore visible when a producer invocation falls back;
+consumer-side synthesis flows through history and reads.
+A follow-up could add a parallel formatter for consumer
+synthesis if MCP-tool-side visibility is needed."
 ```
 
 ---
 
-## Task 12: Real-subprocess integration test (gated)
+## Task 12: Real-subprocess integration test (gated, with `importorskip`)
 
 **Files:**
 - Create: `tests/integration/test_crackerjack_fallback_real.py`
@@ -1778,23 +2437,37 @@ v2 spec's 'MCP banner rendering' integration point)."
 ```python
 """Real-subprocess integration test for the Crackerjack CLI fallback.
 
-Skipped in fast CI by `pytest -m 'not integration'`. Runs against a real
-crackerjack install in slow CI lanes and on developer machines.
+Skipped in fast CI by `pytest -m 'not integration'`. Skipped entirely
+when the crackerjack module is not installed.
 """
 from __future__ import annotations
 
-import sys
-
 import pytest
 
-from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
+pytestmark = [pytest.mark.integration]
 
 
-pytestmark = [pytest.mark.integration, pytest.mark.requires_network]
+# Skip the entire module if crackerjack isn't installed
+pytest.importorskip("crackerjack")
+
+
+from session_buddy.config.feature_flags import FeatureFlags  # noqa: E402
+from session_buddy.config import feature_flags  # noqa: E402
+from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli  # noqa: E402
+
+
+@pytest.fixture
+def enable_flag(monkeypatch):
+    """Enable the opt-in flag for the duration of one test."""
+    monkeypatch.setattr(
+        feature_flags, "get_feature_flags",
+        lambda: FeatureFlags(enable_crackerjack_fallback=True),
+    )
 
 
 @pytest.mark.asyncio
-async def test_helper_invokes_real_crackerjack(tmp_path):
+async def test_helper_invokes_real_crackerjack(tmp_path, enable_flag):
+    """Real crackerjack must produce at least one of the requested scoring keys."""
     (tmp_path / "hello.py").write_text("x = 1\n")
     result = await try_crackerjack_cli(
         project_dir=tmp_path,
@@ -1803,8 +2476,11 @@ async def test_helper_invokes_real_crackerjack(tmp_path):
     )
     assert result is not None
     assert isinstance(result, dict)
-    # Don't assert specific values — different crackerjack versions produce
-    # different lint outputs. Just assert the call succeeded without raising.
+    # The helper must have actually extracted a metric, not returned {}
+    # for a missing parsed_data shape
+    assert any(k in result for k in ("code_coverage", "lint_score")), (
+        f"expected at least one of code_coverage/lint_score in result; got {result!r}"
+    )
 ```
 
 **Step 12.2: Run test to verify it skips in fast mode**
@@ -1816,24 +2492,114 @@ cd /Users/les/Projects/session-buddy
 
 Expected: SKIPPED (the `@pytest.mark.integration` marker excludes it from this run).
 
-**Step 12.3: Run test directly to verify it executes against a real crackerjack**
+**Step 12.3: Run test directly (will skip if crackerjack not installed)**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 .venv/bin/python -m pytest tests/integration/test_crackerjack_fallback_real.py -v --override-ini="addopts=" -m "integration"
 ```
 
-If `crackerjack` is not installed, this fails with `ModuleNotFoundError`. That's acceptable for the integration test — the unit tests (Tasks 3-11) cover the helper's behavior without a real install.
+If `crackerjack` is not installed, this SKIPS via `pytest.importorskip`. If it is installed, the test must actually verify a metric was extracted (not just `assert result is not None`).
 
 **Step 12.4: Commit**
 
 ```bash
 cd /Users/les/Projects/session-buddy
 git add tests/integration/test_crackerjack_fallback_real.py
-git -c user.name="les" -c user.email="les@local" commit -m "test(fallback): real-subprocess integration test (gated)
+git -c user.name="les" -c user.email="les@local" commit -m "test(fallback): real-subprocess integration test (gated, importorskip)
 
-Verifies the helper works against a real crackerjack install.
-Skipped in fast CI by `pytest -m 'not integration'`."
+Skipped in fast CI by `pytest -m 'not integration'`. Skipped
+entirely when the crackerjack module is not installed via
+pytest.importorskip at module load. Asserts that the helper
+extracts at least one of the requested keys (not just result
+is not None, which would vacuously pass if parsed_data was
+empty)."
+```
+
+---
+
+## Task 13: Observability — alert rules and dashboard panel
+
+**Files:**
+- Create: `docs/observability/crackerjack-fallback-alerts.md`
+
+**Step 13.1: Write the alert rules document**
+
+Create `docs/observability/crackerjack-fallback-alerts.md`:
+
+```markdown
+# Crackerjack CLI Fallback — Alert Rules and Dashboard Panel
+
+**Created:** 2026-07-27
+**Owner:** session-buddy maintainers
+**Metrics:**
+- `session_buddy_crackerjack_fallback_invocations_total{command, outcome, caller}` (counter)
+- `session_buddy_crackerjack_fallback_duration_seconds{command, caller}` (histogram)
+
+## Alert rules (PromQL)
+
+### A1. Outcome ≠ success rate exceeds 10% over 5 minutes
+- **Severity:** Slack (not PagerDuty; the fallback is a recovery, not an outage)
+- **PromQL:**
+  ```promql
+  sum(rate(session_buddy_crackerjack_fallback_invocations_total{outcome!="success"}[5m]))
+    /
+  sum(rate(session_buddy_crackerjack_fallback_invocations_total[5m]))
+    > 0.10
+  ```
+- **Runbook:** Check `outcome` distribution. If most failures are `timeout`, the lock may be contended or the helper is slow. If most are `nonzero_exit`, the crackerjack invocation has a config issue. If most are `disabled`, someone flipped the kill switch and forgot.
+
+### A2. Disabled outcome rate > 0
+- **Severity:** Slack (informational; the kill switch was tripped)
+- **PromQL:**
+  ```promql
+  sum(rate(session_buddy_crackerjack_fallback_invocations_total{outcome="disabled"}[1h])) > 0
+  ```
+- **Runbook:** The operator deliberately disabled the fallback. Confirm with the on-call channel that this is intentional.
+
+### A3. p99 duration > 25s (close to the 30s timeout)
+- **Severity:** Slack
+- **PromQL:**
+  ```promql
+  histogram_quantile(0.99, sum by (le, command) (rate(session_buddy_crackerjack_fallback_duration_seconds_bucket[5m])))
+    > 25
+  ```
+- **Runbook:** Fallback invocations are taking almost the full timeout. Either the subprocess is slow (crackerjack regression) or the lock is contended. Consider raising the timeout or staggering consumer-chain reads.
+
+## Dashboard panel
+
+Suggested panel: "Crackerjack Fallback" with these queries:
+
+- **Invocation rate by outcome (stacked area):**
+  ```promql
+  sum by (outcome) (rate(session_buddy_crackerjack_fallback_invocations_total[5m]))
+  ```
+- **p50 / p99 duration:**
+  ```promql
+  histogram_quantile(0.50, sum by (le) (rate(session_buddy_crackerjack_fallback_duration_seconds_bucket[5m])))
+  histogram_quantile(0.99, sum by (le) (rate(session_buddy_crackerjack_fallback_duration_seconds_bucket[5m])))
+  ```
+- **Caller distribution (proportion of consumer_chain vs producer_retry):**
+  ```promql
+  sum by (caller) (rate(session_buddy_crackerjack_fallback_invocations_total[5m]))
+  ```
+
+## Counter-name double-counting warning
+
+The plan does NOT register dedicated `crackerjack.fallback.timeout{command}` or `crackerjack.fallback.disabled{command}` counters. Operators aggregating dashboards should query the unified `session_buddy_crackerjack_fallback_invocations_total{outcome="timeout"}` (not a separate counter) to avoid double-counting.
+```
+
+**Step 13.2: Commit**
+
+```bash
+cd /Users/les/Projects/session-buddy
+git add docs/observability/crackerjack-fallback-alerts.md
+git -c user.name="les" -c user.email="les@local" commit -m "docs(observability): add Crackerjack fallback alert rules and dashboard panel
+
+Three PromQL alert rules and a dashboard panel for the
+session_buddy_crackerjack_fallback_* metrics. Documents the
+counter double-counting warning: no dedicated timeout/disabled
+counters; use the outcome label on the unified counter."
 ```
 
 ---
@@ -1842,28 +2608,55 @@ Skipped in fast CI by `pytest -m 'not integration'`."
 
 **1. Spec coverage:**
 - [x] Helper module + lock + OTel → Tasks 3, 7
-- [x] Subprocess invocation with timeout/kill → Task 4
+- [x] Subprocess invocation with timeout/kill/cancel split → Task 4
+- [x] CLI flag selection from Task 0 mapping → Task 4
 - [x] Parse + extract + post-filter → Task 5
 - [x] Error-path coverage (10 outcomes) → Task 6
-- [x] Producer retry → Task 9
-- [x] Consumer chain tier → Task 8
-- [x] Synthesis replacement (unconditional) → Task 10
+- [x] Producer retry → Task 10 (renumbered)
+- [x] Consumer chain tier → Task 9 (renumbered)
+- [x] Synthesis replacement (unconditional) → Task 8 (renumbered up)
 - [x] MCP banner + `None` hardening → Task 11
 - [x] Opt-in flag (feature flag + YAML + env) → Task 1
 - [x] Pure-helper `@staticmethod` refactor → Task 2
-- [x] Prometheus counters → Task 7
+- [x] Prometheus counters + Histogram + OTel span → Task 7
 - [x] Real-subprocess integration test → Task 12
 - [x] CLI flag verification (preflight) → Task 0
-- [x] `coverage_pct` parameter dropped → Task 10
+- [x] `coverage_pct` parameter dropped → Task 8
+- [x] Alert rules + dashboard panel → Task 13 (NEW)
 
-**2. Placeholder scan:** No TBDs. Task 0 has a real shell command. Each `# TODO` comment in `fallback.py` is filled in by a specific later task (Tasks 4, 5, 6, 7) — that's not a placeholder, that's staged implementation.
+**2. Placeholder scan:** No TBDs. The `# TODO: log + counter (Task 7)` markers in Tasks 4-6 are intentional — Task 7 fills them in. Same for `# TODO: with tracer.start_as_current_span(...)` in Task 3 — Task 7 implements it concretely.
 
-**3. Type consistency:** `try_crackerjack_cli` signature in Task 3 matches the spec verbatim. `CrackerjackResult.fallback_used: bool = False` consistent across Tasks 9 and the spec. `frozenset` for `missing_metrics` consistent. The four `_*_metrics` helpers are `@staticmethod` after Task 2; called as `CrackerjackIntegration._calculate_X(...)` (no instance) in Task 5.
+**3. Type consistency:** `try_crackerjack_cli` signature in Tasks 3, 4, 5, 6, 7 matches the spec verbatim. `CrackerjackResult.fallback_used: bool = False` consistent across Tasks 10, 11. The four `_*_metrics` helpers called via `CrackerjackIntegration._calculate_X(...)` (no instance) consistent with Task 2's `@staticmethod` refactor.
 
-**4. Identified concerns:**
-- The integration test in Task 12 requires a real crackerjack install. If unavailable, it fails. The unit tests (Tasks 3-11) cover the helper without the dependency.
-- Task 0 is a preflight that may modify the spec if the CLI flag-to-metric mapping differs from the spec's table. The implementer should treat this as authoritative; if the spec is wrong, fix the spec.
-- Tasks 8-9 wire the helper into existing code. The implementer must read the current `_get_crackerjack_metrics` and `execute_crackerjack_command` carefully — the inserted blocks must match the surrounding code style.
+**4. Resolved v1 issues (cross-checked against the 5-agent review):**
+- ✅ Wrong function signatures → fixed in Tasks 10, 11
+- ✅ Wrong import paths → top-level imports in Tasks 9, 10
+- ✅ Task 0 result unused → consumed in Task 4 (`_pick_invocation`)
+- ✅ Cancellation swallowed → split handlers in Task 4
+- ✅ try/finally missing → explicit kill+wait in Task 4
+- ✅ Mock API mismatch → real `kill()`/`wait()` API in Task 4 mock
+- ✅ Task 8 testing what Task 10 hasn't built → reordered: Task 8 (synthesis) before Task 9 (consumer wiring)
+- ✅ Histogram not imported → Task 7 step 7.1
+- ✅ OTel span TODO with no test → Task 7 step 7.6 + 2 OTel tests
+- ✅ Counter not asserted for outcomes → Task 7 step 7.3 parametrized test over 10 outcomes
+- ✅ WARNING log not tested → Task 7 parametrized over 7 WARNING outcomes
+- ✅ Synthesis-reached-only-when-CLI-attempted regression → Task 9 step 9.2 test_consumer_chain_helper_raises_falls_through_to_synthesis
+- ✅ `_flags` global doesn't exist → use `monkeypatch.setattr(feature_flags, "get_feature_flags", ...)` throughout
+- ✅ Task 1 wrong field reference → new section comment in `FeatureFlags`
+- ✅ Env var documented but not wired → Task 1 step 1.4
+- ✅ YAML indentation → 0 leading spaces; verification step 1.7
+- ✅ Post-filter logic broken → `SECTION_FOR_KEY` constant + `if not section: continue`
+- ✅ MCP banner dead code → harden signature; docstring notes synthesis-from-consumer doesn't reach this path
+- ✅ Task 12 always disabled → `_enable_flag` fixture
+- ✅ Task 12 not valid TDD → `pytest.importorskip` + assert metric was extracted
+- ✅ Task 9 local import → top-level import
+- ✅ Alert guidance missing → new Task 13
+
+**5. Identified residual concerns:**
+- Tasks 8-11-12 numbering is non-monotonic (8, 9, 10, 11, 12 reflect post-reorder ordering). This is a documentation quirk; the actual commit history is what matters.
+- The consumer-side synthesis dict does NOT reach `_format_metrics_section` (documented in Task 11 step 11.4). A follow-up could add a parallel formatter if MCP-tool-side visibility for the consumer path is needed.
+- Task 0 is a preflight that produces evidence; it commits the mapping file. If crackerjack is not installed, the mapping is inferred from `_get_applicable_parsers` source. The integration test in Task 12 is the runtime check.
+- The plan does not address pre-existing test collection issues (`tests/unit/test_quality_scoring.py` fails on `ModuleNotFoundError: duckdb`; `tests/unit/test_crackerjack_integration.py` collection pollution). Tests use `--noconftest --override-ini="addopts="` to work around. Pre-existing — not addressed by this branch.
 
 ---
 
@@ -1871,7 +2664,7 @@ Skipped in fast CI by `pytest -m 'not integration'`."
 
 Plan complete and saved to `docs/superpowers/plans/2026-07-27-quality-scoring-crackerjack-fallback.md`. Two execution options:
 
-1. **Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
-2. **Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
+1. **Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration
+2. **Inline Execution** — Execute tasks in this session using executing-plans, batch execution with checkpoints
 
 Which approach?
