@@ -125,16 +125,21 @@ async def _search_via_sql(
     """SQL fallback when the db doesn't expose ``search_code_graph_nodes``.
 
     Returns dict-shaped rows compatible with the ``CodeGraphHit`` mapping.
+    Surfaces a real symbol by parsing ``graph_data.nodes[0].name``; when
+    the JSON payload has no nodes (legacy rows that predate the
+    ``nodes[]`` convention), ``symbol`` falls back to ``commit_hash`` so
+    the row is still representable.
     """
     try:
         import asyncio
+        import json
 
         conn = db if hasattr(db, "execute") else db._get_conn()
 
         def _query() -> list[Any]:
             like = f"%{query}%"
             sql = (
-                "SELECT repo_path, commit_hash, indexed_at, nodes_count "
+                "SELECT repo_path, commit_hash, indexed_at, nodes_count, graph_data "
                 "FROM code_graphs "
                 "WHERE repo_path LIKE ? "
                 "ORDER BY indexed_at DESC LIMIT ?"
@@ -142,20 +147,33 @@ async def _search_via_sql(
             result = conn.execute(sql, [like, limit]).fetchall()
             return list(result)
 
-        rows = await asyncio.get_event_loop().run_in_executor(None, _query)
+        rows = await asyncio.get_running_loop().run_in_executor(None, _query)
     except (RuntimeError, ConnectionError, OSError):
         return []
 
-    return [
-        {
-            "repo_path": str(r[0]),
-            "symbol": str(r[1]),
-            "project": project,
-            "call_count": int(r[3]) if len(r) > 3 else 0,
-            "last_seen_at": str(r[2]) if len(r) > 2 else "",
-        }
-        for r in rows
-    ]
+    hits: list[dict[str, Any]] = []
+    for r in rows:
+        symbol = ""
+        try:
+            graph_data = json.loads(r[4]) if len(r) > 4 and r[4] else {}
+            nodes = graph_data.get("nodes", []) if isinstance(graph_data, dict) else []
+            if nodes and isinstance(nodes[0], dict):
+                symbol = str(nodes[0].get("name", "") or "")
+        except (TypeError, ValueError):
+            # Malformed graph_data JSON; fall through to commit_hash.
+            symbol = ""
+        if not symbol:
+            symbol = str(r[1])  # commit_hash fallback
+        hits.append(
+            {
+                "repo_path": str(r[0]),
+                "symbol": symbol,
+                "project": project,
+                "call_count": int(r[3]) if len(r) > 3 else 0,
+                "last_seen_at": str(r[2]) if len(r) > 2 else "",
+            }
+        )
+    return hits
 
 
 __all__ = ["CodeGraphHit", "search_code_graph"]
