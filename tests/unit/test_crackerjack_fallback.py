@@ -388,3 +388,125 @@ async def test_no_relevant_metrics_returns_empty_dict(monkeypatch, tmp_path):
         missing_metrics=frozenset({"code_coverage", "lint_score"}),
     )
     assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_cancelled_propagates(monkeypatch, tmp_path):
+    """asyncio.CancelledError propagates after subprocess cleanup."""
+    _enable_flag(monkeypatch)
+    proc = _make_process_mock(returncode=None, stdout=b"", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout):
+        raise asyncio.CancelledError()
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    with pytest.raises(asyncio.CancelledError):
+        await try_crackerjack_cli(
+            project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+        )
+
+
+@pytest.mark.asyncio
+async def test_parse_error_returns_none(monkeypatch, tmp_path):
+    _enable_flag(monkeypatch)
+    proc = _make_process_mock(returncode=0, stdout=b"non-empty", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"non-empty", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    def boom(*args, **kwargs):
+        raise ValueError("simulated parse failure")
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output",
+        classmethod(boom),
+    )
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+    )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_empty_stdout_returns_none(monkeypatch, tmp_path):
+    _enable_flag(monkeypatch)
+    proc = _make_process_mock(returncode=0, stdout=b"", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("parse_output must not be called when stdout is empty")
+
+    monkeypatch.setattr(
+        CrackerjackOutputParser,
+        "parse_output",
+        classmethod(fail_if_called),
+    )
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+    )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_missing_executable_returns_none(monkeypatch, tmp_path):
+    _enable_flag(monkeypatch)
+    async def fake_spawn(*args, **kwargs):
+        raise FileNotFoundError("python not on PATH")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+    )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_permission_error_returns_none(monkeypatch, tmp_path):
+    _enable_flag(monkeypatch)
+    async def fake_spawn(*args, **kwargs):
+        raise PermissionError(13, "Permission denied", "/some/cwd")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+    )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_os_error_returns_none(monkeypatch, tmp_path):
+    """Generic OSError (e.g. ENOSPC) on spawn -> None."""
+    _enable_flag(monkeypatch)
+    async def fake_spawn(*args, **kwargs):
+        raise OSError(28, "No space left on device")
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}),
+    )
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_timeout_override_propagates(monkeypatch, tmp_path):
+    """Caller passes timeout=5.0 -> wait_for receives timeout=5.0."""
+    _enable_flag(monkeypatch)
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    captured_timeout: list = []
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout):
+        captured_timeout.append(timeout)
+        return b"{}", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    await try_crackerjack_cli(
+        project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}), timeout=5.0,
+    )
+    assert captured_timeout[0] == 5.0
