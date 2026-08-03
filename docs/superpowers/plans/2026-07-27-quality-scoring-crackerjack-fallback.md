@@ -1,4 +1,4 @@
-# Quality-Scoring Crackerjack CLI Fallback — Implementation Plan (v3)
+# Quality-Scoring Crackerjack CLI Fallback — Implementation Plan (v4)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -37,6 +37,19 @@ The v1 plan had 28 Critical issues from a 5-agent review. Key changes:
 | Task 9 local import inside exception handler | Python I7 | Move import to module top |
 | Spec's alert guidance not in plan | Observability I3 | New Task 13 |
 
+## What changed from v3
+
+Task 0 preflight (commit 54df5a4a) surfaced 4 plan-vs-reality discrepancies against crackerjack v0.70.3. v4 fixes:
+
+| Issue | Source | v4 fix |
+|---|---|---|
+| Plan assumes `--security` flag exists | Task 0 probe | `--security` does not exist (`No such option: --security`); security is bundled in `--comp`. Update `_METRIC_TO_FLAG["security_score"]` to `("check", ("--comp", "--skip-hooks"))`. |
+| Plan assumes `parse_output` returns a dict | Task 0 probe | `parse_output` returns `(parsed_data, memory_insights)` tuple. Destructure in Task 5: `parsed_data, _memory_insights = CrackerjackOutputParser.parse_output(...)`. |
+| Plan uses `--run-tests` / `--fast --quick` per metric | Task 0 probe | Both exceed 90s on a real fixture; too slow for 30s fallback budget. Replace `_pick_invocation` with single invocation: `("check", ("--comp", "--skip-hooks"))` regardless of `missing`. |
+| Plan's `Task 4 step 4.4` test `test_helper_picks_run_run_tests_for_only_coverage` asserts obsolete `--run-tests` | Task 4 test | Replace with `test_helper_picks_run_comp_skip_hooks_for_any_metric` asserting `--comp --skip-hooks` in argv and `--run-tests`/`--security`/`--fast` absent. |
+
+`_METRIC_TO_FLAG` simplification: every metric maps to the same `(check, (--comp, --skip-hooks))` invocation. The mapping table is retained for documentation purposes only; `_pick_invocation` no longer consults it.
+
 ## What changed from v2
 
 The v2 plan had 10 NEW Critical issues from a 4-agent review (MCP agent failed at the API tier with a 429). Key changes:
@@ -57,7 +70,7 @@ The v2 plan had 10 NEW Critical issues from a 4-agent review (MCP agent failed a
 ## Global Constraints
 
 - **Spec**: `/Users/les/Projects/session-buddy/docs/superpowers/specs/2026-07-27-quality-scoring-crackerjack-fallback-design.md` (v2)
-- **Crackerjack CLI shape** (verified in Task 0): `python -m crackerjack run --comp|--fast --quick|--security|--run-tests [args]`. Bare `crackerjack check` / `crackerjack lint` do not exist. The parser's `parser_map` is keyed on the *semantic* command name (`lint`, `check`, `security`, `test`); pass the semantic name to `parse_output`, not `"run"`.
+- **Crackerjack CLI shape** (verified in Task 0, commit 54df5a4a): the only viable invocation for a 30s-budgeted CLI fallback is `python -m crackerjack run --comp --skip-hooks` with semantic command `check`. There is NO `--security` flag (`No such option: --security`); security is bundled into `--comp`. `--run-tests` and `--fast --quick` exceed 90s on a real fixture — too slow for the fallback's timeout budget. `run-tests` is a separate top-level subcommand but is also slow. `parse_output` returns `(parsed_data, memory_insights)` — destructure both.
 - **Opt-in default**: `enable_crackerjack_fallback: bool = False`. Synthesis change is unconditional.
 - **Env var**: `SESSION_BUDDY_CRACKERJACK_FALLBACK` (per Oneiric project-name strip).
 - **YAML key (flat)**: `enable_crackerjack_fallback` in `settings/session-buddy.yaml`. `SessionMgmtSettings.load()` only reads flat top-level keys; 0 leading spaces.
@@ -783,8 +796,8 @@ async def test_helper_picks_run_comp_for_all_four_metrics(monkeypatch, tmp_path)
 
 
 @pytest.mark.asyncio
-async def test_helper_picks_run_run_tests_for_only_coverage(monkeypatch, tmp_path):
-    """When only code_coverage is missing, the helper invokes 'run --run-tests'."""
+async def test_helper_picks_run_comp_skip_hooks_for_any_metric(monkeypatch, tmp_path):
+    """Any single missing metric triggers `run --comp --skip-hooks` (the only viable CLI invocation within the 30s budget; verified in Task 0 commit 54df5a4a)."""
     _enable_flag(monkeypatch)
     captured_argv: list = []
     proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
@@ -800,7 +813,11 @@ async def test_helper_picks_run_run_tests_for_only_coverage(monkeypatch, tmp_pat
         project_dir=tmp_path,
         missing_metrics=frozenset({"code_coverage"}),
     )
-    assert "--run-tests" in captured_argv
+    assert "--comp" in captured_argv
+    assert "--skip-hooks" in captured_argv
+    assert "--run-tests" not in captured_argv  # too slow for 30s budget
+    assert "--security" not in captured_argv  # flag does not exist
+    assert "--fast" not in captured_argv  # exceeds 90s
 
 
 @pytest.mark.asyncio
@@ -849,36 +866,35 @@ In `session_buddy/utils/crackerjack/fallback.py`, add at the top (after the logg
 # parser's _get_applicable_parsers keys on. Mapping recorded in
 # docs/superpowers/plans/2026-07-27-cli-flag-mapping.md (Task 0).
 _METRIC_TO_FLAG: dict[str, tuple[str, tuple[str, ...]]] = {
-    "code_coverage": ("test", ("--run-tests",)),
-    "lint_score":    ("lint", ("--fast", "--quick")),
-    "security_score": ("security", ("--security",)),
-    # Note: complexity_score intentionally absent. _pick_invocation's
-    # early-return for the complexity-only case routes to ("check",
-    # ("--comp",)) before consulting this table. A bare entry with
-    # empty flags would silently call "run" with no flags and produce
-    # no complexity data.
+    "code_coverage": ("check", ("--comp", "--skip-hooks")),
+    "lint_score":    ("check", ("--comp", "--skip-hooks")),
+    "security_score": ("check", ("--comp", "--skip-hooks")),
+    # complexity_score intentionally absent. _pick_invocation's
+    # early-return for the complexity-only case routes to
+    # ("check", ("--comp", "--skip-hooks")) before consulting this table.
+    # Reasoning (verified in Task 0): crackerjack v0.70.3 has no
+    # `--security` flag and `--run-tests` / `--fast --quick` exceed
+    # 90s on a real fixture — neither is viable for a 30s-budgeted
+    # CLI fallback. `--comp --skip-hooks` is the only invocation
+    # that produces all four scoring keys within the timeout.
 }
 # All-four convenience: pick the most general semantic command that
 # produces every requested key.
 def _pick_invocation(missing: frozenset[str]) -> tuple[str, tuple[str, ...]]:
-    """Select the smallest crackerjack invocation that fills the requested gaps.
+    """Select the crackerjack invocation that fills the requested gaps.
 
-    If the caller wants all four scoring keys, use 'check' (--comp)
-    which produces all of them in one go. Otherwise pick per-metric
-    flags, but if multiple are needed, prefer 'check' (it covers all
-    four — even if some keys aren't strictly needed, the post-filter
-    drops the surplus).
+    Verified in Task 0 (commit 54df5a4a): crackerjack v0.70.3 has no
+    `--security` flag and `--run-tests` / `--fast --quick` exceed 90s
+    on a real fixture. The only viable invocation for a 30s-budgeted
+    CLI fallback is `run --comp --skip-hooks` with the `check`
+    semantic command — it produces all four scoring keys in ~5-10s.
+
+    Returns ("check", ("--comp", "--skip-hooks")) regardless of which
+    subset of keys is missing. The post-filter in Task 5 drops the
+    surplus keys (defense against the synthesize-100s antipattern).
     """
-    if not missing:
-        return ("check", ())
-    if missing == frozenset({"complexity_score"}):
-        # complexity only comes from --comp; any other combo needs check too
-        return ("check", ("--comp",))
-    if len(missing) == 1:
-        semantic, flags = _METRIC_TO_FLAG[next(iter(missing))]
-        return (semantic, flags)
-    # Multiple keys: use 'check' (covers all four)
-    return ("check", ("--comp",))
+    del missing  # unused — `check --comp --skip-hooks` covers all keys
+    return ("check", ("--comp", "--skip-hooks"))
 ```
 
 Then replace the `# Placeholder for the rest of the pipeline` block with:
@@ -1136,9 +1152,15 @@ In `session_buddy/utils/crackerjack/fallback.py`, replace `# TODO: parse + extra
             # TODO: log WARNING + counter empty_stdout (Task 7)
             return None
 
-        # Parse output (catch any exception from the parser)
+        # Parse output (catch any exception from the parser). Note:
+        # parse_output returns (parsed_data, memory_insights) — the
+        # parsed_data dict is the first element; insights is the
+        # memory-side artifact and does not feed back into the metric
+        # filling. Verified in Task 0 (commit 54df5a4a).
         try:
-            parsed_data = CrackerjackOutputParser.parse_output(semantic_command, stdout, stderr)
+            parsed_data, _memory_insights = CrackerjackOutputParser.parse_output(
+                semantic_command, stdout, stderr
+            )
         except Exception:
             # TODO: log WARNING + counter parse_error (Task 7)
             return None
