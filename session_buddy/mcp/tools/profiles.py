@@ -6,12 +6,12 @@ Maps ``mcp_common.tools.ToolProfile`` levels to the specific
 Profiles
 --------
 MINIMAL
-    Core session lifecycle plus health.  ~12 tools.
+    Core session lifecycle plus health.  ~4 tools.
 STANDARD
-    Daily-development essentials on top of MINIMAL.  ~35 tools.
+    Daily-development essentials on top of MINIMAL.  ~14 tools.
 FULL
     Every register function currently called in ``server.py`` -- the
-    pre-profile default with all ~171 tools.
+    pre-profile default with all ~34 tools.
 
 Configuration
 -------------

@@ -60,7 +60,6 @@ from .tools import (
     register_memory_health_tools,
     register_migration_tools,
     register_monitoring_tools,
-    register_otel_trace_tools,
     register_phase3_knowledge_graph_tools,
     register_phase4_tools,  # Phase 4 Skills Analytics
     register_pool_tools,
@@ -91,7 +90,6 @@ _ALL_REGISTERS: dict[str, Any] = {
     "register_admin_shell_tracking_tools": register_admin_shell_tracking_tools,
     "register_channel_tracking_tools": register_channel_tracking_tools,
     "register_akosha_tools": register_akosha_tools,
-    "register_otel_trace_tools": register_otel_trace_tools,
     "register_bottleneck_tools": register_bottleneck_tools,
     "register_cache_tools": register_cache_tools,
     "register_code_analysis_tools": register_code_analysis_tools,
