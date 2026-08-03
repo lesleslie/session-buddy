@@ -15,6 +15,9 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
+from session_buddy.mcp.tools.code_graph import (
+    search_code_graph as _impl_search_code_graph,
+)
 from session_buddy.server_optimized import (
     health_check as _health_check,
 )
@@ -28,6 +31,18 @@ logger = get_session_logger()
 session_logger = logger
 
 permissions_manager = None
+
+
+@mcp.tool()  # type: ignore[untyped-decorator]
+async def search_code_graph(query: str, project: str) -> list[dict[str, object]]:
+    """Search the canonical code graph for symbols matching query in project.
+
+    Read-through facade over the ``code_graphs`` v2 table. Additive;
+    Akosha and Mahavishnu retain their own indexes as fallback when this
+    facade is unreachable. Returns up to 50 hits.
+    """
+    hits = await _impl_search_code_graph(query=query, project=project)
+    return [hit.__dict__ for hit in hits]
 
 
 async def health_check(request: Any = None) -> dict[str, Any]:
@@ -315,6 +330,7 @@ __all__ = [
     "permissions_manager",
     "reflect_on_past",
     "run_server",
+    "search_code_graph",
     "session_logger",
     "track_token_usage",
 ]
