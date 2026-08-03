@@ -150,7 +150,7 @@ tests/archived/
 .oneiric_cache/
 .complexipy_cache/
 .cache/
-.lycheecache/
+.lycheecache
 
 # XDG - State directories
 .claude/*
@@ -158,6 +158,7 @@ tests/archived/
 .session-buddy/
 .skylos/
 .crackerjack/
+.superpowers/
 
 # XDG - DELETE candidates
 .obsidian/
