@@ -933,8 +933,9 @@ class CrackerjackIntegration:
         """
         return {}
 
+    @staticmethod
     def _calculate_coverage_metrics(
-        self, parsed_data: dict[str, Any]
+        parsed_data: dict[str, Any]
     ) -> dict[str, float]:
         """Calculate code coverage metrics."""
         metrics = {}
@@ -943,8 +944,9 @@ class CrackerjackIntegration:
             metrics["code_coverage"] = float(coverage_summary["total_coverage"])
         return metrics
 
+    @staticmethod
     def _calculate_lint_metrics(
-        self, lint_issues: list[dict[str, Any]]
+        lint_issues: list[dict[str, Any]]
     ) -> dict[str, float]:
         """Compute lint score by severity tier.
 
@@ -959,8 +961,9 @@ class CrackerjackIntegration:
         )
         return {"lint_score": round(max(0.0, 100.0 - penalty), 2)}
 
+    @staticmethod
     def _calculate_security_metrics(
-        self, security_issues: list[dict[str, Any]]
+        security_issues: list[dict[str, Any]]
     ) -> dict[str, float]:
         """Compute security score by bandit severity tier.
 
@@ -977,8 +980,9 @@ class CrackerjackIntegration:
         )
         return {"security_score": round(max(0.0, 100.0 - penalty), 2)}
 
+    @staticmethod
     def _calculate_complexity_metrics(
-        self, complexity_data: dict[str, dict[str, Any]]
+        complexity_data: dict[str, dict[str, Any]]
     ) -> dict[str, float]:
         """Compute complexity score from line-weighted average cyclomatic value.
 
