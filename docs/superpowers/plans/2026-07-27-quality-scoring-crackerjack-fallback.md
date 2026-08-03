@@ -2191,11 +2191,60 @@ In `session_buddy/utils/quality_scoring.py`, find the `_get_crackerjack_metrics`
             metrics.update(fallback)
 
     if not any(metrics.get(k) is not None for k in SCORING_KEYS):
-        return _create_fallback_metrics()
+        # Synthesize an explicit unavailable marker (Task 8) AND write
+        # a CrackerjackResult carrying the unavailable flag to history
+        # so the MCP `crackerjack_metrics` tool's read path surfaces
+        # the banner (Task 11's formatter reads this from history).
+        synthesis = _create_fallback_metrics()
+        try:
+            from session_buddy.crackerjack_integration import (
+                CrackerjackIntegration,
+                synthesize_unavailable_result,
+            )
+            integration = CrackerjackIntegration(working_directory=str(project_dir))
+            integration._store_result(synthesize_unavailable_result(str(project_dir)))
+        except Exception:
+            # History write is best-effort; the synthesis dict still
+            # flows to internal consumers below.
+            pass
+        return synthesis
     return metrics
 ```
 
-**Step 9.5: Run tests to verify they pass**
+**Step 9.5: Define `synthesize_unavailable_result` in `crackerjack_integration.py`**
+
+(Task 11's banner-never-fires fix requires this helper to exist before Task 11 lands. Defining it in Task 9 makes the wire-up in step 9.4 work without a cross-task forward reference.)
+
+In `session_buddy/crackerjack_integration.py`, add:
+
+```python
+def synthesize_unavailable_result(project_dir: str) -> CrackerjackResult:
+    """Produce a CrackerjackResult whose quality_metrics carry unavailable: True.
+
+    Used by the consumer-side chain (`_get_crackerjack_metrics`) when
+    every other tier (DB, reflection, coverage file, CLI fallback) has
+    failed. The result is written to history via `_store_result` so the
+    MCP `crackerjack_metrics` tool's read path surfaces the banner
+    (see Task 11 step 11.3's `_format_metrics_section` rewrite).
+    """
+    from session_buddy.utils.quality_scoring import _create_fallback_metrics
+    return CrackerjackResult(
+        command="<unavailable>",
+        exit_code=-1,
+        stdout="",
+        stderr="",
+        execution_time=0.0,
+        timestamp=utc_now(),
+        working_directory=project_dir,
+        parsed_data={},
+        quality_metrics=_create_fallback_metrics(),
+        test_results=[],
+        memory_insights=["All quality-metric tiers failed; CLI fallback returned None or was disabled"],
+        fallback_used=False,
+    )
+```
+
+**Step 9.6: Run tests to verify they pass**
 
 ```bash
 cd /Users/les/Projects/session-buddy
@@ -2204,7 +2253,7 @@ cd /Users/les/Projects/session-buddy
 
 Expected: PASS (4/4 new tests).
 
-**Step 9.6: Commit**
+**Step 9.7: Commit**
 
 ```bash
 cd /Users/les/Projects/session-buddy
@@ -2518,66 +2567,22 @@ def _format_metrics_section(result: CrackerjackResult) -> str:
     return output
 ```
 
-**Step 11.4: Wire the synthesis dict into a `CrackerjackResult` for the MCP read path**
+**Step 11.4: Verify the consumer-side wire-up landed in Task 9**
 
-The synthesis dict from `_create_fallback_metrics` was previously only returned to the consumer chain. The MCP banner in `_format_metrics_section` requires a `CrackerjackResult`, so the consumer-side synthesis never triggered the banner — a known gap surfaced in v2 review (voice-chat C5). Fix:
+The `synthesize_unavailable_result` helper and the consumer-chain history-write were added in Task 9 step 9.5 (the helper definition) and step 9.4 (the call site). Task 11's role is to harden the formatter so the banner renders correctly when the MCP tool reads the synthesized result from history. The wire-up itself is covered by Task 9's tests; this task verifies the formatter consumes what Task 9 produced.
 
-In `session_buddy/crackerjack_integration.py`, add a helper that produces a synthesized `CrackerjackResult` carrying the `unavailable: True` flag:
-
-```python
-def synthesize_unavailable_result(
-    project_dir: str,
-    *,
-    caller: str = "consumer_chain",
-) -> CrackerjackResult:
-    """Produce a CrackerjackResult whose quality_metrics carry unavailable: True.
-
-    Used by the consumer-side chain (`_get_crackerjack_metrics`) when
-    every other tier (DB, reflection, coverage file, CLI fallback) has
-    failed. The result is written to history via `_store_result` so the
-    MCP `crackerjack_metrics` tool's read path surfaces the banner.
-    """
-    return CrackerjackResult(
-        command="<unavailable>",
-        exit_code=-1,
-        stdout="",
-        stderr="",
-        execution_time=0.0,
-        timestamp=utc_now(),
-        working_directory=project_dir,
-        parsed_data={},
-        quality_metrics=_create_fallback_metrics(),  # {"code_coverage": None, ..., "unavailable": True}
-        test_results=[],
-        memory_insights=["All quality-metric tiers failed; CLI fallback returned None or was disabled"],
-        fallback_used=False,
-    )
-```
-
-In `session_buddy/utils/quality_scoring.py`, when the synthesis path is reached, write the synthesized result to history (so the MCP tool's read path surfaces it):
+Add a test that the MCP tool's history read of a synthesized result yields the banner string when consumed by `_format_metrics_section`:
 
 ```python
-    if not any(metrics.get(k) is not None for k in SCORING_KEYS):
-        synthesis = _create_fallback_metrics()
-        # Surface the unavailable banner to MCP consumers by writing a
-        # synthesized CrackerjackResult to history. The producer-side
-        # write hook (CrackerjackIntegration._store_result) is what the
-        # crackerjack_metrics MCP tool reads from.
-        try:
-            from session_buddy.crackerjack_integration import (
-                CrackerjackIntegration, synthesize_unavailable_result,
-            )
-            integration = CrackerjackIntegration(working_directory=str(project_dir))
-            integration._store_result(synthesize_unavailable_result(str(project_dir)))
-        except Exception:
-            # History write is best-effort; the synthesis dict still
-            # flows to internal consumers below.
-            pass
-        return synthesis
+def test_format_metrics_section_renders_banner_for_synthesized_result():
+    """End-to-end: synthesize_unavailable_result → _format_metrics_section → banner."""
+    from session_buddy.crackerjack_integration import synthesize_unavailable_result
+    synthesized = synthesize_unavailable_result("/tmp/proj")
+    output = _format_metrics_section(synthesized)
+    assert output.startswith("⚠️ Quality metrics unavailable")
 ```
 
-Add a test that the synthesis path produces a `CrackerjackResult` in history with `quality_metrics["unavailable"] is True` and that the MCP tool's history read yields the banner string when the formatter consumes it.
-
-Step 11.3's `test_format_metrics_section_renders_unavailable_banner` already covers the formatter-side behavior; the new test covers the wire-up.
+This closes the loop: Task 9 produces the synthesized result; Task 11's formatter renders it; the MCP consumer sees the banner.
 
 **Step 11.5: Run tests to verify they pass**
 
