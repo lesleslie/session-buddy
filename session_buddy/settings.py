@@ -380,6 +380,10 @@ class SessionMgmtSettings(OneiricMCPConfig):
         default=True,
         description="Enable Crackerjack code quality integration",
     )
+    enable_crackerjack_fallback: bool = Field(
+        default=False,
+        description="Enable the Crackerjack CLI fallback layer when metrics are missing (opt-in; default off)",
+    )
     crackerjack_command: str = Field(
         default="crackerjack",
         min_length=1,

@@ -38,6 +38,9 @@ class FeatureFlags:
     # Filesystem integration
     enable_filesystem_extraction: bool = False
 
+    # === Quality scoring (crackerjack CLI fallback) ===
+    enable_crackerjack_fallback: bool = False
+
 
 _ENV_BOOL = {
     "true": True,
@@ -80,6 +83,9 @@ def get_feature_flags() -> FeatureFlags:
         enable_filesystem_extraction=bool(
             getattr(settings, "enable_filesystem_extraction", False)
         ),
+        enable_crackerjack_fallback=bool(
+            getattr(settings, "enable_crackerjack_fallback", False)
+        ),
     )
 
     # Env overrides
@@ -99,6 +105,9 @@ def get_feature_flags() -> FeatureFlags:
         enable_filesystem_extraction=_get_env_bool(
             "SESSION_MGMT_ENABLE_FILESYSTEM_EXTRACTION",
             base.enable_filesystem_extraction,
+        ),
+        enable_crackerjack_fallback=_get_env_bool(
+            "SESSION_BUDDY_CRACKERJACK_FALLBACK", base.enable_crackerjack_fallback
         ),
     )
 

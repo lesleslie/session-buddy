@@ -126,6 +126,7 @@ auto_store_session_end: true
 
 # === Integration Settings ===
 enable_crackerjack: true
+enable_crackerjack_fallback: false
 crackerjack_command: "crackerjack"
 enable_git_integration: true
 git_auto_stage: false
