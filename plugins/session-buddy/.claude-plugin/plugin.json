@@ -1,0 +1,11 @@
+{
+  "name": "session-buddy",
+  "version": "0.20.0",
+  "description": "Namespaced commands for Session-Buddy MCP. Plugin is additive; the Python MCP server remains the source of truth.",
+  "commands": [
+    {"name": "checkpoint", "description": "Trigger a Session-Buddy checkpoint via the MCP server.", "mcp_tool": "mcp__session_buddy__checkpoint"},
+    {"name": "search", "description": "Quick-search Session-Buddy memory by concept.", "mcp_tool": "mcp__session_buddy__quick_search"},
+    {"name": "store", "description": "Store a reflection in Session-Buddy.", "mcp_tool": "mcp__session_buddy__store_reflection"},
+    {"name": "distill", "description": "Trigger the Conscious Agent skill distiller.", "mcp_tool": "mcp__session_buddy__distill_skills_now"}
+  ]
+}
