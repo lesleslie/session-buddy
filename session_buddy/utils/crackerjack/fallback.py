@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from session_buddy.config.feature_flags import get_feature_flags
+from session_buddy.config import feature_flags
 
 if TYPE_CHECKING:
     from opentelemetry.trace import Tracer
@@ -52,7 +52,7 @@ async def try_crackerjack_cli(
         the requested keys.
     """
     # Disabled check (early)
-    if not get_feature_flags().enable_crackerjack_fallback:
+    if not feature_flags.get_feature_flags().enable_crackerjack_fallback:
         # TODO: log DEBUG with outcome=disabled and emit counter (Task 7)
         return None
 
@@ -64,7 +64,7 @@ async def try_crackerjack_cli(
     # Lock
     async with _FALLBACK_LOCK:
         # Disabled re-check inside lock
-        if not get_feature_flags().enable_crackerjack_fallback:
+        if not feature_flags.get_feature_flags().enable_crackerjack_fallback:
             # TODO: log DEBUG with outcome=disabled and emit counter (Task 7)
             return None
 

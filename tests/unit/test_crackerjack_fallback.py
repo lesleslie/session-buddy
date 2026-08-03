@@ -40,3 +40,31 @@ async def test_disabled_flag_returns_none(monkeypatch, tmp_path):
     )
     assert result is None
     assert spawn_called is False
+
+
+@pytest.mark.asyncio
+async def test_enabled_flag_returns_none_lock_exit(monkeypatch, tmp_path):
+    """When the flag is enabled the helper is callable but currently returns None.
+
+    This proves the monkeypatch on feature_flags.get_feature_flags actually
+    takes effect on the enabled path (it overrides the default-False so the
+    helper proceeds past the early disabled check), and documents that the
+    Task 4+ subprocess invocation is still a lock-exit placeholder.
+    """
+    _enable_flag(monkeypatch, enable=True)
+
+    spawn_called = False
+
+    async def fake_spawn(*args, **kwargs):
+        nonlocal spawn_called
+        spawn_called = True
+        raise AssertionError("subprocess must not be spawned by the Task 3 skeleton")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path,
+        missing_metrics=frozenset({"lint_score"}),
+    )
+    assert result is None
+    assert spawn_called is False
