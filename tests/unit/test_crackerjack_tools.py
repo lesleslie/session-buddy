@@ -1016,6 +1016,73 @@ class TestFormatMetricsSection:
         assert "Quality Metrics" in result
         assert "Coverage" in result
 
+    def test_format_metrics_section_handles_none_values(self) -> None:
+        """None values must render as 'unavailable', not crash on f-string."""
+        from session_buddy.crackerjack_integration import CrackerjackResult
+        from session_buddy.mcp.tools.session.crackerjack_tools import (
+            _format_metrics_section,
+        )
+
+        result = MagicMock(spec=CrackerjackResult)
+        result.quality_metrics = {"code_coverage": None, "lint_score": 80.0}
+        output = _format_metrics_section(result)
+        assert "unavailable" in output
+        assert "80.0" in output
+
+    def test_format_metrics_section_renders_unavailable_banner(self) -> None:
+        """When unavailable: True is in quality_metrics, a banner appears."""
+        from session_buddy.crackerjack_integration import CrackerjackResult
+        from session_buddy.mcp.tools.session.crackerjack_tools import (
+            _format_metrics_section,
+        )
+
+        result = MagicMock(spec=CrackerjackResult)
+        result.quality_metrics = {
+            "code_coverage": None,
+            "lint_score": None,
+            "security_score": None,
+            "complexity_score": None,
+            "unavailable": True,
+        }
+        output = _format_metrics_section(result)
+        assert output.startswith("⚠️ Quality metrics unavailable")
+        assert "Quality metrics unavailable" in output
+
+    def test_format_metrics_section_banner_overrides_partial_metrics(self) -> None:
+        """When unavailable: True, partial metrics are not shown."""
+        from session_buddy.crackerjack_integration import CrackerjackResult
+        from session_buddy.mcp.tools.session.crackerjack_tools import (
+            _format_metrics_section,
+        )
+
+        result = MagicMock(spec=CrackerjackResult)
+        result.quality_metrics = {
+            "code_coverage": 80.0,
+            "lint_score": None,
+            "security_score": 100.0,
+            "complexity_score": None,
+            "unavailable": True,
+        }
+        output = _format_metrics_section(result)
+        assert "Quality metrics unavailable" in output
+        assert "80.0" not in output
+        assert "100.0" not in output
+
+    def test_format_metrics_section_renders_banner_for_synthesized_result(
+        self,
+    ) -> None:
+        """End-to-end: synthesized result renders the unavailable banner."""
+        from session_buddy.crackerjack_integration import (
+            synthesize_unavailable_result,
+        )
+        from session_buddy.mcp.tools.session.crackerjack_tools import (
+            _format_metrics_section,
+        )
+
+        synthesized = synthesize_unavailable_result("/tmp/proj")
+        output = _format_metrics_section(synthesized)
+        assert output.startswith("⚠️ Quality metrics unavailable")
+
 
 # ============================================================================
 # Hook Parsing Function Tests

@@ -653,21 +653,30 @@ def _format_output_sections(result: CrackerjackResult) -> str:
 
 
 def _format_metrics_section(result: CrackerjackResult) -> str:
-    """Format metrics and insights sections."""
-    output = "\n📊 **Metrics**:\n"
-    output += f"- Execution time: {result.execution_time:.2f}s\n"
-    output += f"- Exit code: {result.exit_code}\n"
+    """Format quality metrics, execution details, and memory insights.
 
-    if result.quality_metrics:
-        output += "\n📈 **Quality Metrics**:\n"
-        for metric, value in result.quality_metrics.items():
-            output += f"- {metric.replace('_', ' ').title()}: {value:.1f}\n"
+    Render an unavailable banner when ``quality_metrics`` carries
+    ``unavailable: True`` and handle missing metric values defensively.
+    """
+    quality_metrics = result.quality_metrics
+    if quality_metrics.get("unavailable") is True:
+        return "⚠️ Quality metrics unavailable\n"
 
-    if result.memory_insights:
-        output += "\n🧠 **Insights**:\n"
-        for insight in result.memory_insights[:5]:  # Limit to top 5
+    output = "📊 **Quality Metrics**\n\n"
+    for metric, value in quality_metrics.items():
+        if metric == "unavailable":
+            continue
+        formatted = f"{value:.1f}" if value is not None else "unavailable"
+        output += f"- {metric.replace('_', ' ').title()}: {formatted}\n"
+
+    if hasattr(result, "execution_time") and result.execution_time:
+        output += f"\n⏱ Execution time: {result.execution_time:.2f}s\n"
+    if hasattr(result, "exit_code") and result.exit_code != 0:
+        output += f"\n⚠️ Exit code: {result.exit_code}\n"
+    if hasattr(result, "memory_insights") and result.memory_insights:
+        output += "\n📝 Memory insights:\n"
+        for insight in result.memory_insights:
             output += f"- {insight}\n"
-
     return output
 
 
