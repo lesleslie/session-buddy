@@ -30,7 +30,7 @@ values match the return-dict values from a given
 
 from __future__ import annotations
 
-from prometheus_client import REGISTRY, CollectorRegistry, Counter, generate_latest
+from prometheus_client import REGISTRY, CollectorRegistry, Counter, Histogram, generate_latest
 
 # Module-level registry. ``prometheus_client.REGISTRY`` is the
 # default global registry, but we keep a reference here so tests
@@ -64,6 +64,28 @@ periodic_jobs_errors_total: Counter = Counter(
     "session_buddy_periodic_jobs_errors_total",
     "Number of periodic-job errors raised by the Conscious Agent.",
     labelnames=("job",),
+)
+
+
+# Crackerjack CLI fallback observability (Task 7).
+# ``command`` is the semantic crackerjack command (e.g. ``check``).
+# ``outcome`` is one of the 10 fallback outcomes (success, disabled,
+# timeout, cancelled, nonzero_exit, parse_error, empty_stdout,
+# missing_executable, permission_error, os_error). ``caller`` is the
+# integration point (producer_retry | consumer_chain). The histogram
+# records invocation latency in seconds; its label set omits
+# ``outcome`` to keep cardinality bounded (the counter already
+# captures outcome frequency).
+CRACKERJACK_FALLBACK_INVOCATIONS: Counter = Counter(
+    "session_buddy_crackerjack_fallback_invocations_total",
+    "Crackerjack CLI fallback invocations",
+    labelnames=("command", "outcome", "caller"),
+)
+
+CRACKERJACK_FALLBACK_DURATION_SECONDS: Histogram = Histogram(
+    "session_buddy_crackerjack_fallback_duration_seconds",
+    "Crackerjack CLI fallback invocation duration in seconds",
+    labelnames=("command", "caller"),
 )
 
 
@@ -138,6 +160,8 @@ def render() -> str:
 
 
 __all__ = [
+    "CRACKERJACK_FALLBACK_DURATION_SECONDS",
+    "CRACKERJACK_FALLBACK_INVOCATIONS",
     "causal_links_pruned_total",
     "periodic_jobs_errors_total",
     "provenance_pruned_total",
