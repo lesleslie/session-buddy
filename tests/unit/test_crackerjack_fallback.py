@@ -7,6 +7,7 @@ import sys
 
 import pytest
 
+from session_buddy.utils.crackerjack.output_parser import CrackerjackOutputParser
 from session_buddy.config import feature_flags
 from session_buddy.config.feature_flags import FeatureFlags
 from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
@@ -261,3 +262,129 @@ async def test_default_timeout_is_30s(monkeypatch, tmp_path):
 
     await try_crackerjack_cli(project_dir=tmp_path, missing_metrics=frozenset({"lint_score"}))
     assert captured_timeout[0] == 30.0
+
+
+@pytest.mark.asyncio
+async def test_success_returns_requested_metrics(monkeypatch, tmp_path):
+    _enable_flag(monkeypatch)
+    parsed_data = {
+        "lint_issues": [],  # empty -> post-filter drops lint_score
+        "security_issues": [],
+        "complexity_data": {},
+        "coverage_summary": {"total_coverage": 87.5},
+    }
+    parsed_result = (parsed_data, [])  # parse_output returns (parsed_data, insights)
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"{}", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output",
+        classmethod(lambda cls, command, stdout, stderr: parsed_result),
+    )
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path,
+        missing_metrics=frozenset({"code_coverage", "lint_score"}),
+    )
+    assert result is not None
+    assert result["code_coverage"] == 87.5
+    # lint_issues is empty -> post-filter drops lint_score (NOT 100)
+    assert "lint_score" not in result
+
+
+@pytest.mark.asyncio
+async def test_partial_success_returns_subset(monkeypatch, tmp_path):
+    """When parse yields some requested keys and not others, return the subset.
+    Specifically: if a section (e.g. coverage_summary) is missing from
+    parsed_data entirely, the post-filter drops that key (defends
+    against the empty-section -> 100 antipattern re-emerging).
+    """
+    _enable_flag(monkeypatch)
+    parsed_data = {
+        "lint_issues": [{"tool": "pyright", "type": "info"}],  # pyright info -> LOW -> 99.0
+        "security_issues": [],  # empty -> post-filter drops security_score
+        # coverage_summary missing -> no coverage in result
+        "complexity_data": {},
+    }
+    parsed_result = (parsed_data, [])
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"{}", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output",
+        classmethod(lambda cls, command, stdout, stderr: parsed_result),
+    )
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path,
+        missing_metrics=frozenset({"code_coverage", "lint_score", "security_score"}),
+    )
+    assert result is not None
+    assert "code_coverage" not in result  # dropped: section absent
+    assert "security_score" not in result  # dropped: section empty
+    assert result["lint_score"] == 99.0  # pyright info -> LOW -> penalty 1 -> 99
+
+
+@pytest.mark.asyncio
+async def test_empty_section_drops_metric_to_protect_against_antipattern(monkeypatch, tmp_path):
+    """If parsed_data has complexity_data: {} (empty), the post-filter must
+    drop complexity_score (not return 100). This is the regression guard
+    against _calculate_complexity_metrics({}) -> 100.0.
+    """
+    _enable_flag(monkeypatch)
+    parsed_data = {
+        "lint_issues": [],
+        "security_issues": [],
+        "complexity_data": {},  # empty section -> drop complexity_score
+        "coverage_summary": {"total_coverage": 80.0},
+    }
+    parsed_result = (parsed_data, [])
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"{}", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output",
+        classmethod(lambda cls, command, stdout, stderr: parsed_result),
+    )
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path,
+        missing_metrics=frozenset({"complexity_score", "code_coverage"}),
+    )
+    assert result is not None
+    assert "complexity_score" not in result  # post-filter dropped it
+    assert result["code_coverage"] == 80.0
+
+
+@pytest.mark.asyncio
+async def test_no_relevant_metrics_returns_empty_dict(monkeypatch, tmp_path):
+    """When parse succeeds but no requested keys are present, return {} (falsy but logs as success)."""
+    _enable_flag(monkeypatch)
+    parsed_data = {
+        "lint_issues": [],
+        "security_issues": [],
+        "complexity_data": {},
+        "coverage_summary": {},
+    }
+    parsed_result = (parsed_data, [])
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs): return proc
+    async def fake_wait_for(awaitable, timeout): return b"{}", b""
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output",
+        classmethod(lambda cls, command, stdout, stderr: parsed_result),
+    )
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path,
+        missing_metrics=frozenset({"code_coverage", "lint_score"}),
+    )
+    assert result == {}

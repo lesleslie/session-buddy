@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Literal
 
 from session_buddy.config import feature_flags
+from session_buddy.utils.crackerjack.output_parser import CrackerjackOutputParser
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,6 @@ async def try_crackerjack_cli(
 
         # Pick the smallest crackerjack invocation that fills the gaps
         semantic_command, flag_args = _pick_invocation(missing_metrics)
-        del semantic_command  # Used by Task 5's output parser.
         argv = [sys.executable, "-m", "crackerjack", "run", *flag_args]
 
         # Spawn subprocess (catch OS-level failures)
@@ -117,7 +117,7 @@ async def try_crackerjack_cli(
         # cleanup; CancelledError -> finalize observability THEN re-raise
         # after cleanup.
         try:
-            _stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except TimeoutError:
             if proc.returncode is None:
                 proc.kill()
@@ -136,5 +136,65 @@ async def try_crackerjack_cli(
             # TODO: log WARNING + counter nonzero_exit (Task 7)
             return None
 
-        # TODO: parse + extract (Task 5)
-        return None
+        # Empty-stdout guard BEFORE parsing (a parse exception on empty
+        # bytes would otherwise classify this as parse_error, not
+        # empty_stdout)
+        if not stdout:
+            # TODO: log WARNING + counter empty_stdout (Task 7)
+            return None
+
+        # Parse output (catch any exception from the parser). Note:
+        # parse_output returns (parsed_data, memory_insights) — the
+        # parsed_data dict is the first element; insights is the
+        # memory-side artifact and does not feed back into the metric
+        # filling. Verified in Task 0 (commit 54df5a4a).
+        try:
+            parsed_data, _memory_insights = CrackerjackOutputParser.parse_output(
+                semantic_command, stdout, stderr
+            )
+        except Exception:
+            # TODO: log WARNING + counter parse_error (Task 7)
+            return None
+
+        # Section keys for each scoring metric. An empty section means
+        # the metric was not measured; do NOT synthesize a 100.
+        SECTION_FOR_KEY = {
+            "code_coverage": "coverage_summary",
+            "lint_score": "lint_issues",
+            "security_score": "security_issues",
+            "complexity_score": "complexity_data",
+        }
+        # _calculate_*_metrics are @staticmethods on CrackerjackIntegration
+        # (Task 2). Call them via the class — instantiating
+        # CrackerjackIntegration() would write to SQLite on disk.
+        def _get_crackerjack_integration_class():
+            """Lazy import to avoid a hard dependency at module import time."""
+            from session_buddy.crackerjack_integration import CrackerjackIntegration
+            return CrackerjackIntegration
+
+        cls = _get_crackerjack_integration_class()
+        candidate: dict[str, float] = {}
+        for key in missing_metrics:
+            section_key = SECTION_FOR_KEY.get(key)
+            if section_key is None:
+                continue
+            section = parsed_data.get(section_key)
+            # An empty section (None, [], {}, etc.) means the metric
+            # was NOT measured — skip the candidate to avoid the
+            # synthesize-100s antipattern.
+            if not section:
+                continue
+            if key == "code_coverage":
+                # _calculate_coverage_metrics expects parsed_data (with
+                # a `coverage_summary` key inside), unlike the other three
+                # helpers which take the section directly.
+                candidate.update(cls._calculate_coverage_metrics(parsed_data))
+            elif key == "lint_score":
+                candidate.update(cls._calculate_lint_metrics(section))
+            elif key == "security_score":
+                candidate.update(cls._calculate_security_metrics(section))
+            elif key == "complexity_score":
+                candidate.update(cls._calculate_complexity_metrics(section))
+
+        # Only return the keys the caller actually asked for.
+        return {k: v for k, v in candidate.items() if k in missing_metrics}
