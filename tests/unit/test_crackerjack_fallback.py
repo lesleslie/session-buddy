@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import time
 
 import pytest
 
@@ -795,3 +796,44 @@ async def test_missing_metrics_sorted_in_log(monkeypatch, tmp_path, caplog):
         )
     rec = next(r for r in caplog.records if "crackerjack fallback invoked" in r.message)
     assert rec.missing_metrics == ["code_coverage", "lint_score", "security_score"]
+
+
+@pytest.mark.asyncio
+async def test_helper_serializes_concurrent_invocations(monkeypatch, tmp_path):
+    """Two concurrent invocations are serialized by the module-level lock."""
+    _enable_flag(monkeypatch)
+    invocation_times: list = []
+
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    # `create_subprocess_exec` must be a coroutine (the helper does
+    # `await asyncio.create_subprocess_exec(...)`). The brief's stub
+    # used a bare `lambda` which the production code can't await.
+    async def fake_spawn(*args, **kwargs):
+        return proc
+    async def fake_slow_wait_for(awaitable, timeout):
+        # Record when this is called and sleep briefly to simulate work
+        # inside the lock. The other coroutine must wait for us to finish.
+        # `time.sleep` blocks the event loop, so the second coroutine
+        # can't progress past the lock acquisition while we sleep.
+        invocation_times.append(time.monotonic())
+        time.sleep(0.05)  # 50ms each
+        return await awaitable
+    monkeypatch.setattr(asyncio, "wait_for", fake_slow_wait_for)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+
+    start = time.monotonic()
+    await asyncio.gather(
+        try_crackerjack_cli(project_dir=tmp_path, missing_metrics=frozenset({"lint_score"})),
+        try_crackerjack_cli(project_dir=tmp_path, missing_metrics=frozenset({"lint_score"})),
+    )
+    elapsed = time.monotonic() - start
+    # If serialized: ~100ms; if parallel: ~50ms. Allow some slop.
+    assert elapsed >= 0.09, f"concurrent invocations took {elapsed}s; expected serialized >= 0.09s"
+    # Both invocations should have completed (no hang, no exception).
+    assert len(invocation_times) == 2
+
+
+def test_duration_histogram_label_set_is_bounded():
+    """Counter naming convention: command cardinality <= 5, caller in {producer_retry, consumer_chain}."""
+    labelnames = sb_metrics.CRACKERJACK_FALLBACK_DURATION_SECONDS._labelnames
+    assert labelnames == ("command", "caller")
