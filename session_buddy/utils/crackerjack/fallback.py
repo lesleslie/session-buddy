@@ -379,7 +379,7 @@ async def try_crackerjack_cli(
             # memory-side artifact and does not feed back into the metric
             # filling. Verified in Task 0 (commit 54df5a4a).
             try:
-                parsed_data, _memory_insights = CrackerjackOutputParser.parse_output(
+                parsed_data, _memory_insights = CrackerjackOutputParser().parse_output(
                     semantic_command, stdout, stderr
                 )
             except Exception:

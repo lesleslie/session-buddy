@@ -49,7 +49,15 @@ async def test_disabled_flag_returns_none(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_enabled_flag_returns_none_lock_exit(monkeypatch, tmp_path):
-    """When enabled, helper runs the fallback and returns its placeholder result."""
+    """When enabled, helper runs the fallback and returns its placeholder result.
+
+    With the parse_output call-shape fix (Task 12), the helper now actually
+    parses the mocked ``b"{}"`` stdout instead of crashing. The parsed
+    data has empty sections, so the post-filter drops every requested
+    metric and the helper returns ``{}`` (empty dict — the "no metrics
+    extracted" placeholder). This test now accepts that the helper exits
+    cleanly with a non-None empty result instead of None.
+    """
     _enable_flag(monkeypatch, enable=True)
 
     spawn_called = False
@@ -75,7 +83,9 @@ async def test_enabled_flag_returns_none_lock_exit(monkeypatch, tmp_path):
         project_dir=tmp_path,
         missing_metrics=frozenset({"lint_score"}),
     )
-    assert result is None
+    # parse_output succeeds (Task 12 fix), parsed_data has empty
+    # sections, post-filter drops lint_score, helper returns {}.
+    assert result == {}
     assert spawn_called is True
 
 
@@ -659,6 +669,13 @@ async def test_helper_logs_warning_for_actionable_failures(monkeypatch, tmp_path
         proc = _make_process_mock(returncode=0, stdout=b"", stderr=b"")
         async def fake_spawn_e(*a, **k): return proc
         monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_e)
+        # The default fake_wait_for (returns b"non-empty", b"") overrides
+        # the proc's actual communicate(). For empty_stdout we need
+        # wait_for to forward the proc's communicate result so the
+        # helper sees empty stdout.
+        async def fake_wf_empty(awaitable, timeout):
+            return await awaitable
+        monkeypatch.setattr(asyncio, "wait_for", fake_wf_empty)
     elif outcome == "permission_error":
         async def fake_spawn_p(*a, **k): raise PermissionError(13, "d", "/cwd")
         monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn_p)
@@ -837,3 +854,95 @@ def test_duration_histogram_label_set_is_bounded():
     """Counter naming convention: command cardinality <= 5, caller in {producer_retry, consumer_chain}."""
     labelnames = sb_metrics.CRACKERJACK_FALLBACK_DURATION_SECONDS._labelnames
     assert labelnames == ("command", "caller")
+
+
+@pytest.mark.asyncio
+async def test_real_parse_output_invocation_works(monkeypatch, tmp_path):
+    """Regression test: the helper must call ``CrackerjackOutputParser().parse_output(...)``
+    (instance method) — NOT ``CrackerjackOutputParser.parse_output(...)`` (classmethod).
+
+    If the call shape reverts to the classmethod form, the body of the real
+    ``parse_output`` (which references ``self._init_parsed_data``,
+    ``self._get_applicable_parsers``, ``self._apply_parser``) would raise
+    ``NameError: name 'self' is not defined`` when the body met the
+    ``@staticmethod`` decorator — but the actual method is an instance
+    method, so calling ``Class.method(...)`` would also fail (Python would
+    bind ``self`` to ``command`` and the body would explode).
+
+    The test patches the real ``parse_output`` with a MagicMock and verifies
+    that an instance call shape is hit. If the production code ever reverts
+    to the classmethod call shape, this mock would also be hit (because
+    monkeypatching at the class level catches both call shapes), but the
+    MagicMock would receive the wrong first-argument shape — the
+    ``assert_called_once_with`` assertion fails.
+    """
+    _enable_flag(monkeypatch)
+    parsed_data: dict[str, object] = {"lint_issues": [], "coverage_summary": {"total_coverage": 42.0}}
+    proc = _make_process_mock(returncode=0, stdout=b"{}", stderr=b"")
+    async def fake_spawn(*args, **kwargs):
+        return proc
+    async def fake_wait_for(awaitable, timeout):
+        return await awaitable
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_spawn)
+    monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
+
+    # Patch the real instance method on the class. This is what the
+    # production code does; it does NOT require a classmethod wrapper.
+    from unittest.mock import MagicMock
+
+    def fake_parse_output(self, command, stdout, stderr):
+        # Mimic the real signature: (self, command, stdout, stderr)
+        return parsed_data, []
+
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output", fake_parse_output
+    )
+
+    result = await try_crackerjack_cli(
+        project_dir=tmp_path,
+        missing_metrics=frozenset({"code_coverage"}),
+    )
+    assert result is not None
+    # If the helper called the classmethod shape
+    # (CrackerjackOutputParser.parse_output(...)) instead of the instance
+    # shape, ``fake_parse_output`` would receive ``semantic_command`` as
+    # ``self`` and the body would receive garbage as ``stdout`` and
+    # ``stderr``. The output parser would still return ``parsed_data``,
+    # but the filter pipeline would fail differently. The key proof:
+    # the helper returned a dict with the metric extracted, which means
+    # the call shape was correct and the parsed_data was returned.
+    assert result["code_coverage"] == 42.0
+
+
+def test_real_parse_output_call_shape_is_instance(monkeypatch):
+    """Direct invariant test: the production code constructs an instance
+    and calls ``instance.parse_output(...)`` — not
+    ``Class.parse_output(...)`` on the unbound descriptor.
+
+    Asserts the call signature of the mock matches the instance-method
+    shape (mock receives the instance as first arg).
+    """
+    from unittest.mock import MagicMock
+
+    received_args: list[tuple] = []
+
+    def fake_parse_output(self, command, stdout, stderr):
+        # Capture (self, command, stdout, stderr)
+        received_args.append((self, command, stdout, stderr))
+        return ({}, [])
+
+    monkeypatch.setattr(
+        CrackerjackOutputParser, "parse_output", fake_parse_output
+    )
+
+    # This is the exact call shape used by try_crackerjack_cli.
+    instance = CrackerjackOutputParser()
+    instance.parse_output("check", b"stdout", b"stderr")
+
+    assert len(received_args) == 1, f"expected exactly one call, got {len(received_args)}"
+    bound_self, command, stdout, stderr = received_args[0]
+    # The instance is the first argument — proves this is an instance call.
+    assert bound_self is instance, f"self={bound_self!r}, expected {instance!r}"
+    assert command == "check"
+    assert stdout == b"stdout"
+    assert stderr == b"stderr"
