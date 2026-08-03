@@ -50,6 +50,19 @@ Task 0 preflight (commit 54df5a4a) surfaced 4 plan-vs-reality discrepancies agai
 
 `_METRIC_TO_FLAG` simplification: every metric maps to the same `(check, (--comp, --skip-hooks))` invocation. The mapping table is retained for documentation purposes only; `_pick_invocation` no longer consults it.
 
+## What changed from v4
+
+Task 5 implementer (commit 49af617e) surfaced 4 brief defects:
+
+| Issue | Source | v5 fix |
+|---|---|---|
+| Step 5.1 `test_success_returns_requested_metrics` asserts `result["lint_score"] == 100.0` with empty `lint_issues: []` — incompatible with the post-filter that drops empty sections (load-bearing antipattern defense) | Task 5 implementer | With post-filter, empty sections never reach the helper. The assertion must be `"lint_score" not in result`. The v3 C2 fix only patched one test; this one remained. |
+| Step 5.1 `test_partial_success_returns_subset` asserts `result["security_score"] == 100.0` with empty `security_issues: []` — same conflict | Task 5 implementer | Same fix: assert `"security_score" not in result`. The `lint_issues` payload was changed to `{"tool": "pyright", "type": "info"}` so the lint assertion yields a real computed value (`99.0`). |
+| `cls._calculate_coverage_metrics(section)` would silently return `{}` — the helper expects the full `parsed_data` (with `coverage_summary` nested inside) | Task 5 implementer | Call as `cls._calculate_coverage_metrics(parsed_data)` (NOT just the section). One-line comment explains the asymmetry vs. the other three helpers. |
+| Test mocks returned `dict` but the v4-spec tuple unpacking rejects it | Task 5 implementer | Wrap each mock's payload in `(parsed_data, [])` so the helper's `parsed_data, _memory_insights = ...` unpacks correctly. |
+
+Task 5 commit `49af617e` applied these fixes; the brief's test code was effectively re-baselined to be consistent with the post-filter and the v4 API. The implementation is the source of truth for tests.
+
 ## What changed from v2
 
 The v2 plan had 10 NEW Critical issues from a 4-agent review (MCP agent failed at the API tier with a 429). Key changes:
