@@ -383,7 +383,13 @@ class CrackerjackIntegration:
         working_directory: str,
         timeout: int,
     ) -> tuple[int, str, str, float]:
-        """Execute the subprocess and return exit code, stdout, stderr, and execution time."""
+        """Execute the subprocess and return exit code, stdout, stderr, and execution time.
+
+        On timeout, the subprocess is killed and awaited so its file descriptors
+        are released before this function returns. Without the kill+wait the
+        leaked process could hold onto resources until the interpreter shuts
+        down (and asyncio would warn about un-awaited communicates).
+        """
         import os
 
         start_time = time.time()
@@ -398,10 +404,26 @@ class CrackerjackIntegration:
             env=env,
         )
 
-        stdout, stderr = await asyncio.wait_for(
-            process.communicate(),
-            timeout=timeout,
-        )
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=timeout,
+            )
+        except TimeoutError:
+            if process.returncode is None:
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+                except Exception:  # noqa: BLE001 - cleanup is best-effort
+                    pass
+            try:
+                # Wait so the transport/fds are released; ignore secondary
+                # errors since killing the process is the primary goal.
+                await process.wait()
+            except Exception:  # noqa: BLE001 - cleanup is best-effort
+                pass
+            raise
 
         exit_code = process.returncode or 0
         execution_time = time.time() - start_time
@@ -514,7 +536,7 @@ class CrackerjackIntegration:
                 )
             except Exception:  # noqa: BLE001 - fallback is best effort
                 fallback_metrics = None
-            if isinstance(fallback_metrics, dict):
+            if isinstance(fallback_metrics, dict) and fallback_metrics:
                 error_result = self._create_error_result(
                     command,
                     -1,

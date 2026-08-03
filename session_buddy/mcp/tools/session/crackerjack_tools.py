@@ -656,11 +656,21 @@ def _format_metrics_section(result: CrackerjackResult) -> str:
     """Format quality metrics, execution details, and memory insights.
 
     Render an unavailable banner when ``quality_metrics`` carries
-    ``unavailable: True`` and handle missing metric values defensively.
+    ``unavailable: True`` and still surface execution / memory insights
+    so the operator understands WHY the metric block is empty.
     """
     quality_metrics = result.quality_metrics
     if quality_metrics.get("unavailable") is True:
-        return "⚠️ Quality metrics unavailable\n"
+        output = "⚠️ Quality metrics unavailable\n"
+        if getattr(result, "memory_insights", None):
+            output += "\n📝 Notes:\n"
+            for insight in result.memory_insights:
+                output += f"- {insight}\n"
+        if getattr(result, "working_directory", None):
+            output += (
+                f"\nProject: `{result.working_directory}`\n"
+            )
+        return output
 
     output = "📊 **Quality Metrics**\n\n"
     for metric, value in quality_metrics.items():
@@ -669,11 +679,15 @@ def _format_metrics_section(result: CrackerjackResult) -> str:
         formatted = f"{value:.1f}" if value is not None else "unavailable"
         output += f"- {metric.replace('_', ' ').title()}: {formatted}\n"
 
-    if hasattr(result, "execution_time") and result.execution_time:
+    # Surface execution time when set (including 0.0) so the operator can
+    # spot instant-exit failures; previously the ``if value:`` guard hid
+    # ``execution_time == 0`` (legitimately fast) and ``exit_code == 0``
+    # (success) the same way.
+    if getattr(result, "execution_time", None) is not None:
         output += f"\n⏱ Execution time: {result.execution_time:.2f}s\n"
-    if hasattr(result, "exit_code") and result.exit_code != 0:
+    if getattr(result, "exit_code", None) is not None and result.exit_code != 0:
         output += f"\n⚠️ Exit code: {result.exit_code}\n"
-    if hasattr(result, "memory_insights") and result.memory_insights:
+    if getattr(result, "memory_insights", None):
         output += "\n📝 Memory insights:\n"
         for insight in result.memory_insights:
             output += f"- {insight}\n"
@@ -1203,6 +1217,7 @@ def _format_quality_metrics_output(
 def _format_quality_metrics_history(
     days: int,
     history: list[dict[str, Any]],
+    unavailable: bool = False,
 ) -> str:
     """Format quality metrics history rows from the integration DB.
 
@@ -1211,8 +1226,16 @@ def _format_quality_metrics_history(
         history: Rows from ``quality_metrics_history`` (newest first).
             Each row has: ``id``, ``project_path``, ``metric_type``,
             ``metric_value``, ``timestamp``, ``result_id``.
+        unavailable: when True, prepend the unavailable banner so operators
+            see the consumer-side synthesis signal even when the
+            ``quality_metrics_history`` table is empty or only carries the
+            four synthesized None rows (which are intentionally filtered
+            out by the integration's persist loop).
     """
     output = f"📊 **Crackerjack Quality Metrics** (last {days} days)\n\n"
+    if unavailable:
+        output += "⚠️ **No measurements available** — every tier (database, CLI fallback, coverage files) was exhausted.\n\n"
+
     output += f"**Total Samples**: {len(history)}\n\n"
 
     latest_by_metric: dict[str, dict[str, Any]] = {}
@@ -1229,15 +1252,54 @@ def _format_quality_metrics_history(
             output += f"- {metric_type}: {value} (at {timestamp})\n"
         output += "\n"
 
-    output += "**Recent Samples** (newest first):\n"
-    for row in history[:10]:
-        output += (
-            f"- {row.get('timestamp', 'unknown')} "
-            f"{row.get('metric_type')} = {row.get('metric_value')}\n"
-        )
+    if history:
+        output += "**Recent Samples** (newest first):\n"
+        for row in history[:10]:
+            output += (
+                f"- {row.get('timestamp', 'unknown')} "
+                f"{row.get('metric_type')} = {row.get('metric_value')}\n"
+            )
 
     output += "\n💡 Use `crackerjack analyze` for detailed quality analysis"
     return output
+
+
+async def _latest_crackerjack_result_unavailable(
+    project_path: str,
+    days: int,
+) -> bool:
+    """Return True when the most-recent result in ``crackerjack_results`` is marked unavailable.
+
+    The history table stores per-metric rows only after a real numeric
+    measurement; the consumer-side synthesis (whose four metric values
+    are None) intentionally doesn't appear there. To still render the
+    banner from the metrics MCP tool we look at the most-recent result
+    row's ``quality_metrics`` JSON column and check the
+    ``unavailable`` flag the synthesis writes there.
+    """
+    try:
+        from session_buddy.crackerjack_integration import (
+            CrackerjackIntegration,
+        )
+
+        integration = CrackerjackIntegration()
+        recent = await integration.get_recent_results(hours=max(days * 24, 24))
+        for row in recent:
+            quality_metrics = row.get("quality_metrics") or {}
+            if isinstance(quality_metrics, str):
+                try:
+                    import json as _json
+
+                    quality_metrics = _json.loads(quality_metrics)
+                except Exception:  # noqa: BLE001 - malformed row: skip
+                    continue
+            if not isinstance(quality_metrics, dict):
+                continue
+            if quality_metrics.get("unavailable") is True:
+                return True
+        return False
+    except Exception:  # noqa: BLE001 - banner probe is best-effort
+        return False
 
 
 async def _crackerjack_metrics_impl(
@@ -1264,8 +1326,9 @@ async def _crackerjack_metrics_impl(
             None,
             days,
         )
-        if history:
-            return _format_quality_metrics_history(days, history)
+        unavailable = await _latest_crackerjack_result_unavailable(project_path, days)
+        if history or unavailable:
+            return _format_quality_metrics_history(days, history, unavailable=unavailable)
     except Exception:  # noqa: BLE001 - quality metrics primary read failed: must fall through to the legacy reflection-DB path rather than abort
         _get_logger().exception(
             "Integration quality_metrics_history read failed",
