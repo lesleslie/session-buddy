@@ -721,7 +721,10 @@ async def test_get_crackerjack_metrics_no_data(monkeypatch: pytest.MonkeyPatch, 
     monkeypatch.setattr(qs, "CRACKERJACK_AVAILABLE", False)
     monkeypatch.setattr(qs, "_read_coverage_json", Mock(return_value=0))
     monkeypatch.setattr(qs, "_read_coverage_dotfile", Mock(return_value=0))
-
+    # CLI tier is disabled when CRACKERJACK_AVAILABLE is False, so the
+    # fallback chain stops at the coverage file step and returns the
+    # empty-dict sentinel (the synthesis synthesis only fires when the
+    # CLI tier was attempted and returned None).
     assert await qs._get_crackerjack_metrics(tmp_path) == {}
 
 
@@ -782,4 +785,7 @@ async def test_crackerjack_metrics_fallback_and_recommendation_branches(
     monkeypatch.setattr(qs, "get_quality_metrics_history", empty_history)
     monkeypatch.setattr(qs, "_read_coverage_json", Mock(return_value=0))
     monkeypatch.setattr(qs, "_read_coverage_dotfile", Mock(return_value=0))
+    # Disable the CLI fallback tier so the legacy "no data" sentinel
+    # still holds when the consumer chain has no metrics to surface.
+    monkeypatch.setattr(qs, "CRACKERJACK_AVAILABLE", False)
     assert await qs._get_crackerjack_metrics(tmp_path) == {}

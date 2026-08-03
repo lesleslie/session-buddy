@@ -140,6 +140,7 @@ class CrackerjackResult:
     quality_metrics: dict[str, float]
     test_results: list[dict[str, Any]]
     memory_insights: list[str]
+    fallback_used: bool = False
 
 
 @dataclass
@@ -1076,8 +1077,14 @@ class CrackerjackIntegration:
                         ),
                     )
 
-                # Store quality metrics
+                # Store quality metrics. ``metric_value`` is typed as REAL in
+                # SQLite, so the unavailable markers from the consumer-side
+                # synthesis (None + ``unavailable: True``) must be filtered
+                # here: persisting None would crash the INSERT and the
+                # surrounding except handler would swallow the whole row.
                 for metric_name, metric_value in result.quality_metrics.items():
+                    if metric_value is None:
+                        continue
                     metric_id = f"metric_{result_id}_{metric_name}"
                     conn.execute(
                         """
@@ -1149,6 +1156,35 @@ def get_crackerjack_integration() -> CrackerjackIntegration:
     if _crackerjack_integration is None:
         _crackerjack_integration = CrackerjackIntegration()
     return _crackerjack_integration
+
+
+def synthesize_unavailable_result(project_dir: str) -> CrackerjackResult:
+    """Produce a CrackerjackResult whose quality_metrics carry unavailable: True.
+
+    Used by the consumer-side chain (`_get_crackerjack_metrics`) when
+    every other tier (DB, reflection, coverage file, CLI fallback) has
+    failed. The result is written to history via `_store_result` so the
+    MCP `crackerjack_metrics` tool's read path surfaces the banner
+    (see Task 11 step 11.3's `_format_metrics_section` rewrite).
+    """
+    from session_buddy.utils.quality_scoring import _create_fallback_metrics
+
+    return CrackerjackResult(
+        command="<unavailable>",
+        exit_code=-1,
+        stdout="",
+        stderr="",
+        execution_time=0.0,
+        timestamp=utc_now(),
+        working_directory=project_dir,
+        parsed_data={},
+        quality_metrics=_create_fallback_metrics(),
+        test_results=[],
+        memory_insights=[
+            "All quality-metric tiers failed; CLI fallback returned None or was disabled",
+        ],
+        fallback_used=False,
+    )
 
 
 # Public API functions for MCP tools

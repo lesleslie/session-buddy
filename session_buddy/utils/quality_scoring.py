@@ -25,6 +25,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
 from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
@@ -897,41 +898,108 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
             fallback_metrics = _create_fallback_metrics()
             _metrics_cache[cache_key] = (fallback_metrics, utc_now())
             return fallback_metrics
-        return {}
+        metrics = {}
+    else:
+        with suppress(ImportError, RuntimeError, ValueError, AttributeError, OSError):
+            # Get recent metrics from Crackerjack history
+            metrics_history = await get_quality_metrics_history(
+                str(project_dir),
+                None,
+                days=1,
+            )
 
-    with suppress(ImportError, RuntimeError, ValueError, AttributeError, OSError):
-        # Get recent metrics from Crackerjack history
-        metrics_history = await get_quality_metrics_history(
-            str(project_dir),
-            None,
-            days=1,
+            if metrics_history:
+                metrics = _parse_metrics_history(metrics_history)
+
+                # If coverage is missing from Crackerjack, try coverage.json then .coverage
+                if "code_coverage" not in metrics:
+                    coverage_pct = _read_coverage_json(
+                        project_dir
+                    ) or _read_coverage_dotfile(project_dir)
+                    if coverage_pct:
+                        metrics["code_coverage"] = coverage_pct
+
+                # Cache the result
+                _metrics_cache[cache_key] = (metrics, utc_now())
+                return metrics
+
+        # Complete fallback: No Crackerjack data at all, try coverage.json then .coverage
+        coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(
+            project_dir
         )
+        if coverage_pct:
+            fallback_metrics = _create_fallback_metrics()
+            _metrics_cache[cache_key] = (fallback_metrics, utc_now())
+            return fallback_metrics
+        metrics = {}
 
-        if metrics_history:
-            metrics = _parse_metrics_history(metrics_history)
-
-            # If coverage is missing from Crackerjack, try coverage.json then .coverage
-            if "code_coverage" not in metrics:
-                coverage_pct = _read_coverage_json(
-                    project_dir
-                ) or _read_coverage_dotfile(project_dir)
-                if coverage_pct:
-                    metrics["code_coverage"] = coverage_pct
-
-            # Cache the result
-            _metrics_cache[cache_key] = (metrics, utc_now())
-            return metrics
-
-    # Complete fallback: No Crackerjack data at all, try coverage.json then .coverage
-    coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(
-        project_dir
+    # CLI fallback tier (Task 9 of the quality-scoring crackerjack fallback plan)
+    # Invoked only when DB + coverage tiers produced no scoring keys, and the
+    # CLI fallback may fill the gaps with fresh measurements. The tier is
+    # gated on ``CRACKERJACK_AVAILABLE`` so fully-disabled environments
+    # short-circuit to the legacy "no data" sentinel and avoid an unwanted
+    # 30s timeout.
+    SCORING_KEYS = frozenset(
+        {"code_coverage", "lint_score", "security_score", "complexity_score"},
     )
-    if coverage_pct:
-        fallback_metrics = _create_fallback_metrics()
-        _metrics_cache[cache_key] = (fallback_metrics, utc_now())
-        return fallback_metrics
+    if CRACKERJACK_AVAILABLE:
+        missing = frozenset(k for k in SCORING_KEYS if metrics.get(k) is None)
+        if missing:
+            try:
+                fallback = await try_crackerjack_cli(
+                    project_dir=project_dir,
+                    missing_metrics=missing,
+                    timeout=30.0,
+                    caller="consumer_chain",
+                )
+            except Exception:
+                fallback = None
+            if fallback:
+                metrics.update(fallback)
 
-    return {}
+    if not any(metrics.get(k) is not None for k in SCORING_KEYS):
+        if not CRACKERJACK_AVAILABLE:
+            # Disabled: no CLI tier was attempted; preserve the legacy
+            # empty-dict sentinel that pre-Task-9 callers rely on.
+            return metrics
+        # Every tier failed. Synthesize an explicit unavailable marker and
+        # persist a CrackerjackResult to the integration history so the
+        # MCP ``crackerjack_metrics`` tool can surface the unavailable
+        # banner to consumers (Task 11's formatter reads this row from
+        # history and renders the warning).
+        synthesis = _create_fallback_metrics()
+        try:
+            from session_buddy.crackerjack_integration import (
+                CrackerjackIntegration,
+                synthesize_unavailable_result,
+            )
+            # Use the global integration's db_path so test fixtures
+            # that repoint the singleton see the synthesis write.
+            from session_buddy.crackerjack_integration import (
+                get_crackerjack_integration as _get_global_integration,
+            )
+            try:
+                global_integration = _get_global_integration()
+                db_path = global_integration.db_path
+            except Exception:
+                db_path = str(
+                    Path.home()
+                    / ".claude"
+                    / "data"
+                    / "crackerjack_integration.db",
+                )
+            integration = CrackerjackIntegration(db_path=db_path)
+            synthesized = synthesize_unavailable_result(str(project_dir))
+            await integration._store_result(
+                f"cj_unavailable_{int(utc_now().timestamp() * 1000)}",
+                synthesized,
+            )
+        except Exception:
+            # History write is best-effort; the synthesis dict still
+            # flows to internal consumers below.
+            pass
+        return synthesis
+    return metrics
 
 
 async def _get_type_coverage(
