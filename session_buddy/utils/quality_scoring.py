@@ -861,13 +861,19 @@ def _read_coverage_dotfile(project_dir: Path) -> float:
     return 0
 
 
-def _create_fallback_metrics(coverage_pct: float) -> dict[str, Any]:
-    """Create default metrics with coverage."""
+def _create_fallback_metrics() -> dict[str, Any]:
+    """Last-resort fallback. Returns explicit unavailable markers, never perfect scores.
+
+    Invoked only when every other tier (DB, reflection-DB, coverage-file, CLI) failed
+    or was disabled. The ``unavailable: True`` flag is the explicit signal that no
+    measurement occurred.
+    """
     return {
-        "code_coverage": coverage_pct,
-        "lint_score": 100,
-        "security_score": 100,
-        "complexity_score": 100,
+        "code_coverage": None,
+        "lint_score": None,
+        "security_score": None,
+        "complexity_score": None,
+        "unavailable": True,
     }
 
 
@@ -888,7 +894,7 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
             project_dir
         )
         if coverage_pct:
-            fallback_metrics = _create_fallback_metrics(coverage_pct)
+            fallback_metrics = _create_fallback_metrics()
             _metrics_cache[cache_key] = (fallback_metrics, utc_now())
             return fallback_metrics
         return {}
@@ -921,7 +927,7 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
         project_dir
     )
     if coverage_pct:
-        fallback_metrics = _create_fallback_metrics(coverage_pct)
+        fallback_metrics = _create_fallback_metrics()
         _metrics_cache[cache_key] = (fallback_metrics, utc_now())
         return fallback_metrics
 

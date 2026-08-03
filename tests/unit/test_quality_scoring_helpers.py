@@ -98,11 +98,12 @@ def test_coverage_readers_and_fallback_metrics(tmp_path: Path) -> None:
     finally:
         coverage_module.Coverage = original_coverage  # type: ignore[assignment]
 
-    assert qs._create_fallback_metrics(42.0) == {
-        "code_coverage": 42.0,
-        "lint_score": 100,
-        "security_score": 100,
-        "complexity_score": 100,
+    assert qs._create_fallback_metrics() == {
+        "code_coverage": None,
+        "lint_score": None,
+        "security_score": None,
+        "complexity_score": None,
+        "unavailable": True,
     }
 
 
@@ -592,7 +593,9 @@ async def test_calculate_quality_score_v2_and_metrics_cache(
     monkeypatch.setattr(qs, "_read_coverage_json", Mock(return_value=55.0))
     monkeypatch.setattr(qs, "_read_coverage_dotfile", Mock(return_value=0))
     metrics = await qs._get_crackerjack_metrics(tmp_path)
-    assert metrics["code_coverage"] == 55.0
+    # New contract: fallback emits unavailable markers, never embeds coverage.
+    assert metrics["code_coverage"] is None
+    assert metrics["unavailable"] is True
     assert await qs._get_crackerjack_metrics(tmp_path) == metrics
 
 
@@ -701,11 +704,13 @@ async def test_get_crackerjack_metrics_fallback_paths(
 
     metrics = await qs._get_crackerjack_metrics(tmp_path)
 
+    # New contract: fallback emits unavailable markers, never embeds coverage.
     assert metrics == {
-        "code_coverage": 61.0,
-        "lint_score": 100,
-        "security_score": 100,
-        "complexity_score": 100,
+        "code_coverage": None,
+        "lint_score": None,
+        "security_score": None,
+        "complexity_score": None,
+        "unavailable": True,
     }
     assert await qs._get_crackerjack_metrics(tmp_path) == metrics
 
@@ -736,11 +741,13 @@ async def test_crackerjack_metrics_fallback_and_recommendation_branches(
     monkeypatch.setattr(qs, "_read_coverage_dotfile", Mock(return_value=67.0))
 
     metrics = await qs._get_crackerjack_metrics(tmp_path)
+    # New contract: fallback emits unavailable markers, never embeds coverage.
     assert metrics == {
-        "code_coverage": 67.0,
-        "lint_score": 100,
-        "security_score": 100,
-        "complexity_score": 100,
+        "code_coverage": None,
+        "lint_score": None,
+        "security_score": None,
+        "complexity_score": None,
+        "unavailable": True,
     }
 
     qs._metrics_cache.clear()
