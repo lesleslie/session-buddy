@@ -796,6 +796,89 @@ class TestQualityMetricsCalculation:
         # weighted_avg = (200×6 + 800×7) / 1000 = 6.8; score = 100 - (6.8 − 5)×10 = 82.0
         assert metrics["complexity_score"] == pytest.approx(82.0)
 
+    @pytest.mark.asyncio
+    async def test_producer_timeout_invokes_fallback_before_error_result(
+        self, monkeypatch, tmp_path
+    ):
+        """On TimeoutError, the helper runs once and supplies metrics."""
+        calls = []
+
+        async def fake_helper(*args, **kwargs):
+            calls.append((args, kwargs))
+            return {"lint_score": 75.0, "security_score": 100.0}
+
+        monkeypatch.setattr(
+            "session_buddy.crackerjack_integration.try_crackerjack_cli", fake_helper
+        )
+
+        async def fake_subprocess(*args, **kwargs):
+            raise TimeoutError()
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_subprocess)
+
+        integration = CrackerjackIntegration()
+        result = await integration.execute_crackerjack_command(
+            command="test", working_directory=str(tmp_path)
+        )
+        assert len(calls) == 1
+        assert calls[0][1]["caller"] == "producer_retry"
+        assert result.fallback_used is True
+        assert result.quality_metrics.get("lint_score") == 75.0
+
+    @pytest.mark.asyncio
+    async def test_producer_timeout_helper_none_returns_empty_metrics(
+        self, monkeypatch, tmp_path
+    ):
+        async def fake_helper(*args, **kwargs):
+            return None
+
+        monkeypatch.setattr(
+            "session_buddy.crackerjack_integration.try_crackerjack_cli", fake_helper
+        )
+
+        async def fake_subprocess(*args, **kwargs):
+            raise TimeoutError()
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_subprocess)
+
+        integration = CrackerjackIntegration()
+        result = await integration.execute_crackerjack_command(
+            command="test", working_directory=str(tmp_path)
+        )
+        assert result.fallback_used is False
+        assert result.quality_metrics == {}
+
+    @pytest.mark.asyncio
+    async def test_producer_normal_path_does_not_invoke_fallback(
+        self, monkeypatch, tmp_path
+    ):
+        """Successful subprocess run does not invoke the helper."""
+        calls = []
+
+        async def fake_helper(*args, **kwargs):
+            calls.append((args, kwargs))
+
+        monkeypatch.setattr(
+            "session_buddy.crackerjack_integration.try_crackerjack_cli", fake_helper
+        )
+
+        class _Proc:
+            returncode = 0
+
+            async def communicate(self):
+                return b"{}", b""
+
+        async def fake_subprocess(*args, **kwargs):
+            return _Proc()
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_subprocess)
+
+        integration = CrackerjackIntegration()
+        await integration.execute_crackerjack_command(
+            command="test", working_directory=str(tmp_path)
+        )
+        assert calls == []
+
     def test_parse_stderr_metrics_is_deprecation_noop(self, recwarn):
         """_parse_stderr_metrics returns {} and warns once across multiple calls."""
         integration = CrackerjackIntegration()

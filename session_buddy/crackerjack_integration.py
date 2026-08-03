@@ -24,6 +24,7 @@ from typing import Any
 from session_buddy.utils.crackerjack import (
     CrackerjackOutputParser,
 )
+from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
 from session_buddy.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
@@ -417,6 +418,8 @@ class CrackerjackIntegration:
         execution_time: float,
         working_directory: str,
         memory_insight: str,
+        quality_metrics: dict[str, float] | None = None,
+        fallback_used: bool = False,
     ) -> CrackerjackResult:
         """Create a standardized error result."""
         return CrackerjackResult(
@@ -428,9 +431,10 @@ class CrackerjackIntegration:
             timestamp=utc_now(),
             working_directory=working_directory,
             parsed_data={},
-            quality_metrics={},
+            quality_metrics=quality_metrics or {},
             test_results=[],
             memory_insights=[memory_insight],
+            fallback_used=fallback_used,
         )
 
     async def execute_crackerjack_command(
@@ -494,14 +498,42 @@ class CrackerjackIntegration:
 
         except TimeoutError:
             execution_time = time.time() - start_time
-            error_result = self._create_error_result(
-                command,
-                -1,
-                f"Command timed out after {timeout} seconds",
-                execution_time,
-                working_directory,
-                f"Command '{command}' timed out - consider optimizing or increasing timeout",
-            )
+            try:
+                fallback_metrics = await try_crackerjack_cli(
+                    project_dir=working_directory,
+                    missing_metrics=frozenset(
+                        {
+                            "code_coverage",
+                            "lint_score",
+                            "security_score",
+                            "complexity_score",
+                        }
+                    ),
+                    timeout=30.0,
+                    caller="producer_retry",
+                )
+            except Exception:  # noqa: BLE001 - fallback is best effort
+                fallback_metrics = None
+            if isinstance(fallback_metrics, dict):
+                error_result = self._create_error_result(
+                    command,
+                    -1,
+                    f"Command '{command}' timed out after {timeout}s; recovered via CLI fallback",
+                    execution_time,
+                    working_directory,
+                    f"Command '{command}' recovered via CLI fallback",
+                    quality_metrics=fallback_metrics,
+                    fallback_used=True,
+                )
+            else:
+                error_result = self._create_error_result(
+                    command,
+                    -1,
+                    f"Command '{command}' timed out after {timeout}s",
+                    execution_time,
+                    working_directory,
+                    f"Command '{command}' failed (timeout, no fallback available)",
+                )
             await self._store_result(result_id, error_result)
             return error_result
 
