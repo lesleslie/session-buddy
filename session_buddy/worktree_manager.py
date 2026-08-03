@@ -454,12 +454,12 @@ class WorktreeManager:
             )
 
             output_text = (
-                result.stdout.decode() if isinstance(result.stdout, bytes) else result.stdout
+                result.stdout.decode()
+                if isinstance(result.stdout, bytes)
+                else result.stdout
             )
             stripped = output_text.strip()
-            output_lines = (
-                stripped.split("\n") if stripped else []
-            )
+            output_lines = stripped.split("\n") if stripped else []
             pruned_count = len([line for line in output_lines if "Removing" in line])
 
             self._log("Pruned worktrees", pruned_count=pruned_count)

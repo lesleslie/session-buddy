@@ -1573,9 +1573,7 @@ class SkillsStorage:
                         f"Expected numeric deviation_score, got {type(value).__name__}",
                     )
 
-                return sorted(
-                    anomalies, key=_abs_deviation, reverse=True
-                )
+                return sorted(anomalies, key=_abs_deviation, reverse=True)
 
             except sqlite3.OperationalError as e:
                 logger.warning(f"Failed to detect anomalies: {e}")

@@ -15,20 +15,20 @@ on. The three contract bugs captured below were the trigger for writing
 it — they all stemmed from undocumented expectations about how the
 schema and the MCP surface line up.
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [Storage Inventory](#1-storage-inventory)
-2. [MCP Write Surface](#2-mcp-write-surface)
-3. [MCP Read Surface](#3-mcp-read-surface)
-4. [Cross-Component Visibility](#4-cross-component-visibility)
-5. [Integration Contract](#5-integration-contract)
-6. [Sample Queries](#6-sample-queries)
-7. [Diagrams](#7-diagrams)
-8. [Operational Notes](#8-operational-notes)
+1. [MCP Write Surface](#2-mcp-write-surface)
+1. [MCP Read Surface](#3-mcp-read-surface)
+1. [Cross-Component Visibility](#4-cross-component-visibility)
+1. [Integration Contract](#5-integration-contract)
+1. [Sample Queries](#6-sample-queries)
+1. [Diagrams](#7-diagrams)
+1. [Operational Notes](#8-operational-notes)
 
----
+______________________________________________________________________
 
 ## 1. Storage Inventory
 
@@ -157,7 +157,7 @@ erDiagram
 | `fix_attempts` | Crackerjack memory layer, `self_improvement_*` tools | Crackerjack self-improvement cycle | 365 days |
 | `serverless_sessions` | `get_serverless_session`, `update_serverless_session` | `create_serverless_session`, lifecycle hooks | TTL-based (default 24h) |
 
----
+______________________________________________________________________
 
 ## 2. MCP Write Surface
 
@@ -256,7 +256,7 @@ each user wires their own). The scripts live in `~/.claude/scripts/`.
 If a hook fails (e.g., SB MCP is down), Claude Code logs the failure
 and proceeds — capture is best-effort, not blocking.
 
----
+______________________________________________________________________
 
 ## 3. MCP Read Surface
 
@@ -331,7 +331,7 @@ Mahavishnu workers.
 | `test_serverless_storage` | external backend (Redis/S3) | Backend health check |
 | `configure_serverless_storage` | external backend config | Switch storage backend |
 
----
+______________________________________________________________________
 
 ## 4. Cross-Component Visibility
 
@@ -361,7 +361,7 @@ To avoid double-bookkeeping with neighbors, Session-Buddy intentionally
 - **Active alerts** — those live in Mahavishnu's alerting subsystem.
 - **LLM provider configuration / API keys** — those live in Oneiric + env vars.
 
----
+______________________________________________________________________
 
 ## 5. Integration Contract
 
@@ -414,8 +414,7 @@ MCP wrapper does in production.
 **Bug**: The `project` argument was silently dropped on the
 `_store_reflection_impl` path (the value reached the adapter as `None`
 for several v2 releases). Project-scoped recall then saw every
-reflection as belonging to no project, and `search_reflections(...,
-project="mahavishnu")` returned everything instead of nothing.
+reflection as belonging to no project, and `search_reflections(..., project="mahavishnu")` returned everything instead of nothing.
 
 **Contract**: `store_reflection(content, tags=..., project=...)` MUST
 persist `project` on the `reflections_v2` row. The `search_reflections`,
@@ -443,7 +442,7 @@ project-scoped search returns only the matching one.
 These three contracts are the minimum bar; new MCP wrappers should add
 similar tests when introducing new write/read pairs.
 
----
+______________________________________________________________________
 
 ## 6. Sample Queries
 
@@ -608,14 +607,14 @@ mcp__session-buddy__get_serverless_session(session_id="abc-123-...")
 Returns the session payload from Redis/S3/local backend per
 `configure_serverless_storage`. ACL-checked via `session_acl`.
 
----
+______________________________________________________________________
 
 ## 7. Diagrams
 
 Three diagrams are persisted with this document. Two are embedded above:
 
 1. **Schema map** (Section 1) — `erDiagram` of all 5 storage layers and their relationships.
-2. **Hook timeline** (Section 2) — `sequenceDiagram` of the 5 Claude Code hooks firing SB MCP tools.
+1. **Hook timeline** (Section 2) — `sequenceDiagram` of the 5 Claude Code hooks firing SB MCP tools.
 
 The third diagram — **Cross-system data flow** — lives in the global
 Bodai docs at `bodai/docs/memory/INDEX.md` because it spans all six
@@ -626,7 +625,7 @@ flow** (global) will be authored in Stage 3 of the documentation plan.
 Per-repo diagrams (schema map, hook timeline, per-table ownership) live
 in each component's `docs/architecture/MEMORY_ARCHITECTURE.md`.
 
----
+______________________________________________________________________
 
 ## 8. Operational Notes
 
@@ -641,10 +640,10 @@ in each component's `docs/architecture/MEMORY_ARCHITECTURE.md`.
 The Conscious Agent runs as a background task and:
 
 1. **Promotes** tier=working → short_term during `pre_compact_sync` (importance_score > 0.5).
-2. **Distills** high-evidence patterns into `distilled_skills` (calls `distill_skills_now`).
-3. **Prunes** stale reflections (older than 90 days, never accessed).
-4. **Updates** peer models via `update_peer_model` (Honcho-style theory of mind).
-5. **Emits** change-feed events to Akosha and Dhara for replication.
+1. **Distills** high-evidence patterns into `distilled_skills` (calls `distill_skills_now`).
+1. **Prunes** stale reflections (older than 90 days, never accessed).
+1. **Updates** peer models via `update_peer_model` (Honcho-style theory of mind).
+1. **Emits** change-feed events to Akosha and Dhara for replication.
 
 ### Performance characteristics
 
@@ -666,7 +665,7 @@ The Conscious Agent runs as a background task and:
 - **Embedding generation fails**: `store_reflection` falls back to keyword-only indexing; `quick_search` degrades to lexical match with the same content marker.
 - **Conscious Agent crashes**: re-launched by the lifecycle supervisor; tier state in DB is recoverable.
 
----
+______________________________________________________________________
 
 ## See Also
 

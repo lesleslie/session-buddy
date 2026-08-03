@@ -23,7 +23,7 @@
 - Do not commit, push, or create a PR unless the user separately authorizes that action. Replace the generic commit step with an external diff checkpoint.
 - After each mutation wave, verify file contents and the actual diff; do not rely on an agent’s report alone.
 
----
+______________________________________________________________________
 
 ## File Map
 
@@ -135,16 +135,19 @@ PY
 
 This prevents the plan from becoming stale as each wave removes findings and respects the already-dirty file set.
 
----
+______________________________________________________________________
 
 ## Task 0: Capture the dirty-tree baseline
 
 **Files:**
+
 - Read: all files reported by the live Ruff JSON output.
 - Create outside the repository: `/tmp/session-buddy-ruff16-baseline/` snapshots only.
 
 **Interfaces:**
+
 - Consumes: current working tree and installed Ruff 0.16.0.
+
 - Produces: baseline JSON/counts, status manifest, per-file hashes, and focused-test baseline.
 
 - [ ] **Step 1: Record status and versions**
@@ -214,16 +217,19 @@ PY
 
 Do not commit or alter the existing dirty tree.
 
----
+______________________________________________________________________
 
 ## Task 1: Add and test the UTC boundary utility
 
 **Files:**
+
 - Create: `session_buddy/utils/time.py`
 - Create: `tests/unit/test_time_utils.py`
 
 **Interfaces:**
+
 - Consumes: `str | datetime` values from existing persisted/event paths.
+
 - Produces: `utc_now() -> datetime` and `parse_utc_timestamp(value: str | datetime) -> datetime`, both returning timezone-aware UTC values.
 
 - [ ] **Step 1: Write failing contract tests**
@@ -310,16 +316,18 @@ Expected: all tests pass and the new module has no Ruff findings.
 git -C /Users/les/Projects/session-buddy diff --binary -- session_buddy/utils/time.py tests/unit/test_time_utils.py > /tmp/session-buddy-ruff16-baseline/wave-1.diff
 ```
 
----
+______________________________________________________________________
 
 ## Task 2: Migrate datetime findings in domain batches
 
 **Files:**
+
 - Modify: the timestamp migration files listed in the File Map, in the three batches below.
 - Create/modify: `tests/unit/test_dtz_regressions.py`.
 - Modify: existing focused storage/analytics tests only when a timestamp assertion must become explicitly UTC-aware.
 
 **Interfaces:**
+
 - Consumes: `utc_now()` and `parse_utc_timestamp()` from Task 1.
 - Produces: UTC-aware writers/readers without schema or payload-key changes.
 
@@ -468,16 +476,19 @@ uv run ruff check session_buddy --output-format=statistics
 
 Expected: all DTZ findings are gone and the total live count is no greater than the Task 0 baseline.
 
----
+______________________________________________________________________
 
 ## Task 3: Fix logging mechanics and narrow, local exception rules
 
 **Files:**
+
 - Modify: all current `TRY401`, `G201`, `S110`, `S112`, `TRY002`, `TRY004`, and `TRY203` files from the generated manifest.
 - Modify: focused tests in `tests/unit/test_hooks_system.py`, `tests/unit/test_workflow_metrics.py`, `tests/unit/test_migration.py`, and the relevant MCP/tool tests.
 
 **Interfaces:**
+
 - Consumes: existing logger names, structured `extra` dictionaries, and fallback return contracts.
+
 - Produces: parameterized exception logs and operation-specific exception tuples.
 
 - [ ] **Step 1: Add a structured logging regression test**
@@ -583,15 +594,17 @@ Expected: the selected rules report zero and structured logging/fallback tests p
 git -C /Users/les/Projects/session-buddy diff --binary > /tmp/session-buddy-ruff16-baseline/wave-3-logging-exceptions.diff
 ```
 
----
+______________________________________________________________________
 
 ## Task 4: Classify BLE001 by subsystem
 
 **Files:**
+
 - Modify: the exact files emitted by the current BLE001 manifest, in the four batches below.
 - Test: the closest existing unit/integration test for each changed boundary.
 
 **Interfaces:**
+
 - Consumes: the existing fallback/error return contract of each function.
 - Produces: narrower catches or locally justified, logged boundary catches.
 
@@ -693,11 +706,12 @@ Expected: zero BLE001 findings; any remaining `noqa` is explicitly reviewed in t
 git -C /Users/les/Projects/session-buddy diff --binary > /tmp/session-buddy-ruff16-baseline/wave-4-exceptions.diff
 ```
 
----
+______________________________________________________________________
 
 ## Task 5: Fix closures, mutable defaults, cache ownership, and mechanical semantics
 
 **Files:**
+
 - Modify: `session_buddy/advanced_search.py`
 - Modify: `session_buddy/backends/s3_backend.py`
 - Modify: `session_buddy/storage/skills_embeddings.py`
@@ -715,7 +729,9 @@ git -C /Users/les/Projects/session-buddy diff --binary > /tmp/session-buddy-ruff
 - Test: `tests/unit/test_advanced_search.py`, `tests/unit/test_embedding_cache.py`, `tests/unit/test_workflow_metrics.py`, `tests/unit/test_workflow_metrics_tools.py`, and the closest adapter/integration tests.
 
 **Interfaces:**
+
 - Consumes: current filter objects, class lookup tables, service cache API, and workflow metrics output.
+
 - Produces: identical public method signatures with correctly bound values and instance-safe cache ownership.
 
 - [ ] **Step 1: Lock down advanced-search filter behavior**
@@ -796,11 +812,12 @@ uv run ruff check --select B023,B019,RUF012,RUF034,PLC0206,SIM102,SIM117,PLW0602
 
 Expected: selected structural rules report zero.
 
----
+______________________________________________________________________
 
 ## Task 6: Fix async subprocesses, explicit process options, and executable modes
 
 **Files:**
+
 - Modify: `session_buddy/doctor.py`
 - Modify: `session_buddy/mcp/tools/session/crackerjack_tools.py`
 - Modify: `session_buddy/worktree_manager.py`
@@ -810,7 +827,9 @@ Expected: selected structural rules report zero.
 - Test: `tests/unit/test_doctor.py`, `tests/unit/test_crackerjack_tools.py`, `tests/unit/test_worktree_manager.py`, `tests/unit/test_subprocess_core.py`, `tests/security/test_subprocess_safety.py`.
 
 **Interfaces:**
+
 - Consumes: current synchronous helper return values and subprocess security constraints.
+
 - Produces: non-blocking async callers and executable entry points with unchanged CLI behavior.
 
 - [ ] **Step 1: Write async blocking regression tests**
@@ -863,16 +882,19 @@ uv run session-buddy --help
 
 Expected: selected process rules report zero and both CLI help commands exit zero.
 
----
+______________________________________________________________________
 
 ## Task 7: Residual live-Ruff sweep
 
 **Files:**
+
 - Modify only files named by the current live Ruff JSON output after Tasks 2–6.
 - Test: the focused test associated with each residual file.
 
 **Interfaces:**
+
 - Consumes: all previous wave changes and their regression tests.
+
 - Produces: zero live default Ruff findings with no unreviewed suppression.
 
 - [ ] **Step 1: Generate the residual rule manifest**
@@ -912,17 +934,20 @@ uv run ruff check session_buddy --statistics
 
 Expected: residual count is zero.
 
----
+______________________________________________________________________
 
 ## Task 8: Full validation and delivery review
 
 **Files:**
+
 - Read: all changed source and test files.
 - Modify: no source unless a validation failure identifies a concrete regression.
 - Create outside repository: final validation report under `/tmp/session-buddy-ruff16-baseline/`.
 
 **Interfaces:**
+
 - Consumes: zero-finding source tree and all focused regression tests.
+
 - Produces: verified maintenance result and a faithful diff/status report.
 
 - [ ] **Step 1: Run the complete explicit rule matrix**

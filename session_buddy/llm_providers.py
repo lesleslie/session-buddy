@@ -645,7 +645,9 @@ class LLMManager:
         ``FallbackChain`` inside :meth:`generate`, so the value is intentionally
         ignored here.
         """
-        llm_messages = [LLMMessage(role=m["role"], content=m["content"]) for m in messages or []]
+        llm_messages = [
+            LLMMessage(role=m["role"], content=m["content"]) for m in messages or []
+        ]
         response = await self.generate(
             llm_messages,
             provider=provider,

@@ -203,3 +203,120 @@ def test_search_code_graph_handles_empty_results() -> None:
     hits = asyncio.run(search_code_graph(query="missing", project="myproj", db=db))
 
     assert hits == []
+
+
+def test_search_via_sql_extracts_real_symbol_from_graph_data() -> None:
+    """The SQL fallback must surface a real symbol (from nodes[0].name) rather
+    than reusing commit_hash.
+
+    Test setup: ``repo_path`` and ``commit_hash`` are identical strings, but
+    ``graph_data`` carries a node with a real name. The old code mapped
+    ``commit_hash`` -> ``symbol`` so today's symbol == repo_path; the fix
+    extracts ``nodes[0].name`` so symbol != repo_path.
+    """
+    import asyncio
+    import tempfile
+    from pathlib import Path
+
+    import duckdb
+
+    from session_buddy.mcp.tools.code_graph import _search_via_sql
+    from session_buddy.reflection.schema import initialize_schema
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "code_graph.duckdb"
+        conn = duckdb.connect(str(db_path))
+        try:
+            initialize_schema(conn)
+            conn.execute(
+                """
+                INSERT INTO code_graphs
+                (id, repo_path, commit_hash, indexed_at, nodes_count, graph_data)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    "repo:abc123",
+                    "repo",  # repo_path
+                    "repo",  # commit_hash -- same as repo_path
+                    "2026-07-29T12:00:00Z",
+                    1,
+                    '{"nodes": [{"id": "n1", "name": "func_alpha"}]}',
+                ],
+            )
+        finally:
+            conn.close()
+
+        class _DBWithoutMethod:
+            def __init__(self, path: Path) -> None:
+                self._path = path
+
+            def _get_conn(self) -> Any:
+                return duckdb.connect(str(self._path))
+
+        rows = asyncio.run(
+            _search_via_sql(
+                _DBWithoutMethod(db_path), query="repo", project="proj", limit=10
+            )
+        )
+
+        assert len(rows) == 1
+        assert rows[0]["repo_path"] == "repo"
+        assert rows[0]["symbol"] != rows[0]["repo_path"]  # fails today
+        assert rows[0]["symbol"] == "func_alpha"
+
+
+def test_search_via_sql_falls_back_to_commit_hash_when_nodes_empty() -> None:
+    """When ``graph_data`` has no nodes, ``symbol`` falls back to ``commit_hash``.
+
+    The fallback keeps the surface usable for legacy rows that predate the
+    nodes[] convention; it is still distinguishable from a real symbol
+    only because the upstream callers should normally exercise the
+    ``search_code_graph_nodes`` adapter path first.
+    """
+    import asyncio
+    import tempfile
+    from pathlib import Path
+
+    import duckdb
+
+    from session_buddy.mcp.tools.code_graph import _search_via_sql
+    from session_buddy.reflection.schema import initialize_schema
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = Path(tmpdir) / "code_graph.duckdb"
+        conn = duckdb.connect(str(db_path))
+        try:
+            initialize_schema(conn)
+            conn.execute(
+                """
+                INSERT INTO code_graphs
+                (id, repo_path, commit_hash, indexed_at, nodes_count, graph_data)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    "repo:abc123",
+                    "myrepo",
+                    "deadbeef",
+                    "2026-07-29T12:00:00Z",
+                    0,
+                    '{"nodes": []}',
+                ],
+            )
+        finally:
+            conn.close()
+
+        class _DBWithoutMethod:
+            def __init__(self, path: Path) -> None:
+                self._path = path
+
+            def _get_conn(self) -> Any:
+                return duckdb.connect(str(self._path))
+
+        rows = asyncio.run(
+            _search_via_sql(
+                _DBWithoutMethod(db_path), query="myrepo", project="proj", limit=10
+            )
+        )
+
+        assert len(rows) == 1
+        assert rows[0]["symbol"] == "deadbeef"

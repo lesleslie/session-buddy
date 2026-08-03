@@ -273,4 +273,3 @@ def test_memory_optimizer_retention_handles_legacy_naive_timestamp() -> None:
         "Legacy naive timestamp must satisfy the same retention boundary "
         "as its aware-parsed counterpart."
     )
-
