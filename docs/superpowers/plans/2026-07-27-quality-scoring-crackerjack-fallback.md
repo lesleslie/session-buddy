@@ -1,8 +1,8 @@
-# Quality-Scoring Crackerjack CLI Fallback — Implementation Plan (v2)
+# Quality-Scoring Crackerjack CLI Fallback — Implementation Plan (v3)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a CLI-invocation fallback layer to session-buddy's `quality_scoring` module that recovers from failed/missing metrics reads by invoking crackerjack on-demand, and unconditionally eliminate the synthesize-100s antipattern from the terminal fallback.
+**Goal:** Add a CLI-invocation fallback layer to session-buddy's `quality_scoring` module that recovers from failed/missing metrics reads by invoking crackerjack on-demand, and unconditionally eliminate the synthesize-100s antipattern from the terminal fallback. v3 applies the 10 NEW Criticals from the v2 plan review.
 
 **Architecture:** New `try_crackerjack_cli` helper in `session_buddy/utils/crackerjack/fallback.py` invokes crackerjack via `asyncio.create_subprocess_exec` with the v0.47+ `run` subcommand + flag combinations (selected from a Task 0 preflight). Wired into the producer's `TimeoutError` path and the consumer's missing-keys chain tier. The terminal synthesis function is rewritten to emit `None` + `unavailable: True` instead of perfect scores. Module-level `asyncio.Lock` serializes invocations. OTel span wraps every invocation. Prometheus counters use `session_buddy_*_total` naming. Plan reordered vs. v1: Task 10 (synthesis) precedes Task 8 (consumer wiring) so the synthesis contract exists before the chain tests it.
 
@@ -36,6 +36,23 @@ The v1 plan had 28 Critical issues from a 5-agent review. Key changes:
 | Task 12 not valid TDD (no failing test, accepts dep failure without skip) | game-dev C13 | `pytest.importorskip("crackerjack")`; assert metric was extracted |
 | Task 9 local import inside exception handler | Python I7 | Move import to module top |
 | Spec's alert guidance not in plan | Observability I3 | New Task 13 |
+
+## What changed from v2
+
+The v2 plan had 10 NEW Critical issues from a 4-agent review (MCP agent failed at the API tier with a 429). Key changes:
+
+| Issue | Source | v3 fix |
+|---|---|---|
+| Task 5 calls bare `_calculate_coverage_metrics(section)` etc. — these are `@staticmethod` methods on `CrackerjackIntegration` and would `NameError` at runtime | Python C1 | Resolve the class once via `cls = _get_crackerjack_integration_class()` and call `cls._calculate_X(section)` |
+| Task 5's `test_success_returns_requested_metrics` has non-empty `lint_issues` data but asserts `lint_score == 100.0` — would fail on first run | Python C2 | Change test data to `lint_issues: []` so the assertion matches `_calculate_lint_metrics([])` |
+| Task 7 step 7.6 references `_NoOpSpan()` but never defines it; `NameError` if OTel package is installed but tracer is None | Python C3 | Define `_NoOpSpan` class alongside `_finalize` (Task 7 step 7.5) |
+| OTel `set_status(StatusCode.ERROR)` is never called for failure outcomes | Observability C1 | `_finalize` sets `span.set_status(Status(...))` for non-success outcomes; span gets `outcome` attribute |
+| Task 4's `CancelledError` re-raise path emits no counter/log | Observability C2 | Add `_finalize("cancelled", ...)` BEFORE `raise` in Task 4 step 4.4 |
+| Task 6 step 6.3 violates TDD ("verify the existing handlers") | voice-chat C1 | Note that error tests are co-developed with Tasks 4-5; commit is test-only |
+| Task 7 is too big to land in one reviewer-gate commit | voice-chat C2 | Split into 4 sequential commits: 7a metrics, 7b helpers, 7c wire-in, 7d concurrency |
+| OTel span is missing the `outcome` attribute | voice-chat C3 | `_finalize` calls `span.set_attribute("outcome", outcome)` |
+| `_METRIC_TO_FLAG["complexity_score"]` is `("check", ())` — empty flags tuple, never reached because `_pick_invocation` short-circuits | voice-chat C4 | Remove the dead entry; document why complexity has no per-metric entry |
+| Task 11 banner never fires — synthesis dict from consumer side doesn't reach `_format_metrics_section` | voice-chat C5 | Add `synthesize_unavailable_result` helper; consumer chain writes a `CrackerjackResult` to history when synthesis is reached |
 
 ## Global Constraints
 
@@ -835,7 +852,11 @@ _METRIC_TO_FLAG: dict[str, tuple[str, tuple[str, ...]]] = {
     "code_coverage": ("test", ("--run-tests",)),
     "lint_score":    ("lint", ("--fast", "--quick")),
     "security_score": ("security", ("--security",)),
-    "complexity_score": ("check", ()),  # complexity only from --comp
+    # Note: complexity_score intentionally absent. _pick_invocation's
+    # early-return for the complexity-only case routes to ("check",
+    # ("--comp",)) before consulting this table. A bare entry with
+    # empty flags would silently call "run" with no flags and produce
+    # no complexity data.
 }
 # All-four convenience: pick the most general semantic command that
 # produces every requested key.
@@ -886,7 +907,10 @@ Then replace the `# Placeholder for the rest of the pipeline` block with:
             return None
 
         # Wait with timeout. Split handlers: TimeoutError -> None after
-        # cleanup; CancelledError -> re-raise after cleanup (per PEP 654).
+        # cleanup; CancelledError -> finalize observability THEN re-raise
+        # after cleanup (per PEP 654; the parent shutdown should not
+        # block on a 30s subprocess, but the cancellation MUST still
+        # emit its counter+log so dashboards see the cause).
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except TimeoutError:
@@ -899,6 +923,9 @@ Then replace the `# Placeholder for the rest of the pipeline` block with:
             if proc.returncode is None:
                 proc.kill()
                 await proc.wait()
+            # Emit cancelled counter/log BEFORE re-raising so the
+            # observability layer sees the cancellation.
+            # TODO: log WARNING + counter cancelled (Task 7)
             raise
 
         # Check exit code
@@ -970,7 +997,7 @@ from session_buddy.utils.crackerjack.output_parser import CrackerjackOutputParse
 async def test_success_returns_requested_metrics(monkeypatch, tmp_path):
     _enable_flag(monkeypatch)
     parsed_data = {
-        "lint_issues": [{"code": "E501", "message": "line too long"}],
+        "lint_issues": [],  # empty -> _calculate_lint_metrics returns 100.0
         "security_issues": [],
         "complexity_data": {},
         "coverage_summary": {"total_coverage": 87.5},
@@ -1124,8 +1151,10 @@ In `session_buddy/utils/crackerjack/fallback.py`, replace `# TODO: parse + extra
             "security_score": "security_issues",
             "complexity_score": "complexity_data",
         }
-        # _calculate_*_metrics now requires instance-free calls (Task 2)
-        CrackerjackIntegration = _get_crackerjack_integration_class()  # noqa: F841
+        # _calculate_*_metrics are @staticmethods on CrackerjackIntegration
+        # (Task 2). Call them via the class — instantiating
+        # CrackerjackIntegration() would write to SQLite on disk.
+        cls = _get_crackerjack_integration_class()
         candidate: dict[str, float] = {}
         for key in missing_metrics:
             section_key = SECTION_FOR_KEY.get(key)
@@ -1138,13 +1167,13 @@ In `session_buddy/utils/crackerjack/fallback.py`, replace `# TODO: parse + extra
             if not section:
                 continue
             if key == "code_coverage":
-                candidate.update(_calculate_coverage_metrics(section))
+                candidate.update(cls._calculate_coverage_metrics(section))
             elif key == "lint_score":
-                candidate.update(_calculate_lint_metrics(section))
+                candidate.update(cls._calculate_lint_metrics(section))
             elif key == "security_score":
-                candidate.update(_calculate_security_metrics(section))
+                candidate.update(cls._calculate_security_metrics(section))
             elif key == "complexity_score":
-                candidate.update(_calculate_complexity_metrics(section))
+                candidate.update(cls._calculate_complexity_metrics(section))
 
         # Only return the keys the caller actually asked for.
         return {k: v for k, v in candidate.items() if k in missing_metrics}
@@ -1322,7 +1351,9 @@ Expected: 7 new tests FAIL (the helper still returns None at the lock-exit place
 
 **Step 6.3: Verify the helper already handles the error paths from Task 4 + 5**
 
-Tasks 4 and 5 already added the error handling. This task verifies the existing handlers and adds nothing new to the production code. Re-run the tests to confirm they pass.
+**Note on TDD discipline (v2 review C1):** the 7 tests written in Step 6.1 were co-developed alongside the production handlers in Tasks 4 (subprocess + cleanup) and 5 (parse + post-filter), not introduced after the fact. Each error-path test follows the pattern: write the failing test against a stub helper → add the matching handler → verify the test passes. If a reviewer finds an error path without a corresponding test, that path was added in a Task 4/5 commit without its co-test — STOP and add the missing test.
+
+Re-run all 7 tests to confirm the handlers landed correctly in Tasks 4 + 5. No new production code lands in this commit; the commit only extends `tests/unit/test_crackerjack_fallback.py`.
 
 **Step 6.4: Run tests to verify they pass**
 
@@ -1704,6 +1735,30 @@ Add to `session_buddy/utils/crackerjack/fallback.py` (after the logger):
 _TRACER = None
 
 
+class _NoOpSpan:
+    """No-op context manager used when OTel isn't configured.
+
+    `tracer.start_as_current_span(...)` returns a
+    `contextlib.AbstractContextManager[Span]`. When the tracer is
+    `None` we substitute this class so the `with span_cm as span:`
+    block in `try_crackerjack_cli` works without an `if`-sentinel
+    on every operation. `set_status` / `set_attribute` are no-ops
+    because there is no underlying span to mutate.
+    """
+
+    def __enter__(self) -> "_NoOpSpan":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False  # do not swallow exceptions
+
+    def set_status(self, status_code, description: str | None = None) -> None:
+        pass
+
+    def set_attribute(self, key: str, value: object) -> None:
+        pass
+
+
 def _get_tracer():
     """Lazy-init the OpenTelemetry tracer. Returns None when not configured."""
     global _TRACER
@@ -1747,8 +1802,14 @@ def _finalize(
     missing_metrics: frozenset[str],
     duration_seconds: float,
     correlation_context: dict[str, str] | None,
+    span: object | None = None,
 ) -> None:
-    """Single point of observability emission. Exactly one log + one counter + one histogram observation per invocation."""
+    """Single point of observability emission. Exactly one log + one counter + one histogram observation per invocation.
+
+    Also writes the outcome onto the OTel span (if provided) and
+    marks failure outcomes with `set_status(StatusCode.ERROR)` so
+    error rates in the tracing UI surface them correctly.
+    """
     level_map = {
         "success": logging.INFO,
         "disabled": logging.DEBUG,
@@ -1772,9 +1833,19 @@ def _finalize(
     )
     _emit_counter(command, outcome, caller)
     _observe_duration(command, caller, duration_seconds)
+    # OTel: tag the span with outcome + mark failures as errors
+    if span is not None:
+        try:
+            span.set_attribute("outcome", outcome)
+            if outcome not in ("success", "disabled"):
+                # Lazy import to avoid a hard dep when OTel missing
+                from opentelemetry.trace import Status, StatusCode
+                span.set_status(Status(StatusCode.ERROR, f"{outcome}: {caller}"))
+        except Exception:
+            pass
 ```
 
-Then modify the helper to use `_finalize` at every return point. The disabled paths get `_finalize("disabled", ...)`, the success path gets `_finalize("success", ...)`, the timeout/cancel/nonzero/parse/empty/perm/os paths each get their respective outcome.
+Then modify the helper to use `_finalize` at every return point. The disabled paths get `_finalize("disabled", ...)`, the success path gets `_finalize("success", ...)`, the timeout/cancel/nonzero/parse/empty/perm/os paths each get their respective outcome. **Crucially**, the `CancelledError` re-raise path (Task 4 step 4.4) MUST call `_finalize("cancelled", ...)` BEFORE `raise` so the counter and log emit even though the exception propagates. (See Task 4 step 4.4 update.)
 
 **Step 7.6: Wrap the helper body in an OTel span**
 
@@ -1784,20 +1855,26 @@ Replace the body of `try_crackerjack_cli` (from the start of the function to the
 async def try_crackerjack_cli(...):
     start_time = time.monotonic()
     tracer = _get_tracer()
-    span_cm = tracer.start_as_current_span(
-        "crackerjack.fallback",
-        attributes={
-            "command": _pick_invocation(missing_metrics)[0],  # will be refined inside
-            "caller": caller,
-            "missing_metrics": sorted(missing_metrics),
-        },
-    ) if tracer else _NoOpSpan()
+    span_cm = (
+        tracer.start_as_current_span(
+            "crackerjack.fallback",
+            attributes={
+                "command": _pick_invocation(missing_metrics)[0],
+                "caller": caller,
+                "missing_metrics": sorted(missing_metrics),
+            },
+        )
+        if tracer is not None
+        else _NoOpSpan()
+    )
+    span: object  # either real opentelemetry.trace.Span or _NoOpSpan
     with span_cm as span:
+        # All return paths in the body call _finalize(..., span=span)
         # ... existing helper body, with _finalize calls instead of # TODO: ...
         ...
 ```
 
-(Implementation detail: `_NoOpSpan` is a context manager that does nothing; needed because the OTel API requires a real span or None.)
+`_NoOpSpan` (defined in step 7.5 above) is a context manager whose `set_status` / `set_attribute` are no-ops, so the `_finalize` call works whether or not OTel is configured.
 
 **Step 7.7: Run tests to verify they pass**
 
@@ -1808,26 +1885,68 @@ cd /Users/les/Projects/session-buddy
 
 Expected: PASS (all tests).
 
-**Step 7.8: Commit**
+**Step 7.8: Split Task 7 into intermediate commits**
+
+Task 7 is too large to land in a single reviewer-gate commit. Split into four sequential commits so each can be reviewed independently:
+
+**Commit 7a — Counter registration only**
 
 ```bash
 cd /Users/les/Projects/session-buddy
-git add session_buddy/utils/crackerjack/fallback.py session_buddy/metrics.py tests/unit/test_crackerjack_fallback.py
-git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): observability - counters, logs (parametrized), OTel span
+git add session_buddy/metrics.py
+git -c user.name="les" -c user.email="les@local" commit -m "feat(metrics): register CRACKERJACK_FALLBACK_* counters and histogram
 
-- Add Histogram to metrics.py imports
-- Register CRACKERJACK_FALLBACK_INVOCATIONS (counter) and
-  CRACKERJACK_FALLBACK_DURATION_SECONDS (histogram) with
-  command, outcome, caller labels
-- _finalize() is the single point of observability emission
-  (exactly one log + one counter + one histogram per invocation)
-- OTel span wraps the entire helper (lazy-init; no-op when not
-  configured)
-- Parametrized tests cover all 10 outcomes for counter emission
-  and the 7 WARNING outcomes for log-level routing
-- Concurrency test asserts the module-level lock serializes
-  parallel invocations"
+Adds Histogram to the prometheus_client import (the missing
+import from the v1 review) and registers the two new metrics:
+- session_buddy_crackerjack_fallback_invocations_total{command, outcome, caller}
+- session_buddy_crackerjack_fallback_duration_seconds{command, caller}
+
+No callers yet. Test: pytest tests/unit/test_crackerjack_fallback.py -v
+should still pass; the metric names are exposed via sb_metrics."
 ```
+
+**Commit 7b — `_finalize` helper + emit-counter / observe-duration helpers**
+
+```bash
+git add session_buddy/utils/crackerjack/fallback.py
+git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): _finalize() single observability-emit point
+
+Single point of observability emission: exactly one log + one
+counter + one histogram observation per invocation. _finalize
+also writes the outcome onto the OTel span (when provided) and
+calls set_status(StatusCode.ERROR) on failure outcomes. The
+helper is not yet wired into the body — that's commit 7c."
+```
+
+**Commit 7c — Wire `_finalize` into every return path + OTel span wrap**
+
+```bash
+git add session_buddy/utils/crackerjack/fallback.py tests/unit/test_crackerjack_fallback.py
+git -c user.name="les" -c user.email="les@local" commit -m "feat(fallback): wire _finalize and OTel span across all outcomes
+
+Replace every '# TODO: log + counter (Task 7)' marker with the
+corresponding _finalize call. The CancelledError re-raise path
+in Task 4 step 4.4 now emits its counter BEFORE raise, per
+Observability v2 review C2. OTel span wraps the body via the
+_NoOpSpan fallback class (defined alongside _finalize).
+The span's outcome attribute is set inside _finalize."
+```
+
+**Commit 7d — Concurrency test + final cleanup**
+
+```bash
+git add tests/unit/test_crackerjack_fallback.py
+git -c user.name="les" -c user.email="les@local" commit -m "test(fallback): concurrency test asserts module-level lock serializes
+
+Two concurrent invocations on the same tmp_path must serialize
+through _FALLBACK_LOCK. Test asserts elapsed >= 0.09s when both
+calls sleep 50ms inside their fake wait_for; parallel execution
+would yield ~0.05s. The histogram label-set test
+(test_duration_histogram_label_set_is_bounded) confirms the
+{caller} label cardinality is bounded."
+```
+
+Splitting into four commits gives each one an independent reviewer gate. The "Commit" step previously shown as Step 7.8 is replaced by these four.
 
 ---
 
@@ -2370,7 +2489,11 @@ def _format_metrics_section(result: CrackerjackResult) -> str:
     """Format a quality metrics dict for the MCP tool output.
 
     Renders an unavailable banner when ``quality_metrics`` carries
-    ``unavailable: True``. Handles None values defensively.
+    ``unavailable: True``. Handles None values defensively. Preserves
+    the existing fields (`execution_time`, `exit_code`,
+    `memory_insights`) that the current source renders; the v2 plan's
+    body dropped these — keep them in the rewrite so MCP consumers
+    that depend on them don't lose information.
     """
     quality_metrics = result.quality_metrics
     if quality_metrics.get("unavailable") is True:
@@ -2382,16 +2505,79 @@ def _format_metrics_section(result: CrackerjackResult) -> str:
             continue
         formatted = f"{value:.1f}" if value is not None else "unavailable"
         output += f"- {metric.replace('_', ' ').title()}: {formatted}\n"
+    # Preserve the existing fields the current source renders (audit
+    # #4 from the v2 review: source has them; v2 plan dropped them).
+    if hasattr(result, "execution_time") and result.execution_time:
+        output += f"\n⏱ Execution time: {result.execution_time:.2f}s\n"
+    if hasattr(result, "exit_code") and result.exit_code != 0:
+        output += f"\n⚠️ Exit code: {result.exit_code}\n"
+    if hasattr(result, "memory_insights") and result.memory_insights:
+        output += "\n📝 Memory insights:\n"
+        for insight in result.memory_insights:
+            output += f"- {insight}\n"
     return output
 ```
 
-**Step 11.4: Wire the synthesis dict into a `CrackerjackResult`**
+**Step 11.4: Wire the synthesis dict into a `CrackerjackResult` for the MCP read path**
 
-The synthesis dict from `_create_fallback_metrics` is currently only returned to the consumer. The MCP tool's banner is in `_format_metrics_section` which takes a `CrackerjackResult`. To give the synthesis a real consumer, the consumer chain in `quality_scoring.py` should wrap the synthesis dict in a `CrackerjackResult` for any MCP layer that consumes it.
+The synthesis dict from `_create_fallback_metrics` was previously only returned to the consumer chain. The MCP banner in `_format_metrics_section` requires a `CrackerjackResult`, so the consumer-side synthesis never triggered the banner — a known gap surfaced in v2 review (voice-chat C5). Fix:
 
-In `session_buddy/utils/quality_scoring.py`, the `return _create_fallback_metrics()` line in `_get_crackerjack_metrics` returns the bare dict. If MCP tools need a `CrackerjackResult` (some do, some don't), wrap accordingly. For now, the most important consumer is the MCP `crackerjack_metrics` tool which calls `_crackerjack_metrics_impl` and reads from history. The synthesis dict flows into history via the producer's `_store_result` only when the producer invokes the fallback. The synthesis from the consumer side does NOT reach the MCP banner today.
+In `session_buddy/crackerjack_integration.py`, add a helper that produces a synthesized `CrackerjackResult` carrying the `unavailable: True` flag:
 
-**Decision**: add a docstring note in `quality_scoring.py` explaining that the consumer-side synthesis dict is consumed by downstream callers (e.g., `_calculate_code_quality` in the same file) but does not reach the MCP banner via `_format_metrics_section` because that function consumes producer-side `CrackerjackResult` only. Future work: thread the synthesis through a new MCP tool or add a parallel formatter.
+```python
+def synthesize_unavailable_result(
+    project_dir: str,
+    *,
+    caller: str = "consumer_chain",
+) -> CrackerjackResult:
+    """Produce a CrackerjackResult whose quality_metrics carry unavailable: True.
+
+    Used by the consumer-side chain (`_get_crackerjack_metrics`) when
+    every other tier (DB, reflection, coverage file, CLI fallback) has
+    failed. The result is written to history via `_store_result` so the
+    MCP `crackerjack_metrics` tool's read path surfaces the banner.
+    """
+    return CrackerjackResult(
+        command="<unavailable>",
+        exit_code=-1,
+        stdout="",
+        stderr="",
+        execution_time=0.0,
+        timestamp=utc_now(),
+        working_directory=project_dir,
+        parsed_data={},
+        quality_metrics=_create_fallback_metrics(),  # {"code_coverage": None, ..., "unavailable": True}
+        test_results=[],
+        memory_insights=["All quality-metric tiers failed; CLI fallback returned None or was disabled"],
+        fallback_used=False,
+    )
+```
+
+In `session_buddy/utils/quality_scoring.py`, when the synthesis path is reached, write the synthesized result to history (so the MCP tool's read path surfaces it):
+
+```python
+    if not any(metrics.get(k) is not None for k in SCORING_KEYS):
+        synthesis = _create_fallback_metrics()
+        # Surface the unavailable banner to MCP consumers by writing a
+        # synthesized CrackerjackResult to history. The producer-side
+        # write hook (CrackerjackIntegration._store_result) is what the
+        # crackerjack_metrics MCP tool reads from.
+        try:
+            from session_buddy.crackerjack_integration import (
+                CrackerjackIntegration, synthesize_unavailable_result,
+            )
+            integration = CrackerjackIntegration(working_directory=str(project_dir))
+            integration._store_result(synthesize_unavailable_result(str(project_dir)))
+        except Exception:
+            # History write is best-effort; the synthesis dict still
+            # flows to internal consumers below.
+            pass
+        return synthesis
+```
+
+Add a test that the synthesis path produces a `CrackerjackResult` in history with `quality_metrics["unavailable"] is True` and that the MCP tool's history read yields the banner string when the formatter consumes it.
+
+Step 11.3's `test_format_metrics_section_renders_unavailable_banner` already covers the formatter-side behavior; the new test covers the wire-up.
 
 **Step 11.5: Run tests to verify they pass**
 
@@ -2646,17 +2832,30 @@ counters; use the outcome label on the unified counter."
 - ✅ Env var documented but not wired → Task 1 step 1.4
 - ✅ YAML indentation → 0 leading spaces; verification step 1.7
 - ✅ Post-filter logic broken → `SECTION_FOR_KEY` constant + `if not section: continue`
-- ✅ MCP banner dead code → harden signature; docstring notes synthesis-from-consumer doesn't reach this path
+- ✅ MCP banner dead code → hardened signature; consumer-side synthesis flows to MCP via `synthesize_unavailable_result` (Task 11 step 11.4 in v3)
 - ✅ Task 12 always disabled → `_enable_flag` fixture
 - ✅ Task 12 not valid TDD → `pytest.importorskip` + assert metric was extracted
 - ✅ Task 9 local import → top-level import
 - ✅ Alert guidance missing → new Task 13
 
-**5. Identified residual concerns:**
+**5. Resolved v2 issues (cross-checked against the 4-agent review; the 5th MCP agent failed at the API tier):**
+- ✅ Python C1: bare `_calculate_X` calls → use `cls = _get_crackerjack_integration_class()` then `cls._calculate_X(...)`
+- ✅ Python C2: test data mismatch → `lint_issues: []` so `== 100.0` assertion holds
+- ✅ Python C3: undefined `_NoOpSpan` → class defined in Task 7 step 7.5
+- ✅ Observability C1: OTel `set_status(ERROR)` → `_finalize` calls it for non-success outcomes
+- ✅ Observability C2: cancelled path missing counter → `_finalize("cancelled", ...)` before `raise` in Task 4 step 4.4
+- ✅ voice-chat C1: TDD discipline → Task 6 step 6.3 notes error tests are co-developed with Tasks 4-5
+- ✅ voice-chat C2: Task 7 too big → split into 4 commits (7a-d)
+- ✅ voice-chat C3: OTel span missing `outcome` attribute → `_finalize` sets it
+- ✅ voice-chat C4: dead `complexity_score` entry → removed from `_METRIC_TO_FLAG`
+- ✅ voice-chat C5: banner never fires → `synthesize_unavailable_result` writes to history when consumer reaches synthesis
+
+**6. Identified residual concerns:**
 - Tasks 8-11-12 numbering is non-monotonic (8, 9, 10, 11, 12 reflect post-reorder ordering). This is a documentation quirk; the actual commit history is what matters.
-- The consumer-side synthesis dict does NOT reach `_format_metrics_section` (documented in Task 11 step 11.4). A follow-up could add a parallel formatter if MCP-tool-side visibility for the consumer path is needed.
 - Task 0 is a preflight that produces evidence; it commits the mapping file. If crackerjack is not installed, the mapping is inferred from `_get_applicable_parsers` source. The integration test in Task 12 is the runtime check.
 - The plan does not address pre-existing test collection issues (`tests/unit/test_quality_scoring.py` fails on `ModuleNotFoundError: duckdb`; `tests/unit/test_crackerjack_integration.py` collection pollution). Tests use `--noconftest --override-ini="addopts="` to work around. Pre-existing — not addressed by this branch.
+- The MCP v2 review agent failed at the API tier (token-plan cap); only 4 of 5 agents reported. If a future review surfaces issues that the 4 agents missed, those would need another rework pass.
+- Task 11 step 11.4's wire-up depends on the producer's `_store_result` writing to history. If the actual MCP read path uses a different lookup (e.g., a separate consumer-side history), the implementer must adjust accordingly. Step 11.4's design assumes "MCP tool reads from history that the producer writes to."
 
 ---
 
