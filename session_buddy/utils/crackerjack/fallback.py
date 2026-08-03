@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -16,6 +17,129 @@ from session_buddy.config import feature_flags
 from session_buddy.utils.crackerjack.output_parser import CrackerjackOutputParser
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Observability helpers (Task 7)
+#
+# These helpers are the single point of metric + log + span emission for
+# every invocation. The body of `try_crackerjack_cli` calls `_finalize`
+# at each return path with the right outcome label.
+# ---------------------------------------------------------------------------
+
+
+# OTel tracer (lazy import; no-op when not configured)
+_TRACER = None
+
+
+class _NoOpSpan:
+    """No-op context manager used when OTel isn't configured.
+
+    `tracer.start_as_current_span(...)` returns a
+    `contextlib.AbstractContextManager[Span]`. When the tracer is
+    `None` we substitute this class so the `with span_cm as span:`
+    block in `try_crackerjack_cli` works without an `if`-sentinel
+    on every operation. `set_status` / `set_attribute` are no-ops
+    because there is no underlying span to mutate.
+    """
+
+    def __enter__(self) -> "_NoOpSpan":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False  # do not swallow exceptions
+
+    def set_status(self, status_code, description: str | None = None) -> None:
+        pass
+
+    def set_attribute(self, key: str, value: object) -> None:
+        pass
+
+
+def _get_tracer():
+    """Lazy-init the OpenTelemetry tracer. Returns None when not configured."""
+    global _TRACER
+    if _TRACER is not None:
+        return _TRACER
+    try:
+        from opentelemetry import trace
+        _TRACER = trace.get_tracer(__name__)
+    except Exception:
+        _TRACER = None
+    return _TRACER
+
+
+def _emit_counter(command: str, outcome: str, caller: str) -> None:
+    """Increment the unified invocation counter with command+outcome+caller labels."""
+    try:
+        from session_buddy.metrics import CRACKERJACK_FALLBACK_INVOCATIONS
+        CRACKERJACK_FALLBACK_INVOCATIONS.labels(
+            command=command, outcome=outcome, caller=caller
+        ).inc()
+    except Exception:
+        pass  # metrics are best-effort
+
+
+def _observe_duration(command: str, caller: str, duration_seconds: float) -> None:
+    """Record the invocation duration in the histogram."""
+    try:
+        from session_buddy.metrics import CRACKERJACK_FALLBACK_DURATION_SECONDS
+        CRACKERJACK_FALLBACK_DURATION_SECONDS.labels(
+            command=command, caller=caller
+        ).observe(duration_seconds)
+    except Exception:
+        pass
+
+
+def _finalize(
+    outcome: str,
+    command: str,
+    caller: str,
+    project_dir: Path,
+    missing_metrics: frozenset[str],
+    duration_seconds: float,
+    correlation_context: dict[str, str] | None,
+    span: object | None = None,
+) -> None:
+    """Single point of observability emission. Exactly one log + one counter + one histogram observation per invocation.
+
+    Also writes the outcome onto the OTel span (if provided) and
+    marks failure outcomes with `set_status(StatusCode.ERROR)` so
+    error rates in the tracing UI surface them correctly.
+    """
+    level_map = {
+        "success": logging.INFO,
+        "disabled": logging.DEBUG,
+        "missing_executable": logging.ERROR,
+    }
+    level = level_map.get(outcome, logging.WARNING)
+    logger.log(
+        level,
+        "crackerjack fallback invoked",
+        extra={
+            "command": command,
+            "project_dir": str(project_dir),
+            "project_name": project_dir.name,
+            "missing_metrics": sorted(missing_metrics),
+            "duration_seconds": round(duration_seconds, 3),
+            "outcome": outcome,
+            "caller": caller,
+            "session_id": (correlation_context or {}).get("session_id"),
+            "workflow_id": (correlation_context or {}).get("workflow_id"),
+        },
+    )
+    _emit_counter(command, outcome, caller)
+    _observe_duration(command, caller, duration_seconds)
+    # OTel: tag the span with outcome + mark failures as errors
+    if span is not None:
+        try:
+            span.set_attribute("outcome", outcome)
+            if outcome not in ("success", "disabled"):
+                # Lazy import to avoid a hard dep when OTel missing
+                from opentelemetry.trace import Status, StatusCode
+                span.set_status(Status(StatusCode.ERROR, f"{outcome}: {caller}"))
+        except Exception:
+            pass
 
 
 # Crackerjack v0.47+ uses 'run' subcommand with flag combinations. The
