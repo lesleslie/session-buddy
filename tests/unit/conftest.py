@@ -353,7 +353,7 @@ def _re_attach_utils_to_session_buddy() -> None:
     if sb_pkg is None or getattr(sb_pkg, "__file__", None) is None:
         return
 
-    for submodule_name in ("utils", "memory", "config", "backends", "modes", "cli"):
+    for submodule_name in ("utils", "memory", "config", "backends", "modes", "cli", "cli_with_modes"):
         if hasattr(sb_pkg, submodule_name):
             continue
         full_name = f"session_buddy.{submodule_name}"
