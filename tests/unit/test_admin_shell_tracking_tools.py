@@ -247,11 +247,8 @@ async def test_track_session_start_error_when_event_validation_fails(
 ) -> None:
     """Invalid event payload triggers the catch-all error path with no tracker call."""
 
-    async def _raise(event):  # pragma: no cover  # reason: negative-control helper — tracker must not be reached when event validation fails
-        msg = "tracker should not be called when validation fails"
-        raise AssertionError(msg)
-
-    tracker = SimpleNamespace(handle_session_start=_raise)
+    handle_session_start = AsyncMock()
+    tracker = SimpleNamespace(handle_session_start=handle_session_start)
     monkeypatch.setattr(mod, "_get_session_tracker", lambda: tracker)
 
     mcp = DummyMCP()
@@ -265,6 +262,7 @@ async def test_track_session_start_error_when_event_validation_fails(
     assert result["status"] == "error"
     assert result["session_id"] is None
     assert result["error"]
+    handle_session_start.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -345,11 +343,8 @@ async def test_track_session_end_error_when_event_validation_fails(
 ) -> None:
     """Invalid event payload triggers the catch-all error path."""
 
-    async def _raise(event):  # pragma: no cover  # reason: negative-control helper — tracker must not be reached when event validation fails
-        msg = "tracker should not be called when validation fails"
-        raise AssertionError(msg)
-
-    tracker = SimpleNamespace(handle_session_end=_raise)
+    handle_session_end = AsyncMock()
+    tracker = SimpleNamespace(handle_session_end=handle_session_end)
     monkeypatch.setattr(mod, "_get_session_tracker", lambda: tracker)
 
     mcp = DummyMCP()
@@ -364,6 +359,7 @@ async def test_track_session_end_error_when_event_validation_fails(
     assert result["status"] == "error"
     assert result["session_id"] == "sess-x"
     assert result["error"]
+    handle_session_end.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
