@@ -1,0 +1,1982 @@
+{
+  "captured_at": "2026-08-04T03:14:16.395119Z",
+  "captured_on_commit": "2374756a3cca2ab00ac6a772dc36889327581279",
+  "test_invocation": "uv run pytest tests/ --cov=session_buddy --cov-branch --cov-report=json:coverage.json --cov-report=term-missing:skip-covered -q --no-header --tb=line",
+  "baseline_failure_nodeids": [
+    "tests/functional/test_session_workflows.py::TestSessionCrossPlatform::test_session_in_different_environments",
+    "tests/functional/test_session_workflows.py::TestSessionWorkflows::test_complete_session_workflow",
+    "tests/functional/test_session_workflows.py::TestSessionWorkflows::test_session_quality_scoring",
+    "tests/functional/test_session_workflows.py::TestSessionWorkflows::test_session_status_check",
+    "tests/integration/test_akosha_sync_integration.py::TestSessionEndHookIntegration::test_background_sync_queued",
+    "tests/integration/test_code_indexing_round_trip.py::TestCodeIndexingRoundTrip::test_ingest_directory_then_search_finds_all_files",
+    "tests/integration/test_code_indexing_round_trip.py::TestCodeIndexingRoundTrip::test_ingest_file_then_search_finds_symbol",
+    "tests/integration/test_code_indexing_round_trip.py::TestCodeIndexingRoundTrip::test_ingested_symbol_persists_across_adapter_instances",
+    "tests/integration/test_distilled_skill_health.py::test_distilled_skill_health_marks_cold",
+    "tests/integration/test_distilled_skill_health.py::test_distilled_skill_health_marks_stale",
+    "tests/integration/test_distilled_skill_health.py::test_distilled_skill_health_marks_under_utilized",
+    "tests/integration/test_distilled_skill_health.py::test_distilled_skill_health_three_seed_scenario",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestErrorHandlingAndRecovery::test_command_structure_error_handling",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestErrorHandlingAndRecovery::test_import_error_handling",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestErrorHandlingAndRecovery::test_missing_execute_command_error",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestErrorHandlingAndRecovery::test_timeout_error_handling",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestMCPCrackerjackToolRegistration::test_execute_crackerjack_command_tool_exists",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestMCPCrackerjackToolRegistration::test_tools_registered",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestMCPToolExecution::test_crackerjack_run_tool",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestMCPToolExecution::test_execute_crackerjack_command_tool_execution",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestMCPToolExecution::test_tool_handles_execution_error",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestMCPToolExecution::test_tool_with_args_and_options",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestRealIntegration::test_all_command_mappings",
+    "tests/integration/test_mcp_crackerjack_tools.py::TestRealIntegration::test_real_integration_with_mocked_subprocess",
+    "tests/integration/test_phase2_success_criteria.py::TestPhase2SuccessCriteria::test_graceful_fallback",
+    "tests/integration/test_phase2_success_criteria.py::TestPhase2SuccessCriteria::test_query_rewriting_latency",
+    "tests/integration/test_phase6_success_criteria.py::TestPhase6MCPTools::test_server_has_tools",
+    "tests/integration/test_serverless_storage.py::TestServerlessStorageAdapterOperations::test_cleanup_expired_sessions",
+    "tests/integration/test_serverless_storage.py::TestServerlessStorageAdapterOperations::test_retrieve_session_expired",
+    "tests/integration/test_session_tools.py::TestSessionShortcuts::test_create_session_shortcuts",
+    "tests/integration/test_session_tools.py::TestSessionToolExecution::test_checkpoint_tool_execution",
+    "tests/integration/test_session_tools.py::TestSessionToolExecution::test_checkpoint_tool_failure",
+    "tests/integration/test_session_tools.py::TestSessionToolExecution::test_end_tool_execution",
+    "tests/integration/test_session_tools.py::TestSessionToolExecution::test_end_tool_failure",
+    "tests/integration/test_session_tools.py::TestSessionToolExecution::test_start_tool_execution",
+    "tests/integration/test_session_tools.py::TestSessionToolExecution::test_start_tool_failure",
+    "tests/integration/test_session_tools.py::TestSessionToolExecution::test_status_tool_execution",
+    "tests/integration/test_session_tools.py::TestSessionToolExecution::test_status_tool_failure",
+    "tests/integration/test_session_tools.py::TestSessionToolsRegistration::test_checkpoint_tool_exists",
+    "tests/integration/test_session_tools.py::TestSessionToolsRegistration::test_end_tool_exists",
+    "tests/integration/test_session_tools.py::TestSessionToolsRegistration::test_session_tools_registered",
+    "tests/integration/test_session_tools.py::TestSessionToolsRegistration::test_start_tool_exists",
+    "tests/integration/test_session_tools.py::TestSessionToolsRegistration::test_status_tool_exists",
+    "tests/integration/test_session_tools.py::TestUVSetup::test_setup_uv_dependencies_no_pyproject",
+    "tests/integration/test_session_tools.py::TestUVSetup::test_setup_uv_dependencies_success",
+    "tests/integration/test_session_tools.py::TestUVSetup::test_setup_uv_dependencies_uv_not_available",
+    "tests/integration/test_session_tools.py::TestUtilityTools::test_health_check_tool",
+    "tests/integration/test_session_tools.py::TestUtilityTools::test_ping_tool",
+    "tests/integration/test_session_tools.py::TestUtilityTools::test_server_info_tool",
+    "tests/integration/test_token_optimization_mcp.py::TestReflectOnPastOptimization::test_reflect_on_past_optimization_error_handling",
+    "tests/integration/test_tools_integration.py::TestCrackerjackIntegration::test_quality_metrics_collection",
+    "tests/integration/test_tools_integration.py::TestCrackerjackIntegration::test_quality_score_recommendations",
+    "tests/integration/test_tools_integration.py::TestToolConcurrency::test_concurrent_quality_assessments",
+    "tests/integration/test_tools_integration.py::TestToolErrorHandling::test_quality_assessment_empty_project",
+    "tests/integration/test_tools_integration.py::TestToolErrorHandling::test_quality_recommendations_with_low_score",
+    "tests/test_skills_tracker.py::TestEdgeCases::test_duplicate_detection",
+    "tests/test_skills_tracker.py::TestEdgeCases::test_empty_alternatives",
+    "tests/test_skills_tracker.py::TestEdgeCases::test_session_isolation",
+    "tests/test_skills_tracker.py::TestIntegration::test_full_workflow",
+    "tests/test_skills_tracker.py::TestIntegration::test_json_import_workflow",
+    "tests/test_skills_tracker.py::TestPerformance::test_large_batch_insertion",
+    "tests/test_skills_tracker.py::TestSkillsStorage::test_get_session_invocations",
+    "tests/test_skills_tracker.py::TestSkillsStorage::test_store_invocation",
+    "tests/test_skills_workflow.py::TestWorkflowAwareRecommendations::test_search_by_query_workflow_aware_different_phase_penalty",
+    "tests/test_skills_workflow.py::TestWorkflowAwareRecommendations::test_search_by_query_workflow_aware_no_phase_filter",
+    "tests/test_skills_workflow.py::TestWorkflowAwareRecommendations::test_search_by_query_workflow_aware_same_phase_boost",
+    "tests/test_skills_workflow.py::TestWorkflowIntegration::test_workflow_data_persists_across_sessions",
+    "tests/unit/test_ab_testing.py::TestGetAbFramework::test_get_ab_framework_default_path",
+    "tests/unit/test_ab_testing.py::TestGetAbFramework::test_get_ab_framework_none_uses_default",
+    "tests/unit/test_advanced_features.py::TestGetAdvancedSearchEngine::test_get_advanced_search_engine_sync_handles_exception",
+    "tests/unit/test_advanced_features_v2.py::TestCalculateOverdueTimeEdges::test_future_not_yet_due",
+    "tests/unit/test_advanced_search.py::TestAggregateMetrics::test_aggregate_activity_metrics",
+    "tests/unit/test_advanced_search.py::TestAggregateMetrics::test_aggregate_content_types_metrics",
+    "tests/unit/test_advanced_search.py::TestAggregateMetrics::test_aggregate_errors_metrics",
+    "tests/unit/test_advanced_search.py::TestAggregateMetrics::test_aggregate_projects_metrics",
+    "tests/unit/test_advanced_search.py::TestAggregateMetrics::test_aggregate_with_filters",
+    "tests/unit/test_advanced_search.py::TestBuildMethods::test_insert_conversation_into_search_index",
+    "tests/unit/test_advanced_search.py::TestExecuteSearch::test_execute_search_with_filters",
+    "tests/unit/test_advanced_search.py::TestGetSimilarContent::test_get_similar_content_basic",
+    "tests/unit/test_advanced_search.py::TestGetSimilarContent::test_get_similar_content_with_real_id",
+    "tests/unit/test_advanced_search.py::TestHighlightsAndFacets::test_calculate_facets",
+    "tests/unit/test_advanced_search.py::TestIndexManagement::test_ensure_search_index_new",
+    "tests/unit/test_advanced_search.py::TestIndexManagement::test_get_last_index_update",
+    "tests/unit/test_advanced_search.py::TestIndexing::test_insert_facet_value",
+    "tests/unit/test_advanced_search.py::TestIndexing::test_process_facet_query",
+    "tests/unit/test_advanced_search.py::TestIndexing::test_update_search_facets",
+    "tests/unit/test_advanced_search.py::TestSuggestCompletions::test_suggest_completions_basic",
+    "tests/unit/test_advanced_search.py::TestSuggestCompletions::test_suggest_completions_project_field",
+    "tests/unit/test_advanced_search.py::TestSuggestCompletions::test_suggest_completions_structure",
+    "tests/unit/test_advanced_search.py::TestSuggestCompletions::test_suggest_completions_tags_field",
+    "tests/unit/test_advanced_search.py::TestSuggestCompletions::test_suggest_completions_unknown_field",
+    "tests/unit/test_app_monitor.py::TestApplicationMonitorExt::test_get_activity_summary_with_events",
+    "tests/unit/test_app_monitor.py::TestProjectActivityMonitor::test_get_recent_activity",
+    "tests/unit/test_app_monitor_extras.py::TestGetActiveFilesRecencyBoost::test_recent_file_gets_score_boost",
+    "tests/unit/test_cache_tools.py::test_query_cache_stats_and_clear_cache_paths",
+    "tests/unit/test_cache_tools.py::test_warm_invalidate_and_optimize_cache_paths",
+    "tests/unit/test_category_evolution.py::TestSilhouetteEdgeCases::test_silhouette_handles_sklearn_import_error",
+    "tests/unit/test_compatibility_shims.py::test_quality_utils_v2_aliases_quality_scoring_module",
+    "tests/unit/test_conscious_agent.py::test_conscious_agent_promotes_and_demotes",
+    "tests/unit/test_context_manager.py::TestRelevanceScoringMethods::test_score_recency_for_last_week",
+    "tests/unit/test_context_manager.py::TestRelevanceScoringMethods::test_score_recency_for_today",
+    "tests/unit/test_context_manager_v2.py::TestCacheHitBranch::test_load_relevant_context_uses_cache_with_valid_time",
+    "tests/unit/test_context_manager_v2.py::TestLoadRelevantContextCacheMissOnStale::test_load_relevant_context_refreshes_stale_cache",
+    "tests/unit/test_core_features_coverage.py::test_feature_detector_and_flags_cover_true_and_false_paths",
+    "tests/unit/test_core_lifecycle_coverage.py::test_handoff_build_and_save_paths",
+    "tests/unit/test_coverage_gaps.py::test_compatibility_shims_importable",
+    "tests/unit/test_coverage_gaps.py::test_path_validation_security_branches",
+    "tests/unit/test_crackerjack_integration.py::TestPublicAPI::test_get_crackerjack_integration_function",
+    "tests/unit/test_crackerjack_integration.py::TestQualityMetricsCalculation::test_producer_timeout_invokes_fallback_before_error_result",
+    "tests/unit/test_crackerjack_tools.py::TestCrackerjackMetrics::test_get_crackerjack_quality_metrics",
+    "tests/unit/test_crackerjack_tools.py::TestCrackerjackMetrics::test_metrics_returns_string",
+    "tests/unit/test_crackerjack_tools.py::TestCrackerjackMetricsImpl::test_no_data_message",
+    "tests/unit/test_crackerjack_tools.py::TestCrackerjackMetricsImpl::test_returns_error_when_db_unavailable",
+    "tests/unit/test_crackerjack_tools.py::TestStoreExecutionResult::test_returns_empty_on_error",
+    "tests/unit/test_crackerjack_tools_extras.py::TestCrackerjackHistoryImplSuccess::test_history_with_results",
+    "tests/unit/test_crackerjack_tools_extras.py::TestFormatMetricsSection::test_insights_truncated_to_five",
+    "tests/unit/test_crackerjack_tools_extras.py::TestFormatMetricsSection::test_with_quality_metrics_and_insights",
+    "tests/unit/test_database_pool.py::test_close_all_logs_errors_and_shuts_down_executor",
+    "tests/unit/test_database_pool.py::test_return_connection_logs_excess_close_error",
+    "tests/unit/test_dtz_regressions.py::test_interruption_manager_state_timestamp_is_utc_aware",
+    "tests/unit/test_dtz_regressions.py::test_legacy_permission_id_input_is_utc_interpreted",
+    "tests/unit/test_git_operations.py::TestPruneDelayValidation::test_check_for_changes_clean_and_dirty",
+    "tests/unit/test_git_operations.py::TestPruneDelayValidation::test_optimize_git_repository_branches",
+    "tests/unit/test_git_operations.py::TestPruneDelayValidation::test_optimize_git_repository_exception",
+    "tests/unit/test_git_operations.py::TestPruneDelayValidation::test_parse_worktree_entry_and_context_output",
+    "tests/unit/test_git_operations.py::TestWorktreeOperations::test_get_worktree_info_handles_detached_head",
+    "tests/unit/test_git_operations.py::TestWorktreeOperations::test_list_worktrees_returns_empty_when_runner_fails",
+    "tests/unit/test_git_operations_coverage.py::test_run_git_command_success_and_failure",
+    "tests/unit/test_health_checks.py::TestCheckDatabaseHealth::test_database_health_unhealthy_exception_during_check",
+    "tests/unit/test_health_checks.py::TestCheckDependenciesHealth::test_dependencies_health_multi_project_generic_exception",
+    "tests/unit/test_health_checks.py::TestCheckDependenciesHealth::test_dependencies_health_multi_project_import_error",
+    "tests/unit/test_history_cache.py::test_cache_hit_miss_and_expiry",
+    "tests/unit/test_history_cache.py::test_ttl_hash_returns_iso_string",
+    "tests/unit/test_hnsw_indexing.py::TestHNSWConfigurationOptions::test_custom_hnsw_parameters",
+    "tests/unit/test_hnsw_indexing.py::TestHNSWConfigurationOptions::test_hnsw_with_different_metrics",
+    "tests/unit/test_hnsw_indexing.py::TestHNSWPerformanceBasics::test_index_exists_check",
+    "tests/unit/test_hnsw_indexing.py::TestHNSWPerformanceBasics::test_multiple_collections_independent_indexes",
+    "tests/unit/test_hnsw_indexing.py::TestHNSWSearchPerformance::test_hnsw_ef_search_parameter_set",
+    "tests/unit/test_ide.py::TestPyCharmMCPAdapterFallbackSearch::test_fallback_search_subprocess_exception",
+    "tests/unit/test_interruption_manager.py::TestPublicAPI::test_create_session_context_api",
+    "tests/unit/test_interruption_manager.py::TestPublicAPI::test_get_interruption_history_api",
+    "tests/unit/test_interruption_manager.py::TestPublicAPI::test_get_interruption_manager_singleton",
+    "tests/unit/test_interruption_manager.py::TestPublicAPI::test_get_interruption_statistics_api",
+    "tests/unit/test_interruption_manager.py::TestPublicAPI::test_preserve_current_context_api",
+    "tests/unit/test_interruption_manager.py::TestPublicAPI::test_restore_session_context_api",
+    "tests/unit/test_knowledge_graph_db.py::TestContextManagers::test_async_context_manager_exits",
+    "tests/unit/test_knowledge_graph_db.py::TestContextManagers::test_close_closes_existing_connection",
+    "tests/unit/test_knowledge_graph_db.py::TestContextManagers::test_close_handles_connection_close_exception",
+    "tests/unit/test_knowledge_graph_db.py::TestKnowledgeGraphRealDuckDB::test_async_context_manager_initializes_and_closes",
+    "tests/unit/test_knowledge_graph_db.py::TestKnowledgeGraphRealDuckDB::test_get_stats_duckpgq_flag_set",
+    "tests/unit/test_lifecycle_cleanup.py::test_cleanup_reflection_adapter_prefers_oneiric",
+    "tests/unit/test_logging.py::test_get_file_handler_ignores_handler_errors",
+    "tests/unit/test_mcp_quality_scorer.py::test_mcp_quality_scorer_permissions_score_cache",
+    "tests/unit/test_mcp_quality_scorer.py::test_mcp_quality_scorer_permissions_score_cap",
+    "tests/unit/test_mcp_recommendation_engine.py::test_mcp_recommendation_engine_pattern_and_effectiveness_insights",
+    "tests/unit/test_mcp_server_core.py::TestAutoSetupGitWorkingDirectoryExtra::test_setup_exception_caught_gracefully",
+    "tests/unit/test_mcp_server_core.py::TestEndGitSessionExtra::test_end_git_session_exception_caught",
+    "tests/unit/test_mcp_server_core.py::TestInitializeGitSessionExtra::test_init_session_exception_caught",
+    "tests/unit/test_memory_optimizer.py::TestConversationSummarizerDeepCoverage::test_summarizer_falls_back_when_strategy_method_raises",
+    "tests/unit/test_memory_tools.py::TestExecuteDatabaseTool::test_execute_with_validation_error",
+    "tests/unit/test_modes_standard.py::TestStandardMode::test_validate_environment_data_dir_not_writable",
+    "tests/unit/test_optimized_examples.py::test_quality_scoring_parametrized[high-quality]",
+    "tests/unit/test_optimized_examples.py::test_quality_scoring_parametrized[medium-quality]",
+    "tests/unit/test_otel_trace_tools.py::test_query_local_traces_and_registration",
+    "tests/unit/test_parameter_models.py::TestWorkingDirectoryParams::test_expanduser_path",
+    "tests/unit/test_progressive_search.py::TestProgressiveSearchEdgeCases::test_search_tier_uses_default_db_adapter",
+    "tests/unit/test_protocol_compliance.py::TestErrorHandlingProtocol::test_async_method_error_handling",
+    "tests/unit/test_quality_engine.py::TestAnalyzeProjectWorkflowOuterException::test_analyze_project_workflow_patterns_outer_exception",
+    "tests/unit/test_quality_engine.py::TestQualityScoreCalculation::test_calculate_quality_score_returns_dict",
+    "tests/unit/test_quality_engine.py::TestQualityScoreCalculation::test_calculate_quality_score_with_no_project",
+    "tests/unit/test_quality_engine.py::TestQualityScoreCalculation::test_calculate_quality_score_with_nonexistent_path",
+    "tests/unit/test_quality_scoring_helpers.py::test_cached_metrics_respects_ttl",
+    "tests/unit/test_quality_scoring_helpers.py::test_calculate_quality_score_v2_and_metrics_cache",
+    "tests/unit/test_quality_scoring_helpers.py::test_coverage_readers_and_fallback_metrics",
+    "tests/unit/test_quality_scoring_helpers.py::test_coverage_readers_and_metric_fallback_edges",
+    "tests/unit/test_quality_scoring_helpers.py::test_crackerjack_metrics_fallback_and_recommendation_branches",
+    "tests/unit/test_quality_scoring_helpers.py::test_get_crackerjack_metrics_fallback_paths",
+    "tests/unit/test_quality_scoring_helpers.py::test_get_crackerjack_metrics_no_data",
+    "tests/unit/test_quality_scoring_helpers.py::test_git_and_commit_helpers_cover_branching",
+    "tests/unit/test_recommendation_engine.py::TestRecommendationEngine::test_analyze_history_with_failed_fixes",
+    "tests/unit/test_recommendation_engine.py::TestRecommendationEngine::test_analyze_history_with_successful_fixes",
+    "tests/unit/test_recommendation_engine.py::TestRecommendationEngine::test_caching_behavior",
+    "tests/unit/test_recommendation_engine_helpers.py::test_extract_patterns_and_effectiveness_and_signatures",
+    "tests/unit/test_recommendation_engine_helpers.py::test_pattern_and_effectiveness_insights_and_adjustment",
+    "tests/unit/test_resource_cleanup.py::TestGetLogger::test_get_logger_fallback_on_import_error",
+    "tests/unit/test_runtime_snapshots_core.py::test_runtime_snapshot_manager_for_server_and_record",
+    "tests/unit/test_search_tools.py::TestExtractMentionedFiles::test_extract_mentioned_files_empty",
+    "tests/unit/test_search_tools.py::TestExtractMentionedFiles::test_extract_mentioned_files_python",
+    "tests/unit/test_search_tools.py::TestParseTimeExpression::test_parse_time_expression_last_month",
+    "tests/unit/test_search_tools.py::TestParseTimeExpression::test_parse_time_expression_last_week",
+    "tests/unit/test_search_tools.py::TestParseTimeExpression::test_parse_time_expression_today",
+    "tests/unit/test_search_tools.py::TestParseTimeExpression::test_parse_time_expression_yesterday",
+    "tests/unit/test_search_tools_extras.py::TestClassifySkillStatusExtras::test_fresh_when_pattern_matches_crackerjack",
+    "tests/unit/test_search_tools_extras.py::TestClassifySkillStatusExtras::test_high_importance_without_crackerjack_list_stays_fresh",
+    "tests/unit/test_search_tools_extras.py::TestClassifySkillStatusExtras::test_stale_via_old_timestamp",
+    "tests/unit/test_search_tools_extras.py::TestClassifySkillStatusExtras::test_under_utilized_high_importance_no_match",
+    "tests/unit/test_search_tools_extras.py::TestExtractMentionedFilesExtras::test_handles_no_files_gracefully",
+    "tests/unit/test_search_tools_extras.py::TestExtractMentionedFilesExtras::test_returns_empty_for_repeated_paths",
+    "tests/unit/test_search_tools_extras.py::TestExtractMentionedFilesExtras::test_returns_empty_list_for_python_paths",
+    "tests/unit/test_search_tools_extras.py::TestFormatConceptResultsExtras::test_with_files_branch_currently_noop",
+    "tests/unit/test_search_tools_extras.py::TestFormatConceptResultsExtras::test_with_files_branch_no_match",
+    "tests/unit/test_search_tools_extras.py::TestParseTimeExpressionExtras::test_today_bucket",
+    "tests/unit/test_search_tools_extras.py::TestParseTimeExpressionExtras::test_yesterday_bucket",
+    "tests/unit/test_search_utilities_helpers.py::test_parse_timeframe_branches",
+    "tests/unit/test_server.py::TestHealthCheck::test_health_check_with_string_body",
+    "tests/unit/test_server_core.py::TestAutoSetupGitWorkingDirectory::test_auto_setup_exception_handling",
+    "tests/unit/test_server_core.py::TestEndGitSession::test_end_git_session_exception",
+    "tests/unit/test_server_core.py::TestInitializeGitSession::test_initialize_git_session_exception",
+    "tests/unit/test_server_tools.py::TestToolErrorHandling::test_start_tool_handles_implementation_errors",
+    "tests/unit/test_server_tools.py::TestToolParameterValidation::test_checkpoint_tool_accepts_none_directory",
+    "tests/unit/test_server_tools.py::TestToolParameterValidation::test_start_tool_accepts_valid_directory",
+    "tests/unit/test_serverless_mode.py::TestServerlessStorageAdapterEdgeCases::test_cleanup_expired_sessions_deletes_expired",
+    "tests/unit/test_serverless_mode.py::TestServerlessStorageAdapterEdgeCases::test_cleanup_expired_sessions_none_found",
+    "tests/unit/test_serverless_mode.py::TestServerlessStorageAdapterEdgeCases::test_cleanup_handles_invalid_timestamp",
+    "tests/unit/test_serverless_mode.py::TestServerlessStorageAdapterEdgeCases::test_list_sessions_filters_expired",
+    "tests/unit/test_serverless_storage_adapter.py::TestServerlessStorageAdapterCleanupExpiredSessions::test_cleanup_expired_sessions",
+    "tests/unit/test_serverless_storage_adapter.py::TestServerlessStorageAdapterCleanupExpiredSessions::test_cleanup_expired_sessions_delete_failure",
+    "tests/unit/test_serverless_storage_adapter.py::TestServerlessStorageAdapterCleanupExpiredSessions::test_cleanup_expired_sessions_none_to_clean",
+    "tests/unit/test_serverless_storage_adapter.py::TestServerlessStorageAdapterListSessions::test_list_sessions_filter_by_project",
+    "tests/unit/test_serverless_storage_adapter.py::TestServerlessStorageAdapterListSessions::test_list_sessions_filter_by_user",
+    "tests/unit/test_serverless_storage_adapter.py::TestServerlessStorageAdapterListSessions::test_list_sessions_filter_by_user_and_project",
+    "tests/unit/test_serverless_storage_adapter.py::TestServerlessStorageAdapterListSessions::test_list_sessions_no_filter",
+    "tests/unit/test_serverless_storage_adapter.py::TestServerlessStorageAdapterRetrieveSession::test_retrieve_session_removes_ttl_metadata",
+    "tests/unit/test_serverless_storage_adapter.py::TestServerlessStorageAdapterRetrieveSession::test_retrieve_session_with_expired_ttl",
+    "tests/unit/test_session_manager.py::TestSessionLifecycleManagerGitCheckpoint::test_perform_git_checkpoint_exception",
+    "tests/unit/test_session_manager.py::TestSessionLifecycleManagerHandoffDocumentation::test_save_handoff_documentation_exception",
+    "tests/unit/test_session_manager.py::TestSessionLifecycleManagerSessionEnd::test_end_session_exception",
+    "tests/unit/test_session_manager_edge_cases.py::TestSessionManagerEdgeCases::test_end_session_exception_handling",
+    "tests/unit/test_session_manager_edge_cases.py::TestSessionManagerEdgeCases::test_perform_git_checkpoint_error_conditions",
+    "tests/unit/test_session_manager_high_impact.py::test_checkpoint_session_continues_when_hooks_di_lookup_fails",
+    "tests/unit/test_session_manager_high_impact.py::test_constructor_falls_back_to_default_quality_scorer",
+    "tests/unit/test_session_manager_high_impact.py::test_end_session_continues_when_hooks_di_lookup_fails",
+    "tests/unit/test_session_manager_high_impact.py::test_end_session_returns_failure_on_outer_exception",
+    "tests/unit/test_session_manager_high_impact.py::test_initialize_templates_handles_jinja_import_failure",
+    "tests/unit/test_session_manager_high_impact.py::test_perform_git_checkpoint_success_and_failure_paths",
+    "tests/unit/test_session_manager_high_impact.py::test_schedule_git_maintenance_covers_settings_and_gc_paths",
+    "tests/unit/test_session_tools.py::TestAddEnvironmentInfoToOutput::test_add_environment_info_shortcuts_existed",
+    "tests/unit/test_session_tools.py::TestAddQualitySectionToOutput::test_add_quality_section_with_valid_data",
+    "tests/unit/test_session_tools.py::TestCheckpointImplCoverage::test_checkpoint_impl_auto_store_reflection_exception",
+    "tests/unit/test_session_tools.py::TestCheckpointTool::test_checkpoint_impl_performs_checkpoint",
+    "tests/unit/test_session_tools.py::TestClientWorkingDirectoryDetection::test_get_client_working_directory_calls_in_order",
+    "tests/unit/test_session_tools.py::TestCreateSessionShortcuts::test_creates_shortcuts_in_claude_directory",
+    "tests/unit/test_session_tools.py::TestCreateSessionShortcuts::test_detects_existing_shortcuts",
+    "tests/unit/test_session_tools.py::TestEndTool::test_end_impl_ends_session",
+    "tests/unit/test_session_tools.py::TestHandleAutoStoreReflection::test_auto_store_reflection_with_no_decision",
+    "tests/unit/test_session_tools.py::TestHealthCheckTools::test_health_check_returns_status",
+    "tests/unit/test_session_tools.py::TestHelperFunctions::test_setup_uv_dependencies_detects_uv",
+    "tests/unit/test_session_tools.py::TestHelperFunctions::test_setup_uv_dependencies_handles_no_uv",
+    "tests/unit/test_session_tools.py::TestPreCompactSyncImplementation::test_pre_compact_sync_impl_exception_handling",
+    "tests/unit/test_session_tools.py::TestRegisterSessionToolsComplete::test_pre_compact_sync_tool_format",
+    "tests/unit/test_session_tools.py::TestSessionManagerAccess::test_get_session_manager_returns_instance",
+    "tests/unit/test_session_tools.py::TestSessionManagerAccess::test_session_manager_global_is_set",
+    "tests/unit/test_session_tools.py::TestSessionOutputBuilder::test_add_header_creates_formatted_header",
+    "tests/unit/test_session_tools.py::TestSessionOutputBuilder::test_add_section_adds_title_and_items",
+    "tests/unit/test_session_tools.py::TestSessionOutputBuilder::test_add_status_item_with_failure",
+    "tests/unit/test_session_tools.py::TestSessionOutputBuilder::test_add_status_item_with_success",
+    "tests/unit/test_session_tools.py::TestSessionOutputBuilder::test_build_joins_sections",
+    "tests/unit/test_session_tools.py::TestSessionOutputBuilder::test_builder_initialization",
+    "tests/unit/test_session_tools.py::TestSessionSetupResults::test_dataclass_initialization",
+    "tests/unit/test_session_tools.py::TestSessionSetupResults::test_dataclass_with_values",
+    "tests/unit/test_session_tools.py::TestSessionToolsCoverageEnhancement::test_collect_git_repos_skips_non_directories",
+    "tests/unit/test_session_tools.py::TestSessionToolsCoverageEnhancement::test_format_recommendations_empty_list",
+    "tests/unit/test_session_tools.py::TestSessionToolsCoverageEnhancement::test_format_recommendations_with_items",
+    "tests/unit/test_session_tools.py::TestSessionToolsCoverageEnhancement::test_format_session_summary_with_handoff",
+    "tests/unit/test_session_tools.py::TestSessionToolsCoverageEnhancement::test_format_session_summary_without_handoff",
+    "tests/unit/test_session_tools.py::TestSessionToolsCoverageEnhancement::test_get_most_recent_client_repo_sorts_by_mtime",
+    "tests/unit/test_session_tools.py::TestSetupUvDependenciesCoverage::test_uv_sync_subprocess_exception",
+    "tests/unit/test_session_tools.py::TestStartImplCoverage::test_start_impl_exception_during_setup",
+    "tests/unit/test_session_tools.py::TestStartTool::test_start_impl_returns_formatted_output",
+    "tests/unit/test_session_tools.py::TestStatusTool::test_status_impl_returns_status",
+    "tests/unit/test_session_tools.py::TestWorkingDirectoryDetection::test_check_environment_variables_finds_claude_working_dir",
+    "tests/unit/test_session_tools.py::TestWorkingDirectoryDetection::test_check_working_dir_file_reads_temp_file",
+    "tests/unit/test_session_tools.py::TestWorkingDirectoryDetection::test_is_git_repository_detects_git",
+    "tests/unit/test_session_tools.py::TestWorkingDirectoryDetection::test_is_git_repository_rejects_non_git",
+    "tests/unit/test_session_tools_v2.py::TestSafeGetMtime::test_returns_none_on_error",
+    "tests/unit/test_settings.py::TestSessionMgmtSettingsLoad::test_load_with_temp_settings_file",
+    "tests/unit/test_shell_adapter.py::TestComponentMetadata::test_get_component_version_handles_missing_package",
+    "tests/unit/test_time_series.py::TestGetAnalyzer::test_get_analyzer_default_path",
+    "tests/unit/test_token_optimizer.py::TestTokenOptimizerEncoding::test_get_encoding_exception",
+    "tests/unit/test_token_optimizer.py::TestUsageStats::test_stats_old_data_excluded",
+    "tests/unit/test_token_optimizer.py::TestUsageStats::test_stats_optimizations_counted",
+    "tests/unit/test_token_optimizer.py::TestUsageStats::test_stats_with_recent_data",
+    "tests/unit/test_tools_integration.py::TestEndToEndWorkflow::test_cache_integration_workflow",
+    "tests/unit/test_tools_integration.py::TestEndToEndWorkflow::test_complete_workflow_with_failure_and_fix",
+    "tests/unit/test_tools_integration.py::TestEndToEndWorkflow::test_confidence_adjustment_integration",
+    "tests/unit/test_tools_integration.py::TestRecommendationEngineIntegration::test_insights_generation",
+    "tests/unit/test_tools_integration.py::TestRecommendationEngineIntegration::test_pattern_signature_uniqueness",
+    "tests/unit/test_worktree_manager.py::TestWorktreeManagerSecurityValidation::test_is_safe_path_valid",
+    "tests/unit/test_worktree_manager_v2.py::TestGetWorktreeStatus::test_status_exception",
+    "tests/unit/test_worktree_manager_v2.py::TestListWorktrees::test_list_worktrees_exception",
+    "tests/unit/test_worktree_manager_v2.py::TestSecurityValidation::test_is_safe_path_valid",
+    "tests/unit/test_worktree_manager_v2.py::TestSessionCoordination::test_save_current_session_state"
+  ],
+  "test_count_total": null,
+  "per_file_metrics": {
+    "session_buddy/__main__.py": {
+      "lines": 3,
+      "covered_lines": 3,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/adapters/knowledge_graph_adapter.py": {
+      "lines": 3,
+      "covered_lines": 3,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/adapters/knowledge_graph_adapter_oneiric.py": {
+      "lines": 350,
+      "covered_lines": 294,
+      "missing_lines": 56,
+      "pct": 81.8,
+      "branch_pct": 81.8
+    },
+    "session_buddy/adapters/knowledge_graph_adapter_phase3.py": {
+      "lines": 123,
+      "covered_lines": 122,
+      "missing_lines": 1,
+      "pct": 97.33,
+      "branch_pct": 97.33
+    },
+    "session_buddy/adapters/knowledge_graph_phase3_patch.py": {
+      "lines": 118,
+      "covered_lines": 115,
+      "missing_lines": 3,
+      "pct": 96.63,
+      "branch_pct": 96.63
+    },
+    "session_buddy/adapters/lifecycle.py": {
+      "lines": 132,
+      "covered_lines": 62,
+      "missing_lines": 70,
+      "pct": 43.67,
+      "branch_pct": 43.67
+    },
+    "session_buddy/adapters/reflection_adapter.py": {
+      "lines": 3,
+      "covered_lines": 3,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/adapters/reflection_adapter_oneiric.py": {
+      "lines": 799,
+      "covered_lines": 699,
+      "missing_lines": 100,
+      "pct": 85.22,
+      "branch_pct": 85.22
+    },
+    "session_buddy/adapters/serverless_storage_adapter.py": {
+      "lines": 112,
+      "covered_lines": 99,
+      "missing_lines": 13,
+      "pct": 83.56,
+      "branch_pct": 83.56
+    },
+    "session_buddy/adapters/session_storage_adapter.py": {
+      "lines": 98,
+      "covered_lines": 92,
+      "missing_lines": 6,
+      "pct": 93.64,
+      "branch_pct": 93.64
+    },
+    "session_buddy/adapters/settings.py": {
+      "lines": 55,
+      "covered_lines": 55,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/adapters/storage_oneiric.py": {
+      "lines": 264,
+      "covered_lines": 241,
+      "missing_lines": 23,
+      "pct": 87.29,
+      "branch_pct": 87.29
+    },
+    "session_buddy/advanced_features.py": {
+      "lines": 374,
+      "covered_lines": 359,
+      "missing_lines": 15,
+      "pct": 95.15,
+      "branch_pct": 95.15
+    },
+    "session_buddy/advanced_search.py": {
+      "lines": 396,
+      "covered_lines": 320,
+      "missing_lines": 76,
+      "pct": 75.48,
+      "branch_pct": 75.48
+    },
+    "session_buddy/analytics/ab_testing.py": {
+      "lines": 142,
+      "covered_lines": 141,
+      "missing_lines": 1,
+      "pct": 98.8,
+      "branch_pct": 98.8
+    },
+    "session_buddy/analytics/cli.py": {
+      "lines": 167,
+      "covered_lines": 167,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/analytics/collaborative_filtering.py": {
+      "lines": 127,
+      "covered_lines": 97,
+      "missing_lines": 30,
+      "pct": 71.14,
+      "branch_pct": 71.14
+    },
+    "session_buddy/analytics/predictive.py": {
+      "lines": 95,
+      "covered_lines": 22,
+      "missing_lines": 73,
+      "pct": 20.56,
+      "branch_pct": 20.56
+    },
+    "session_buddy/analytics/session_analytics.py": {
+      "lines": 272,
+      "covered_lines": 257,
+      "missing_lines": 15,
+      "pct": 93.45,
+      "branch_pct": 93.45
+    },
+    "session_buddy/analytics/time_series.py": {
+      "lines": 118,
+      "covered_lines": 102,
+      "missing_lines": 16,
+      "pct": 80.92,
+      "branch_pct": 80.92
+    },
+    "session_buddy/analytics/usage_tracker.py": {
+      "lines": 112,
+      "covered_lines": 107,
+      "missing_lines": 5,
+      "pct": 94.2,
+      "branch_pct": 94.2
+    },
+    "session_buddy/app_monitor.py": {
+      "lines": 420,
+      "covered_lines": 384,
+      "missing_lines": 36,
+      "pct": 89.07,
+      "branch_pct": 89.07
+    },
+    "session_buddy/backends/base.py": {
+      "lines": 41,
+      "covered_lines": 41,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/backends/local_backend.py": {
+      "lines": 90,
+      "covered_lines": 74,
+      "missing_lines": 16,
+      "pct": 84.26,
+      "branch_pct": 84.26
+    },
+    "session_buddy/backends/redis_backend.py": {
+      "lines": 123,
+      "covered_lines": 106,
+      "missing_lines": 17,
+      "pct": 86.71,
+      "branch_pct": 86.71
+    },
+    "session_buddy/backends/s3_backend.py": {
+      "lines": 128,
+      "covered_lines": 105,
+      "missing_lines": 23,
+      "pct": 82.88,
+      "branch_pct": 82.88
+    },
+    "session_buddy/cache/query_cache.py": {
+      "lines": 218,
+      "covered_lines": 144,
+      "missing_lines": 74,
+      "pct": 60.92,
+      "branch_pct": 60.92
+    },
+    "session_buddy/cli.py": {
+      "lines": 95,
+      "covered_lines": 75,
+      "missing_lines": 20,
+      "pct": 71.68,
+      "branch_pct": 71.68
+    },
+    "session_buddy/cli_with_modes.py": {
+      "lines": 90,
+      "covered_lines": 71,
+      "missing_lines": 19,
+      "pct": 78.72,
+      "branch_pct": 78.72
+    },
+    "session_buddy/code_analysis/kg_extractor.py": {
+      "lines": 85,
+      "covered_lines": 85,
+      "missing_lines": 0,
+      "pct": 99.08,
+      "branch_pct": 99.08
+    },
+    "session_buddy/commands/checkpoint.py": {
+      "lines": 18,
+      "covered_lines": 18,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/config/feature_flags.py": {
+      "lines": 24,
+      "covered_lines": 24,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/context/optimizer.py": {
+      "lines": 112,
+      "covered_lines": 85,
+      "missing_lines": 27,
+      "pct": 72.08,
+      "branch_pct": 72.08
+    },
+    "session_buddy/context_manager.py": {
+      "lines": 266,
+      "covered_lines": 259,
+      "missing_lines": 7,
+      "pct": 95.72,
+      "branch_pct": 95.72
+    },
+    "session_buddy/core/bottleneck_detector.py": {
+      "lines": 185,
+      "covered_lines": 151,
+      "missing_lines": 34,
+      "pct": 75.34,
+      "branch_pct": 75.34
+    },
+    "session_buddy/core/causal_chains.py": {
+      "lines": 116,
+      "covered_lines": 71,
+      "missing_lines": 45,
+      "pct": 57.04,
+      "branch_pct": 57.04
+    },
+    "session_buddy/core/conversation_storage.py": {
+      "lines": 108,
+      "covered_lines": 85,
+      "missing_lines": 23,
+      "pct": 76.71,
+      "branch_pct": 76.71
+    },
+    "session_buddy/core/features.py": {
+      "lines": 82,
+      "covered_lines": 82,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/core/hooks.py": {
+      "lines": 183,
+      "covered_lines": 183,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/core/intelligence.py": {
+      "lines": 403,
+      "covered_lines": 374,
+      "missing_lines": 29,
+      "pct": 89.95,
+      "branch_pct": 89.95
+    },
+    "session_buddy/core/intent_detector.py": {
+      "lines": 121,
+      "covered_lines": 120,
+      "missing_lines": 1,
+      "pct": 98.22,
+      "branch_pct": 98.22
+    },
+    "session_buddy/core/lifecycle/handoff.py": {
+      "lines": 42,
+      "covered_lines": 41,
+      "missing_lines": 1,
+      "pct": 95.83,
+      "branch_pct": 95.83
+    },
+    "session_buddy/core/lifecycle/project_context.py": {
+      "lines": 40,
+      "covered_lines": 40,
+      "missing_lines": 0,
+      "pct": 97.92,
+      "branch_pct": 97.92
+    },
+    "session_buddy/core/lifecycle/service_registry.py": {
+      "lines": 163,
+      "covered_lines": 157,
+      "missing_lines": 6,
+      "pct": 94.54,
+      "branch_pct": 94.54
+    },
+    "session_buddy/core/lifecycle/session_info.py": {
+      "lines": 87,
+      "covered_lines": 87,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/core/memory_health.py": {
+      "lines": 119,
+      "covered_lines": 119,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/core/permissions.py": {
+      "lines": 102,
+      "covered_lines": 102,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/core/quality_scoring.py": {
+      "lines": 21,
+      "covered_lines": 21,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/core/session_analytics.py": {
+      "lines": 268,
+      "covered_lines": 72,
+      "missing_lines": 196,
+      "pct": 21.43,
+      "branch_pct": 21.43
+    },
+    "session_buddy/core/session_manager.py": {
+      "lines": 507,
+      "covered_lines": 496,
+      "missing_lines": 11,
+      "pct": 96.8,
+      "branch_pct": 96.8
+    },
+    "session_buddy/core/skills_tracker.py": {
+      "lines": 223,
+      "covered_lines": 159,
+      "missing_lines": 64,
+      "pct": 68.73,
+      "branch_pct": 68.73
+    },
+    "session_buddy/core/ulid_generator.py": {
+      "lines": 25,
+      "covered_lines": 25,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/core/workflow_metrics.py": {
+      "lines": 193,
+      "covered_lines": 188,
+      "missing_lines": 5,
+      "pct": 95.36,
+      "branch_pct": 95.36
+    },
+    "session_buddy/crackerjack_integration.py": {
+      "lines": 454,
+      "covered_lines": 419,
+      "missing_lines": 35,
+      "pct": 91.21,
+      "branch_pct": 91.21
+    },
+    "session_buddy/di/config.py": {
+      "lines": 21,
+      "covered_lines": 21,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/di/constants.py": {
+      "lines": 5,
+      "covered_lines": 5,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/di/container.py": {
+      "lines": 63,
+      "covered_lines": 42,
+      "missing_lines": 21,
+      "pct": 62.65,
+      "branch_pct": 62.65
+    },
+    "session_buddy/doctor.py": {
+      "lines": 222,
+      "covered_lines": 215,
+      "missing_lines": 7,
+      "pct": 95.95,
+      "branch_pct": 95.95
+    },
+    "session_buddy/health_checks.py": {
+      "lines": 219,
+      "covered_lines": 202,
+      "missing_lines": 17,
+      "pct": 90.39,
+      "branch_pct": 90.39
+    },
+    "session_buddy/hooks/single_flight.py": {
+      "lines": 22,
+      "covered_lines": 22,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/ingesters/claude_code_transcript.py": {
+      "lines": 130,
+      "covered_lines": 127,
+      "missing_lines": 3,
+      "pct": 97.8,
+      "branch_pct": 97.8
+    },
+    "session_buddy/ingesters/redaction.py": {
+      "lines": 39,
+      "covered_lines": 38,
+      "missing_lines": 1,
+      "pct": 96.61,
+      "branch_pct": 96.61
+    },
+    "session_buddy/insights/console.py": {
+      "lines": 51,
+      "covered_lines": 45,
+      "missing_lines": 6,
+      "pct": 84.75,
+      "branch_pct": 84.75
+    },
+    "session_buddy/insights/extractor.py": {
+      "lines": 160,
+      "covered_lines": 151,
+      "missing_lines": 9,
+      "pct": 91.74,
+      "branch_pct": 91.74
+    },
+    "session_buddy/insights/models.py": {
+      "lines": 81,
+      "covered_lines": 81,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/integrations/cicd_tracker.py": {
+      "lines": 161,
+      "covered_lines": 159,
+      "missing_lines": 2,
+      "pct": 97.33,
+      "branch_pct": 97.33
+    },
+    "session_buddy/integrations/crackerjack_hooks.py": {
+      "lines": 87,
+      "covered_lines": 87,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/integrations/ide_plugin.py": {
+      "lines": 134,
+      "covered_lines": 127,
+      "missing_lines": 7,
+      "pct": 91.4,
+      "branch_pct": 91.4
+    },
+    "session_buddy/interruption_manager.py": {
+      "lines": 358,
+      "covered_lines": 278,
+      "missing_lines": 80,
+      "pct": 74.41,
+      "branch_pct": 74.41
+    },
+    "session_buddy/knowledge_graph_db.py": {
+      "lines": 219,
+      "covered_lines": 210,
+      "missing_lines": 9,
+      "pct": 95.37,
+      "branch_pct": 95.37
+    },
+    "session_buddy/llm/base.py": {
+      "lines": 9,
+      "covered_lines": 9,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/llm/models.py": {
+      "lines": 46,
+      "covered_lines": 46,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/llm/providers/anthropic_provider.py": {
+      "lines": 61,
+      "covered_lines": 61,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/llm/providers/gemini_provider.py": {
+      "lines": 81,
+      "covered_lines": 78,
+      "missing_lines": 3,
+      "pct": 97.2,
+      "branch_pct": 97.2
+    },
+    "session_buddy/llm/providers/ollama_provider.py": {
+      "lines": 126,
+      "covered_lines": 104,
+      "missing_lines": 22,
+      "pct": 83.75,
+      "branch_pct": 83.75
+    },
+    "session_buddy/llm/providers/openai_provider.py": {
+      "lines": 57,
+      "covered_lines": 57,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/llm/security.py": {
+      "lines": 93,
+      "covered_lines": 91,
+      "missing_lines": 2,
+      "pct": 97.93,
+      "branch_pct": 97.93
+    },
+    "session_buddy/llm_providers.py": {
+      "lines": 339,
+      "covered_lines": 300,
+      "missing_lines": 39,
+      "pct": 87.31,
+      "branch_pct": 87.31
+    },
+    "session_buddy/mcp/auth.py": {
+      "lines": 71,
+      "covered_lines": 71,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/code_formatter.py": {
+      "lines": 8,
+      "covered_lines": 8,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/event_models.py": {
+      "lines": 190,
+      "covered_lines": 190,
+      "missing_lines": 0,
+      "pct": 99.57,
+      "branch_pct": 99.57
+    },
+    "session_buddy/mcp/metrics.py": {
+      "lines": 94,
+      "covered_lines": 94,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/quality_scorer.py": {
+      "lines": 24,
+      "covered_lines": 19,
+      "missing_lines": 5,
+      "pct": 75.0,
+      "branch_pct": 75.0
+    },
+    "session_buddy/mcp/schemas.py": {
+      "lines": 67,
+      "covered_lines": 67,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/server.py": {
+      "lines": 44,
+      "covered_lines": 35,
+      "missing_lines": 9,
+      "pct": 75.93,
+      "branch_pct": 75.93
+    },
+    "session_buddy/mcp/server_core.py": {
+      "lines": 244,
+      "covered_lines": 233,
+      "missing_lines": 11,
+      "pct": 94.14,
+      "branch_pct": 94.14
+    },
+    "session_buddy/mcp/session_tracker.py": {
+      "lines": 102,
+      "covered_lines": 102,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/telemetry.py": {
+      "lines": 70,
+      "covered_lines": 70,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/advanced/conscious_agent_tools.py": {
+      "lines": 35,
+      "covered_lines": 35,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/advanced/entity_extraction_tools.py": {
+      "lines": 38,
+      "covered_lines": 38,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/advanced/fingerprint_tools.py": {
+      "lines": 196,
+      "covered_lines": 170,
+      "missing_lines": 26,
+      "pct": 85.2,
+      "branch_pct": 85.2
+    },
+    "session_buddy/mcp/tools/advanced/intent_detection_tools.py": {
+      "lines": 78,
+      "covered_lines": 70,
+      "missing_lines": 8,
+      "pct": 86.96,
+      "branch_pct": 86.96
+    },
+    "session_buddy/mcp/tools/advanced/intent_tools_registration.py": {
+      "lines": 68,
+      "covered_lines": 68,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/advanced/recommendation_engine.py": {
+      "lines": 211,
+      "covered_lines": 186,
+      "missing_lines": 25,
+      "pct": 84.67,
+      "branch_pct": 84.67
+    },
+    "session_buddy/mcp/tools/advanced/rewriting_tools.py": {
+      "lines": 54,
+      "covered_lines": 54,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/code_analysis/tools.py": {
+      "lines": 82,
+      "covered_lines": 39,
+      "missing_lines": 43,
+      "pct": 40.82,
+      "branch_pct": 40.82
+    },
+    "session_buddy/mcp/tools/code_graph.py": {
+      "lines": 62,
+      "covered_lines": 46,
+      "missing_lines": 16,
+      "pct": 74.32,
+      "branch_pct": 74.32
+    },
+    "session_buddy/mcp/tools/collaboration/knowledge_graph_phase3_tools.py": {
+      "lines": 98,
+      "covered_lines": 81,
+      "missing_lines": 17,
+      "pct": 85.71,
+      "branch_pct": 85.71
+    },
+    "session_buddy/mcp/tools/collaboration/knowledge_graph_tools.py": {
+      "lines": 318,
+      "covered_lines": 274,
+      "missing_lines": 44,
+      "pct": 85.37,
+      "branch_pct": 85.37
+    },
+    "session_buddy/mcp/tools/collaboration/team_tools.py": {
+      "lines": 126,
+      "covered_lines": 117,
+      "missing_lines": 9,
+      "pct": 94.3,
+      "branch_pct": 94.3
+    },
+    "session_buddy/mcp/tools/conversation/conversation_tools.py": {
+      "lines": 99,
+      "covered_lines": 25,
+      "missing_lines": 74,
+      "pct": 19.38,
+      "branch_pct": 19.38
+    },
+    "session_buddy/mcp/tools/discovery_tools.py": {
+      "lines": 15,
+      "covered_lines": 15,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/ide.py": {
+      "lines": 241,
+      "covered_lines": 240,
+      "missing_lines": 1,
+      "pct": 99.32,
+      "branch_pct": 99.32
+    },
+    "session_buddy/mcp/tools/infrastructure/access_log_tools.py": {
+      "lines": 67,
+      "covered_lines": 64,
+      "missing_lines": 3,
+      "pct": 96.1,
+      "branch_pct": 96.1
+    },
+    "session_buddy/mcp/tools/infrastructure/cache_tools.py": {
+      "lines": 95,
+      "covered_lines": 33,
+      "missing_lines": 62,
+      "pct": 32.48,
+      "branch_pct": 32.48
+    },
+    "session_buddy/mcp/tools/infrastructure/feature_flags_tools.py": {
+      "lines": 11,
+      "covered_lines": 11,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/infrastructure/history_cache.py": {
+      "lines": 40,
+      "covered_lines": 38,
+      "missing_lines": 2,
+      "pct": 94.0,
+      "branch_pct": 94.0
+    },
+    "session_buddy/mcp/tools/infrastructure/hook_parser.py": {
+      "lines": 57,
+      "covered_lines": 55,
+      "missing_lines": 2,
+      "pct": 96.0,
+      "branch_pct": 96.0
+    },
+    "session_buddy/mcp/tools/infrastructure/pools.py": {
+      "lines": 149,
+      "covered_lines": 76,
+      "missing_lines": 73,
+      "pct": 51.43,
+      "branch_pct": 51.43
+    },
+    "session_buddy/mcp/tools/infrastructure/protocols.py": {
+      "lines": 33,
+      "covered_lines": 33,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/infrastructure/serverless_tools.py": {
+      "lines": 140,
+      "covered_lines": 135,
+      "missing_lines": 5,
+      "pct": 93.45,
+      "branch_pct": 93.45
+    },
+    "session_buddy/mcp/tools/intelligence/agent_analyzer.py": {
+      "lines": 60,
+      "covered_lines": 60,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/intelligence/intelligence_tools.py": {
+      "lines": 120,
+      "covered_lines": 31,
+      "missing_lines": 89,
+      "pct": 22.3,
+      "branch_pct": 22.3
+    },
+    "session_buddy/mcp/tools/intelligence/llm_tools.py": {
+      "lines": 167,
+      "covered_lines": 146,
+      "missing_lines": 21,
+      "pct": 85.25,
+      "branch_pct": 85.25
+    },
+    "session_buddy/mcp/tools/memory/akosha_tools.py": {
+      "lines": 30,
+      "covered_lines": 26,
+      "missing_lines": 4,
+      "pct": 84.38,
+      "branch_pct": 84.38
+    },
+    "session_buddy/mcp/tools/memory/category_tools.py": {
+      "lines": 127,
+      "covered_lines": 19,
+      "missing_lines": 108,
+      "pct": 11.95,
+      "branch_pct": 11.95
+    },
+    "session_buddy/mcp/tools/memory/export_tools.py": {
+      "lines": 150,
+      "covered_lines": 85,
+      "missing_lines": 65,
+      "pct": 54.21,
+      "branch_pct": 54.21
+    },
+    "session_buddy/mcp/tools/memory/memory_tools.py": {
+      "lines": 316,
+      "covered_lines": 297,
+      "missing_lines": 19,
+      "pct": 93.24,
+      "branch_pct": 93.24
+    },
+    "session_buddy/mcp/tools/memory/otel_trace_tools.py": {
+      "lines": 67,
+      "covered_lines": 49,
+      "missing_lines": 18,
+      "pct": 68.04,
+      "branch_pct": 68.04
+    },
+    "session_buddy/mcp/tools/memory/search_tools.py": {
+      "lines": 636,
+      "covered_lines": 377,
+      "missing_lines": 259,
+      "pct": 57.09,
+      "branch_pct": 57.09
+    },
+    "session_buddy/mcp/tools/memory/validated_memory_tools.py": {
+      "lines": 293,
+      "covered_lines": 271,
+      "missing_lines": 22,
+      "pct": 91.43,
+      "branch_pct": 91.43
+    },
+    "session_buddy/mcp/tools/monitoring/bottleneck_tools.py": {
+      "lines": 137,
+      "covered_lines": 81,
+      "missing_lines": 56,
+      "pct": 65.28,
+      "branch_pct": 65.28
+    },
+    "session_buddy/mcp/tools/monitoring/health_tools.py": {
+      "lines": 53,
+      "covered_lines": 12,
+      "missing_lines": 41,
+      "pct": 20.34,
+      "branch_pct": 20.34
+    },
+    "session_buddy/mcp/tools/monitoring/memory_health_tools.py": {
+      "lines": 101,
+      "covered_lines": 86,
+      "missing_lines": 15,
+      "pct": 79.02,
+      "branch_pct": 79.02
+    },
+    "session_buddy/mcp/tools/monitoring/monitoring_tools.py": {
+      "lines": 232,
+      "covered_lines": 196,
+      "missing_lines": 36,
+      "pct": 81.56,
+      "branch_pct": 81.56
+    },
+    "session_buddy/mcp/tools/monitoring/prometheus_metrics_tools.py": {
+      "lines": 86,
+      "covered_lines": 80,
+      "missing_lines": 6,
+      "pct": 91.67,
+      "branch_pct": 91.67
+    },
+    "session_buddy/mcp/tools/monitoring/session_analytics_tools.py": {
+      "lines": 172,
+      "covered_lines": 95,
+      "missing_lines": 77,
+      "pct": 50.41,
+      "branch_pct": 50.41
+    },
+    "session_buddy/mcp/tools/monitoring/workflow_metrics_tools.py": {
+      "lines": 112,
+      "covered_lines": 84,
+      "missing_lines": 28,
+      "pct": 78.95,
+      "branch_pct": 78.95
+    },
+    "session_buddy/mcp/tools/profiles.py": {
+      "lines": 9,
+      "covered_lines": 9,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/session/admin_shell_tracking_tools.py": {
+      "lines": 60,
+      "covered_lines": 40,
+      "missing_lines": 20,
+      "pct": 62.5,
+      "branch_pct": 62.5
+    },
+    "session_buddy/mcp/tools/session/channel_tracking_tools.py": {
+      "lines": 121,
+      "covered_lines": 108,
+      "missing_lines": 13,
+      "pct": 88.68,
+      "branch_pct": 88.68
+    },
+    "session_buddy/mcp/tools/session/crackerjack_tools.py": {
+      "lines": 673,
+      "covered_lines": 557,
+      "missing_lines": 116,
+      "pct": 81.65,
+      "branch_pct": 81.65
+    },
+    "session_buddy/mcp/tools/session/hooks_tools.py": {
+      "lines": 76,
+      "covered_lines": 23,
+      "missing_lines": 53,
+      "pct": 26.14,
+      "branch_pct": 26.14
+    },
+    "session_buddy/mcp/tools/session/migration_tools.py": {
+      "lines": 24,
+      "covered_lines": 24,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/session/prompt_tools.py": {
+      "lines": 34,
+      "covered_lines": 30,
+      "missing_lines": 4,
+      "pct": 85.0,
+      "branch_pct": 85.0
+    },
+    "session_buddy/mcp/tools/session/session_tools.py": {
+      "lines": 483,
+      "covered_lines": 370,
+      "missing_lines": 113,
+      "pct": 73.54,
+      "branch_pct": 73.54
+    },
+    "session_buddy/mcp/tools/skills/phase4_tools.py": {
+      "lines": 96,
+      "covered_lines": 96,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/mcp/tools/worktree_tools.py": {
+      "lines": 78,
+      "covered_lines": 50,
+      "missing_lines": 28,
+      "pct": 65.0,
+      "branch_pct": 65.0
+    },
+    "session_buddy/memory/category_evolution.py": {
+      "lines": 480,
+      "covered_lines": 418,
+      "missing_lines": 62,
+      "pct": 86.34,
+      "branch_pct": 86.34
+    },
+    "session_buddy/memory/causal.py": {
+      "lines": 86,
+      "covered_lines": 76,
+      "missing_lines": 10,
+      "pct": 85.83,
+      "branch_pct": 85.83
+    },
+    "session_buddy/memory/conscious_agent.py": {
+      "lines": 305,
+      "covered_lines": 214,
+      "missing_lines": 91,
+      "pct": 67.24,
+      "branch_pct": 67.24
+    },
+    "session_buddy/memory/entity_extractor.py": {
+      "lines": 128,
+      "covered_lines": 88,
+      "missing_lines": 40,
+      "pct": 65.54,
+      "branch_pct": 65.54
+    },
+    "session_buddy/memory/evolution_config.py": {
+      "lines": 80,
+      "covered_lines": 60,
+      "missing_lines": 20,
+      "pct": 71.82,
+      "branch_pct": 71.82
+    },
+    "session_buddy/memory/file_context.py": {
+      "lines": 19,
+      "covered_lines": 17,
+      "missing_lines": 2,
+      "pct": 92.0,
+      "branch_pct": 92.0
+    },
+    "session_buddy/memory/migration.py": {
+      "lines": 173,
+      "covered_lines": 132,
+      "missing_lines": 41,
+      "pct": 73.93,
+      "branch_pct": 73.93
+    },
+    "session_buddy/memory/peer_modeling.py": {
+      "lines": 55,
+      "covered_lines": 37,
+      "missing_lines": 18,
+      "pct": 62.34,
+      "branch_pct": 62.34
+    },
+    "session_buddy/memory/persistence.py": {
+      "lines": 64,
+      "covered_lines": 60,
+      "missing_lines": 4,
+      "pct": 89.47,
+      "branch_pct": 89.47
+    },
+    "session_buddy/memory/schema_v2.py": {
+      "lines": 14,
+      "covered_lines": 14,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/memory_optimizer.py": {
+      "lines": 297,
+      "covered_lines": 287,
+      "missing_lines": 10,
+      "pct": 93.92,
+      "branch_pct": 93.92
+    },
+    "session_buddy/metrics.py": {
+      "lines": 31,
+      "covered_lines": 29,
+      "missing_lines": 2,
+      "pct": 88.37,
+      "branch_pct": 88.37
+    },
+    "session_buddy/modes/base.py": {
+      "lines": 45,
+      "covered_lines": 45,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/modes/lite.py": {
+      "lines": 15,
+      "covered_lines": 15,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/modes/standard.py": {
+      "lines": 30,
+      "covered_lines": 30,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/multi_project_coordinator.py": {
+      "lines": 243,
+      "covered_lines": 234,
+      "missing_lines": 9,
+      "pct": 94.04,
+      "branch_pct": 94.04
+    },
+    "session_buddy/natural_scheduler.py": {
+      "lines": 264,
+      "covered_lines": 251,
+      "missing_lines": 13,
+      "pct": 93.98,
+      "branch_pct": 93.98
+    },
+    "session_buddy/parameter_models.py": {
+      "lines": 315,
+      "covered_lines": 271,
+      "missing_lines": 44,
+      "pct": 83.95,
+      "branch_pct": 83.95
+    },
+    "session_buddy/pools.py": {
+      "lines": 164,
+      "covered_lines": 164,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/quality_engine.py": {
+      "lines": 409,
+      "covered_lines": 396,
+      "missing_lines": 13,
+      "pct": 96.07,
+      "branch_pct": 96.07
+    },
+    "session_buddy/realtime/auth.py": {
+      "lines": 25,
+      "covered_lines": 24,
+      "missing_lines": 1,
+      "pct": 90.91,
+      "branch_pct": 90.91
+    },
+    "session_buddy/realtime/metrics_exporter.py": {
+      "lines": 56,
+      "covered_lines": 56,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/realtime/websocket_server.py": {
+      "lines": 214,
+      "covered_lines": 132,
+      "missing_lines": 82,
+      "pct": 60.45,
+      "branch_pct": 60.45
+    },
+    "session_buddy/reflection/database.py": {
+      "lines": 288,
+      "covered_lines": 204,
+      "missing_lines": 84,
+      "pct": 69.52,
+      "branch_pct": 69.52
+    },
+    "session_buddy/reflection/embeddings.py": {
+      "lines": 87,
+      "covered_lines": 64,
+      "missing_lines": 23,
+      "pct": 66.09,
+      "branch_pct": 66.09
+    },
+    "session_buddy/reflection/schema.py": {
+      "lines": 36,
+      "covered_lines": 36,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/reflection/search.py": {
+      "lines": 106,
+      "covered_lines": 59,
+      "missing_lines": 47,
+      "pct": 54.67,
+      "branch_pct": 54.67
+    },
+    "session_buddy/reflection/storage.py": {
+      "lines": 153,
+      "covered_lines": 77,
+      "missing_lines": 76,
+      "pct": 47.64,
+      "branch_pct": 47.64
+    },
+    "session_buddy/reflection_tools.py": {
+      "lines": 16,
+      "covered_lines": 16,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/resource_cleanup.py": {
+      "lines": 180,
+      "covered_lines": 177,
+      "missing_lines": 3,
+      "pct": 98.68,
+      "branch_pct": 98.68
+    },
+    "session_buddy/rewriting/hooks_integration.py": {
+      "lines": 31,
+      "covered_lines": 8,
+      "missing_lines": 23,
+      "pct": 21.62,
+      "branch_pct": 21.62
+    },
+    "session_buddy/rewriting/query_rewriter.py": {
+      "lines": 196,
+      "covered_lines": 191,
+      "missing_lines": 5,
+      "pct": 97.2,
+      "branch_pct": 97.2
+    },
+    "session_buddy/search/progressive_search.py": {
+      "lines": 196,
+      "covered_lines": 196,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/search_enhanced.py": {
+      "lines": 238,
+      "covered_lines": 237,
+      "missing_lines": 1,
+      "pct": 98.54,
+      "branch_pct": 98.54
+    },
+    "session_buddy/security/memory_guard_adapter.py": {
+      "lines": 85,
+      "covered_lines": 75,
+      "missing_lines": 10,
+      "pct": 88.79,
+      "branch_pct": 88.79
+    },
+    "session_buddy/server.py": {
+      "lines": 148,
+      "covered_lines": 136,
+      "missing_lines": 12,
+      "pct": 90.95,
+      "branch_pct": 90.95
+    },
+    "session_buddy/server_optimized.py": {
+      "lines": 284,
+      "covered_lines": 252,
+      "missing_lines": 32,
+      "pct": 87.02,
+      "branch_pct": 87.02
+    },
+    "session_buddy/serverless_mode.py": {
+      "lines": 95,
+      "covered_lines": 95,
+      "missing_lines": 0,
+      "pct": 98.29,
+      "branch_pct": 98.29
+    },
+    "session_buddy/services/git_maintenance.py": {
+      "lines": 188,
+      "covered_lines": 175,
+      "missing_lines": 13,
+      "pct": 92.02,
+      "branch_pct": 92.02
+    },
+    "session_buddy/session_commands.py": {
+      "lines": 2,
+      "covered_lines": 2,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/session_types.py": {
+      "lines": 14,
+      "covered_lines": 14,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/settings.py": {
+      "lines": 258,
+      "covered_lines": 239,
+      "missing_lines": 19,
+      "pct": 91.0,
+      "branch_pct": 91.0
+    },
+    "session_buddy/shell/adapter.py": {
+      "lines": 58,
+      "covered_lines": 57,
+      "missing_lines": 1,
+      "pct": 98.39,
+      "branch_pct": 98.39
+    },
+    "session_buddy/shutdown_manager.py": {
+      "lines": 144,
+      "covered_lines": 141,
+      "missing_lines": 3,
+      "pct": 97.65,
+      "branch_pct": 97.65
+    },
+    "session_buddy/skills/distiller.py": {
+      "lines": 72,
+      "covered_lines": 65,
+      "missing_lines": 7,
+      "pct": 86.46,
+      "branch_pct": 86.46
+    },
+    "session_buddy/storage/akosha_config.py": {
+      "lines": 124,
+      "covered_lines": 119,
+      "missing_lines": 5,
+      "pct": 92.86,
+      "branch_pct": 92.86
+    },
+    "session_buddy/storage/akosha_sync.py": {
+      "lines": 344,
+      "covered_lines": 188,
+      "missing_lines": 156,
+      "pct": 52.4,
+      "branch_pct": 52.4
+    },
+    "session_buddy/storage/cloud_sync.py": {
+      "lines": 152,
+      "covered_lines": 107,
+      "missing_lines": 45,
+      "pct": 65.76,
+      "branch_pct": 65.76
+    },
+    "session_buddy/storage/ipfs.py": {
+      "lines": 131,
+      "covered_lines": 25,
+      "missing_lines": 106,
+      "pct": 15.53,
+      "branch_pct": 15.53
+    },
+    "session_buddy/storage/migrations/base.py": {
+      "lines": 160,
+      "covered_lines": 133,
+      "missing_lines": 27,
+      "pct": 79.29,
+      "branch_pct": 79.29
+    },
+    "session_buddy/storage/skills_embeddings.py": {
+      "lines": 108,
+      "covered_lines": 90,
+      "missing_lines": 18,
+      "pct": 84.03,
+      "branch_pct": 84.03
+    },
+    "session_buddy/storage/skills_storage.py": {
+      "lines": 454,
+      "covered_lines": 291,
+      "missing_lines": 163,
+      "pct": 60.55,
+      "branch_pct": 60.55
+    },
+    "session_buddy/storage/sync_protocol.py": {
+      "lines": 19,
+      "covered_lines": 19,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/subscribers/code_graph_subscriber.py": {
+      "lines": 263,
+      "covered_lines": 42,
+      "missing_lines": 221,
+      "pct": 11.9,
+      "branch_pct": 11.9
+    },
+    "session_buddy/sync.py": {
+      "lines": 201,
+      "covered_lines": 191,
+      "missing_lines": 10,
+      "pct": 93.39,
+      "branch_pct": 93.39
+    },
+    "session_buddy/team_knowledge.py": {
+      "lines": 303,
+      "covered_lines": 294,
+      "missing_lines": 9,
+      "pct": 95.82,
+      "branch_pct": 95.82
+    },
+    "session_buddy/token_optimizer.py": {
+      "lines": 271,
+      "covered_lines": 264,
+      "missing_lines": 7,
+      "pct": 96.1,
+      "branch_pct": 96.1
+    },
+    "session_buddy/tools/health_tools.py": {
+      "lines": 31,
+      "covered_lines": 31,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/tools/memory_tools.py": {
+      "lines": 16,
+      "covered_lines": 9,
+      "missing_lines": 7,
+      "pct": 56.25,
+      "branch_pct": 56.25
+    },
+    "session_buddy/tools/quality_metrics.py": {
+      "lines": 77,
+      "covered_lines": 77,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/tools/search_tools.py": {
+      "lines": 13,
+      "covered_lines": 8,
+      "missing_lines": 5,
+      "pct": 61.54,
+      "branch_pct": 61.54
+    },
+    "session_buddy/tools/session_tools.py": {
+      "lines": 9,
+      "covered_lines": 6,
+      "missing_lines": 3,
+      "pct": 66.67,
+      "branch_pct": 66.67
+    },
+    "session_buddy/types.py": {
+      "lines": 3,
+      "covered_lines": 3,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/crackerjack/fallback.py": {
+      "lines": 185,
+      "covered_lines": 162,
+      "missing_lines": 23,
+      "pct": 85.41,
+      "branch_pct": 85.41
+    },
+    "session_buddy/utils/crackerjack/output_parser.py": {
+      "lines": 246,
+      "covered_lines": 175,
+      "missing_lines": 71,
+      "pct": 66.27,
+      "branch_pct": 66.27
+    },
+    "session_buddy/utils/crackerjack/pattern_builder.py": {
+      "lines": 34,
+      "covered_lines": 34,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/database_pool.py": {
+      "lines": 154,
+      "covered_lines": 138,
+      "missing_lines": 16,
+      "pct": 88.02,
+      "branch_pct": 88.02
+    },
+    "session_buddy/utils/database_tools.py": {
+      "lines": 66,
+      "covered_lines": 66,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/encryption.py": {
+      "lines": 69,
+      "covered_lines": 69,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/error_management.py": {
+      "lines": 52,
+      "covered_lines": 52,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/file_utils.py": {
+      "lines": 2,
+      "covered_lines": 2,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/filesystem.py": {
+      "lines": 132,
+      "covered_lines": 132,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/fingerprint.py": {
+      "lines": 69,
+      "covered_lines": 69,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/git_operations.py": {
+      "lines": 71,
+      "covered_lines": 71,
+      "missing_lines": 0,
+      "pct": 98.99,
+      "branch_pct": 98.99
+    },
+    "session_buddy/utils/git_worktrees.py": {
+      "lines": 345,
+      "covered_lines": 307,
+      "missing_lines": 38,
+      "pct": 87.68,
+      "branch_pct": 87.68
+    },
+    "session_buddy/utils/instance_managers.py": {
+      "lines": 108,
+      "covered_lines": 106,
+      "missing_lines": 2,
+      "pct": 96.77,
+      "branch_pct": 96.77
+    },
+    "session_buddy/utils/lazy_imports.py": {
+      "lines": 123,
+      "covered_lines": 123,
+      "missing_lines": 0,
+      "pct": 99.32,
+      "branch_pct": 99.32
+    },
+    "session_buddy/utils/logging.py": {
+      "lines": 117,
+      "covered_lines": 116,
+      "missing_lines": 1,
+      "pct": 99.35,
+      "branch_pct": 99.35
+    },
+    "session_buddy/utils/logging_utils.py": {
+      "lines": 3,
+      "covered_lines": 3,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/messages.py": {
+      "lines": 94,
+      "covered_lines": 94,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/path_validation.py": {
+      "lines": 67,
+      "covered_lines": 67,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/project_analysis.py": {
+      "lines": 9,
+      "covered_lines": 9,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/quality/compaction.py": {
+      "lines": 49,
+      "covered_lines": 49,
+      "missing_lines": 0,
+      "pct": 98.59,
+      "branch_pct": 98.59
+    },
+    "session_buddy/utils/quality/recommendations.py": {
+      "lines": 20,
+      "covered_lines": 20,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/quality/summary.py": {
+      "lines": 52,
+      "covered_lines": 52,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/quality_score_parser.py": {
+      "lines": 107,
+      "covered_lines": 107,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/quality_scoring.py": {
+      "lines": 450,
+      "covered_lines": 415,
+      "missing_lines": 35,
+      "pct": 91.88,
+      "branch_pct": 91.88
+    },
+    "session_buddy/utils/quality_utils_v2.py": {
+      "lines": 4,
+      "covered_lines": 4,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/reflection_utils.py": {
+      "lines": 65,
+      "covered_lines": 65,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/regex_patterns.py": {
+      "lines": 2,
+      "covered_lines": 2,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/runtime_snapshots.py": {
+      "lines": 102,
+      "covered_lines": 101,
+      "missing_lines": 1,
+      "pct": 97.32,
+      "branch_pct": 97.32
+    },
+    "session_buddy/utils/scheduler/models.py": {
+      "lines": 36,
+      "covered_lines": 36,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/scheduler/time_parser.py": {
+      "lines": 152,
+      "covered_lines": 117,
+      "missing_lines": 35,
+      "pct": 70.95,
+      "branch_pct": 70.95
+    },
+    "session_buddy/utils/search/models.py": {
+      "lines": 26,
+      "covered_lines": 26,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/search/utilities.py": {
+      "lines": 69,
+      "covered_lines": 69,
+      "missing_lines": 0,
+      "pct": 98.92,
+      "branch_pct": 98.92
+    },
+    "session_buddy/utils/session_formatters.py": {
+      "lines": 190,
+      "covered_lines": 190,
+      "missing_lines": 0,
+      "pct": 97.22,
+      "branch_pct": 97.22
+    },
+    "session_buddy/utils/subprocess_executor.py": {
+      "lines": 82,
+      "covered_lines": 82,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/text_formatter.py": {
+      "lines": 97,
+      "covered_lines": 97,
+      "missing_lines": 0,
+      "pct": 97.74,
+      "branch_pct": 97.74
+    },
+    "session_buddy/utils/time.py": {
+      "lines": 9,
+      "covered_lines": 9,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/utils/tool_wrapper.py": {
+      "lines": 106,
+      "covered_lines": 106,
+      "missing_lines": 0,
+      "pct": 100.0,
+      "branch_pct": 100.0
+    },
+    "session_buddy/worker.py": {
+      "lines": 136,
+      "covered_lines": 136,
+      "missing_lines": 0,
+      "pct": 99.36,
+      "branch_pct": 99.36
+    },
+    "session_buddy/worktree_manager.py": {
+      "lines": 284,
+      "covered_lines": 235,
+      "missing_lines": 49,
+      "pct": 82.69,
+      "branch_pct": 82.69
+    }
+  }
+}
