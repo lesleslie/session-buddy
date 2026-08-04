@@ -1,0 +1,13 @@
+{
+  "needs_branch_true": false,
+  "baseline_failure_nodeids": [
+    "tests/unit/test_quality_scoring_metrics_registry.py"
+  ],
+  "pytest_collect_ok": false,
+  "spot_test_passed": true,
+  "spot_test_file": "tests/unit/test_di_constants.py",
+  "spot_test_summary": "1 passed in 46.36s",
+  "captured_at": "2026-08-04T00:26:35Z",
+  "captured_on_commit": "444df48ea75d6d4855978012dc1506aeaff7f00a",
+  "notes": "tests/ -q run was interrupted at collection by a single ERROR in tests/unit/test_quality_scoring_metrics_registry.py (10264 tests collected, 1 error). Spot-test on tests/unit/test_di_constants.py passed (1 passed in 46.36s). coverage.json was not produced by Step 3 because pytest was interrupted during collection before coverage report was written; this is expected for preflight per the brief."
+}
