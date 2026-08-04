@@ -132,11 +132,40 @@ async def test_search_code_graph_propagates_accessor_errors() -> None:
 async def test_resolve_default_db_returns_required_database(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from session_buddy.utils import database_tools
-
+    import sys
     expected = object()
     resolver = AsyncMock(return_value=expected)
-    monkeypatch.setattr(database_tools, "require_reflection_database", resolver)
+
+    # Force-import the canonical module so it lives in sys.modules under
+    # its fully-qualified name. Without this, the prior test files'
+    # sys.modules stub-leak (and the conftest's per-test
+    # ``_purge_session_buddy_stubs``) can leave the package's
+    # ``database_tools`` attribute pointing at a module object that is
+    # NOT the one in ``sys.modules``. In that state,
+    # ``code_graph._resolve_default_db`` re-imports a fresh module from
+    # disk and patches applied via either the string-form
+    # ``monkeypatch.setattr`` or the ``database_tools`` local form land on
+    # the stale reference, so the production function calls the real
+    # ``require_reflection_database`` and returns a live adapter instead of
+    # the mock.
+    if "session_buddy.utils.database_tools" not in sys.modules:
+        import importlib
+        importlib.import_module("session_buddy.utils.database_tools")
+
+    # Use the canonical sys.modules reference so the patch lands on the
+    # same module object that ``code_graph._resolve_default_db`` will
+    # import. A naive ``from session_buddy.utils import database_tools``
+    # can return a *different* module object than
+    # ``sys.modules['session_buddy.utils.database_tools']`` when prior
+    # tests pollute the namespace (see the long-form explanation above),
+    # so the local-form ``monkeypatch.setattr(database_tools, ...)`` is
+    # racy. The string-form ``monkeypatch.setattr("...")`` is also racy
+    # because ``_pytest.monkeypatch.resolve()`` walks the dotted path via
+    # ``getattr`` and can miss the cached attribute under pytest's per-
+    # test stub-purge dance (raising AttributeError before the patch
+    # lands).
+    db_tools_module = sys.modules["session_buddy.utils.database_tools"]
+    monkeypatch.setattr(db_tools_module, "require_reflection_database", resolver)
 
     assert await code_graph._resolve_default_db() is expected
     resolver.assert_awaited_once_with()
