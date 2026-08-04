@@ -1,0 +1,80 @@
+{
+  "selected": [
+    {
+      "path": "session_buddy/mcp/tools/memory/akosha_tools.py",
+      "layer": "mcp",
+      "pct": 84.38,
+      "statements": 30
+    },
+    {
+      "path": "session_buddy/mcp/tools/session/prompt_tools.py",
+      "layer": "mcp",
+      "pct": 85.0,
+      "statements": 34
+    },
+    {
+      "path": "session_buddy/mcp/tools/infrastructure/history_cache.py",
+      "layer": "mcp",
+      "pct": 94.0,
+      "statements": 40
+    },
+    {
+      "path": "session_buddy/mcp/tools/session/admin_shell_tracking_tools.py",
+      "layer": "mcp",
+      "pct": 62.5,
+      "statements": 60
+    },
+    {
+      "path": "session_buddy/mcp/tools/code_graph.py",
+      "layer": "mcp",
+      "pct": 74.32,
+      "statements": 62
+    },
+    {
+      "path": "session_buddy/cli_with_modes.py",
+      "layer": "cli",
+      "pct": 78.72,
+      "statements": 90
+    },
+    {
+      "path": "session_buddy/cli.py",
+      "layer": "cli",
+      "pct": 71.68,
+      "statements": 95
+    },
+    {
+      "path": "session_buddy/core/conversation_storage.py",
+      "layer": "core",
+      "pct": 76.71,
+      "statements": 108
+    },
+    {
+      "path": "session_buddy/core/causal_chains.py",
+      "layer": "core",
+      "pct": 57.04,
+      "statements": 116
+    },
+    {
+      "path": "session_buddy/utils/scheduler/time_parser.py",
+      "layer": "util",
+      "pct": 70.95,
+      "statements": 152
+    }
+  ],
+  "slot_counts": {
+    "mcp": 5,
+    "cli": 2,
+    "core": 2,
+    "util": 1
+  },
+  "selection_rules": {
+    "anti_target_count": 1,
+    "pct_window": "[30, 94]",
+    "statements_window": "[20, 600]",
+    "tie_breakers": [
+      "smaller_n",
+      "closer_to_30pct"
+    ]
+  },
+  "generated_at": "wave-1"
+}
