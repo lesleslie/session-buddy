@@ -1,0 +1,16 @@
+{
+  "phase": "batch1a",
+  "captured_at": "2026-08-04T05:46:43.589789Z",
+  "captured_on_commit": "be4947ad265d4f11fd6d2b23d9c187d5f0823566",
+  "new_failures": [],
+  "covered_modules": [
+    "session_buddy/mcp/tools/memory/akosha_tools.py",
+    "session_buddy/mcp/tools/session/prompt_tools.py",
+    "session_buddy/mcp/tools/infrastructure/history_cache.py",
+    "session_buddy/mcp/tools/session/admin_shell_tracking_tools.py",
+    "session_buddy/mcp/tools/code_graph.py"
+  ],
+  "merge_commit": "be4947ad265d4f11fd6d2b23d9c187d5f0823566",
+  "pytest_rc": 143,
+  "suite_status": "timed_out"
+}
