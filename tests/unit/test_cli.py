@@ -46,6 +46,34 @@ def test_session_buddy_settings_cache_root_shim() -> None:
     assert settings.cache_root == Path(settings.cache_dir)
 
 
+def test_session_buddy_settings_snapshot_paths_return_paths_under_cache_dir() -> None:
+    """Pin that pid/health/telemetry snapshot paths all live under cache_dir.
+
+    These three helpers mirror the legacy ``MCPServerSettings`` API; they
+    are referenced by ``mcp_common.cli.MCPServerCLIFactory`` and by
+    ``session_buddy.utils.runtime_snapshots`` (which uses the structural
+    ``_HasPidPath`` protocol). Drift here breaks the lifecycle verbs.
+    """
+    from session_buddy.cli import SessionBuddySettings
+
+    settings = SessionBuddySettings()
+
+    pid_path = settings.pid_path()
+    health_path = settings.health_snapshot_path()
+    telemetry_path = settings.telemetry_snapshot_path()
+
+    assert isinstance(pid_path, Path)
+    assert isinstance(health_path, Path)
+    assert isinstance(telemetry_path, Path)
+    # All three snapshot helpers must point under the configured cache_dir
+    assert pid_path.parent == Path(settings.cache_dir)
+    assert health_path.parent == Path(settings.cache_dir)
+    assert telemetry_path.parent == Path(settings.cache_dir)
+    assert pid_path.name == "mcp_server.pid"
+    assert health_path.name == "runtime_health.json"
+    assert telemetry_path.name == "runtime_telemetry.json"
+
+
 class TestCliCommands:
     """Test CLI command execution."""
 
@@ -233,3 +261,115 @@ class TestCliInternals:
         create_cli.assert_called_once_with()
         factory.create_app.assert_called_once_with()
         app.assert_called_once_with()
+
+    def test_port_holder_returns_pid_command_tuple(self) -> None:
+        """Happy-path: lsof prints pid and command lines, return (pid, command)."""
+        from session_buddy.cli import _port_holder
+
+        fake_result = SimpleNamespace(
+            returncode=0,
+            stdout="p8678\ncsession-buddy-server\n",
+        )
+        with patch("shutil.which", return_value="/usr/bin/lsof"), patch(
+            "subprocess.run", return_value=fake_result
+        ) as mock_run:
+            result = _port_holder(8678)
+
+        assert result == (8678, "session-buddy-server")
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args.args[0]
+        assert cmd[0] == "lsof"
+        assert "-iTCP:8678" in cmd
+
+    def test_port_holder_returns_none_when_lsof_unavailable(self) -> None:
+        """Edge: shutil.which('lsof') returns None → return None (don't fall through)."""
+        from session_buddy.cli import _port_holder
+
+        with patch("shutil.which", return_value=None), patch(
+            "subprocess.run"
+        ) as mock_run:
+            assert _port_holder(8678) is None
+        mock_run.assert_not_called()
+
+    def test_port_holder_returns_none_on_subprocess_timeout(self) -> None:
+        """Edge: subprocess.run raises TimeoutExpired → return None."""
+        import subprocess
+
+        from session_buddy.cli import _port_holder
+
+        with patch("shutil.which", return_value="/usr/bin/lsof"), patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="lsof", timeout=3.0),
+        ):
+            assert _port_holder(8678) is None
+
+    def test_port_holder_returns_none_on_oserror(self) -> None:
+        """Edge: subprocess.run raises OSError → return None."""
+        from session_buddy.cli import _port_holder
+
+        with patch("shutil.which", return_value="/usr/bin/lsof"), patch(
+            "subprocess.run",
+            side_effect=OSError("lsof not executable"),
+        ):
+            assert _port_holder(8678) is None
+
+    def test_port_holder_returns_none_when_no_pid_line(self) -> None:
+        """Edge: lsof succeeds but stdout lacks a 'p' line → pid stays None → return None.
+
+        Defends the ``if pid is None: return None`` branch. Without a PID we
+        cannot identify the holder, so the function bails out rather than
+        returning a half-populated tuple.
+        """
+        from session_buddy.cli import _port_holder
+
+        # stdout contains a command line but no PID line — pid stays None.
+        fake_result = SimpleNamespace(returncode=0, stdout="csomething\n")
+        with patch("shutil.which", return_value="/usr/bin/lsof"), patch(
+            "subprocess.run", return_value=fake_result
+        ):
+            assert _port_holder(8678) is None
+
+    def test_port_holder_returns_none_on_empty_or_failed_lsof(self) -> None:
+        """Edge: lsof returns non-zero exit or empty stdout → return None.
+
+        Covers the early ``if result.returncode != 0 or not result.stdout``
+        bail-out — lsof exits 1 when no process is listening, and prints
+        nothing to stdout in that case.
+        """
+        from session_buddy.cli import _port_holder
+
+        fake_failed = SimpleNamespace(returncode=1, stdout="")
+        with patch("shutil.which", return_value="/usr/bin/lsof"), patch(
+            "subprocess.run", return_value=fake_failed
+        ):
+            assert _port_holder(8678) is None
+
+    def test_start_server_handler_raises_system_exit_when_port_held(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pre-bind port check: SystemExit with PID + command when port is in use.
+
+        Without this guard, uvicorn logs ``EADDRINUSE`` and exits silently,
+        forcing the operator to ``/mcp`` reconnect by hand. The exit
+        message must name the holder PID so operators can decide whether
+        to stop the existing process.
+        """
+        from session_buddy import cli as cli_module
+
+        class FakeSettings:
+            http_port = 8678
+            websocket_port = 8677
+
+        monkeypatch.setattr(cli_module, "SessionBuddySettings", FakeSettings)
+        monkeypatch.setattr(
+            cli_module, "_port_holder", lambda port: (1234, "another-server")
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            cli_module.start_server_handler()
+
+        msg = str(exc_info.value)
+        assert "Port 8678" in msg
+        assert "PID 1234" in msg
+        assert "another-server" in msg
