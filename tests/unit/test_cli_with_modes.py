@@ -1132,9 +1132,38 @@ class TestModuleSysPathBranch:
     brief requirement for >=90% branch coverage.
     """
 
-    def test_sys_path_insert_branch_when_project_root_missing(self) -> None:
+    def test_sys_path_insert_branch_when_project_root_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Re-importing cli_with_modes after stripping project_root from sys.path
-        executes the True branch of the ``if`` (line 34 body)."""
+        executes the True branch of the ``if`` (line 34 body).
+
+        Restores BOTH ``sys.modules["session_buddy.cli_with_modes"]`` AND
+        ``session_buddy.cli_with_modes`` (the parent-package attribute) on
+        teardown. ``importlib.import_module`` sets both: the sys.modules
+        cache entry and the parent package's attribute. If only the cache
+        entry is restored, the parent attribute still points at the
+        re-imported module, and later string-form ``monkeypatch.setattr(
+        "session_buddy.cli_with_modes.create_session_buddy_cli", ...)``
+        calls resolve to that NEW module (via pytest's ``resolve()`` walking
+        the attribute) instead of the original module bound to
+        ``cli_module`` at the top of this file. The result: the patch
+        silently no-ops on the wrong module, and ``TestMain::test_main_*``
+        tests invoke the real CLI instead of the mocked factory.
+
+        Memory: ``conftest-sysmodules-pollution-pattern`` — bare
+        ``sys.modules.pop(...)`` is the wrong idiom. Pattern B (explicit
+        try/finally with original save) is correct here because monkeypatch
+        alone doesn't reach the parent package attribute.
+
+        Critical: the parent-package attribute MUST be set to the OLD
+        module (``cli_module``) after teardown. The OLD module reference
+        comes from the top-level ``from session_buddy import cli_with_modes
+        as cli_module`` at the top of this file; ``sys.modules.get(...)``
+        returns None because the entry was popped by monkeypatch.delitem
+        before we could capture it. Using ``cli_module`` directly avoids
+        that null-state bug.
+        """
         import importlib
 
         # Compute project_root the same way the module does
@@ -1143,22 +1172,25 @@ class TestModuleSysPathBranch:
             pytest.skip("cli_with_modes has no __file__")
         project_root = str(Path(module_path).resolve().parent.parent)
 
-        # Save current state for restoration
-        original_path = list(sys.path)
-        saved_modules = {
-            name: mod
-            for name, mod in sys.modules.items()
-            if name == "session_buddy.cli_with_modes"
-            or name.startswith("session_buddy.cli_with_modes.")
-        }
+        # Capture the OLD module reference. ``cli_module`` is bound at
+        # the top of this file and is the most reliable reference to the
+        # pre-test module. We use it to restore the parent-package
+        # attribute after the re-import.
+        old_module = cli_module
+
+        # sys.modules and sys.path are restored via monkeypatch on
+        # teardown. The parent-package attribute must be restored
+        # manually because pytest's monkeypatch doesn't know about it.
+        monkeypatch.setattr(
+            sys, "path", [p for p in sys.path if p != project_root]
+        )
+        monkeypatch.delitem(
+            sys.modules, "session_buddy.cli_with_modes", raising=False
+        )
+
+        import session_buddy as _session_buddy_pkg
 
         try:
-            # Strip project_root from sys.path
-            sys.path = [p for p in sys.path if p != project_root]
-
-            # Evict the cached module so the next import re-executes the body
-            sys.modules.pop("session_buddy.cli_with_modes", None)
-
             # Re-import — this triggers the module-level code path with
             # `str(project_root) not in sys.path == True`, exercising line 34.
             importlib.import_module("session_buddy.cli_with_modes")
@@ -1166,8 +1198,9 @@ class TestModuleSysPathBranch:
             # Pin: after re-import, project_root is back on sys.path
             assert project_root in sys.path
         finally:
-            # Restore sys.path
-            sys.path = original_path
-            # Restore any evicted modules
-            for name, mod in saved_modules.items():
-                sys.modules[name] = mod
+            # Restore the parent-package attribute. Without this, pytest's
+            # ``resolve()`` walks ``session_buddy.cli_with_modes`` and
+            # lands on the freshly-imported module, breaking later
+            # string-form monkeypatch.setattr calls.
+            _session_buddy_pkg.cli_with_modes = old_module
+            # sys.modules and sys.path are restored by monkeypatch on teardown.
