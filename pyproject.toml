@@ -131,7 +131,7 @@ concurrency = [
     "multiprocessing",
 ]
 source = [
-    "session-buddy",
+    "session_buddy",
 ]
 data_file = ".coverage"
 omit = [
@@ -165,7 +165,7 @@ sort_by_size = true
 
 [tool.pyright]
 include = [
-    "session-buddy",
+    "session_buddy",
 ]
 exclude = [
     "tests/*",
@@ -179,7 +179,7 @@ pythonVersion = "3.13"
 
 [tool.bandit]
 target = [
-    "session-buddy",
+    "session_buddy",
 ]
 skips = [
     "B101",
