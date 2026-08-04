@@ -16,9 +16,18 @@ logger = logging.getLogger(__name__)
 
 # Default timeout for git subprocess calls (matches WorktreeManager).
 TIMEOUT_SECONDS = 30
+# Long-running operations (worktree add / remove) need more headroom for
+# repos with thousands of files. Bug
+# session-buddy-mcp-remove-worktree-bugs.md: ``TIMEOUT_SECONDS=30`` was
+# too aggressive — real Bodai worktrees (especially in
+# ``.claude/worktrees/agent-*`` paths with many untracked files) can take
+# well over 30s for ``git worktree remove`` because git has to scan and
+# rewrite the main worktree's index.
+TIMEOUT_WORKTREE_OPS = 120
 
 __all__ = [
     "TIMEOUT_SECONDS",
+    "TIMEOUT_WORKTREE_OPS",
     "WorktreeInfo",
     "_optimize_git_repository",
     "_sanitize_git_error",
@@ -248,7 +257,7 @@ def _run_git_worktree_add(
         text=True,
         cwd=str(repository_path),
         check=False,
-        timeout=TIMEOUT_SECONDS,
+        timeout=TIMEOUT_WORKTREE_OPS,
     )
 
 
@@ -257,17 +266,28 @@ def _sanitize_git_error(stderr: str, worktree_path: str) -> str:
 
     Used by ``create_worktree`` and ``remove_worktree`` so the caller JSON
     does not leak filesystem layout to operators / logs.
+
+    Order matters: replace the explicit ``worktree_path`` FIRST so the
+    broader regex below does not match it and replace it with a literal
+    ``<path>`` marker (which would swallow the meaningful part of the
+    message — see bug ``session-buddy-mcp-remove-worktree-bugs.md``).
     """
     if not stderr:
         return ""
-    sanitized = stderr
-    # Replace any absolute path with a generic marker
     import re as _re_sanitize
 
-    sanitized = _re_sanitize.sub(r"/[\w./_-]+", "<path>", sanitized)
-    # Redact the specific worktree_path if present
+    sanitized = stderr
+    # 1. Redact the specific worktree_path FIRST. Use a non-overlapping
+    #    replacement so the broader regex below cannot re-match what we
+    #    just replaced.
     if worktree_path:
-        sanitized = sanitized.replace(worktree_path, "<path>")
+        sanitized = sanitized.replace(worktree_path, "<wt>")
+    # 2. Then replace remaining absolute paths. Require at least two path
+    #    segments so single-char placeholders (``/f``) inside error messages
+    #    are not collateral damage.
+    sanitized = _re_sanitize.sub(r"/[\w./_-]{2,}/[\w./_-]+", "<path>", sanitized)
+    # 3. Normalize our marker so the operator sees a single shape.
+    sanitized = sanitized.replace("<wt>", "<path>")
     return sanitized.strip()
 
 
@@ -320,7 +340,7 @@ def create_worktree(
         text=True,
         cwd=worktree_path,
         check=False,
-        timeout=TIMEOUT_SECONDS,
+        timeout=TIMEOUT_WORKTREE_OPS,
     )
     head = head_result.stdout.strip() if head_result.returncode == 0 else ""
     return True, {
@@ -350,7 +370,7 @@ def _run_git_worktree_remove(
         text=True,
         cwd=str(repository_path),
         check=False,
-        timeout=TIMEOUT_SECONDS,
+        timeout=TIMEOUT_WORKTREE_OPS,
     )
 
 

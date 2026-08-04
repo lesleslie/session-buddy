@@ -403,6 +403,88 @@ def test_module_imports_cleanly() -> None:
     assert callable(fn)
 
 
+# ---------------------------------------------------------------------------
+# Bug 2 regression: TIMEOUT_WORKTREE_OPS exists and is wired into add/remove
+# ---------------------------------------------------------------------------
+
+
+class TestTimeoutConstants:
+    """Regression for bug session-buddy-mcp-remove-worktree-bugs.md.
+
+    Before the fix, ``TIMEOUT_SECONDS=30`` was shared by every git
+    subprocess call. Real Bodai worktrees (``.claude/worktrees/agent-*``
+    paths with thousands of files) exceeded 30s on ``git worktree remove``
+    because git has to scan and rewrite the main worktree's index.
+
+    After the fix: a separate ``TIMEOUT_WORKTREE_OPS=120`` constant is
+    used by ``_run_git_worktree_remove`` and ``_run_git_worktree_add``;
+    the dirty-check fast path keeps ``TIMEOUT_SECONDS=30``.
+    """
+
+    def test_timeout_worktree_ops_constant_exists(self) -> None:
+        assert hasattr(git_worktrees, "TIMEOUT_WORKTREE_OPS")
+        # 120s = 2 minutes — enough headroom for repos with thousands of files
+        # without making a hung dirty-check wait 2 minutes (kept at 30s).
+        assert git_worktrees.TIMEOUT_WORKTREE_OPS == 120
+        assert git_worktrees.TIMEOUT_SECONDS == 30
+
+    def test_remove_worktree_uses_longer_timeout(self, tmp_repo: Path) -> None:
+        """Patch ``subprocess.run`` and assert that the timeout passed to
+        the remove subprocess is ``TIMEOUT_WORKTREE_OPS``, not the fast
+        ``TIMEOUT_SECONDS`` constant.
+        """
+        # First create a real worktree so remove has something to operate on
+        wt_path = tmp_repo / "wt-timeout"
+        subprocess.run(
+            ["git", "checkout", "-q", "-b", "feat-timeout"],
+            cwd=str(tmp_repo),
+            check=True,
+        )
+        subprocess.run(
+            ["git", "checkout", "-q", "main"], cwd=str(tmp_repo), check=True
+        )
+        subprocess.run(
+            ["git", "worktree", "add", "-q", str(wt_path), "feat-timeout"],
+            cwd=str(tmp_repo),
+            check=True,
+        )
+
+        observed: dict[str, float] = {}
+
+        real_run = subprocess.run
+
+        def spy_run(*args: object, **kwargs: object) -> object:
+            # Only record timeouts for ``git worktree remove`` invocations
+            cmd = args[0] if args else kwargs.get("args")
+            if (
+                isinstance(cmd, list)
+                and len(cmd) >= 3
+                and cmd[0] == "git"
+                and cmd[1] == "worktree"
+                and cmd[2] == "remove"
+            ):
+                observed["timeout"] = float(kwargs.get("timeout", 0))
+                # Synthesize a successful CompletedProcess so the helper returns
+                return subprocess.CompletedProcess(
+                    args=cmd, returncode=0, stdout="", stderr=""
+                )
+            return real_run(*args, **kwargs)
+
+        # Patch via the module's imported subprocess reference
+        original = git_worktrees.subprocess.run
+        git_worktrees.subprocess.run = spy_run  # type: ignore[assignment]
+        try:
+            ok, info = remove_worktree(tmp_repo, str(wt_path), force=False)
+        finally:
+            git_worktrees.subprocess.run = original  # type: ignore[assignment]
+
+        assert ok is True, info
+        assert observed.get("timeout") == git_worktrees.TIMEOUT_WORKTREE_OPS, (
+            f"expected TIMEOUT_WORKTREE_OPS ({git_worktrees.TIMEOUT_WORKTREE_OPS}),"
+            f" got {observed.get('timeout')}"
+        )
+
+
 
 # ---------------------------------------------------------------------------
 # Security hardening: input validation (worktree_tools.py) and stderr
@@ -498,3 +580,40 @@ class TestStderrSanitization:
         from session_buddy.utils.git_worktrees import _sanitize_git_error
 
         assert _sanitize_git_error("", "/anywhere") == ""
+
+    def test_real_worktree_error_keeps_meaningful_message(self) -> None:
+        """Regression for bug session-buddy-mcp-remove-worktree-bugs.md.
+
+        Before the fix, the broader ``/[\w./_-]+`` regex matched the
+        actual worktree path and replaced it with the literal text
+        ``<path>``, producing ``fatal: '<path>' is not a working tree``.
+        Operators had no idea what failed. The fix replaces the explicit
+        worktree path FIRST so the broader regex cannot match it.
+        """
+        from session_buddy.utils.git_worktrees import _sanitize_git_error
+
+        wt = "/Users/les/Projects/dhara/.worktrees/feat-x"
+        result = _sanitize_git_error(
+            f"fatal: '{wt}' is not a working tree",
+            wt,
+        )
+        # The meaningful git message MUST survive
+        assert "is not a working tree" in result, result
+        # The literal placeholders are fine; the actual path must NOT appear
+        assert wt not in result
+        assert "/Users/les/Projects/dhara" not in result
+
+    def test_single_segment_path_not_redacted(self) -> None:
+        """Two-segment minimum prevents collateral redaction of short tokens.
+
+        ``/foo`` inside an error message should pass through, not become
+        ``<path>``.
+        """
+        from session_buddy.utils.git_worktrees import _sanitize_git_error
+
+        result = _sanitize_git_error(
+            "fatal: bad ref /x in object",
+            "/Users/les/Projects/dhara/.worktrees/feat-x",
+        )
+        assert "<path>" not in result
+        assert "/x in object" in result
