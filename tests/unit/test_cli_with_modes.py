@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -797,3 +798,409 @@ class TestOperationModeInterface:
         mode = StandardMode()
         errors = mode.validate_environment()
         assert isinstance(errors, list)
+
+
+# ============================================================================
+# Coverage lift tests (added by Task 12 / wave1-batch1b-module6)
+# Target: lift line coverage from 79% to >=95% and branch coverage to >=90%.
+# Each test below exercises a specific previously-uncovered line/branch.
+# ============================================================================
+
+
+class TestSessionBuddySettingsPaths:
+    """Coverage lift: Exercise pid_path/health_snapshot_path/telemetry_snapshot_path.
+
+    Prior tests covered only default ``__init__`` values; the three
+    ``*_path`` methods on ``SessionBuddySettings`` (lines 72-79) were not
+    exercised. These tests pin the contract that each method returns a
+    ``Path`` rooted at ``cache_dir``.
+    """
+
+    def test_pid_path_joins_cache_dir(self, tmp_path: Path) -> None:
+        """pid_path() returns ``<cache_dir>/mcp_server.pid``."""
+        from session_buddy.cli_with_modes import SessionBuddySettings
+
+        settings = SessionBuddySettings(cache_dir=str(tmp_path))
+
+        result = settings.pid_path()
+        assert isinstance(result, Path)
+        assert result == tmp_path / "mcp_server.pid"
+
+    def test_health_snapshot_path_joins_cache_dir(self, tmp_path: Path) -> None:
+        """health_snapshot_path() returns ``<cache_dir>/runtime_health.json``."""
+        from session_buddy.cli_with_modes import SessionBuddySettings
+
+        settings = SessionBuddySettings(cache_dir=str(tmp_path))
+
+        result = settings.health_snapshot_path()
+        assert isinstance(result, Path)
+        assert result == tmp_path / "runtime_health.json"
+
+    def test_telemetry_snapshot_path_joins_cache_dir(self, tmp_path: Path) -> None:
+        """telemetry_snapshot_path() returns ``<cache_dir>/runtime_telemetry.json``."""
+        from session_buddy.cli_with_modes import SessionBuddySettings
+
+        settings = SessionBuddySettings(cache_dir=str(tmp_path))
+
+        result = settings.telemetry_snapshot_path()
+        assert isinstance(result, Path)
+        assert result == tmp_path / "runtime_telemetry.json"
+
+
+class TestRunHealthProbe:
+    """Coverage lift: Exercise _run_health_probe body (lines 162-170).
+
+    The probe calls ``asyncio.run(get_health_status(...))`` internally.
+    We patch ``asyncio.run`` (via the cli_with_modes-bound reference) and
+    ``update_telemetry_counter`` so the body executes end-to-end and
+    returns a ``RuntimeHealthSnapshot``.
+    """
+
+    def test_run_health_probe_no_pid_file_returns_watchers_false(
+        self, tmp_path: Path
+    ) -> None:
+        """When no PID file exists, snapshot.orchestrator_pid is None and watchers_running False."""
+        from session_buddy.cli_with_modes import (
+            SessionBuddySettings,
+            _run_health_probe,
+        )
+        from session_buddy.cli_with_modes import asyncio as cli_asyncio
+
+        settings = SessionBuddySettings(cache_dir=str(tmp_path))
+        fake_health = {"status": "ok", "components": {}}
+
+        def _consume_coro(coro: Any) -> dict[str, Any]:
+            # Close the coroutine so gc doesn't warn "was never awaited"
+            close = getattr(coro, "close", None)
+            if close is not None:
+                close()
+            return fake_health
+
+        with patch.object(
+            cli_asyncio, "run", side_effect=_consume_coro
+        ) as mock_run, patch(
+            "session_buddy.cli_with_modes.update_telemetry_counter",
+            return_value=None,
+        ) as mock_telemetry:
+            snapshot = _run_health_probe(settings)
+
+        assert snapshot.orchestrator_pid is None
+        assert snapshot.watchers_running is False
+        assert snapshot.activity_state == {"health": fake_health}
+        mock_run.assert_called_once()
+        mock_telemetry.assert_called_once()
+        # Verify the name/pid args to the telemetry counter
+        kwargs = mock_telemetry.call_args.kwargs
+        assert kwargs["name"] == "health_probes"
+        assert kwargs["pid"] is None
+
+    def test_run_health_probe_with_existing_pid_file_passes_pid(
+        self, tmp_path: Path
+    ) -> None:
+        """When a PID file exists, snapshot.orchestrator_pid is the int and watchers_running True."""
+        from session_buddy.cli_with_modes import (
+            SessionBuddySettings,
+            _run_health_probe,
+        )
+        from session_buddy.cli_with_modes import asyncio as cli_asyncio
+
+        pid_file = tmp_path / "mcp_server.pid"
+        pid_file.write_text("4242\n")
+
+        settings = SessionBuddySettings(cache_dir=str(tmp_path))
+        fake_health = {"status": "ok", "components": {"server": "up"}}
+
+        def _consume_coro(coro: Any) -> dict[str, Any]:
+            close = getattr(coro, "close", None)
+            if close is not None:
+                close()
+            return fake_health
+
+        with patch.object(
+            cli_asyncio, "run", side_effect=_consume_coro
+        ), patch(
+            "session_buddy.cli_with_modes.update_telemetry_counter",
+            return_value=None,
+        ) as mock_telemetry:
+            snapshot = _run_health_probe(settings)
+
+        assert snapshot.orchestrator_pid == 4242
+        assert snapshot.watchers_running is True
+        assert snapshot.activity_state == {"health": fake_health}
+        assert mock_telemetry.call_args.kwargs["pid"] == 4242
+
+
+class TestCreateSessionBuddyCliStartHandler:
+    """Coverage lift: Exercise start_handler closure inside create_session_buddy_cli.
+
+    The factory's ``start_handler`` is a closure that captures ``mode``.
+    Invoking it executes ``start_server_handler(mode=mode)``. This pin
+    protects the closure-binding contract — without it, line 187 is
+    uncovered because no test exercises the closure body.
+    """
+
+    def test_factory_start_handler_calls_start_server_handler_with_mode(
+        self,
+    ) -> None:
+        """start_handler closure calls start_server_handler(mode=mode)."""
+        from session_buddy.cli_with_modes import create_session_buddy_cli
+
+        with patch.dict(os.environ, {"SESSION_BUDDY_MODE": "lite"}, clear=True), patch(
+            "session_buddy.cli_with_modes.start_server_handler"
+        ) as mock_handler:
+            cli_factory = create_session_buddy_cli()
+
+            cli_factory.start_handler()
+
+        mock_handler.assert_called_once_with(mode="lite")
+
+    def test_factory_start_handler_propagates_value_error(self) -> None:
+        """When start_server_handler raises SystemExit(1) (ValueError path), the closure
+        re-raises it — no swallowing at the factory layer."""
+        from session_buddy.cli_with_modes import create_session_buddy_cli
+
+        with patch.dict(
+            os.environ, {"SESSION_BUDDY_MODE": "standard"}, clear=True
+        ), patch(
+            "session_buddy.cli_with_modes.start_server_handler",
+            side_effect=SystemExit(1),
+        ):
+            cli_factory = create_session_buddy_cli()
+
+            with pytest.raises(SystemExit):
+                cli_factory.start_handler()
+
+
+class TestMain:
+    """Coverage lift: Exercise main() body (lines 204-245).
+
+    main() parses argv, sets the env var, builds the factory, creates the
+    typer/click app, and invokes it with remaining args. Patches at the
+    ``create_session_buddy_cli`` seam + monkeypatched ``sys.argv`` let
+    us drive main() end-to-end without spinning up a real CLI.
+
+    Note: ``monkeypatch.setattr(sys, "argv", ...)`` is the recommended
+    pytest idiom for module-attribute patching because ``patch.object``
+    can race with main()'s own ``sys.argv =`` re-assignment.
+    """
+
+    def test_main_no_args_uses_default_mode_and_invokes_app(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """main() with no --mode flag uses the env-default and calls app()."""
+        from session_buddy.cli_with_modes import main
+
+        monkeypatch.delenv("SESSION_BUDDY_MODE", raising=False)
+
+        fake_app = MagicMock()
+        fake_factory = MagicMock()
+        fake_factory.create_app.return_value = fake_app
+        monkeypatch.setattr(
+            "session_buddy.cli_with_modes.create_session_buddy_cli",
+            lambda: fake_factory,
+        )
+        monkeypatch.setattr(sys, "argv", ["session-buddy"])
+
+        main()
+
+        assert os.environ.get("SESSION_BUDDY_MODE") == "standard"
+        fake_factory.create_app.assert_called_once()
+        fake_app.assert_called_once()
+
+    def test_main_passes_remaining_args_through_to_app(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """main() forwards args not consumed by its own parser to the app."""
+        from session_buddy.cli_with_modes import main
+
+        monkeypatch.delenv("SESSION_BUDDY_MODE", raising=False)
+
+        fake_app = MagicMock()
+        fake_factory = MagicMock()
+        fake_factory.create_app.return_value = fake_app
+        monkeypatch.setattr(
+            "session_buddy.cli_with_modes.create_session_buddy_cli",
+            lambda: fake_factory,
+        )
+        monkeypatch.setattr(sys, "argv", ["session-buddy", "--port=9999"])
+
+        main()
+
+        # app() must be called; forwarding of remaining args is verified by
+        # the assertion below that ``--port=9999`` is in the argv that
+        # main() re-assigned (since args not consumed by argparse flow into
+        # ``remaining`` and are concatenated back to sys.argv).
+        fake_app.assert_called_once()
+        assert "--port=9999" in sys.argv
+
+    def test_main_sets_env_from_explicit_mode_flag(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When --mode=lite is on argv, SESSION_BUDDY_MODE=lite is set before invoking."""
+        from session_buddy.cli_with_modes import main
+
+        monkeypatch.delenv("SESSION_BUDDY_MODE", raising=False)
+
+        fake_app = MagicMock()
+        fake_factory = MagicMock()
+        fake_factory.create_app.return_value = fake_app
+        monkeypatch.setattr(
+            "session_buddy.cli_with_modes.create_session_buddy_cli",
+            lambda: fake_factory,
+        )
+        monkeypatch.setattr(sys, "argv", ["session-buddy", "--mode=lite"])
+
+        main()
+
+        assert os.environ.get("SESSION_BUDDY_MODE") == "lite"
+
+    def test_main_rejects_invalid_mode_via_choices(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Argparse ``choices=['lite','standard']`` causes SystemExit on invalid input."""
+        from session_buddy.cli_with_modes import main
+
+        monkeypatch.delenv("SESSION_BUDDY_MODE", raising=False)
+        monkeypatch.setattr(sys, "argv", ["session-buddy", "--mode=invalid"])
+
+        with pytest.raises(SystemExit):
+            main()
+
+    def test_main_with_env_mode_uses_env_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When SESSION_BUDDY_MODE is preset, argparse default reads from env."""
+        from session_buddy.cli_with_modes import main
+
+        monkeypatch.setenv("SESSION_BUDDY_MODE", "lite")
+
+        fake_app = MagicMock()
+        fake_factory = MagicMock()
+        fake_factory.create_app.return_value = fake_app
+        monkeypatch.setattr(
+            "session_buddy.cli_with_modes.create_session_buddy_cli",
+            lambda: fake_factory,
+        )
+        monkeypatch.setattr(sys, "argv", ["session-buddy"])
+
+        main()
+
+        assert os.environ.get("SESSION_BUDDY_MODE") == "lite"
+
+
+class TestCLISmokeGate:
+    """CLI smoke gate (brief requirement): ``--help`` exits 0.
+
+    The CLI script is invoked as a module so Python sets up ``sys.path``
+    the same way a production user would. The smoke test guards against
+    parser-construction regressions in ``main()`` and against the
+    ``--mode`` choices wiring rotting.
+    """
+
+    def test_cli_help_smoke_exits_zero(self) -> None:
+        """CLI smoke gate: ``python -m session_buddy.cli_with_modes --help`` exits 0."""
+        repo_root = str(Path(__file__).resolve().parents[3])
+        env = {**os.environ, "PYTHONPATH": repo_root}
+        result = subprocess.run(
+            [sys.executable, "-m", "session_buddy.cli_with_modes", "--help"],
+            cwd=repo_root,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, (
+            f"stderr={result.stderr!r} stdout={result.stdout!r}"
+        )
+
+
+class TestModuleSysPathBranch:
+    """Coverage lift: Exercise module-level sys.path.insert *True* branch (line 34).
+
+    Lines 33-34 read::
+
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+
+    During a normal pytest run, ``project_root`` is already on ``sys.path``
+    (the test collection added it), so the if-condition's True branch and
+    its body never execute. To cover that branch we strip ``project_root``
+    from ``sys.path``, evict the cached module, and re-import: the
+    re-executed module body runs the insert.
+
+    Ref: ``docs/superpowers/specs/2026-08-03-session-buddy-coverage-improvement-design.md``
+    brief requirement for >=90% branch coverage.
+    """
+
+    def test_sys_path_insert_branch_when_project_root_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Re-importing cli_with_modes after stripping project_root from sys.path
+        executes the True branch of the ``if`` (line 34 body).
+
+        Restores BOTH ``sys.modules["session_buddy.cli_with_modes"]`` AND
+        ``session_buddy.cli_with_modes`` (the parent-package attribute) on
+        teardown. ``importlib.import_module`` sets both: the sys.modules
+        cache entry and the parent package's attribute. If only the cache
+        entry is restored, the parent attribute still points at the
+        re-imported module, and later string-form ``monkeypatch.setattr(
+        "session_buddy.cli_with_modes.create_session_buddy_cli", ...)``
+        calls resolve to that NEW module (via pytest's ``resolve()`` walking
+        the attribute) instead of the original module bound to
+        ``cli_module`` at the top of this file. The result: the patch
+        silently no-ops on the wrong module, and ``TestMain::test_main_*``
+        tests invoke the real CLI instead of the mocked factory.
+
+        Memory: ``conftest-sysmodules-pollution-pattern`` — bare
+        ``sys.modules.pop(...)`` is the wrong idiom. Pattern B (explicit
+        try/finally with original save) is correct here because monkeypatch
+        alone doesn't reach the parent package attribute.
+
+        Critical: the parent-package attribute MUST be set to the OLD
+        module (``cli_module``) after teardown. The OLD module reference
+        comes from the top-level ``from session_buddy import cli_with_modes
+        as cli_module`` at the top of this file; ``sys.modules.get(...)``
+        returns None because the entry was popped by monkeypatch.delitem
+        before we could capture it. Using ``cli_module`` directly avoids
+        that null-state bug.
+        """
+        import importlib
+
+        # Compute project_root the same way the module does
+        module_path = cli_module.__file__
+        if module_path is None:
+            pytest.skip("cli_with_modes has no __file__")
+        project_root = str(Path(module_path).resolve().parent.parent)
+
+        # Capture the OLD module reference. ``cli_module`` is bound at
+        # the top of this file and is the most reliable reference to the
+        # pre-test module. We use it to restore the parent-package
+        # attribute after the re-import.
+        old_module = cli_module
+
+        # sys.modules and sys.path are restored via monkeypatch on
+        # teardown. The parent-package attribute must be restored
+        # manually because pytest's monkeypatch doesn't know about it.
+        monkeypatch.setattr(
+            sys, "path", [p for p in sys.path if p != project_root]
+        )
+        monkeypatch.delitem(
+            sys.modules, "session_buddy.cli_with_modes", raising=False
+        )
+
+        import session_buddy as _session_buddy_pkg
+
+        try:
+            # Re-import — this triggers the module-level code path with
+            # `str(project_root) not in sys.path == True`, exercising line 34.
+            importlib.import_module("session_buddy.cli_with_modes")
+
+            # Pin: after re-import, project_root is back on sys.path
+            assert project_root in sys.path
+        finally:
+            # Restore the parent-package attribute. Without this, pytest's
+            # ``resolve()`` walks ``session_buddy.cli_with_modes`` and
+            # lands on the freshly-imported module, breaking later
+            # string-form monkeypatch.setattr calls.
+            _session_buddy_pkg.cli_with_modes = old_module
+            # sys.modules and sys.path are restored by monkeypatch on teardown.
