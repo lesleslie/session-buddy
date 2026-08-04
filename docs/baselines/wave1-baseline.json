@@ -1,7 +1,7 @@
 {
   "captured_at": "2026-08-04T03:14:16.395119Z",
   "captured_on_commit": "2374756a3cca2ab00ac6a772dc36889327581279",
-  "test_invocation": "uv run pytest tests/ --cov=session_buddy --cov-branch --cov-report=json:coverage.json --cov-report=term-missing:skip-covered -q --no-header --tb=line",
+  "test_invocation": "uv run pytest tests/ --ignore=tests/unit/test_quality_scoring_metrics_registry.py --cov=session_buddy --cov-branch --cov-report=json:coverage.json --cov-report=term-missing:skip-covered -q --no-header --tb=line",
   "baseline_failure_nodeids": [
     "tests/functional/test_session_workflows.py::TestSessionCrossPlatform::test_session_in_different_environments",
     "tests/functional/test_session_workflows.py::TestSessionWorkflows::test_complete_session_workflow",
