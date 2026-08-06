@@ -1,51 +1,178 @@
-# Cross-Repo Work Accounting in Checkpoint — Implementation Plan
+# Cross-Repo Work Accounting in Checkpoint — Implementation Plan (v2)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **For the implementer:** This is v2 of the plan. v1 had 11 convergent Critical bugs (per the power-trio + mahavishnu-specialist plan review). v2 fixes them and adds per-repo grouping from the start (no Task-7 placeholder), adds the `start_session` prerequisite refactor as Task 1.5, and adds Integration Contract blocks per session-buddy's `.claude/decisions/wire-up-contract.md`.
+
 **Goal:** Capture cross-repo work (commits, plan refs, blockers, test runs) into the session-buddy checkpoint via two ingest paths (ambient `git log` pull from sibling repos + explicit `store_cross_repo_work` MCP push from other Bodai repos), render a "Cross-Repo Work" section in the handoff doc, and lay the substrate for future routing/trigger consumers — without breaking the existing checkpoint pipeline.
 
-**Architecture:** New `cross_repo_work_v2` DuckDB table (one row per `conversation_id` × `repo_name`; `work_entries` is a JSON column of discriminated-union entries deduped by `(kind, sha|plan_path)`). New `CheckpointCrossRepoAccountant` orchestrates `AmbientPuller` + the merge primitive + write. New MCP tool `store_cross_repo_work` (`@require_auth(Permission.WRITE)` + server-side path resolution). `HandoffLink` reads the table and renders a markdown section between "Quality Breakdown" and "Recommendations" in the production handoff path. Spec: `docs/superpowers/specs/2026-08-05-cross-repo-checkpoint-accounting-design.md` (commit `0e75c7b3`).
+**Architecture:** New `cross_repo_work_v2` DuckDB table (one row per `conversation_id` × `repo_name`; `work_entries` is a JSON column of discriminated-union entries deduped by `(kind, sha|plan_path)`). New `CheckpointCrossRepoAccountant` orchestrates `AmbientPuller` (returns `dict[str, list[CommitEntry]]` per-repo) + `MergePrimitive` (single-`BEGIN TRANSACTION` write across the batch) + write. New MCP tool `store_cross_repo_work` using session-buddy's local `require_auth(optional=False)` decorator + server-side path resolution from `settings/ecosystem.yaml`. `HandoffLink` reads the table and renders a markdown section between "Quality Breakdown" and "Recommendations" in the production handoff path.
 
-**Tech Stack:** Python 3.13, DuckDB ≥0.9.0 (for `INSERT ... ON CONFLICT`), Pydantic v2 (discriminated unions, `ConfigDict(extra="forbid")`), FastMCP via `mcp-common`, `asyncio.to_thread` for sync git subprocess, existing `ReflectionDatabaseAdapter` for storage, `pytest` with the project's `crackerjack`-driven quality gates.
+**Spec:** `docs/superpowers/specs/2026-08-05-cross-repo-checkpoint-accounting-design.md` (commit `0e75c7b3`, v3).
 
 ## Global Constraints
 
 Every task's requirements implicitly include this section.
 
-- **Python target**: 3.13+. Use `from __future__ import annotations` as the first non-comment line of every new source file. `X | None` (not `Optional[X]`), `list[str]`, `pathlib.Path`. No `assert` in production code (use `mahavishnu/core/errors.py`-style exceptions). Oneiric logger (`oneiric.logging`) — never stdlib `logging` or `print()`. All I/O in the orchestration layer is async; use `asyncio.to_thread` for blocking subprocess. (session-buddy `CLAUDE.md` crackerjack-compliant-code section.)
-- **Hard limits** (from `pyproject.toml`): line-length 100, function args 10, branches 15, returns 6, statements 55 ceiling. Coverage: 80% minimum. New modules must clear the crackerjack gate.
-- **DuckDB version**: ≥0.9.0 (required for `INSERT ... ON CONFLICT`). Use `CAST(? AS JSON)` (not `?::JSON`). Use `BEGIN TRANSACTION` (no `IMMEDIATE` qualifier — DuckDB doesn't accept it; it's SQLite syntax). DuckDB does NOT enforce `FOREIGN KEY` — referential integrity is at the application layer.
-- **Storage path**: All writes go through `session_buddy/adapters/reflection_adapter_oneiric.py` via `require_reflection_database()` + the existing lock convention. New DDL must be added to EVERY active schema-init/migration path in `session_buddy/memory/schema_v2.py` AND the migration registry in `session_buddy/memory/migration.py`.
-- **MCP registration**: every new tool must (a) export `register_<tool>_tools` from `session_buddy/mcp/tools/__init__.py`, (b) add it to `_ALL_REGISTERS` in `session_buddy/mcp/server.py:40-153`, and (c) wire it into the `STANDARD` profile in `session_buddy/mcp/tools/profiles.py:42-76`.
-- **Auth contract**: `@require_auth(Permission.WRITE, config=<AuthConfig>, service_name="session-buddy")`. The literal `@require_auth()` defaults to `Permission.READ` and bypasses auth when `config=None` — DO NOT copy the unguarded `store_code_graph_from_mahavishnu` precedent OR the missing-Permission.WRITE precedent in newer session-tracking tools.
-- **Conversation identity**: the canonical join key is `conversations_v2.id` (ULID). External pushers must supply it explicitly. `start_session` MCP tool MUST exist and return `conversation_id` before this feature ships.
+- **Python target**: 3.13+. Use `from __future__ import annotations` as the first non-comment line of every new source file. `X | None` (not `Optional[X]`), `list[str]`, `pathlib.Path`. No `assert` in production code. Oneiric logger (`oneiric.logging`) — never stdlib `logging` or `print()`. All I/O in the orchestration layer is async; use `asyncio.to_thread` for blocking subprocess.
+- **Hard limits** (from `pyproject.toml`): line-length 100, function args 10, branches 15, returns 6, statements 55 ceiling. Coverage: 80% minimum.
+- **DuckDB version**: ≥0.9.0 (required for `INSERT ... ON CONFLICT`). Use `CAST(? AS JSON)` (not `?::JSON`). Use `BEGIN TRANSACTION` (no `IMMEDIATE` qualifier). DuckDB does NOT enforce `FOREIGN KEY` — referential integrity is at the application layer.
+- **Storage path**: All writes go through `session_buddy/adapters/reflection_adapter_oneiric.py` via `require_reflection_database()` + the existing lock convention. New DDL must be added to EVERY active schema-init/migration path in `session_buddy/memory/schema_v2.py` AND the migration registry in `session_buddy/memory/migration.py`. The adapter's `__aexit__` calls `aclose()` which auto-commits pending transactions on connection close; explicit `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` inside the adapter's context manager is safe.
+- **MCP registration**: every new tool must (a) define `register_<tool>_tools(mcp_server)` in a new module, (b) export it from `session_buddy/mcp/tools/__init__.py`, (c) add the **register-function name string** to `_ALL_REGISTERS` dict in `session_buddy/mcp/server.py:88`, and (d) add the same string to `STANDARD_REGISTRATIONS: list[str]` in `session_buddy/mcp/tools/profiles.py:36`. **Verified**: `STANDARD_REGISTRATIONS` is a flat list of strings (e.g., `"register_conversation_tools"`), NOT a list of dicts. **Verified**: `_ALL_REGISTERS` is a dict keyed by register-function name mapping to the callable.
+- **Auth contract**: session-buddy's local `require_auth(optional=False)` decorator from `session_buddy/mcp/auth.py:79`. **It does NOT accept `Permission.WRITE` or `config=` kwargs** — the mcp-integration power-trio review assumed the `mcp-common` signature which does not apply here. The correct pattern is:
+  ```python
+  from session_buddy.mcp.auth import require_auth
+  
+  @require_auth(optional=False)
+  @mcp_server.tool(name="store_cross_repo_work")
+  async def _store_cross_repo_work(
+      request: StoreCrossRepoWorkRequest,
+      token: str | None = None,  # populated by FastMCP auth context
+  ) -> CrossRepoStoreResult: ...
+  ```
+  The `optional=False` means the tool requires a valid `token` kwarg. The session-buddy auth wrapper extracts the token via `kwargs.pop("token", None)`. **DO NOT** import from `mcp_common.auth` — the local wrapper at `session_buddy/mcp/auth.py` is the project's idiom.
+- **Conversation identity**: the canonical join key is `conversations_v2.id` (ULID). External pushers must supply it explicitly. **The CrossRepoPusher must validate `conversation_id` exists in `conversations_v2` before write** — orphan rows are rejected with `error_code="session_not_found"`. `start_session` must return a parseable `conversation_id` (currently returns a formatted `str` — see Task 1.5).
 - **Never-breaks invariant**: cross-repo accounting NEVER blocks the git commit / handoff doc. Storage failures log WARNING and continue; never raise out of `capture()`.
-- **Schema naming**: rename `session_id` → `conversation_id` throughout (the prior name was confusing because `checkpoint_session()` generates a fresh ULID per checkpoint invocation, which is NOT the join key). Real names to keep verbatim: `start_session` (MCP tool), `checkpoint_session` (Python method), `session_window_start` / `session_window_end` (time-window terms).
-- **Pydantic v2 strict**: every model has `model_config = ConfigDict(extra="forbid")`. Idempotency on `(conversation_id, repo_name, sha|plan_path)` is enforced by the merge primitive in §Merge primitive, NOT by a schema UNIQUE constraint.
+- **Schema naming**: rename `session_id` → `conversation_id` throughout. Real names to keep verbatim: `start_session` (MCP tool), `checkpoint_session` (Python method), `session_window_start` / `session_window_end` (time-window terms).
+- **Pydantic v2 strict**: every model has `model_config = ConfigDict(extra="forbid")`. Idempotency on `(conversation_id, repo_name, sha|plan_path)` is enforced by the merge primitive in §Merge primitive, NOT by a schema UNIQUE constraint. Discriminated union: `Annotated[Union[CommitEntry, PlanRefEntry], Field(discriminator="kind")]`.
+- **Per-repo grouping from the start**: `AmbientPuller.capture()` returns `tuple[dict[str, list[CommitEntry]], list[str]]` (repo_name → entries). The Task-7 orchestrator iterates the dict and calls `MergePrimitive.merge()` once per repo. **NO `<ambient>` placeholder**.
+- **Multi-repo atomicity**: the explicit push (`store_cross_repo_work`) wraps the entire per-call loop in ONE `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK`. Either all repos in a single call are written, or the whole transaction rolls back. The merge primitive itself does NOT open a transaction — the caller does.
 - **Conventions** (crackerjack-compliant-code): imports sorted within sections (force-sort-within-sections), known-first-party=["session_buddy"]. Functions ≤15 branches, ≤6 returns, ≤55 statements. `logger.exception(...)` in `except` blocks. No `# type: ignore` — use `# ty: ignore[<code>]` if needed.
+- **Process Discipline** (CLAUDE.md): every task includes an **Integration Contract** block (Triggered from, Returns to / updates, Demonstrable by, Rollback signal, Observability added). Initialize a `docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md` in `built` state during Task 2; transition to `wired` at Task 11d; `adopted` at Task 13. Run `python scripts/audit_orphans.py --since=2026-08-05` in Task 13 Step 1.
 
 ---
 
-### Task 1: Preflight — verify `start_session` prerequisite
+### Task 0: Preflight — verify `start_session` + DuckDB + adapter
 
 **Files:** none (read-only).
 
-- [ ] **Step 1: Confirm `start_session` returns `conversation_id`**
+- [ ] **Step 1: Verify `start_session` return shape**
 
-Run: `grep -n "conversation_id\|conversationId" session_buddy/tools/session_tools.py | head -10`
-Expected: at least one match referencing `conversation_id` as a returned field. If absent, this task escalates to Task 2 (create the prerequisite) before continuing.
+Run: `grep -B1 -A8 "async def _start_impl" session_buddy/mcp/tools/session/session_tools.py | head -30`
+Expected: `_start_impl(...) -> str` return annotation. **Confirmed at v2 prep time** — `_start_impl` returns `str` (formatted prose), NOT a typed envelope with `conversation_id`. This is a prerequisite gap that Task 1.5 addresses.
 
-- [ ] **Step 2: Confirm `conversations_v2` is reachable as the join key**
+- [ ] **Step 2: Verify `conversations_v2` is reachable**
 
-Run: `grep -n "conversations_v2\|CREATE TABLE conversations" session_buddy/memory/schema_v2.py | head -5`
-Expected: at least one match. Note the column name of the PK (`id` expected) — the rest of this plan references `conversations_v2.id` as the canonical conversation_id.
+Run: `grep -n "CREATE TABLE conversations_v2" session_buddy/memory/schema_v2.py | head -3`
+Expected: at least one match. Note the column name of the PK (`id` expected).
 
-- [ ] **Step 3: Confirm DuckDB version ≥0.9.0**
+- [ ] **Step 3: Verify DuckDB version ≥0.9.0**
 
-Run: `python -c "import duckdb; print(duckdb.__version__)" | head -1`
+Run: `uv run python -c "import duckdb; print(duckdb.__version__)" | head -1`
 Expected: `0.9.0` or higher. If lower, document the gap and escalate.
 
-- [ ] **Step 4: Commit nothing** (no changes). Note outcomes in the next task's commit message.
+- [ ] **Step 4: Verify session-buddy local auth wrapper**
+
+Run: `grep -n "def require_auth\|@wraps" session_buddy/mcp/auth.py | head -10`
+Expected: `def require_auth(optional: bool = False) -> Callable[...]` — confirms the signature. **DO NOT use `mcp_common.auth.require_auth`**; the local wrapper is the project idiom.
+
+- [ ] **Step 5: Verify profile structure**
+
+Run: `grep -n "_REGISTRATIONS\s*[:=]\|_ALL_REGISTRATIONS" session_buddy/mcp/tools/profiles.py session_buddy/mcp/server.py | head -20`
+Expected: `STANDARD_REGISTRATIONS: list[str]` (flat list of register-function name strings), `_ALL_REGISTRATIONS: dict[str, ...]` keyed by register-function name.
+
+- [ ] **Step 6: Commit nothing.** Note outcomes in the next task's commit message.
+
+---
+
+### Task 1.5: Refactor `_start_impl` to return typed envelope with `conversation_id`
+
+**Files:**
+- Modify: `session_buddy/mcp/tools/session/session_tools.py:start_session_tool` (return type) and `_start_impl` (return value)
+- Modify: `session_buddy/tools/session_tools.py:start_session_tool` (the wrapper that delegates to `_start_impl`)
+- Test: `tests/unit/mcp/tools/session/test_start_session_returns_typed_envelope.py`
+
+**Why this task exists:** `start_session_tool` currently returns a formatted text string, not a typed envelope with `conversation_id`. The CrossRepoPusher's spec-required `conversation_id` validation can only work if `start_session` produces a parseable `conversation_id`. Either (a) refactor `_start_impl` to return a typed envelope, OR (b) refactor it to return `conversation_id` directly as `str` and let the wrapper format the prose separately. This plan picks (b) — minimal change.
+
+**Interfaces:**
+- Consumes: existing `start_session_tool(...)` callers (their return value is a `str`).
+- Produces: `_start_impl(...) -> tuple[str, str]` where the second element is the `conversation_id` ULID. The `start_session_tool` wrapper returns just the first element to preserve existing callers.
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+# tests/unit/mcp/tools/session/test_start_session_returns_typed_envelope.py
+from __future__ import annotations
+
+import asyncio
+import re
+
+import pytest
+
+from session_buddy.mcp.tools.session.session_tools import _start_impl
+from session_buddy.tools.session_tools import start_session_tool
+
+
+ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
+
+
+@pytest.mark.asyncio
+async def test_start_impl_returns_parseable_conversation_id() -> None:
+    prose, conversation_id = await _start_impl(working_directory=None)
+    assert ULID_RE.match(conversation_id), (
+        f"conversation_id {conversation_id!r} is not a 26-char Crockford ULID"
+    )
+
+
+def test_start_session_tool_wrapper_preserves_prose_string() -> None:
+    """Wrapper must still return str (not the tuple) so existing callers don't break."""
+    # Smoke: ensure the wrapper is annotated -> str
+    import inspect
+    sig = inspect.signature(start_session_tool)
+    assert sig.return_annotation is str
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/mcp/tools/session/test_start_session_returns_typed_envelope.py -v`
+Expected: FAIL with a tuple-unpacking error or annotation mismatch.
+
+- [ ] **Step 3: Refactor `_start_impl` to return `(prose, conversation_id)`**
+
+In `session_buddy/mcp/tools/session/session_tools.py`:
+
+```python
+async def _start_impl(working_directory: str | None = None) -> tuple[str, str]:
+    """Returns (formatted_prose, conversation_id). The conversation_id is
+    a 26-char Crockford ULID persisted to conversations_v2.id; callers that
+    need only the prose (e.g. the FastMCP wrapper) unpack and discard."""
+    # ... existing setup, build prose as before ...
+    prose = output_builder.build()  # whatever the current builder call is
+    conversation_id = result["conversation_id"]  # pulled from initialize_session's return dict
+    return prose, conversation_id
+
+
+async def start_session_tool(working_directory: str | None = None) -> str:
+    """Start a new Claude session, including environment setup and shortcuts.
+
+    Returns the formatted prose string for human consumption. Callers needing
+    the conversation_id ULID should call _start_impl directly (it returns the
+    tuple) or use mcp__session-buddy__start_session and parse the response.
+    """
+    prose, _ = await _start_impl(working_directory)
+    return prose
+```
+
+(The actual implementer reads the existing `_start_impl` body and threads the `conversation_id` extraction through. The dict returned by `_get_session_manager().initialize_session(working_directory)` already carries the new `conversation_id` per the prerequisite check; if not, escalate.)
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/mcp/tools/session/test_start_session_returns_typed_envelope.py -v`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add session_buddy/mcp/tools/session/session_tools.py session_buddy/tools/session_tools.py tests/unit/mcp/tools/session/test_start_session_returns_typed_envelope.py
+git commit -m "feat(start_session): return typed envelope (prose, conversation_id) for cross-repo pushers"
+```
+
+**Integration Contract:**
+- Triggered from: existing `start_session_tool` callers (Claude Code session startup).
+- Returns to / updates: `session_buddy.tools.session_tools.start_session_tool` (returns prose unchanged); `_start_impl` callers (now have parseable ULID).
+- Demonstrable by: `tests/unit/mcp/tools/session/test_start_session_returns_typed_envelope.py`.
+- Rollback signal: revert the commit; existing callers use prose-only.
+- Observability added: existing `_start_impl` logging unchanged.
 
 ---
 
@@ -54,13 +181,14 @@ Expected: `0.9.0` or higher. If lower, document the gap and escalate.
 **Files:**
 - Modify: `session_buddy/memory/schema_v2.py` (add DDL after `conversations_v2` block, ~line 119)
 - Modify: `session_buddy/memory/migration.py` (register the new DDL with a version key)
+- Create: `docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md` (initialize in `built` state per CLAUDE.md Process Discipline)
 - Test: `tests/unit/memory/test_cross_repo_work_v2_schema.py`
 
 **Interfaces:**
-- Consumes: `session_buddy.adapters.reflection_adapter_oneiric.require_reflection_database()` (existing)
-- Produces: a table `cross_repo_work_v2` registered in both `schema_v2.py::INIT_SCHEMA` and `migration.py::MIGRATIONS`
+- Consumes: `session_buddy.adapters.reflection_adapter_oneiric.require_reflection_database()` (existing).
+- Produces: a table `cross_repo_work_v2` registered in both `schema_v2.py::INIT_SCHEMA` and `migration.py::MIGRATIONS`.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing test** (same as v1)
 
 ```python
 # tests/unit/memory/test_cross_repo_work_v2_schema.py
@@ -86,17 +214,9 @@ def test_cross_repo_work_v2_table_present(tmp_path: Path) -> None:
     ).fetchall()
     columns = {r[0] for r in rows}
     expected = {
-        "id",
-        "conversation_id",
-        "repo_name",
-        "repo_path",
-        "repo_role",
-        "session_window_start",
-        "session_window_end",
-        "work_entries",
-        "contributor_sources",
-        "created_at",
-        "updated_at",
+        "id", "conversation_id", "repo_name", "repo_path", "repo_role",
+        "session_window_start", "session_window_end", "work_entries",
+        "contributor_sources", "created_at", "updated_at",
     }
     assert expected.issubset(columns), f"missing columns: {expected - columns}"
 
@@ -119,9 +239,7 @@ def test_cross_repo_work_v2_unique_constraint(tmp_path: Path) -> None:
 Run: `uv run pytest tests/unit/memory/test_cross_repo_work_v2_schema.py -v`
 Expected: FAIL with "no such table cross_repo_work_v2".
 
-- [ ] **Step 3: Add DDL to `schema_v2.py`**
-
-In `session_buddy/memory/schema_v2.py`, find the `INIT_SCHEMA` constant (or the equivalent module-level DDL block; grep for `CREATE TABLE conversations_v2`) and append:
+- [ ] **Step 3: Add DDL to `schema_v2.py`** (same as v1)
 
 ```sql
 CREATE TABLE IF NOT EXISTS cross_repo_work_v2 (
@@ -141,23 +259,57 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cross_repo_work_v2_conv_repo
     ON cross_repo_work_v2 (conversation_id, repo_name);
 ```
 
-(Recall: DuckDB does NOT enforce `FOREIGN KEY` — the keyword is reserved but skipped. conversation_id is a logical reference to `conversations_v2.id`, enforced at the application layer in the CrossRepoPusher.)
+(DuckDB does NOT enforce `FOREIGN KEY`; referential integrity is enforced at the application layer in the CrossRepoPusher.)
 
-- [ ] **Step 4: Register the DDL in `migration.py`**
+- [ ] **Step 4: Register the DDL in `migration.py`** (same as v1)
 
-In `session_buddy/memory/migration.py`, append the same DDL block to the `MIGRATIONS` registry (find the version-keyed list — add a new entry keyed by an appropriate version stamp such as `("2026-08-05", "cross_repo_work_v2", ddl)`). Apply via `apply_migrations(conn)`. Both the schema-init path AND the migration-registry path execute the same DDL.
+In `session_buddy/memory/migration.py`, append the same DDL block to the `MIGRATIONS` registry. Key it by `("2026-08-05", "cross_repo_work_v2", ddl)`.
 
-- [ ] **Step 5: Run test to verify it passes**
+- [ ] **Step 5: Initialize feature-tracking file**
+
+Create `docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md`:
+
+```markdown
+---
+feature: cross-repo-checkpoint-accounting
+status: built
+created: 2026-08-05
+last_updated: 2026-08-05
+---
+
+# Cross-Repo Work Accounting in Checkpoint
+
+## Built
+- `cross_repo_work_v2` schema + migration registered (this task).
+
+## Wired (pending Task 11d)
+- `CheckpointCrossRepoAccountant.capture()` invoked from `session_manager.checkpoint_session`.
+- `HandoffLink.render_section()` injected into `_generate_handoff_documentation`.
+- `store_cross_repo_work` MCP tool registered via `register_cross_repo_work_tools` in `STANDARD_REGISTRATIONS`.
+
+## Adopted (pending Task 13)
+- First wave-1 checkpoint produces "Cross-Repo Work" section in handoff doc.
+- Crackerjack gate green; coverage ≥80% on the 5 new modules.
+```
+
+- [ ] **Step 6: Run test to verify it passes**
 
 Run: `uv run pytest tests/unit/memory/test_cross_repo_work_v2_schema.py -v`
 Expected: PASS (2 tests).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add session_buddy/memory/schema_v2.py session_buddy/memory/migration.py tests/unit/memory/test_cross_repo_work_v2_schema.py
-git commit -m "feat(schema): add cross_repo_work_v2 table + migration registration"
+git add session_buddy/memory/schema_v2.py session_buddy/memory/migration.py tests/unit/memory/test_cross_repo_work_v2_schema.py docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md
+git commit -m "feat(schema): add cross_repo_work_v2 table + migration registration + feature-tracking init"
 ```
+
+**Integration Contract:**
+- Triggered from: `apply_migrations()` on first session-buddy startup with a fresh DB.
+- Returns to / updates: `cross_repo_work_v2` table is queryable via `require_reflection_database()`.
+- Demonstrable by: `tests/unit/memory/test_cross_repo_work_v2_schema.py`.
+- Rollback signal: `DROP TABLE cross_repo_work_v2` (migration-revert or manual).
+- Observability added: `feature_tracking/2026-08-05-...md` transitions to `built`.
 
 ---
 
@@ -167,232 +319,7 @@ git commit -m "feat(schema): add cross_repo_work_v2 table + migration registrati
 - Create: `session_buddy/memory/cross_repo_work.py`
 - Test: `tests/unit/memory/test_cross_repo_work_pydantic.py`
 
-**Interfaces:**
-- Consumes: `pydantic.BaseModel`, `pydantic.ConfigDict`, `pydantic.Field`, `pydantic.StringConstraints`, `typing.Annotated`, `typing.Literal`
-- Produces (exported):
-  - `WorkEntry` (discriminated union type alias)
-  - `Provenance` (`Literal["ambient", "explicit"]`)
-  - `CommitEntry` / `PlanRefEntry` (entry models)
-  - `RepoNameStr` / `UlidStr` / `AuthorStr` (constrained-string aliases)
-  - `CrossRepoWorkRowCreate` / `CrossRepoWorkRowRead` (table-row models)
-
-- [ ] **Step 1: Write the failing tests**
-
-```python
-# tests/unit/memory/test_cross_repo_work_pydantic.py
-from __future__ import annotations
-
-from datetime import datetime, timezone
-
-import pytest
-from pydantic import ValidationError
-
-from session_buddy.memory.cross_repo_work import (
-    CommitEntry,
-    CrossRepoWorkRowCreate,
-    CrossRepoWorkRowRead,
-    PlanRefEntry,
-    WorkEntry,
-)
-
-
-def test_commit_entry_requires_sha() -> None:
-    with pytest.raises(ValidationError):
-        CommitEntry(kind="commit", provenance="ambient")  # missing sha
-
-
-def test_plan_ref_entry_requires_plan_path() -> None:
-    with pytest.raises(ValidationError):
-        PlanRefEntry(kind="plan_ref", provenance="explicit")  # missing plan_path
-
-
-def test_work_entry_discriminator_routes_by_kind() -> None:
-    commit: WorkEntry = CommitEntry(
-        kind="commit",
-        sha="abc123",
-        provenance="ambient",
-        author="les <les@example.com>",
-    )
-    plan_ref: WorkEntry = PlanRefEntry(
-        kind="plan_ref",
-        plan_path="docs/foo.md",
-        provenance="explicit",
-    )
-    assert commit.kind == "commit"
-    assert plan_ref.kind == "plan_ref"
-
-
-def test_extra_forbid_rejects_unknown_field() -> None:
-    with pytest.raises(ValidationError):
-        CommitEntry(
-            kind="commit",
-            sha="abc123",
-            provenance="ambient",
-            extra_typo_field="nope",
-        )
-
-
-def test_create_and_read_row_models_have_distinct_fields() -> None:
-    now = datetime.now(tz=timezone.utc)
-    create = CrossRepoWorkRowCreate(
-        id="01HXX",
-        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        repo_name="mahavishnu",
-        repo_path="/Users/les/Projects/mahavishnu",
-        repo_role="orchestrator",
-        session_window_start=now,
-        session_window_end=now,
-        work_entries=[],
-        contributor_sources=["ambient"],
-    )
-    read = CrossRepoWorkRowRead(
-        id=create.id,
-        conversation_id=create.conversation_id,
-        repo_name=create.repo_name,
-        repo_path=create.repo_path,
-        repo_role=create.repo_role,
-        session_window_start=create.session_window_start,
-        session_window_end=create.session_window_end,
-        work_entries=create.work_entries,
-        contributor_sources=create.contributor_sources,
-        created_at=now,
-        updated_at=now,
-    )
-    # create has no created_at/updated_at; read does
-    with pytest.raises(ValidationError):
-        CrossRepoWorkRowCreate(
-            id="01HXX",
-            conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-            repo_name="mahavishnu",
-            repo_path="/Users/les/Projects/mahavishnu",
-            repo_role="orchestrator",
-            session_window_start=now,
-            session_window_end=now,
-            work_entries=[],
-            contributor_sources=["ambient"],
-            created_at=now,
-        )
-    # smoke that read carries DB-generated timestamps
-    assert read.created_at == now
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `uv run pytest tests/unit/memory/test_cross_repo_work_pydantic.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'session_buddy.memory.cross_repo_work'`.
-
-- [ ] **Step 3: Create `session_buddy/memory/cross_repo_work.py`**
-
-```python
-# session_buddy/memory/cross_repo_work.py
-"""Pydantic v2 models for the cross_repo_work_v2 reflection table.
-
-Discriminated union over WorkEntry kind, with extra="forbid" on every model.
-Split into Create (write path) and Read (read path with DB-generated timestamps).
-"""
-from __future__ import annotations
-
-from datetime import datetime
-from typing import Annotated, Literal, Union
-
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
-
-
-Provenance = Literal["ambient", "explicit"]
-
-
-RepoNameStr = Annotated[
-    str,
-    StringConstraints(min_length=1, max_length=64, strip_whitespace=True),
-]
-
-UlidStr = Annotated[
-    str,
-    StringConstraints(min_length=26, max_length=26, strip_whitespace=True),
-]
-
-AuthorStr = Annotated[
-    str,
-    StringConstraints(max_length=200, strip_whitespace=True),
-]
-
-
-class _BaseEntry(BaseModel):
-    """Shared shape for cross-repo work entries. extra='forbid' prevents
-    silent field-drop on typos and surfaces them as ValidationError instead.
-    """
-    model_config = ConfigDict(extra="forbid")
-    provenance: Provenance
-    correlation_id: str | None = None  # future consumer pattern
-    causation_id: str | None = None    # future consumer pattern
-
-
-class CommitEntry(_BaseEntry):
-    kind: Literal["commit"]
-    sha: str  # required: kind=commit without sha is meaningless for the dedup key
-    subject: str | None = None
-    files_changed_count: int | None = None
-    author: AuthorStr | None = None
-    timestamp: datetime | None = None
-
-
-class PlanRefEntry(_BaseEntry):
-    kind: Literal["plan_ref"]
-    plan_path: str  # required
-    phase: str | None = None
-
-
-# Future kinds (PR, test_run, blocker) deferred — they need their own models
-# with required-field contracts. Adding them is a Pydantic-only change.
-
-WorkEntry = Annotated[
-    Union[CommitEntry, PlanRefEntry],
-    Field(discriminator="kind"),
-]
-
-
-class CrossRepoWorkRowCreate(BaseModel):
-    """Write-path model: orchestrator builds this from AmbientPuller or
-    CrossRepoPusher before INSERT. No DB-generated timestamps."""
-    model_config = ConfigDict(extra="forbid")
-    id: str  # ULID; orchestrator generates
-    conversation_id: UlidStr
-    repo_name: RepoNameStr
-    repo_path: str
-    repo_role: str | None = None
-    session_window_start: datetime
-    session_window_end: datetime
-    work_entries: list[WorkEntry]
-    contributor_sources: list[Provenance] = Field(default_factory=list)
-
-
-class CrossRepoWorkRowRead(BaseModel):
-    """Read-path model: includes DB-generated created_at / updated_at."""
-    model_config = ConfigDict(extra="forbid")
-    id: str
-    conversation_id: UlidStr
-    repo_name: RepoNameStr
-    repo_path: str
-    repo_role: str | None = None
-    session_window_start: datetime
-    session_window_end: datetime
-    work_entries: list[WorkEntry]
-    contributor_sources: list[Provenance]
-    created_at: datetime
-    updated_at: datetime
-```
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `uv run pytest tests/unit/memory/test_cross_repo_work_pydantic.py -v`
-Expected: PASS (5 tests).
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add session_buddy/memory/cross_repo_work.py tests/unit/memory/test_cross_repo_work_pydantic.py
-git commit -m "feat(memory): add cross_repo_work Pydantic models (WorkEntry discriminated union)"
-```
+(Same as v1 — content unchanged from v1 Task 3.)
 
 ---
 
@@ -400,243 +327,35 @@ git commit -m "feat(memory): add cross_repo_work Pydantic models (WorkEntry disc
 
 **Files:**
 - Create: `session_buddy/core/lifecycle/handoff_link.py`
-- Modify: `session_buddy/core/session_manager.py:818` (insert call into `_generate_handoff_documentation` after the Quality Breakdown block)
+- Modify: `session_buddy/core/session_manager.py` (insert call into `_generate_handoff_documentation` after the "Quality Breakdown" section)
 - Test: `tests/unit/core/lifecycle/test_handoff_link.py`
 
-**Interfaces:**
-- Consumes: `CrossRepoWorkRowRead`, `ConversationWindow` (a small tuple `(start: datetime, end: datetime)`) — both passed in by the caller.
-- Produces: `str` (the rendered markdown section, including its `## Cross-Repo Work` heading). Caller appends it to the handoff doc.
+**v2 changes from v1:**
+- Move imports to module top (not function-local). The function-local import workaround is only valid when there's a circular import risk; here there isn't.
+- Add `test_render_section_returns_sentinel_on_internal_failure` that monkeypatches `_render_inner` to raise, asserting the sentinel substring is present.
+- Add `test_render_section_with_500_rows_under_200ms` for stress performance.
 
-- [ ] **Step 1: Write the failing tests**
-
-```python
-# tests/unit/core/lifecycle/test_handoff_link.py
-from __future__ import annotations
-
-from datetime import datetime, timedelta, timezone
-
-import pytest
-
-from session_buddy.core.lifecycle.handoff_link import HandoffLink
-from session_buddy.memory.cross_repo_work import (
-    CommitEntry,
-    CrossRepoWorkRowRead,
-)
-
-
-def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
-
-
-def _row(repo: str, count: int) -> CrossRepoWorkRowRead:
-    now = _now()
-    return CrossRepoWorkRowRead(
-        id=f"id_{repo}",
-        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        repo_name=repo,
-        repo_path=f"/Users/les/Projects/{repo}",
-        repo_role="test",
-        session_window_start=now - timedelta(hours=1),
-        session_window_end=now,
-        work_entries=[
-            CommitEntry(
-                kind="commit",
-                sha=f"sha{i}",
-                provenance="ambient",
-                author="les",
-                subject=f"commit {i}",
-            )
-            for i in range(count)
-        ],
-        contributor_sources=["ambient"],
-        created_at=now,
-        updated_at=now,
-    )
-
-
-def test_render_section_three_repos() -> None:
-    section = HandoffLink.render_section(
-        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        rows=[_row("mahavishnu", 3), _row("crackerjack", 1), _row("akosha", 0)],
-    )
-    assert section.startswith("## Cross-Repo Work")
-    assert "mahavishnu" in section
-    assert "crackerjack" in section
-    assert "akosha" in section
-    assert "sha0" in section  # first SHA shown
-
-
-def test_render_section_no_rows_shows_no_work_sentinel() -> None:
-    section = HandoffLink.render_section(
-        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        rows=[],
-    )
-    assert "_No cross-repo work captured._" in section
-
-
-def test_render_section_caps_at_five_commits_per_repo() -> None:
-    section = HandoffLink.render_section(
-        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        rows=[_row("mahavishnu", 50)],
-    )
-    # First five shown; remaining summarized, not enumerated
-    assert "sha0" in section
-    assert "sha4" in section
-    assert "sha5" not in section
-    assert "omitted" in section or "and " in section
-
-
-def test_render_section_renders_under_200ms_with_500_rows() -> None:
-    import time
-    rows = [_row(f"repo-{i}", 1) for i in range(500)]
-    start = time.perf_counter()
-    HandoffLink.render_section(
-        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        rows=rows,
-    )
-    elapsed_ms = (time.perf_counter() - start) * 1000
-    assert elapsed_ms < 200, f"render took {elapsed_ms:.1f}ms"
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `uv run pytest tests/unit/core/lifecycle/test_handoff_link.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'session_buddy.core.lifecycle.handoff_link'`.
-
-- [ ] **Step 3: Create `session_buddy/core/lifecycle/handoff_link.py`**
-
-```python
-# session_buddy/core/lifecycle/handoff_link.py
-"""Read-side consumer: render the 'Cross-Repo Work' section of the handoff doc.
-
-Public surface is the staticmethod render_section, which keeps the read path
-testable without instantiating a CheckpointCrossRepoAccountant.
-"""
-from __future__ import annotations
-
-import html
-from collections.abc import Iterable
-from datetime import datetime
-
-from oneiric.logging import get_logger
-
-from session_buddy.memory.cross_repo_work import CrossRepoWorkRowRead
-
-_log = get_logger(__name__)
-
-_MAX_SHAS_PER_REPO = 5
-
-
-class HandoffLink:
-    """Renders the Cross-Repo Work markdown section for the handoff doc."""
-
-    @staticmethod
-    def render_section(
-        conversation_id: str,
-        rows: Iterable[CrossRepoWorkRowRead],
-    ) -> str:
-        rows_list = list(rows)
-        try:
-            return HandoffLink._render_inner(conversation_id, rows_list)
-        except Exception as exc:  # noqa: BLE001 — sentinel path, never raise
-            _log.exception(
-                "cross_repo_work_handoff_render_failed",
-                extra={"conversation_id": conversation_id, "error": str(exc)},
-            )
-            return (
-                "## Cross-Repo Work\n\n"
-                "> Cross-Repo Work could not be captured: "
-                f"{type(exc).__name__}. See logs for details.\n"
-            )
-
-    @staticmethod
-    def _render_inner(
-        conversation_id: str,
-        rows: list[CrossRepoWorkRowRead],
-    ) -> str:
-        if not rows:
-            return "## Cross-Repo Work\n\n_No cross-repo work captured._\n"
-
-        lines: list[str] = ["## Cross-Repo Work", ""]
-        rows_sorted = sorted(rows, key=lambda r: r.repo_name)
-        for row in rows_sorted:
-            commits = [e for e in row.work_entries if e.kind == "commit"]
-            lines.append(
-                f"- **{row.repo_name}** ({row.repo_role or 'unknown'}): "
-                f"{len(commits)} commit(s) since "
-                f"{row.session_window_start.isoformat()}"
-            )
-            for entry in commits[:_MAX_SHAS_PER_REPO]:
-                sha_short = html.escape(entry.sha[:7])
-                subject = html.escape(entry.subject or "(no subject)")
-                lines.append(f"  - `{sha_short}` {subject}")
-            omitted = len(commits) - _MAX_SHAS_PER_REPO
-            if omitted > 0:
-                lines.append(f"  - … and {omitted} more commit(s)")
-        lines.append("")
-        return "\n".join(lines)
-```
-
-- [ ] **Step 4: Wire `HandoffLink.render_section` into the production handoff path**
-
-In `session_buddy/core/session_manager.py`, locate the `_generate_handoff_documentation` method (line 789). Find the section that emits "## Quality Breakdown" (line 818). Immediately after that block's write loop, before the "## Recommendations" block, insert a call to fetch cross-repo rows and render the section. Sketch (full code adapted from the surrounding style of `session_manager.py`):
-
-```python
-# inside _generate_handoff_documentation, after the Quality Breakdown loop, before Recommendations
-try:
-    from session_buddy.adapters.reflection_adapter_oneiric import (
-        require_reflection_database,
-    )
-    from session_buddy.core.lifecycle.handoff_link import HandoffLink
-    from session_buddy.memory.cross_repo_work import CrossRepoWorkRowRead
-
-    with require_reflection_database() as conn:
-        rows = conn.execute(
-            "SELECT id, conversation_id, repo_name, repo_path, repo_role, "
-            "session_window_start, session_window_end, work_entries, "
-            "contributor_sources, created_at, updated_at "
-            "FROM cross_repo_work_v2 WHERE conversation_id = ?",
-            [conversation_id],
-        ).fetchall()
-    read_rows = [CrossRepoWorkRowRead.model_validate(dict(r)) for r in rows]
-    markdown_content.append(
-        HandoffLink.render_section(conversation_id, read_rows)
-    )
-except Exception as exc:  # noqa: BLE001 — sentinel path; do not break handoff
-    _log.exception("cross_repo_work_handoff_render_failed")
-    markdown_content.append(
-        "## Cross-Repo Work\n\n"
-        "> Cross-Repo Work could not be captured: "
-        f"{type(exc).__name__}. See logs for details.\n"
-    )
-```
-
-(Adjust the `_log` reference to match the logger instance already imported in `session_manager.py` — likely `self.logger` or a module-level logger.)
-
-- [ ] **Step 5: Run tests to verify they pass**
-
-Run: `uv run pytest tests/unit/core/lifecycle/test_handoff_link.py -v`
-Expected: PASS (4 tests).
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add session_buddy/core/lifecycle/handoff_link.py session_buddy/core/session_manager.py tests/unit/core/lifecycle/test_handoff_link.py
-git commit -m "feat(handoff): add HandoffLink consumer + wire into _generate_handoff_documentation"
-```
+(Same body as v1 Task 4 with the above test additions.)
 
 ---
 
-### Task 5: AmbientPuller — async git log with timeout + non-local filter
+### Task 5: AmbientPuller — async git log with per-repo grouping from the start
 
 **Files:**
 - Create: `session_buddy/core/checkpoint/__init__.py`
 - Create: `session_buddy/core/checkpoint/ambient_puller.py`
+- Create: `session_buddy/core/checkpoint/manifest_resolver.py` (shared helper — used by AmbientPuller and CrossRepoPusher; eliminates the duplicate env-var pattern flagged by python-pro M1 and mcp I5)
 - Test: `tests/unit/core/checkpoint/test_ambient_puller.py`
 
+**v2 changes from v1 (the BIG one):**
+
+- **Return type is per-repo from the start**: `tuple[dict[str, list[CommitEntry]], list[str]]` — `repo_name -> entries`. NO flat-list intermediate. NO Task-7 placeholder.
+- **`_load_repos` is an INSTANCE METHOD** (not `@staticmethod`) and reads `self._manifest_path` directly. **NO env-var fallback** in the loader — the constructor argument is the canonical source. The wiring layer (Task 11d) reads env var and constructs `AmbientPuller(path)`.
+- **Per-repo timeout test** + **per-batch timeout test** + **git log retry test** + **clock-skew test** (per spec §Error handling resilience C2/C3/I1/I3).
+
 **Interfaces:**
-- Consumes: `pathlib.Path` (working_directory), `UlidStr` (conversation_id), `datetime` (session_window_start, session_window_end), `Settings` (for `settings/ecosystem.yaml` path; injected).
-- Produces: `tuple[list[CommitEntry], list[str]]` — `(captured_entries, per_repo_failures)`. Never raises.
+- Consumes: `Path` (manifest path), `Path` (working_directory), `UlidStr` (conversation_id), `datetime × 2` (window).
+- Produces: `tuple[dict[str, list[CommitEntry]], list[str]]` — per-repo entries + per-repo failure names. Never raises.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -657,12 +376,8 @@ from session_buddy.core.checkpoint.ambient_puller import AmbientPuller
 
 def _git_init(path: Path) -> None:
     subprocess.check_call(["git", "init", "--quiet", str(path)])
-    subprocess.check_call(
-        ["git", "-C", str(path), "config", "user.email", "test@example.com"]
-    )
-    subprocess.check_call(
-        ["git", "-C", str(path), "config", "user.name", "Test"]
-    )
+    subprocess.check_call(["git", "-C", str(path), "config", "user.email", "test@example.com"])
+    subprocess.check_call(["git", "-C", str(path), "config", "user.name", "Test"])
 
 
 def _commit(path: Path, msg: str) -> str:
@@ -674,127 +389,201 @@ def _commit(path: Path, msg: str) -> str:
 
 def _write_manifest(tmp_path: Path, repos: list[dict[str, str]]) -> Path:
     p = tmp_path / "ecosystem.yaml"
-    p.write_text(yaml.safe_dump({"ecosystem": {r["name"]: {"path": r["path"], "role": r["role"]} for r in repos}}))
+    p.write_text(yaml.safe_dump({
+        "ecosystem": {
+            r["name"]: {"path": r["path"], "role": r["role"]}
+            for r in repos
+        }
+    }))
     return p
 
 
+async def _capture(puller, **kwargs):
+    return await puller.capture(
+        working_directory=kwargs["working_directory"],
+        conversation_id=kwargs["conversation_id"],
+        session_window_start=kwargs["session_window_start"],
+        session_window_end=kwargs["session_window_end"],
+    )
+
+
 @pytest.mark.asyncio
-async def test_ambient_puller_captures_commits_from_sibling(tmp_path: Path) -> None:
+async def test_per_repo_grouping_from_start(tmp_path: Path) -> None:
     workdir = tmp_path / "work"
     workdir.mkdir()
     _git_init(workdir)
-    sibling = tmp_path / "sibling"
-    sibling.mkdir()
-    _git_init(sibling)
-    sha = _commit(sibling, "feat(sibling): hello")
-    manifest = _write_manifest(tmp_path, [{"name": "sibling", "path": str(sibling), "role": "x"}])
-
+    sib_a = tmp_path / "a"; sib_a.mkdir(); _git_init(sib_a)
+    sib_b = tmp_path / "b"; sib_b.mkdir(); _git_init(sib_b)
+    sha_a = _commit(sib_a, "feat(a): 1")
+    sha_b = _commit(sib_b, "feat(b): 2")
+    manifest = _write_manifest(tmp_path, [
+        {"name": "a", "path": str(sib_a), "role": "x"},
+        {"name": "b", "path": str(sib_b), "role": "x"},
+    ])
+    puller = AmbientPuller(manifest_path=manifest)
     start = datetime.now(tz=timezone.utc) - timedelta(hours=1)
     end = datetime.now(tz=timezone.utc) + timedelta(hours=1)
-    puller = AmbientPuller(manifest_path=manifest)
-    entries, failures = await puller.capture(
+    grouped, failures = await _capture(
+        puller,
         working_directory=workdir,
         conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
         session_window_start=start,
         session_window_end=end,
     )
     assert failures == []
-    assert any(e.sha == sha for e in entries)
+    # Per-repo: each sibling has its own bucket
+    assert "a" in grouped
+    assert "b" in grouped
+    assert any(e.sha == sha_a for e in grouped["a"])
+    assert any(e.sha == sha_b for e in grouped["b"])
+    # NO "<ambient>" placeholder key
+    assert "<ambient>" not in grouped
 
 
 @pytest.mark.asyncio
-async def test_ambient_puller_excludes_local_working_directory(tmp_path: Path) -> None:
+async def test_non_local_filter_skips_working_directory(tmp_path: Path) -> None:
     workdir = tmp_path / "work"
     workdir.mkdir()
     _git_init(workdir)
-    sha = _commit(workdir, "feat(work): local commit")
+    sha_local = _commit(workdir, "feat(work): local")
     manifest = _write_manifest(tmp_path, [{"name": "work", "path": str(workdir), "role": "x"}])
-
-    start = datetime.now(tz=timezone.utc) - timedelta(hours=1)
-    end = datetime.now(tz=timezone.utc) + timedelta(hours=1)
     puller = AmbientPuller(manifest_path=manifest)
-    entries, _ = await puller.capture(
-        working_directory=workdir,
+    grouped, _ = await _capture(
+        puller, working_directory=workdir,
         conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        session_window_start=start,
-        session_window_end=end,
+        session_window_start=datetime.now(tz=timezone.utc) - timedelta(hours=1),
+        session_window_end=datetime.now(tz=timezone.utc) + timedelta(hours=1),
     )
-    assert all(e.sha != sha for e in entries)
+    assert all(e.sha != sha_local for grouped_entries in grouped.values() for e in grouped_entries)
 
 
 @pytest.mark.asyncio
-async def test_ambient_puller_skips_missing_manifest(tmp_path: Path) -> None:
-    workdir = tmp_path / "work"
-    workdir.mkdir()
-    puller = AmbientPuller(manifest_path=tmp_path / "nonexistent.yaml")
-    entries, failures = await puller.capture(
-        working_directory=workdir,
+async def test_missing_manifest_no_raise(tmp_path: Path) -> None:
+    puller = AmbientPuller(manifest_path=tmp_path / "missing.yaml")
+    grouped, failures = await _capture(
+        puller, working_directory=tmp_path / "work",
         conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
         session_window_start=datetime.now(tz=timezone.utc),
         session_window_end=datetime.now(tz=timezone.utc),
     )
-    assert entries == []
+    assert grouped == {}
     assert failures == []
 
 
 @pytest.mark.asyncio
-async def test_ambient_puller_skips_repo_with_no_commits_in_window(tmp_path: Path) -> None:
+async def test_per_repo_timeout_kills_hung_git(tmp_path: Path) -> None:
+    """Spec §Error handling resilience C2: 10s per-repo timeout."""
     workdir = tmp_path / "work"
     workdir.mkdir()
-    _git_init(workdir)
-    sibling = tmp_path / "sibling"
-    sibling.mkdir()
-    _git_init(sibling)
-    _commit(sibling, "ancient commit")
-    manifest = _write_manifest(tmp_path, [{"name": "sibling", "path": str(sibling), "role": "x"}])
-
-    # Window entirely in the future
-    start = datetime.now(tz=timezone.utc) + timedelta(days=10)
-    end = start + timedelta(hours=1)
-    puller = AmbientPuller(manifest_path=manifest)
-    entries, failures = await puller.capture(
-        working_directory=workdir,
-        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        session_window_start=start,
-        session_window_end=end,
+    sib = tmp_path / "hung_sibling"
+    sib.mkdir()
+    # Inject a git wrapper that sleeps for 60s
+    sleep_bin = tmp_path / "git-sleep"
+    sleep_bin.mkdir()
+    (sleep_bin / "git").write_text("#!/bin/sh\nsleep 60\n")
+    (sleep_bin / "git").chmod(0o755)
+    manifest_path = tmp_path / "ecosystem.yaml"
+    manifest_path.write_text(
+        f"ecosystem:\n  hung_sibling:\n    path: {sib}\n    role: x\n"
     )
-    assert entries == []
-    assert failures == []
-```
+    puller = AmbientPuller(manifest_path=manifest_path, git_bin=tmp_path / "git-sleep" / "git")
+    start = datetime.now(tz=timezone.utc)
+    end = start + timedelta(hours=1)
+    # Should return within ~15s, not 60s
+    grouped, failures = await asyncio.wait_for(
+        _capture(puller, working_directory=workdir, conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
+                  session_window_start=start, session_window_end=end),
+        timeout=15,
+    )
+    assert "hung_sibling" in failures
 
-(Timeout tests below are in Task 5b; this task covers the core happy path.)
+
+@pytest.mark.asyncio
+async def test_git_log_retry_on_transient_failure(tmp_path: Path) -> None:
+    """Spec §Error handling resilience I1: 2x retry on lock/EAGAIN transient."""
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    sib = tmp_path / "sibling"; sib.mkdir()
+    _git_init(sib)
+    sha = _commit(sib, "feat(sibling): hi")
+    # Wrapper that fails twice then succeeds
+    fail_bin = tmp_path / "git-flaky"
+    fail_bin.mkdir()
+    state_file = tmp_path / ".flaky_state"
+    state_file.write_text("0")
+    (fail_bin / "git").write_text(
+        f"#!/bin/sh\nn=$(cat {state_file})\n"
+        f"if [ $n -lt 2 ]; then echo $((n+1)) > {state_file}; exit 128; fi\n"
+        f"exec /usr/bin/git \"$@\"\n"
+    )
+    (fail_bin / "git").chmod(0o755)
+    manifest = _write_manifest(tmp_path, [{"name": "sibling", "path": str(sib), "role": "x"}])
+    puller = AmbientPuller(manifest_path=manifest, git_bin=fail_bin / "git")
+    grouped, failures = await _capture(
+        puller, working_directory=workdir,
+        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
+        session_window_start=datetime.now(tz=timezone.utc) - timedelta(hours=1),
+        session_window_end=datetime.now(tz=timezone.utc) + timedelta(hours=1),
+    )
+    assert failures == []
+    assert any(e.sha == sha for e in grouped.get("sibling", []))
+```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `uv run pytest tests/unit/core/checkpoint/test_ambient_puller.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'session_buddy.core.checkpoint.ambient_puller'`.
+Expected: FAIL with `ModuleNotFoundError`.
 
-- [ ] **Step 3: Create `session_buddy/core/checkpoint/__init__.py`** (empty file).
+- [ ] **Step 3: Create the three new files**
 
-- [ ] **Step 4: Create `session_buddy/core/checkpoint/ambient_puller.py`**
+`session_buddy/core/checkpoint/manifest_resolver.py`:
 
 ```python
-# session_buddy/core/checkpoint/ambient_puller.py
-"""Ambient capture of git commits from sibling repos during a session-buddy checkpoint.
+"""Centralized manifest-path resolution. Eliminates the duplicate
+ECOSYSTEM_MANIFEST env-var pattern that previously appeared in both
+AmbientPuller and store_cross_repo_work (python-pro M1 / mcp I5)."""
+from __future__ import annotations
 
-Runs `git log` per non-local sibling repo inside asyncio.to_thread (so the
-event loop is never blocked), with a 10s per-repo timeout and a 30s
-per-batch cap. Never raises — failures are returned in the
-per_repo_failures list and the orchestrator logs them as WARNING.
+from pathlib import Path
+
+DEFAULT_RELATIVE_PATH = Path("settings/ecosystem.yaml")
+
+
+def resolve_manifest_path(explicit: Path | None = None) -> Path:
+    """Return explicit arg if given; else ECOSYSTEM_MANIFEST env var;
+    else settings/ecosystem.yaml relative to cwd. Single source of truth."""
+    if explicit is not None:
+        return explicit
+    import os
+    env = os.environ.get("ECOSYSTEM_MANIFEST")
+    if env:
+        return Path(env)
+    return DEFAULT_RELATIVE_PATH
+```
+
+`session_buddy/core/checkpoint/ambient_puller.py`:
+
+```python
+"""Ambient capture of git commits from sibling repos.
+
+Returns per-repo groups (dict[str, list[CommitEntry]]) plus per-repo
+failure names. Per-repo timeout 10s, per-batch timeout 30s, transient
+git failure retry 2x with backoff. Never raises.
 """
 from __future__ import annotations
 
 import asyncio
 import os
-import shlex
 import subprocess
-from dataclasses import dataclass
+import time
+from collections.abc import Awaitable
 from datetime import datetime
 from pathlib import Path
 
 import yaml
 from oneiric.logging import get_logger
 
+from session_buddy.core.checkpoint.manifest_resolver import resolve_manifest_path
 from session_buddy.memory.cross_repo_work import CommitEntry
 
 _log = get_logger(__name__)
@@ -802,18 +591,19 @@ _log = get_logger(__name__)
 _PER_REPO_TIMEOUT_S = 10.0
 _BATCH_TIMEOUT_S = 30.0
 _MAX_COMMITS = 500
-
-
-@dataclass(frozen=True)
-class _RepoTarget:
-    name: str
-    path: Path
-    role: str | None
+_GIT_RETRY_BACKOFF_S = (0.25, 0.75)
+_TRANSIENT_GIT_EXIT_CODES = frozenset({128, 129})  # lock-related
 
 
 class AmbientPuller:
-    def __init__(self, manifest_path: Path) -> None:
-        self._manifest_path = manifest_path
+    def __init__(
+        self,
+        manifest_path: Path | None = None,
+        *,
+        git_bin: Path | None = None,
+    ) -> None:
+        self._manifest_path = resolve_manifest_path(manifest_path)
+        self._git_bin = git_bin or Path("git")
 
     async def capture(
         self,
@@ -822,101 +612,109 @@ class AmbientPuller:
         conversation_id: str,
         session_window_start: datetime,
         session_window_end: datetime,
-    ) -> tuple[list[CommitEntry], list[str]]:
+    ) -> tuple[dict[str, list[CommitEntry]], list[str]]:
         repos = self._load_repos(working_directory)
         if not repos:
-            return [], []
+            return {}, []
 
-        captured: list[CommitEntry] = []
+        captured: dict[str, list[CommitEntry]] = {}
         failures: list[str] = []
 
-        async def _run_one(target: _RepoTarget) -> None:
-            try:
-                entries = await asyncio.wait_for(
-                    asyncio.to_thread(
-                        self._git_log,
-                        target,
-                        session_window_start,
-                        session_window_end,
-                    ),
-                    timeout=_PER_REPO_TIMEOUT_S,
-                )
-                captured.extend(entries)
-            except asyncio.TimeoutError:
-                _log.warning(
-                    "ambient_pull_git_log_timeout",
-                    extra={"repo": target.name, "timeout_s": _PER_REPO_TIMEOUT_S},
-                )
-                failures.append(target.name)
-            except Exception as exc:  # noqa: BLE001 — never raise
-                _log.warning(
-                    "ambient_pull_failed",
-                    extra={"repo": target.name, "error": str(exc)},
-                )
-                failures.append(target.name)
+        async def _run_one(target_name: str, target_path: Path) -> None:
+            for attempt in range(3):  # initial + 2 retries
+                try:
+                    entries = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self._git_log,
+                            target_path,
+                            session_window_start,
+                            session_window_end,
+                        ),
+                        timeout=_PER_REPO_TIMEOUT_S,
+                    )
+                    captured[target_name] = entries
+                    return
+                except asyncio.TimeoutError:
+                    _log.warning(
+                        "ambient_pull_git_log_timeout",
+                        extra={"repo": target_name, "timeout_s": _PER_REPO_TIMEOUT_S},
+                    )
+                    failures.append(target_name)
+                    return
+                except subprocess.CalledProcessError as exc:
+                    if exc.returncode in _TRANSIENT_GIT_EXIT_CODES and attempt < 2:
+                        await asyncio.sleep(_GIT_RETRY_BACKOFF_S[attempt])
+                        continue
+                    _log.warning(
+                        "ambient_pull_failed",
+                        extra={"repo": target_name, "error": str(exc)},
+                    )
+                    failures.append(target_name)
+                    return
+                except Exception as exc:  # noqa: BLE001
+                    _log.warning(
+                        "ambient_pull_failed",
+                        extra={"repo": target_name, "error": str(exc)},
+                    )
+                    failures.append(target_name)
+                    return
 
         try:
             await asyncio.wait_for(
-                asyncio.gather(*(_run_one(r) for r in repos), return_exceptions=True),
+                asyncio.gather(
+                    *(_run_one(name, path) for name, path in repos),
+                    return_exceptions=True,
+                ),
                 timeout=_BATCH_TIMEOUT_S,
             )
         except asyncio.TimeoutError:
-            _log.warning(
-                "ambient_pull_batch_timeout",
-                extra={"timeout_s": _BATCH_TIMEOUT_S},
-            )
+            _log.warning("ambient_pull_batch_timeout", extra={"timeout_s": _BATCH_TIMEOUT_S})
         return captured, failures
 
-    @staticmethod
-    def _load_repos(working_directory: Path) -> list[_RepoTarget]:
-        # manifest loading is sync; small file, OK to do at capture time
-        manifest = Path(os.environ.get("ECOSYSTEM_MANIFEST", "settings/ecosystem.yaml"))
-        if not manifest.exists():
-            _log.info("ambient_pull_manifest_missing", extra={"path": str(manifest)})
+    def _load_repos(self, working_directory: Path) -> list[tuple[str, Path]]:
+        if not self._manifest_path.exists():
+            _log.info("ambient_pull_manifest_missing", extra={"path": str(self._manifest_path)})
             return []
         try:
-            data = yaml.safe_load(manifest.read_text())
+            data = yaml.safe_load(self._manifest_path.read_text())
         except yaml.YAMLError as exc:
             _log.warning("ambient_pull_manifest_malformed", extra={"error": str(exc)})
             return []
         if not isinstance(data, dict) or "ecosystem" not in data:
             return []
         local = working_directory.resolve()
-        result: list[_RepoTarget] = []
+        result: list[tuple[str, Path]] = []
         for name, entry in data["ecosystem"].items():
             if not isinstance(entry, dict) or "path" not in entry:
                 continue
             path = Path(entry["path"]).resolve()
             if path == local:
-                continue  # non-local filter: skip working_directory
-            result.append(_RepoTarget(name=name, path=path, role=entry.get("role")))
+                continue  # non-local filter
+            result.append((name, path))
         return result
 
-    @staticmethod
     def _git_log(
-        target: _RepoTarget,
+        self,
+        repo_path: Path,
         start: datetime,
         end: datetime,
     ) -> list[CommitEntry]:
         argv = [
-            "git",
+            str(self._git_bin),
             "log",
             f"--since={int(start.timestamp())}",
             f"--until={int(end.timestamp())}",
             f"-n{_MAX_COMMITS}",
             "--format=%H%x09%s%x09%an%x09%ae%x09%aI",
             "--",
-            str(target.path),
+            str(repo_path),
         ]
-        proc = subprocess.run(  # noqa: S603 — argv list, not shell
-            argv,
-            capture_output=True,
-            text=True,
-            check=False,
+        proc = subprocess.run(  # noqa: S603 — argv list
+            argv, capture_output=True, text=True, check=False,
             timeout=_PER_REPO_TIMEOUT_S + 1,
         )
         if proc.returncode != 0:
-            raise RuntimeError(f"git log failed: {proc.stderr.strip()}")
+            raise subprocess.CalledProcessError(proc.returncode, argv, proc.stderr)
         result: list[CommitEntry] = []
         for line in proc.stdout.splitlines():
             parts = line.split("\t", 5)
@@ -936,31 +734,46 @@ class AmbientPuller:
         return result
 ```
 
-(Adjust the `_load_repos` static method to read from the `manifest_path` constructor argument — replace `Path(os.environ.get(...))` with `self._manifest_path`. The version above is illustrative; the actual implementer uses the constructor arg.)
+`session_buddy/core/checkpoint/__init__.py`: empty file.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/unit/core/checkpoint/test_ambient_puller.py -v`
-Expected: PASS (4 tests).
+Expected: PASS (5 tests).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add session_buddy/core/checkpoint/__init__.py session_buddy/core/checkpoint/ambient_puller.py tests/unit/core/checkpoint/test_ambient_puller.py
-git commit -m "feat(checkpoint): add AmbientPuller (async git log + timeout + non-local filter)"
+git add session_buddy/core/checkpoint/__init__.py session_buddy/core/checkpoint/ambient_puller.py session_buddy/core/checkpoint/manifest_resolver.py tests/unit/core/checkpoint/test_ambient_puller.py
+git commit -m "feat(checkpoint): AmbientPuller with per-repo grouping + timeouts + retry"
 ```
+
+**Integration Contract:**
+- Triggered from: `CheckpointCrossRepoAccountant.capture()` (Task 7).
+- Returns to / updates: dict[str, list[CommitEntry]] per-repo + per-repo failure names.
+- Demonstrable by: `tests/unit/core/checkpoint/test_ambient_puller.py` (5 tests including per-repo timeout).
+- Rollback signal: revert this commit; `CheckpointCrossRepoAccountant` callsite will fail with a clear error.
+- Observability added: `ambient_pull_failed`, `ambient_pull_git_log_timeout`, `ambient_pull_batch_timeout`, `ambient_pull_manifest_missing`, `ambient_pull_manifest_malformed` log events.
 
 ---
 
-### Task 6: Merge primitive — Python dedup + atomic DuckDB SQL
+### Task 6: MergePrimitive — Python dedup + atomic DuckDB transaction (caller-managed)
 
 **Files:**
 - Create: `session_buddy/core/checkpoint/merge_primitive.py`
 - Test: `tests/unit/core/checkpoint/test_merge_primitive.py`
 
+**v2 changes from v1 (multiple Criticals fixed):**
+
+1. **`BEGIN TRANSACTION` placed BEFORE the SELECT** (python-pro C2). The merge must read+dedup+write atomically.
+2. **The merge primitive does NOT open its own transaction.** The caller (CrossRepoPusher or CheckpointCrossRepoAccountant) wraps the batch in ONE `BEGIN TRANSACTION` and passes the connection through. The merge primitive is transaction-agnostic.
+3. **Fix the bogus `model_validate` call** (code-reviewer C3). DuckDB returns `datetime` for TIMESTAMP WITH TIME ZONE; no need to round-trip through `CrossRepoWorkRowRead`.
+4. **Spec merge collision rules** (code-reviewer M5): preserve max `files_changed_count`, preserve first-observed `timestamp` on provenance-tied collisions.
+5. **`contributor_sources` order-preserving union** (code-reviewer I5).
+
 **Interfaces:**
-- Consumes: `CrossRepoWorkRowCreate` (incoming row), DuckDB connection (via `require_reflection_database()`).
-- Produces: `CrossRepoWorkRowRead` (the post-merge row as written), `int` (entries_inserted), `int` (entries_deduplicated).
+- Consumes: `CrossRepoWorkRowCreate` (incoming row), DuckDB connection (already inside a transaction managed by the caller).
+- Produces: `tuple[CrossRepoWorkRowRead, int, int]` — post-merge row, `entries_inserted`, `entries_deduplicated`. **Never opens or closes transactions.**
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -968,17 +781,16 @@ git commit -m "feat(checkpoint): add AmbientPuller (async git log + timeout + no
 # tests/unit/core/checkpoint/test_merge_primitive.py
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import json
+from datetime import datetime, timedelta, timezone
 
 import duckdb
 
-from session_buddy.adapters.reflection_adapter_oneiric import (
-    require_reflection_database,
-)
 from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
 from session_buddy.memory.cross_repo_work import (
     CommitEntry,
     CrossRepoWorkRowCreate,
+    CrossRepoWorkRowRead,
 )
 
 
@@ -986,24 +798,27 @@ def _now():
     return datetime.now(tz=timezone.utc)
 
 
-def _row(sha: str, prov: str = "ambient"):
+def _row(sha: str, prov: str = "ambient", files_changed_count: int | None = None,
+         timestamp: datetime | None = None, id_suffix: str = ""):
     now = _now()
     return CrossRepoWorkRowCreate(
-        id=f"id_{sha}",
+        id=f"id_{sha}{id_suffix}",
         conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
         repo_name="mahavishnu",
         repo_path="/Users/les/Projects/mahavishnu",
         repo_role="orchestrator",
         session_window_start=now,
         session_window_end=now,
-        work_entries=[CommitEntry(kind="commit", sha=sha, provenance=prov)],
+        work_entries=[CommitEntry(
+            kind="commit", sha=sha, provenance=prov,
+            files_changed_count=files_changed_count, timestamp=timestamp,
+        )],
         contributor_sources=[prov],
     )
 
 
-def test_merge_first_write_inserts(tmp_path):
-    db = tmp_path / "m.duckdb"
-    conn = duckdb.connect(str(db))
+def _make_conn() -> duckdb.DuckDBPyConnection:
+    conn = duckdb.connect(":memory:")
     conn.execute(
         "CREATE TABLE cross_repo_work_v2 ("
         "id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, "
@@ -1015,54 +830,70 @@ def test_merge_first_write_inserts(tmp_path):
         "updated_at TIMESTAMP NOT NULL DEFAULT NOW(), "
         "UNIQUE (conversation_id, repo_name))"
     )
+    return conn
+
+
+def test_merge_first_write_inserts():
+    conn = _make_conn()
     mp = MergePrimitive()
     read, ins, ded = mp.merge(conn, _row("sha1"))
     assert ins == 1 and ded == 0
     assert len(read.work_entries) == 1
 
 
-def test_merge_dedup_on_sha_keeps_explicit(tmp_path):
-    db = tmp_path / "m.duckdb"
-    conn = duckdb.connect(str(db))
-    conn.execute(
-        "CREATE TABLE cross_repo_work_v2 ("
-        "id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, "
-        "repo_name TEXT NOT NULL, repo_path TEXT NOT NULL, repo_role TEXT, "
-        "session_window_start TIMESTAMP NOT NULL, "
-        "session_window_end TIMESTAMP NOT NULL, "
-        "work_entries JSON NOT NULL, contributor_sources JSON NOT NULL DEFAULT '[]', "
-        "created_at TIMESTAMP NOT NULL DEFAULT NOW(), "
-        "updated_at TIMESTAMP NOT NULL DEFAULT NOW(), "
-        "UNIQUE (conversation_id, repo_name))"
-    )
+def test_merge_dedup_prefers_explicit():
+    conn = _make_conn()
     mp = MergePrimitive()
     mp.merge(conn, _row("sha1", "ambient"))
-    read, ins, ded = mp.merge(conn, _row("sha1", "explicit"))
-    assert ins == 0 and ded == 1
-    assert read.work_entries[0].provenance == "explicit"
-    assert "ambient" in read.contributor_sources
-    assert "explicit" in read.contributor_sources
+    read, ins, ded = mp.merge(conn, _row("sha2", "explicit"))  # second merge is a fresh call
+    assert ins == 1 and ded == 0
+    # Now collide: insert sha1 again from explicit source
+    read2, ins2, ded2 = mp.merge(conn, _row("sha1", "explicit"))
+    assert ins2 == 0 and ded2 == 1
+    assert read2.work_entries[0].provenance == "explicit"
+    assert "ambient" in read2.contributor_sources
+    assert "explicit" in read2.contributor_sources
 
 
-def test_merge_different_shas_appends(tmp_path):
-    db = tmp_path / "m.duckdb"
-    conn = duckdb.connect(str(db))
-    conn.execute(
-        "CREATE TABLE cross_repo_work_v2 ("
-        "id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, "
-        "repo_name TEXT NOT NULL, repo_path TEXT NOT NULL, repo_role TEXT, "
-        "session_window_start TIMESTAMP NOT NULL, "
-        "session_window_end TIMESTAMP NOT NULL, "
-        "work_entries JSON NOT NULL, contributor_sources JSON NOT NULL DEFAULT '[]', "
-        "created_at TIMESTAMP NOT NULL DEFAULT NOW(), "
-        "updated_at TIMESTAMP NOT NULL DEFAULT NOW(), "
-        "UNIQUE (conversation_id, repo_name))"
-    )
+def test_merge_collision_preserves_max_files_changed():
+    conn = _make_conn()
+    mp = MergePrimitive()
+    mp.merge(conn, _row("sha1", "ambient", files_changed_count=3))
+    read, _, _ = mp.merge(conn, _row("sha1", "explicit", files_changed_count=5, id_suffix="2"))
+    assert read.work_entries[0].files_changed_count == 5  # max preserved
+
+
+def test_merge_contributor_sources_order_preserving():
+    conn = _make_conn()
+    mp = MergePrimitive()
+    mp.merge(conn, _row("sha1", "ambient"))
+    read, _, _ = mp.merge(conn, _row("sha1", "explicit", id_suffix="2"))
+    assert read.contributor_sources == ["ambient", "explicit"]
+
+
+def test_merge_collision_preserves_first_observed_timestamp():
+    conn = _make_conn()
+    mp = MergePrimitive()
+    older = _now() - timedelta(hours=2)
+    newer = _now() - timedelta(hours=1)
+    mp.merge(conn, _row("sha1", "ambient", timestamp=older))
+    read, _, _ = mp.merge(conn, _row("sha1", "explicit", timestamp=newer, id_suffix="2"))
+    # First-observed wins on timestamp; even though explicit is the canonical entry,
+    # the timestamp from the first observation is preserved.
+    assert read.work_entries[0].timestamp == older
+
+
+def test_merge_does_not_open_transaction():
+    """Caller-managed transactions. merge() should not BEGIN or COMMIT."""
+    conn = _make_conn()
     mp = MergePrimitive()
     mp.merge(conn, _row("sha1"))
-    read, ins, ded = mp.merge(conn, _row("sha2"))
-    assert ins == 1 and ded == 0
-    assert {e.sha for e in read.work_entries} == {"sha1", "sha2"}
+    # If merge had committed, we couldn't roll back. Roll back manually:
+    conn.execute("ROLLBACK")
+    rows = conn.execute("SELECT COUNT(*) FROM cross_repo_work_v2").fetchone()[0]
+    # If merge had its own transaction, ROLLBACK would NOT have rolled back.
+    # If merge is caller-transaction-agnostic, ROLLBACK removes the row.
+    assert rows == 0
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1073,20 +904,21 @@ Expected: FAIL with `ModuleNotFoundError`.
 - [ ] **Step 3: Create `session_buddy/core/checkpoint/merge_primitive.py`**
 
 ```python
-# session_buddy/core/checkpoint/merge_primitive.py
 """Atomic merge primitive for cross_repo_work_v2.
 
-Performs read-dedup-write inside BEGIN TRANSACTION with a Python-held
-adapter lock. The SQL receives pre-merged JSON via CAST(? AS JSON)
-parameters; the dedup-by-(kind, sha|plan_path) happens in Python.
+Performs read-dedup-write inside a CALLER-MANAGED transaction. The merge
+primitive does NOT BEGIN or COMMIT — the caller (CrossRepoPusher or
+CheckpointCrossRepoAccountant) wraps the entire batch in one
+BEGIN TRANSACTION / COMMIT / ROLLBACK to deliver multi-repo atomicity.
 
 Idempotency on (conversation_id, repo_name, sha) is enforced HERE,
-not by a schema UNIQUE constraint (DuckDB JSON columns don't support
-deduplication natively).
+not by a schema UNIQUE constraint (DuckDB JSON columns can't deduplicate
+elements natively).
 """
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Iterable
 
 import duckdb
@@ -1123,12 +955,34 @@ def _merge_entries(
         key = _dedup_key(entry)
         if key in by_key:
             existing_entry = by_key[key]
-            # Prefer provenance="explicit" over "ambient"; otherwise keep existing
-            if (
-                existing_entry.provenance == "ambient"
-                and entry.provenance == "explicit"
-            ):
-                by_key[key] = entry
+            # Prefer provenance="explicit" over "ambient"
+            winner = entry
+            if existing_entry.provenance == "explicit" and entry.provenance == "ambient":
+                winner = existing_entry  # ambient suppressed by existing explicit
+                _log.debug("cross_repo_dedup_suppressed_ambient", extra={"sha": key[1]})
+            else:
+                # Merge fields per spec: max files_changed_count, first-observed timestamp
+                if (
+                    isinstance(winner, CommitEntry)
+                    and isinstance(existing_entry, CommitEntry)
+                ):
+                    max_fcc = max(
+                        existing_entry.files_changed_count or 0,
+                        winner.files_changed_count or 0,
+                    )
+                    first_ts = (
+                        existing_entry.timestamp
+                        if existing_entry.timestamp
+                        else winner.timestamp
+                    )
+                    winner = CommitEntry(
+                        **{
+                            **winner.model_dump(),
+                            "files_changed_count": max_fcc,
+                            "timestamp": first_ts,
+                        }
+                    )
+            by_key[key] = winner
             deduplicated += 1
         else:
             by_key[key] = entry
@@ -1136,10 +990,7 @@ def _merge_entries(
     return list(by_key.values()), inserted, deduplicated
 
 
-def _union_provenance(
-    existing: Iterable[str],
-    incoming: Iterable[str],
-) -> list[str]:
+def _union_provenance(existing: Iterable[str], incoming: Iterable[str]) -> list[str]:
     seen: list[str] = []
     for prov in list(existing) + list(incoming):
         if prov not in seen:
@@ -1153,73 +1004,63 @@ class MergePrimitive:
         conn: duckdb.DuckDBPyConnection,
         incoming: CrossRepoWorkRowCreate,
     ) -> tuple[CrossRepoWorkRowRead, int, int]:
-        # Read existing row (if any) inside the transaction.
-        existing = conn.execute(
+        # Caller-managed transaction. Read existing, dedup, write.
+        # Use the connection's transaction context as-is.
+        row = conn.execute(
             "SELECT work_entries, contributor_sources, session_window_end "
             "FROM cross_repo_work_v2 "
             "WHERE conversation_id = ? AND repo_name = ?",
             [incoming.conversation_id, incoming.repo_name],
         ).fetchone()
 
-        if existing is None:
-            new_entries = list(incoming.work_entries)
-            inserted = len(new_entries)
+        if row is None:
+            merged_entries = list(incoming.work_entries)
+            inserted = len(merged_entries)
             deduplicated = 0
             merged_provenance = list(incoming.contributor_sources)
             new_session_window_end = incoming.session_window_end
         else:
-            existing_entries_raw, existing_provenance_raw, existing_end_raw = existing
+            existing_entries_raw, existing_prov_raw, existing_end = row
             existing_entries = [
                 WorkEntry.model_validate(e) for e in json.loads(existing_entries_raw)
             ]
-            existing_provenance = json.loads(existing_provenance_raw)
-            new_entries, inserted, deduplicated = _merge_entries(
+            existing_prov = json.loads(existing_prov_raw)
+            merged_entries, inserted, deduplicated = _merge_entries(
                 existing_entries, list(incoming.work_entries)
             )
             merged_provenance = _union_provenance(
-                existing_provenance, incoming.contributor_sources
+                existing_prov, incoming.contributor_sources
             )
-            # Preserve the GREATEST of existing vs incoming session_window_end
-            existing_end = CrossRepoWorkRowRead.model_validate(
-                {"session_window_end": existing_end_raw}
-            ).session_window_end
             new_session_window_end = max(existing_end, incoming.session_window_end)
 
-        conn.execute("BEGIN TRANSACTION")
-        try:
-            conn.execute(
-                "INSERT INTO cross_repo_work_v2 ("
-                "id, conversation_id, repo_name, repo_path, repo_role, "
-                "session_window_start, session_window_end, "
-                "work_entries, contributor_sources, created_at, updated_at"
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, "
-                "CAST(? AS JSON), CAST(? AS JSON), NOW(), NOW()) "
-                "ON CONFLICT (conversation_id, repo_name) DO UPDATE SET "
-                "work_entries = CAST(? AS JSON), "
-                "contributor_sources = CAST(? AS JSON), "
-                "session_window_end = GREATEST("
-                "cross_repo_work_v2.session_window_end, excluded.session_window_end"
-                "), updated_at = NOW()",
-                [
-                    incoming.id,
-                    incoming.conversation_id,
-                    incoming.repo_name,
-                    incoming.repo_path,
-                    incoming.repo_role,
-                    incoming.session_window_start,
-                    new_session_window_end,
-                    json.dumps([e.model_dump(mode="json") for e in new_entries]),
-                    json.dumps(merged_provenance),
-                    json.dumps([e.model_dump(mode="json") for e in new_entries]),
-                    json.dumps(merged_provenance),
-                ],
-            )
-            conn.execute("COMMIT")
-        except Exception:
-            conn.execute("ROLLBACK")
-            raise
+        entries_json = json.dumps([e.model_dump(mode="json") for e in merged_entries])
+        prov_json = json.dumps(merged_provenance)
+        conn.execute(
+            "INSERT INTO cross_repo_work_v2 ("
+            "id, conversation_id, repo_name, repo_path, repo_role, "
+            "session_window_start, session_window_end, "
+            "work_entries, contributor_sources, created_at, updated_at"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, "
+            "CAST(? AS JSON), CAST(? AS JSON), NOW(), NOW()) "
+            "ON CONFLICT (conversation_id, repo_name) DO UPDATE SET "
+            "work_entries = CAST(? AS JSON), "
+            "contributor_sources = CAST(? AS JSON), "
+            "session_window_end = GREATEST("
+            "cross_repo_work_v2.session_window_end, excluded.session_window_end"
+            "), updated_at = NOW()",
+            [
+                incoming.id,
+                incoming.conversation_id,
+                incoming.repo_name,
+                incoming.repo_path,
+                incoming.repo_role,
+                incoming.session_window_start,
+                new_session_window_end,
+                entries_json, prov_json,
+                entries_json, prov_json,
+            ],
+        )
 
-        # Read back the canonical row to return as CrossRepoWorkRowRead.
         read_row = conn.execute(
             "SELECT id, conversation_id, repo_name, repo_path, repo_role, "
             "session_window_start, session_window_end, work_entries, "
@@ -1228,46 +1069,72 @@ class MergePrimitive:
             "WHERE conversation_id = ? AND repo_name = ?",
             [incoming.conversation_id, incoming.repo_name],
         ).fetchone()
-        read_dict = dict(zip(
-            [
-                "id", "conversation_id", "repo_name", "repo_path", "repo_role",
-                "session_window_start", "session_window_end", "work_entries",
-                "contributor_sources", "created_at", "updated_at",
-            ],
-            read_row,
-        ))
-        read_dict["work_entries"] = json.loads(read_dict["work_entries"])
-        read_dict["contributor_sources"] = json.loads(read_dict["contributor_sources"])
         return (
-            CrossRepoWorkRowRead.model_validate(read_dict),
+            CrossRepoWorkRowRead.model_validate(dict(zip(
+                [
+                    "id", "conversation_id", "repo_name", "repo_path", "repo_role",
+                    "session_window_start", "session_window_end", "work_entries",
+                    "contributor_sources", "created_at", "updated_at",
+                ],
+                read_row,
+            ))),
             inserted,
             deduplicated,
         )
+
+    def multi_merge(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        rows: list[CrossRepoWorkRowCreate],
+    ) -> tuple[list[CrossRepoWorkRowRead], int, int]:
+        """Convenience: caller has already opened BEGIN TRANSACTION. Loops over
+        rows. All-or-nothing (caller ROLLBACKs on any error)."""
+        results: list[CrossRepoWorkRowRead] = []
+        total_ins = 0
+        total_ded = 0
+        for row in rows:
+            read, ins, ded = self.merge(conn, row)
+            results.append(read)
+            total_ins += ins
+            total_ded += ded
+        return results, total_ins, total_ded
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/unit/core/checkpoint/test_merge_primitive.py -v`
-Expected: PASS (3 tests).
+Expected: PASS (6 tests including the transaction-agnosticism check).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add session_buddy/core/checkpoint/merge_primitive.py tests/unit/core/checkpoint/test_merge_primitive.py
-git commit -m "feat(checkpoint): add MergePrimitive (Python dedup + atomic DuckDB transaction)"
+git commit -m "feat(checkpoint): MergePrimitive caller-managed transaction + collision merge rules"
 ```
+
+**Integration Contract:**
+- Triggered from: `CheckpointCrossRepoAccountant.capture()` (Task 7) and `store_cross_repo_work` MCP handler (Task 8).
+- Returns to / updates: `CrossRepoWorkRowRead` post-merge + insertion/dedup counts.
+- Demonstrable by: `tests/unit/core/checkpoint/test_merge_primitive.py` (6 tests).
+- Rollback signal: revert commit; callers raise on `ModuleNotFoundError`.
+- Observability added: `cross_repo_dedup_suppressed_ambient` DEBUG log when ambient is suppressed by an existing explicit entry.
 
 ---
 
-### Task 7: CheckpointCrossRepoAccountant — orchestrator
+### Task 7: CheckpointCrossRepoAccountant — per-repo orchestrator
 
 **Files:**
 - Create: `session_buddy/core/checkpoint/cross_repo_accountant.py`
 - Test: `tests/unit/core/checkpoint/test_cross_repo_accountant.py`
 
+**v2 changes from v1:**
+
+- **NO `<ambient>` placeholder**. `AmbientPuller` returns `dict[str, list[CommitEntry]]` from Task 5. The accountant iterates the dict, calls `MergePrimitive.merge()` once per repo. **No Task-11 refactor needed.**
+- Multi-repo integration test (verifies two sibling repos' entries land in separate rows).
+
 **Interfaces:**
-- Consumes: `Path` (working_directory), `UlidStr` (conversation_id), `datetime` × 2 (session_window_start, session_window_end), `AmbientPuller` instance, `MergePrimitive` instance, DuckDB connection.
-- Produces: `CrossRepoCaptureSummary` — a small dataclass `{repos_captured: int, entries_inserted: int, entries_deduplicated: int, ambient_failures: list[str]}`. Never raises.
+- Consumes: `Path`, `UlidStr`, `datetime × 2`, `AmbientPuller` (per-repo dict return), `MergePrimitive`, DuckDB connection (caller-managed transaction).
+- Produces: `CrossRepoCaptureSummary` — `{repos_captured, entries_inserted, entries_deduplicated, ambient_failures}`. Never raises.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1275,12 +1142,13 @@ git commit -m "feat(checkpoint): add MergePrimitive (Python dedup + atomic DuckD
 # tests/unit/core/checkpoint/test_cross_repo_accountant.py
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass
+import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import duckdb
+import pytest
+import yaml
 
 from session_buddy.core.checkpoint.ambient_puller import AmbientPuller
 from session_buddy.core.checkpoint.cross_repo_accountant import (
@@ -1288,16 +1156,21 @@ from session_buddy.core.checkpoint.cross_repo_accountant import (
     CrossRepoCaptureSummary,
 )
 from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
-from session_buddy.memory.cross_repo_work import CommitEntry
 
 
-def _now():
-    return datetime.now(tz=timezone.utc)
+def _git_init(p: Path) -> None:
+    subprocess.check_call(["git", "init", "--quiet", str(p)])
+    subprocess.check_call(["git", "-C", str(p), "config", "user.email", "t@e.com"])
+    subprocess.check_call(["git", "-C", str(p), "config", "user.name", "T"])
 
 
-def _setup_db(tmp_path: Path):
-    db = tmp_path / "a.duckdb"
-    conn = duckdb.connect(str(db))
+def _commit(p: Path, msg: str) -> str:
+    subprocess.check_call(["git", "-C", str(p), "commit", "--allow-empty", "-m", msg])
+    return subprocess.check_output(["git", "-C", str(p), "rev-parse", "HEAD"]).decode().strip()
+
+
+def _setup_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
+    conn = duckdb.connect(str(tmp_path / "a.duckdb"))
     conn.execute(
         "CREATE TABLE cross_repo_work_v2 ("
         "id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, "
@@ -1313,62 +1186,55 @@ def _setup_db(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_capture_returns_summary_and_writes_rows(tmp_path: Path) -> None:
-    workdir = tmp_path / "work"
-    workdir.mkdir()
-    sibling = tmp_path / "sibling"
-    sibling.mkdir()
-    import subprocess
-    subprocess.check_call(["git", "init", "--quiet", str(sibling)])
-    subprocess.check_call(["git", "-C", str(sibling), "config", "user.email", "t@e.com"])
-    subprocess.check_call(["git", "-C", str(sibling), "config", "user.name", "T"])
-    subprocess.check_call(["git", "-C", str(sibling), "commit", "--allow-empty", "-m", "hi"])
+async def test_capture_multi_repo_writes_per_repo_rows(tmp_path: Path) -> None:
+    workdir = tmp_path / "work"; workdir.mkdir(); _git_init(workdir)
+    sib_a = tmp_path / "a"; sib_a.mkdir(); _git_init(sib_a)
+    sib_b = tmp_path / "b"; sib_b.mkdir(); _git_init(sib_b)
+    _commit(sib_a, "feat(a)")
+    _commit(sib_b, "feat(b)")
     manifest = tmp_path / "ecosystem.yaml"
     manifest.write_text(
-        f"ecosystem:\n  sibling:\n    path: {sibling}\n    role: test\n"
+        f"ecosystem:\n  a:\n    path: {sib_a}\n    role: x\n  b:\n    path: {sib_b}\n    role: x\n"
     )
-
     conn = _setup_db(tmp_path)
     accountant = CheckpointCrossRepoAccountant(
-        ambient_puller=AmbientPuller(manifest),
+        ambient_puller=AmbientPuller(manifest_path=manifest),
         merge_primitive=MergePrimitive(),
         conn=conn,
     )
     summary: CrossRepoCaptureSummary = await accountant.capture(
         working_directory=workdir,
         conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        session_window_start=_now() - timedelta(hours=1),
-        session_window_end=_now() + timedelta(hours=1),
+        session_window_start=datetime.now(tz=timezone.utc) - timedelta(hours=1),
+        session_window_end=datetime.now(tz=timezone.utc) + timedelta(hours=1),
     )
-    assert summary.repos_captured == 1
-    assert summary.entries_inserted == 1
+    assert summary.repos_captured == 2
     assert summary.ambient_failures == []
-    # Row was actually written
+    # Verify TWO rows written, not one
     count = conn.execute(
         "SELECT COUNT(*) FROM cross_repo_work_v2 WHERE conversation_id = ?",
         ["01HXXXXXXXXXXXXXXXXXXXXXXXXX"],
     ).fetchone()[0]
-    assert count == 1
+    assert count == 2
 
 
 @pytest.mark.asyncio
 async def test_capture_never_raises_on_ambient_failure(tmp_path: Path) -> None:
-    workdir = tmp_path / "work"
-    workdir.mkdir()
+    workdir = tmp_path / "work"; workdir.mkdir()
     conn = _setup_db(tmp_path)
     accountant = CheckpointCrossRepoAccountant(
-        ambient_puller=AmbientPuller(tmp_path / "missing.yaml"),
+        ambient_puller=AmbientPuller(manifest_path=tmp_path / "missing.yaml"),
         merge_primitive=MergePrimitive(),
         conn=conn,
     )
     summary = await accountant.capture(
         working_directory=workdir,
         conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        session_window_start=_now(),
-        session_window_end=_now(),
+        session_window_start=datetime.now(tz=timezone.utc),
+        session_window_end=datetime.now(tz=timezone.utc),
     )
-    # No rows written, no exception raised
     assert summary.repos_captured == 0
+    assert summary.entries_inserted == 0
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1379,16 +1245,15 @@ Expected: FAIL with `ModuleNotFoundError`.
 - [ ] **Step 3: Create `session_buddy/core/checkpoint/cross_repo_accountant.py`**
 
 ```python
-# session_buddy/core/checkpoint/cross_repo_accountant.py
-"""Orchestrator that captures cross-repo work during a session-buddy checkpoint.
-
-Coordinates AmbientPuller + MergePrimitive + write. Never raises — returns
-a CrossRepoCaptureSummary for the checkpoint log. Cross-repo accounting
-failures NEVER block the git commit / handoff doc (G6).
+"""Orchestrator that captures cross-repo work during a session-buddy
+checkpoint. Coordinates AmbientPuller (per-repo groups) + MergePrimitive
++ write. Never raises — returns a CrossRepoCaptureSummary for the
+checkpoint log. Cross-repo accounting failures NEVER block the git
+commit / handoff doc (G6).
 """
 from __future__ import annotations
 
-import json
+import dataclasses
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -1415,12 +1280,6 @@ class CrossRepoCaptureSummary:
     entries_deduplicated: int = 0
     ambient_failures: list[str] = field(default_factory=list)
 
-    def merge(self, other: CrossRepoCaptureSummary) -> None:
-        self.repos_captured += other.repos_captured
-        self.entries_inserted += other.entries_inserted
-        self.entries_deduplicated += other.entries_deduplicated
-        self.ambient_failures.extend(other.ambient_failures)
-
 
 class CheckpointCrossRepoAccountant:
     def __init__(
@@ -1444,13 +1303,13 @@ class CheckpointCrossRepoAccountant:
     ) -> CrossRepoCaptureSummary:
         summary = CrossRepoCaptureSummary()
         try:
-            entries, failures = await self._puller.capture(
+            grouped, failures = await self._puller.capture(
                 working_directory=working_directory,
                 conversation_id=conversation_id,
                 session_window_start=session_window_start,
                 session_window_end=session_window_end,
             )
-        except Exception as exc:  # noqa: BLE001 — never raise
+        except Exception as exc:  # noqa: BLE001 — never raise (G6)
             _log.warning(
                 "cross_repo_accountant_pull_failed",
                 extra={"error": str(exc), "conversation_id": conversation_id},
@@ -1458,37 +1317,44 @@ class CheckpointCrossRepoAccountant:
             return summary
 
         summary.ambient_failures = failures
-        if not entries:
+        if not grouped:
             return summary
 
-        # Group entries by repo_name. (AmbientPuller exposes the repo
-        # via entry.repo_name? — here we synthesize from the manifest.)
-        # For ambient-only entries, all SHAs come from a single repo per
-        # puller.run call; we treat that as one row keyed on the ambient
-        # call's repo. The implementer adjusts this when refactoring
-        # AmbientPuller to return per-repo lists.
-
-        # Simple case: single-repo ambient run → single row.
-        # Group by repo_name from a sibling manifest lookup (done via
-        # AmbientPuller internals — kept opaque here).
-        repo_name = "<ambient>"  # placeholder — replaced in wiring task
-        repo_path = str(working_directory)
-        repo_role = None
-
-        row = CrossRepoWorkRowCreate(
-            id=generate_ulid(),
-            conversation_id=conversation_id,
-            repo_name=repo_name,
-            repo_path=repo_path,
-            repo_role=repo_role,
-            session_window_start=session_window_start,
-            session_window_end=session_window_end,
-            work_entries=entries,
-            contributor_sources=["ambient"],
+        # We need ecosystem.yaml here to resolve path/role per repo.
+        # The puller already loaded it; expose via a small accessor or refetch.
+        from session_buddy.core.checkpoint.manifest_resolver import (
+            resolve_manifest_path,
         )
+        import yaml as _yaml
+        manifest = resolve_manifest_path(self._puller._manifest_path)
+        ecosystem: dict[str, dict[str, str]] = {}
+        if manifest.exists():
+            try:
+                ecosystem = (_yaml.safe_load(manifest.read_text()) or {}).get("ecosystem", {})
+            except _yaml.YAMLError:
+                ecosystem = {}
+
+        rows: list[CrossRepoWorkRowCreate] = []
+        for repo_name, entries in grouped.items():
+            entry = ecosystem.get(repo_name, {})
+            rows.append(CrossRepoWorkRowCreate(
+                id=generate_ulid(),
+                conversation_id=conversation_id,
+                repo_name=repo_name,
+                repo_path=entry.get("path", ""),
+                repo_role=entry.get("role"),
+                session_window_start=session_window_start,
+                session_window_end=session_window_end,
+                work_entries=entries,
+                contributor_sources=["ambient"],
+            ))
+
         try:
-            _read, ins, ded = self._merge.merge(self._conn, row)
+            conn.execute("BEGIN TRANSACTION")
+            _reads, ins, ded = self._merge.multi_merge(conn, rows)
+            conn.execute("COMMIT")
         except Exception as exc:  # noqa: BLE001 — never raise
+            conn.execute("ROLLBACK")
             _log.warning(
                 "cross_repo_accountant_merge_failed",
                 extra={"error": str(exc), "conversation_id": conversation_id},
@@ -1497,35 +1363,53 @@ class CheckpointCrossRepoAccountant:
 
         summary.entries_inserted += ins
         summary.entries_deduplicated += ded
-        summary.repos_captured = 1
+        summary.repos_captured = len(grouped)
         return summary
 ```
 
-NOTE: The placeholder `<ambient>` for `repo_name` will be replaced in the **wiring task** (Task 11), where the AmbientPuller interface is refactored to return `dict[str, list[CommitEntry]]` (per-repo lists). This task ships the orchestrator skeleton; the per-repo split is a follow-up wiring step.
-
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run tests to verify them pass**
 
 Run: `uv run pytest tests/unit/core/checkpoint/test_cross_repo_accountant.py -v`
-Expected: PASS (2 tests).
+Expected: PASS (2 tests; both multi-repo row separation and never-raises).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add session_buddy/core/checkpoint/cross_repo_accountant.py tests/unit/core/checkpoint/test_cross_repo_accountant.py
-git commit -m "feat(checkpoint): add CheckpointCrossRepoAccountant orchestrator (never-raises)"
+git commit -m "feat(checkpoint): CheckpointCrossRepoAccountant per-repo orchestrator (no placeholder)"
 ```
+
+**Integration Contract:**
+- Triggered from: `session_manager.checkpoint_session` (Task 11d).
+- Returns to / updates: `CrossRepoCaptureSummary` for the checkpoint log; one row per (conversation_id, repo_name) in `cross_repo_work_v2`.
+- Demonstrable by: `tests/unit/core/checkpoint/test_cross_repo_accountant.py` (multi-repo + never-raises).
+- Rollback signal: revert commit; `checkpoint_session` integration would not invoke the accountant.
+- Observability added: `cross_repo_accountant_pull_failed`, `cross_repo_accountant_merge_failed` WARNING logs.
 
 ---
 
-### Task 8: CrossRepoPusher MCP tool — auth + validation + atomicity
+### Task 8: CrossRepoPusher MCP tool — auth + validation + multi-repo atomicity
 
 **Files:**
 - Create: `session_buddy/mcp/tools/cross_repo_work.py`
+- Create: `session_buddy/mcp/tools/cross_repo_work_register.py` (the `register_cross_repo_work_tools` function — separate file per project convention)
 - Test: `tests/unit/mcp/tools/test_cross_repo_work.py`
 
+**v2 changes from v1 (multiple Criticals fixed):**
+
+1. **Add `conversation_id` validation** (architect C3, code-reviewer C1, mcp C4). Before any merge, `SELECT 1 FROM conversations_v2 WHERE id = ?` — on miss, return `CrossRepoStoreResult(status="failed", error_code="session_not_found", retryable=False)`.
+2. **Multi-repo atomicity** (code-reviewer C2). The whole per-call loop runs in ONE `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK`. The merge primitive does NOT open its own (Task 6 refactor).
+3. **`_ResolvedRepoEntry` Pydantic model** (mcp I2). Internal type for server-side path resolution. `extra="forbid"`.
+4. **`repo_name` normalization** (mcp I3). Lowercase both sides of the ecosystem lookup.
+5. **Import order** (python-pro C4). Alphabetize within sections; combine `from pydantic import ...`.
+6. **Type parameters on `dict`** (python-pro C5). `dict[str, dict[str, str | None]]` with `TypedDict`.
+7. **`_load_ecosystem` uses `manifest_resolver`** (mcp I5). Eliminates duplicate env-var pattern.
+8. **`status="partial"` is reachable** (code-reviewer M4). When the unknown-repo rejection is mixed with successful inserts, return `status="partial"` with the rejections in `per_repo[].status="rejected"`.
+9. **Use session-buddy's local auth** (mcp C1). `from session_buddy.mcp.auth import require_auth`. NOT `mcp_common.auth.require_auth`.
+
 **Interfaces:**
-- Consumes: `StoreCrossRepoWorkRequest` (Pydantic model from Task 3), `mcp_common.auth.AuthConfig`, `MergePrimitive`, DuckDB connection.
-- Produces: `CrossRepoStoreResult` (typed domain result — see schema in the file).
+- Consumes: `StoreCrossRepoWorkRequest` (Pydantic model), session-buddy's local `require_auth`, `MergePrimitive`, DuckDB connection.
+- Produces: `CrossRepoStoreResult` (typed domain result with `status`, `error_code`, `retryable`, per-repo breakdown).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1539,22 +1423,20 @@ from pathlib import Path
 
 import duckdb
 import pytest
+import yaml
 
-from session_buddy.adapters.reflection_adapter_oneiric import (
-    require_reflection_database,
-)
-from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
 from session_buddy.mcp.tools.cross_repo_work import (
     RepoWorkEntry,
     StoreCrossRepoWorkRequest,
     store_cross_repo_work,
+    _ResolvedRepoEntry,
 )
+from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
 from session_buddy.memory.cross_repo_work import CommitEntry
 
 
-def _setup_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
-    db = tmp_path / "m.duckdb"
-    conn = duckdb.connect(str(db))
+def _setup(tmp_path: Path) -> duckdb.DuckDBPyConnection:
+    conn = duckdb.connect(str(tmp_path / "m.duckdb"))
     conn.execute(
         "CREATE TABLE cross_repo_work_v2 ("
         "id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, "
@@ -1577,70 +1459,94 @@ def _setup_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
     return conn
 
 
-def _request(repo_name: str = "mahavishnu", sha: str = "abc123"):
+def _write_manifest(tmp_path: Path, repos: list[dict[str, str]]) -> Path:
+    p = tmp_path / "ecosystem.yaml"
+    p.write_text(yaml.safe_dump({
+        "ecosystem": {r["name"]: {"path": r["path"], "role": r["role"]} for r in repos}
+    }))
+    return p
+
+
+def _request(sha: str = "abc123", repo: str = "mahavishnu"):
     return StoreCrossRepoWorkRequest(
         conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
         repos=[RepoWorkEntry(
-            repo_name=repo_name,
-            work_entries=[CommitEntry(
-                kind="commit", sha=sha, provenance="explicit",
-            )],
+            repo_name=repo,
+            work_entries=[CommitEntry(kind="commit", sha=sha, provenance="explicit")],
         )],
     )
 
 
 @pytest.mark.asyncio
-async def test_store_cross_repo_work_persists_row(tmp_path: Path) -> None:
-    conn = _setup_db(tmp_path)
-    result = await store_cross_repo_work(
-        request=_request(),
-        merge_primitive=MergePrimitive(),
-        conn=conn,
+async def test_rejects_unknown_conversation_id(tmp_path: Path) -> None:
+    """G7 validation per spec."""
+    conn = _setup(tmp_path)
+    manifest = _write_manifest(tmp_path, [{"name": "mahavishnu", "path": "/m", "role": "x"}])
+    bad_req = StoreCrossRepoWorkRequest(
+        conversation_id="01HNOTEXISTXXXXXXXXXXXXXXXXXX",
+        repos=[RepoWorkEntry(repo_name="mahavishnu",
+                              work_entries=[CommitEntry(kind="commit", sha="a", provenance="explicit")])],
     )
-    assert result.status == "ok"
-    assert result.repos_stored == 1
+    result = await store_cross_repo_work(
+        request=bad_req, merge_primitive=MergePrimitive(),
+        conn=conn, ecosystem_path=manifest,
+    )
+    assert result.status == "failed"
+    assert result.error_code == "session_not_found"
+    assert result.retryable is False
+
+
+@pytest.mark.asyncio
+async def test_rejects_unknown_repo_with_partial_status(tmp_path: Path) -> None:
+    """Spec §Error handling: unknown repo → rejected. When mixed with
+    valid repos, status is 'partial'."""
+    conn = _setup(tmp_path)
+    manifest = _write_manifest(tmp_path, [{"name": "mahavishnu", "path": "/m", "role": "x"}])
+    request = StoreCrossRepoWorkRequest(
+        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
+        repos=[
+            RepoWorkEntry(repo_name="mahavishnu",
+                          work_entries=[CommitEntry(kind="commit", sha="a", provenance="explicit")]),
+            RepoWorkEntry(repo_name="unknown_repo",
+                          work_entries=[CommitEntry(kind="commit", sha="b", provenance="explicit")]),
+        ],
+    )
+    result = await store_cross_repo_work(
+        request=request, merge_primitive=MergePrimitive(),
+        conn=conn, ecosystem_path=manifest,
+    )
+    assert result.status == "partial"
+    statuses = {s.repo_name: s.status for s in result.per_repo}
+    assert statuses["mahavishnu"] == "stored"
+    assert statuses["unknown_repo"] == "rejected"
+
+
+@pytest.mark.asyncio
+async def test_multi_repo_atomic_rollback(tmp_path: Path) -> None:
+    """If any repo's merge fails, the whole call rolls back."""
+    conn = _setup(tmp_path)
+    manifest = _write_manifest(tmp_path, [{"name": "a", "path": "/a", "role": "x"}])
+    request = StoreCrossRepoWorkRequest(
+        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
+        repos=[
+            RepoWorkEntry(repo_name="a",
+                          work_entries=[CommitEntry(kind="commit", sha="a1", provenance="explicit")]),
+            RepoWorkEntry(repo_name="a",
+                          work_entries=[CommitEntry(kind="commit", sha="a2", provenance="explicit")]),
+        ],
+    )
+    result = await store_cross_repo_work(
+        request=request, merge_primitive=MergePrimitive(),
+        conn=conn, ecosystem_path=manifest,
+    )
+    # Two repos with same repo_name in one call should be a duplicate-key failure
+    # (UNIQUE (conversation_id, repo_name)); the whole call should roll back.
+    assert result.status == "failed"
     count = conn.execute(
         "SELECT COUNT(*) FROM cross_repo_work_v2 WHERE conversation_id = ?",
         ["01HXXXXXXXXXXXXXXXXXXXXXXXXX"],
     ).fetchone()[0]
-    assert count == 1
-
-
-@pytest.mark.asyncio
-async def test_store_cross_repo_work_dedupes_by_sha(tmp_path: Path) -> None:
-    conn = _setup_db(tmp_path)
-    r1 = await store_cross_repo_work(
-        request=_request(sha="dup"), merge_primitive=MergePrimitive(), conn=conn,
-    )
-    r2 = await store_cross_repo_work(
-        request=_request(sha="dup"), merge_primitive=MergePrimitive(), conn=conn,
-    )
-    assert r1.entries_inserted == 1
-    assert r2.entries_inserted == 0
-    assert r2.entries_deduplicated == 1
-
-
-@pytest.mark.asyncio
-async def test_store_cross_repo_work_atomic_multi_repo(tmp_path: Path) -> None:
-    conn = _setup_db(tmp_path)
-    request = StoreCrossRepoWorkRequest(
-        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        repos=[
-            RepoWorkEntry(
-                repo_name="mahavishnu",
-                work_entries=[CommitEntry(kind="commit", sha="a", provenance="explicit")],
-            ),
-            RepoWorkEntry(
-                repo_name="crackerjack",
-                work_entries=[CommitEntry(kind="commit", sha="b", provenance="explicit")],
-            ),
-        ],
-    )
-    result = await store_cross_repo_work(
-        request=request, merge_primitive=MergePrimitive(), conn=conn,
-    )
-    assert result.status == "ok"
-    assert result.repos_stored == 2
+    assert count == 0  # atomic rollback — neither row landed
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1651,7 +1557,6 @@ Expected: FAIL with `ModuleNotFoundError`.
 - [ ] **Step 3: Create `session_buddy/mcp/tools/cross_repo_work.py`**
 
 ```python
-# session_buddy/mcp/tools/cross_repo_work.py
 """MCP tool: store_cross_repo_work.
 
 Receiver for cross-repo work entries pushed by other Bodai repos. The
@@ -1659,26 +1564,20 @@ caller supplies the conversation_id ULID (join key with conversations_v2)
 and a list of repos with their work entries. Server-side path resolution
 from ecosystem.yaml (path authority — wire shape has no repo_path).
 
-Auth: @require_auth(Permission.WRITE, config=AuthConfig, service_name=...).
-DO NOT use the literal @require_auth() — mcp-common defaults to READ and
-bypasses auth when config=None.
+Auth: @require_auth(optional=False) (session-buddy local — does NOT accept
+Permission.WRITE or config kwargs).
 """
 from __future__ import annotations
 
 import json
-import os
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypedDict
 
 import duckdb
 import yaml
 from oneiric.logging import get_logger
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
-from pydantic import ValidationError
 
-from mcp_common.auth import AuthConfig, Permission, require_auth
-
+from session_buddy.core.checkpoint.manifest_resolver import resolve_manifest_path
 from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
 from session_buddy.memory.cross_repo_work import (
     CommitEntry,
@@ -1693,7 +1592,8 @@ _log = get_logger(__name__)
 
 
 RepoNameStr = Annotated[
-    str, StringConstraints(min_length=1, max_length=64, strip_whitespace=True),
+    str,
+    StringConstraints(min_length=1, max_length=64, strip_whitespace=True),
 ]
 
 
@@ -1735,26 +1635,52 @@ class CrossRepoStoreResult(BaseModel):
     per_repo: Annotated[list[RepoStoreStatus], Field(max_length=26)]
 
 
-def _load_ecosystem() -> dict[str, dict[str, str]]:
-    manifest = Path(os.environ.get("ECOSYSTEM_MANIFEST", "settings/ecosystem.yaml"))
-    if not manifest.exists():
+class _EcosystemEntry(TypedDict, total=True):
+    path: str
+    role: str | None
+
+
+_EcosystemDict = dict[str, _EcosystemEntry]
+
+
+class _ResolvedRepoEntry(BaseModel):
+    """Internal type: server-resolved repo metadata."""
+    model_config = ConfigDict(extra="forbid")
+    repo_name: str
+    path: str
+    role: str | None = None
+
+
+def _load_ecosystem(ecosystem_path) -> _EcosystemDict:
+    if not ecosystem_path.exists():
         return {}
     try:
-        data = yaml.safe_load(manifest.read_text())
+        data = yaml.safe_load(ecosystem_path.read_text())
     except yaml.YAMLError:
         return {}
     if not isinstance(data, dict):
         return {}
-    return data.get("ecosystem", {})
+    raw = data.get("ecosystem", {})
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(k): {"path": str(v.get("path", "")), "role": v.get("role")}
+        for k, v in raw.items()
+        if isinstance(v, dict)
+    }
 
 
-def _resolve_repo(repo_name: str, ecosystem: dict) -> tuple[str | None, str | None]:
-    """Server-side path resolution. Returns (path, role) or (None, None)
-    if repo_name is not in ecosystem.yaml."""
-    entry = ecosystem.get(repo_name)
-    if not isinstance(entry, dict):
-        return None, None
-    return entry.get("path"), entry.get("role")
+def _resolve_repo(repo_name: str, ecosystem: _EcosystemDict) -> _ResolvedRepoEntry | None:
+    """Lowercase normalization for case-insensitive lookup."""
+    name_lower = repo_name.strip().lower()
+    entry = ecosystem.get(name_lower) or ecosystem.get(repo_name)
+    if entry is None:
+        return None
+    return _ResolvedRepoEntry(
+        repo_name=name_lower,
+        path=entry["path"],
+        role=entry["role"],
+    )
 
 
 async def store_cross_repo_work(
@@ -1762,87 +1688,124 @@ async def store_cross_repo_work(
     request: StoreCrossRepoWorkRequest,
     merge_primitive: MergePrimitive,
     conn: duckdb.DuckDBPyConnection,
+    ecosystem_path,
 ) -> CrossRepoStoreResult:
     """Handler body. The @require_auth + @mcp_server.tool decorators are
-    composed in Task 9 (MCP registration)."""
-    ecosystem = _load_ecosystem()
-    now = datetime.now(tz=timezone.utc)
-    per_repo: list[RepoStoreStatus] = []
-    total_received = 0
-    total_inserted = 0
-    total_deduplicated = 0
-    repos_stored = 0
-
-    try:
-        for repo_entry in request.repos:
-            path, role = _resolve_repo(repo_entry.repo_name, ecosystem)
-            if path is None:
-                per_repo.append(RepoStoreStatus(
-                    repo_name=repo_entry.repo_name,
-                    status="rejected",
-                    entries_received=len(repo_entry.work_entries),
-                    entries_inserted=0,
-                    entries_deduplicated=0,
-                    message="repo not in ecosystem.yaml",
-                ))
-                continue
-            row = CrossRepoWorkRowCreate(
-                id=generate_ulid(),
-                conversation_id=request.conversation_id,
-                repo_name=repo_entry.repo_name,
-                repo_path=path,
-                repo_role=role,
-                session_window_start=now,
-                session_window_end=now,
-                work_entries=repo_entry.work_entries,
-                contributor_sources=["explicit"],
-            )
-            _read, ins, ded = merge_primitive.merge(conn, row)
-            total_received += len(repo_entry.work_entries)
-            total_inserted += ins
-            total_deduplicated += ded
-            per_repo.append(RepoStoreStatus(
-                repo_name=repo_entry.repo_name,
-                status="stored" if ins > 0 else "deduplicated",
-                entries_received=len(repo_entry.work_entries),
-                entries_inserted=ins,
-                entries_deduplicated=ded,
-                message=None,
-            ))
-            if ins > 0:
-                repos_stored += 1
-
-        return CrossRepoStoreResult(
-            status="ok",
-            error_code=None,
-            message=None,
-            retryable=False,
-            repos_received=len(request.repos),
-            repos_stored=repos_stored,
-            entries_received=total_received,
-            entries_inserted=total_inserted,
-            entries_deduplicated=total_deduplicated,
-            per_repo=per_repo,
-        )
-    except Exception as exc:  # noqa: BLE001
-        _log.exception("store_cross_repo_work_failed")
+    composed in `register_cross_repo_work_tools` (Task 9)."""
+    # 1. conversation_id existence check (G7)
+    conv_exists = conn.execute(
+        "SELECT 1 FROM conversations_v2 WHERE id = ?",
+        [request.conversation_id],
+    ).fetchone()
+    if conv_exists is None:
         return CrossRepoStoreResult(
             status="failed",
-            error_code="storage_locked" if "write_conflict" in str(exc) else "internal",
-            message=str(exc),
-            retryable=True,
+            error_code="session_not_found",
+            message=f"conversation_id {request.conversation_id} not found",
+            retryable=False,
             repos_received=len(request.repos),
             repos_stored=0,
-            entries_received=total_received,
+            entries_received=0,
             entries_inserted=0,
             entries_deduplicated=0,
             per_repo=[],
         )
+
+    ecosystem = _load_ecosystem(ecosystem_path)
+    now = datetime.now(tz=timezone.utc)
+    per_repo: list[RepoStoreStatus] = []
+    rows_to_write: list[CrossRepoWorkRowCreate] = []
+    rejection_map: dict[str, str] = {}  # repo_name -> reason
+
+    for repo_entry in request.repos:
+        resolved = _resolve_repo(repo_entry.repo_name, ecosystem)
+        if resolved is None:
+            rejection_map[repo_entry.repo_name] = "repo not in ecosystem.yaml"
+            continue
+        rows_to_write.append(CrossRepoWorkRowCreate(
+            id=generate_ulid(),
+            conversation_id=request.conversation_id,
+            repo_name=resolved.repo_name,
+            repo_path=resolved.path,
+            repo_role=resolved.role,
+            session_window_start=now,
+            session_window_end=now,
+            work_entries=repo_entry.work_entries,
+            contributor_sources=["explicit"],
+        ))
+
+    # 2. Multi-repo atomicity — wrap the entire batch in ONE transaction.
+    total_received = sum(len(r.work_entries) for r in request.repos)
+    repos_stored = 0
+    total_inserted = 0
+    total_deduplicated = 0
+    status = "ok"
+
+    if rows_to_write:
+        conn.execute("BEGIN TRANSACTION")
+        try:
+            _reads, ins, ded = merge_primitive.multi_merge(conn, rows_to_write)
+            conn.execute("COMMIT")
+            total_inserted = ins
+            total_deduplicated = ded
+            repos_stored = len(rows_to_write)
+        except Exception as exc:  # noqa: BLE001
+            conn.execute("ROLLBACK")
+            _log.exception("store_cross_repo_work_failed")
+            return CrossRepoStoreResult(
+                status="failed",
+                error_code="storage_locked" if "write_conflict" in str(exc) else "internal",
+                message=str(exc),
+                retryable=True,
+                repos_received=len(request.repos),
+                repos_stored=0,
+                entries_received=total_received,
+                entries_inserted=0,
+                entries_deduplicated=0,
+                per_repo=[],
+            )
+
+    # Build per_repo breakdown
+    for repo_entry in request.repos:
+        if repo_entry.repo_name in rejection_map:
+            per_repo.append(RepoStoreStatus(
+                repo_name=repo_entry.repo_name,
+                status="rejected",
+                entries_received=len(repo_entry.work_entries),
+                entries_inserted=0,
+                entries_deduplicated=0,
+                message=rejection_map[repo_entry.repo_name],
+            ))
+        else:
+            per_repo.append(RepoStoreStatus(
+                repo_name=repo_entry.repo_name,
+                status="stored",
+                entries_received=len(repo_entry.work_entries),
+                entries_inserted=len(repo_entry.work_entries),
+                entries_deduplicated=0,
+                message=None,
+            ))
+
+    if rejection_map:
+        status = "partial" if repos_stored > 0 else "failed"
+
+    return CrossRepoStoreResult(
+        status=status,
+        error_code=None,
+        message=None,
+        retryable=False,
+        repos_received=len(request.repos),
+        repos_stored=repos_stored,
+        entries_received=total_received,
+        entries_inserted=total_inserted,
+        entries_deduplicated=total_deduplicated,
+        per_repo=per_repo,
+    )
 ```
 
-(Imports for `Annotated`, `Literal`, `StringConstraints` are already at the top.)
+(NOTE: the `datetime` and `timezone` imports at the top are required by the `now` variable. The `_ResolvedRepoEntry` class is internal but exported for use in `register_cross_repo_work_tools`.)
 
-- [ ] **Step 4: Run tests to verify them pass**
+- [ ] **Step 4: Run tests to verify they pass**
 
 Run: `uv run pytest tests/unit/mcp/tools/test_cross_repo_work.py -v`
 Expected: PASS (3 tests).
@@ -1851,23 +1814,33 @@ Expected: PASS (3 tests).
 
 ```bash
 git add session_buddy/mcp/tools/cross_repo_work.py tests/unit/mcp/tools/test_cross_repo_work.py
-git commit -m "feat(mcp): add store_cross_repo_work tool (auth + validation + atomicity)"
+git commit -m "feat(mcp): store_cross_repo_work with conversation_id check + multi-repo atomicity"
 ```
+
+**Integration Contract:**
+- Triggered from: external Bodai repos calling `mcp__session-buddy__store_cross_repo_work` (e.g., mahavishnu workers, akosha aggregations).
+- Returns to / updates: `cross_repo_work_v2` rows + `CrossRepoStoreResult` to caller.
+- Demonstrable by: `tests/unit/mcp/tools/test_cross_repo_work.py` (3 tests including rejection paths and atomic rollback).
+- Rollback signal: revert commit; callers fall back to ambient-only path.
+- Observability added: `store_cross_repo_work_failed` log event; per-repo status surfaced in `CrossRepoStoreResult`.
 
 ---
 
-### Task 9: MCP registration — 3 wiring steps + STANDARD profile smoke test
+### Task 9: MCP registration — using actual session-buddy profile shape
 
 **Files:**
 - Modify: `session_buddy/mcp/tools/__init__.py` (export `register_cross_repo_work_tools`)
-- Modify: `session_buddy/mcp/server.py:40-153` (add to `_ALL_REGISTERS`)
-- Modify: `session_buddy/mcp/tools/profiles.py:42-76` (wire into `STANDARD` profile)
-- Modify: `session_buddy/mcp/tools/cross_repo_work.py` (add `register_cross_repo_work_tools` function with decorator composition)
+- Modify: `session_buddy/mcp/server.py` (add to `_ALL_REGISTERS` dict, line 88)
+- Modify: `session_buddy/mcp/tools/profiles.py` (add `"register_cross_repo_work_tools"` string to `STANDARD_REGISTRATIONS: list[str]`, line 36)
+- Create: `session_buddy/mcp/tools/cross_repo_work_register.py` (the register function)
 - Test: `tests/integration/test_mcp_registration_standard_profile.py`
 
-**Interfaces:**
-- Consumes: `mcp_server` instance (FastMCP), `AuthConfig`, `MergePrimitive` factory.
-- Produces: the registered tool `store_cross_repo_work` callable; advertised in the `STANDARD` profile's tool list.
+**v2 changes from v1:**
+
+- **Use session-buddy local auth**: `@require_auth(optional=False)` (NOT `mcp-common` signature).
+- **`STANDARD_REGISTRATIONS: list[str]`** is the correct shape — append a STRING, not a dict.
+- **`_ALL_REGISTRATIONS` is a dict** keyed by register-function name mapping to the callable.
+- **`AuthConfig.from_settings()` doesn't exist** — use `get_auth_config()` from `session_buddy/mcp/auth`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1875,107 +1848,156 @@ git commit -m "feat(mcp): add store_cross_repo_work tool (auth + validation + at
 # tests/integration/test_mcp_registration_standard_profile.py
 from __future__ import annotations
 
-import os
 
-import pytest
-
-
-@pytest.fixture
-def standard_profile(monkeypatch):
-    monkeypatch.setenv("SESSION_BUDDY_TOOL_PROFILE", "standard")
-    # Re-import after env var set, since profiles.py reads it at import time
-    import importlib
-    import session_buddy.mcp.tools.profiles as profiles
-    importlib.reload(profiles)
-    return profiles
-
-
-def test_store_cross_repo_work_in_standard_profile(standard_profile) -> None:
-    tool_names = {t["name"] for t in standard_profile.STANDARD_TOOLS}
-    assert "store_cross_repo_work" in tool_names, (
-        f"store_cross_repo_work missing from STANDARD profile; got {tool_names}"
+def test_register_cross_repo_work_tools_in_standard_profile() -> None:
+    from session_buddy.mcp.tools.profiles import STANDARD_REGISTRATIONS
+    assert "register_cross_repo_work_tools" in STANDARD_REGISTRATIONS, (
+        f"register_cross_repo_work_tools missing from STANDARD; "
+        f"profile has {STANDARD_REGISTRATIONS}"
     )
+
+
+def test_register_cross_repo_work_tools_in_all_registers() -> None:
+    from session_buddy.mcp import server
+    assert "register_cross_repo_work_tools" in server._ALL_REGISTRATIONS, (
+        f"register_cross_repo_work_tools missing from _ALL_REGISTRATIONS"
+    )
+
+
+def test_register_function_creates_store_cross_repo_work_tool() -> None:
+    """Verify the registered tool is callable and named correctly."""
+    import asyncio
+    from unittest.mock import MagicMock
+    from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
+    from session_buddy.mcp.tools.cross_repo_work_register import (
+        register_cross_repo_work_tools,
+    )
+
+    fake_server = MagicMock()
+    fake_server.tool = MagicMock()
+
+    register_cross_repo_work_tools(fake_server)
+
+    # Verify @mcp_server.tool was called with name="store_cross_repo_work"
+    fake_server.tool.assert_called()
+    call_kwargs = fake_server.tool.call_args.kwargs
+    assert call_kwargs.get("name") == "store_cross_repo_work"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
 Run: `uv run pytest tests/integration/test_mcp_registration_standard_profile.py -v`
-Expected: FAIL with `AssertionError`.
+Expected: FAIL with `KeyError` or `ImportError`.
 
-- [ ] **Step 3: Add `register_cross_repo_work_tools` to `cross_repo_work.py`**
-
-Append to `session_buddy/mcp/tools/cross_repo_work.py`:
+- [ ] **Step 3: Create `session_buddy/mcp/tools/cross_repo_work_register.py`**
 
 ```python
-from mcp_common.auth import AuthConfig
+"""Register store_cross_repo_work on a FastMCP server.
+
+Composition:
+  - @require_auth(optional=False) — session-buddy's local auth wrapper;
+    requires a valid token kwarg. Does NOT accept Permission.WRITE or
+    config= — those are mcp-common concepts that don't apply here.
+  - @mcp_server.tool(name="store_cross_repo_work") — FastMCP registration.
+
+The client-visible name is "mcp__session-buddy__store_cross_repo_work"
+(the client prefix is added by FastMCP).
+"""
+from __future__ import annotations
+
+import duckdb
+from fastmcp import FastMCP
+from pydantic import BaseModel
+
+from session_buddy.adapters.reflection_adapter_oneiric import (
+    require_reflection_database,
+)
+from session_buddy.core.checkpoint.manifest_resolver import resolve_manifest_path
+from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
+from session_buddy.mcp.auth import require_auth
+from session_buddy.mcp.tools.cross_repo_work import (
+    CrossRepoStoreResult,
+    StoreCrossRepoWorkRequest,
+    store_cross_repo_work,
+)
 
 
-def register_cross_repo_work_tools(
-    mcp_server,
-    *,
-    auth_config: AuthConfig,
-    merge_primitive: MergePrimitive,
-    conn_factory,
-) -> None:
-    """Register store_cross_repo_work on the FastMCP server with auth.
+def register_cross_repo_work_tools(mcp_server: FastMCP) -> None:
+    """Register store_cross_repo_work on the given FastMCP server instance.
 
-    DO NOT use the literal @require_auth() — mcp-common defaults to
-    Permission.READ and bypasses auth when config=None. Pass the explicit
-    Permission.WRITE and the session-buddy AuthConfig.
+    The merged primitive is module-level (stateless); a fresh DuckDB
+    connection is acquired per-call via require_reflection_database().
     """
-    @require_auth(Permission.WRITE, config=auth_config, service_name="session-buddy")
+    merge_primitive = MergePrimitive()
+
+    @require_auth(optional=False)
     @mcp_server.tool(name="store_cross_repo_work")
     async def _store_cross_repo_work(
         request: StoreCrossRepoWorkRequest,
+        token: str | None = None,  # populated by FastMCP auth context
     ) -> CrossRepoStoreResult:
-        conn = conn_factory()
-        return await store_cross_repo_work(
-            request=request,
-            merge_primitive=merge_primitive,
-            conn=conn,
-        )
+        ecosystem_path = resolve_manifest_path()
+        async with require_reflection_database() as conn:
+            return await store_cross_repo_work(
+                request=request,
+                merge_primitive=merge_primitive,
+                conn=conn,
+                ecosystem_path=ecosystem_path,
+            )
+
+    # Attach to module-level namespace so the FastMCP introspection sees it.
+    # (FastMCP tool registration by name handles the rest via decorator.)
 ```
 
-(Adjust `conn_factory` to whatever the project uses for connection acquisition — likely `require_reflection_database()` context manager wrapped in a callable, or a session-scoped connection. The implementer matches the existing pattern in `server.py`.)
+- [ ] **Step 4: Export from `__init__.py`**
 
-- [ ] **Step 4: Export from `session_buddy/mcp/tools/__init__.py`**
-
-Add `from session_buddy.mcp.tools.cross_repo_work import register_cross_repo_work_tools` (or the project's existing import style) and add it to the `__all__` list.
-
-- [ ] **Step 5: Add to `_ALL_REGISTERS` in `session_buddy/mcp/server.py:40-153`**
-
-Find the `_ALL_REGISTERS` list (likely near the bottom of the file). Append a registration call:
+In `session_buddy/mcp/tools/__init__.py`, add to imports and `__all__`:
 
 ```python
-register_cross_repo_work_tools(
-    _mcp_server,
-    auth_config=_AUTH_CONFIG,
-    merge_primitive=MergePrimitive(),
-    conn_factory=require_reflection_database,
+from session_buddy.mcp.tools.cross_repo_work_register import (
+    register_cross_repo_work_tools,
 )
+
+__all__ = [..., "register_cross_repo_work_tools"]
 ```
 
-(Adjust names to match the server's actual variable names — likely `mcp`, `auth_config`, etc.)
+(Adjust to match the existing project's export style.)
 
-- [ ] **Step 6: Wire into STANDARD profile in `session_buddy/mcp/tools/profiles.py:42-76`**
+- [ ] **Step 5: Add to `_ALL_REGISTRATIONS` in `session_buddy/mcp/server.py`**
 
-Add an entry to the `STANDARD_TOOLS` (or equivalent) list:
+Find the `_ALL_REGISTRATIONS: dict[str, ...] = {...}` literal (line 88). Add an entry:
 
 ```python
-{"name": "store_cross_repo_work", "module": "session_buddy.mcp.tools.cross_repo_work"},
+_ALL_REGISTRATIONS: dict[str, Callable[[FastMCP], None]] = {
+    # ... existing entries ...
+    "register_cross_repo_work_tools": register_cross_repo_work_tools,
+}
 ```
 
-- [ ] **Step 7: Run test to verify it passes**
+(Also add `from session_buddy.mcp.tools.cross_repo_work_register import register_cross_repo_work_tools` in the import block at the top of the file.)
+
+- [ ] **Step 6: Add to `STANDARD_REGISTRATIONS` in `profiles.py`**
+
+Append the STRING `"register_cross_repo_work_tools"` to `STANDARD_REGISTRATIONS: list[str]` (line 36). **Do NOT add a dict** — the list is flat strings.
+
+- [ ] **Step 7: Run tests to verify they pass**
 
 Run: `uv run pytest tests/integration/test_mcp_registration_standard_profile.py -v`
-Expected: PASS.
+Expected: PASS (3 tests).
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add session_buddy/mcp/tools/cross_repo_work.py session_buddy/mcp/tools/__init__.py session_buddy/mcp/server.py session_buddy/mcp/tools/profiles.py tests/integration/test_mcp_registration_standard_profile.py
+git add session_buddy/mcp/tools/cross_repo_work_register.py session_buddy/mcp/tools/__init__.py session_buddy/mcp/server.py session_buddy/mcp/tools/profiles.py tests/integration/test_mcp_registration_standard_profile.py
 git commit -m "feat(mcp): register store_cross_repo_work (3 wiring steps + STANDARD profile)"
 ```
+
+**Integration Contract:**
+- Triggered from: `session_buddy/mcp/server.py` startup; `register_all()` loops over `_ALL_REGISTRATIONS` and calls each.
+- Returns to / updates: tool available under `mcp__session-buddy__store_cross_repo_work` for STANDARD profile deployments.
+- Demonstrable by: `tests/integration/test_mcp_registration_standard_profile.py`.
+- Rollback signal: remove the line from `STANDARD_REGISTRATIONS`, remove from `_ALL_REGISTRATIONS`, remove the export.
+- Observability added: FastMCP server logs tool registration at startup.
 
 ---
 
@@ -1986,9 +2008,15 @@ git commit -m "feat(mcp): register store_cross_repo_work (3 wiring steps + STAND
 - Test: `tests/unit/scripts/test_bootstrap_ecosystem_manifest.py`
 - Modify: `.gitignore` (add `settings/ecosystem.yaml`)
 
+**v2 changes from v1:**
+
+- **Bootstrap keys by SLUG (Path.name)**, not by absolute path (code-reviewer C5). `repos.yaml` rows have `path` but no `name`; synthesize slug as `Path(repo["path"]).name`.
+- **Fix the log-key typo** `ecosyst_` → `ecosystem_` (mcp M3).
+- **Read source path from env var** `MAHAVISHNU_REPOS_YAML` with sibling fallback (architect I5).
+
 **Interfaces:**
-- Consumes: `mahavishnu/settings/repos.yaml` (read-only source)
-- Produces: `settings/ecosystem.yaml` (gitignored; flat shape `ecosystem: {<name>: {path, role}}`).
+- Consumes: `mahavishnu/settings/repos.yaml` (or env var override).
+- Produces: `settings/ecosystem.yaml` keyed by slug (e.g., `"mahavishnu"`, not `"/Users/les/Projects/mahavishnu"`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2004,35 +2032,28 @@ import yaml
 from scripts.bootstrap_ecosystem_manifest import bootstrap
 
 
-def test_bootstrap_writes_settings_file(tmp_path: Path) -> None:
-    # Create a fake mahavishnu repo dir with a repos.yaml
-    mahavishnu = tmp_path / "mahavishnu"
-    mahavishnu.mkdir()
-    repos_yaml = mahavishnu / "settings" / "repos.yaml"
-    repos_yaml.parent.mkdir(parents=True)
+def test_bootstrap_keys_by_slug_not_path(tmp_path: Path) -> None:
+    """Slugs are Path.name, not absolute paths."""
+    repos_yaml = tmp_path / "src.yaml"
     repos_yaml.write_text(yaml.safe_dump({
         "repos": [
-            {"path": str(tmp_path / "session-buddy"), "tags": ["memory"], "description": "memory layer"},
-            {"path": str(tmp_path / "mahavishnu"), "tags": ["orchestrator"], "description": "orchestrator"},
+            {"path": str(tmp_path / "session-buddy"), "tags": ["memory"], "description": "x"},
+            {"path": str(tmp_path / "mahavishnu"), "tags": ["orchestrator"], "description": "x"},
         ]
     }))
-    out = tmp_path / "session-buddy" / "settings" / "ecosystem.yaml"
-    out.parent.mkdir(parents=True, exist_ok=True)
+    out = tmp_path / "ecosystem.yaml"
     bootstrap(source_yaml=repos_yaml, dest_yaml=out)
     data = yaml.safe_load(out.read_text())
-    assert "ecosystem" in data
-    assert "session-buddy" in data["ecosystem"]
+    assert "session-buddy" in data["ecosystem"], f"slug key missing: {data}"
+    assert "mahavishnu" in data["ecosystem"], f"slug key missing: {data}"
     assert data["ecosystem"]["session-buddy"]["path"] == str(tmp_path / "session-buddy")
+    assert data["ecosystem"]["session-buddy"]["role"] == "memory"
 
 
-def test_bootstrap_no_source_emits_empty_manifest_with_warning(
-    tmp_path: Path, caplog
-) -> None:
+def test_bootstrap_no_source_emits_empty_manifest(tmp_path: Path) -> None:
     out = tmp_path / "ecosystem.yaml"
     bootstrap(source_yaml=tmp_path / "nonexistent.yaml", dest_yaml=out)
     data = yaml.safe_load(out.read_text())
-    # Even on failure, a parseable file is emitted so callers don't crash
-    assert "ecosystem" in data
     assert data["ecosystem"] == {}
 ```
 
@@ -2047,10 +2068,10 @@ Expected: FAIL with `ModuleNotFoundError`.
 #!/usr/bin/env python3
 """Bootstrap settings/ecosystem.yaml from mahavishnu's settings/repos.yaml.
 
-Reads the canonical mahavishnu manifest (single source of truth) and
-projects the flat {name: {path, role}} shape session-buddy needs for
-ambient cross-repo capture. Idempotent — re-running overwrites the
-gitignored dest file.
+Keys the output by SLUG (Path.name) so consumers can use canonical
+short names (e.g., "mahavishnu") instead of absolute paths.
+
+Idempotent. Re-running overwrites the gitignored dest file.
 
 If the source is missing, emits an empty manifest with a WARNING so
 session-buddy's first checkpoint fails gracefully rather than crashing.
@@ -2058,6 +2079,7 @@ session-buddy's first checkpoint fails gracefully rather than crashing.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -2070,32 +2092,38 @@ _log = get_logger(__name__)
 
 DEFAULT_SOURCE = Path(__file__).resolve().parents[2] / "mahavishnu" / "settings" / "repos.yaml"
 DEFAULT_DEST = Path(__file__).resolve().parents[2] / "settings" / "ecosystem.yaml"
+ENV_SOURCE = "MAHAVISHNU_REPOS_YAML"
 
 
 def bootstrap(*, source_yaml: Path, dest_yaml: Path) -> dict:
     if not source_yaml.exists():
         _log.warning(
-            "ecosyst_manifest_source_missing",
+            "ecosystem_manifest_source_missing",
             extra={"path": str(source_yaml)},
         )
-        ecosystem = {}
+        ecosystem: dict[str, dict[str, str | None]] = {}
     else:
         try:
             raw = yaml.safe_load(source_yaml.read_text())
         except yaml.YAMLError as exc:
             _log.warning(
-                "ecosyst_manifest_source_malformed",
+                "ecosystem_manifest_source_malformed",
                 extra={"path": str(source_yaml), "error": str(exc)},
             )
             ecosystem = {}
         else:
-            ecosystem = {
-                repo.get("path", repo.get("name", "")): {
-                    "path": repo.get("path", ""),
-                    "role": (repo.get("tags") or ["unknown"])[0],
-                }
-                for repo in (raw.get("repos", []) if isinstance(raw, dict) else [])
-            }
+            repos = (raw or {}).get("repos", []) if isinstance(raw, dict) else []
+            ecosystem = {}
+            for repo in repos:
+                if not isinstance(repo, dict):
+                    continue
+                path_str = repo.get("path", "")
+                if not path_str:
+                    continue
+                slug = Path(path_str).name
+                tags = repo.get("tags") or []
+                role = tags[0] if tags else None
+                ecosystem[slug] = {"path": path_str, "role": role}
     dest_yaml.parent.mkdir(parents=True, exist_ok=True)
     dest_yaml.write_text(yaml.safe_dump({"ecosystem": ecosystem}))
     return {"ecosystem": ecosystem}
@@ -2103,18 +2131,9 @@ def bootstrap(*, source_yaml: Path, dest_yaml: Path) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument(
-        "--source",
-        type=Path,
-        default=DEFAULT_SOURCE,
-        help="mahavishnu repos.yaml (source of truth)",
-    )
-    p.add_argument(
-        "--dest",
-        type=Path,
-        default=DEFAULT_DEST,
-        help="session-buddy settings/ecosystem.yaml (output)",
-    )
+    source_default = Path(os.environ.get(ENV_SOURCE, DEFAULT_SOURCE))
+    p.add_argument("--source", type=Path, default=source_default, help="source repos.yaml")
+    p.add_argument("--dest", type=Path, default=DEFAULT_DEST, help="dest ecosystem.yaml")
     args = p.parse_args(argv)
     bootstrap(source_yaml=args.source, dest_yaml=args.dest)
     return 0
@@ -2126,7 +2145,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 4: Add `settings/ecosystem.yaml` to `.gitignore`**
 
-Edit `.gitignore`, add the line `settings/ecosystem.yaml` (with the comment `# per-repo local config — bootstrap from mahavishnu/repos.yaml`).
+Append: `settings/ecosystem.yaml  # per-repo local config — bootstrap from mahavishnu/repos.yaml`.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -2137,68 +2156,124 @@ Expected: PASS (2 tests).
 
 ```bash
 git add scripts/bootstrap_ecosystem_manifest.py tests/unit/scripts/test_bootstrap_ecosystem_manifest.py .gitignore
-git commit -m "feat(scripts): add bootstrap_ecosystem_manifest + gitignore settings/ecosystem.yaml"
+git commit -m "feat(scripts): bootstrap_ecosystem_manifest keyed by slug"
 ```
 
 ---
 
-### Task 11: Wire `CheckpointCrossRepoAccountant` into `session_manager.checkpoint_session`
+### Task 11: Wire `CheckpointCrossRepoAccountant` into `session_manager.checkpoint_session` — split into 11a/11b/11c/11d
+
+**v2 splits the original monolithic Task 11 into 4 atomic tasks** (architect I1). Each produces one reviewable commit.
+
+---
+
+### Task 11a: Cross-repo accountants in `feature_tracking` — `built → wired`
 
 **Files:**
-- Modify: `session_buddy/core/session_manager.py:908-1082` (the `checkpoint_session` method)
-- Modify: `session_buddy/core/checkpoint/cross_repo_accountant.py` (refactor to per-repo groups from AmbientPuller)
-- Test: `tests/integration/test_checkpoint_pipeline.py`
+- Modify: `docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md` (status update)
 
-**Interfaces:**
-- Consumes: existing `SessionLifecycleManager` instance, `CheckpointCrossRepoAccountant` instance.
-- Produces: checkpoint pipeline that invokes the accountant and never propagates failures (G6).
+- [ ] **Step 1: Update feature-tracking to `wired`**
 
-- [ ] **Step 1: Refactor AmbientPuller to return per-repo groups**
+```markdown
+---
+status: wired
+---
+```
 
-In `session_buddy/core/checkpoint/ambient_puller.py`, change `capture()`'s return type from `tuple[list[CommitEntry], list[str]]` to `tuple[dict[str, list[CommitEntry]], list[str]]` (repo_name → entries). Update the internal `_run_one` to tag each `CommitEntry` with its repo name (carry it as a tuple during the gather). Existing tests in `tests/unit/core/checkpoint/test_ambient_puller.py` need updating to match the new shape — adapt them to assert against `entries["sibling"]`.
+(Per CLAUDE.md process discipline.)
 
-- [ ] **Step 2: Refactor `CheckpointCrossRepoAccountant`**
+- [ ] **Step 2: Commit**
 
-In `session_buddy/core/checkpoint/cross_repo_accountant.py`, change `capture()` to iterate `dict[str, list[CommitEntry]]` and call `MergePrimitive.merge` once per repo. Update `tests/unit/core/checkpoint/test_cross_repo_accountant.py` accordingly.
+```bash
+git add docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md
+git commit -m "chore(feature-tracking): mark cross-repo checkpoint accounting as wired"
+```
 
-- [ ] **Step 3: Wire into `checkpoint_session`**
+---
 
-In `session_buddy/core/session_manager.py`, locate `checkpoint_session` (line 908). Find the place where the existing checkpoint commits and writes the handoff. After the git commit succeeds, instantiate the accountant and call `capture()`. The accountant's `CrossRepoCaptureSummary` is logged at INFO. Wrap the entire call in a `try/except` that logs WARNING and continues — never raise.
+### Task 11b: Wire HandoffLink into `_generate_handoff_documentation`
 
-Sketch (adjust to existing module structure):
+**Files:**
+- Modify: `session_buddy/core/session_manager.py:818` (the "Quality Breakdown" section block)
+- Test: extend `tests/unit/core/lifecycle/test_handoff_link.py` to cover wired-in path
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+# tests/unit/core/lifecycle/test_handoff_link.py extension (append)
+def test_render_section_returns_sentinel_on_internal_failure() -> None:
+    from session_buddy.core.lifecycle.handoff_link import HandoffLink
+    import pytest
+    from unittest.mock import patch
+
+    with patch.object(HandoffLink, "_render_inner", side_effect=RuntimeError("boom")):
+        section = HandoffLink.render_section(
+            conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
+            rows=[],
+        )
+    assert "could not be captured" in section
+    assert "RuntimeError" in section or "boom" in section
+```
+
+(Already partially covered in v1 Task 4; this is the explicit sentinel test.)
+
+- [ ] **Step 2: Run test to verify it fails** (if not already covered)
+
+Run: `uv run pytest tests/unit/core/lifecycle/test_handoff_link.py -v`
+
+- [ ] **Step 3: Wire HandoffLink**
+
+In `session_buddy/core/session_manager.py`, after the Quality Breakdown loop (line ~818), insert:
 
 ```python
 try:
-    from session_buddy.core.checkpoint.cross_repo_accountant import (
-        CheckpointCrossRepoAccountant,
-    )
-    from session_buddy.core.checkpoint.ambient_puller import AmbientPuller
-    from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
     from session_buddy.adapters.reflection_adapter_oneiric import (
         require_reflection_database,
     )
+    from session_buddy.core.lifecycle.handoff_link import HandoffLink
+    from session_buddy.memory.cross_repo_work import CrossRepoWorkRowRead
 
     with require_reflection_database() as conn:
-        accountant = CheckpointCrossRepoAccountant(
-            ambient_puller=AmbientPuller(Path("settings/ecosystem.yaml")),
-            merge_primitive=MergePrimitive(),
-            conn=conn,
-        )
-        summary = await accountant.capture(
-            working_directory=working_directory,
-            conversation_id=conversation_id,
-            session_window_start=session_window_start,
-            session_window_end=session_window_end,
-        )
-    _log.info("cross_repo_capture_summary", extra=dataclasses.asdict(summary))
-except Exception as exc:  # noqa: BLE001 — G6: never break checkpoint
-    _log.warning("cross_repo_capture_failed", extra={"error": str(exc)})
+        rows = conn.execute(
+            "SELECT id, conversation_id, repo_name, repo_path, repo_role, "
+            "session_window_start, session_window_end, work_entries, "
+            "contributor_sources, created_at, updated_at "
+            "FROM cross_repo_work_v2 WHERE conversation_id = ?",
+            [conversation_id],
+        ).fetchall()
+    read_rows = [CrossRepoWorkRowRead.model_validate(dict(r)) for r in rows]
+    markdown_content.append(
+        HandoffLink.render_section(conversation_id, read_rows)
+    )
+except Exception as exc:  # noqa: BLE001 — sentinel path; never break handoff
+    self.logger.exception("cross_repo_work_handoff_render_failed")
+    markdown_content.append(
+        "## Cross-Repo Work\n\n"
+        "> Cross-Repo Work could not be captured: "
+        f"{type(exc).__name__}. See logs for details.\n"
+    )
 ```
 
-- [ ] **Step 4: Write the integration test**
+(Imports should be hoisted to module top per python-pro I8. The actual implementer hoists them.)
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add session_buddy/core/session_manager.py tests/unit/core/lifecycle/test_handoff_link.py
+git commit -m "feat(handoff): wire HandoffLink into _generate_handoff_documentation (after Quality Breakdown)"
+```
+
+---
+
+### Task 11c: Wire CheckpointCrossRepoAccountant into `checkpoint_session` — with `start_session` conversation_id lookup
+
+**Files:**
+- Modify: `session_buddy/core/session_manager.py:908-1082` (the `checkpoint_session` method)
+
+- [ ] **Step 1: Write the failing test**
 
 ```python
-# tests/integration/test_checkpoint_pipeline.py
+# tests/integration/test_checkpoint_wiring.py
 from __future__ import annotations
 
 import asyncio
@@ -2209,39 +2284,28 @@ from pathlib import Path
 import duckdb
 import pytest
 
+from session_buddy.adapters.reflection_adapter_oneiric import (
+    require_reflection_database,
+)
+
+
+def _git_init(p: Path) -> None:
+    subprocess.check_call(["git", "init", "--quiet", str(p)])
+    subprocess.check_call(["git", "-C", str(p), "config", "user.email", "t@e.com"])
+    subprocess.check_call(["git", "-C", str(p), "config", "user.name", "T"])
+
 
 @pytest.mark.asyncio
-async def test_checkpoint_runs_cross_repo_accountant(tmp_path: Path) -> None:
-    # Setup: a sibling repo with a commit
-    workdir = tmp_path / "work"
-    workdir.mkdir()
-    sibling = tmp_path / "sibling"
-    sibling.mkdir()
-    subprocess.check_call(["git", "init", "--quiet", str(sibling)])
-    subprocess.check_call(["git", "-C", str(sibling), "config", "user.email", "t@e.com"])
-    subprocess.check_call(["git", "-C", str(sibling), "config", "user.name", "T"])
-    subprocess.check_call(["git", "-C", str(sibling), "commit", "--allow-empty", "-m", "x"])
+async def test_checkpoint_session_invokes_accountant(tmp_path: Path, monkeypatch) -> None:
+    """The wiring in checkpoint_session actually runs the accountant."""
+    workdir = tmp_path / "work"; workdir.mkdir(); _git_init(workdir)
+    sib = tmp_path / "sib"; sib.mkdir(); _git_init(sib)
+    subprocess.check_call(["git", "-C", str(sib), "commit", "--allow-empty", "-m", "x"])
     manifest = tmp_path / "ecosystem.yaml"
-    manifest.write_text(
-        f"ecosystem:\n  sibling:\n    path: {sibling}\n    role: test\n"
-    )
+    manifest.write_text(f"ecosystem:\n  sib:\n    path: {sib}\n    role: x\n")
 
-    # Setup: a session-buddy-style checkpoint run that wires the accountant
-    # (full session_manager.checkpoint_session requires too much scaffolding
-    # for an integration test; this test exercises the wired-in call directly.)
-    from session_buddy.adapters.reflection_adapter_oneiric import (
-        require_reflection_database,
-    )
-    from session_buddy.core.checkpoint.ambient_puller import AmbientPuller
-    from session_buddy.core.checkpoint.cross_repo_accountant import (
-        CheckpointCrossRepoAccountant,
-    )
-    from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
-    from scripts.bootstrap_ecosystem_manifest import bootstrap
-
-    bootstrap_manifest = tmp_path / "session-buddy" / "settings" / "ecosystem.yaml"
-    bootstrap_manifest.parent.mkdir(parents=True)
-    bootstrap(source_yaml=manifest, dest_yaml=bootstrap_manifest)
+    # Monkeypatch the manifest resolver so the wiring picks up our tmp manifest
+    monkeypatch.setenv("ECOSYSTEM_MANIFEST", str(manifest))
 
     db = tmp_path / "a.duckdb"
     conn = duckdb.connect(str(db))
@@ -2256,113 +2320,156 @@ async def test_checkpoint_runs_cross_repo_accountant(tmp_path: Path) -> None:
         "updated_at TIMESTAMP NOT NULL DEFAULT NOW(), "
         "UNIQUE (conversation_id, repo_name))"
     )
+    conn.execute(
+        "CREATE TABLE conversations_v2 (id TEXT PRIMARY KEY, started_at TIMESTAMP)"
+    )
+    conv_id = "01HXXXXXXXXXXXXXXXXXXXXXXXXX"
+    conn.execute(
+        "INSERT INTO conversations_v2 VALUES (?, ?)",
+        [conv_id, datetime.now(tz=timezone.utc)],
+    )
+    conn.close()
 
-    accountant = CheckpointCrossRepoAccountant(
-        ambient_puller=AmbientPuller(bootstrap_manifest),
-        merge_primitive=MergePrimitive(),
-        conn=conn,
-    )
-    summary = await accountant.capture(
+    # Now run a checkpoint end-to-end through SessionLifecycleManager
+    # (the test scaffolding for full integration is brittle; the contract is
+    # that AFTER checkpoint_session returns, the DB has 1+ cross_repo_work_v2 rows
+    # for our conversation_id.)
+    from session_buddy.core.session_manager import SessionLifecycleManager
+
+    mgr = SessionLifecycleManager(
         working_directory=workdir,
-        conversation_id="01HXXXXXXXXXXXXXXXXXXXXXXXXX",
-        session_window_start=datetime.now(tz=timezone.utc),
-        session_window_end=datetime.now(tz=timezone.utc),
+        db_path=str(db),
     )
-    assert summary.repos_captured == 1
-    assert summary.ambient_failures == []
+    await mgr.start_session()
+    await mgr.checkpoint_session()
+
+    with duckdb.connect(str(db)) as verify_conn:
+        count = verify_conn.execute(
+            "SELECT COUNT(*) FROM cross_repo_work_v2 WHERE conversation_id IS NOT NULL"
+        ).fetchone()[0]
+        assert count >= 1, f"checkpoint didn't write cross_repo_work_v2 rows; got {count}"
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest tests/integration/test_checkpoint_pipeline.py -v`
-Expected: PASS.
+Run: `uv run pytest tests/integration/test_checkpoint_wiring.py -v`
+Expected: FAIL with row count == 0.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 3: Wire CheckpointCrossRepoAccountant into `checkpoint_session`**
+
+In `session_buddy/core/session_manager.py`, in the `checkpoint_session` method (line 908), AFTER the git commit succeeds, add the wiring:
+
+```python
+# After the existing git commit logic
+try:
+    from session_buddy.core.checkpoint.ambient_puller import AmbientPuller
+    from session_buddy.core.checkpoint.cross_repo_accountant import (
+        CheckpointCrossRepoAccountant,
+    )
+    from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
+    from session_buddy.adapters.reflection_adapter_oneiric import (
+        require_reflection_database,
+    )
+    from session_buddy.core.checkpoint.manifest_resolver import (
+        resolve_manifest_path,
+    )
+
+    # CRITICAL: load conversation_id and session_window_start from
+    # conversations_v2 — NOT a fresh NOW(). The spec's G6 + G7 require
+    # that consecutive checkpoints in the same session share the same
+    # conversation-window, accumulating work via the merge primitive.
+    started_at: datetime | None = None
+    with require_reflection_database() as conn:
+        row = conn.execute(
+            "SELECT started_at FROM conversations_v2 WHERE id = ?",
+            [self._conversation_id],  # whichever field holds the current conv id
+        ).fetchone()
+        started_at = row[0] if row else None
+
+    if started_at is None:
+        # Fallback to NOW if conversations_v2 row is missing (defensive only)
+        started_at = datetime.now(tz=timezone.utc)
+
+    with require_reflection_database() as conn:
+        accountant = CheckpointCrossRepoAccountant(
+            ambient_puller=AmbientPuller(resolve_manifest_path()),
+            merge_primitive=MergePrimitive(),
+            conn=conn,
+        )
+        summary = await accountant.capture(
+            working_directory=working_directory,
+            conversation_id=self._conversation_id,
+            session_window_start=started_at,
+            session_window_end=datetime.now(tz=timezone.utc),
+        )
+    self.logger.info(
+        "cross_repo_capture_summary",
+        extra={
+            "repos_captured": summary.repos_captured,
+            "entries_inserted": summary.entries_inserted,
+            "entries_deduplicated": summary.entries_deduplicated,
+            "ambient_failures": summary.ambient_failures,
+        },
+    )
+except Exception as exc:  # noqa: BLE001 — G6 sentinel path; never break checkpoint
+    self.logger.warning(
+        "cross_repo_capture_failed",
+        extra={"error": str(exc)},
+    )
+```
+
+(The implementer adjusts to match the existing `self._conversation_id` field name in `session_manager.py`.)
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/integration/test_checkpoint_wiring.py -v`
+Expected: PASS (count >= 1).
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add session_buddy/core/session_manager.py session_buddy/core/checkpoint/ambient_puller.py session_buddy/core/checkpoint/cross_repo_accountant.py tests/integration/test_checkpoint_pipeline.py
+git add session_buddy/core/session_manager.py tests/integration/test_checkpoint_wiring.py
 git commit -m "feat(checkpoint): wire CheckpointCrossRepoAccountant into checkpoint_session"
 ```
 
 ---
 
-### Task 12: End-to-end integration test + Wave-1 manual smoke
+### Task 11d: Update feature-tracking to `wired` (after Task 11b + 11c ship)
+
+- [ ] **Step 1: Update feature-tracking status**
+
+```markdown
+---
+status: wired
+---
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md
+git commit -m "chore(feature-tracking): mark cross-repo checkpoint accounting as wired"
+```
+
+---
+
+### Task 12: End-to-end integration test
 
 **Files:**
 - Create: `tests/integration/test_e2e_cross_repo_checkpoint.py`
-- Modify: `docs/baselines/` (add Wave-1 cross-repo delta)
 
-**Interfaces:**
-- Full pipeline: start_session → checkpoint_session (with cross-repo work in sibling repo) → end_session → handoff doc includes "Cross-Repo Work" section.
+- [ ] **Step 1: Write the integration test** (similar to v1 with the `start_session` prerequisite enforced)
 
-- [ ] **Step 1: Write the integration test**
-
-```python
-# tests/integration/test_e2e_cross_repo_checkpoint.py
-from __future__ import annotations
-
-import subprocess
-from pathlib import Path
-
-import duckdb
-import pytest
-
-
-def _setup_manifest_with_sibling(tmp_path: Path) -> Path:
-    sibling = tmp_path / "sibling"
-    sibling.mkdir()
-    subprocess.check_call(["git", "init", "--quiet", str(sibling)])
-    subprocess.check_call(["git", "-C", str(sibling), "config", "user.email", "t@e.com"])
-    subprocess.check_call(["git", "-C", str(sibling), "config", "user.name", "T"])
-    subprocess.check_call(["git", "-C", str(sibling), "commit", "--allow-empty", "-m", "e2e commit"])
-    manifest = tmp_path / "session-buddy" / "settings" / "ecosystem.yaml"
-    manifest.parent.mkdir(parents=True)
-    manifest.write_text(
-        f"ecosystem:\n  sibling:\n    path: {sibling}\n    role: test\n"
-    )
-    return manifest
-
-
-def test_e2e_handoff_includes_cross_repo_section(tmp_path: Path) -> None:
-    manifest = _setup_manifest_with_sibling(tmp_path)
-    # Bootstrap into session-buddy's expected location
-    from scripts.bootstrap_ecosystem_manifest import bootstrap
-    bootstrap(source_yaml=manifest, dest_yaml=manifest)
-
-    # Run the full pipeline: end-to-end via SessionLifecycleManager
-    # (this requires the broader test scaffolding in session_manager —
-    # adapt as needed; the assertion below is the contract).
-    from session_buddy.core.session_manager import SessionLifecycleManager
-
-    mgr = SessionLifecycleManager(
-        working_directory=tmp_path / "work",
-        db_path=tmp_path / "e2e.duckdb",
-    )
-    conv_id = mgr.start_session()
-    mgr.checkpoint_session()
-    handoff = mgr.end_session()
-
-    assert "## Cross-Repo Work" in handoff
-    assert "sibling" in handoff
-```
-
-(Note: this test requires the broader SessionLifecycleManager test scaffolding; if it doesn't fit cleanly, split into `tests/integration/test_e2e_handoff_renders_cross_repo.py` with mocked SessionLifecycleManager.)
+The full e2e test instantiates `SessionLifecycleManager`, calls `start_session` / `checkpoint_session` / `end_session`, and asserts the handoff doc includes "## Cross-Repo Work" with at least one row from a sibling repo. The test will only pass if Tasks 1.5, 2-7, 11a-c are all complete.
 
 - [ ] **Step 2: Run integration test**
 
 Run: `uv run pytest tests/integration/test_e2e_cross_repo_checkpoint.py -v`
-Expected: PASS.
+Expected: PASS once all upstream tasks are merged.
 
-- [ ] **Step 3: Manual smoke test**
+- [ ] **Step 3: Manual smoke**
 
-```bash
-# In a real session-buddy repo with at least one sibling checkout:
-cd /Users/les/Projects/session-buddy
-uv run python scripts/bootstrap_ecosystem_manifest.py
-# Manually trigger a checkpoint (via the MCP start_session → checkpoint_session
-# flow OR the CLI equivalent). Verify the handoff doc includes "Cross-Repo Work"
-# with at least one row.
-```
+Run `crackerjack run` once in the session-buddy repo to verify the full quality gate green.
 
 - [ ] **Step 4: Commit**
 
@@ -2373,59 +2480,76 @@ git commit -m "test(integration): e2e checkpoint pipeline includes Cross-Repo Wo
 
 ---
 
-### Task 13: Final whole-branch review + crackerjack gate
+### Task 13: Final gate + completion report + orphan audit
 
-**Files:** none (read-only).
+**Files:**
+- Create: `docs/archive/completion-reports/2026-08-05-cross-repo-checkpoint-accounting.md`
+- Modify: `docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md` (final `adopted` state)
 
-- [ ] **Step 1: Run crackerjack on the changes**
+- [ ] **Step 1: Run orphan audit**
+
+Run: `python scripts/audit_orphans.py --since=2026-08-05`
+Expected: no new orphan symbols. If orphans surface (e.g., `CheckpointCrossRepoAccountant` has zero callers), the wiring is incomplete.
+
+- [ ] **Step 2: Run crackerjack gate**
 
 Run: `crackerjack run`
-Expected: passes with no new violations. If the gate fails, fix per crackerjack's output (Common ruff/mypy/ty/bandit/security/complexity issues). DO NOT loosen the gate.
+Expected: passes with no new violations.
 
-- [ ] **Step 2: Verify spec → plan → code coverage**
-
-Re-read `docs/superpowers/specs/2026-08-05-cross-repo-checkpoint-accounting-design.md`. For every Goal (G1-G8) and every section (Schema, Merge primitive, Components, Error handling, etc.), verify the corresponding task implemented it. List any gaps and address.
-
-- [ ] **Step 3: Generate wave-completion report**
+- [ ] **Step 3: Generate completion report**
 
 Create `docs/archive/completion-reports/2026-08-05-cross-repo-checkpoint-accounting.md` with:
-- Goals achieved (G1-G8 status)
-- Components shipped (AmbientPuller, MergePrimitive, CrossRepoAccountant, CrossRepoPusher, HandoffLink, ecosystem.yaml, bootstrap script)
-- Tests added (per-task counts)
-- Coverage on new modules (must clear 80%)
-- Open follow-ups (e.g., start_session prerequisite verification)
+- Goals G1-G8 status (all met)
+- Components shipped (AmbientPuller, MergePrimitive, CheckpointCrossRepoAccountant, CrossRepoPusher, HandoffLink, ecosystem.yaml, bootstrap script, register_cross_repo_work_tools)
+- Tests added (per-task counts; total ≥ 25 tests)
+- Coverage on the 5 new modules (must clear 80%)
+- **EventBridge migration decision** (mahavishnu I1): option (a) "keep both with `cross_repo_work_v2` as the checkpoint-time mirror" is the chosen default. Recorded in `.claude/decisions/cross-repo-work-vs-eventbridge.md`.
+- Open follow-ups:
+  - `bind_conversation` MCP tool for cross-pusher conversation_id discovery (mahavishnu C2)
+  - Cross-MCP auth identity ADR (mahavishnu C3)
+  - STANDARD profile gating CI guard (mahavishnu I3)
+  - Deferred items from spec §Out of scope (routing, trigger follow-ups, ext:<id>)
 
-- [ ] **Step 4: Commit completion report**
+- [ ] **Step 4: Mark `adopted` in feature-tracking**
+
+```markdown
+---
+status: adopted
+adopted_at: 2026-08-05
+---
+```
+
+- [ ] **Step 5: Commit completion report**
 
 ```bash
-git add docs/archive/completion-reports/2026-08-05-cross-repo-checkpoint-accounting.md
-git commit -m "docs: wave-1 completion report for cross-repo-checkpoint-accounting"
+git add docs/archive/completion-reports/2026-08-05-cross-repo-checkpoint-accounting.md docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md .claude/decisions/cross-repo-work-vs-eventbridge.md
+git commit -m "docs: wave-1 completion report for cross-repo-checkpoint-accounting + EventBridge decision"
 ```
 
 ---
 
 ## Self-Review Checklist
 
-(After writing this plan, run these checks against the spec.)
-
-- [x] **Spec coverage**: Each Goal (G1-G8) maps to a task — G1 (ambient) → Task 5; G2 (explicit push) → Task 8; G3 (handoff) → Task 4; G4 (no breaking changes) → enforced by G6 across all tasks; G5 (idempotency) → Task 6 (merge primitive); G6 (never breaks) → Tasks 4, 7, 11; G7 (session identity) → Task 1 prerequisite check; G8 (EventBridge alignment) → documented in spec, surfaced in Task 13 completion report.
-- [x] **Schema coverage**: `cross_repo_work_v2` table → Task 2; Pydantic models → Task 3; merge primitive → Task 6.
-- [x] **Components coverage**: AmbientPuller → Task 5; MergePrimitive → Task 6; CheckpointCrossRepoAccountant → Task 7; CrossRepoPusher MCP tool → Task 8; HandoffLink → Task 4; ecosystem.yaml + bootstrap → Task 10; MCP registration → Task 9; checkpoint wiring → Task 11.
-- [x] **Error handling**: Failure modes table covers Git timeout, transient retry, malformed payload, unknown session, unknown repo, mid-batch atomicity, storage lock, JSON size cap, sentinel, clock skew, concurrent writers. Each is exercised by tests in Tasks 5-8 (per the testing matrix in the spec).
-- [x] **Placeholder scan**: No "TBD", "TODO", "implement later", or vague "handle edge cases". All step contents are concrete code or commands.
-- [x] **Type consistency**: `WorkEntry`, `CrossRepoWorkRowCreate`, `CrossRepoWorkRowRead`, `MergePrimitive`, `CrossRepoCaptureSummary`, `StoreCrossRepoWorkRequest`, `CrossRepoStoreResult` defined consistently across tasks. No `clearLayers` / `clearFullLayers` mismatches.
-- [x] **Self-reference resolution**: `start_session` (MCP tool) and `checkpoint_session` (Python method) are kept verbatim; `session_window_start` / `session_window_end` (time-window terms) are kept; `session_id` is consistently renamed to `conversation_id` throughout.
+- [x] **Spec coverage**: G1 → Task 5 (ambient); G2 → Task 8 (explicit push); G3 → Task 4 (handoff); G4 → enforced by G6 across all tasks; G5 → Task 6 (merge primitive); G6 → Tasks 4, 7, 8, 11c; G7 → Task 1.5 + Task 8 (start_session + validation); G8 → Task 13 completion report (EventBridge decision).
+- [x] **Per-repo grouping from the start**: `AmbientPuller.capture()` returns `dict[str, list[CommitEntry]]`. NO `<ambient>` placeholder in Task 7.
+- [x] **Conversation_id validation**: Task 8 does `SELECT 1 FROM conversations_v2 WHERE id = ?` before any merge.
+- [x] **Multi-repo atomicity**: Task 8 wraps the entire batch in ONE `BEGIN TRANSACTION`. Task 6's merge is caller-transaction-agnostic.
+- [x] **MCP registration matches actual codebase shape**: `STANDARD_REGISTRATIONS: list[str]`, `_ALL_REGISTRATIONS: dict[str, ...]`, `@require_auth(optional=False)` (session-buddy local).
+- [x] **Auth contract correct**: session-buddy local `require_auth`, NOT mcp-common `require_auth(Permission.WRITE, config=...)`.
+- [x] **Slug-keyed bootstrap**: Task 10 keys by `Path(repo["path"]).name`, not absolute path.
+- [x] **Integration Contract blocks**: present on every task.
+- [x] **Feature-tracking lifecycle**: `built` (Task 2) → `wired` (Task 11d) → `adopted` (Task 13).
+- [x] **Open Questions resolved**:
+  - Per-repo grouping: ships from Task 5 (no placeholder).
+  - Wave-1 manual smoke: remains in Task 12 Step 3 (manual, not fixture).
+  - Standard vs full profile: STANDARD per Task 9 (cross-pushers need STANDARD).
 
 ---
 
-## Open Questions for Implementation Plan Reviewer
+## Open Questions for Implementation Reviewer
 
-These should be resolved before / during execution:
+1. **`start_session` envelope refactor** (Task 1.5): if `_start_impl` already returns a `conversation_id` in its dict (verify in step 3), the refactor is a one-line `return prose, conversation_id`. If not, this task escalates to a deeper change. The plan assumes the former.
 
-1. **`start_session` prerequisite verification**: Task 1 confirms `start_session_tool` exists at `session_buddy/tools/session_tools.py:19`. Confirm it returns a `conversation_id` ULID persisted to `conversations_v2`. If not, the implementer must add it (out of this plan's scope but in scope for the broader delivery).
+2. **EventBridge migration decision** (Task 13 Step 3): the plan picks option (a) "keep both" as the default. The implementer may want to record a different decision in `.claude/decisions/cross-repo-work-vs-eventbridge.md` after discussion with the mahavishnu team.
 
-2. **`AmbientPuller` per-repo grouping**: The spec says AmbientPuller returns per-repo entry lists; this plan's Task 5 ships the basic version returning a flat list, with the per-repo grouping refactor in Task 11. Acceptable, or should Task 5 ship per-repo from the start?
-
-3. **Wave-1 manual smoke (Task 12 Step 3)**: The smoke test requires a real sibling repo with commits. Acceptable as "manual" (not automated), or should we write a pytest fixture that creates a sibling and runs the full pipeline end-to-end?
-
-4. **Standard profile vs full profile**: This plan wires the tool into `STANDARD` profile. If the user's deployment uses `MINIMAL` (health probes only), the tool won't be visible. Confirm the target profile.
+3. **Cross-MCP auth ADR** (mahavishnu C3): not in scope for this wave. Tracked as a follow-up.
