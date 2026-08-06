@@ -106,44 +106,69 @@ session-buddy
 - Signature (Pydantic-typed, per review mcp-integration-expert Critical #1):
 
   ```python
+  from typing import Annotated, Literal
+  from pydantic import BaseModel, ConfigDict, Field, StringConstraints
   from mcp_common.auth import require_auth, Permission
-  from pydantic import BaseModel, ConfigDict, Field
+
+  RepoNameStr = Annotated[str, StringConstraints(min_length=1, max_length=64, strip_whitespace=True)]
+  UlidStr    = Annotated[str, StringConstraints(min_length=26, max_length=26)]
 
   class RepoWorkEntry(BaseModel):
+      """Wire shape: only the slug is sent; path is resolved server-side."""
       model_config = ConfigDict(extra="forbid")
-      repo_name: Annotated[str, StringConstraints(min_length=1, max_length=64)]
-      repo_path: str                                       # resolved server-side via ecosystem.yaml
+      repo_name: RepoNameStr
       work_entries: Annotated[list[WorkEntry], Field(min_length=1, max_length=200)]
 
   class StoreCrossRepoWorkRequest(BaseModel):
       model_config = ConfigDict(extra="forbid")
-      conversation_id: Annotated[str, StringConstraints(min_length=26, max_length=26)]  # ULID
+      conversation_id: UlidStr                                  # session-buddy conversations_v2.id
       repos: Annotated[list[RepoWorkEntry], Field(min_length=1, max_length=26)]
 
   class RepoStoreStatus(BaseModel):
-      repo_name: str
+      model_config = ConfigDict(extra="forbid")                 # power-trio C3
+      repo_name: RepoNameStr
       status: Literal["stored", "deduplicated", "rejected"]
-      entries_received: int
-      entries_inserted: int
-      entries_deduplicated: int
+      entries_received: Annotated[int, Field(ge=0)]
+      entries_inserted: Annotated[int, Field(ge=0)]
+      entries_deduplicated: Annotated[int, Field(ge=0)]
       message: str | None = None
 
   class CrossRepoStoreResult(BaseModel):
       model_config = ConfigDict(extra="forbid")
-      repos_received: int
-      repos_stored: int
-      entries_received: int
-      entries_inserted: int
-      entries_deduplicated: int
-      per_repo: list[RepoStoreStatus]
+      status: Literal["ok", "partial", "failed"]                # top-level outcome (power-trio I3)
+      error_code: str | None = None                            # "session_not_found" | "repo_not_in_ecosystem" | "storage_locked" | None
+      message: str | None = None
       retryable: bool
+      repos_received: Annotated[int, Field(ge=0)]
+      repos_stored: Annotated[int, Field(ge=0)]
+      entries_received: Annotated[int, Field(ge=0)]
+      entries_inserted: Annotated[int, Field(ge=0)]
+      entries_deduplicated: Annotated[int, Field(ge=0)]
+      per_repo: Annotated[list[RepoStoreStatus], Field(max_length=26)]
   ```
 
-- **Auth contract** (review mcp-integration-expert Critical #7): wrapped with `@require_auth()` and verifies the caller has `Permission.WRITE`. The previous `store_code_graph_from_mahavishnu` precedent is unguarded; newer session-tracking tools (`admin_shell_tracking_tools.py`, `channel_tracking_tools.py`) use `@require_auth()` without checking `Permission.WRITE`. The new tool MUST check `Permission.WRITE` — the spec is explicit so the implementer doesn't copy the unguarded precedent. The authentication token / context parameter is provided by the existing FastMCP auth context (no new auth surface added here).
+- **FastMCP handler signature** (per power-trio I1): the registered function is the typed handler — FastMCP uses the Pydantic request model as the input schema and the result model as the output schema. Implementer MUST NOT flatten or untype the parameters:
+
+  ```python
+  # In session_buddy/mcp/tools/cross_repo_work.py
+  _AUTH_CONFIG = AuthConfig.from_settings()  # or equivalent session-buddy auth config
+  _REGISTERED_NAME = "store_cross_repo_work"
+
+  @require_auth(Permission.WRITE, config=_AUTH_CONFIG, service_name="session-buddy")
+  @mcp_server.tool(name=_REGISTERED_NAME)
+  async def store_cross_repo_work(request: StoreCrossRepoWorkRequest) -> CrossRepoStoreResult:
+      """..."""
+      ...
+  ```
+
+- **Auth contract** (review mcp-integration-expert Critical #7 + power-trio C1): the `@require_auth()` decorator MUST be called with `Permission.WRITE` AND an explicit `config=` argument pointing at session-buddy's `AuthConfig`. `mcp-common`'s `@require_auth()` defaults to `Permission.READ` when `config=None` and bypasses authentication entirely — the literal invocation `@require_auth()` would expose this write tool to read-only or anonymous callers. The authenticated `request.context` provides `conversation_id` validation against `conversations_v2`. Newer session-tracking tools (`admin_shell_tracking_tools.py`, `channel_tracking_tools.py`) use `@require_auth()` without `Permission.WRITE` — the spec is explicit so the implementer doesn't copy either the unguarded `store_code_graph_from_mahavishnu` precedent OR the missing-Permission.WRITE precedent.
+- **Error contract (power-trio C4)**: two distinct lanes:
+  - **FastMCP / Pydantic validation errors** (malformed payload, missing `conversation_id`, empty `repos`, `extra="forbid"` violation): raised as MCP protocol errors. Client should treat as 4xx-class — non-retryable.
+  - **Domain errors** (unknown `conversation_id`, unknown `repo_name`, storage lock): returned as `CrossRepoStoreResult` with `status="failed"`, `error_code="<specific>"`, `message=<reason>`, `retryable=True|False`. Client branches on `status` and `retryable`.
 - **Idempotency**: server-side, via §Merge primitive. Re-pushing the same `(conversation_id, repo_name, sha)` is a no-op recorded as `status="deduplicated"`. Callers don't preflight or maintain local dedupe caches — review mcp-integration-expert Critical #4.
-- **Multi-repo batch atomicity** (review mcp-integration-expert Important #2 + resilience C8): all repos in a single call are written in one `BEGIN IMMEDIATE` transaction. Either the whole call succeeds (all repos stored) or it fails with a retryable error. The result's `per_repo` list reports per-repo `entries_received/inserted/deduplicated` counts even on success.
-- **Registration contract** (review mcp-integration-expert Critical #6): the tool's registration must be exported from `session_buddy/mcp/tools/__init__.py`, listed in `_ALL_REGISTERS`, and wired into the `STANDARD` tool profile (the profile gate that determines which tools are available). Without these three wiring steps, the tool registers successfully but Mahavishnu sees "method not found" under every profile.
-- **Path authority** (review mcp-integration-expert Important #5): the wire identity is a normalized repository slug (`repo_name`); the server resolves `repo_path` from `ecosystem.yaml` and **never** runs filesystem operations against a caller-supplied path.
+- **Multi-repo batch atomicity** (review mcp-integration-expert Important #2 + resilience C8 + power-trio C5/C6): all repos in a single call are written inside a Python-managed `BEGIN TRANSACTION` (DuckDB has no `IMMEDIATE` qualifier; see §Merge primitive). Either the whole call succeeds (all repos stored, `status="ok"`) or it fails with `status="failed"`, `retryable=True`, and the transaction rolled back. The result's `per_repo` list reports per-repo `entries_received/inserted/deduplicated` counts on success.
+- **Registration contract** (review mcp-integration-expert Critical #6 + power-trio I3): the registration must (1) export `register_cross_repo_work_tools` from `session_buddy/mcp/tools/__init__.py`, (2) add it to `_ALL_REGISTERS` in `session_buddy/mcp/server.py:40-153`, and (3) wire it into the `STANDARD` profile in `session_buddy/mcp/tools/profiles.py:42-76`. The testing matrix includes a STANDARD-profile smoke test that loads the profile and asserts `store_cross_repo_work` is in the advertised tool list.
+- **Path authority** (review mcp-integration-expert Important #5 + power-trio C2): `RepoWorkEntry` does NOT carry `repo_path` — the wire shape is the slug only. The server resolves `repo_path` from `ecosystem.yaml` keyed on normalized `repo_name` and **never** runs filesystem operations against a caller-supplied path. A separate internal model (`_ResolvedRepoEntry`) carries the manifest-derived path used by the merge primitive.
 
 ### NEW: `HandoffLink` (consumer in `core/lifecycle/handoff.py`)
 
@@ -229,11 +254,11 @@ HandoffLink.render_section(conversation_id, handoff_context)
 -- New v2 reflection table. Modeled on session_buddy/reflection/database.py:v2 schema style.
 -- TEXT PKs match existing v2 convention (see schema_v2.py:39-119); ULID generated by Python.
 -- Idempotency on (conversation_id, repo_name, sha) is enforced by the MERGE primitive in
--- §Merge primitive (atomic read-dedup-write in BEGIN IMMEDIATE), NOT by a schema
+-- §Merge primitive (atomic read-dedup-write in BEGIN TRANSACTION with Python-held adapter lock), NOT by a schema
 -- UNIQUE constraint — see Multi-agent Review C1.
 CREATE TABLE cross_repo_work_v2 (
     id              TEXT PRIMARY KEY,                 -- ULID, generated by Python (matches generate_ulid())
-    conversation_id      TEXT NOT NULL,                    -- ULID, FK-equivalent to conversations_v2.id (informational only — DuckDB FKs are advisory)
+    conversation_id      TEXT NOT NULL,                    -- ULID, semantically matches conversations_v2.id; DuckDB does NOT enforce FOREIGN KEY constraints (the keyword is reserved but skipped at parse), so referential integrity is enforced at the application layer — the CrossRepoPusher validates conversation_id exists in conversations_v2 before write
     repo_name       TEXT NOT NULL,                    -- e.g. "mahavishnu"
     repo_path       TEXT NOT NULL,                    -- absolute path on disk (denormalized from ecosystem.yaml at write time)
     repo_role       TEXT,                            -- e.g. "orchestrator", "quality" — from ecosystem.yaml
@@ -253,25 +278,23 @@ CREATE TABLE cross_repo_work_v2 (
 
 Per-review Critical #1, #9 (convergent): SQL `UNIQUE(conversation_id, repo_name)` does **not** enforce the documented idempotency on `(conversation_id, repo_name, sha)`. Idempotency is enforced at the **application-level merge primitive**, not by a schema constraint. This matches DuckDB's lack of native JSON-set semantics and sidesteps the read-modify-write race the JSON-column design would otherwise create.
 
-**The merge is atomic per row.** It runs inside `BEGIN IMMEDIATE` (DuckDB's serializable-per-connection transaction) so concurrent ambient + explicit writers cannot lose updates:
+**The merge is atomic per row.** It runs inside `BEGIN TRANSACTION` (DuckDB's single-writer MVCC transaction) holding one shared adapter lock across the complete read-merge-write batch, so concurrent ambient + explicit writers cannot lose updates. Concurrent attempts raise a DuckDB `write_conflict` error which the caller retries per the storage-write retry row in the error table (100ms / 500ms / 2s).
+
+**Dedup is performed entirely in Python before the SQL runs.** The SQL receives the pre-merged JSON via `CAST(? AS JSON)` parameters; it does not call any database function. This resolves the spec drift caught by the power-trio review (C2/C6):
 
 ```sql
--- Performed inside BEGIN IMMEDIATE; one writer at a time per session-buddy connection.
+-- Performed inside BEGIN TRANSACTION; one writer at a time per session-buddy connection.
+-- The application holds a shared adapter lock around this transaction.
+-- Note: ON CONFLICT requires DuckDB v0.9.0+ (Oct 2023); v0.7.x is insufficient.
 INSERT INTO cross_repo_work_v2 (
     id, conversation_id, repo_name, repo_path, repo_role,
     session_window_start, session_window_end,
     work_entries, contributor_sources,
     created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?::JSON, ?::JSON, NOW(), NOW())
+) VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), NOW(), NOW())
 ON CONFLICT (conversation_id, repo_name) DO UPDATE SET
-    work_entries = dedupe_work_entries(
-        cross_repo_work_v2.work_entries,
-        excluded.work_entries
-    ),
-    contributor_sources = union_provenance(
-        cross_repo_work_v2.contributor_sources,
-        excluded.contributor_sources
-    ),
+    work_entries = CAST(? AS JSON),
+    contributor_sources = CAST(? AS JSON),
     session_window_end = GREATEST(
         cross_repo_work_v2.session_window_end,
         excluded.session_window_end
@@ -279,12 +302,15 @@ ON CONFLICT (conversation_id, repo_name) DO UPDATE SET
     updated_at = NOW();
 ```
 
-`dedupe_work_entries` is a Python pre-processing step (Pydantic-side) before this SQL runs:
+The Python merge step (in the application's transaction body, before the INSERT/UPDATE) does:
 
-1. Parse `cross_repo_work_v2.work_entries` (existing JSON) and `excluded.work_entries` (incoming JSON) into `list[WorkEntry]`.
-2. Build a dedup key for each entry: `(kind, sha)` for `CommitEntry`, `(kind, plan_path)` for `PlanRefEntry`.
-3. For collisions: prefer `provenance="explicit"` over `"ambient"` (review resilience C6); take the max `files_changed_count`; preserve the first-observed `timestamp`.
-4. Return the merged `list[WorkEntry]` for the SQL `?::JSON` placeholder.
+1. Read existing `cross_repo_work_v2.work_entries` JSON (inside the transaction).
+2. Parse incoming `StoreCrossRepoWorkRequest.repos[*].work_entries` into `list[WorkEntry]` via Pydantic validation.
+3. Build a dedup key for each entry: `(kind, sha)` for `CommitEntry`, `(kind, plan_path)` for `PlanRefEntry`.
+4. For collisions: prefer `provenance="explicit"` over `"ambient"` (review resilience C6); take the max `files_changed_count`; preserve the first-observed `timestamp`.
+5. Compute the new `contributor_sources` as the order-preserving set union of existing and incoming.
+6. Compute the new `session_window_end` as `GREATEST(existing, incoming)`.
+7. Pass merged JSON values as `CAST(? AS JSON)` parameters to the INSERT/UPDATE.
 
 **Why not a normalized child table with `UNIQUE(conversation_id, repo_name, sha)`:** Reviewer mcp-integration-expert #4 suggested it as an alternative. We choose the JSON-merge approach because (a) the read path (HandoffLink) renders a single section per repo, so one row per (session, repo) is the natural read shape; (b) the JSON is small (~10 entries typical, 200 cap) so JSON-vs-normalized performance is irrelevant; (c) consolidating per-row provenance via `contributor_sources` keeps the "what paths contributed" answer cheap. The trade-off is documented in the testing matrix (the merge primitive gets its own unit test).
 
@@ -398,25 +424,29 @@ class CrossRepoWorkRowRead(BaseModel):
 | Explicit push with malformed payload | Return 4xx-shaped error to caller (existing pattern). Log WARNING; do not store. |
 | Explicit push with `conversation_id` that doesn't exist | Return 4xx-shaped error "session not found"; no store. (Review code-reviewer C1.) |
 | Explicit push with unknown `repo_name` / `repo_path` | Return 4xx-shaped error "repo not in ecosystem.yaml"; no store. (Review code-reviewer I5.) |
-| Explicit push mid-batch partial failure (A/B/C stored, D fails, E stored) | Wrap in single `BEGIN IMMEDIATE` transaction; write-all-or-roll-back. Caller sees either full success or full failure. (Review resilience C8.) |
+| Explicit push mid-batch partial failure (A/B/C stored, D fails, E stored) | Wrap in single Python-managed `BEGIN TRANSACTION` (DuckDB has no `IMMEDIATE` qualifier — see §Merge primitive); write-all-or-roll-back. Caller sees either full success (`status="ok"`) or full failure (`status="failed"`, `retryable=true`). (Review resilience C8 + power-trio C5/C6.) |
 | Storage write fails (DuckDB lock) | Retry 3x with backoff (100ms, 500ms, 2s); on exhaustion, **skip the write and log WARNING** — do NOT surface as checkpoint failure. Cross-repo accounting is observational metadata; a missed write is acceptable and never blocks the git commit / handoff doc. (Review C3 — directly fixes the contradiction with G6.) |
 | `work_entries` JSON exceeds size cap (256 KiB or 200 entries) | Truncate with `<!-- truncated, N omitted -->` marker inside the JSON, log WARNING, continue. (Review resilience C5.) |
 | HandoffLink.render_section fails | Log ERROR; handoff doc still written with sentinel `> Cross-Repo Work could not be captured: <reason>. See <log_ref>.` so downstream consumers can distinguish "no work" from "capture failed". (Review resilience C7.) |
 | Clock skew detected (`session_window_start > session_window_end`) | Swap values, log WARNING `clock_skew_detected`, continue. (Review resilience I3.) |
-| Concurrent AmbientPuller invocations | Use `BEGIN IMMEDIATE` transaction (DuckDB serializable per connection). Merge primitive in §Merge primitive is commutative so last-writer-wins is correct. (Review resilience I6.) |
+| Concurrent AmbientPuller invocations | Use Python-held shared adapter lock around `BEGIN TRANSACTION`. DuckDB's MVCC raises `write_conflict` on concurrent writes; caller retries per the storage-write retry row (100ms / 500ms / 2s). Merge primitive in §Merge primitive is commutative so last-writer-wins is correct. (Review resilience I6 + power-trio C5.) |
 
 ## Session identity
 
 Per-review code-reviewer I2, architect I1, python-pro C2, mcp-integration-expert Critical #2: a single canonical identifier must exist for the join key. The existing `checkpoint_session()` flow generates a fresh ULID per checkpoint invocation, which makes "session_start..now" semantics ambiguous across consecutive checkpoints. Resolution:
 
-- **Canonical join key: `conversation_id`** (the session-buddy `conversations_v2.id` ULID), established by `start_session` MCP tool (or equivalent — to be added if not present) and **persisted** on `conversations_v2` at session start.
-- `cross_repo_work_v2.conversation_id` (renamed from `conversation_id` in earlier revisions for clarity) joins 1:1 with `conversations_v2.id`.
+- **Canonical join key: `conversation_id`** (the session-buddy `conversations_v2.id` ULID), established by `start_session` MCP tool (see §Prerequisites below — `start_session` is a hard prerequisite of this design) and **persisted** on `conversations_v2` at session start.
+- `cross_repo_work_v2.conversation_id` (renamed from `session_id` in this revision for clarity — the old name was confusing because `checkpoint_session()` generates a fresh ULID per checkpoint invocation, which is *not* the join key) joins 1:1 with `conversations_v2.id`.
 - `CheckpointCrossRepoAccountant.capture(working_directory, conversation_id, session_window_start, session_window_end)` takes the conversation_id (not a per-checkpoint ID). The `session_window_start` is the conversation-start timestamp; `session_window_end` is "now" at the capture call.
-- External pushers (Mahavishnu, Akosha, Crackerjack) learn the conversation_id either by:
+- **External pushers** (Mahavishnu, Akosha, Crackerjack) learn the conversation_id either by:
   - Calling `start_session` themselves at the same logical session start, OR
   - Reading the conversation_id from a shared context propagation mechanism (the spec does NOT specify the mechanism — that's an open question for the implementation plan).
 
-The earlier name `conversation_id` is replaced by `conversation_id` throughout this spec to match `conversations_v2.id` naming and avoid confusion with ephemeral per-checkpoint IDs.
+The earlier name `session_id` is replaced by `conversation_id` throughout this spec to match `conversations_v2.id` naming and avoid confusion with ephemeral per-checkpoint IDs.
+
+**Prerequisites:**
+
+- **`start_session` MCP tool must exist** before this feature is implemented. If session-buddy does not yet have a `start_session` tool that returns a `conversation_id` ULID and persists it on `conversations_v2`, that tool is part of this delivery's scope (or a hard prerequisite the implementer must add first). Without it, ambient captures either fail to insert (NOT NULL violation on `cross_repo_work_v2.conversation_id`) or insert with a fabricated conversation_id that breaks the join. The spec's §Session identity is **load-bearing on `start_session` existing**, not a "nice to have."
 
 ## Convergence-plan alignment
 
@@ -444,7 +474,7 @@ Per-review trend-analyst C1, C2, I5 (and Important #1, #2): the Bodai Observabil
 | Unit | AmbientPuller: asyncio event loop unblocked (review code-reviewer C3). Mock the orchestrator; assert no `subprocess.run` calls happen on the loop thread; only `asyncio.to_thread` invocations. |
 | Unit | CrossRepoPusher: Pydantic validation (review code-reviewer I6 / python-pro #4 / mcp-integration-expert Critical #1). Valid payload → row stored; missing conversation_id → error returned; empty repos array → error; wrong kind enum → error; `WorkEntry(kind="commit")` without sha → error; `WorkEntry(kind="plan_ref")` without plan_path → error; unknown field → `extra="forbid"` rejection. |
 | Unit | CrossRepoPusher: auth contract (review mcp-integration-expert Critical #7). Caller without `Permission.WRITE` → 403-shaped result; valid auth → stored. |
-| Unit | Merge logic: idempotency on (conversation_id, repo_name, sha) (review code-reviewer C1 / database-ops Critical #2). Same sha pushed twice in same session → only 1 entry in work_entries. Ambient + explicit same sha → deduped, with `provenance="explicit"` preferred. Different shas from same repo → 2 entries. Test the full SQL merge inside `BEGIN IMMEDIATE` transaction with mocked DuckDB. |
+| Unit | Merge logic: idempotency on (conversation_id, repo_name, sha) (review code-reviewer C1 / database-ops Critical #2). Same sha pushed twice in same session → only 1 entry in work_entries. Ambient + explicit same sha → deduped, with `provenance="explicit"` preferred. Different shas from same repo → 2 entries. Test the full SQL merge inside `BEGIN TRANSACTION` (with Python-held adapter lock) using a mocked DuckDB connection. |
 | Unit | Merge logic: `contributor_sources` union. Ambient + explicit → `["ambient", "explicit"]` (order-preserving set). |
 | Unit | HandoffLink.render_section. Session with 3 repos → 3-bullet markdown. Session with 0 cross_repo_work rows → `_No cross-repo work captured._` line (review resilience C7). Render failure → `> Cross-Repo Work could not be captured: <reason>. See <log_ref>.` sentinel. Renders within 50ms for typical workload; stress test with 500 rows asserts ≤200ms (review architect M2). |
 | Unit | Session identity (review python-pro C2). Two consecutive checkpoints in the same session share the conversation_id; second checkpoint's ambient window still catches commits from before the second checkpoint. |
