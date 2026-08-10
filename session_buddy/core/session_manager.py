@@ -414,25 +414,41 @@ class SessionLifecycleManager:
 
         return output
 
-    async def _checkpoint_via_orchestrator(
+    async def _checkpoint_with_safety_capture(
         self,
         *,
         phase: "t.Any",
         current_dir: Path,
         quality_score: int,
     ) -> list[str]:
-        """Route the git checkpoint through the safe orchestrator (Task 8).
+        """Capture a defensive snapshot before the end-of-task commit.
 
-        Lite mode (``_mode_config.enable_auto_checkpoint=False``) bypasses
-        the orchestrator entirely and preserves the legacy
-        ``perform_git_checkpoint`` behavior. Standard mode captures a
-        snapshot first, then forwards to the legacy commit, and returns
-        the legacy ``git_output`` plus an appended decision summary so
-        downstream ``POST_CHECKPOINT`` hooks see unchanged content.
+        Task 8 wraps the legacy ``perform_git_checkpoint`` with an
+        advisory safety capture. The orchestrator is **best-effort** —
+        snapshot capture, subagent deferral, and pending-marker
+        surfacing are advisory signals, not commit gates. The actual
+        commit authority is the existing ``perform_git_checkpoint``
+        path (spec Constraint #1: end-of-task checkpoint is mandatory).
+
+        Three execution modes:
+
+        1. **Lite mode** (``_mode_config.enable_auto_checkpoint=False``):
+           orchestrator is bypassed entirely. Legacy commit runs as-is.
+        2. **Standard mode + valid path**: orchestrator captures a
+           defensive snapshot (may fail without aborting the commit),
+           surfaces subagent deferrals via
+           ``~/.session-buddy/pending/*.json`` markers, and the legacy
+           commit always runs after. A decision-summary line is
+           appended to ``git_output`` for downstream
+           ``POST_CHECKPOINT`` hooks.
+        3. **Standard mode + invalid path**: orchestrator is skipped
+           (logged WARNING), legacy commit still runs. We do not break
+           the user's end-of-task commit on a path-validation edge
+           case (Security MEDIUM finding).
 
         Args:
-            phase: ``CheckpointPhase`` enum (or its string value) for the
-                orchestrator's policy decision.
+            phase: ``CheckpointPhase`` enum (or its string value) for
+                the orchestrator's policy decision.
             current_dir: Working directory for the checkpoint.
             quality_score: Quality score forwarded to the legacy commit.
 
@@ -468,6 +484,27 @@ class SessionLifecycleManager:
             if not isinstance(phase, CheckpointPhase)
             else phase
         )
+
+        # Security (MEDIUM finding): validate ``current_dir`` before
+        # passing it to the orchestrator's subprocess surface. The
+        # orchestrator instantiates ``SubagentDetector``,
+        # ``SnapshotMechanism``, ``WorkingTreeInspector``, and
+        # ``CheckpointPolicy`` which all read filesystem state from
+        # ``current_dir``. A hostile or corrupt path could feed
+        # attacker-controlled state into the capture path. On any
+        # validation failure, log a WARNING, skip the orchestrator,
+        # and still run the legacy commit so we never block the user's
+        # end-of-task checkpoint on a path-validation edge case.
+        validated_dir = self._validate_orchestrator_path(current_dir)
+        if validated_dir is None:
+            git_output = await self.perform_git_checkpoint(
+                current_dir, quality_score,
+            )
+            git_output.append(
+                "checkpoint_orchestrator_decision: safety_capture_skipped "
+                "reason=invalid_path",
+            )
+            return git_output
 
         lockfile = current_dir / ".session-buddy" / "subagent.lock"
         detector = SubagentDetector(current_dir, LockfileSignalSource(lockfile))
@@ -519,6 +556,43 @@ class SessionLifecycleManager:
             summary += f" pending_marker={result.pending_marker_path}"
         git_output.append(summary)
         return git_output
+
+    def _validate_orchestrator_path(self, current_dir: Path) -> Path | None:
+        """Validate ``current_dir`` before passing to the orchestrator.
+
+        Security (MEDIUM finding from
+        ``.superpowers/sdd/2026-08-10-auto-checkpoint-safety-and-trigger``):
+        the orchestrator's ``SubagentDetector``,
+        ``SnapshotMechanism``, and ``WorkingTreeInspector`` read
+        filesystem state from ``current_dir``. An unvalidated path
+        could feed hostile state into the capture path. We use
+        ``Path.resolve(strict=True)`` (raises ``FileNotFoundError`` for
+        non-existent paths) plus an is-dir check to fail fast.
+
+        Returns:
+            The resolved ``Path`` on success; ``None`` if validation
+            fails. A WARNING is logged on failure so operators can
+            see the rejection in observability.
+
+        """
+        try:
+            resolved = current_dir.resolve(strict=True)
+        except (FileNotFoundError, OSError, RuntimeError) as exc:
+            self.logger.warning(
+                "checkpoint_orchestrator_path_invalid path=%s error=%s",
+                str(current_dir),
+                type(exc).__name__,
+            )
+            return None
+
+        if not resolved.is_dir():
+            self.logger.warning(
+                "checkpoint_orchestrator_path_not_dir path=%s",
+                str(resolved),
+            )
+            return None
+
+        return resolved
 
     async def _schedule_git_maintenance(
         self,
@@ -1249,7 +1323,7 @@ class SessionLifecycleManager:
                 CheckpointPhase,
             )
 
-            git_output = await self._checkpoint_via_orchestrator(
+            git_output = await self._checkpoint_with_safety_capture(
                 phase=CheckpointPhase.END_OF_TASK,
                 current_dir=current_dir,
                 quality_score=quality_score,
