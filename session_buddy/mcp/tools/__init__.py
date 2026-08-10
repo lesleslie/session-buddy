@@ -33,6 +33,9 @@ from .conversation.conversation_tools import (
     register_conversation_tools,
 )
 
+# Cross-repo work tools (Task 9 wiring)
+from .cross_repo_work_register import register_cross_repo_work_tools
+
 # Infrastructure tools
 from .infrastructure.access_log_tools import (
     register_access_log_tools,
@@ -109,6 +112,7 @@ __all__ = [
     "register_conscious_agent_tools",
     "register_conversation_tools",
     "register_crackerjack_tools",
+    "register_cross_repo_work_tools",
     "register_export_tools",
     "register_extraction_tools",
     "register_feature_flags_tools",

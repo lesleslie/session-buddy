@@ -75,6 +75,13 @@ class SessionLifecycleManager:
         self.current_project: str | None = (
             None  # CRITICAL: Initialize current project tracking
         )
+        # Conversation-window ULID minted in ``initialize_session`` (Task 2).
+        # ``None`` until that runs and until the ``session_windows`` INSERT
+        # has succeeded — downstream consumers (Task 11b's HandoffLink
+        # wiring) treat ``None`` as the no-work sentinel. Mirrors the G6
+        # contract that ``initialize_session`` must never raise on a
+        # missing ``session_windows`` row.
+        self.conversation_id: str | None = None
         self._quality_history: dict[str, list[int]] = {}  # project -> [scores]
         self._captured_insight_hashes: set[str] = (
             set()
@@ -820,6 +827,59 @@ class SessionLifecycleManager:
                 markdown_content.append(f"- {key}: {value}")
             markdown_content.append("")
 
+        # Append the cross-repo work section (Task 11b wiring).
+        # The whole block is wrapped in try/except so an internal failure
+        # NEVER breaks the handoff doc (G6 contract — sentinel path).
+        try:
+            from session_buddy.core.lifecycle.handoff_link import HandoffLink
+            from session_buddy.memory.cross_repo_work import CrossRepoWorkRowRead
+            from session_buddy.utils.database_tools import (
+                require_reflection_database,
+            )
+
+            adapter = await require_reflection_database()
+            conn = adapter.conn
+            rows = conn.execute(
+                "SELECT id, conversation_id, repo_name, repo_path, repo_role, "
+                "session_window_start, session_window_end, work_entries, "
+                "contributor_sources, created_at, updated_at "
+                "FROM cross_repo_work_v2 WHERE conversation_id = ?",
+                [self.conversation_id],
+            ).fetchall()
+            cols = [
+                "id",
+                "conversation_id",
+                "repo_name",
+                "repo_path",
+                "repo_role",
+                "session_window_start",
+                "session_window_end",
+                "work_entries",
+                "contributor_sources",
+                "created_at",
+                "updated_at",
+            ]
+            import json as _json
+
+            read_rows = []
+            for r in rows:
+                row_dict = dict(zip(cols, r))
+                row_dict["work_entries"] = _json.loads(row_dict["work_entries"])
+                row_dict["contributor_sources"] = _json.loads(
+                    row_dict["contributor_sources"]
+                )
+                read_rows.append(CrossRepoWorkRowRead.model_validate(row_dict))
+            markdown_content.append(
+                HandoffLink.render_section(self.conversation_id, read_rows)
+            )
+        except Exception as exc:  # noqa: BLE001 - sentinel path; never break handoff
+            self.logger.exception("cross_repo_work_handoff_render_failed")
+            markdown_content.append(
+                "## Cross-Repo Work\n\n"
+                "> Cross-Repo Work could not be captured: "
+                f"{type(exc).__name__}. See logs for details.\n"
+            )
+
         return "\n".join(markdown_content)
 
     def _save_handoff_documentation(
@@ -843,7 +903,17 @@ class SessionLifecycleManager:
         self,
         working_directory: str | None = None,
     ) -> dict[str, t.Any]:
-        """Initialize a new session with comprehensive setup."""
+        """Initialize a new session with comprehensive setup.
+
+        Returns a dict with the standard session metadata plus a
+        ``conversation_id`` key (a 26-char Crockford ULID). The ULID is
+        also INSERT-ed into the ``session_windows`` table owned by the
+        reflection DB (Task 2 of the 2026-08-05 plan). If the INSERT
+        fails (typically because the table has not yet been created —
+        Task 2 is still pending, or the DB is unavailable), ``conversation_id``
+        is set to ``None`` and a WARNING is logged; this is the G6 sentinel
+        contract and ``initialize_session`` must NEVER raise out of this path.
+        """
         try:
             # Setup directories and project
             current_dir = self._setup_working_directory(working_directory)
@@ -858,12 +928,53 @@ class SessionLifecycleManager:
             # Get previous session info
             previous_session_info = await self._get_previous_session_info(current_dir)
 
+            # Generate the conversation-window ULID and persist it to
+            # ``session_windows``. Task 2 adds the table; until then
+            # the INSERT is expected to fail and the WARNING below is
+            # the canonical signal that the G6 sentinel was honored.
+            conversation_id = generate_ulid()
+            try:
+                # The helper lives in session_buddy.utils.database_tools,
+                # not the adapter module.  The brief's import path
+                # (session_buddy.adapters.reflection_adapter_oneiric) is
+                # not exported there — the adapter is a class, not a
+                # helper.
+                from session_buddy.utils.database_tools import (
+                    require_reflection_database,
+                )
+
+                db = await require_reflection_database()
+                conn = db._get_conn() if hasattr(db, "_get_conn") else db.conn
+                conn.execute(
+                    "INSERT INTO session_windows "
+                    "(id, working_directory, project, started_at) "
+                    "VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                    [
+                        conversation_id,
+                        str(current_dir),
+                        self.current_project,
+                    ],
+                )
+            except Exception as exc:  # noqa: BLE001 - G6 sentinel: never block startup on a missing session_windows row
+                self.logger.warning(
+                    "session_window_insert_failed: %s",
+                    str(exc),
+                )
+                conversation_id = None
+
+            # Persist the conversation_id on the instance so downstream
+            # consumers (Task 11b HandoffLink wiring) can fetch rows
+            # tagged with this session window. ``None`` is the G6
+            # sentinel for a missing ``session_windows`` row.
+            self.conversation_id = conversation_id
+
             self.logger.info(
-                "Session initialized, project=%s, quality_score=%d, working_directory=%s, has_previous_session=%s",
+                "Session initialized, project=%s, quality_score=%d, working_directory=%s, has_previous_session=%s, conversation_id=%s",
                 self.current_project,
                 quality_score,
                 str(current_dir),
                 previous_session_info is not None,
+                conversation_id,
             )
 
             return {
@@ -875,6 +986,7 @@ class SessionLifecycleManager:
                 "project_context": project_context,
                 "claude_directory": str(claude_dir),
                 "previous_session": previous_session_info,
+                "conversation_id": conversation_id,
             }
 
         except Exception as e:
@@ -1021,6 +1133,98 @@ class SessionLifecycleManager:
 
             # Git checkpoint
             git_output = await self.perform_git_checkpoint(current_dir, quality_score)
+
+            # Cross-repo accounting (Task 11c). Active pull path that
+            # complements the MCP push path (Task 8). Runs AFTER the git
+            # commit so we capture the final state and BEFORE the
+            # POST_CHECKPOINT hooks so the capture summary is available
+            # to downstream observers. The outer try/except is the G6
+            # sentinel: any cross-repo accounting failure becomes a
+            # WARNING log, never a checkpoint failure.
+            try:
+                if self.conversation_id is None:
+                    # No session_windows row minted; G6 fallback —
+                    # skip capture but never block the checkpoint.
+                    self.logger.warning(
+                        "cross_repo_capture_skipped: no conversation_id"
+                    )
+                else:
+                    from session_buddy.core.checkpoint.ambient_puller import (
+                        AmbientPuller,
+                    )
+                    from session_buddy.core.checkpoint.cross_repo_accountant import (
+                        CheckpointCrossRepoAccountant,
+                    )
+                    from session_buddy.core.checkpoint.manifest_resolver import (
+                        resolve_manifest_path,
+                    )
+                    from session_buddy.core.checkpoint.merge_primitive import (
+                        MergePrimitive,
+                    )
+                    from session_buddy.utils.database_tools import (
+                        require_reflection_database,
+                    )
+
+                    # Acquire the DB adapter ONCE so the lookup and the
+                    # accountant share the same connection. If the
+                    # acquire itself raises, the outer try/except catches
+                    # it (G6) — narrow inner try only wraps the SELECT.
+                    adapter = await require_reflection_database()
+                    conn = adapter.conn
+
+                    # Load session_window_start from the canonical
+                    # conversation identity table (v2.1 amendment).
+                    # Consecutive checkpoints in the same session share
+                    # the window so the merge primitive accumulates work
+                    # (G7 contract).
+                    started_at: datetime | None = None
+                    try:
+                        row = conn.execute(
+                            "SELECT started_at FROM session_windows WHERE id = ?",
+                            [self.conversation_id],
+                        ).fetchone()
+                        if row is not None:
+                            started_at = row[0]
+                    except Exception as lookup_exc:  # noqa: BLE001 — defensive
+                        self.logger.warning(
+                            "cross_repo_session_window_lookup_failed: %s",
+                            str(lookup_exc),
+                        )
+
+                    if started_at is None:
+                        # G6 fallback: never block checkpoint on a
+                        # missing session_windows row.
+                        started_at = utc_now()
+
+                    # Run the accountant (single-shot, never raises
+                    # per its G6 contract).
+                    accountant = CheckpointCrossRepoAccountant(
+                        ambient_puller=AmbientPuller(resolve_manifest_path()),
+                        merge_primitive=MergePrimitive(),
+                        conn=conn,
+                    )
+                    summary = await accountant.capture(
+                        working_directory=current_dir,
+                        conversation_id=self.conversation_id,
+                        session_window_start=started_at,
+                        session_window_end=utc_now(),
+                    )
+                    self.logger.info(
+                        "cross_repo_capture_summary",
+                        extra={
+                            "repos_captured": summary.repos_captured,
+                            "entries_inserted": summary.entries_inserted,
+                            "entries_deduplicated": (
+                                summary.entries_deduplicated
+                            ),
+                            "ambient_failures": summary.ambient_failures,
+                        },
+                    )
+            except Exception as exc:  # noqa: BLE001 — G6 sentinel: never break checkpoint
+                self.logger.warning(
+                    "cross_repo_capture_failed",
+                    extra={"error": str(exc)},
+                )
 
             # Execute POST_CHECKPOINT hooks (pattern learning, etc.)
             post_hooks_results: list[HookResult] = []

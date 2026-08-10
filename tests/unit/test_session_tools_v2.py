@@ -467,7 +467,15 @@ class TestStartImpl:
 
     @pytest.mark.asyncio
     async def test_start_impl_success(self, mock_session_lifecycle_manager):
-        """Test successful session start."""
+        """Test successful session start.
+
+        2026-08-05 cross-repo-checkpoint-accounting plan, Task 1.5:
+        ``_start_impl`` now returns ``(prose, conversation_id)``. The
+        prose is still a ``str``; the second element is the
+        ``session_windows`` ULID (a 26-char Crockford string in this
+        success path because the test mock returns a dict without
+        ``conversation_id`` — defaults to ``None``).
+        """
         with (
             patch.object(
                 session_tools,
@@ -495,6 +503,7 @@ class TestStartImpl:
                         "has_tests": False,
                         "has_docs": False,
                     },
+                    "conversation_id": "01ABCD2345EFGHJ6789KLMNPQ",
                 },
             ),
             patch.object(
@@ -507,8 +516,9 @@ class TestStartImpl:
                 session_tools, "_add_environment_info_to_output"
             ),
         ):
-            result = await session_tools._start_impl("/test/dir")
-            assert isinstance(result, str)
+            prose, conversation_id = await session_tools._start_impl("/test/dir")
+            assert isinstance(prose, str)
+            assert conversation_id == "01ABCD2345EFGHJ6789KLMNPQ"
 
     @pytest.mark.asyncio
     async def test_start_impl_failure(self, mock_session_lifecycle_manager):
@@ -526,8 +536,8 @@ class TestStartImpl:
                 return_value={"success": False, "error": "Initialization failed"},
             ),
         ):
-            result = await session_tools._start_impl("/test/dir")
-            assert "failed" in result.lower() or "error" in result.lower()
+            prose, _conversation_id = await session_tools._start_impl("/test/dir")
+            assert "failed" in prose.lower() or "error" in prose.lower()
 
     @pytest.mark.asyncio
     async def test_start_impl_exception(self, mock_session_lifecycle_manager):
@@ -545,8 +555,8 @@ class TestStartImpl:
                 side_effect=Exception("Unexpected error"),
             ),
         ):
-            result = await session_tools._start_impl("/test/dir")
-            assert "error" in result.lower() or "unexpected" in result.lower()
+            prose, _conversation_id = await session_tools._start_impl("/test/dir")
+            assert "error" in prose.lower() or "unexpected" in prose.lower()
 
 
 class TestCheckpointImpl:

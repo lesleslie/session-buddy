@@ -19,8 +19,16 @@ from session_buddy.mcp.tools.session.session_tools import (
 async def start_session_tool(
     working_directory: str | None = None,
 ) -> str:
-    """Start a new Claude session, including environment setup and shortcuts."""
-    return await _start_impl(working_directory)
+    """Start a new Claude session, including environment setup and shortcuts.
+
+    Unpacks the typed envelope from ``_start_impl`` and discards the
+    ``conversation_id`` so existing callers that only consume prose
+    (the FastMCP wrapper, hook scripts, etc.) see no signature change.
+    The conversation_id ULID is threaded through to consumers that need
+    it via Task 8's CrossRepoPusher path.
+    """
+    prose, _conversation_id = await _start_impl(working_directory)
+    return prose
 
 
 async def checkpoint_session_tool(

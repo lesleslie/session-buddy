@@ -26,7 +26,11 @@ try:
 except ImportError:
     duckdb: t.Any = None
 
-from session_buddy.memory.schema_v2 import MIGRATION_SQL, SCHEMA_V2_SQL
+from session_buddy.memory.schema_v2 import (
+    CROSS_REPO_CHECKPOINT_V2_1_DDL,
+    MIGRATION_SQL,
+    SCHEMA_V2_SQL,
+)
 from session_buddy.settings import get_database_path
 
 SCHEMA_META_SQL = """
@@ -125,6 +129,45 @@ def update_schema_version(conn: duckdb.DuckDBPyConnection, version: str) -> None
 
 def create_v2_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute(SCHEMA_V2_SQL)
+
+
+# Forward-only DDL patches layered on top of ``SCHEMA_V2_SQL``.
+#
+# The brief for Task 2 of the 2026-08-05 cross-repo-checkpoint-accounting
+# plan requires the new tables (session_windows + cross_repo_work_v2) to be
+# registered in BOTH ``schema_v2.py::SCHEMA_V2_SQL`` AND
+# ``migration.py::MIGRATIONS`` so every active schema-init / migration path
+# emits them.  ``SCHEMA_V2_SQL`` is the canonical init for fresh DBs;
+# ``MIGRATIONS`` is the registry ``apply_migrations`` walks to ensure
+# forward DDL ALSO lands on existing DBs whose cached
+# ``SCHEMA_V2_SQL`` snapshot pre-dates Task 2 (e.g. dev DBs that were
+# created against the v2.0 release).
+#
+# Registry shape: ordered list of ``((version, name), ddl)`` tuples.  The
+# tuple key is intentionally a pair (not a flat string) so future forward
+# migrations can be reordered by release date without renumbering existing
+# rows.  DuckDB executes ``CREATE TABLE IF NOT EXISTS`` /
+# ``CREATE UNIQUE INDEX IF NOT EXISTS`` idempotently, so re-running this
+# registry against an already-migrated DB is a no-op.
+MIGRATIONS: list[tuple[tuple[str, str], str]] = [
+    (
+        ("2026-08-05", "cross_repo_checkpoint_v2_1"),
+        CROSS_REPO_CHECKPOINT_V2_1_DDL,
+    ),
+]
+
+
+def apply_migrations(conn: duckdb.DuckDBPyConnection) -> None:
+    """Run the canonical v2 schema plus all forward DDL patches.
+
+    Tests and ad-hoc ``require_reflection_database()`` callers should
+    use this entry point instead of ``create_v2_schema()`` so they pick
+    up forward-only patches registered in :data:`MIGRATIONS` without
+    hard-coding a list of every schema release since v2.
+    """
+    conn.execute(SCHEMA_V2_SQL)
+    for _key, ddl in MIGRATIONS:
+        conn.execute(ddl)
 
 
 def count_v1_conversations(conn: duckdb.DuckDBPyConnection) -> int:
@@ -417,7 +460,9 @@ def get_migration_status(db_path: Path | None = None) -> dict[str, t.Any]:
 
 
 __all__ = [
+    "MIGRATIONS",
     "MigrationResult",
+    "apply_migrations",
     "create_backup",
     "create_v2_schema",
     "get_migration_status",

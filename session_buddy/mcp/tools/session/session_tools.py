@@ -749,13 +749,36 @@ def _format_session_summary(summary: dict[str, Any]) -> str:
 # ============================================================================
 
 
-async def _start_impl(working_directory: str | None = None) -> str:
-    """Initialize session with comprehensive setup. Target complexity: ≤8."""
+async def _start_impl(working_directory: str | None = None) -> tuple[str, str | None]:
+    """Initialize session with comprehensive setup. Target complexity: ≤8.
+
+    Returns ``(prose, conversation_id)`` where:
+
+    - ``prose`` is the user-facing formatted string (the historical
+      contract — preserved verbatim for callers that only want the
+      message).
+    - ``conversation_id`` is the 26-char Crockford ULID persisted to
+      ``session_windows.id`` for this session window. It is ``None``
+      when the INSERT failed (G6 sentinel — see
+      ``SessionLifecycleManager.initialize_session``); downstream
+      tooling such as the CrossRepoPusher rejects ``None`` per Task 8.
+
+    Callers that only need the prose (e.g. the FastMCP wrapper and the
+    ``start_session_tool`` re-export) unpack and discard the second
+    element. Existing callers therefore see no signature break.
+    """
     output_builder = SessionOutputBuilder()
     output_builder.add_header("🚀 Claude Session Initialization via MCP Server")
 
+    conversation_id: str | None = None
+
     try:
         result = await _get_session_manager().initialize_session(working_directory)
+        # ``conversation_id`` is always present in the success path
+        # (a freshly minted ULID or ``None`` if the INSERT into
+        # ``session_windows`` failed). On the failure path the key is
+        # absent; default to None in that case for the G6 sentinel.
+        conversation_id = result.get("conversation_id")
 
         if result["success"]:
             _add_session_info_to_output(output_builder, result)
@@ -775,7 +798,7 @@ async def _start_impl(working_directory: str | None = None) -> str:
             f"❌ Unexpected error during initialization: {e}",
         )
 
-    return output_builder.build()
+    return output_builder.build(), conversation_id
 
 
 # ---------------------------------------------------------------------------

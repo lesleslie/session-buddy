@@ -31,7 +31,7 @@ Every task's requirements implicitly include this section.
   ) -> CrossRepoStoreResult: ...
   ```
   The `optional=False` means the tool requires a valid `token` kwarg. The session-buddy auth wrapper extracts the token via `kwargs.pop("token", None)`. **DO NOT** import from `mcp_common.auth` — the local wrapper at `session_buddy/mcp/auth.py` is the project's idiom.
-- **Conversation identity**: the canonical join key is `conversations_v2.id` (ULID). External pushers must supply it explicitly. **The CrossRepoPusher must validate `conversation_id` exists in `conversations_v2` before write** — orphan rows are rejected with `error_code="session_not_found"`. `start_session` must return a parseable `conversation_id` (currently returns a formatted `str` — see Task 1.5).
+- **Conversation identity** (v2.1 amendment): the canonical join key is `session_windows.id` (ULID), NOT `conversations_v2.id` (which is a Memori-style memory entry ULID). External pushers must supply it explicitly. **The CrossRepoPusher must validate `conversation_id` exists in `session_windows` before write** — orphan rows are rejected with `error_code="session_not_found"`. `start_session` must return a parseable `conversation_id` (Task 1.5 extends `initialize_session` to INSERT into `session_windows` and return the ULID).
 - **Never-breaks invariant**: cross-repo accounting NEVER blocks the git commit / handoff doc. Storage failures log WARNING and continue; never raise out of `capture()`.
 - **Schema naming**: rename `session_id` → `conversation_id` throughout. Real names to keep verbatim: `start_session` (MCP tool), `checkpoint_session` (Python method), `session_window_start` / `session_window_end` (time-window terms).
 - **Pydantic v2 strict**: every model has `model_config = ConfigDict(extra="forbid")`. Idempotency on `(conversation_id, repo_name, sha|plan_path)` is enforced by the merge primitive in §Merge primitive, NOT by a schema UNIQUE constraint. Discriminated union: `Annotated[Union[CommitEntry, PlanRefEntry], Field(discriminator="kind")]`.
@@ -80,9 +80,16 @@ Expected: `STANDARD_REGISTRATIONS: list[str]` (flat list of register-function na
 **Files:**
 - Modify: `session_buddy/mcp/tools/session/session_tools.py:start_session_tool` (return type) and `_start_impl` (return value)
 - Modify: `session_buddy/tools/session_tools.py:start_session_tool` (the wrapper that delegates to `_start_impl`)
+- Modify: `session_buddy/core/session_manager.py:initialize_session` (insert into `session_windows`, return `conversation_id` ULID — **v2.1 amendment**)
 - Test: `tests/unit/mcp/tools/session/test_start_session_returns_typed_envelope.py`
 
-**Why this task exists:** `start_session_tool` currently returns a formatted text string, not a typed envelope with `conversation_id`. The CrossRepoPusher's spec-required `conversation_id` validation can only work if `start_session` produces a parseable `conversation_id`. Either (a) refactor `_start_impl` to return a typed envelope, OR (b) refactor it to return `conversation_id` directly as `str` and let the wrapper format the prose separately. This plan picks (b) — minimal change.
+**Why this task exists:** `start_session_tool` currently returns a formatted text string, not a typed envelope with `conversation_id`. The CrossRepoPusher's spec-required `conversation_id` validation can only work if `start_session` produces a parseable `conversation_id`.
+
+**v2.1 amendment (added 2026-08-05):**
+- `initialize_session` does NOT currently return `conversation_id` (verified by Task 0 — keys are `{success, project, working_directory, quality_score, quality_data, project_context, claude_directory, previous_session}`).
+- `conversations_v2` is a Memori-style memory table; its `id` is a memory entry ULID, NOT a session/conversation identifier.
+- Solution: extend `initialize_session` to (a) generate a 26-char Crockford ULID via `generate_ulid()`, (b) insert into the new `session_windows` table (DDL added in Task 2), (c) return the ULID as `conversation_id` in the dict.
+- The schema table `session_windows` is added in Task 2. Task 1.5 references it as if it exists; if the migration hasn't run yet, `_store_session_window` must handle the missing-table case (log WARNING and return None for the ULID, never raise — G6 sentinel).
 
 **Interfaces:**
 - Consumes: existing `start_session_tool(...)` callers (their return value is a `str`).
@@ -96,7 +103,9 @@ from __future__ import annotations
 
 import asyncio
 import re
+from pathlib import Path
 
+import duckdb
 import pytest
 
 from session_buddy.mcp.tools.session.session_tools import _start_impl
@@ -106,9 +115,27 @@ from session_buddy.tools.session_tools import start_session_tool
 ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
 
 
+@pytest.fixture
+def session_windows_db(tmp_path: Path, monkeypatch):
+    """Provide a DuckDB file with session_windows table + reflection adapter env."""
+    db_path = tmp_path / "reflection.duckdb"
+    conn = duckdb.connect(str(db_path))
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS session_windows ("
+        "id TEXT PRIMARY KEY, working_directory TEXT NOT NULL, project TEXT, "
+        "started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), "
+        "ended_at TIMESTAMP WITH TIME ZONE, session_metadata JSON NOT NULL DEFAULT '{}')"
+    )
+    conn.close()
+    monkeypatch.setenv("SESSION_BUDDY_REFLECTION_DB", str(db_path))
+    yield db_path
+
+
 @pytest.mark.asyncio
-async def test_start_impl_returns_parseable_conversation_id() -> None:
-    prose, conversation_id = await _start_impl(working_directory=None)
+async def test_start_impl_returns_parseable_conversation_id(
+    tmp_path: Path, monkeypatch, session_windows_db,
+) -> None:
+    prose, conversation_id = await _start_impl(working_directory=str(tmp_path))
     assert ULID_RE.match(conversation_id), (
         f"conversation_id {conversation_id!r} is not a 26-char Crockford ULID"
     )
@@ -116,11 +143,12 @@ async def test_start_impl_returns_parseable_conversation_id() -> None:
 
 def test_start_session_tool_wrapper_preserves_prose_string() -> None:
     """Wrapper must still return str (not the tuple) so existing callers don't break."""
-    # Smoke: ensure the wrapper is annotated -> str
     import inspect
     sig = inspect.signature(start_session_tool)
     assert sig.return_annotation is str
 ```
+
+(The test fixture creates a `session_windows` table on a tmp DuckDB and points the reflection adapter at it via env var. If the env-var path for `require_reflection_database()` differs in this codebase, the implementer must adjust — verify by reading `session_buddy/adapters/reflection_adapter_oneiric.py`. The test will fail until both `initialize_session` and `_start_impl` are updated.)
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -129,16 +157,49 @@ Expected: FAIL with a tuple-unpacking error or annotation mismatch.
 
 - [ ] **Step 3: Refactor `_start_impl` to return `(prose, conversation_id)`**
 
-In `session_buddy/mcp/tools/session/session_tools.py`:
+First, extend `SessionLifecycleManager.initialize_session` in `session_buddy/core/session_manager.py` to insert into `session_windows` and return the ULID:
+
+```python
+# In SessionLifecycleManager.initialize_session, AFTER the existing setup
+# (around line 867, before the return), add:
+
+conversation_id = generate_ulid()
+try:
+    from session_buddy.adapters.reflection_adapter_oneiric import (
+        require_reflection_database,
+    )
+    with require_reflection_database() as db_conn:
+        db_conn.execute(
+            "INSERT INTO session_windows (id, working_directory, project, started_at) "
+            "VALUES (?, ?, ?, NOW())",
+            [conversation_id, str(current_dir), self.current_project],
+        )
+except Exception as exc:  # noqa: BLE001 — G6 sentinel; never block startup
+    self.logger.warning(
+        "session_window_insert_failed",
+        extra={"error": str(exc)},
+    )
+    conversation_id = None  # downstream: _start_impl returns None; pusher rejects
+
+return {
+    "success": True,
+    "conversation_id": conversation_id,  # may be None if session_windows missing
+    # ... rest of existing keys unchanged ...
+}
+```
+
+Then in `session_buddy/mcp/tools/session/session_tools.py`:
 
 ```python
 async def _start_impl(working_directory: str | None = None) -> tuple[str, str]:
     """Returns (formatted_prose, conversation_id). The conversation_id is
-    a 26-char Crockford ULID persisted to conversations_v2.id; callers that
+    a 26-char Crockford ULID persisted to session_windows.id; callers that
     need only the prose (e.g. the FastMCP wrapper) unpack and discard."""
     # ... existing setup, build prose as before ...
-    prose = output_builder.build()  # whatever the current builder call is
-    conversation_id = result["conversation_id"]  # pulled from initialize_session's return dict
+    result = await _get_session_manager().initialize_session(working_directory)
+    # ... build prose as before ...
+    prose = output_builder.build()
+    conversation_id = result.get("conversation_id")  # may be None if session_windows missing
     return prose, conversation_id
 
 
@@ -153,7 +214,7 @@ async def start_session_tool(working_directory: str | None = None) -> str:
     return prose
 ```
 
-(The actual implementer reads the existing `_start_impl` body and threads the `conversation_id` extraction through. The dict returned by `_get_session_manager().initialize_session(working_directory)` already carries the new `conversation_id` per the prerequisite check; if not, escalate.)
+(The actual implementer reads the existing `_start_impl` body and threads the `conversation_id` extraction through. The `conversation_id` is generated and persisted by `initialize_session`'s new INSERT; if `session_windows` doesn't exist (Task 2 not yet applied), the INSERT logs WARNING and conversation_id is None.)
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -179,10 +240,14 @@ git commit -m "feat(start_session): return typed envelope (prose, conversation_i
 ### Task 2: Schema — `cross_repo_work_v2` table + migration registration
 
 **Files:**
-- Modify: `session_buddy/memory/schema_v2.py` (add DDL after `conversations_v2` block, ~line 119)
-- Modify: `session_buddy/memory/migration.py` (register the new DDL with a version key)
+- Modify: `session_buddy/memory/schema_v2.py` (add DDL after `conversations_v2` block, ~line 119 — **include `session_windows` table for conversation identity**)
+- Modify: `session_buddy/memory/migration.py` (register the new DDL with a version key — include both tables)
 - Create: `docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md` (initialize in `built` state per CLAUDE.md Process Discipline)
-- Test: `tests/unit/memory/test_cross_repo_work_v2_schema.py`
+- Test: `tests/unit/memory/test_cross_repo_work_v2_schema.py` (extend with `session_windows` presence test)
+
+**v2.1 amendment (added 2026-08-05):**
+- **New table `session_windows`** for conversation identity. The existing `conversations_v2` is a Memori-style *memory* table (id is a memory entry ULID), so `cross_repo_work_v2.conversation_id` cannot FK to `conversations_v2.id`. The new table tracks one row per session window.
+- All downstream references to "conversations_v2.id" as session identifier → `session_windows.id`. Affected: Task 1.5 (initialize_session), Task 8 (CrossRepoPusher validation), Task 11c (started_at lookup), Task 12 (test setup).
 
 **Interfaces:**
 - Consumes: `session_buddy.adapters.reflection_adapter_oneiric.require_reflection_database()` (existing).
@@ -239,12 +304,21 @@ def test_cross_repo_work_v2_unique_constraint(tmp_path: Path) -> None:
 Run: `uv run pytest tests/unit/memory/test_cross_repo_work_v2_schema.py -v`
 Expected: FAIL with "no such table cross_repo_work_v2".
 
-- [ ] **Step 3: Add DDL to `schema_v2.py`** (same as v1)
+- [ ] **Step 3: Add DDL to `schema_v2.py`** (amended v2.1)
 
 ```sql
+CREATE TABLE IF NOT EXISTS session_windows (
+    id              TEXT PRIMARY KEY,                -- 26-char Crockford ULID
+    working_directory TEXT NOT NULL,
+    project         TEXT,
+    started_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    ended_at        TIMESTAMP WITH TIME ZONE,
+    session_metadata JSON NOT NULL DEFAULT '{}'
+);
+
 CREATE TABLE IF NOT EXISTS cross_repo_work_v2 (
     id              TEXT PRIMARY KEY,
-    conversation_id TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,                  -- FK -> session_windows.id (app-layer)
     repo_name       TEXT NOT NULL,
     repo_path       TEXT NOT NULL,
     repo_role       TEXT,
@@ -259,7 +333,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cross_repo_work_v2_conv_repo
     ON cross_repo_work_v2 (conversation_id, repo_name);
 ```
 
-(DuckDB does NOT enforce `FOREIGN KEY`; referential integrity is enforced at the application layer in the CrossRepoPusher.)
+(DuckDB does NOT enforce `FOREIGN KEY`; referential integrity is enforced at the application layer in the CrossRepoPusher — `SELECT 1 FROM session_windows WHERE id = ?`.)
 
 - [ ] **Step 4: Register the DDL in `migration.py`** (same as v1)
 
@@ -1397,7 +1471,7 @@ git commit -m "feat(checkpoint): CheckpointCrossRepoAccountant per-repo orchestr
 
 **v2 changes from v1 (multiple Criticals fixed):**
 
-1. **Add `conversation_id` validation** (architect C3, code-reviewer C1, mcp C4). Before any merge, `SELECT 1 FROM conversations_v2 WHERE id = ?` — on miss, return `CrossRepoStoreResult(status="failed", error_code="session_not_found", retryable=False)`.
+1. **Add `conversation_id` validation** (architect C3, code-reviewer C1, mcp C4). Before any merge, `SELECT 1 FROM session_windows WHERE id = ?` (NOT `conversations_v2` — that's a Memori memory table per the v2.1 amendment) — on miss, return `CrossRepoStoreResult(status="failed", error_code="session_not_found", retryable=False)`.
 2. **Multi-repo atomicity** (code-reviewer C2). The whole per-call loop runs in ONE `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK`. The merge primitive does NOT open its own (Task 6 refactor).
 3. **`_ResolvedRepoEntry` Pydantic model** (mcp I2). Internal type for server-side path resolution. `extra="forbid"`.
 4. **`repo_name` normalization** (mcp I3). Lowercase both sides of the ecosystem lookup.
@@ -1449,12 +1523,14 @@ def _setup(tmp_path: Path) -> duckdb.DuckDBPyConnection:
         "UNIQUE (conversation_id, repo_name))"
     )
     conn.execute(
-        "CREATE TABLE conversations_v2 ("
-        "id TEXT PRIMARY KEY, started_at TIMESTAMP, ended_at TIMESTAMP)"
+        "CREATE TABLE session_windows ("
+        "id TEXT PRIMARY KEY, working_directory TEXT NOT NULL, project TEXT, "
+        "started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), "
+        "ended_at TIMESTAMP WITH TIME ZONE, session_metadata JSON NOT NULL DEFAULT '{}')"
     )
     conn.execute(
-        "INSERT INTO conversations_v2 VALUES (?, ?, ?)",
-        ["01HXXXXXXXXXXXXXXXXXXXXXXXXX", datetime.now(tz=timezone.utc), None],
+        "INSERT INTO session_windows VALUES (?, ?, ?, NOW(), NULL, '{}')",
+        ["01HXXXXXXXXXXXXXXXXXXXXXXXXX", "/tmp/test", "test-project"],
     )
     return conn
 
@@ -1560,7 +1636,7 @@ Expected: FAIL with `ModuleNotFoundError`.
 """MCP tool: store_cross_repo_work.
 
 Receiver for cross-repo work entries pushed by other Bodai repos. The
-caller supplies the conversation_id ULID (join key with conversations_v2)
+caller supplies the conversation_id ULID (join key with session_windows.id per v2.1 amendment)
 and a list of repos with their work entries. Server-side path resolution
 from ecosystem.yaml (path authority — wire shape has no repo_path).
 
@@ -1692,9 +1768,10 @@ async def store_cross_repo_work(
 ) -> CrossRepoStoreResult:
     """Handler body. The @require_auth + @mcp_server.tool decorators are
     composed in `register_cross_repo_work_tools` (Task 9)."""
-    # 1. conversation_id existence check (G7)
+    # 1. conversation_id existence check (G7) — against session_windows
+    # (NOT conversations_v2 — that's a Memori memory table per v2.1 amendment)
     conv_exists = conn.execute(
-        "SELECT 1 FROM conversations_v2 WHERE id = ?",
+        "SELECT 1 FROM session_windows WHERE id = ?",
         [request.conversation_id],
     ).fetchone()
     if conv_exists is None:
@@ -2321,12 +2398,15 @@ async def test_checkpoint_session_invokes_accountant(tmp_path: Path, monkeypatch
         "UNIQUE (conversation_id, repo_name))"
     )
     conn.execute(
-        "CREATE TABLE conversations_v2 (id TEXT PRIMARY KEY, started_at TIMESTAMP)"
+        "CREATE TABLE session_windows ("
+        "id TEXT PRIMARY KEY, working_directory TEXT NOT NULL, project TEXT, "
+        "started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(), "
+        "ended_at TIMESTAMP WITH TIME ZONE, session_metadata JSON NOT NULL DEFAULT '{}')"
     )
     conv_id = "01HXXXXXXXXXXXXXXXXXXXXXXXXX"
     conn.execute(
-        "INSERT INTO conversations_v2 VALUES (?, ?)",
-        [conv_id, datetime.now(tz=timezone.utc)],
+        "INSERT INTO session_windows VALUES (?, ?, ?, NOW(), NULL, '{}')",
+        [conv_id, str(workdir), "test-project"],
     )
     conn.close()
 
@@ -2375,19 +2455,19 @@ try:
     )
 
     # CRITICAL: load conversation_id and session_window_start from
-    # conversations_v2 — NOT a fresh NOW(). The spec's G6 + G7 require
+    # session_windows — NOT a fresh NOW(). The spec's G6 + G7 require
     # that consecutive checkpoints in the same session share the same
     # conversation-window, accumulating work via the merge primitive.
     started_at: datetime | None = None
     with require_reflection_database() as conn:
         row = conn.execute(
-            "SELECT started_at FROM conversations_v2 WHERE id = ?",
+            "SELECT started_at FROM session_windows WHERE id = ?",
             [self._conversation_id],  # whichever field holds the current conv id
         ).fetchone()
         started_at = row[0] if row else None
 
     if started_at is None:
-        # Fallback to NOW if conversations_v2 row is missing (defensive only)
+        # Fallback to NOW if session_windows row is missing (defensive only)
         started_at = datetime.now(tz=timezone.utc)
 
     with require_reflection_database() as conn:
@@ -2532,7 +2612,7 @@ git commit -m "docs: wave-1 completion report for cross-repo-checkpoint-accounti
 
 - [x] **Spec coverage**: G1 → Task 5 (ambient); G2 → Task 8 (explicit push); G3 → Task 4 (handoff); G4 → enforced by G6 across all tasks; G5 → Task 6 (merge primitive); G6 → Tasks 4, 7, 8, 11c; G7 → Task 1.5 + Task 8 (start_session + validation); G8 → Task 13 completion report (EventBridge decision).
 - [x] **Per-repo grouping from the start**: `AmbientPuller.capture()` returns `dict[str, list[CommitEntry]]`. NO `<ambient>` placeholder in Task 7.
-- [x] **Conversation_id validation**: Task 8 does `SELECT 1 FROM conversations_v2 WHERE id = ?` before any merge.
+- [x] **Conversation_id validation**: Task 8 does `SELECT 1 FROM session_windows WHERE id = ?` before any merge (v2.1 amendment — was `conversations_v2` which is a Memori memory table).
 - [x] **Multi-repo atomicity**: Task 8 wraps the entire batch in ONE `BEGIN TRANSACTION`. Task 6's merge is caller-transaction-agnostic.
 - [x] **MCP registration matches actual codebase shape**: `STANDARD_REGISTRATIONS: list[str]`, `_ALL_REGISTRATIONS: dict[str, ...]`, `@require_auth(optional=False)` (session-buddy local).
 - [x] **Auth contract correct**: session-buddy local `require_auth`, NOT mcp-common `require_auth(Permission.WRITE, config=...)`.

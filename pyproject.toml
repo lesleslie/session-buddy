@@ -29,6 +29,11 @@ dependencies = [
     "python-ulid>=2.0.0",
     "duckdb>=1.5.3",
     "httpx>=0.28.1",
+    # DuckDB's Python client requires pytz to read TIMESTAMP WITH TIME ZONE
+    # columns. session-buddy's schema (conversations_v2, session_windows,
+    # cross_repo_work_v2, etc.) uses TIMESTAMP WITH TIME ZONE extensively,
+    # so this must be a runtime dependency, not optional.
+    "pytz>=2024.1",
     "rich>=15.0.0",
     "structlog>=25.5.0",
     "typer>=0.26.6",

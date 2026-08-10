@@ -1,0 +1,145 @@
+"""End-to-end test: checkpoint_session produces a handoff doc with
+## Cross-Repo Work AND writes cross_repo_work_v2 rows. Exercises the
+full pipeline (Tasks 1.5, 2, 3, 4, 5, 6, 7, 11b, 11c).
+
+The test will only pass if every upstream task is correctly wired.
+"""
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+import duckdb
+import pytest
+
+
+def _git_init(p: Path) -> None:
+    subprocess.check_call(["git", "init", "--quiet", str(p)])
+    subprocess.check_call(["git", "-C", str(p), "config", "user.email", "t@e.com"])
+    subprocess.check_call(["git", "-C", str(p), "config", "user.name", "T"])
+
+
+@pytest.mark.integration
+async def test_e2e_checkpoint_pipeline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Full pipeline: initialize_session -> checkpoint_session -> end_session."""
+    # Arrange: working repo + sibling repo with one ambient commit
+    workdir = tmp_path / "work"
+    workdir.mkdir()
+    _git_init(workdir)
+
+    sib = tmp_path / "sib"
+    sib.mkdir()
+    _git_init(sib)
+    subprocess.check_call(  # noqa: ASYNC221 — sync setup helper
+        ["git", "-C", str(sib), "commit", "--allow-empty", "-m", "ambient"]
+    )
+
+    manifest = tmp_path / "ecosystem.yaml"
+    manifest.write_text(f"ecosystem:\n  sib:\n    path: {sib.resolve()}\n    role: x\n")
+    monkeypatch.setenv("ECOSYSTEM_MANIFEST", str(manifest))
+
+    # Set up the DB with the real schema (production-relevant)
+    db = tmp_path / "m.duckdb"
+    persistent_conn = duckdb.connect(str(db))
+    persistent_conn.execute(
+        "CREATE TABLE session_windows ("
+        "id TEXT PRIMARY KEY, "
+        "working_directory TEXT NOT NULL, "
+        "project TEXT, "
+        "started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "ended_at TIMESTAMP WITH TIME ZONE, "
+        "session_metadata JSON NOT NULL DEFAULT '{}')"
+    )
+    persistent_conn.execute(
+        "CREATE TABLE cross_repo_work_v2 ("
+        "id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, "
+        "repo_name TEXT NOT NULL, repo_path TEXT NOT NULL, repo_role TEXT, "
+        "session_window_start TIMESTAMP WITH TIME ZONE NOT NULL, "
+        "session_window_end TIMESTAMP WITH TIME ZONE NOT NULL, "
+        "work_entries JSON NOT NULL, contributor_sources JSON NOT NULL DEFAULT '[]', "
+        "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "UNIQUE (conversation_id, repo_name))"
+    )
+
+    # Monkeypatch the DB helper. The wiring does:
+    #   adapter = await require_reflection_database()
+    #   conn = adapter.conn
+    class _FakeAdapter:
+        @property
+        def conn(self):
+            return persistent_conn
+
+    async def _fake_require() -> _FakeAdapter:
+        return _FakeAdapter()
+
+    from session_buddy.utils import database_tools
+
+    monkeypatch.setattr(database_tools, "require_reflection_database", _fake_require)
+
+    # Act: drive the full pipeline (initialize -> checkpoint -> end_session)
+    from session_buddy.core.session_manager import SessionLifecycleManager
+
+    mgr = SessionLifecycleManager()
+    init_envelope = await mgr.initialize_session(working_directory=str(workdir))
+    conv_id = init_envelope.get("conversation_id")
+    assert conv_id is not None, f"no conversation_id in envelope: {init_envelope}"
+
+    result = await mgr.checkpoint_session(working_directory=str(workdir))
+    end_result = await mgr.end_session(working_directory=str(workdir))  # noqa: F841
+
+    # Assert: cross_repo_work_v2 has rows for this conv_id (Task 11c wiring)
+    count = persistent_conn.execute(
+        "SELECT COUNT(*) FROM cross_repo_work_v2 WHERE conversation_id = ?",
+        [conv_id],
+    ).fetchone()[0]
+    assert count >= 1, (
+        f"checkpoint didn't write cross_repo_work_v2 rows; got {count}. "
+        f"checkpoint result: {result}"
+    )
+
+    # Assert: G7 contract (session_window_start == session_windows.started_at)
+    joined = persistent_conn.execute(
+        "SELECT crw.session_window_start, sw.started_at, crw.repo_name "
+        "FROM cross_repo_work_v2 crw "
+        "JOIN session_windows sw ON crw.conversation_id = sw.id "
+        "WHERE crw.conversation_id = ?",
+        [conv_id],
+    ).fetchall()
+    assert joined, f"no joined row for conv_id={conv_id}"
+    for crw_start, sw_start, repo_name in joined:
+        assert crw_start == sw_start, (
+            f"G7 violation for {repo_name}: crw.session_window_start={crw_start} "
+            f"!= session_windows.started_at={sw_start}"
+        )
+
+    # Assert: sibling repo name appears in the rows (not just any repo)
+    repo_names = {row[2] for row in joined}
+    assert "sib" in repo_names, f"sibling repo not captured; got {repo_names}"
+
+    # Assert: handoff doc contains "## Cross-Repo Work" and the sibling repo
+    # name (Task 11b wiring). The handoff is generated by
+    # `_generate_handoff_documentation` during `end_session` and saved to
+    # `<current_dir>/.claude/handoff/session_handoff_<timestamp>.md`.
+    # Glob for the latest file in that directory.
+    handoff_dir = workdir / ".claude" / "handoff"
+    handoff_files = (
+        sorted(handoff_dir.glob("session_handoff_*.md")) if handoff_dir.exists() else []
+    )
+    assert handoff_files, (
+        f"no handoff files in {handoff_dir}; end_session did not produce one. "
+        f"end_session result: {end_result}"
+    )
+    handoff_text = handoff_files[-1].read_text()
+    assert "## Cross-Repo Work" in handoff_text, (
+        f"handoff doc missing '## Cross-Repo Work' section.\n"
+        f"doc: {handoff_files[-1]}\n"
+        f"excerpt:\n{handoff_text[:1500]}"
+    )
+    assert "sib" in handoff_text, (
+        f"handoff doc missing sibling repo name 'sib'.\n"
+        f"doc: {handoff_files[-1]}\n"
+        f"excerpt:\n{handoff_text[:1500]}"
+    )

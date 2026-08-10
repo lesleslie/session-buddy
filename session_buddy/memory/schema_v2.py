@@ -337,6 +337,57 @@ CREATE INDEX IF NOT EXISTS idx_distilled_importance ON distilled_skills(importan
 CREATE INDEX IF NOT EXISTS idx_distilled_last_reinforced ON distilled_skills(last_reinforced_at DESC);
 """
 
+# v2.1 (added 2026-08-05, cross-repo-checkpoint-accounting plan, Task 2).
+#
+# ``session_windows`` is the new canonical conversation-identity table.
+# ``conversations_v2`` is the Memori-style memory-entry table (one row per
+# stored memory, id = memory entry ULID).  Prior v2.0 work conflated these
+# two meanings: Task 2 of the 2026-08-05 plan splits them so the
+# ``conversation_id`` returned by ``_start_impl`` is a 26-char Crockford
+# ULID stored in ``session_windows.id``, while individual memory entries
+# stay in ``conversations_v2`` with their own ULIDs.
+#
+# DuckDB does not support FOREIGN KEY constraints that reference another
+# table from an ALTER, and we don't need CASCADE; referential integrity on
+# ``cross_repo_work_v2.conversation_id -> session_windows.id`` is enforced
+# at the application layer in the CrossRepoPusher via a
+# ``SELECT 1 FROM session_windows WHERE id = ?`` probe before INSERT.
+CROSS_REPO_CHECKPOINT_V2_1_DDL = """
+CREATE TABLE IF NOT EXISTS session_windows (
+    id              TEXT PRIMARY KEY,                -- 26-char Crockford ULID
+    working_directory TEXT NOT NULL,
+    project         TEXT,
+    started_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    ended_at        TIMESTAMP WITH TIME ZONE,
+    session_metadata JSON NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS cross_repo_work_v2 (
+    id              TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,                  -- FK -> session_windows.id (app-layer)
+    repo_name       TEXT NOT NULL,
+    repo_path       TEXT NOT NULL,
+    repo_role       TEXT,
+    session_window_start  TIMESTAMP WITH TIME ZONE NOT NULL,
+    session_window_end    TIMESTAMP WITH TIME ZONE NOT NULL,
+    work_entries    JSON NOT NULL,
+    contributor_sources JSON NOT NULL DEFAULT '[]',
+    created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cross_repo_work_v2_conv_repo
+    ON cross_repo_work_v2 (conversation_id, repo_name);
+"""
+
+# Append the v2.1 DDL to the canonical SCHEMA_V2_SQL so the
+# ``create_v2_schema()`` path (used by ``migrate_v1_to_v2`` and by the
+# read-side ``require_reflection_database()`` adapter) emits the new
+# tables on a fresh DB.  Forward-only patches targeting only existing
+# DBs live in ``migration.MIGRATIONS``; both paths converge in
+# ``migration.apply_migrations``.
+SCHEMA_V2_SQL = SCHEMA_V2_SQL + CROSS_REPO_CHECKPOINT_V2_1_DDL
+
+
 # Migration from v1 to v2
 MIGRATION_SQL = """
 -- Migrate existing conversations to v2 schema
