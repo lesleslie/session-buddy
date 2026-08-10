@@ -247,6 +247,32 @@ class SessionMgmtSettings(OneiricMCPConfig):
         le=86400,
         description="Auto-checkpoint interval in seconds (default: 30 minutes)",
     )
+    midpoint_commits_enabled: bool = Field(
+        default=False,
+        description=(
+            "Enable mid-task checkpoint commits (in addition to analytics snapshots). "
+            "Default off for noise control; opt-in for autonomous/subagent-heavy workflows. "
+            "When enabled, midpoint_commit_interval_s replaces auto_checkpoint_interval."
+        ),
+    )
+    midpoint_commit_min_quality_delta: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        description=(
+            "Minimum quality score delta between ticks before a midpoint commit fires. "
+            "Inactive when no quality source is configured."
+        ),
+    )
+    midpoint_commit_interval_s: int = Field(
+        default=600,  # 10 min when commits enabled
+        ge=60,
+        le=86400,
+        description=(
+            "Mid-task checkpoint interval in seconds when midpoint_commits_enabled=True. "
+            "Defaults to 600 (10 min) vs. 1800 (30 min) for analytics-only."
+        ),
+    )
     enable_auto_commit: bool = Field(
         default=True,
         description="Enable automatic git commits during checkpoints",

@@ -16,8 +16,10 @@ variable.  When unset or invalid the default is ``FULL`` (all tools).
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 from typing import Any
 
 from mcp_common.tools import ToolProfile
@@ -168,20 +170,180 @@ if _skipped:
     logger.warning("skipped unknown registration functions: %s", _skipped)
 
 # ---------------------------------------------------------------------------
-# Wrap the existing lifespan so _dhara_publisher is closed on server shutdown.
+# AutoCheckpointLoop + pending-marker drain wiring (Task 9).
+#
+# We replace the lifespan with one that starts a background AutoCheckpointLoop
+# on entry and stops it on exit (try/finally shape). The loop fires the
+# CheckpointOrchestrator at ``settings.auto_checkpoint_interval`` (analytics-only
+# by default) or ``settings.midpoint_commit_interval_s`` when
+# ``settings.midpoint_commits_enabled`` is True. On every tick it also drains
+# any ``~/.session-buddy/pending/*.json`` markers created by subagent-timeout
+# events. All new behavior is opt-in -- deployments that do not flip the flag
+# see no difference.
 # ---------------------------------------------------------------------------
+
+# Late imports for the helper functions (after registration block above).
+from session_buddy.checkpoint import (  # noqa: E402
+    CheckpointOrchestrator,
+    CheckpointPhase,
+    CheckpointPolicy,
+    DirtyFilesSignal,
+    LockfileSignalSource,
+    MidpointCriteria,
+    SnapshotMechanism,
+    SubagentDetector,
+    TimeElapsedSignal,
+    WorkingTreeInspector,
+)
+
+
+async def _noop_forward(_result: Any) -> None:
+    """Analytics-only tick: forward_to is a no-op. Snapshot was already captured."""
+    return None
+
+
+async def _consume_pending(marker: Path) -> None:
+    """Drain a pending-checkpoint marker by re-firing the orchestrator."""
+    from session_buddy.checkpoint import (
+        consume_pending as _consume_pending_marker,
+        load_pending as _load_pending_marker,
+    )
+
+    pending = _load_pending_marker(marker)
+    if pending is None:
+        marker.unlink(missing_ok=True)
+        return
+    # Pending drain ALWAYS uses end-of-task semantics (commits when policy fires).
+    orch = _build_orchestrator(
+        pending.working_dir,
+        MidpointCriteria(signals=[]),
+        lambda _wd: _end_of_task_forward,
+    )
+    await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
+    _consume_pending_marker(marker)
+
+
+async def _end_of_task_forward(_result: Any) -> None:
+    """Pending-drain forward: routes through the legacy git commit path."""
+
+
+def _build_quality_provider():
+    """Return a (prev_score, curr_score) provider or None if no source available.
+
+    Best-effort: returns None when no quality source is configured, which
+    makes the QualityDeltaSignal stay inactive (its ``is_active()`` returns
+    False when the provider returns (None, None)).
+    """
+    try:
+        from session_buddy.core.quality_cache import get_last_and_current
+
+        return get_last_and_current
+    except ImportError:
+        return None
+
+
+def _build_orchestrator(
+    working_dir: Path,
+    midpoint_criteria: MidpointCriteria,
+    forward_to_factory,
+) -> CheckpointOrchestrator:
+    lockfile = working_dir / ".session-buddy" / "subagent.lock"
+    detector = SubagentDetector(working_dir, LockfileSignalSource(lockfile))
+    snapshot = SnapshotMechanism(working_dir)
+    inspector = WorkingTreeInspector(working_dir)
+    policy = CheckpointPolicy(
+        midpoint_enabled=True,
+        midpoint_criteria=midpoint_criteria,
+        subagent_detector=detector,
+        working_tree=inspector,
+    )
+    return CheckpointOrchestrator(
+        working_dir=working_dir,
+        policy=policy,
+        snapshot=snapshot,
+        subagent_detector=detector,
+        forward_to=forward_to_factory(working_dir),
+    )
+
 
 _original_lifespan = mcp._lifespan
 
 
 @asynccontextmanager
 async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
+    from session_buddy.core.auto_checkpoint_loop import (
+        AutoCheckpointLoop,
+        QualityDeltaSignal,
+        _midpoint_commit_forward,
+    )
+    from session_buddy.settings import get_settings
+
+    settings = get_settings()
+
+    # Mode-based gate: Lite mode (enable_auto_checkpoint=False) skips the loop entirely
+    try:
+        from session_buddy.modes import get_mode
+
+        mode_cfg = get_mode().get_config()
+        loop_enabled = getattr(mode_cfg, "enable_auto_checkpoint", True)
+    except Exception:
+        loop_enabled = True
+
+    # Effective interval: 10 min (commits) vs 30 min (analytics-only)
+    effective_interval = (
+        settings.midpoint_commit_interval_s
+        if getattr(settings, "midpoint_commits_enabled", False)
+        else settings.auto_checkpoint_interval
+    )
+
+    # Build the quality-delta signal if a provider is configured.
+    # Best-effort: when no quality source is configured, the signal stays inactive.
+    quality_provider = _build_quality_provider()
+    signals: list = [
+        TimeElapsedSignal(min_seconds=300.0),
+        DirtyFilesSignal(min_count=5),
+    ]
+    if quality_provider is not None:
+        signals.append(
+            QualityDeltaSignal(
+                min_delta=getattr(settings, "midpoint_commit_min_quality_delta", 10),
+                quality_provider=quality_provider,
+            )
+        )
+    midpoint_criteria = MidpointCriteria(signals=signals)
+
+    # forward_to factory: real commit when enabled, no-op otherwise.
+    def forward_to_factory(working_dir: Path):
+        if getattr(settings, "midpoint_commits_enabled", False):
+
+            async def forward(_result: Any) -> None:
+                await _midpoint_commit_forward(working_dir)
+
+            return forward
+        return _noop_forward
+
+    auto_loop: AutoCheckpointLoop | None = None
     async with _original_lifespan(app):
-        yield
-    # Close the Dhara publisher if one was wired
-    if _dhara_publisher is not None:
-        with suppress(Exception):
-            await _dhara_publisher.aclose()
+        if loop_enabled and effective_interval > 0:
+            auto_loop = AutoCheckpointLoop(
+                interval_s=effective_interval,
+                working_dir_resolver=lambda: Path(os.getcwd()),
+                orch_factory=lambda wd: _build_orchestrator(
+                    wd, midpoint_criteria, forward_to_factory
+                ),
+                pending_consume_fn=_consume_pending,
+            )
+            await auto_loop.start()
+        try:
+            yield
+        finally:
+            if auto_loop is not None:
+                await auto_loop.stop()
+            try:
+                await _dhara_publisher.aclose()
+            except AttributeError:
+                with suppress(Exception):
+                    pass
 
 
 mcp._lifespan = _lifespan_with_dhara_cleanup
