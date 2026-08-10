@@ -203,6 +203,11 @@ def create_session_buddy_cli() -> MCPServerCLIFactory:
 
     register_doctor_command(app)
 
+    # Register checkpoint subcommands (e.g. ``checkpoint cleanup-snapshots``).
+    from session_buddy.cli.checkpoint_cli import register_checkpoint_command
+
+    register_checkpoint_command(app)
+
     @app.callback(invoke_without_command=True)
     def _root(
         version: bool = typer.Option(
