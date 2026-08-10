@@ -1694,49 +1694,24 @@ class ReflectionDatabaseAdapterOneiric:
         if not cached_result_ids:
             return []
 
-        # Fetch cached results by IDs.
-        # v2 rewire: ``conversations_v2`` carries ``timestamp`` instead of
-        # ``created_at``/``updated_at``. Pick the columns that actually exist
-        # on the resolved table — same pattern as the index branch above.
+        # Fetch cached results by IDs. The conversations_v2 schema uses
+        # ``timestamp`` rather than ``created_at``/``updated_at``.
         id_list = "', '".join(cached_result_ids)
-        if self._table("conversations") == "conversations_v2":
-            result = self.conn.execute(
-                f"""
-                SELECT id, content, metadata, timestamp
-                FROM {self._table("conversations")}
-                WHERE id IN ('{id_list}')
-                ORDER BY timestamp DESC
-                """
-            ).fetchall()
-            return [
-                {
-                    "id": row[0],
-                    "content": row[1],
-                    "metadata": json.loads(row[2]) if row[2] else {},
-                    "created_at": row[3],
-                    "updated_at": row[3],
-                    "score": 1.0,
-                    "_cached": True,
-                }
-                for row in result
-            ]
         result = self.conn.execute(
             f"""
-            SELECT id, content, metadata, created_at, updated_at
+            SELECT id, content, metadata, timestamp
             FROM {self._table("conversations")}
             WHERE id IN ('{id_list}')
-            ORDER BY updated_at DESC
+            ORDER BY timestamp DESC
             """
         ).fetchall()
-
-        # Reconstruct cached results
         return [
             {
                 "id": row[0],
                 "content": row[1],
                 "metadata": json.loads(row[2]) if row[2] else {},
                 "created_at": row[3],
-                "updated_at": row[4],
+                "updated_at": row[3],
                 "score": 1.0,  # Cached results don't have original scores
                 "_cached": True,  # Mark as cached result
             }
@@ -1806,46 +1781,16 @@ class ReflectionDatabaseAdapterOneiric:
             self.conn.execute(f"SET hnsw_ef_search = {self.settings.hnsw_ef_search}")
 
         vector_query = f"[{', '.join(map(str, query_embedding))}]"
-        # v2 rewire: the v2 schema has ``timestamp`` rather than
-        # ``created_at``/``updated_at``. We detect the table name to choose
-        # the right columns without breaking the v1 collection path.
-        table = self._table("conversations")
-        if table == "conversations_v2":
-            sql = f"""
-                SELECT
-                    id, content, metadata, timestamp, project,
-                    array_cosine_similarity(embedding, '{vector_query}'::FLOAT[{self.embedding_dim}]) as score
-                FROM {table}
-                WHERE embedding IS NOT NULL
-            """
-            params: list[t.Any] = []
-            if project is not None:
-                sql += " AND project = ?"
-                params.append(project)
-            sql += " ORDER BY score DESC LIMIT ?"
-            params.append(limit)
-            result = self.conn.execute(sql, params).fetchall()
-            return [
-                {
-                    "id": row[0],
-                    "content": row[1],
-                    "metadata": json.loads(row[2]) if row[2] else {},
-                    "created_at": row[3],
-                    "updated_at": row[3],
-                    "project": row[4],
-                    "score": float(row[5]),
-                }
-                for row in result
-                if row[5] >= threshold
-            ]
+        # The conversations_v2 schema uses ``timestamp`` rather than
+        # ``created_at``/``updated_at``.
         sql = f"""
             SELECT
-                id, content, metadata, created_at, updated_at, project,
+                id, content, metadata, timestamp, project,
                 array_cosine_similarity(embedding, '{vector_query}'::FLOAT[{self.embedding_dim}]) as score
-            FROM {table}
+            FROM conversations_v2
             WHERE embedding IS NOT NULL
         """
-        params = []
+        params: list[t.Any] = []
         if project is not None:
             sql += " AND project = ?"
             params.append(project)
@@ -1860,12 +1805,12 @@ class ReflectionDatabaseAdapterOneiric:
                 "content": row[1],
                 "metadata": json.loads(row[2]) if row[2] else {},
                 "created_at": row[3],
-                "updated_at": row[4],
-                "project": row[5],
-                "score": float(row[6]),
+                "updated_at": row[3],
+                "project": row[4],
+                "score": float(row[5]),
             }
             for row in result
-            if row[6] >= threshold
+            if row[5] >= threshold
         ]
 
     def _text_search_conversations(
@@ -1886,44 +1831,18 @@ class ReflectionDatabaseAdapterOneiric:
             List of matching conversations with scores
 
         """
-        # v2 rewire: the v2 schema has ``timestamp`` rather than
-        # ``created_at``/``updated_at``. Pick the columns that exist.
-        table = self._table("conversations")
-        if table == "conversations_v2":
-            sql = f"""
-                SELECT id, content, metadata, timestamp, project
-                FROM {table}
-                WHERE content LIKE ?
-            """
-            params: list[t.Any] = [f"%{query}%"]
-            if project is not None:
-                sql += " AND project = ?"
-                params.append(project)
-            sql += " ORDER BY timestamp DESC LIMIT ?"
-            params.append(limit)
-            result = self.conn.execute(sql, params).fetchall()
-            return [
-                {
-                    "id": row[0],
-                    "content": row[1],
-                    "metadata": json.loads(row[2]) if row[2] else {},
-                    "created_at": row[3],
-                    "updated_at": row[3],
-                    "project": row[4],
-                    "score": 1.0,  # Text search gets maximum score
-                }
-                for row in result
-            ]
-        sql = f"""
-            SELECT id, content, metadata, created_at, updated_at, project
-            FROM {table}
+        # The conversations_v2 schema uses ``timestamp`` rather than
+        # ``created_at``/``updated_at``.
+        sql = """
+            SELECT id, content, metadata, timestamp, project
+            FROM conversations_v2
             WHERE content LIKE ?
         """
-        params = [f"%{query}%"]
+        params: list[t.Any] = [f"%{query}%"]
         if project is not None:
             sql += " AND project = ?"
             params.append(project)
-        sql += " ORDER BY updated_at DESC LIMIT ?"
+        sql += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
         result = self.conn.execute(sql, params).fetchall()
 
@@ -1933,8 +1852,8 @@ class ReflectionDatabaseAdapterOneiric:
                 "content": row[1],
                 "metadata": json.loads(row[2]) if row[2] else {},
                 "created_at": row[3],
-                "updated_at": row[4],
-                "project": row[5],
+                "updated_at": row[3],
+                "project": row[4],
                 "score": 1.0,  # Text search gets maximum score
             }
             for row in result
