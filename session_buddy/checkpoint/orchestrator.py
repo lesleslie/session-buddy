@@ -33,6 +33,59 @@ _log = get_logger(__name__)
 ForwardFn = Callable[["CheckpointResult"], Awaitable[None]]
 TransientForwardError = (httpx.HTTPStatusError, OSError, asyncio.TimeoutError)
 
+# Default outer budget for the full checkpoint cycle. The detector's
+# wait_until_idle timeout (60s by default) is nested inside, so this must
+# exceed detector.idle_timeout + headroom for snapshot + forward + retries.
+DEFAULT_RUN_TIMEOUT_S = 120.0
+
+
+def _safe_http_error_info(exc: httpx.HTTPStatusError) -> dict[str, object]:
+    """Operator-visible fields from HTTPStatusError. NEVER echoes URL path,
+    query, userinfo, or response body. Includes only the status code and
+    the request-target host (no path).
+    """
+    info: dict[str, object] = {"status": exc.response.status_code}
+    request = getattr(exc, "request", None)
+    if request is not None:
+        try:
+            host = request.url.host  # may raise or be empty for some schemes
+        except (AttributeError, ValueError, TypeError):
+            host = None
+        if host:
+            info["host"] = host
+    return info
+
+
+def _safe_transient_info(exc: BaseException) -> dict[str, object]:
+    """Structured non-PII error info: type name, and (for HTTPStatusError) status.
+
+    Never includes str(exc) — some httpx versions put the full request URL
+    (path/query/userinfo) and response body in str(exc). That detail is
+    preserved in _log.exception(..., exc_info=True) tracebacks (which are
+    captured separately and never serialized as flat JSON fields).
+    """
+    info: dict[str, object] = {"type": type(exc).__name__}
+    if isinstance(exc, httpx.HTTPStatusError):
+        try:
+            info["status"] = exc.response.status_code
+        except Exception:  # noqa: BLE001 — best-effort, never raise from logging
+            pass
+    return info
+
+
+def _safe_error_message(prefix: str, exc: BaseException) -> str:
+    """Short non-PII error message: prefix + exception type + (if HTTP) status.
+
+    Designed for result.error which is exposed to callers and persisted to disk.
+    """
+    parts = [prefix, type(exc).__name__]
+    if isinstance(exc, httpx.HTTPStatusError):
+        try:
+            parts.append(f"(HTTP {exc.response.status_code})")
+        except Exception:  # noqa: BLE001
+            parts.append("(HTTP ?)")
+    return " ".join(parts)
+
 
 @dataclass
 class CheckpointResult:
@@ -54,6 +107,7 @@ class CheckpointOrchestrator:
         subagent_detector: SubagentDetector,
         forward_to: ForwardFn,
         metrics: CheckpointMetrics | None = None,
+        run_timeout: float = DEFAULT_RUN_TIMEOUT_S,
     ) -> None:
         self._working_dir = working_dir
         self._policy = policy
@@ -62,6 +116,7 @@ class CheckpointOrchestrator:
         self._forward_to = forward_to
         self._metrics = metrics or CheckpointMetrics()
         self._lock = asyncio.Lock()
+        self._run_timeout = run_timeout
 
     @property
     def metrics(self) -> CheckpointMetrics:
@@ -74,6 +129,37 @@ class CheckpointOrchestrator:
             return await self._run(phase=phase, hook_request=hook_request)
 
     async def _run(
+        self, *, phase: CheckpointPhase, hook_request: bool
+    ) -> CheckpointResult:
+        """Outer wrapper that enforces a bounded total runtime.
+
+        Per Finding 2 (fail-open-resource-cap): wait_until_idle(60s) only
+        covers the idle-wait, not subsequent snapshot/forward work. A slow
+        snapshot.capture or stuck forward_to could otherwise block the
+        caller indefinitely. We wrap the whole implementation in
+        asyncio.wait_for and fail closed on timeout — the working tree is
+        never mutated by a checkpoint, so cancellation is safe.
+        """
+        try:
+            return await asyncio.wait_for(
+                self._run_impl(phase=phase, hook_request=hook_request),
+                timeout=self._run_timeout,
+            )
+        except asyncio.TimeoutError:
+            self._metrics.inc_failure("orchestrator_timeout")
+            _log.warning(
+                "checkpoint_orchestrator_timeout",
+                extra={"phase": phase.value, "timeout_s": self._run_timeout},
+            )
+            return CheckpointResult(
+                fired=False,
+                snapshot_id=None,
+                session_buddy_id=None,
+                decision_reason="orchestrator_timeout",
+                error="orchestrator timeout",
+            )
+
+    async def _run_impl(
         self, *, phase: CheckpointPhase, hook_request: bool
     ) -> CheckpointResult:
         decision = self._policy.decide(phase=phase, hook_request=hook_request)
@@ -106,13 +192,22 @@ class CheckpointOrchestrator:
             snapshot = self._snapshot.capture(label=phase.value)
         except TransientForwardError as exc:
             self._metrics.inc_failure("snapshot_transient")
-            _log.error("checkpoint_snapshot_failed_transient", extra={"error": str(exc)})
-            result.error = f"snapshot failed (transient): {exc}"
+            _log.error(
+                "checkpoint_snapshot_failed_transient",
+                extra=_safe_transient_info(exc),
+            )
+            result.error = _safe_error_message("snapshot failed (transient):", exc)
             return result
         except Exception as exc:  # noqa: BLE001 — narrow by type, not catch-all
             self._metrics.inc_failure("snapshot_unexpected")
-            _log.exception("checkpoint_snapshot_failed_unexpected", extra={"error": str(exc)})
-            result.error = f"snapshot failed (unexpected): {exc}"
+            # exc_info=True preserves the full traceback (incl. str(exc)) in the
+            # captured traceback block. The structured extra dict is scrubbed so
+            # the URL/body cannot leak as a flat JSON field.
+            _log.exception(
+                "checkpoint_snapshot_failed_unexpected",
+                extra=_safe_transient_info(exc),
+            )
+            result.error = _safe_error_message("snapshot failed (unexpected):", exc)
             return result
 
         result.snapshot_id = snapshot.snapshot_id
@@ -144,8 +239,11 @@ class CheckpointOrchestrator:
             await self._forward_with_retry(result, phase)
         except TransientForwardError as exc:
             self._metrics.inc_failure("forward_transient_retry_exhausted")
-            result.error = f"forward_to retry exhausted: {exc}"
-            _log.error("checkpoint_forward_retry_exhausted", extra={"error": str(exc)})
+            result.error = _safe_error_message("forward_to retry exhausted:", exc)
+            _log.error(
+                "checkpoint_forward_retry_exhausted",
+                extra=_safe_transient_info(exc),
+            )
             return result
 
         result.fired = True
