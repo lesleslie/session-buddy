@@ -152,3 +152,62 @@ async def test_quality_delta_signal_inactive_when_delta_below_threshold() -> Non
     sig = QualityDeltaSignal(min_delta=10, quality_provider=lambda: (60, 65))
     inspector = MagicMock()
     assert sig.is_active(inspector) is False
+
+
+@pytest.mark.unit
+async def test_lifespan_swallows_non_attribute_error_during_dhara_aclose(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: aclose() raising any exception (not just AttributeError)
+    must not break lifespan shutdown.
+
+    Before Task 9 (commit f7680c8f) the cleanup used a blanket
+    ``with suppress(Exception):`` over ``_dhara_publisher.aclose()``. The
+    re-wired lifespan narrowed that to ``except AttributeError:`` plus an
+    inner empty ``suppress(Exception): pass``. Any non-AttributeError
+    exception (network blip, closed loop, RuntimeError from the underlying
+    httpx client, etc.) propagated and aborted shutdown.
+
+    This test guards against that regression by injecting a publisher whose
+    ``aclose()`` raises ``RuntimeError`` and asserting that the lifespan
+    context exits cleanly.
+    """
+    from contextlib import asynccontextmanager
+
+    from session_buddy.mcp import server as mcp_server
+
+    # Replace the module-level publisher with one whose aclose() raises a
+    # non-AttributeError exception. AsyncMock + side_effect mirrors what
+    # httpx.AsyncClient.aclose() does when its transport is already closed.
+    class _FlakyPublisher:
+        async def aclose(self) -> None:
+            raise RuntimeError("transport already closed")
+
+    monkeypatch.setattr(mcp_server, "_dhara_publisher", _FlakyPublisher())
+
+    # Stub the original lifespan so we do not invoke the real FastMCP one
+    # (which would require a live ASGI app). A no-op async context manager
+    # is enough to exercise the dhara cleanup path on exit.
+    @asynccontextmanager
+    async def _noop_lifespan(_app):
+        yield
+
+    monkeypatch.setattr(mcp_server, "_original_lifespan", _noop_lifespan)
+
+    # Force the auto-checkpoint loop off so the test focuses on the
+    # publisher cleanup path. effective_interval=0 short-circuits the
+    # ``loop_enabled and effective_interval > 0`` gate.
+    settings_stub = MagicMock()
+    settings_stub.auto_checkpoint_interval = 0
+    settings_stub.midpoint_commit_interval_s = 0
+    settings_stub.midpoint_commits_enabled = False
+    settings_stub.midpoint_commit_min_quality_delta = 10
+    monkeypatch.setattr(
+        "session_buddy.settings.get_settings", lambda: settings_stub
+    )
+
+    # Entering and exiting the lifespan must complete without raising.
+    # If the regression returns, RuntimeError will escape the ``finally``
+    # block and this assertion will fail.
+    async with mcp_server._lifespan_with_dhara_cleanup(app=MagicMock()):
+        pass

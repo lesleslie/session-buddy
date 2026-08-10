@@ -339,11 +339,12 @@ async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
         finally:
             if auto_loop is not None:
                 await auto_loop.stop()
-            try:
-                await _dhara_publisher.aclose()
-            except AttributeError:
+            # Close the Dhara publisher if one was wired. Blanket suppression
+            # preserves the pre-Task-9 behavior: any shutdown-time error
+            # (network blip, closed loop, etc.) must not break lifespan exit.
+            if _dhara_publisher is not None:
                 with suppress(Exception):
-                    pass
+                    await _dhara_publisher.aclose()
 
 
 mcp._lifespan = _lifespan_with_dhara_cleanup
