@@ -404,6 +404,67 @@ class TestConversationSearch:
 
 
 # =============================================================================
+# PROJECT-SCOPED SEARCH (regression: docs/superpowers/plans/2026-08-10-...)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+class TestProjectScopedSearch:
+    """Regression coverage for the search_conversations project filter.
+
+    Previously search_conversations accepted a project parameter but
+    silently dropped it before the SQL WHERE clause, causing
+    cross-project leakage in multi-project setups. The fix threads
+    project through _search_conversations_db → _text_search_conversations
+    and _vector_search_conversations, mirroring the existing
+    search_by_source pattern.
+    """
+
+    async def test_text_search_filters_by_project(self, adapter):
+        """search_conversations(project='A') must not return rows from project 'B'."""
+        # The fixture's adapter has enable_embeddings=False + enable_vss=False,
+        # so search_conversations will exercise _text_search_conversations.
+        await adapter.store_conversation(
+            "alpha marker alpha marker", metadata={"project": "alpha"}
+        )
+        await adapter.store_conversation(
+            "alpha marker alpha marker", metadata={"project": "beta"}
+        )
+
+        results = await adapter.search_conversations(
+            "alpha marker", project="alpha", use_cache=False
+        )
+        assert results, "expected at least one match from the alpha project"
+        assert all(r.get("project") == "alpha" for r in results), (
+            f"cross-project leakage: got projects {[r.get('project') for r in results]}"
+        )
+        # Also verify the inverse: scoping to beta returns only beta rows
+        beta_results = await adapter.search_conversations(
+            "alpha marker", project="beta", use_cache=False
+        )
+        assert beta_results, "expected at least one match from the beta project"
+        assert all(r.get("project") == "beta" for r in beta_results)
+
+    async def test_text_search_without_project_returns_all(self, adapter):
+        """No project filter → all matching rows across projects."""
+        await adapter.store_conversation(
+            "shared marker shared", metadata={"project": "alpha"}
+        )
+        await adapter.store_conversation(
+            "shared marker shared", metadata={"project": "beta"}
+        )
+
+        results = await adapter.search_conversations(
+            "shared marker", use_cache=False
+        )
+        assert len(results) >= 2
+        projects = {r.get("project") for r in results}
+        assert projects == {"alpha", "beta"}, (
+            f"unfiltered search should see both projects, got {projects}"
+        )
+
+
+# =============================================================================
 # REFLECTION STORAGE TESTS
 # =============================================================================
 

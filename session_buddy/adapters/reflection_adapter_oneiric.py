@@ -87,11 +87,6 @@ from session_buddy.utils.fingerprint import MinHashSignature
 
 logger = logging.getLogger(__name__)
 
-# Module-level connection cache: maps resolved database path -> shared DuckDB connection.
-# This ensures that multiple adapter instances pointing to the same database file
-# share a single connection, making HNSW indexes visible across all of them.
-_connection_cache: dict[str, t.Any] = {}
-
 
 class _CachedConnection:
     """Wrapper for cached connections with reference counting.
@@ -1526,7 +1521,8 @@ class ReflectionDatabaseAdapterOneiric:
             query: Search query
             limit: Maximum number of results
             threshold: Minimum similarity score (0.0 to 1.0)
-            project: Optional project filter (not yet implemented)
+            project: Optional project filter; only rows with matching
+                project are returned when set.
             min_score: Alias for threshold (for backward compatibility)
             use_cache: Whether to use query cache (Phase 1: Query Cache)
 
@@ -1568,6 +1564,7 @@ class ReflectionDatabaseAdapterOneiric:
             query=query,
             limit=limit,
             threshold=threshold,
+            project=project,
         )
 
         # Populate cache for future searches (Phase 1: Query Cache)
@@ -1751,6 +1748,7 @@ class ReflectionDatabaseAdapterOneiric:
         query: str,
         limit: int,
         threshold: float,
+        project: str | None = None,
     ) -> list[dict[str, t.Any]]:
         """Search conversations using vector similarity or text fallback.
 
@@ -1758,6 +1756,8 @@ class ReflectionDatabaseAdapterOneiric:
             query: Search query
             limit: Maximum number of results
             threshold: Minimum similarity score for vector search
+            project: Optional project filter; only rows with matching
+                project are returned when set.
 
         Returns:
             List of matching conversations with scores
@@ -1773,10 +1773,12 @@ class ReflectionDatabaseAdapterOneiric:
                 query_embedding=query_embedding,
                 limit=limit,
                 threshold=threshold,
+                project=project,
             )
         return self._text_search_conversations(
             query=query,
             limit=limit,
+            project=project,
         )
 
     def _vector_search_conversations(
@@ -1784,6 +1786,7 @@ class ReflectionDatabaseAdapterOneiric:
         query_embedding: list[float],
         limit: int,
         threshold: float,
+        project: str | None = None,
     ) -> list[dict[str, t.Any]]:
         """Perform vector similarity search on conversations.
 
@@ -1791,6 +1794,8 @@ class ReflectionDatabaseAdapterOneiric:
             query_embedding: Query vector embedding
             limit: Maximum number of results
             threshold: Minimum similarity score
+            project: Optional project filter; only rows with matching
+                project are returned when set.
 
         Returns:
             List of matching conversations with scores
@@ -1806,18 +1811,20 @@ class ReflectionDatabaseAdapterOneiric:
         # the right columns without breaking the v1 collection path.
         table = self._table("conversations")
         if table == "conversations_v2":
-            result = self.conn.execute(
-                f"""
+            sql = f"""
                 SELECT
-                    id, content, metadata, timestamp,
+                    id, content, metadata, timestamp, project,
                     array_cosine_similarity(embedding, '{vector_query}'::FLOAT[{self.embedding_dim}]) as score
                 FROM {table}
                 WHERE embedding IS NOT NULL
-                ORDER BY score DESC
-                LIMIT ?
-                """,
-                [limit],
-            ).fetchall()
+            """
+            params: list[t.Any] = []
+            if project is not None:
+                sql += " AND project = ?"
+                params.append(project)
+            sql += " ORDER BY score DESC LIMIT ?"
+            params.append(limit)
+            result = self.conn.execute(sql, params).fetchall()
             return [
                 {
                     "id": row[0],
@@ -1825,23 +1832,26 @@ class ReflectionDatabaseAdapterOneiric:
                     "metadata": json.loads(row[2]) if row[2] else {},
                     "created_at": row[3],
                     "updated_at": row[3],
-                    "score": float(row[4]),
+                    "project": row[4],
+                    "score": float(row[5]),
                 }
                 for row in result
-                if row[4] >= threshold
+                if row[5] >= threshold
             ]
-        result = self.conn.execute(
-            f"""
+        sql = f"""
             SELECT
-                id, content, metadata, created_at, updated_at,
+                id, content, metadata, created_at, updated_at, project,
                 array_cosine_similarity(embedding, '{vector_query}'::FLOAT[{self.embedding_dim}]) as score
             FROM {table}
             WHERE embedding IS NOT NULL
-            ORDER BY score DESC
-            LIMIT ?
-            """,
-            [limit],
-        ).fetchall()
+        """
+        params = []
+        if project is not None:
+            sql += " AND project = ?"
+            params.append(project)
+        sql += " ORDER BY score DESC LIMIT ?"
+        params.append(limit)
+        result = self.conn.execute(sql, params).fetchall()
 
         # Filter by threshold and build results
         return [
@@ -1851,22 +1861,26 @@ class ReflectionDatabaseAdapterOneiric:
                 "metadata": json.loads(row[2]) if row[2] else {},
                 "created_at": row[3],
                 "updated_at": row[4],
-                "score": float(row[5]),
+                "project": row[5],
+                "score": float(row[6]),
             }
             for row in result
-            if row[5] >= threshold
+            if row[6] >= threshold
         ]
 
     def _text_search_conversations(
         self,
         query: str,
         limit: int,
+        project: str | None = None,
     ) -> list[dict[str, t.Any]]:
         """Perform text-based search on conversations.
 
         Args:
             query: Search query string
             limit: Maximum number of results
+            project: Optional project filter; only rows with matching
+                project are returned when set.
 
         Returns:
             List of matching conversations with scores
@@ -1876,16 +1890,18 @@ class ReflectionDatabaseAdapterOneiric:
         # ``created_at``/``updated_at``. Pick the columns that exist.
         table = self._table("conversations")
         if table == "conversations_v2":
-            result = self.conn.execute(
-                f"""
-                SELECT id, content, metadata, timestamp
+            sql = f"""
+                SELECT id, content, metadata, timestamp, project
                 FROM {table}
                 WHERE content LIKE ?
-                ORDER BY timestamp DESC
-                LIMIT ?
-                """,
-                [f"%{query}%", limit],
-            ).fetchall()
+            """
+            params: list[t.Any] = [f"%{query}%"]
+            if project is not None:
+                sql += " AND project = ?"
+                params.append(project)
+            sql += " ORDER BY timestamp DESC LIMIT ?"
+            params.append(limit)
+            result = self.conn.execute(sql, params).fetchall()
             return [
                 {
                     "id": row[0],
@@ -1893,20 +1909,23 @@ class ReflectionDatabaseAdapterOneiric:
                     "metadata": json.loads(row[2]) if row[2] else {},
                     "created_at": row[3],
                     "updated_at": row[3],
+                    "project": row[4],
                     "score": 1.0,  # Text search gets maximum score
                 }
                 for row in result
             ]
-        result = self.conn.execute(
-            f"""
-            SELECT id, content, metadata, created_at, updated_at
+        sql = f"""
+            SELECT id, content, metadata, created_at, updated_at, project
             FROM {table}
             WHERE content LIKE ?
-            ORDER BY updated_at DESC
-            LIMIT ?
-            """,
-            [f"%{query}%", limit],
-        ).fetchall()
+        """
+        params = [f"%{query}%"]
+        if project is not None:
+            sql += " AND project = ?"
+            params.append(project)
+        sql += " ORDER BY updated_at DESC LIMIT ?"
+        params.append(limit)
+        result = self.conn.execute(sql, params).fetchall()
 
         return [
             {
@@ -1915,6 +1934,7 @@ class ReflectionDatabaseAdapterOneiric:
                 "metadata": json.loads(row[2]) if row[2] else {},
                 "created_at": row[3],
                 "updated_at": row[4],
+                "project": row[5],
                 "score": 1.0,  # Text search gets maximum score
             }
             for row in result
