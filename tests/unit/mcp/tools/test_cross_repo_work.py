@@ -113,11 +113,11 @@ async def test_multi_repo_atomic_rollback(tmp_path: Path) -> None:
 
     NOTE: The brief's original test sent two RepoWorkEntry instances with
     the same repo_name and expected a UNIQUE-constraint failure. That
-    expectation is faulty — MergePrimitive.merge() uses
+    expectation is faulty — the merge primitive uses
     ``ON CONFLICT (conversation_id, repo_name) DO UPDATE`` which absorbs
     duplicates instead of raising. To trigger the rollback path we
-    inject a synthetic failure on the second merge (simulating
-    storage_locked, schema drift, write_conflict, etc.).
+    inject a synthetic failure on the second row's _read_dedup_write
+    (simulating storage_locked, schema drift, write_conflict, etc.).
     """
     conn = _setup(tmp_path)
     manifest = _write_manifest(tmp_path, [
@@ -135,16 +135,16 @@ async def test_multi_repo_atomic_rollback(tmp_path: Path) -> None:
     )
 
     mp = MergePrimitive()
-    original_merge = mp.merge
+    original_read_dedup_write = mp._read_dedup_write
     call_count = {"n": 0}
 
-    def _failing_merge(c, incoming):
+    def _failing_read_dedup_write(c, incoming):
         call_count["n"] += 1
         if call_count["n"] == 2:
             raise RuntimeError("simulated storage failure")
-        return original_merge(c, incoming)
+        return original_read_dedup_write(c, incoming)
 
-    mp.merge = _failing_merge  # type: ignore[method-assign]
+    mp._read_dedup_write = _failing_read_dedup_write  # type: ignore[method-assign]
 
     result = await store_cross_repo_work(
         request=request, merge_primitive=mp,

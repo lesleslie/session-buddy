@@ -13,9 +13,42 @@ import logging
 import typing as t
 
 from session_buddy.core.intelligence import IntelligenceEngine
-from session_buddy.mcp.server import mcp
 
 logger = logging.getLogger(__name__)
+
+
+def _get_mcp() -> t.Any:
+    """Lazy loader for the FastMCP ``mcp`` instance.
+
+    The eager ``from session_buddy.mcp.server import mcp`` at module load
+    creates a circular import:
+
+      session_buddy.mcp.server (line 25)
+        → server_optimized (defines mcp at line 249, then imports session_buddy.tools at line 290)
+        → session_buddy.tools.__init__
+        → _alias_submodule("session_buddy.mcp.tools.intelligence.intelligence_tools")
+        → this module
+        → from session_buddy.mcp.server import mcp  ← ImportError
+
+    Why attribute access on ``server`` alone fails: ``server.py:25`` does
+    ``from ..server_optimized import mcp`` — a ``from`` import against
+    ``server_optimized``, which is also partially loaded. Python rejects
+    ``from X import Y`` against a partially-initialized module, so ``mcp``
+    is never bound in ``server``'s namespace.
+
+    But ``mcp`` IS bound in ``server_optimized``'s namespace (defined at
+    line 249 BEFORE line 290 triggers the cycle). So we reach through to
+    ``server_optimized`` directly — attribute access on a partially-loaded
+    module is allowed.
+
+    Each decorator call invokes ``_get_mcp()`` once. The underlying
+    ``importlib`` lookup is O(1) after the first call, so the per-tool
+    overhead is negligible.
+    """
+    from importlib import import_module
+
+    server_optimized = import_module("session_buddy.server_optimized")
+    return server_optimized.mcp
 
 # Global intelligence engine instance (initialized at startup)
 _intelligence_engine: IntelligenceEngine | None = None
@@ -29,7 +62,7 @@ def get_intelligence_engine() -> IntelligenceEngine:
     return _intelligence_engine
 
 
-@mcp.tool()
+@_get_mcp().tool()
 async def list_skills(
     min_success_rate: float = 0.0, limit: int = 20
 ) -> dict[str, t.Any]:
@@ -50,7 +83,7 @@ async def list_skills(
     }
 
 
-@mcp.tool()
+@_get_mcp().tool()
 async def get_skill_details(skill_name: str) -> dict[str, t.Any]:
     """Get detailed information about a specific skill."""
     engine = get_intelligence_engine()
@@ -83,7 +116,7 @@ async def get_skill_details(skill_name: str) -> dict[str, t.Any]:
     }
 
 
-@mcp.tool()
+@_get_mcp().tool()
 async def invoke_skill(
     skill_name: str, context: dict[str, t.Any] | None = None
 ) -> dict[str, t.Any]:
@@ -106,7 +139,7 @@ async def invoke_skill(
     return result
 
 
-@mcp.tool()
+@_get_mcp().tool()
 async def suggest_improvements(
     current_session: dict[str, t.Any] | None = None,
 ) -> dict[str, t.Any]:
@@ -149,7 +182,7 @@ async def suggest_improvements(
     }
 
 
-@mcp.tool()
+@_get_mcp().tool()
 async def trigger_learning(checkpoint_data: dict[str, t.Any]) -> dict[str, t.Any]:
     """Manually trigger learning from a checkpoint."""
     engine = get_intelligence_engine()
@@ -190,7 +223,7 @@ async def trigger_learning(checkpoint_data: dict[str, t.Any]) -> dict[str, t.Any
     }
 
 
-@mcp.tool()
+@_get_mcp().tool()
 async def get_intelligence_stats() -> dict[str, t.Any]:
     """Get statistics about the intelligence system."""
     engine = get_intelligence_engine()
@@ -239,7 +272,7 @@ async def get_intelligence_stats() -> dict[str, t.Any]:
     }
 
 
-@mcp.tool()
+@_get_mcp().tool()
 async def capture_successful_pattern(
     pattern_type: str,
     project_id: str,
@@ -299,7 +332,7 @@ async def capture_successful_pattern(
         }
 
 
-@mcp.tool()
+@_get_mcp().tool()
 async def search_similar_patterns(
     current_context: dict[str, t.Any],
     pattern_type: str | None = None,
@@ -363,7 +396,7 @@ async def search_similar_patterns(
         }
 
 
-@mcp.tool()
+@_get_mcp().tool()
 async def apply_pattern(
     pattern_id: str,
     applied_to_project: str,
@@ -417,7 +450,7 @@ async def apply_pattern(
         }
 
 
-@mcp.tool()
+@_get_mcp().tool()
 async def rate_pattern_outcome(
     application_id: str,
     outcome: str,

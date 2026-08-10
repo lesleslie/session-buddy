@@ -106,12 +106,34 @@ def _union_provenance(existing: Iterable[str], incoming: Iterable[str]) -> list[
 
 
 class MergePrimitive:
-    def merge(
+    """Atomic read-dedup-write primitive for cross_repo_work_v2.
+
+    Single public method: ``multi_merge``. Caller opens BEGIN TRANSACTION,
+    passes rows; all-or-nothing on any error (caller ROLLBACKs).
+    """
+
+    def multi_merge(
+        self,
+        conn: duckdb.DuckDBPyConnection,
+        rows: list[CrossRepoWorkRowCreate],
+    ) -> tuple[list[CrossRepoWorkRowRead], int, int]:
+        """Caller-managed transaction. Loops over rows, performing read-dedup-write
+        for each. All-or-nothing (caller ROLLBACKs on any error)."""
+        results: list[CrossRepoWorkRowRead] = []
+        total_ins = 0
+        total_ded = 0
+        for incoming in rows:
+            read_row = self._read_dedup_write(conn, incoming)
+            results.append(read_row[0])
+            total_ins += read_row[1]
+            total_ded += read_row[2]
+        return results, total_ins, total_ded
+
+    def _read_dedup_write(
         self,
         conn: duckdb.DuckDBPyConnection,
         incoming: CrossRepoWorkRowCreate,
     ) -> tuple[CrossRepoWorkRowRead, int, int]:
-        # Caller-managed transaction. Read existing, dedup, write.
         row = conn.execute(
             "SELECT work_entries, contributor_sources, session_window_end "
             "FROM cross_repo_work_v2 "
@@ -196,20 +218,3 @@ class MergePrimitive:
             inserted,
             deduplicated,
         )
-
-    def multi_merge(
-        self,
-        conn: duckdb.DuckDBPyConnection,
-        rows: list[CrossRepoWorkRowCreate],
-    ) -> tuple[list[CrossRepoWorkRowRead], int, int]:
-        """Convenience: caller has already opened BEGIN TRANSACTION. Loops over
-        rows. All-or-nothing (caller ROLLBACKs on any error)."""
-        results: list[CrossRepoWorkRowRead] = []
-        total_ins = 0
-        total_ded = 0
-        for row in rows:
-            read, ins, ded = self.merge(conn, row)
-            results.append(read)
-            total_ins += ins
-            total_ded += ded
-        return results, total_ins, total_ded
