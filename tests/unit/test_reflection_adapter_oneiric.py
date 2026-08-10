@@ -463,6 +463,39 @@ class TestProjectScopedSearch:
             f"unfiltered search should see both projects, got {projects}"
         )
 
+    async def test_vector_search_filters_by_project(self, adapter_with_vss) -> None:
+        """search_conversations(project='alpha') must not return beta rows
+        via the vector-search path.
+
+        Uses two distinct text strings so the deterministic embeddings
+        produce different vectors, exercising the full
+        array_cosine_similarity comparison path.
+        """
+        await adapter_with_vss.store_conversation(
+            "quantum entanglement physics relativity",
+            metadata={"project": "alpha"},
+        )
+        await adapter_with_vss.store_conversation(
+            "shakespeare sonnet theatre drama",
+            metadata={"project": "beta"},
+        )
+
+        results = await adapter_with_vss.search_conversations(
+            "quantum entanglement physics", project="alpha", use_cache=False
+        )
+        assert results, "should match the alpha row"
+        assert all(r.get("project") == "alpha" for r in results), (
+            f"cross-project leakage: {results}"
+        )
+
+        # Inverse: beta scope returns only the beta row
+        beta_results = await adapter_with_vss.search_conversations(
+            "shakespeare sonnet theatre", project="beta", use_cache=False
+        )
+        assert all(r.get("project") == "beta" for r in beta_results), (
+            f"cross-project leakage: {beta_results}"
+        )
+
 
 # =============================================================================
 # REFLECTION STORAGE TESTS

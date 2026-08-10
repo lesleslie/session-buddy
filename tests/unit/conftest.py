@@ -91,6 +91,45 @@ def _stub_embedding_provider(monkeypatch: pytest.MonkeyPatch):
     clear_embedding_cache()
 
 
+@pytest.fixture
+async def adapter_with_vss(tmp_path):
+    """ReflectionDatabaseAdapterOneiric with embeddings + VSS enabled.
+
+    Embeddings: the autouse `_stub_embedding_provider` fixture above
+    patches `_try_http_embedding_providers` to return deterministic
+    384d vectors from a text hash. No HTTP, no model loading.
+
+    VSS: requires DuckDB's `vss` community extension for
+    `array_cosine_similarity()`. Skips if install/load fails (matches
+    `duckdb_connection` skip semantics).
+
+    Used by `TestProjectScopedSearch.test_vector_search_filters_by_project`
+    to exercise the vector-search SQL branch in `search_conversations`.
+    """
+    from session_buddy.adapters.settings import ReflectionAdapterSettings
+    from tests.conftest import _cleanup_db, _get_reflection_database_class
+
+    settings = ReflectionAdapterSettings(
+        database_path=tmp_path / "test_vss.duckdb",
+        collection_name="default",
+        embedding_dim=384,
+        distance_metric="cosine",
+        enable_embeddings=True,  # stubbed by autouse _stub_embedding_provider
+        enable_vss=True,
+        threads=1,
+        memory_limit="512MB",
+    )
+    adapter = _get_reflection_database_class()(settings=settings)
+    await adapter.initialize()
+    try:
+        adapter.conn.execute("INSTALL vss; LOAD vss;")
+    except Exception as exc:  # pragma: no cover - environment-dependent
+        await _cleanup_db(adapter)
+        pytest.skip(f"duckdb-vss extension unavailable: {exc}")
+    yield adapter
+    await _cleanup_db(adapter)
+
+
 @pytest.fixture(autouse=True)
 def unmock_settings():
     """Undo the mock_settings patch from tests/conftest.py BEFORE test runs.
