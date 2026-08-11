@@ -10,6 +10,7 @@ from session_buddy.checkpoint.orchestrator import (
 from session_buddy.checkpoint.pending import (
     PendingCheckpoint,
     consume_pending,
+    consume_pending_marker,
     load_pending,
     save_pending,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "ValueAddSignal",
     "WorkingTreeInspector",
     "consume_pending",
+    "consume_pending_marker",
     "load_pending",
     "save_pending",
 ]

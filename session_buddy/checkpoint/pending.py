@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,3 +45,38 @@ def load_pending(path: Path) -> PendingCheckpoint | None:
 
 def consume_pending(path: Path) -> None:
     path.unlink(missing_ok=True)
+
+
+async def consume_pending_marker(
+    marker: Path,
+    *,
+    build_orchestrator: Callable[[Path], Awaitable[object]],
+) -> None:
+    """Drain a pending-checkpoint marker by re-firing the orchestrator.
+
+    Shared helper used by both the MCP server lifespan loop (Task 9) and
+    ``SessionLifecycleManager.end_session`` (Task 8). Both call sites
+    MUST behave identically: load the marker, run a fresh orchestrator at
+    ``END_OF_TASK``, then consume the marker. Centralising here prevents
+    the lifespan-vs-session-end drift that previously left pending
+    markers drained without firing the orchestrator.
+
+    Args:
+        marker: Path to the ``~/.session-buddy/pending/*.json`` marker.
+        build_orchestrator: Async callable that takes the pending
+            ``working_dir`` and returns a freshly-constructed
+            ``CheckpointOrchestrator`` (callers wire the appropriate
+            forward / policy for their call site).
+
+    """
+    pending = load_pending(marker)
+    if pending is None:
+        marker.unlink(missing_ok=True)
+        return
+    # Local import: avoid eager load cycles for deployments that never
+    # drain pending markers (lite mode with no subagents).
+    from session_buddy.checkpoint import CheckpointPhase
+
+    orch = await build_orchestrator(pending.working_dir)
+    await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
+    consume_pending(marker)

@@ -211,3 +211,154 @@ async def test_lifespan_swallows_non_attribute_error_during_dhara_aclose(
     # block and this assertion will fail.
     async with mcp_server._lifespan_with_dhara_cleanup(app=MagicMock()):
         pass
+
+
+# --- Finding I-1: pending-drain forward must actually commit ----------------------
+#
+# Before the fix, `_end_of_task_forward` was a `pass`-bodied coroutine —
+# the deferred checkpoint was silently dropped. The fix replaces it
+# with a factory that returns a closure which calls
+# ``create_checkpoint_commit`` via ``asyncio.to_thread``. This test
+# exercises the factory + the resulting forward, asserts the commit
+# helper runs, and pins the ``working_dir`` closure so a refactor that
+# loses the per-call wiring would fail.
+
+
+@pytest.mark.unit
+async def test_make_end_of_task_forward_actually_calls_create_checkpoint_commit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The forward produced by ``_make_end_of_task_forward`` MUST call
+    ``create_checkpoint_commit`` for the captured working_dir.
+
+    The function under test runs the commit on a thread via
+    ``asyncio.to_thread``; we patch the symbol in
+    ``session_buddy.utils.git_worktrees`` (the import happens inside the
+    forward, so we have to patch the *source* attribute, not the caller's
+    namespace). The forward's ``_result`` argument is ignored — we pass
+    ``None``.
+    """
+    from session_buddy.mcp import server as mcp_server
+
+    calls: list[tuple[Path, str, int]] = []
+
+    def _fake_commit(directory: Path, project: str, quality_score: int):
+        calls.append((directory, project, quality_score))
+        return (True, "fake-commit-sha", [])
+
+    # Patch the symbol at its *source* (the import inside the forward
+    # is a local import so the binding resolves via the git_worktrees module).
+    monkeypatch.setattr(
+        "session_buddy.utils.git_worktrees.create_checkpoint_commit",
+        _fake_commit,
+    )
+
+    forward = mcp_server._make_end_of_task_forward(tmp_path)
+
+    # Invoking the forward (with an arbitrary _result) must result in
+    # exactly one call to the commit helper, with tmp_path as directory
+    # and the directory's basename as project.
+    await forward(None)
+
+    assert len(calls) == 1
+    directory, project, quality_score = calls[0]
+    assert directory == tmp_path
+    assert project == tmp_path.name
+    # End-of-task drain has no quality score; placeholder 0 is contracted.
+    assert quality_score == 0
+
+
+@pytest.mark.unit
+async def test_make_end_of_task_forward_works_for_multiple_working_dirs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each ``_make_end_of_task_forward(wd)`` closes over its own working_dir.
+
+    Guards against a refactor that hoists the closure capture to module
+    scope (a single forward reused across all markers).
+    """
+    from session_buddy.mcp import server as mcp_server
+
+    calls: list[Path] = []
+
+    def _fake_commit(directory: Path, project: str, quality_score: int):
+        calls.append(directory)
+        return (True, "x", [])
+
+    monkeypatch.setattr(
+        "session_buddy.utils.git_worktrees.create_checkpoint_commit",
+        _fake_commit,
+    )
+
+    wd_a = tmp_path / "a"
+    wd_b = tmp_path / "b"
+    wd_a.mkdir()
+    wd_b.mkdir()
+
+    fwd_a = mcp_server._make_end_of_task_forward(wd_a)
+    fwd_b = mcp_server._make_end_of_task_forward(wd_b)
+
+    await fwd_a(None)
+    await fwd_b(None)
+
+    assert calls == [wd_a, wd_b]
+
+
+# --- Finding I-2: pending drain routes through ``consume_pending_marker`` --------
+#
+# Before the fix, `SessionLifecycleManager.end_session` loaded the marker,
+# logged, and deleted the file without ever firing an orchestrator. The
+# fix imports the shared ``consume_pending_marker`` helper and passes it
+# an inline builder that mirrors the lifespan-loop wiring.
+
+
+@pytest.mark.unit
+async def test_consume_pending_marker_helper_loads_and_fires_orchestrator(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``consume_pending_marker`` MUST drive the orchestrator; markers
+    must be removed only AFTER the orchestrator runs.
+
+    We patch CheckpointOrchestrator at source so the helper's
+    ``run_checkpoint`` invocation is observed.
+    """
+    from session_buddy.checkpoint import pending as pending_mod
+    from session_buddy.checkpoint import (
+        PendingCheckpoint,
+        save_pending,
+    )
+
+    # Seed a marker.
+    marker = save_pending(PendingCheckpoint(working_dir=tmp_path, reason="subagent_idle_timeout"))
+    assert marker.exists()
+
+    build_calls: list[Path] = []
+    run_calls: list[dict[str, str]] = []
+
+    class _FakeOrch:
+        def __init__(self, *_a, **_kw: object) -> None:
+            pass
+
+        async def run_checkpoint(self, *, phase: str) -> None:
+            run_calls.append({"phase": phase})
+
+    async def _build(wd: Path) -> _FakeOrch:
+        build_calls.append(wd)
+        return _FakeOrch()
+
+    monkeypatch.setattr(
+        "session_buddy.checkpoint.CheckpointOrchestrator",
+        _FakeOrch,
+    )
+
+    await pending_mod.consume_pending_marker(marker, build_orchestrator=_build)
+
+    # Builder was called with the pending working_dir.
+    assert build_calls == [tmp_path]
+    # Orchestrator was run at END_OF_TASK (per spec line 9).
+    assert run_calls and run_calls[0]["phase"] == "end_of_task"
+    # Marker is removed AFTER the orchestrator fires.
+    assert not marker.exists()

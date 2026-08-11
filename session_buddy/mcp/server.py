@@ -203,28 +203,44 @@ async def _noop_forward(_result: Any) -> None:
 
 
 async def _consume_pending(marker: Path) -> None:
-    """Drain a pending-checkpoint marker by re-firing the orchestrator."""
-    from session_buddy.checkpoint import (
-        consume_pending as _consume_pending_marker,
-        load_pending as _load_pending_marker,
-    )
+    """Drain a pending-checkpoint marker by re-firing the orchestrator.
 
-    pending = _load_pending_marker(marker)
-    if pending is None:
-        marker.unlink(missing_ok=True)
-        return
-    # Pending drain ALWAYS uses end-of-task semantics (commits when policy fires).
-    orch = _build_orchestrator(
-        pending.working_dir,
-        MidpointCriteria(signals=[]),
-        lambda _wd: _end_of_task_forward,
-    )
-    await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
-    _consume_pending_marker(marker)
+    Uses the shared ``consume_pending_marker`` helper so the lifespan loop
+    and ``SessionLifecycleManager.end_session`` behave identically.
+    """
+    from session_buddy.checkpoint import consume_pending_marker
+
+    async def _build(wd: Path) -> CheckpointOrchestrator:
+        return _build_orchestrator(
+            wd,
+            MidpointCriteria(signals=[]),
+            lambda working_dir: _make_end_of_task_forward(working_dir),
+        )
+
+    await consume_pending_marker(marker, build_orchestrator=_build)
 
 
-async def _end_of_task_forward(_result: Any) -> None:
-    """Pending-drain forward: routes through the legacy git commit path."""
+def _make_end_of_task_forward(working_dir: Path):
+    """Build a forward that commits via the legacy git commit path.
+
+    Mirrors ``_midpoint_commit_forward`` in ``auto_checkpoint_loop.py``:
+    the commit runs unconditionally after a successful snapshot capture,
+    using ``create_checkpoint_commit`` directly so we bypass the
+    SessionManager ceremony (cross-repo accounting, conversation storage)
+    that the timer-driven forward also skips.
+    """
+
+    async def _end_of_task_forward(_result: Any) -> None:
+        import asyncio
+        from session_buddy.utils.git_worktrees import create_checkpoint_commit
+        await asyncio.to_thread(
+            create_checkpoint_commit,
+            working_dir,
+            working_dir.name,
+            0,  # quality_score placeholder — end-of-task drain doesn't compute it
+        )
+
+    return _end_of_task_forward
 
 
 def _build_quality_provider():

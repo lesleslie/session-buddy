@@ -467,3 +467,55 @@ async def test_snapshot_transient_error_fails_closed(tmp_path: Path) -> None:
     assert "OSError" in result.error
     assert "git diff timeout" not in result.error  # PII defense (Finding 1)
     assert orch.metrics.failures.get("snapshot_transient") == 1
+
+
+# --- Finding I-3: derived inner idle-wait timeout --------------------------------
+#
+# A hard-coded `wait_until_idle(timeout=60.0)` nested inside an outer
+# `asyncio.wait_for(..., timeout=run_timeout)` can deadlock when callers
+# pass a budget < 90s (e.g. 30s outer, 60s inner idle-wait that is
+# never bounded by the outer). The fix derives the inner timeout from
+# the outer budget so a small budget no longer wastes the full idle-wait
+# window before the orchestrator timeout fires.
+
+
+@pytest.mark.unit
+async def test_eot_inner_idle_timeout_derived_from_outer_budget(tmp_path: Path) -> None:
+    """``wait_until_idle`` receives a timeout bounded by run_timeout - 30s.
+
+    Concretely, with ``run_timeout=35`` the inner timeout must be
+    ``max(1.0, min(60.0, 35 - 30)) = 5.0`` seconds, not the previously
+    hard-coded 60s.
+    """
+    orch = _make_orch(tmp_path, run_timeout=35.0)
+    await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
+    # The detector is mocked; inspect the actual timeout it was called with.
+    orch._detector.wait_until_idle.assert_awaited_once()
+    call_kwargs = orch._detector.wait_until_idle.await_args.kwargs
+    assert call_kwargs["timeout"] == pytest.approx(5.0)
+
+
+@pytest.mark.unit
+async def test_eot_inner_idle_timeout_floor_clamps_tiny_budgets(tmp_path: Path) -> None:
+    """Tiny budgets (run_timeout < 31s) clamp to the 1s floor, never negative.
+
+    With ``run_timeout=0.05`` the raw formula ``min(60.0, 0.05 - 30.0)``
+    is negative; the clamp must floor it at 1s so we still have a
+    meaningful (if short) idle wait.
+    """
+    orch = _make_orch(tmp_path, run_timeout=0.05)
+    await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
+    orch._detector.wait_until_idle.assert_awaited_once()
+    call_kwargs = orch._detector.wait_until_idle.await_args.kwargs
+    assert call_kwargs["timeout"] == pytest.approx(1.0)
+
+
+@pytest.mark.unit
+async def test_eot_inner_idle_timeout_caps_at_60s_default_budget(tmp_path: Path) -> None:
+    """Default budget (120s) caps the inner timeout at 60s — never exceeds it."""
+    # run_timeout omitted → DEFAULT_RUN_TIMEOUT_S = 120.0; inner = min(60, 90) = 60.
+    orch = _make_orch(tmp_path)
+    await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
+    orch._detector.wait_until_idle.assert_awaited_once()
+    call_kwargs = orch._detector.wait_until_idle.await_args.kwargs
+    assert call_kwargs["timeout"] == pytest.approx(60.0)

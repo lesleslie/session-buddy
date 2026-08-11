@@ -173,7 +173,13 @@ class CheckpointOrchestrator:
             return result
 
         if phase == CheckpointPhase.END_OF_TASK:
-            idle = await self._detector.wait_until_idle(timeout=60.0)
+            # Derive the inner idle-wait timeout from the outer budget so a
+            # configured run_timeout < 90s cannot deadlock waiting on a hard-coded
+            # 60s idle timeout. We clamp to a floor of 1s so a tiny budget is
+            # still meaningful (an idle detector usually returns in <1s on
+            # already-idle working trees).
+            idle_timeout = max(1.0, min(60.0, self._run_timeout - 30.0))
+            idle = await self._detector.wait_until_idle(timeout=idle_timeout)
             if not idle:
                 marker = save_pending(
                     PendingCheckpoint(

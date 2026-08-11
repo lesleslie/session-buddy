@@ -506,10 +506,15 @@ class SessionLifecycleManager:
             )
             return git_output
 
-        lockfile = current_dir / ".session-buddy" / "subagent.lock"
-        detector = SubagentDetector(current_dir, LockfileSignalSource(lockfile))
-        snapshot = SnapshotMechanism(current_dir)
-        inspector = WorkingTreeInspector(current_dir)
+        # Use the validated (resolved, is-dir) path so symlink-resolved
+        # directories are passed to the orchestrator. The original
+        # ``current_dir`` value is left untouched so the legacy commit
+        # below still targets the caller's intended path.
+        target_dir = validated_dir
+        lockfile = target_dir / ".session-buddy" / "subagent.lock"
+        detector = SubagentDetector(target_dir, LockfileSignalSource(lockfile))
+        snapshot = SnapshotMechanism(target_dir)
+        inspector = WorkingTreeInspector(target_dir)
         policy = CheckpointPolicy(
             midpoint_enabled=False,  # only END_OF_TASK reaches here from this path
             midpoint_criteria=MidpointCriteria(signals=[]),
@@ -529,7 +534,7 @@ class SessionLifecycleManager:
             return None
 
         orchestrator = CheckpointOrchestrator(
-            working_dir=current_dir,
+            working_dir=target_dir,
             policy=policy,
             snapshot=snapshot,
             subagent_detector=detector,
@@ -1666,26 +1671,84 @@ class SessionLifecycleManager:
             # checkpoint markers from prior sessions (e.g. subagent idle
             # timeouts, subagent-active-during-capture) before tearing
             # down state. Markers are advisory — failure to load a single
-            # file must not block the rest of session end.
+            # file must not block the rest of session end. We use the
+            # shared ``consume_pending_marker`` helper so this drain path
+            # fires the orchestrator identically to the MCP server
+            # lifespan loop — both call sites must NOT silently drop the
+            # deferred commit.
             from session_buddy.checkpoint import (  # noqa: PLC0415
-                consume_pending,
-                load_pending,
+                consume_pending_marker,
             )
             from session_buddy.checkpoint.pending import PENDING_DIR  # noqa: PLC0415
 
             if PENDING_DIR.exists():
                 for marker in PENDING_DIR.glob("*.json"):
-                    pending = load_pending(marker)
-                    if pending is None:
-                        continue
-                    self.logger.info(
-                        "pending_checkpoint_drained",
-                        extra={
-                            "reason": pending.reason,
-                            "working_dir": str(pending.working_dir),
-                        },
-                    )
-                    consume_pending(marker)
+
+                    async def _build(wd: Path) -> t.Any:
+                        # Lazy import: avoid eager-load cycles in lite mode.
+                        from session_buddy.checkpoint import (  # noqa: PLC0415
+                            CheckpointOrchestrator,
+                            CheckpointPhase,
+                            CheckpointPolicy,
+                            LockfileSignalSource,
+                            MidpointCriteria,
+                            SnapshotMechanism,
+                            SubagentDetector,
+                            WorkingTreeInspector,
+                        )
+
+                        lockfile = wd / ".session-buddy" / "subagent.lock"
+                        detector = SubagentDetector(wd, LockfileSignalSource(lockfile))
+                        snapshot = SnapshotMechanism(wd)
+                        inspector = WorkingTreeInspector(wd)
+                        policy = CheckpointPolicy(
+                            midpoint_enabled=False,
+                            midpoint_criteria=MidpointCriteria(signals=[]),
+                            subagent_detector=detector,
+                            working_tree=inspector,
+                        )
+
+                        async def _commit_forward(_result: t.Any) -> None:
+                            # Mirror the lifespan-loop forward: commit
+                            # via the legacy git-commit path so the
+                            # deferred checkpoint is honored, not
+                            # silently dropped (Finding I-2).
+                            import asyncio
+                            from session_buddy.utils.git_worktrees import (
+                                create_checkpoint_commit,
+                            )
+
+                            await asyncio.to_thread(
+                                create_checkpoint_commit,
+                                wd,
+                                wd.name,
+                                0,
+                            )
+
+                        return CheckpointOrchestrator(
+                            working_dir=wd,
+                            policy=policy,
+                            snapshot=snapshot,
+                            subagent_detector=detector,
+                            forward_to=_commit_forward,
+                        )
+
+                    try:
+                        pending = await consume_pending_marker(
+                            marker, build_orchestrator=_build,
+                        )
+                        self.logger.info(
+                            "pending_checkpoint_drained",
+                            extra={
+                                "marker": str(marker),
+                            },
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        # Single-marker failure must not abort session end.
+                        self.logger.warning(
+                            "pending_checkpoint_drain_failed",
+                            extra={"marker": str(marker), "error": str(exc)},
+                        )
 
             from session_buddy.core.hooks import HookContext, HookType
             from session_buddy.di import get_sync_typed
