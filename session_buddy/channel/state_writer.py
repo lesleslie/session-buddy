@@ -43,8 +43,12 @@ from session_buddy._dhara_substrate_compat import (
     dhara_calltime,
     stamp_dhara_attr,
 )
+from session_buddy._producer_metrics import COUNTERS
 
 logger = get_logger(__name__)
+
+# Producer name used for Prometheus label cardinality.
+_PRODUCER_NAME = "channel_session_state_writer"
 
 
 def _channel_session_state_v1_enabled() -> bool:
@@ -104,13 +108,20 @@ def record_channel_session_state(
     }
     validated = validate("channel_session_state", payload)
 
+    # Substrate-compat gate: only persist when dhara.put is exposed.
     put: Any = dhara_calltime("put")
+    COUNTERS.attempted.labels(producer=_PRODUCER_NAME).inc()
     if put is not None:
         key = f"channel-sessions/{channel_id}/{sender_id}"
         try:
             put(key, validated)
+            COUNTERS.succeeded.labels(producer=_PRODUCER_NAME).inc()
         except Exception as exc:  # noqa: BLE001 — G6 contract: substrate
             # failures must not crash the channel tracking path.
+            # NOTE: swallowed substrate failures are not represented in the
+            # 3-counter shape (attempted/succeeded/skipped) — only the
+            # unbound skip branch increments skipped. A 4th "failed" counter
+            # is a future-work item.
             logger.warning(
                 "channel_session_state_persistence_failed",
                 extra={
@@ -121,6 +132,7 @@ def record_channel_session_state(
                 },
             )
     else:
+        COUNTERS.skipped.labels(producer=_PRODUCER_NAME).inc()
         logger.warning(
             "channel_session_state_persistence_skipped",
             extra={
