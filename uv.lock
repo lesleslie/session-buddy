@@ -4177,6 +4177,7 @@ dev = [
     { name = "deadcode" },
     { name = "factory-boy" },
     { name = "faker" },
+    { name = "hypothesis" },
 ]
 llm = [
     { name = "anthropic" },
@@ -4230,6 +4231,7 @@ dev = [
     { name = "deadcode", specifier = ">=2.4.1" },
     { name = "factory-boy", specifier = ">=3.3.3" },
     { name = "faker", specifier = ">=40.20.0" },
+    { name = "hypothesis", specifier = ">=6.0" },
 ]
 llm = [
     { name = "anthropic", specifier = ">=0.39.0" },

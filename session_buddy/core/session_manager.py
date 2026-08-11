@@ -45,18 +45,23 @@ class SessionLifecycleManager:
         self,
         logger: logging.Logger | None = None,
         quality_scorer: QualityScorer | None = None,
+        mode_config: t.Any | None = None,
     ) -> None:
         """Initialize session lifecycle manager.
 
         Args:
             logger: Logger instance (injected by DI container or standard logger)
             quality_scorer: QualityScorer instance (injected via DI for testability)
+            mode_config: Optional ``ModeConfig`` (Task 8). When present,
+                ``enable_auto_checkpoint=False`` causes the checkpoint
+                pipeline to bypass the safe orchestrator entirely.
 
         """
         if logger is None:
             logger = logging.getLogger(__name__)
 
         self.logger = logger
+        self._mode_config = mode_config
 
         # Use injected scorer or get from DI container
         if quality_scorer is None:
@@ -408,6 +413,191 @@ class SessionLifecycleManager:
             )
 
         return output
+
+    async def _checkpoint_with_safety_capture(
+        self,
+        *,
+        phase: "t.Any",
+        current_dir: Path,
+        quality_score: int,
+    ) -> list[str]:
+        """Capture a defensive snapshot before the end-of-task commit.
+
+        Task 8 wraps the legacy ``perform_git_checkpoint`` with an
+        advisory safety capture. The orchestrator is **best-effort** —
+        snapshot capture, subagent deferral, and pending-marker
+        surfacing are advisory signals, not commit gates. The actual
+        commit authority is the existing ``perform_git_checkpoint``
+        path (spec Constraint #1: end-of-task checkpoint is mandatory).
+
+        Three execution modes:
+
+        1. **Lite mode** (``_mode_config.enable_auto_checkpoint=False``):
+           orchestrator is bypassed entirely. Legacy commit runs as-is.
+        2. **Standard mode + valid path**: orchestrator captures a
+           defensive snapshot (may fail without aborting the commit),
+           surfaces subagent deferrals via
+           ``~/.session-buddy/pending/*.json`` markers, and the legacy
+           commit always runs after. A decision-summary line is
+           appended to ``git_output`` for downstream
+           ``POST_CHECKPOINT`` hooks.
+        3. **Standard mode + invalid path**: orchestrator is skipped
+           (logged WARNING), legacy commit still runs. We do not break
+           the user's end-of-task commit on a path-validation edge
+           case (Security MEDIUM finding).
+
+        Args:
+            phase: ``CheckpointPhase`` enum (or its string value) for
+                the orchestrator's policy decision.
+            current_dir: Working directory for the checkpoint.
+            quality_score: Quality score forwarded to the legacy commit.
+
+        Returns:
+            ``git_output`` lines: legacy commit output, plus a final
+            ``checkpoint_orchestrator_decision: …`` summary line.
+
+        """
+        # Lazy import: avoid eager-load cycles in lite mode and at import time.
+        from session_buddy.checkpoint import (  # noqa: PLC0415
+            CheckpointOrchestrator,
+            CheckpointPhase,
+            CheckpointPolicy,
+            LockfileSignalSource,
+            MidpointCriteria,
+            SnapshotMechanism,
+            SubagentDetector,
+            WorkingTreeInspector,
+        )
+
+        mode_cfg = getattr(self, "_mode_config", None)
+        if mode_cfg is not None and not getattr(
+            mode_cfg, "enable_auto_checkpoint", True
+        ):
+            # Lite-mode bypass: no orchestrator instantiation.
+            return await self.perform_git_checkpoint(current_dir, quality_score)
+
+        # Coerce string phases into the enum (the brief's tests pass the raw
+        # string ``"end_of_task"`` while the production call site passes the
+        # enum). Either form is valid here.
+        phase_enum = (
+            CheckpointPhase(phase)
+            if not isinstance(phase, CheckpointPhase)
+            else phase
+        )
+
+        # Security (MEDIUM finding): validate ``current_dir`` before
+        # passing it to the orchestrator's subprocess surface. The
+        # orchestrator instantiates ``SubagentDetector``,
+        # ``SnapshotMechanism``, ``WorkingTreeInspector``, and
+        # ``CheckpointPolicy`` which all read filesystem state from
+        # ``current_dir``. A hostile or corrupt path could feed
+        # attacker-controlled state into the capture path. On any
+        # validation failure, log a WARNING, skip the orchestrator,
+        # and still run the legacy commit so we never block the user's
+        # end-of-task checkpoint on a path-validation edge case.
+        validated_dir = self._validate_orchestrator_path(current_dir)
+        if validated_dir is None:
+            git_output = await self.perform_git_checkpoint(
+                current_dir, quality_score,
+            )
+            git_output.append(
+                "checkpoint_orchestrator_decision: safety_capture_skipped "
+                "reason=invalid_path",
+            )
+            return git_output
+
+        # Use the validated (resolved, is-dir) path so symlink-resolved
+        # directories are passed to the orchestrator. The original
+        # ``current_dir`` value is left untouched so the legacy commit
+        # below still targets the caller's intended path.
+        target_dir = validated_dir
+        lockfile = target_dir / ".session-buddy" / "subagent.lock"
+        detector = SubagentDetector(target_dir, LockfileSignalSource(lockfile))
+        snapshot = SnapshotMechanism(target_dir)
+        inspector = WorkingTreeInspector(target_dir)
+        policy = CheckpointPolicy(
+            midpoint_enabled=False,  # only END_OF_TASK reaches here from this path
+            midpoint_criteria=MidpointCriteria(signals=[]),
+            subagent_detector=detector,
+            working_tree=inspector,
+        )
+
+        git_output: list[str] = []
+
+        async def _noop_forward(_result: t.Any) -> None:
+            # Orchestrator's forward_to is a generic notify hook — the
+            # actual commit must run unconditionally after the snapshot
+            # capture so the legacy ``git_output`` shape is preserved
+            # for downstream ``POST_CHECKPOINT`` hooks. Keeping this
+            # callback empty makes the orchestrator's fire decision a
+            # pure snapshot/audit signal rather than a commit gate.
+            return None
+
+        orchestrator = CheckpointOrchestrator(
+            working_dir=target_dir,
+            policy=policy,
+            snapshot=snapshot,
+            subagent_detector=detector,
+            forward_to=_noop_forward,
+        )
+        result = await orchestrator.run_checkpoint(phase=phase_enum)
+
+        # Always run the legacy commit after the orchestrator captures
+        # (or fails to capture) the snapshot. The orchestrator's job is
+        # safety; the commit is the user's explicit end-of-task request.
+        git_output.extend(
+            await self.perform_git_checkpoint(current_dir, quality_score)
+        )
+
+        summary = (
+            f"checkpoint_orchestrator_decision: phase={phase_enum.value} "
+            f"fired={result.fired} reason={result.decision_reason}"
+        )
+        if result.snapshot_id:
+            summary += f" snapshot={result.snapshot_id}"
+        if result.error:
+            summary += f" error={result.error}"
+        if result.pending_marker_path:
+            summary += f" pending_marker={result.pending_marker_path}"
+        git_output.append(summary)
+        return git_output
+
+    def _validate_orchestrator_path(self, current_dir: Path) -> Path | None:
+        """Validate ``current_dir`` before passing to the orchestrator.
+
+        Security (MEDIUM finding from
+        ``.superpowers/sdd/2026-08-10-auto-checkpoint-safety-and-trigger``):
+        the orchestrator's ``SubagentDetector``,
+        ``SnapshotMechanism``, and ``WorkingTreeInspector`` read
+        filesystem state from ``current_dir``. An unvalidated path
+        could feed hostile state into the capture path. We use
+        ``Path.resolve(strict=True)`` (raises ``FileNotFoundError`` for
+        non-existent paths) plus an is-dir check to fail fast.
+
+        Returns:
+            The resolved ``Path`` on success; ``None`` if validation
+            fails. A WARNING is logged on failure so operators can
+            see the rejection in observability.
+
+        """
+        try:
+            resolved = current_dir.resolve(strict=True)
+        except (FileNotFoundError, OSError, RuntimeError) as exc:
+            self.logger.warning(
+                "checkpoint_orchestrator_path_invalid path=%s error=%s",
+                str(current_dir),
+                type(exc).__name__,
+            )
+            return None
+
+        if not resolved.is_dir():
+            self.logger.warning(
+                "checkpoint_orchestrator_path_not_dir path=%s",
+                str(resolved),
+            )
+            return None
+
+        return resolved
 
     async def _schedule_git_maintenance(
         self,
@@ -1131,8 +1321,18 @@ class SessionLifecycleManager:
                 is_manual=is_manual,
             )
 
-            # Git checkpoint
-            git_output = await self.perform_git_checkpoint(current_dir, quality_score)
+            # Git checkpoint — Task 8 wires through the safe orchestrator
+            # so capture-then-commit runs in standard mode; lite mode
+            # bypasses the orchestrator entirely inside the wrapper.
+            from session_buddy.checkpoint import (  # noqa: PLC0415
+                CheckpointPhase,
+            )
+
+            git_output = await self._checkpoint_with_safety_capture(
+                phase=CheckpointPhase.END_OF_TASK,
+                current_dir=current_dir,
+                quality_score=quality_score,
+            )
 
             # Cross-repo accounting (Task 11c). Active pull path that
             # complements the MCP push path (Task 8). Runs AFTER the git
@@ -1467,6 +1667,89 @@ class SessionLifecycleManager:
     ) -> dict[str, t.Any]:
         """End the current session with cleanup and summary."""
         try:
+            # Task 8 (auto-checkpoint safety+trigger): drain any pending
+            # checkpoint markers from prior sessions (e.g. subagent idle
+            # timeouts, subagent-active-during-capture) before tearing
+            # down state. Markers are advisory — failure to load a single
+            # file must not block the rest of session end. We use the
+            # shared ``consume_pending_marker`` helper so this drain path
+            # fires the orchestrator identically to the MCP server
+            # lifespan loop — both call sites must NOT silently drop the
+            # deferred commit.
+            from session_buddy.checkpoint import (  # noqa: PLC0415
+                consume_pending_marker,
+            )
+            from session_buddy.checkpoint.pending import PENDING_DIR  # noqa: PLC0415
+
+            if PENDING_DIR.exists():
+                for marker in PENDING_DIR.glob("*.json"):
+
+                    async def _build(wd: Path) -> t.Any:
+                        # Lazy import: avoid eager-load cycles in lite mode.
+                        from session_buddy.checkpoint import (  # noqa: PLC0415
+                            CheckpointOrchestrator,
+                            CheckpointPhase,
+                            CheckpointPolicy,
+                            LockfileSignalSource,
+                            MidpointCriteria,
+                            SnapshotMechanism,
+                            SubagentDetector,
+                            WorkingTreeInspector,
+                        )
+
+                        lockfile = wd / ".session-buddy" / "subagent.lock"
+                        detector = SubagentDetector(wd, LockfileSignalSource(lockfile))
+                        snapshot = SnapshotMechanism(wd)
+                        inspector = WorkingTreeInspector(wd)
+                        policy = CheckpointPolicy(
+                            midpoint_enabled=False,
+                            midpoint_criteria=MidpointCriteria(signals=[]),
+                            subagent_detector=detector,
+                            working_tree=inspector,
+                        )
+
+                        async def _commit_forward(_result: t.Any) -> None:
+                            # Mirror the lifespan-loop forward: commit
+                            # via the legacy git-commit path so the
+                            # deferred checkpoint is honored, not
+                            # silently dropped (Finding I-2).
+                            import asyncio
+                            from session_buddy.utils.git_worktrees import (
+                                create_checkpoint_commit,
+                            )
+
+                            await asyncio.to_thread(
+                                create_checkpoint_commit,
+                                wd,
+                                wd.name,
+                                0,
+                            )
+
+                        return CheckpointOrchestrator(
+                            working_dir=wd,
+                            policy=policy,
+                            snapshot=snapshot,
+                            subagent_detector=detector,
+                            forward_to=_commit_forward,
+                        )
+
+                    try:
+                        pending = await consume_pending_marker(
+                            marker, build_orchestrator=_build,
+                        )
+                        self.logger.info(
+                            "pending_checkpoint_drained",
+                            extra={
+                                "marker": str(marker),
+                            },
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        # Single-marker failure must not abort session end.
+                        self.logger.warning(
+                            "pending_checkpoint_drain_failed",
+                            extra={"marker": str(marker), "error": str(exc)},
+                        )
+
             from session_buddy.core.hooks import HookContext, HookType
             from session_buddy.di import get_sync_typed
 

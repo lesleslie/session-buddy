@@ -241,6 +241,7 @@ dev = [
     "deadcode>=2.4.1",
     "factory-boy>=3.3.3",
     "faker>=40.20.0",
+    "hypothesis>=6.0",
 ]
 
 # mcp-common sub-features (formerly `mcp-common[treesitter,llm]` extras).
