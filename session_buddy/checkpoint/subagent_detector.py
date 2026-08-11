@@ -28,7 +28,7 @@ class SignalSource(Protocol):
 class LockfileSignalSource:
     """Lockfile-backed SignalSource. Lockfile presence == subagent active.
 
-    The .write() method is intentionally unwired in this codebase; the
+    The .write() method has no in-codebase caller at present; the
     producer (creating <working_dir>/.session-buddy/subagent.lock when a
     subagent starts) is owned by the subagent-runtime team and tracked
     externally. Until the producer lands, the re-check branch
