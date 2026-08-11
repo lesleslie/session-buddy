@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -129,16 +130,15 @@ async def test_forward_to_4xx_no_retry_fails_closed(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-async def test_fails_closed_on_snapshot_error(tmp_path: Path) -> None:
-    """Snapshot errors fail closed; str(exc) is NOT echoed (Finding 1)."""
+async def test_snapshot_runtime_error_propagates(tmp_path: Path) -> None:
+    """C-3: RuntimeError from snapshot.capture() is a programming error and
+    must propagate per spec invariant "Failures fail closed; programming
+    errors propagate". The previous `except Exception` catch-all violated
+    this; this test enforces the corrected narrow-tuple behavior.
+    """
     orch = _make_orch(tmp_path, snapshot_side_effect=RuntimeError("git diff exploded"))
-    result = await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
-    orch._forward_to.assert_not_awaited()
-    assert result.fired is False
-    # Exception type name remains useful for triage.
-    assert "RuntimeError" in (result.error or "")
-    # Original str(exc) message must NOT appear in result.error.
-    assert "git diff" not in (result.error or "")
+    with pytest.raises(RuntimeError, match="git diff exploded"):
+        await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
 
 
 @pytest.mark.unit
@@ -242,22 +242,157 @@ async def test_forward_http_error_does_not_leak_url_or_response_body(
 
 
 @pytest.mark.unit
-async def test_snapshot_error_does_not_echo_str_exc_in_result(tmp_path: Path) -> None:
-    """Finding 1: snapshot errors must not propagate str(exc) into result.error."""
+async def test_snapshot_error_does_not_propagate_str_exc_to_caller(
+    tmp_path: Path,
+) -> None:
+    """C-3 (replaces old Finding 1 oracle): snapshot RuntimeError is a
+    programming error and must propagate unchanged at the run_checkpoint
+    boundary. The old catch-all that swallowed str(exc) into result.error
+    has been removed; this test pins the new behavior.
+
+    The original str(exc) message MUST reach the caller verbatim — the
+    orchestrator does not mutate, redact, or wrap it. PII defense is now
+    the responsibility of the caller (MCP checkpoint tool or lifespan
+    tick), per spec "programming errors propagate".
+    """
     orch = _make_orch(
         tmp_path,
         snapshot_side_effect=RuntimeError(
             "git diff exploded at /internal/secrets?token=SECRET",
         ),
     )
+    with pytest.raises(RuntimeError) as excinfo:
+        await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
+    # The original str(exc) reaches the caller verbatim — no scrubbing at
+    # the orchestrator boundary (caller is responsible for PII defense).
+    assert "/internal/secrets" in str(excinfo.value)
+    assert "token=SECRET" in str(excinfo.value)
+    # The exception type name is preserved.
+    assert excinfo.type is RuntimeError
+
+
+# --- C-2 narrow-tuple contract: snapshot step ---------------------------------
+# Per spec, the snapshot step's narrow-exception tuple is exactly:
+#   (subprocess.SubprocessError, OSError, ValueError, httpx.HTTPStatusError)
+# Anything OUTSIDE this tuple (TypeError, AttributeError, KeyError, asyncio.
+# TimeoutError, ...) must propagate unchanged. Each transient class returns
+# a fail-closed CheckpointResult; each programming-error class propagates.
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "exc_factory,metric_key",
+    [
+        pytest.param(
+            lambda: subprocess.CalledProcessError(1, ["git", "diff"]),
+            "snapshot_transient",
+            id="subprocess.CalledProcessError",
+        ),
+        pytest.param(
+            lambda: OSError("git diff timeout"),
+            "snapshot_transient",
+            id="OSError",
+        ),
+        pytest.param(
+            lambda: ValueError("bad patch hunk"),
+            "snapshot_transient",
+            id="ValueError",
+        ),
+        pytest.param(
+            lambda: httpx.HTTPStatusError(
+                "503",
+                request=httpx.Request("POST", "http://localhost:8678/mcp"),
+                response=httpx.Response(503, request=httpx.Request("POST", "http://localhost:8678/mcp")),
+            ),
+            "snapshot_transient",
+            id="httpx.HTTPStatusError(503)",
+        ),
+    ],
+)
+async def test_snapshot_transient_exception_classes_are_caught(
+    tmp_path: Path, exc_factory, metric_key: str,
+) -> None:
+    """C-2: every class in the spec-literal narrow tuple is caught by the
+    snapshot step and converted to a fail-closed CheckpointResult.
+
+    Verifies the post-C-2 tuple (subprocess.SubprocessError, OSError,
+    ValueError, httpx.HTTPStatusError) without depending on incidental
+    inheritance relationships (e.g. asyncio.TimeoutError inheriting from
+    OSError in 3.11+).
+    """
+    orch = _make_orch(tmp_path, snapshot_side_effect=exc_factory())
     result = await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
+    orch._forward_to.assert_not_awaited()
+    assert result.fired is False
     assert result.error is not None
-    for forbidden in ("/internal/secrets", "SECRET", "token=", "git diff exploded"):
-        assert forbidden not in result.error, (
-            f"result.error leaked detail: {forbidden!r} in {result.error!r}"
-        )
-    # The exception type name is non-PII and remains useful for triage.
-    assert "RuntimeError" in result.error
+    assert "snapshot failed (transient):" in result.error
+    # str(exc) MUST NOT leak into result.error.
+    assert "bad patch hunk" not in result.error
+    assert "git diff timeout" not in result.error
+    assert orch.metrics.failures.get(metric_key) == 1
+
+
+@pytest.mark.unit
+async def test_snapshot_asyncio_timeout_is_handled_by_outer_budget(
+    tmp_path: Path,
+) -> None:
+    """asyncio.TimeoutError is NOT in the post-C-2 narrow tuple. When
+    snapshot.capture() raises it, the inner try/except does not catch it;
+    it propagates to the outer asyncio.wait_for budget, which converts it
+    to an `orchestrator_timeout` fail-closed result.
+
+    This proves C-2 removed asyncio.TimeoutError from the narrow tuple
+    without breaking the outer-budget guarantee: the timeout is still
+    handled, just one frame up.
+    """
+    orch = _make_orch(
+        tmp_path,
+        snapshot_side_effect=asyncio.TimeoutError(),
+        run_timeout=0.5,
+    )
+    result = await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
+    orch._forward_to.assert_not_awaited()
+    assert result.fired is False
+    assert result.decision_reason == "orchestrator_timeout"
+    assert result.error == "orchestrator timeout"
+    # The outer budget MUST be the one that incremented the metric.
+    assert orch.metrics.failures.get("orchestrator_timeout") == 1
+    # The inner transient branch must NOT have fired.
+    assert orch.metrics.failures.get("snapshot_transient", 0) == 0
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "exc_factory",
+    [
+        pytest.param(lambda: TypeError("NoneType has no attribute 'x'"), id="TypeError"),
+        pytest.param(lambda: AttributeError("'NoneType' object has no attribute 'x'"), id="AttributeError"),
+        pytest.param(lambda: KeyError("missing-snapshot-key"), id="KeyError"),
+    ],
+)
+async def test_snapshot_programming_error_propagates(
+    tmp_path: Path, exc_factory,
+) -> None:
+    """C-3: programming errors from snapshot.capture() MUST propagate to
+    the caller. The old catch-all (lines 207-217 of pre-fix orchestrator)
+    swallowed them and stored them in result.error. After the fix, they
+    re-raise out of run_checkpoint unchanged.
+
+    The test captures the exception at the run_checkpoint boundary so
+    we know the full propagation chain (including the outer asyncio.wait_for
+    at line 148) preserves the original exception.
+    """
+    exc = exc_factory()
+    orch = _make_orch(tmp_path, snapshot_side_effect=exc)
+    with pytest.raises(type(exc)) as excinfo:
+        await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
+    # The original exception reaches the caller verbatim.
+    assert str(excinfo.value) == str(exc)
+    # No spurious transient metric.
+    assert orch.metrics.failures.get("snapshot_transient", 0) == 0
+    # No spurious unexpected metric either (the catch-all that incremented
+    # `snapshot_unexpected` is gone).
+    assert orch.metrics.failures.get("snapshot_unexpected", 0) == 0
 
 
 # --- Finding 2: fail-open-resource-cap ---------------------------------------
@@ -519,3 +654,53 @@ async def test_eot_inner_idle_timeout_caps_at_60s_default_budget(tmp_path: Path)
     orch._detector.wait_until_idle.assert_awaited_once()
     call_kwargs = orch._detector.wait_until_idle.await_args.kwargs
     assert call_kwargs["timeout"] == pytest.approx(60.0)
+
+
+# --- I-4: pin retry backoff duration -----------------------------------------
+# _forward_with_retry sleeps 0.5s between the first 5xx attempt and the second
+# attempt. A regression that drops the sleep or changes it to 60s would still
+# pass the retry-count tests; this test pins the exact duration.
+
+
+@pytest.mark.unit
+async def test_forward_to_5xx_uses_500ms_backoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """I-4: the 5xx retry path must sleep exactly 0.5s between attempts.
+
+    monkeypatch asyncio.sleep to record the duration and yield to the event
+    loop without actually sleeping. Asserts the recorded duration is exactly
+    0.5s — neither 0 (regression: sleep dropped) nor 60s (regression: wrong
+    value), nor any other value.
+    """
+    # Capture the real sleep BEFORE patching so the recording sleep can
+    # yield without recursing into the patched version.
+    real_sleep = asyncio.sleep
+    sleep_durations: list[float] = []
+
+    async def recording_sleep(seconds: float) -> None:
+        sleep_durations.append(seconds)
+        # Yield to the event loop so the retry logic can continue without
+        # actually sleeping. real_sleep is a binding to the original
+        # function captured before the monkeypatch.
+        await real_sleep(0)
+
+    monkeypatch.setattr(asyncio, "sleep", recording_sleep)
+
+    orch = _make_orch(tmp_path)
+    request = httpx.Request("POST", "http://localhost:8678/mcp")
+    response_5xx = httpx.Response(503, request=request)
+    orch._forward_to.side_effect = [
+        httpx.HTTPStatusError("503", request=request, response=response_5xx),
+        None,  # second call succeeds
+    ]
+
+    result = await orch.run_checkpoint(phase=CheckpointPhase.END_OF_TASK)
+
+    # Exactly one sleep call, exactly 0.5s.
+    assert sleep_durations == [0.5], (
+        f"expected single 0.5s backoff, got {sleep_durations!r}"
+    )
+    # The retry actually succeeded.
+    assert orch._forward_to.await_count == 2
+    assert result.fired is True

@@ -10,6 +10,7 @@ Per spec invariants:
 from __future__ import annotations
 
 import asyncio
+import subprocess
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,7 +33,17 @@ if TYPE_CHECKING:
 _log = get_logger(__name__)
 
 ForwardFn = Callable[["CheckpointResult"], Awaitable[None]]
-TransientForwardError = (httpx.HTTPStatusError, OSError, asyncio.TimeoutError)
+# Narrow tuple per spec: subprocess + OS + ValueError + httpx 5xx are the
+# transient errors the snapshot step may retry against. asyncio.TimeoutError
+# is intentionally absent — the outer asyncio.wait_for budget (line 113)
+# catches the run timeout independently, and nested asyncio.TimeoutError
+# from snapshot.capture() is a programming error that must propagate.
+TransientForwardError = (
+    subprocess.SubprocessError,
+    OSError,
+    ValueError,
+    httpx.HTTPStatusError,
+)
 
 # Default outer budget for the full checkpoint cycle. The detector's
 # wait_until_idle timeout (60s by default) is nested inside, so this must
@@ -167,6 +178,15 @@ class CheckpointOrchestrator:
         try:
             snapshot = self._snapshot.capture(label=phase.value)
         except TransientForwardError as exc:
+            # asyncio.TimeoutError is a subclass of OSError in Python 3.11+
+            # (asyncio.TimeoutError is an alias for the built-in TimeoutError,
+            # which inherits from OSError). The outer asyncio.wait_for budget
+            # catches run timeouts independently; a nested timeout leaking
+            # out of snapshot.capture() is a programming error and must
+            # propagate per spec invariant. Re-raise explicitly so OSError
+            # membership in the tuple does not also catch TimeoutError.
+            if isinstance(exc, asyncio.TimeoutError):
+                raise
             self._metrics.inc_failure("snapshot_transient")
             _log.error(
                 "checkpoint_snapshot_failed_transient",
@@ -174,17 +194,11 @@ class CheckpointOrchestrator:
             )
             result.error = safe_error_message("snapshot failed (transient):", exc)
             return result
-        except Exception as exc:  # noqa: BLE001 — narrow by type, not catch-all
-            self._metrics.inc_failure("snapshot_unexpected")
-            # exc_info=True preserves the full traceback (incl. str(exc)) in the
-            # captured traceback block. The structured extra dict is scrubbed so
-            # the URL/body cannot leak as a flat JSON field.
-            _log.exception(
-                "checkpoint_snapshot_failed_unexpected",
-                extra=safe_transient_info(exc),
-            )
-            result.error = safe_error_message("snapshot failed (unexpected):", exc)
-            return result
+        # Programming errors (TypeError, AttributeError, KeyError, etc.) from
+        # self._snapshot.capture() propagate per spec invariant "Failures
+        # fail closed; programming errors propagate". The orchestrator's
+        # caller (MCP checkpoint tool / lifespan tick) handles propagation
+        # at its own boundary.
 
         result.snapshot_id = snapshot.snapshot_id
 
