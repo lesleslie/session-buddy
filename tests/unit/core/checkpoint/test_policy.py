@@ -132,3 +132,72 @@ def test_working_tree_inspector_is_git_repo(tmp_path: Path) -> None:
     repo = init_repo(tmp_path)
     assert WorkingTreeInspector(repo).is_git_repo() is True
     assert WorkingTreeInspector(tmp_path / "not-a-repo").is_git_repo() is False
+
+
+@pytest.mark.unit
+def test_working_tree_inspector_seconds_since_last_commit_real_repo(tmp_path: Path) -> None:
+    """Coverage: lines 50-63 (seconds_since_last_commit with valid iso date)."""
+    repo = init_repo(tmp_path)
+    secs = WorkingTreeInspector(repo).seconds_since_last_commit()
+    # init_repo creates one commit; just-merged, so should be a small non-negative value.
+    assert secs >= 0.0
+
+
+@pytest.mark.unit
+def test_working_tree_inspector_seconds_since_last_commit_returns_zero_when_no_head(
+    tmp_path: Path,
+) -> None:
+    """Coverage: line 57 (empty stdout → 0.0)."""
+    repo = tmp_path / "empty-repo"
+    repo.mkdir()
+    subprocess_run = __import__("subprocess").run
+    subprocess_run(["git", "init", "-b", "main"], cwd=repo, check=True, capture_output=True)
+    subprocess_run(["git", "config", "user.email", "t@t"], cwd=repo, check=True)
+    subprocess_run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    # Empty repo, no commits: `git log -1 --format=%aI` writes nothing to stdout.
+    assert WorkingTreeInspector(repo).seconds_since_last_commit() == 0.0
+
+
+@pytest.mark.unit
+def test_working_tree_inspector_dirty_file_count_empty_stdout(tmp_path: Path) -> None:
+    """Coverage: line 67 (git status --porcelain returns non-zero rc → 0)."""
+    repo = tmp_path / "not-a-git-repo"
+    repo.mkdir()
+    assert WorkingTreeInspector(repo).dirty_file_count() == 0
+
+
+@pytest.mark.unit
+def test_working_tree_inspector_dirty_file_count_with_changes(tmp_path: Path) -> None:
+    """Coverage: line 74 (dirty file count > 0)."""
+    repo = init_repo(tmp_path)
+    (repo / "a.py").write_text("a\n")
+    (repo / "b.py").write_text("b\n")
+    (repo / "c.py").write_text("c\n")
+    assert WorkingTreeInspector(repo).dirty_file_count() == 3
+
+
+@pytest.mark.unit
+def test_time_elapsed_signal_is_active_and_describe(tmp_path: Path) -> None:
+    """Coverage: lines 88, 91 (TimeElapsedSignal.is_active + describe)."""
+    from session_buddy.checkpoint.policy import TimeElapsedSignal
+
+    inspector = WorkingTreeInspector(tmp_path)
+    sig = TimeElapsedSignal(min_seconds=0.0)
+    assert sig.is_active(inspector) is True  # always active at threshold 0
+    assert "0s since last commit" in sig.describe()
+
+
+@pytest.mark.unit
+def test_end_of_task_disabled_when_always_end_false(tmp_path: Path) -> None:
+    """Coverage: line 135 (always_end=False branch)."""
+    detector = SubagentDetector(tmp_path, LockfileSignalSource(tmp_path / "x.lock"))
+    policy = CheckpointPolicy(
+        midpoint_enabled=True,
+        midpoint_criteria=MidpointCriteria(signals=[]),
+        subagent_detector=detector,
+        working_tree=WorkingTreeInspector(tmp_path),
+        always_end=False,
+    )
+    decision = policy.decide(phase=CheckpointPhase.END_OF_TASK)
+    assert decision.should_fire is False
+    assert "end_of_task disabled" in decision.reason
