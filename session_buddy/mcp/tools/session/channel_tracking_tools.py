@@ -25,7 +25,10 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Self
 
-from session_buddy.channel.state_writer import record_channel_session_state
+from session_buddy.channel.state_writer import (
+    _channel_session_state_v1_enabled,
+    record_channel_session_state,
+)
 from session_buddy.mcp.auth import require_auth
 from session_buddy.mcp.event_models import ChannelSessionEvent, ChannelSessionResult
 
@@ -309,14 +312,17 @@ def register_channel_tracking_tools(
             # S-CHANNEL-DURABLE wiring: record validated durable state for
             # each lifecycle event. The producer (state_writer) handles
             # substrate failures under the G6 contract — we do not wrap it.
+            # V1 flag check lives at this call site (not inside the producer
+            # body) so the producer stays a pure validate-and-persist function.
             last_event_at = _parse_event_timestamp(event.timestamp)
-            record_channel_session_state(
-                channel_type=channel_type,
-                channel_id=channel_id,
-                sender_id=sender_id,
-                last_event_at=last_event_at,
-                metadata=event.metadata,
-            )
+            if _channel_session_state_v1_enabled():
+                record_channel_session_state(
+                    channel_type=channel_type,
+                    channel_id=channel_id,
+                    sender_id=sender_id,
+                    last_event_at=last_event_at,
+                    metadata=event.metadata,
+                )
 
             # Phase 2: fire-and-forget Dhara time-series publish
             if dhara_publisher is not None and session_id is not None:

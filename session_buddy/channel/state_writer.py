@@ -12,6 +12,22 @@ backend outage MUST NOT crash the channel tracking path, which
 would drop the event handler's heartbeat and (worse) cascade into
 the calling nanobot. Validation failures DO propagate — those
 indicate a programming error in the caller.
+
+Substrate-compat handling mirrors the consumer at
+``session_buddy/mcp_tools/channel_tools.py``: stamp the substrate
+attribute at import time if missing, then resolve it dynamically
+on every call via ``getattr(dhara, "put", None)``. This keeps the
+producer decoupled from which persistence backend (if any) is
+wired at runtime, while still permitting tests to inject a
+synthetic backend via ``monkeypatch.setattr(state_writer.dhara,
+"put", mock)``.
+
+The feature flag (``CHANNEL_SESSION_STATE_V1_ENABLED``) is
+consulted at the *call site* — see
+``session_buddy/mcp/tools/session/channel_tracking_tools.py:track_channel_session``.
+The producer itself does not read the env var; this keeps the
+producer a pure validate-and-persist function whose only side
+effect is the substrate write.
 """
 
 from __future__ import annotations
@@ -26,16 +42,33 @@ from oneiric.core.logging import get_logger
 logger = get_logger(__name__)
 
 
-# Feature flag — defaults on. Flip to False to disable durable
-# channel state recording entirely (no validation, no persistence).
-S_CHANNEL_DURABLE_V1_ENABLED: bool = True
+def _channel_session_state_v1_enabled() -> bool:
+    """Read the CHANNEL_SESSION_STATE_V1_ENABLED env var (default 'true').
+
+    Mirrors ``_approval_log_v1_enabled`` at
+    ``mahavishnu/core/approval_manager.py:22-30``. The flag is
+    consulted at the call site
+    (``channel_tracking_tools.py:track_channel_session``); this
+    helper is exported alongside ``record_channel_session_state``
+    so the call site can import both from the same module.
+    Only the literal ``"false"`` (case-insensitive) disables the
+    gate — any other value (including unset) keeps it on, matching
+    the consumer pattern's conservative default-on posture.
+    """
+    import os
+
+    return os.environ.get("CHANNEL_SESSION_STATE_V1_ENABLED", "true").lower() != "false"
 
 
-# Resolved at import time so tests can monkeypatch this module's
-# attribute. The Bodai dhara 0.14.0 distribution ships without a
-# persistence backend wired, so ``dhara.put`` is typically absent;
-# we treat that as a no-op rather than blowing up at import.
-_dhara_put: Any = getattr(dhara, "put", None)
+# Substrate-compat stamp (mirrors consumer at
+# ``session_buddy/mcp_tools/channel_tools.py``:36-37). The installed
+# Bodai dhara 0.14.0 ships without a persistence backend wired, so
+# ``dhara.put`` is typically absent. We stamp it as ``None`` at
+# import time so the call-time getattr gate can short-circuit
+# without raising. Tests inject a synthetic ``put`` by stamping the
+# live ``dhara`` module attribute.
+if not hasattr(dhara, "put"):  # pragma: no cover - substrate introspection
+    dhara.put = None  # type: ignore[attr-defined]
 
 
 def record_channel_session_state(
@@ -44,18 +77,20 @@ def record_channel_session_state(
     sender_id: str,
     last_event_at: datetime,
     metadata: dict[str, Any] | None = None,
-) -> ChannelSessionState | None:
+) -> ChannelSessionState:
     """Validate the channel session state payload and persist via dhara.put.
 
-    Returns the validated :class:`ChannelSessionState` struct on
-    success, or ``None`` when the feature flag is disabled.
+    Returns the validated :class:`ChannelSessionState` struct. The
+    caller (``channel_tracking_tools.py:track_channel_session``)
+    owns the feature-flag gate; this function unconditionally
+    validates and (best-effort) persists.
 
     Persistence errors are logged and swallowed (G6 contract);
     validation errors propagate as :class:`SchemaValidationError`.
+    When ``dhara.put`` is unbound (no persistence backend wired),
+    a structured warning is emitted so operators can observe the
+    no-op in Dhara/Akosha traces without the call crashing.
     """
-    if not S_CHANNEL_DURABLE_V1_ENABLED:
-        return None
-
     payload: dict[str, Any] = {
         "channel_type": channel_type,
         "channel_id": channel_id,
@@ -65,10 +100,11 @@ def record_channel_session_state(
     }
     validated = validate("channel_session_state", payload)
 
-    if _dhara_put is not None:
+    put: Any = getattr(dhara, "put", None)
+    if put is not None:
         key = f"channel-sessions/{channel_id}/{sender_id}"
         try:
-            _dhara_put(key, validated)
+            put(key, validated)
         except Exception as exc:  # noqa: BLE001 — G6 contract: substrate
             # failures must not crash the channel tracking path.
             logger.warning(
@@ -80,5 +116,15 @@ def record_channel_session_state(
                     "exception_type": type(exc).__name__,
                 },
             )
+    else:
+        logger.warning(
+            "channel_session_state_persistence_skipped",
+            extra={
+                "channel_id": channel_id,
+                "sender_id": sender_id,
+                "reason": "dhara.put_unbound",
+            },
+        )
 
     return validated
+
