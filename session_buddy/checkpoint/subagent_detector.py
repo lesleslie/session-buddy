@@ -26,7 +26,19 @@ class SignalSource(Protocol):
 
 
 class LockfileSignalSource:
-    """Lockfile-backed SignalSource. Lockfile presence == subagent active."""
+    """Lockfile-backed SignalSource. Lockfile presence == subagent active.
+
+    The .write() method is intentionally unwired in this codebase; the
+    producer (creating <working_dir>/.session-buddy/subagent.lock when a
+    subagent starts) is owned by the subagent-runtime team and tracked
+    externally. Until the producer lands, the re-check branch
+    (`subagent_active_during_capture`) is effectively a no-op; the
+    primary `wait_until_idle` gate still protects end-of-task commits
+    because it uses the same lockfile with fail-open → True semantics.
+
+    See C-1 in docs/superpowers/plans/2026-08-10-auto-checkpoint-implementation-summary.md
+    for the follow-up plan.
+    """
 
     def __init__(self, lockfile_path: Path) -> None:
         self._path = lockfile_path

@@ -418,6 +418,13 @@ async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
                     await _dhara_publisher.aclose()
 
 
+# CAUTION (I-10): This module-load side-effect is what prevents
+# `_lifespan_with_dhara_cleanup(mcp)` from recursing into itself — it
+# captures `mcp._lifespan` (the FastMCP default) at import time and
+# delegates to that captured reference. Calling the wrapping function
+# directly would recurse indefinitely. The wrap is intentionally one-shot
+# at module load; any future lifespan override must follow the same
+# capture-then-delegate pattern, not nest re-invocations.
 mcp._lifespan = _lifespan_with_dhara_cleanup
 
 __all__ = ["mcp"]
