@@ -121,7 +121,16 @@ def test_restore_detects_drift_between_parent_and_current_head(tmp_path: Path) -
     result = SnapshotMechanism(repo, tmp_path / "snaps").restore(snap)
     # Spec: drift is a WARN, not a fail. The restore itself may still succeed.
     assert result.drift_detected is True
-    assert parent != snap.parent_commit or parent != ""  # drift was real
+    # The drifted commit moved HEAD past ``parent`` — the snapshot's
+    # ``parent_commit`` is the pre-drift SHA, so the orchestrator's
+    # drift check must observe current_head != parent_commit. We assert
+    # that invariant directly (rather than relying on the redundant
+    # ``snap.parent_commit`` comparison) so this test would fail if
+    # drift detection were broken.
+    current_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    assert current_head != parent  # drift was real
 
 
 @pytest.mark.unit
