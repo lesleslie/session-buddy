@@ -175,3 +175,5 @@ tests/archived/
 *.backup
 *.bak
 .worktrees/
+
+.superprofits/
