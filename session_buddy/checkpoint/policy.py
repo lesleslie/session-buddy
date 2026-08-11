@@ -15,6 +15,7 @@ from typing import Protocol
 
 from oneiric.core.logging import get_logger
 
+from session_buddy.checkpoint.scrubbing import safe_transient_info
 from session_buddy.checkpoint.subagent_detector import SubagentDetector
 
 _log = get_logger(__name__)
@@ -154,7 +155,7 @@ class CheckpointPolicy:
             except Exception as exc:  # noqa: BLE001 — per-signal fail-closed per spec
                 _log.error(  # ERROR not WARNING per integration-risk L4
                     "policy_signal_evaluation_failed",
-                    extra={"signal": signal.describe(), "error": str(exc)},
+                    extra={"signal": signal.describe(), **safe_transient_info(exc)},
                 )
 
         return PolicyDecision(should_fire=False, reason="no midpoint signals active")

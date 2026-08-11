@@ -11,6 +11,8 @@ from pathlib import Path
 
 from oneiric.core.logging import get_logger
 
+from session_buddy.checkpoint.scrubbing import safe_transient_info
+
 _log = get_logger(__name__)
 
 
@@ -34,7 +36,7 @@ class SnapshotCleanupTask:
                     path.unlink()
                     removed += 1
             except (FileNotFoundError, OSError) as exc:
-                _log.warning("snapshot_cleanup_skip", extra={"path": str(path), "error": str(exc)})
+                _log.warning("snapshot_cleanup_skip", extra={"path": str(path), **safe_transient_info(exc)})
         if removed:
             _log.info("snapshot_cleanup_completed", extra={"removed": removed})
         return removed
