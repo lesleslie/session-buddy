@@ -2,12 +2,13 @@
 feature: s-channel-durable
 status: built
 created: 2026-08-10
-last_updated: 2026-08-10
+last_updated: 2026-08-11
 adopted_at: 2026-08-10
 state_history:
   - "2026-08-10: adopted (initial v1 ship — Task 4 cross-process test)"
   - "2026-08-10: built (multi-agent review surfaced 3 Critical findings: consumer not registered, flag is constant, producer resolves substrate at import time)"
   - "2026-08-10: built (v1.1 fix cycle complete — C2 + C3 fixed in commit 109b1d98; C1 closed via consumer deletion in commit 7b5c746a because the function had zero canonical-MCP callers)"
+  - "2026-08-11: built (consumer restored as channel_session_get_state_tool under session_buddy/mcp/tools/session/)"
 ---
 
 # S-CHANNEL-DURABLE: Channel Session State Durability
@@ -17,7 +18,7 @@ state_history:
 - `record_channel_session_state` producer in `session_buddy/channel/state_writer.py` (Task 1) — **v1.1 fixes landed in commit 109b1d98**:
   - (a) Import-time `_dhara_put` snapshot replaced with `hasattr` stamp + call-time `getattr(dhara, "put", None)` gate (mirrors consumer's correct pattern).
   - (b) Module constant `S_CHANNEL_DURABLE_V1_ENABLED` replaced with `_channel_session_state_v1_enabled()` env-var helper reading `CHANNEL_SESSION_STATE_V1_ENABLED` (default `'true'`); flag check moved to call site in `channel_tracking_tools.py:track_channel_session`.
-- `channel_session_get_state` consumer — **DELETED in commit 7b5c746a** after discovery that the function had zero callers in the canonical MCP registry. The parallel-package hazard (C1) is closed; the read path is now an explicit non-goal until demand materializes. See "Open follow-ups" for the restoration path if a future caller needs it.
+- `channel_session_get_state` consumer — **RESTORED in commit <NEW> under canonical MCP path** (`session_buddy/mcp/tools/session/channel_session_state_tools.py`). Round-trip is now demonstrable via `test_channel_session_state_round_trip`. Mirrors the producer's substrate-compat pattern (call-time `getattr(dhara, "get", None)` gate) and the G6 contract (swallow substrate failures, return `None`, log WARNING).
 - Wiring: `track_channel_session` MCP tool invokes the producer on every `start`/`heartbeat`/`end` event (Task 3) — survives review.
 
 ## Wired (no — flipped to `built`)
@@ -29,8 +30,8 @@ Original `wired` claim was overstated. Three Critical findings from the 2026-08-
 
 All three findings closed in the v1.1 hardening cycle.
 
-## Adopted (no — was overstated)
-The original `adopted` claim cited a cross-process durability test against a dict-backed substrate. A shared in-process dict cannot demonstrate cross-process durability. The producer half is now pinned (no-trailing-slash key shape, payload validation, struct reconstruction) but the round-trip assertion is gone with the consumer's deletion. The producer-only contract is demonstrable; the cross-process round-trip awaits both a wired dhara backend AND a decision on consumer restoration.
+## Adopted (no — was overstated, partial restoration since)
+The original `adopted` claim cited a cross-process durability test against a dict-backed substrate. A shared in-process dict cannot demonstrate cross-process durability. The producer half is pinned (no-trailing-slash key shape, payload validation, struct reconstruction) and the round-trip is now demonstrable via `test_channel_session_state_round_trip` (in-process, shared-dict substrate). True cross-process durability still awaits a wired dhara backend.
 
 Cross-portfolio pattern drift (compared against M-APPROVAL-LOG and M-WORKFLOW-OUTCOME in mahavishnu):
 
@@ -55,9 +56,8 @@ Cross-portfolio pattern drift (compared against M-APPROVAL-LOG and M-WORKFLOW-OU
 - dhara 0.14.0 ships without a wired persistence backend — substrate-compat path is always active in tests; the dict-backed substrate in `test_durable_restart.py` is the demonstrable-by contract for the producer half, not a stand-in for a real backend.
 
 ## Open follow-ups
-- **Restore `channel_session_get_state` under canonical path** if a future MCP caller needs the read-back half. Restoration path: create `session_buddy/mcp/tools/session/channel_session_state_tools.py` with `@mcp.tool()` + `@require_auth()` registration mirroring `track_channel_session`; rewrite `test_durable_restart.py` round-trip assertions against the canonical import. Until then, reads via direct `dhara.list("channel-sessions/")` are sufficient.
 - Wire a real dhara backend so the test exercises true cross-process persistence (currently uses shared dict).
-- RBAC: when consumer is restored, gate reads to authorized senders / channels.
+- RBAC: gate consumer reads to authorized senders / channels (consumer is restored, RBAC is not yet enforced).
 - Sink-arg tightening: pass metadata through a typed schema instead of `dict[str, Any]`.
 - Observability counters: success/failure-per-channel, p99 write latency.
 

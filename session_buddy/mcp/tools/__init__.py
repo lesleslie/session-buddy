@@ -84,6 +84,9 @@ from .monitoring.workflow_metrics_tools import (
 from .session.admin_shell_tracking_tools import (
     register_admin_shell_tracking_tools,
 )
+from .session.channel_session_state_tools import (
+    register_channel_session_state_tools,
+)
 from .session.channel_tracking_tools import register_channel_tracking_tools
 from .session.crackerjack_tools import (
     register_crackerjack_tools,
@@ -106,6 +109,7 @@ __all__ = [
     "register_bottleneck_tools",
     "register_cache_tools",
     "register_category_tools",
+    "register_channel_session_state_tools",
     "register_channel_tracking_tools",
     "register_code_analysis_tools",
     "register_code_graph_tools",

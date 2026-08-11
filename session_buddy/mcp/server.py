@@ -52,6 +52,7 @@ from .tools import (
     register_akosha_tools,
     register_bottleneck_tools,
     register_cache_tools,
+    register_channel_session_state_tools,
     register_channel_tracking_tools,
     register_code_analysis_tools,  # Tree-sitter integration
     register_code_graph_tools,
@@ -102,6 +103,7 @@ _ALL_REGISTERS: dict[str, Any] = {
     "register_akosha_tools": register_akosha_tools,
     "register_bottleneck_tools": register_bottleneck_tools,
     "register_cache_tools": register_cache_tools,
+    "register_channel_session_state_tools": register_channel_session_state_tools,
     "register_code_analysis_tools": register_code_analysis_tools,
     "register_code_graph_tools": register_code_graph_tools,
     "register_conscious_agent_tools": register_conscious_agent_tools,
