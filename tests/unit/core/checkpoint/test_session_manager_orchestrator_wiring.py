@@ -27,8 +27,25 @@ from session_buddy.core.session_manager import SessionLifecycleManager
 
 
 @pytest.mark.unit
-async def test_lite_mode_bypasses_orchestrator(tmp_path: Path) -> None:
-    """Lite mode never instantiates the orchestrator; legacy path runs."""
+async def test_lite_mode_does_not_construct_any_checkpoint_collaborator(
+    tmp_path: Path,
+) -> None:
+    """Lite mode bypasses the orchestrator — verify by spying on all 5 classes.
+
+    Regression guard (Finding I-3): the legacy indirect check
+    (``perform_git_checkpoint.assert_awaited_once()``) would still pass
+    if a future refactor constructed the orchestrator, ran it, and
+    discarded the result. Subprocess-bound collaborators are expensive
+    — they fork git, stat working trees, and instantiate
+    ``LockfileSignalSource`` — and lite mode MUST pay none of that cost.
+
+    The 5 classes (per the multi-agent review):
+      * ``SubagentDetector``
+      * ``SnapshotMechanism``
+      * ``WorkingTreeInspector``
+      * ``CheckpointPolicy``
+      * ``CheckpointOrchestrator``
+    """
     from session_buddy.modes import LiteMode
 
     real = SessionLifecycleManager.__new__(SessionLifecycleManager)  # bypass __init__
@@ -36,12 +53,119 @@ async def test_lite_mode_bypasses_orchestrator(tmp_path: Path) -> None:
     real.perform_git_checkpoint = AsyncMock(return_value=["legacy-output"])
     real.logger = MagicMock()
 
-    result = await real._checkpoint_with_safety_capture(
-        phase="end_of_task", current_dir=tmp_path, quality_score=80,
-    )
+    with (
+        patch("session_buddy.checkpoint.SubagentDetector") as detector_cls,
+        patch("session_buddy.checkpoint.SnapshotMechanism") as snapshot_cls,
+        patch("session_buddy.checkpoint.WorkingTreeInspector") as inspector_cls,
+        patch("session_buddy.checkpoint.CheckpointPolicy") as policy_cls,
+        patch("session_buddy.checkpoint.CheckpointOrchestrator") as orchestrator_cls,
+    ):
+        result = await real._checkpoint_with_safety_capture(
+            phase="end_of_task", current_dir=tmp_path, quality_score=80,
+        )
 
+    # None of the 5 collaborators may have been instantiated in lite mode.
+    detector_cls.assert_not_called()
+    snapshot_cls.assert_not_called()
+    inspector_cls.assert_not_called()
+    policy_cls.assert_not_called()
+    orchestrator_cls.assert_not_called()
+
+    # Legacy path still runs — the user's end-of-task commit must not be
+    # blocked by lite-mode bypass.
     real.perform_git_checkpoint.assert_awaited_once()
     assert result == ["legacy-output"]
+
+
+@pytest.mark.unit
+async def test_standard_mode_does_construct_checkpoint_orchestrator(
+    tmp_path: Path,
+) -> None:
+    """Positive control: standard mode DOES instantiate the orchestrator.
+
+    Pins the strong-form spies so the lite-mode test cannot pass
+    vacuously (e.g. via a typo in the patch target that masked the
+    collaborator at import time).
+    """
+    from session_buddy.modes import StandardMode
+
+    def _fake_orchestrator(*_a, **_kw):
+        # run_checkpoint must be an AsyncMock because the caller awaits it.
+        m = MagicMock()
+        m.run_checkpoint = AsyncMock(
+            return_value=MagicMock(
+                fired=True,
+                snapshot_id=None,
+                session_buddy_id=None,
+                decision_reason="ok",
+            ),
+        )
+        return m
+
+    real = SessionLifecycleManager.__new__(SessionLifecycleManager)
+    real._mode_config = StandardMode().get_config()  # enable_auto_checkpoint=True
+    real.perform_git_checkpoint = AsyncMock(return_value=["📦 git commit abc123"])
+    real.logger = MagicMock()
+
+    with (
+        patch("session_buddy.checkpoint.SubagentDetector") as detector_cls,
+        patch("session_buddy.checkpoint.SnapshotMechanism") as snapshot_cls,
+        patch("session_buddy.checkpoint.WorkingTreeInspector") as inspector_cls,
+        patch("session_buddy.checkpoint.CheckpointPolicy") as policy_cls,
+        patch(
+            "session_buddy.checkpoint.CheckpointOrchestrator",
+            side_effect=_fake_orchestrator,
+        ) as orchestrator_cls,
+    ):
+        await real._checkpoint_with_safety_capture(
+            phase="end_of_task", current_dir=tmp_path, quality_score=80,
+        )
+
+    # Standard mode constructs the full orchestrator pipeline.
+    detector_cls.assert_called_once()
+    snapshot_cls.assert_called_once()
+    inspector_cls.assert_called_once()
+    policy_cls.assert_called_once()
+    orchestrator_cls.assert_called_once()
+
+
+# --- Finding C-7: module-level validate_orchestrator_working_dir ----------------
+#
+# Before the fix, ``_validate_orchestrator_path`` was a method on
+# ``SessionLifecycleManager``. The MCP lifespan startup could not call it
+# without instantiating a throwaway manager. The fix extracts the body to a
+# module-level function so both call sites share one definition — drift
+# between the two becomes impossible.
+
+
+@pytest.mark.unit
+def test_validate_orchestrator_working_dir_accepts_valid_dir(tmp_path: Path) -> None:
+    """A real existing directory is accepted and returned resolved."""
+    from session_buddy.core.session_manager import validate_orchestrator_working_dir
+
+    result = validate_orchestrator_working_dir(tmp_path)
+    assert result is not None
+    assert isinstance(result, Path)
+    assert result == tmp_path.resolve()
+
+
+@pytest.mark.unit
+def test_validate_orchestrator_working_dir_rejects_nonexistent() -> None:
+    """A non-existent path returns None — no orchestrator should be built."""
+    from session_buddy.core.session_manager import validate_orchestrator_working_dir
+
+    bogus = Path("/nonexistent/path/xyz/abc-123-no-such-dir")
+    assert validate_orchestrator_working_dir(bogus) is None
+
+
+@pytest.mark.unit
+def test_validate_orchestrator_working_dir_rejects_file_not_dir(tmp_path: Path) -> None:
+    """A path that exists but is a regular file returns None."""
+    from session_buddy.core.session_manager import validate_orchestrator_working_dir
+
+    regular_file = tmp_path / "just_a_file.txt"
+    regular_file.write_text("not a directory")
+    assert validate_orchestrator_working_dir(regular_file) is None
 
 
 @pytest.mark.unit

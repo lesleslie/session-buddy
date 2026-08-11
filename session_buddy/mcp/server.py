@@ -34,6 +34,13 @@ from .tools.session.channel_tracking_tools import _make_dhara_publisher
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# Path validation (Finding C-7): shared with SessionLifecycleManager so the
+# two call sites cannot drift. Imported at module level (not lazily) because
+# the symbol is referenced in the lifespan closure below.
+from session_buddy.core.session_manager import validate_orchestrator_working_dir  # noqa: E402
+from session_buddy.checkpoint.pending import load_pending as _load_pending  # noqa: E402
+
+# ---------------------------------------------------------------------------
 # Import every registration function that *could* be called.
 # Keeping them all imported avoids import errors when a profile references
 # a function that would otherwise be lazy-loaded.
@@ -197,6 +204,16 @@ from session_buddy.checkpoint import (  # noqa: E402
 )
 
 
+class _OrchestratorCwdInvalid(Exception):
+    """Raised when ``os.getcwd()`` fails validation inside the lifespan.
+
+    Finding C-7: The AutoCheckpointLoop's tick error handler catches this
+    and logs it; the orchestrator is never constructed. We use a
+    dedicated exception class (not a stringly-typed RuntimeError) so the
+    ``auto_checkpoint_loop_tick_error`` log line carries a stable type.
+    """
+
+
 async def _noop_forward(_result: Any) -> None:
     """Analytics-only tick: forward_to is a no-op. Snapshot was already captured."""
     return None
@@ -207,8 +224,33 @@ async def _consume_pending(marker: Path) -> None:
 
     Uses the shared ``consume_pending_marker`` helper so the lifespan loop
     and ``SessionLifecycleManager.end_session`` behave identically.
+
+    Finding C-7: the pending marker's ``working_dir`` is read from
+    disk and would otherwise flow directly into ``_build_orchestrator``
+    without validation. A stale or hostile marker pointing at a path
+    that has since vanished (or never existed) would still construct
+    ``LockfileSignalSource`` there. Validate first; if the path is not
+    a usable directory, consume the marker so we don't keep retrying
+    it, and skip orchestrator construction.
     """
     from session_buddy.checkpoint import consume_pending_marker
+
+    pending = _load_pending(marker)
+    if pending is None:
+        # Marker could not be loaded (corrupt JSON etc.); drop it.
+        marker.unlink(missing_ok=True)
+        return
+
+    validated = validate_orchestrator_working_dir(pending.working_dir, logger=logger)
+    if validated is None:
+        logger.warning(
+            "checkpoint_orchestrator_pending_path_invalid marker=%s working_dir=%s",
+            marker,
+            pending.working_dir,
+        )
+        # Drop the marker so we don't keep retrying an invalid path.
+        marker.unlink(missing_ok=True)
+        return
 
     async def _build(wd: Path) -> CheckpointOrchestrator:
         return _build_orchestrator(
@@ -341,9 +383,22 @@ async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
     auto_loop: AutoCheckpointLoop | None = None
     async with _original_lifespan(app):
         if loop_enabled and effective_interval > 0:
+            # Finding C-7: validate cwd before it reaches the orchestrator.
+            # Without this, a ``cd /`` would let ``LockfileSignalSource``
+            # create ``/.session-buddy/subagent.lock`` at filesystem root.
+            # The validation function is module-level so it cannot drift
+            # from ``SessionLifecycleManager._validate_orchestrator_path``
+            # (both share one definition).
+
+            def _validate_or_raise() -> Path:
+                validated = validate_orchestrator_working_dir(logger=logger)
+                if validated is None:
+                    raise _OrchestratorCwdInvalid(os.getcwd())
+                return validated
+
             auto_loop = AutoCheckpointLoop(
                 interval_s=effective_interval,
-                working_dir_resolver=lambda: Path(os.getcwd()),
+                working_dir_resolver=_validate_or_raise,
                 orch_factory=lambda wd: _build_orchestrator(
                     wd, midpoint_criteria, forward_to_factory
                 ),

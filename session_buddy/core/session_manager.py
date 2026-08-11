@@ -38,6 +38,59 @@ def get_session_logger() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
+def validate_orchestrator_working_dir(
+    path: Path | str | None = None,
+    *,
+    logger: logging.Logger | None = None,
+) -> Path | None:
+    """Validate ``path`` is a usable working directory for the orchestrator.
+
+    Module-level companion to
+    :meth:`SessionLifecycleManager._validate_orchestrator_path`. The
+    MCP lifespan startup calls this directly — instantiating a
+    throwaway ``SessionLifecycleManager`` solely to validate a path
+    would be a code smell. Both call sites MUST share one definition
+    so they cannot drift (Finding C-7).
+
+    Args:
+        path: Candidate directory. When ``None``, ``Path(os.getcwd())``
+            is used. ``str`` inputs are coerced to ``Path``.
+        logger: Optional logger for the WARNING on validation failure.
+            Defaults to the module-level session logger so callers
+            without a logger still see the rejection in observability.
+
+    Returns:
+        The resolved :class:`Path` on success; ``None`` if the path
+        does not exist, is not a directory, or fails to resolve. The
+        caller MUST treat ``None`` as "skip orchestrator construction."
+    """
+    log = logger if logger is not None else get_session_logger()
+
+    if path is None:
+        candidate = Path(os.getcwd())
+    else:
+        candidate = Path(path)
+
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (FileNotFoundError, OSError, RuntimeError) as exc:
+        log.warning(
+            "checkpoint_orchestrator_path_invalid path=%s error=%s",
+            str(candidate),
+            type(exc).__name__,
+        )
+        return None
+
+    if not resolved.is_dir():
+        log.warning(
+            "checkpoint_orchestrator_path_not_dir path=%s",
+            str(resolved),
+        )
+        return None
+
+    return resolved
+
+
 class SessionLifecycleManager:
     """Manages session lifecycle operations."""
 
@@ -565,39 +618,20 @@ class SessionLifecycleManager:
     def _validate_orchestrator_path(self, current_dir: Path) -> Path | None:
         """Validate ``current_dir`` before passing to the orchestrator.
 
-        Security (MEDIUM finding from
-        ``.superpowers/sdd/2026-08-10-auto-checkpoint-safety-and-trigger``):
-        the orchestrator's ``SubagentDetector``,
-        ``SnapshotMechanism``, and ``WorkingTreeInspector`` read
-        filesystem state from ``current_dir``. An unvalidated path
-        could feed hostile state into the capture path. We use
-        ``Path.resolve(strict=True)`` (raises ``FileNotFoundError`` for
-        non-existent paths) plus an is-dir check to fail fast.
+        Thin wrapper around the module-level
+        :func:`validate_orchestrator_working_dir`. Both call sites must
+        remain equivalent (Finding C-7). The orchestrator's
+        ``SubagentDetector``, ``SnapshotMechanism``, and
+        ``WorkingTreeInspector`` read filesystem state from
+        ``current_dir``; an unvalidated path could feed hostile state
+        into the capture path.
 
         Returns:
             The resolved ``Path`` on success; ``None`` if validation
             fails. A WARNING is logged on failure so operators can
             see the rejection in observability.
-
         """
-        try:
-            resolved = current_dir.resolve(strict=True)
-        except (FileNotFoundError, OSError, RuntimeError) as exc:
-            self.logger.warning(
-                "checkpoint_orchestrator_path_invalid path=%s error=%s",
-                str(current_dir),
-                type(exc).__name__,
-            )
-            return None
-
-        if not resolved.is_dir():
-            self.logger.warning(
-                "checkpoint_orchestrator_path_not_dir path=%s",
-                str(resolved),
-            )
-            return None
-
-        return resolved
+        return validate_orchestrator_working_dir(current_dir, logger=self.logger)
 
     async def _schedule_git_maintenance(
         self,
