@@ -18,7 +18,7 @@ state_history:
 - `record_channel_session_state` producer in `session_buddy/channel/state_writer.py` (Task 1) — **v1.1 fixes landed in commit 109b1d98**:
   - (a) Import-time `_dhara_put` snapshot replaced with `hasattr` stamp + call-time `getattr(dhara, "put", None)` gate (mirrors consumer's correct pattern).
   - (b) Module constant `S_CHANNEL_DURABLE_V1_ENABLED` replaced with `_channel_session_state_v1_enabled()` env-var helper reading `CHANNEL_SESSION_STATE_V1_ENABLED` (default `'true'`); flag check moved to call site in `channel_tracking_tools.py:track_channel_session`.
-- `channel_session_get_state` consumer — **RESTORED in commit <NEW> under canonical MCP path** (`session_buddy/mcp/tools/session/channel_session_state_tools.py`). Round-trip is now demonstrable via `test_channel_session_state_round_trip`. Mirrors the producer's substrate-compat pattern (call-time `getattr(dhara, "get", None)` gate) and the G6 contract (swallow substrate failures, return `None`, log WARNING).
+- `channel_session_get_state` consumer — **RESTORED in commit f18b71dd under canonical MCP path** (`session_buddy/mcp/tools/session/channel_session_state_tools.py`). Round-trip is now demonstrable via `test_channel_session_state_round_trip`. Mirrors the producer's substrate-compat pattern (call-time `getattr(dhara, "get", None)` gate) and the G6 contract (swallow substrate failures, return `None`, log WARNING).
 - Wiring: `track_channel_session` MCP tool invokes the producer on every `start`/`heartbeat`/`end` event (Task 3) — survives review.
 
 ## Wired (no — flipped to `built`)

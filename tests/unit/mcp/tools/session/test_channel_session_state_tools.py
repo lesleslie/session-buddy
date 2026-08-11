@@ -101,7 +101,7 @@ class TestChannelSessionGetStateTool:
             last_event_at=datetime(2026, 8, 11, 12, 5, 0, tzinfo=UTC),
             metadata={"branch_reason": "happy-path test"},
         )
-        expected = written.to_dict() if hasattr(written, "to_dict") else written
+        expected = written.to_dict()
 
         _server, tools = _make_server_and_tools()
         tool = tools["channel_session_get_state_tool"]
