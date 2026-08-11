@@ -15,6 +15,8 @@ from typing import Protocol
 
 from oneiric.core.logging import get_logger
 
+from session_buddy.checkpoint.scrubbing import safe_transient_info
+
 _log = get_logger(__name__)
 
 
@@ -33,7 +35,7 @@ class LockfileSignalSource:
         try:
             return self._path.exists()
         except OSError as exc:
-            _log.warning("subagent_signal_read_failed", extra={"error": str(exc)})
+            _log.warning("subagent_signal_read_failed", extra=safe_transient_info(exc))
             return True  # fail open per spec
 
     def write(self, active: bool) -> None:
@@ -44,7 +46,7 @@ class LockfileSignalSource:
             else:
                 self._path.unlink(missing_ok=True)
         except OSError as exc:
-            _log.warning("subagent_signal_write_failed", extra={"error": str(exc)})
+            _log.warning("subagent_signal_write_failed", extra=safe_transient_info(exc))
 
 
 class SubagentDetector:
@@ -58,7 +60,7 @@ class SubagentDetector:
         except Exception as exc:  # noqa: BLE001 — fail open per spec
             _log.warning(
                 "subagent_detector_is_active_failed",
-                extra={"error": str(exc), "working_dir": str(self._working_dir)},
+                extra={**safe_transient_info(exc), "working_dir": str(self._working_dir)},
             )
             return True
 

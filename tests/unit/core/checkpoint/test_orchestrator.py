@@ -384,26 +384,26 @@ def test_safe_http_error_info_extracts_status_and_host() -> None:
 
 @pytest.mark.unit
 def test_safe_transient_info_includes_status_for_http_error() -> None:
-    """Coverage: line 71 (_safe_transient_info HTTPStatusError status branch)."""
-    from session_buddy.checkpoint.orchestrator import _safe_transient_info
+    """Coverage: line 71 (safe_transient_info HTTPStatusError status branch)."""
+    from session_buddy.checkpoint.scrubbing import safe_transient_info
 
     request = httpx.Request("POST", "http://example.com/safe")
     response = httpx.Response(503, request=request)
     exc = httpx.HTTPStatusError("server error", request=request, response=response)
-    info = _safe_transient_info(exc)
+    info = safe_transient_info(exc)
     assert info["type"] == "HTTPStatusError"
     assert info["status"] == 503
 
 
 @pytest.mark.unit
 def test_safe_error_message_falls_back_to_http_unknown() -> None:
-    """Coverage: lines 85-86 (_safe_error_message HTTP ? fallback).
+    """Coverage: lines 85-86 (safe_error_message HTTP ? fallback).
 
     Force the response.status_code attribute access to raise → the helper must
     catch and emit "(HTTP ?)" rather than propagate. This is the operator-visible
     safeguard per Finding 1.
     """
-    from session_buddy.checkpoint.orchestrator import _safe_error_message
+    from session_buddy.checkpoint.scrubbing import safe_error_message
 
     request = httpx.Request("POST", "http://example.com/safe")
     response = httpx.Response(503, request=request)
@@ -415,7 +415,7 @@ def test_safe_error_message_falls_back_to_http_unknown() -> None:
             raise RuntimeError("simulated property failure")
 
     exc.response = _BoomResponse()  # type: ignore[assignment]
-    msg = _safe_error_message("forward failed:", exc)
+    msg = safe_error_message("forward failed:", exc)
     assert msg.startswith("forward failed:")
     assert "(HTTP ?)" in msg
 

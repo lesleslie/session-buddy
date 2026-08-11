@@ -22,6 +22,7 @@ from oneiric.core.logging import get_logger
 from session_buddy.checkpoint.metrics import CheckpointMetrics
 from session_buddy.checkpoint.pending import PendingCheckpoint, save_pending
 from session_buddy.checkpoint.policy import CheckpointPhase, CheckpointPolicy
+from session_buddy.checkpoint.scrubbing import safe_error_message, safe_transient_info
 from session_buddy.checkpoint.snapshot import SnapshotMechanism
 from session_buddy.checkpoint.subagent_detector import SubagentDetector
 
@@ -54,37 +55,6 @@ def _safe_http_error_info(exc: httpx.HTTPStatusError) -> dict[str, object]:
         if host:
             info["host"] = host
     return info
-
-
-def _safe_transient_info(exc: BaseException) -> dict[str, object]:
-    """Structured non-PII error info: type name, and (for HTTPStatusError) status.
-
-    Never includes str(exc) — some httpx versions put the full request URL
-    (path/query/userinfo) and response body in str(exc). That detail is
-    preserved in _log.exception(..., exc_info=True) tracebacks (which are
-    captured separately and never serialized as flat JSON fields).
-    """
-    info: dict[str, object] = {"type": type(exc).__name__}
-    if isinstance(exc, httpx.HTTPStatusError):
-        try:
-            info["status"] = exc.response.status_code
-        except Exception:  # noqa: BLE001 — best-effort, never raise from logging
-            pass
-    return info
-
-
-def _safe_error_message(prefix: str, exc: BaseException) -> str:
-    """Short non-PII error message: prefix + exception type + (if HTTP) status.
-
-    Designed for result.error which is exposed to callers and persisted to disk.
-    """
-    parts = [prefix, type(exc).__name__]
-    if isinstance(exc, httpx.HTTPStatusError):
-        try:
-            parts.append(f"(HTTP {exc.response.status_code})")
-        except Exception:  # noqa: BLE001
-            parts.append("(HTTP ?)")
-    return " ".join(parts)
 
 
 @dataclass
@@ -200,9 +170,9 @@ class CheckpointOrchestrator:
             self._metrics.inc_failure("snapshot_transient")
             _log.error(
                 "checkpoint_snapshot_failed_transient",
-                extra=_safe_transient_info(exc),
+                extra=safe_transient_info(exc),
             )
-            result.error = _safe_error_message("snapshot failed (transient):", exc)
+            result.error = safe_error_message("snapshot failed (transient):", exc)
             return result
         except Exception as exc:  # noqa: BLE001 — narrow by type, not catch-all
             self._metrics.inc_failure("snapshot_unexpected")
@@ -211,9 +181,9 @@ class CheckpointOrchestrator:
             # the URL/body cannot leak as a flat JSON field.
             _log.exception(
                 "checkpoint_snapshot_failed_unexpected",
-                extra=_safe_transient_info(exc),
+                extra=safe_transient_info(exc),
             )
-            result.error = _safe_error_message("snapshot failed (unexpected):", exc)
+            result.error = safe_error_message("snapshot failed (unexpected):", exc)
             return result
 
         result.snapshot_id = snapshot.snapshot_id
@@ -245,10 +215,10 @@ class CheckpointOrchestrator:
             await self._forward_with_retry(result, phase)
         except TransientForwardError as exc:
             self._metrics.inc_failure("forward_transient_retry_exhausted")
-            result.error = _safe_error_message("forward_to retry exhausted:", exc)
+            result.error = safe_error_message("forward_to retry exhausted:", exc)
             _log.error(
                 "checkpoint_forward_retry_exhausted",
-                extra=_safe_transient_info(exc),
+                extra=safe_transient_info(exc),
             )
             return result
 

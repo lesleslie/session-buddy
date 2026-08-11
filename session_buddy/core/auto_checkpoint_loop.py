@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 
 from oneiric.core.logging import get_logger
 
+from session_buddy.checkpoint.scrubbing import safe_transient_info
+
 if TYPE_CHECKING:
     from session_buddy.checkpoint import CheckpointOrchestrator
 
@@ -77,7 +79,7 @@ class AutoCheckpointLoop:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001
-                _log.warning("auto_checkpoint_loop_tick_error", extra={"error": str(exc)})
+                _log.warning("auto_checkpoint_loop_tick_error", extra=safe_transient_info(exc))
             try:
                 await asyncio.wait_for(self._stopped.wait(), timeout=self._interval_s)
             except asyncio.TimeoutError:
@@ -99,7 +101,7 @@ class AutoCheckpointLoop:
             try:
                 await self._pending_consume_fn(marker)
             except Exception as exc:  # noqa: BLE001
-                _log.warning("pending_consume_failed", extra={"marker": str(marker), "error": str(exc)})
+                _log.warning("pending_consume_failed", extra={"marker": str(marker), **safe_transient_info(exc)})
 
 
 async def _midpoint_commit_forward(working_dir: Path) -> None:
