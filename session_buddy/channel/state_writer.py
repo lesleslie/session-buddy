@@ -39,6 +39,11 @@ import dhara
 from dhara.schema import ChannelSessionState, validate
 from oneiric.core.logging import get_logger
 
+from session_buddy._dhara_substrate_compat import (
+    dhara_calltime,
+    stamp_dhara_attr,
+)
+
 logger = get_logger(__name__)
 
 
@@ -67,8 +72,7 @@ def _channel_session_state_v1_enabled() -> bool:
 # import time so the call-time getattr gate can short-circuit
 # without raising. Tests inject a synthetic ``put`` by stamping the
 # live ``dhara`` module attribute.
-if not hasattr(dhara, "put"):  # pragma: no cover - substrate introspection
-    dhara.put = None  # type: ignore[attr-defined]
+stamp_dhara_attr("put")  # pragma: no cover - substrate introspection
 
 
 def record_channel_session_state(
@@ -100,7 +104,7 @@ def record_channel_session_state(
     }
     validated = validate("channel_session_state", payload)
 
-    put: Any = getattr(dhara, "put", None)
+    put: Any = dhara_calltime("put")
     if put is not None:
         key = f"channel-sessions/{channel_id}/{sender_id}"
         try:
