@@ -13,7 +13,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
-from hypothesis import HealthCheck, assume, given, settings as hyp_settings
+from hypothesis import HealthCheck, assume, given
+from hypothesis import settings as hyp_settings
 from hypothesis import strategies as st
 
 from session_buddy.checkpoint import (
@@ -112,6 +113,112 @@ def test_working_tree_never_mutated_by_checkpoint(
 
 @pytest.mark.property
 @pytest.mark.unit
+def test_spy_does_not_false_positive_on_stash_in_non_subcommand_position(
+    tmp_path: Path,
+) -> None:
+    """Regression for the argv-membership false-positive risk.
+
+    The previous spy used `"stash" in args[0]`, which is element membership
+    on a list. While element membership is more restrictive than substring
+    match, the implementation is fragile: it implicitly conflates "this argv
+    contains a stash command" with "this argv contains a string equal to
+    'stash' anywhere in it". A future refactor that changes how the argv
+    list is built (or that adds a positional refspec like `stash@{0}` in a
+    different subcommand) could regress the spy silently.
+
+    The fix: explicitly match the git subcommand position, skipping leading
+    `-c KEY=VAL` pairs and other flags. This regression test pins the
+    behavior of the new helper against the documented false-positive
+    shapes so future drift is caught.
+    """
+    from session_buddy.checkpoint import (
+        metrics as metrics_mod,
+    )
+    from session_buddy.checkpoint import (
+        orchestrator as orch_mod,
+    )
+    from session_buddy.checkpoint import (
+        policy as pol_mod,
+    )
+    from session_buddy.checkpoint import (
+        snapshot as snap_mod,
+    )
+    from session_buddy.checkpoint import (
+        subagent_detector as sad_mod,
+    )
+
+    # All checkpoint modules in scope — current or future subprocess callers.
+    checkpoint_modules = (snap_mod, pol_mod, orch_mod, sad_mod, metrics_mod)
+
+    # Sanity: the helper exists and is importable. (Lives at module scope
+    # in this test file.)
+    assert callable(_is_git_stash_invocation), "helper must be module-level"
+
+    # True-positives: actual git stash invocations.
+    assert _is_git_stash_invocation(["git", "stash"]) is True
+    assert _is_git_stash_invocation(["git", "stash", "show"]) is True
+    assert _is_git_stash_invocation(["git", "stash", "drop"]) is True
+    assert _is_git_stash_invocation(["git", "stash", "apply"]) is True
+
+    # False-positives the OLD spy was vulnerable to: a "stash" element
+    # appears, but it is not the subcommand.
+    assert _is_git_stash_invocation(
+        ["git", "-c", "stash.show=true", "log", "-1", "--format=%H"]
+    ) is False, "stash in a -c config key must not be flagged"
+    assert _is_git_stash_invocation(["git", "log", "stash@{0}"]) is False, (
+        "stash@{0} refspec as a positional arg must not be flagged"
+    )
+    assert _is_git_stash_invocation(
+        ["git", "show", "stash@{0}"]
+    ) is False, "stash@{0} refspec in 'show' must not be flagged"
+    assert _is_git_stash_invocation(["git", "log", "--grep=stash"]) is False, (
+        "--grep=stash value must not be flagged"
+    )
+    assert _is_git_stash_invocation(
+        ["git", "-c", "stash.showpatch=true", "-c", "color.ui=auto", "log"]
+    ) is False, "multiple -c flags before the subcommand must not be flagged"
+
+    # Non-git and edge cases.
+    assert _is_git_stash_invocation(["ls", "-la"]) is False
+    assert _is_git_stash_invocation([]) is False
+    assert _is_git_stash_invocation(["git"]) is False
+    assert _is_git_stash_invocation(["stash"]) is False  # not a git invocation
+
+    # Spy coverage: every checkpoint module is patched. If a future refactor
+    # adds `import subprocess` to a new module, this loop catches it.
+    repo = init_repo(tmp_path)
+    (repo / "dummy.py").write_text("x\n")
+
+    real_run = subprocess.run
+    captured: list[list[str]] = []
+
+    def spy_run(*args, **kwargs):
+        if args and isinstance(args[0], list) and _is_git_stash_invocation(args[0]):
+            captured.append(args[0])
+        return real_run(*args, **kwargs)
+
+    import subprocess as sp
+
+    with pytest.MonkeyPatch.context() as mp_ctx:
+        mp_ctx.setattr(sp, "run", spy_run)
+        for mod in checkpoint_modules:
+            sub = getattr(mod, "subprocess", None)
+            if sub is not None:
+                mp_ctx.setattr(sub, "run", spy_run)
+        # Exercise a real git invocation with stash in a non-subcommand
+        # position. The spy must not capture it.
+        sp.run(
+            ["git", "-c", "stash.show=true", "log", "-1", "--format=%H"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+
+    assert captured == [], f"Spy false-positive on git config: {captured}"
+
+
+@pytest.mark.property
+@pytest.mark.unit
 def test_stash_clobber_regression(tmp_path: Path) -> None:
     """Regression for the 2026-07-15 observation: a checkpoint fired
     while a subagent was actively writing must NOT call `git stash`,
@@ -149,18 +256,34 @@ def test_stash_clobber_regression(tmp_path: Path) -> None:
     real_run = subprocess.run
 
     def spy_run(*args, **kwargs):
-        if args and isinstance(args[0], list) and "stash" in args[0]:
+        if args and isinstance(args[0], list) and _is_git_stash_invocation(args[0]):
             stash_invocations.append(args[0])
         return real_run(*args, **kwargs)
 
     import subprocess as sp
     with pytest.MonkeyPatch.context() as mp_ctx:
         mp_ctx.setattr(sp, "run", spy_run)
-        # Also patch in the modules where subprocess.run is imported
-        from session_buddy.checkpoint import snapshot as snap_mod
+        # Patch every checkpoint module's subprocess.run — current or future
+        # callers. Modules that don't import subprocess are skipped via
+        # getattr (defensive: a refactor that adds `import subprocess` to
+        # any of them will start being spied automatically).
+        from session_buddy.checkpoint import (
+            metrics as metrics_mod,
+        )
+        from session_buddy.checkpoint import (
+            orchestrator as orch_mod,
+        )
         from session_buddy.checkpoint import policy as pol_mod
-        mp_ctx.setattr(snap_mod.subprocess, "run", spy_run)
-        mp_ctx.setattr(pol_mod.subprocess, "run", spy_run)
+        from session_buddy.checkpoint import (
+            snapshot as snap_mod,
+        )
+        from session_buddy.checkpoint import (
+            subagent_detector as sad_mod,
+        )
+        for mod in (snap_mod, pol_mod, orch_mod, sad_mod, metrics_mod):
+            sub = getattr(mod, "subprocess", None)
+            if sub is not None:
+                mp_ctx.setattr(sub, "run", spy_run)
         result = asyncio.run(orchestrator.run_checkpoint(phase=CheckpointPhase.MIDPOINT_DIRTINESS))
 
     assert result.fired is False
@@ -176,3 +299,36 @@ def _hash_working_tree(repo: Path) -> str:
         cwd=repo, capture_output=True, text=True, check=True,
     )
     return hashlib.sha256(out.stdout.encode()).hexdigest()
+
+
+def _is_git_stash_invocation(argv: object) -> bool:
+    """Return True iff ``argv`` is a `git stash` (sub)command invocation.
+
+    Robust against leading flags like ``-c KEY=VAL`` and other short options,
+    so an invocation like ``['git', '-c', 'stash.show=true', 'log']`` is NOT
+    flagged as a stash command. Also rejects refspecs that happen to contain
+    the literal string "stash" (e.g. ``['git', 'log', 'stash@{0}']``) since
+    the subcommand there is "log", not "stash".
+    """
+    if not isinstance(argv, list) or not argv:
+        return False
+    if argv[0] != "git":
+        return False
+    i = 1
+    while i < len(argv):
+        arg = argv[i]
+        if not isinstance(arg, str):
+            return False
+        if arg == "-c":
+            # -c takes a KEY=VAL argument; skip the value too.
+            i += 2
+            continue
+        if arg.startswith("-"):
+            # -C, --git-dir, -c foo=bar, --no-pager, etc. We don't
+            # distinguish option-with-value vs option-without-value here
+            # because the only options that appear in practice before the
+            # subcommand in checkpoint code are short flag pairs.
+            i += 1
+            continue
+        return arg == "stash"
+    return False
