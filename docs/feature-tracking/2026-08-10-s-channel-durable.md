@@ -60,4 +60,3 @@ Cross-portfolio pattern drift (compared against M-APPROVAL-LOG and M-WORKFLOW-OU
 - RBAC: gate consumer reads to authorized senders / channels (consumer is restored, RBAC is not yet enforced).
 - Sink-arg tightening: pass metadata through a typed schema instead of `dict[str, Any]`.
 - Observability counters: success/failure-per-channel, p99 write latency.
-

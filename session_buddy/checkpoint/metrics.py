@@ -3,6 +3,7 @@
 Exposes the spec-required `checkpoint_failures_total{reason="..."}` counter
 via a future Prometheus export hook. Today: dict counter, observable in tests.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict

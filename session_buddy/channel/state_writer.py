@@ -33,9 +33,8 @@ effect is the substrate write.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
-import dhara
 from dhara.schema import ChannelSessionState, validate
 from oneiric.core.logging import get_logger
 
@@ -142,5 +141,7 @@ def record_channel_session_state(
             },
         )
 
-    return validated
-
+    # ``validate`` returns a generic ``Struct``; we know the schema name
+    # resolves to ``ChannelSessionState`` so cast to keep the public
+    # return signature honest without losing the runtime guarantee.
+    return cast(ChannelSessionState, validated)

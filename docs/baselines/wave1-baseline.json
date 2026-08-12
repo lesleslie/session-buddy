@@ -1,7 +1,4 @@
 {
-  "captured_at": "2026-08-04T03:14:16.395119Z",
-  "captured_on_commit": "2374756a3cca2ab00ac6a772dc36889327581279",
-  "test_invocation": "uv run pytest tests/ --ignore=tests/unit/test_quality_scoring_metrics_registry.py --cov=session_buddy --cov-branch --cov-report=json:coverage.json --cov-report=term-missing:skip-covered -q --no-header --tb=line",
   "baseline_failure_nodeids": [
     "tests/functional/test_session_workflows.py::TestSessionCrossPlatform::test_session_in_different_environments",
     "tests/functional/test_session_workflows.py::TestSessionWorkflows::test_complete_session_workflow",
@@ -296,1687 +293,1690 @@
     "tests/unit/test_worktree_manager_v2.py::TestSecurityValidation::test_is_safe_path_valid",
     "tests/unit/test_worktree_manager_v2.py::TestSessionCoordination::test_save_current_session_state"
   ],
-  "test_count_total": null,
+  "captured_at": "2026-08-04T03:14:16.395119Z",
+  "captured_on_commit": "2374756a3cca2ab00ac6a772dc36889327581279",
   "per_file_metrics": {
     "session_buddy/__main__.py": {
-      "lines": 3,
+      "branch_pct": 100.0,
       "covered_lines": 3,
+      "lines": 3,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/adapters/knowledge_graph_adapter.py": {
-      "lines": 3,
+      "branch_pct": 100.0,
       "covered_lines": 3,
+      "lines": 3,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/adapters/knowledge_graph_adapter_oneiric.py": {
-      "lines": 350,
+      "branch_pct": 81.8,
       "covered_lines": 294,
+      "lines": 350,
       "missing_lines": 56,
-      "pct": 81.8,
-      "branch_pct": 81.8
+      "pct": 81.8
     },
     "session_buddy/adapters/knowledge_graph_adapter_phase3.py": {
-      "lines": 123,
+      "branch_pct": 97.33,
       "covered_lines": 122,
+      "lines": 123,
       "missing_lines": 1,
-      "pct": 97.33,
-      "branch_pct": 97.33
+      "pct": 97.33
     },
     "session_buddy/adapters/knowledge_graph_phase3_patch.py": {
-      "lines": 118,
+      "branch_pct": 96.63,
       "covered_lines": 115,
+      "lines": 118,
       "missing_lines": 3,
-      "pct": 96.63,
-      "branch_pct": 96.63
+      "pct": 96.63
     },
     "session_buddy/adapters/lifecycle.py": {
-      "lines": 132,
+      "branch_pct": 43.67,
       "covered_lines": 62,
+      "lines": 132,
       "missing_lines": 70,
-      "pct": 43.67,
-      "branch_pct": 43.67
+      "pct": 43.67
     },
     "session_buddy/adapters/reflection_adapter.py": {
-      "lines": 3,
+      "branch_pct": 100.0,
       "covered_lines": 3,
+      "lines": 3,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/adapters/reflection_adapter_oneiric.py": {
-      "lines": 799,
+      "branch_pct": 85.22,
       "covered_lines": 699,
+      "lines": 799,
       "missing_lines": 100,
-      "pct": 85.22,
-      "branch_pct": 85.22
+      "pct": 85.22
     },
     "session_buddy/adapters/serverless_storage_adapter.py": {
-      "lines": 112,
+      "branch_pct": 83.56,
       "covered_lines": 99,
+      "lines": 112,
       "missing_lines": 13,
-      "pct": 83.56,
-      "branch_pct": 83.56
+      "pct": 83.56
     },
     "session_buddy/adapters/session_storage_adapter.py": {
-      "lines": 98,
+      "branch_pct": 93.64,
       "covered_lines": 92,
+      "lines": 98,
       "missing_lines": 6,
-      "pct": 93.64,
-      "branch_pct": 93.64
+      "pct": 93.64
     },
     "session_buddy/adapters/settings.py": {
-      "lines": 55,
+      "branch_pct": 100.0,
       "covered_lines": 55,
+      "lines": 55,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/adapters/storage_oneiric.py": {
-      "lines": 264,
+      "branch_pct": 87.29,
       "covered_lines": 241,
+      "lines": 264,
       "missing_lines": 23,
-      "pct": 87.29,
-      "branch_pct": 87.29
+      "pct": 87.29
     },
     "session_buddy/advanced_features.py": {
-      "lines": 374,
+      "branch_pct": 95.15,
       "covered_lines": 359,
+      "lines": 374,
       "missing_lines": 15,
-      "pct": 95.15,
-      "branch_pct": 95.15
+      "pct": 95.15
     },
     "session_buddy/advanced_search.py": {
-      "lines": 396,
+      "branch_pct": 75.48,
       "covered_lines": 320,
+      "lines": 396,
       "missing_lines": 76,
-      "pct": 75.48,
-      "branch_pct": 75.48
+      "pct": 75.48
     },
     "session_buddy/analytics/ab_testing.py": {
-      "lines": 142,
+      "branch_pct": 98.8,
       "covered_lines": 141,
+      "lines": 142,
       "missing_lines": 1,
-      "pct": 98.8,
-      "branch_pct": 98.8
+      "pct": 98.8
     },
     "session_buddy/analytics/cli.py": {
-      "lines": 167,
+      "branch_pct": 100.0,
       "covered_lines": 167,
+      "lines": 167,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/analytics/collaborative_filtering.py": {
-      "lines": 127,
+      "branch_pct": 71.14,
       "covered_lines": 97,
+      "lines": 127,
       "missing_lines": 30,
-      "pct": 71.14,
-      "branch_pct": 71.14
+      "pct": 71.14
     },
     "session_buddy/analytics/predictive.py": {
-      "lines": 95,
+      "branch_pct": 20.56,
       "covered_lines": 22,
+      "lines": 95,
       "missing_lines": 73,
-      "pct": 20.56,
-      "branch_pct": 20.56
+      "pct": 20.56
     },
     "session_buddy/analytics/session_analytics.py": {
-      "lines": 272,
+      "branch_pct": 93.45,
       "covered_lines": 257,
+      "lines": 272,
       "missing_lines": 15,
-      "pct": 93.45,
-      "branch_pct": 93.45
+      "pct": 93.45
     },
     "session_buddy/analytics/time_series.py": {
-      "lines": 118,
+      "branch_pct": 80.92,
       "covered_lines": 102,
+      "lines": 118,
       "missing_lines": 16,
-      "pct": 80.92,
-      "branch_pct": 80.92
+      "pct": 80.92
     },
     "session_buddy/analytics/usage_tracker.py": {
-      "lines": 112,
+      "branch_pct": 94.2,
       "covered_lines": 107,
+      "lines": 112,
       "missing_lines": 5,
-      "pct": 94.2,
-      "branch_pct": 94.2
+      "pct": 94.2
     },
     "session_buddy/app_monitor.py": {
-      "lines": 420,
+      "branch_pct": 89.07,
       "covered_lines": 384,
+      "lines": 420,
       "missing_lines": 36,
-      "pct": 89.07,
-      "branch_pct": 89.07
+      "pct": 89.07
     },
     "session_buddy/backends/base.py": {
-      "lines": 41,
+      "branch_pct": 100.0,
       "covered_lines": 41,
+      "lines": 41,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/backends/local_backend.py": {
-      "lines": 90,
+      "branch_pct": 84.26,
       "covered_lines": 74,
+      "lines": 90,
       "missing_lines": 16,
-      "pct": 84.26,
-      "branch_pct": 84.26
+      "pct": 84.26
     },
     "session_buddy/backends/redis_backend.py": {
-      "lines": 123,
+      "branch_pct": 86.71,
       "covered_lines": 106,
+      "lines": 123,
       "missing_lines": 17,
-      "pct": 86.71,
-      "branch_pct": 86.71
+      "pct": 86.71
     },
     "session_buddy/backends/s3_backend.py": {
-      "lines": 128,
+      "branch_pct": 82.88,
       "covered_lines": 105,
+      "lines": 128,
       "missing_lines": 23,
-      "pct": 82.88,
-      "branch_pct": 82.88
+      "pct": 82.88
     },
     "session_buddy/cache/query_cache.py": {
-      "lines": 218,
+      "branch_pct": 60.92,
       "covered_lines": 144,
+      "lines": 218,
       "missing_lines": 74,
-      "pct": 60.92,
-      "branch_pct": 60.92
+      "pct": 60.92
     },
     "session_buddy/cli.py": {
-      "lines": 95,
+      "branch_pct": 71.68,
       "covered_lines": 75,
+      "lines": 95,
       "missing_lines": 20,
-      "pct": 71.68,
-      "branch_pct": 71.68
+      "pct": 71.68
     },
     "session_buddy/cli_with_modes.py": {
-      "lines": 90,
+      "branch_pct": 78.72,
       "covered_lines": 71,
+      "lines": 90,
       "missing_lines": 19,
-      "pct": 78.72,
-      "branch_pct": 78.72
+      "pct": 78.72
     },
     "session_buddy/code_analysis/kg_extractor.py": {
-      "lines": 85,
+      "branch_pct": 99.08,
       "covered_lines": 85,
+      "lines": 85,
       "missing_lines": 0,
-      "pct": 99.08,
-      "branch_pct": 99.08
+      "pct": 99.08
     },
     "session_buddy/commands/checkpoint.py": {
-      "lines": 18,
+      "branch_pct": 100.0,
       "covered_lines": 18,
+      "lines": 18,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/config/feature_flags.py": {
-      "lines": 24,
+      "branch_pct": 100.0,
       "covered_lines": 24,
+      "lines": 24,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/context/optimizer.py": {
-      "lines": 112,
+      "branch_pct": 72.08,
       "covered_lines": 85,
+      "lines": 112,
       "missing_lines": 27,
-      "pct": 72.08,
-      "branch_pct": 72.08
+      "pct": 72.08
     },
     "session_buddy/context_manager.py": {
-      "lines": 266,
+      "branch_pct": 95.72,
       "covered_lines": 259,
+      "lines": 266,
       "missing_lines": 7,
-      "pct": 95.72,
-      "branch_pct": 95.72
+      "pct": 95.72
     },
     "session_buddy/core/bottleneck_detector.py": {
-      "lines": 185,
+      "branch_pct": 75.34,
       "covered_lines": 151,
+      "lines": 185,
       "missing_lines": 34,
-      "pct": 75.34,
-      "branch_pct": 75.34
+      "pct": 75.34
     },
     "session_buddy/core/causal_chains.py": {
-      "lines": 116,
+      "branch_pct": 57.04,
       "covered_lines": 71,
+      "lines": 116,
       "missing_lines": 45,
-      "pct": 57.04,
-      "branch_pct": 57.04
+      "pct": 57.04
     },
     "session_buddy/core/conversation_storage.py": {
-      "lines": 108,
+      "branch_pct": 76.71,
       "covered_lines": 85,
+      "lines": 108,
       "missing_lines": 23,
-      "pct": 76.71,
-      "branch_pct": 76.71
+      "pct": 76.71
     },
     "session_buddy/core/features.py": {
-      "lines": 82,
+      "branch_pct": 100.0,
       "covered_lines": 82,
+      "lines": 82,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/core/hooks.py": {
-      "lines": 183,
+      "branch_pct": 100.0,
       "covered_lines": 183,
+      "lines": 183,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/core/intelligence.py": {
-      "lines": 403,
+      "branch_pct": 89.95,
       "covered_lines": 374,
+      "lines": 403,
       "missing_lines": 29,
-      "pct": 89.95,
-      "branch_pct": 89.95
+      "pct": 89.95
     },
     "session_buddy/core/intent_detector.py": {
-      "lines": 121,
+      "branch_pct": 98.22,
       "covered_lines": 120,
+      "lines": 121,
       "missing_lines": 1,
-      "pct": 98.22,
-      "branch_pct": 98.22
+      "pct": 98.22
     },
     "session_buddy/core/lifecycle/handoff.py": {
-      "lines": 42,
+      "branch_pct": 95.83,
       "covered_lines": 41,
+      "lines": 42,
       "missing_lines": 1,
-      "pct": 95.83,
-      "branch_pct": 95.83
+      "pct": 95.83
     },
     "session_buddy/core/lifecycle/project_context.py": {
-      "lines": 40,
+      "branch_pct": 97.92,
       "covered_lines": 40,
+      "lines": 40,
       "missing_lines": 0,
-      "pct": 97.92,
-      "branch_pct": 97.92
+      "pct": 97.92
     },
     "session_buddy/core/lifecycle/service_registry.py": {
-      "lines": 163,
+      "branch_pct": 94.54,
       "covered_lines": 157,
+      "lines": 163,
       "missing_lines": 6,
-      "pct": 94.54,
-      "branch_pct": 94.54
+      "pct": 94.54
     },
     "session_buddy/core/lifecycle/session_info.py": {
-      "lines": 87,
+      "branch_pct": 100.0,
       "covered_lines": 87,
+      "lines": 87,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/core/memory_health.py": {
-      "lines": 119,
+      "branch_pct": 100.0,
       "covered_lines": 119,
+      "lines": 119,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/core/permissions.py": {
-      "lines": 102,
+      "branch_pct": 100.0,
       "covered_lines": 102,
+      "lines": 102,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/core/quality_scoring.py": {
-      "lines": 21,
+      "branch_pct": 100.0,
       "covered_lines": 21,
+      "lines": 21,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/core/session_analytics.py": {
-      "lines": 268,
+      "branch_pct": 21.43,
       "covered_lines": 72,
+      "lines": 268,
       "missing_lines": 196,
-      "pct": 21.43,
-      "branch_pct": 21.43
+      "pct": 21.43
     },
     "session_buddy/core/session_manager.py": {
-      "lines": 507,
+      "branch_pct": 96.8,
       "covered_lines": 496,
+      "lines": 507,
       "missing_lines": 11,
-      "pct": 96.8,
-      "branch_pct": 96.8
+      "pct": 96.8
     },
     "session_buddy/core/skills_tracker.py": {
-      "lines": 223,
+      "branch_pct": 68.73,
       "covered_lines": 159,
+      "lines": 223,
       "missing_lines": 64,
-      "pct": 68.73,
-      "branch_pct": 68.73
+      "pct": 68.73
     },
     "session_buddy/core/ulid_generator.py": {
-      "lines": 25,
+      "branch_pct": 100.0,
       "covered_lines": 25,
+      "lines": 25,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/core/workflow_metrics.py": {
-      "lines": 193,
+      "branch_pct": 95.36,
       "covered_lines": 188,
+      "lines": 193,
       "missing_lines": 5,
-      "pct": 95.36,
-      "branch_pct": 95.36
+      "pct": 95.36
     },
     "session_buddy/crackerjack_integration.py": {
-      "lines": 454,
+      "branch_pct": 91.21,
       "covered_lines": 419,
+      "lines": 454,
       "missing_lines": 35,
-      "pct": 91.21,
-      "branch_pct": 91.21
+      "pct": 91.21
     },
     "session_buddy/di/config.py": {
-      "lines": 21,
+      "branch_pct": 100.0,
       "covered_lines": 21,
+      "lines": 21,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/di/constants.py": {
-      "lines": 5,
+      "branch_pct": 100.0,
       "covered_lines": 5,
+      "lines": 5,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/di/container.py": {
-      "lines": 63,
+      "branch_pct": 62.65,
       "covered_lines": 42,
+      "lines": 63,
       "missing_lines": 21,
-      "pct": 62.65,
-      "branch_pct": 62.65
+      "pct": 62.65
     },
     "session_buddy/doctor.py": {
-      "lines": 222,
+      "branch_pct": 95.95,
       "covered_lines": 215,
+      "lines": 222,
       "missing_lines": 7,
-      "pct": 95.95,
-      "branch_pct": 95.95
+      "pct": 95.95
     },
     "session_buddy/health_checks.py": {
-      "lines": 219,
+      "branch_pct": 90.39,
       "covered_lines": 202,
+      "lines": 219,
       "missing_lines": 17,
-      "pct": 90.39,
-      "branch_pct": 90.39
+      "pct": 90.39
     },
     "session_buddy/hooks/single_flight.py": {
-      "lines": 22,
+      "branch_pct": 100.0,
       "covered_lines": 22,
+      "lines": 22,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/ingesters/claude_code_transcript.py": {
-      "lines": 130,
+      "branch_pct": 97.8,
       "covered_lines": 127,
+      "lines": 130,
       "missing_lines": 3,
-      "pct": 97.8,
-      "branch_pct": 97.8
+      "pct": 97.8
     },
     "session_buddy/ingesters/redaction.py": {
-      "lines": 39,
+      "branch_pct": 96.61,
       "covered_lines": 38,
+      "lines": 39,
       "missing_lines": 1,
-      "pct": 96.61,
-      "branch_pct": 96.61
+      "pct": 96.61
     },
     "session_buddy/insights/console.py": {
-      "lines": 51,
+      "branch_pct": 84.75,
       "covered_lines": 45,
+      "lines": 51,
       "missing_lines": 6,
-      "pct": 84.75,
-      "branch_pct": 84.75
+      "pct": 84.75
     },
     "session_buddy/insights/extractor.py": {
-      "lines": 160,
+      "branch_pct": 91.74,
       "covered_lines": 151,
+      "lines": 160,
       "missing_lines": 9,
-      "pct": 91.74,
-      "branch_pct": 91.74
+      "pct": 91.74
     },
     "session_buddy/insights/models.py": {
-      "lines": 81,
+      "branch_pct": 100.0,
       "covered_lines": 81,
+      "lines": 81,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/integrations/cicd_tracker.py": {
-      "lines": 161,
+      "branch_pct": 97.33,
       "covered_lines": 159,
+      "lines": 161,
       "missing_lines": 2,
-      "pct": 97.33,
-      "branch_pct": 97.33
+      "pct": 97.33
     },
     "session_buddy/integrations/crackerjack_hooks.py": {
-      "lines": 87,
+      "branch_pct": 100.0,
       "covered_lines": 87,
+      "lines": 87,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/integrations/ide_plugin.py": {
-      "lines": 134,
+      "branch_pct": 91.4,
       "covered_lines": 127,
+      "lines": 134,
       "missing_lines": 7,
-      "pct": 91.4,
-      "branch_pct": 91.4
+      "pct": 91.4
     },
     "session_buddy/interruption_manager.py": {
-      "lines": 358,
+      "branch_pct": 74.41,
       "covered_lines": 278,
+      "lines": 358,
       "missing_lines": 80,
-      "pct": 74.41,
-      "branch_pct": 74.41
+      "pct": 74.41
     },
     "session_buddy/knowledge_graph_db.py": {
-      "lines": 219,
+      "branch_pct": 95.37,
       "covered_lines": 210,
+      "lines": 219,
       "missing_lines": 9,
-      "pct": 95.37,
-      "branch_pct": 95.37
+      "pct": 95.37
     },
     "session_buddy/llm/base.py": {
-      "lines": 9,
+      "branch_pct": 100.0,
       "covered_lines": 9,
+      "lines": 9,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/llm/models.py": {
-      "lines": 46,
+      "branch_pct": 100.0,
       "covered_lines": 46,
+      "lines": 46,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/llm/providers/anthropic_provider.py": {
-      "lines": 61,
+      "branch_pct": 100.0,
       "covered_lines": 61,
+      "lines": 61,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/llm/providers/gemini_provider.py": {
-      "lines": 81,
+      "branch_pct": 97.2,
       "covered_lines": 78,
+      "lines": 81,
       "missing_lines": 3,
-      "pct": 97.2,
-      "branch_pct": 97.2
+      "pct": 97.2
     },
     "session_buddy/llm/providers/ollama_provider.py": {
-      "lines": 126,
+      "branch_pct": 83.75,
       "covered_lines": 104,
+      "lines": 126,
       "missing_lines": 22,
-      "pct": 83.75,
-      "branch_pct": 83.75
+      "pct": 83.75
     },
     "session_buddy/llm/providers/openai_provider.py": {
-      "lines": 57,
+      "branch_pct": 100.0,
       "covered_lines": 57,
+      "lines": 57,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/llm/security.py": {
-      "lines": 93,
+      "branch_pct": 97.93,
       "covered_lines": 91,
+      "lines": 93,
       "missing_lines": 2,
-      "pct": 97.93,
-      "branch_pct": 97.93
+      "pct": 97.93
     },
     "session_buddy/llm_providers.py": {
-      "lines": 339,
+      "branch_pct": 87.31,
       "covered_lines": 300,
+      "lines": 339,
       "missing_lines": 39,
-      "pct": 87.31,
-      "branch_pct": 87.31
+      "pct": 87.31
     },
     "session_buddy/mcp/auth.py": {
-      "lines": 71,
+      "branch_pct": 100.0,
       "covered_lines": 71,
+      "lines": 71,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/code_formatter.py": {
-      "lines": 8,
+      "branch_pct": 100.0,
       "covered_lines": 8,
+      "lines": 8,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/event_models.py": {
-      "lines": 190,
+      "branch_pct": 99.57,
       "covered_lines": 190,
+      "lines": 190,
       "missing_lines": 0,
-      "pct": 99.57,
-      "branch_pct": 99.57
+      "pct": 99.57
     },
     "session_buddy/mcp/metrics.py": {
-      "lines": 94,
+      "branch_pct": 100.0,
       "covered_lines": 94,
+      "lines": 94,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/quality_scorer.py": {
-      "lines": 24,
+      "branch_pct": 75.0,
       "covered_lines": 19,
+      "lines": 24,
       "missing_lines": 5,
-      "pct": 75.0,
-      "branch_pct": 75.0
+      "pct": 75.0
     },
     "session_buddy/mcp/schemas.py": {
-      "lines": 67,
+      "branch_pct": 100.0,
       "covered_lines": 67,
+      "lines": 67,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/server.py": {
-      "lines": 44,
+      "branch_pct": 75.93,
       "covered_lines": 35,
+      "lines": 44,
       "missing_lines": 9,
-      "pct": 75.93,
-      "branch_pct": 75.93
+      "pct": 75.93
     },
     "session_buddy/mcp/server_core.py": {
-      "lines": 244,
+      "branch_pct": 94.14,
       "covered_lines": 233,
+      "lines": 244,
       "missing_lines": 11,
-      "pct": 94.14,
-      "branch_pct": 94.14
+      "pct": 94.14
     },
     "session_buddy/mcp/session_tracker.py": {
-      "lines": 102,
+      "branch_pct": 100.0,
       "covered_lines": 102,
+      "lines": 102,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/telemetry.py": {
-      "lines": 70,
+      "branch_pct": 100.0,
       "covered_lines": 70,
+      "lines": 70,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/advanced/conscious_agent_tools.py": {
-      "lines": 35,
+      "branch_pct": 100.0,
       "covered_lines": 35,
+      "lines": 35,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/advanced/entity_extraction_tools.py": {
-      "lines": 38,
+      "branch_pct": 100.0,
       "covered_lines": 38,
+      "lines": 38,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/advanced/fingerprint_tools.py": {
-      "lines": 196,
+      "branch_pct": 85.2,
       "covered_lines": 170,
+      "lines": 196,
       "missing_lines": 26,
-      "pct": 85.2,
-      "branch_pct": 85.2
+      "pct": 85.2
     },
     "session_buddy/mcp/tools/advanced/intent_detection_tools.py": {
-      "lines": 78,
+      "branch_pct": 86.96,
       "covered_lines": 70,
+      "lines": 78,
       "missing_lines": 8,
-      "pct": 86.96,
-      "branch_pct": 86.96
+      "pct": 86.96
     },
     "session_buddy/mcp/tools/advanced/intent_tools_registration.py": {
-      "lines": 68,
+      "branch_pct": 100.0,
       "covered_lines": 68,
+      "lines": 68,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/advanced/recommendation_engine.py": {
-      "lines": 211,
+      "branch_pct": 84.67,
       "covered_lines": 186,
+      "lines": 211,
       "missing_lines": 25,
-      "pct": 84.67,
-      "branch_pct": 84.67
+      "pct": 84.67
     },
     "session_buddy/mcp/tools/advanced/rewriting_tools.py": {
-      "lines": 54,
+      "branch_pct": 100.0,
       "covered_lines": 54,
+      "lines": 54,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/code_analysis/tools.py": {
-      "lines": 82,
+      "branch_pct": 40.82,
       "covered_lines": 39,
+      "lines": 82,
       "missing_lines": 43,
-      "pct": 40.82,
-      "branch_pct": 40.82
+      "pct": 40.82
     },
     "session_buddy/mcp/tools/code_graph.py": {
-      "lines": 62,
+      "branch_pct": 74.32,
       "covered_lines": 46,
+      "lines": 62,
       "missing_lines": 16,
-      "pct": 74.32,
-      "branch_pct": 74.32
+      "pct": 74.32
     },
     "session_buddy/mcp/tools/collaboration/knowledge_graph_phase3_tools.py": {
-      "lines": 98,
+      "branch_pct": 85.71,
       "covered_lines": 81,
+      "lines": 98,
       "missing_lines": 17,
-      "pct": 85.71,
-      "branch_pct": 85.71
+      "pct": 85.71
     },
     "session_buddy/mcp/tools/collaboration/knowledge_graph_tools.py": {
-      "lines": 318,
+      "branch_pct": 85.37,
       "covered_lines": 274,
+      "lines": 318,
       "missing_lines": 44,
-      "pct": 85.37,
-      "branch_pct": 85.37
+      "pct": 85.37
     },
     "session_buddy/mcp/tools/collaboration/team_tools.py": {
-      "lines": 126,
+      "branch_pct": 94.3,
       "covered_lines": 117,
+      "lines": 126,
       "missing_lines": 9,
-      "pct": 94.3,
-      "branch_pct": 94.3
+      "pct": 94.3
     },
     "session_buddy/mcp/tools/conversation/conversation_tools.py": {
-      "lines": 99,
+      "branch_pct": 19.38,
       "covered_lines": 25,
+      "lines": 99,
       "missing_lines": 74,
-      "pct": 19.38,
-      "branch_pct": 19.38
+      "pct": 19.38
     },
     "session_buddy/mcp/tools/discovery_tools.py": {
-      "lines": 15,
+      "branch_pct": 100.0,
       "covered_lines": 15,
+      "lines": 15,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/ide.py": {
-      "lines": 241,
+      "branch_pct": 99.32,
       "covered_lines": 240,
+      "lines": 241,
       "missing_lines": 1,
-      "pct": 99.32,
-      "branch_pct": 99.32
+      "pct": 99.32
     },
     "session_buddy/mcp/tools/infrastructure/access_log_tools.py": {
-      "lines": 67,
+      "branch_pct": 96.1,
       "covered_lines": 64,
+      "lines": 67,
       "missing_lines": 3,
-      "pct": 96.1,
-      "branch_pct": 96.1
+      "pct": 96.1
     },
     "session_buddy/mcp/tools/infrastructure/cache_tools.py": {
-      "lines": 95,
+      "branch_pct": 32.48,
       "covered_lines": 33,
+      "lines": 95,
       "missing_lines": 62,
-      "pct": 32.48,
-      "branch_pct": 32.48
+      "pct": 32.48
     },
     "session_buddy/mcp/tools/infrastructure/feature_flags_tools.py": {
-      "lines": 11,
+      "branch_pct": 100.0,
       "covered_lines": 11,
+      "lines": 11,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/infrastructure/history_cache.py": {
-      "lines": 40,
+      "branch_pct": 94.0,
       "covered_lines": 38,
+      "lines": 40,
       "missing_lines": 2,
-      "pct": 94.0,
-      "branch_pct": 94.0
+      "pct": 94.0
     },
     "session_buddy/mcp/tools/infrastructure/hook_parser.py": {
-      "lines": 57,
+      "branch_pct": 96.0,
       "covered_lines": 55,
+      "lines": 57,
       "missing_lines": 2,
-      "pct": 96.0,
-      "branch_pct": 96.0
+      "pct": 96.0
     },
     "session_buddy/mcp/tools/infrastructure/pools.py": {
-      "lines": 149,
+      "branch_pct": 51.43,
       "covered_lines": 76,
+      "lines": 149,
       "missing_lines": 73,
-      "pct": 51.43,
-      "branch_pct": 51.43
+      "pct": 51.43
     },
     "session_buddy/mcp/tools/infrastructure/protocols.py": {
-      "lines": 33,
+      "branch_pct": 100.0,
       "covered_lines": 33,
+      "lines": 33,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/infrastructure/serverless_tools.py": {
-      "lines": 140,
+      "branch_pct": 93.45,
       "covered_lines": 135,
+      "lines": 140,
       "missing_lines": 5,
-      "pct": 93.45,
-      "branch_pct": 93.45
+      "pct": 93.45
     },
     "session_buddy/mcp/tools/intelligence/agent_analyzer.py": {
-      "lines": 60,
+      "branch_pct": 100.0,
       "covered_lines": 60,
+      "lines": 60,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/intelligence/intelligence_tools.py": {
-      "lines": 120,
+      "branch_pct": 22.3,
       "covered_lines": 31,
+      "lines": 120,
       "missing_lines": 89,
-      "pct": 22.3,
-      "branch_pct": 22.3
+      "pct": 22.3
     },
     "session_buddy/mcp/tools/intelligence/llm_tools.py": {
-      "lines": 167,
+      "branch_pct": 85.25,
       "covered_lines": 146,
+      "lines": 167,
       "missing_lines": 21,
-      "pct": 85.25,
-      "branch_pct": 85.25
+      "pct": 85.25
     },
     "session_buddy/mcp/tools/memory/akosha_tools.py": {
-      "lines": 30,
+      "branch_pct": 84.38,
       "covered_lines": 26,
+      "lines": 30,
       "missing_lines": 4,
-      "pct": 84.38,
-      "branch_pct": 84.38
+      "pct": 84.38
     },
     "session_buddy/mcp/tools/memory/category_tools.py": {
-      "lines": 127,
+      "branch_pct": 11.95,
       "covered_lines": 19,
+      "lines": 127,
       "missing_lines": 108,
-      "pct": 11.95,
-      "branch_pct": 11.95
+      "pct": 11.95
     },
     "session_buddy/mcp/tools/memory/export_tools.py": {
-      "lines": 150,
+      "branch_pct": 54.21,
       "covered_lines": 85,
+      "lines": 150,
       "missing_lines": 65,
-      "pct": 54.21,
-      "branch_pct": 54.21
+      "pct": 54.21
     },
     "session_buddy/mcp/tools/memory/memory_tools.py": {
-      "lines": 316,
+      "branch_pct": 93.24,
       "covered_lines": 297,
+      "lines": 316,
       "missing_lines": 19,
-      "pct": 93.24,
-      "branch_pct": 93.24
+      "pct": 93.24
     },
     "session_buddy/mcp/tools/memory/otel_trace_tools.py": {
-      "lines": 67,
+      "branch_pct": 68.04,
       "covered_lines": 49,
+      "lines": 67,
       "missing_lines": 18,
-      "pct": 68.04,
-      "branch_pct": 68.04
+      "pct": 68.04
     },
     "session_buddy/mcp/tools/memory/search_tools.py": {
-      "lines": 636,
+      "branch_pct": 57.09,
       "covered_lines": 377,
+      "lines": 636,
       "missing_lines": 259,
-      "pct": 57.09,
-      "branch_pct": 57.09
+      "pct": 57.09
     },
     "session_buddy/mcp/tools/memory/validated_memory_tools.py": {
-      "lines": 293,
+      "branch_pct": 91.43,
       "covered_lines": 271,
+      "lines": 293,
       "missing_lines": 22,
-      "pct": 91.43,
-      "branch_pct": 91.43
+      "pct": 91.43
     },
     "session_buddy/mcp/tools/monitoring/bottleneck_tools.py": {
-      "lines": 137,
+      "branch_pct": 65.28,
       "covered_lines": 81,
+      "lines": 137,
       "missing_lines": 56,
-      "pct": 65.28,
-      "branch_pct": 65.28
+      "pct": 65.28
     },
     "session_buddy/mcp/tools/monitoring/health_tools.py": {
-      "lines": 53,
+      "branch_pct": 20.34,
       "covered_lines": 12,
+      "lines": 53,
       "missing_lines": 41,
-      "pct": 20.34,
-      "branch_pct": 20.34
+      "pct": 20.34
     },
     "session_buddy/mcp/tools/monitoring/memory_health_tools.py": {
-      "lines": 101,
+      "branch_pct": 79.02,
       "covered_lines": 86,
+      "lines": 101,
       "missing_lines": 15,
-      "pct": 79.02,
-      "branch_pct": 79.02
+      "pct": 79.02
     },
     "session_buddy/mcp/tools/monitoring/monitoring_tools.py": {
-      "lines": 232,
+      "branch_pct": 81.56,
       "covered_lines": 196,
+      "lines": 232,
       "missing_lines": 36,
-      "pct": 81.56,
-      "branch_pct": 81.56
+      "pct": 81.56
     },
     "session_buddy/mcp/tools/monitoring/prometheus_metrics_tools.py": {
-      "lines": 86,
+      "branch_pct": 91.67,
       "covered_lines": 80,
+      "lines": 86,
       "missing_lines": 6,
-      "pct": 91.67,
-      "branch_pct": 91.67
+      "pct": 91.67
     },
     "session_buddy/mcp/tools/monitoring/session_analytics_tools.py": {
-      "lines": 172,
+      "branch_pct": 50.41,
       "covered_lines": 95,
+      "lines": 172,
       "missing_lines": 77,
-      "pct": 50.41,
-      "branch_pct": 50.41
+      "pct": 50.41
     },
     "session_buddy/mcp/tools/monitoring/workflow_metrics_tools.py": {
-      "lines": 112,
+      "branch_pct": 78.95,
       "covered_lines": 84,
+      "lines": 112,
       "missing_lines": 28,
-      "pct": 78.95,
-      "branch_pct": 78.95
+      "pct": 78.95
     },
     "session_buddy/mcp/tools/profiles.py": {
-      "lines": 9,
+      "branch_pct": 100.0,
       "covered_lines": 9,
+      "lines": 9,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/session/admin_shell_tracking_tools.py": {
-      "lines": 60,
+      "branch_pct": 62.5,
       "covered_lines": 40,
+      "lines": 60,
       "missing_lines": 20,
-      "pct": 62.5,
-      "branch_pct": 62.5
+      "pct": 62.5
     },
     "session_buddy/mcp/tools/session/channel_tracking_tools.py": {
-      "lines": 121,
+      "branch_pct": 88.68,
       "covered_lines": 108,
+      "lines": 121,
       "missing_lines": 13,
-      "pct": 88.68,
-      "branch_pct": 88.68
+      "pct": 88.68
     },
     "session_buddy/mcp/tools/session/crackerjack_tools.py": {
-      "lines": 673,
+      "branch_pct": 81.65,
       "covered_lines": 557,
+      "lines": 673,
       "missing_lines": 116,
-      "pct": 81.65,
-      "branch_pct": 81.65
+      "pct": 81.65
     },
     "session_buddy/mcp/tools/session/hooks_tools.py": {
-      "lines": 76,
+      "branch_pct": 26.14,
       "covered_lines": 23,
+      "lines": 76,
       "missing_lines": 53,
-      "pct": 26.14,
-      "branch_pct": 26.14
+      "pct": 26.14
     },
     "session_buddy/mcp/tools/session/migration_tools.py": {
-      "lines": 24,
+      "branch_pct": 100.0,
       "covered_lines": 24,
+      "lines": 24,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/session/prompt_tools.py": {
-      "lines": 34,
+      "branch_pct": 85.0,
       "covered_lines": 30,
+      "lines": 34,
       "missing_lines": 4,
-      "pct": 85.0,
-      "branch_pct": 85.0
+      "pct": 85.0
     },
     "session_buddy/mcp/tools/session/session_tools.py": {
-      "lines": 483,
+      "branch_pct": 73.54,
       "covered_lines": 370,
+      "lines": 483,
       "missing_lines": 113,
-      "pct": 73.54,
-      "branch_pct": 73.54
+      "pct": 73.54
     },
     "session_buddy/mcp/tools/skills/phase4_tools.py": {
-      "lines": 96,
+      "branch_pct": 100.0,
       "covered_lines": 96,
+      "lines": 96,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/mcp/tools/worktree_tools.py": {
-      "lines": 78,
+      "branch_pct": 65.0,
       "covered_lines": 50,
+      "lines": 78,
       "missing_lines": 28,
-      "pct": 65.0,
-      "branch_pct": 65.0
+      "pct": 65.0
     },
     "session_buddy/memory/category_evolution.py": {
-      "lines": 480,
+      "branch_pct": 86.34,
       "covered_lines": 418,
+      "lines": 480,
       "missing_lines": 62,
-      "pct": 86.34,
-      "branch_pct": 86.34
+      "pct": 86.34
     },
     "session_buddy/memory/causal.py": {
-      "lines": 86,
+      "branch_pct": 85.83,
       "covered_lines": 76,
+      "lines": 86,
       "missing_lines": 10,
-      "pct": 85.83,
-      "branch_pct": 85.83
+      "pct": 85.83
     },
     "session_buddy/memory/conscious_agent.py": {
-      "lines": 305,
+      "branch_pct": 67.24,
       "covered_lines": 214,
+      "lines": 305,
       "missing_lines": 91,
-      "pct": 67.24,
-      "branch_pct": 67.24
+      "pct": 67.24
     },
     "session_buddy/memory/entity_extractor.py": {
-      "lines": 128,
+      "branch_pct": 65.54,
       "covered_lines": 88,
+      "lines": 128,
       "missing_lines": 40,
-      "pct": 65.54,
-      "branch_pct": 65.54
+      "pct": 65.54
     },
     "session_buddy/memory/evolution_config.py": {
-      "lines": 80,
+      "branch_pct": 71.82,
       "covered_lines": 60,
+      "lines": 80,
       "missing_lines": 20,
-      "pct": 71.82,
-      "branch_pct": 71.82
+      "pct": 71.82
     },
     "session_buddy/memory/file_context.py": {
-      "lines": 19,
+      "branch_pct": 92.0,
       "covered_lines": 17,
+      "lines": 19,
       "missing_lines": 2,
-      "pct": 92.0,
-      "branch_pct": 92.0
+      "pct": 92.0
     },
     "session_buddy/memory/migration.py": {
-      "lines": 173,
+      "branch_pct": 73.93,
       "covered_lines": 132,
+      "lines": 173,
       "missing_lines": 41,
-      "pct": 73.93,
-      "branch_pct": 73.93
+      "pct": 73.93
     },
     "session_buddy/memory/peer_modeling.py": {
-      "lines": 55,
+      "branch_pct": 62.34,
       "covered_lines": 37,
+      "lines": 55,
       "missing_lines": 18,
-      "pct": 62.34,
-      "branch_pct": 62.34
+      "pct": 62.34
     },
     "session_buddy/memory/persistence.py": {
-      "lines": 64,
+      "branch_pct": 89.47,
       "covered_lines": 60,
+      "lines": 64,
       "missing_lines": 4,
-      "pct": 89.47,
-      "branch_pct": 89.47
+      "pct": 89.47
     },
     "session_buddy/memory/schema_v2.py": {
-      "lines": 14,
+      "branch_pct": 100.0,
       "covered_lines": 14,
+      "lines": 14,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/memory_optimizer.py": {
-      "lines": 297,
+      "branch_pct": 93.92,
       "covered_lines": 287,
+      "lines": 297,
       "missing_lines": 10,
-      "pct": 93.92,
-      "branch_pct": 93.92
+      "pct": 93.92
     },
     "session_buddy/metrics.py": {
-      "lines": 31,
+      "branch_pct": 88.37,
       "covered_lines": 29,
+      "lines": 31,
       "missing_lines": 2,
-      "pct": 88.37,
-      "branch_pct": 88.37
+      "pct": 88.37
     },
     "session_buddy/modes/base.py": {
-      "lines": 45,
+      "branch_pct": 100.0,
       "covered_lines": 45,
+      "lines": 45,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/modes/lite.py": {
-      "lines": 15,
+      "branch_pct": 100.0,
       "covered_lines": 15,
+      "lines": 15,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/modes/standard.py": {
-      "lines": 30,
+      "branch_pct": 100.0,
       "covered_lines": 30,
+      "lines": 30,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/multi_project_coordinator.py": {
-      "lines": 243,
+      "branch_pct": 94.04,
       "covered_lines": 234,
+      "lines": 243,
       "missing_lines": 9,
-      "pct": 94.04,
-      "branch_pct": 94.04
+      "pct": 94.04
     },
     "session_buddy/natural_scheduler.py": {
-      "lines": 264,
+      "branch_pct": 93.98,
       "covered_lines": 251,
+      "lines": 264,
       "missing_lines": 13,
-      "pct": 93.98,
-      "branch_pct": 93.98
+      "pct": 93.98
     },
     "session_buddy/parameter_models.py": {
-      "lines": 315,
+      "branch_pct": 83.95,
       "covered_lines": 271,
+      "lines": 315,
       "missing_lines": 44,
-      "pct": 83.95,
-      "branch_pct": 83.95
+      "pct": 83.95
     },
     "session_buddy/pools.py": {
-      "lines": 164,
+      "branch_pct": 100.0,
       "covered_lines": 164,
+      "lines": 164,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/quality_engine.py": {
-      "lines": 409,
+      "branch_pct": 96.07,
       "covered_lines": 396,
+      "lines": 409,
       "missing_lines": 13,
-      "pct": 96.07,
-      "branch_pct": 96.07
+      "pct": 96.07
     },
     "session_buddy/realtime/auth.py": {
-      "lines": 25,
+      "branch_pct": 90.91,
       "covered_lines": 24,
+      "lines": 25,
       "missing_lines": 1,
-      "pct": 90.91,
-      "branch_pct": 90.91
+      "pct": 90.91
     },
     "session_buddy/realtime/metrics_exporter.py": {
-      "lines": 56,
+      "branch_pct": 100.0,
       "covered_lines": 56,
+      "lines": 56,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/realtime/websocket_server.py": {
-      "lines": 214,
+      "branch_pct": 60.45,
       "covered_lines": 132,
+      "lines": 214,
       "missing_lines": 82,
-      "pct": 60.45,
-      "branch_pct": 60.45
+      "pct": 60.45
     },
     "session_buddy/reflection/database.py": {
-      "lines": 288,
+      "branch_pct": 69.52,
       "covered_lines": 204,
+      "lines": 288,
       "missing_lines": 84,
-      "pct": 69.52,
-      "branch_pct": 69.52
+      "pct": 69.52
     },
     "session_buddy/reflection/embeddings.py": {
-      "lines": 87,
+      "branch_pct": 66.09,
       "covered_lines": 64,
+      "lines": 87,
       "missing_lines": 23,
-      "pct": 66.09,
-      "branch_pct": 66.09
+      "pct": 66.09
     },
     "session_buddy/reflection/schema.py": {
-      "lines": 36,
+      "branch_pct": 100.0,
       "covered_lines": 36,
+      "lines": 36,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/reflection/search.py": {
-      "lines": 106,
+      "branch_pct": 54.67,
       "covered_lines": 59,
+      "lines": 106,
       "missing_lines": 47,
-      "pct": 54.67,
-      "branch_pct": 54.67
+      "pct": 54.67
     },
     "session_buddy/reflection/storage.py": {
-      "lines": 153,
+      "branch_pct": 47.64,
       "covered_lines": 77,
+      "lines": 153,
       "missing_lines": 76,
-      "pct": 47.64,
-      "branch_pct": 47.64
+      "pct": 47.64
     },
     "session_buddy/reflection_tools.py": {
-      "lines": 16,
+      "branch_pct": 100.0,
       "covered_lines": 16,
+      "lines": 16,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/resource_cleanup.py": {
-      "lines": 180,
+      "branch_pct": 98.68,
       "covered_lines": 177,
+      "lines": 180,
       "missing_lines": 3,
-      "pct": 98.68,
-      "branch_pct": 98.68
+      "pct": 98.68
     },
     "session_buddy/rewriting/hooks_integration.py": {
-      "lines": 31,
+      "branch_pct": 21.62,
       "covered_lines": 8,
+      "lines": 31,
       "missing_lines": 23,
-      "pct": 21.62,
-      "branch_pct": 21.62
+      "pct": 21.62
     },
     "session_buddy/rewriting/query_rewriter.py": {
-      "lines": 196,
+      "branch_pct": 97.2,
       "covered_lines": 191,
+      "lines": 196,
       "missing_lines": 5,
-      "pct": 97.2,
-      "branch_pct": 97.2
+      "pct": 97.2
     },
     "session_buddy/search/progressive_search.py": {
-      "lines": 196,
+      "branch_pct": 100.0,
       "covered_lines": 196,
+      "lines": 196,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/search_enhanced.py": {
-      "lines": 238,
+      "branch_pct": 98.54,
       "covered_lines": 237,
+      "lines": 238,
       "missing_lines": 1,
-      "pct": 98.54,
-      "branch_pct": 98.54
+      "pct": 98.54
     },
     "session_buddy/security/memory_guard_adapter.py": {
-      "lines": 85,
+      "branch_pct": 88.79,
       "covered_lines": 75,
+      "lines": 85,
       "missing_lines": 10,
-      "pct": 88.79,
-      "branch_pct": 88.79
+      "pct": 88.79
     },
     "session_buddy/server.py": {
-      "lines": 148,
+      "branch_pct": 90.95,
       "covered_lines": 136,
+      "lines": 148,
       "missing_lines": 12,
-      "pct": 90.95,
-      "branch_pct": 90.95
+      "pct": 90.95
     },
     "session_buddy/server_optimized.py": {
-      "lines": 284,
+      "branch_pct": 87.02,
       "covered_lines": 252,
+      "lines": 284,
       "missing_lines": 32,
-      "pct": 87.02,
-      "branch_pct": 87.02
+      "pct": 87.02
     },
     "session_buddy/serverless_mode.py": {
-      "lines": 95,
+      "branch_pct": 98.29,
       "covered_lines": 95,
+      "lines": 95,
       "missing_lines": 0,
-      "pct": 98.29,
-      "branch_pct": 98.29
+      "pct": 98.29
     },
     "session_buddy/services/git_maintenance.py": {
-      "lines": 188,
+      "branch_pct": 92.02,
       "covered_lines": 175,
+      "lines": 188,
       "missing_lines": 13,
-      "pct": 92.02,
-      "branch_pct": 92.02
+      "pct": 92.02
     },
     "session_buddy/session_commands.py": {
-      "lines": 2,
+      "branch_pct": 100.0,
       "covered_lines": 2,
+      "lines": 2,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/session_types.py": {
-      "lines": 14,
+      "branch_pct": 100.0,
       "covered_lines": 14,
+      "lines": 14,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/settings.py": {
-      "lines": 258,
+      "branch_pct": 91.0,
       "covered_lines": 239,
+      "lines": 258,
       "missing_lines": 19,
-      "pct": 91.0,
-      "branch_pct": 91.0
+      "pct": 91.0
     },
     "session_buddy/shell/adapter.py": {
-      "lines": 58,
+      "branch_pct": 98.39,
       "covered_lines": 57,
+      "lines": 58,
       "missing_lines": 1,
-      "pct": 98.39,
-      "branch_pct": 98.39
+      "pct": 98.39
     },
     "session_buddy/shutdown_manager.py": {
-      "lines": 144,
+      "branch_pct": 97.65,
       "covered_lines": 141,
+      "lines": 144,
       "missing_lines": 3,
-      "pct": 97.65,
-      "branch_pct": 97.65
+      "pct": 97.65
     },
     "session_buddy/skills/distiller.py": {
-      "lines": 72,
+      "branch_pct": 86.46,
       "covered_lines": 65,
+      "lines": 72,
       "missing_lines": 7,
-      "pct": 86.46,
-      "branch_pct": 86.46
+      "pct": 86.46
     },
     "session_buddy/storage/akosha_config.py": {
-      "lines": 124,
+      "branch_pct": 92.86,
       "covered_lines": 119,
+      "lines": 124,
       "missing_lines": 5,
-      "pct": 92.86,
-      "branch_pct": 92.86
+      "pct": 92.86
     },
     "session_buddy/storage/akosha_sync.py": {
-      "lines": 344,
+      "branch_pct": 52.4,
       "covered_lines": 188,
+      "lines": 344,
       "missing_lines": 156,
-      "pct": 52.4,
-      "branch_pct": 52.4
+      "pct": 52.4
     },
     "session_buddy/storage/cloud_sync.py": {
-      "lines": 152,
+      "branch_pct": 65.76,
       "covered_lines": 107,
+      "lines": 152,
       "missing_lines": 45,
-      "pct": 65.76,
-      "branch_pct": 65.76
+      "pct": 65.76
     },
     "session_buddy/storage/ipfs.py": {
-      "lines": 131,
+      "branch_pct": 15.53,
       "covered_lines": 25,
+      "lines": 131,
       "missing_lines": 106,
-      "pct": 15.53,
-      "branch_pct": 15.53
+      "pct": 15.53
     },
     "session_buddy/storage/migrations/base.py": {
-      "lines": 160,
+      "branch_pct": 79.29,
       "covered_lines": 133,
+      "lines": 160,
       "missing_lines": 27,
-      "pct": 79.29,
-      "branch_pct": 79.29
+      "pct": 79.29
     },
     "session_buddy/storage/skills_embeddings.py": {
-      "lines": 108,
+      "branch_pct": 84.03,
       "covered_lines": 90,
+      "lines": 108,
       "missing_lines": 18,
-      "pct": 84.03,
-      "branch_pct": 84.03
+      "pct": 84.03
     },
     "session_buddy/storage/skills_storage.py": {
-      "lines": 454,
+      "branch_pct": 60.55,
       "covered_lines": 291,
+      "lines": 454,
       "missing_lines": 163,
-      "pct": 60.55,
-      "branch_pct": 60.55
+      "pct": 60.55
     },
     "session_buddy/storage/sync_protocol.py": {
-      "lines": 19,
+      "branch_pct": 100.0,
       "covered_lines": 19,
+      "lines": 19,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/subscribers/code_graph_subscriber.py": {
-      "lines": 263,
+      "branch_pct": 11.9,
       "covered_lines": 42,
+      "lines": 263,
       "missing_lines": 221,
-      "pct": 11.9,
-      "branch_pct": 11.9
+      "pct": 11.9
     },
     "session_buddy/sync.py": {
-      "lines": 201,
+      "branch_pct": 93.39,
       "covered_lines": 191,
+      "lines": 201,
       "missing_lines": 10,
-      "pct": 93.39,
-      "branch_pct": 93.39
+      "pct": 93.39
     },
     "session_buddy/team_knowledge.py": {
-      "lines": 303,
+      "branch_pct": 95.82,
       "covered_lines": 294,
+      "lines": 303,
       "missing_lines": 9,
-      "pct": 95.82,
-      "branch_pct": 95.82
+      "pct": 95.82
     },
     "session_buddy/token_optimizer.py": {
-      "lines": 271,
+      "branch_pct": 96.1,
       "covered_lines": 264,
+      "lines": 271,
       "missing_lines": 7,
-      "pct": 96.1,
-      "branch_pct": 96.1
+      "pct": 96.1
     },
     "session_buddy/tools/health_tools.py": {
-      "lines": 31,
+      "branch_pct": 100.0,
       "covered_lines": 31,
+      "lines": 31,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/tools/memory_tools.py": {
-      "lines": 16,
+      "branch_pct": 56.25,
       "covered_lines": 9,
+      "lines": 16,
       "missing_lines": 7,
-      "pct": 56.25,
-      "branch_pct": 56.25
+      "pct": 56.25
     },
     "session_buddy/tools/quality_metrics.py": {
-      "lines": 77,
+      "branch_pct": 100.0,
       "covered_lines": 77,
+      "lines": 77,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/tools/search_tools.py": {
-      "lines": 13,
+      "branch_pct": 61.54,
       "covered_lines": 8,
+      "lines": 13,
       "missing_lines": 5,
-      "pct": 61.54,
-      "branch_pct": 61.54
+      "pct": 61.54
     },
     "session_buddy/tools/session_tools.py": {
-      "lines": 9,
+      "branch_pct": 66.67,
       "covered_lines": 6,
+      "lines": 9,
       "missing_lines": 3,
-      "pct": 66.67,
-      "branch_pct": 66.67
+      "pct": 66.67
     },
     "session_buddy/types.py": {
-      "lines": 3,
+      "branch_pct": 100.0,
       "covered_lines": 3,
+      "lines": 3,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/crackerjack/fallback.py": {
-      "lines": 185,
+      "branch_pct": 85.41,
       "covered_lines": 162,
+      "lines": 185,
       "missing_lines": 23,
-      "pct": 85.41,
-      "branch_pct": 85.41
+      "pct": 85.41
     },
     "session_buddy/utils/crackerjack/output_parser.py": {
-      "lines": 246,
+      "branch_pct": 66.27,
       "covered_lines": 175,
+      "lines": 246,
       "missing_lines": 71,
-      "pct": 66.27,
-      "branch_pct": 66.27
+      "pct": 66.27
     },
     "session_buddy/utils/crackerjack/pattern_builder.py": {
-      "lines": 34,
+      "branch_pct": 100.0,
       "covered_lines": 34,
+      "lines": 34,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/database_pool.py": {
-      "lines": 154,
+      "branch_pct": 88.02,
       "covered_lines": 138,
+      "lines": 154,
       "missing_lines": 16,
-      "pct": 88.02,
-      "branch_pct": 88.02
+      "pct": 88.02
     },
     "session_buddy/utils/database_tools.py": {
-      "lines": 66,
+      "branch_pct": 100.0,
       "covered_lines": 66,
+      "lines": 66,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/encryption.py": {
-      "lines": 69,
+      "branch_pct": 100.0,
       "covered_lines": 69,
+      "lines": 69,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/error_management.py": {
-      "lines": 52,
+      "branch_pct": 100.0,
       "covered_lines": 52,
+      "lines": 52,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/file_utils.py": {
-      "lines": 2,
+      "branch_pct": 100.0,
       "covered_lines": 2,
+      "lines": 2,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/filesystem.py": {
-      "lines": 132,
+      "branch_pct": 100.0,
       "covered_lines": 132,
+      "lines": 132,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/fingerprint.py": {
-      "lines": 69,
+      "branch_pct": 100.0,
       "covered_lines": 69,
+      "lines": 69,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/git_operations.py": {
-      "lines": 71,
+      "branch_pct": 98.99,
       "covered_lines": 71,
+      "lines": 71,
       "missing_lines": 0,
-      "pct": 98.99,
-      "branch_pct": 98.99
+      "pct": 98.99
     },
     "session_buddy/utils/git_worktrees.py": {
-      "lines": 345,
+      "branch_pct": 87.68,
       "covered_lines": 307,
+      "lines": 345,
       "missing_lines": 38,
-      "pct": 87.68,
-      "branch_pct": 87.68
+      "pct": 87.68
     },
     "session_buddy/utils/instance_managers.py": {
-      "lines": 108,
+      "branch_pct": 96.77,
       "covered_lines": 106,
+      "lines": 108,
       "missing_lines": 2,
-      "pct": 96.77,
-      "branch_pct": 96.77
+      "pct": 96.77
     },
     "session_buddy/utils/lazy_imports.py": {
-      "lines": 123,
+      "branch_pct": 99.32,
       "covered_lines": 123,
+      "lines": 123,
       "missing_lines": 0,
-      "pct": 99.32,
-      "branch_pct": 99.32
+      "pct": 99.32
     },
     "session_buddy/utils/logging.py": {
-      "lines": 117,
+      "branch_pct": 99.35,
       "covered_lines": 116,
+      "lines": 117,
       "missing_lines": 1,
-      "pct": 99.35,
-      "branch_pct": 99.35
+      "pct": 99.35
     },
     "session_buddy/utils/logging_utils.py": {
-      "lines": 3,
+      "branch_pct": 100.0,
       "covered_lines": 3,
+      "lines": 3,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/messages.py": {
-      "lines": 94,
+      "branch_pct": 100.0,
       "covered_lines": 94,
+      "lines": 94,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/path_validation.py": {
-      "lines": 67,
+      "branch_pct": 100.0,
       "covered_lines": 67,
+      "lines": 67,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/project_analysis.py": {
-      "lines": 9,
+      "branch_pct": 100.0,
       "covered_lines": 9,
+      "lines": 9,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/quality/compaction.py": {
-      "lines": 49,
+      "branch_pct": 98.59,
       "covered_lines": 49,
+      "lines": 49,
       "missing_lines": 0,
-      "pct": 98.59,
-      "branch_pct": 98.59
+      "pct": 98.59
     },
     "session_buddy/utils/quality/recommendations.py": {
-      "lines": 20,
+      "branch_pct": 100.0,
       "covered_lines": 20,
+      "lines": 20,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/quality/summary.py": {
-      "lines": 52,
+      "branch_pct": 100.0,
       "covered_lines": 52,
+      "lines": 52,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/quality_score_parser.py": {
-      "lines": 107,
+      "branch_pct": 100.0,
       "covered_lines": 107,
+      "lines": 107,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/quality_scoring.py": {
-      "lines": 450,
+      "branch_pct": 91.88,
       "covered_lines": 415,
+      "lines": 450,
       "missing_lines": 35,
-      "pct": 91.88,
-      "branch_pct": 91.88
+      "pct": 91.88
     },
     "session_buddy/utils/quality_utils_v2.py": {
-      "lines": 4,
+      "branch_pct": 100.0,
       "covered_lines": 4,
+      "lines": 4,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/reflection_utils.py": {
-      "lines": 65,
+      "branch_pct": 100.0,
       "covered_lines": 65,
+      "lines": 65,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/regex_patterns.py": {
-      "lines": 2,
+      "branch_pct": 100.0,
       "covered_lines": 2,
+      "lines": 2,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/runtime_snapshots.py": {
-      "lines": 102,
+      "branch_pct": 97.32,
       "covered_lines": 101,
+      "lines": 102,
       "missing_lines": 1,
-      "pct": 97.32,
-      "branch_pct": 97.32
+      "pct": 97.32
     },
     "session_buddy/utils/scheduler/models.py": {
-      "lines": 36,
+      "branch_pct": 100.0,
       "covered_lines": 36,
+      "lines": 36,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/scheduler/time_parser.py": {
-      "lines": 152,
+      "branch_pct": 70.95,
       "covered_lines": 117,
+      "lines": 152,
       "missing_lines": 35,
-      "pct": 70.95,
-      "branch_pct": 70.95
+      "pct": 70.95
     },
     "session_buddy/utils/search/models.py": {
-      "lines": 26,
+      "branch_pct": 100.0,
       "covered_lines": 26,
+      "lines": 26,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/search/utilities.py": {
-      "lines": 69,
+      "branch_pct": 98.92,
       "covered_lines": 69,
+      "lines": 69,
       "missing_lines": 0,
-      "pct": 98.92,
-      "branch_pct": 98.92
+      "pct": 98.92
     },
     "session_buddy/utils/session_formatters.py": {
-      "lines": 190,
+      "branch_pct": 97.22,
       "covered_lines": 190,
+      "lines": 190,
       "missing_lines": 0,
-      "pct": 97.22,
-      "branch_pct": 97.22
+      "pct": 97.22
     },
     "session_buddy/utils/subprocess_executor.py": {
-      "lines": 82,
+      "branch_pct": 100.0,
       "covered_lines": 82,
+      "lines": 82,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/text_formatter.py": {
-      "lines": 97,
+      "branch_pct": 97.74,
       "covered_lines": 97,
+      "lines": 97,
       "missing_lines": 0,
-      "pct": 97.74,
-      "branch_pct": 97.74
+      "pct": 97.74
     },
     "session_buddy/utils/time.py": {
-      "lines": 9,
+      "branch_pct": 100.0,
       "covered_lines": 9,
+      "lines": 9,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/utils/tool_wrapper.py": {
-      "lines": 106,
+      "branch_pct": 100.0,
       "covered_lines": 106,
+      "lines": 106,
       "missing_lines": 0,
-      "pct": 100.0,
-      "branch_pct": 100.0
+      "pct": 100.0
     },
     "session_buddy/worker.py": {
-      "lines": 136,
+      "branch_pct": 99.36,
       "covered_lines": 136,
+      "lines": 136,
       "missing_lines": 0,
-      "pct": 99.36,
-      "branch_pct": 99.36
+      "pct": 99.36
     },
     "session_buddy/worktree_manager.py": {
-      "lines": 284,
+      "branch_pct": 82.69,
       "covered_lines": 235,
+      "lines": 284,
       "missing_lines": 49,
-      "pct": 82.69,
-      "branch_pct": 82.69
+      "pct": 82.69
     }
-  }
+  },
+  "test_count_total": null,
+  "test_invocation": "uv run pytest tests/ --ignore=tests/unit/test_quality_scoring_metrics_registry.py --cov=session_buddy --cov-branch --cov-report=json:coverage.json --cov-report=term-missing:skip-covered -q --no-header --tb=line"
 }

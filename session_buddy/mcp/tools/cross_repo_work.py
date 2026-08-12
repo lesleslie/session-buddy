@@ -8,9 +8,10 @@ from ecosystem.yaml (path authority — wire shape has no repo_path).
 Auth: @require_auth(optional=False) (session-buddy local — composed in
 register_cross_repo_work_tools, Task 9).
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated, Literal, TypedDict
 
 import duckdb
@@ -38,6 +39,7 @@ RepoNameStr = Annotated[
 class RepoWorkEntry(BaseModel):
     """Wire shape for one repo's worth of work entries. NO repo_path here —
     the server resolves it from ecosystem.yaml."""
+
     model_config = ConfigDict(extra="forbid")
     repo_name: RepoNameStr
     work_entries: Annotated[list[WorkEntry], Field(min_length=1, max_length=200)]
@@ -83,6 +85,7 @@ _EcosystemDict = dict[str, _EcosystemEntry]
 
 class _ResolvedRepoEntry(BaseModel):
     """Internal type: server-resolved repo metadata."""
+
     model_config = ConfigDict(extra="forbid")
     repo_name: str
     path: str
@@ -108,7 +111,9 @@ def _load_ecosystem(ecosystem_path) -> _EcosystemDict:
     }
 
 
-def _resolve_repo(repo_name: str, ecosystem: _EcosystemDict) -> _ResolvedRepoEntry | None:
+def _resolve_repo(
+    repo_name: str, ecosystem: _EcosystemDict
+) -> _ResolvedRepoEntry | None:
     """Lowercase normalization for case-insensitive lookup."""
     name_lower = repo_name.strip().lower()
     entry = ecosystem.get(name_lower) or ecosystem.get(repo_name)
@@ -151,7 +156,7 @@ async def store_cross_repo_work(
         )
 
     ecosystem = _load_ecosystem(ecosystem_path)
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     per_repo: list[RepoStoreStatus] = []
     rows_to_write: list[CrossRepoWorkRowCreate] = []
     rejection_map: dict[str, str] = {}  # repo_name -> reason
@@ -185,10 +190,10 @@ async def store_cross_repo_work(
     if rows_to_write:
         conn.execute("BEGIN TRANSACTION")
         try:
-            _reads, ins, ded = merge_primitive.multi_merge(conn, rows_to_write)
+            _reads, ins, dead = merge_primitive.multi_merge(conn, rows_to_write)
             conn.execute("COMMIT")
             total_inserted = ins
-            total_deduplicated = ded
+            total_deduplicated = dead
             repos_stored = len(rows_to_write)
         except Exception as exc:  # noqa: BLE001
             # Wrap ROLLBACK itself in inner try/except so a failing rollback
@@ -203,7 +208,9 @@ async def store_cross_repo_work(
             _log.exception("store_cross_repo_work_failed")
             return CrossRepoStoreResult(
                 status="failed",
-                error_code="storage_locked" if "write_conflict" in str(exc) else "internal",
+                error_code="storage_locked"
+                if "write_conflict" in str(exc)
+                else "internal",
                 message=str(exc),
                 retryable=True,
                 repos_received=len(request.repos),
@@ -217,23 +224,27 @@ async def store_cross_repo_work(
     # Build per_repo breakdown
     for repo_entry in request.repos:
         if repo_entry.repo_name in rejection_map:
-            per_repo.append(RepoStoreStatus(
-                repo_name=repo_entry.repo_name,
-                status="rejected",
-                entries_received=len(repo_entry.work_entries),
-                entries_inserted=0,
-                entries_deduplicated=0,
-                message=rejection_map[repo_entry.repo_name],
-            ))
+            per_repo.append(
+                RepoStoreStatus(
+                    repo_name=repo_entry.repo_name,
+                    status="rejected",
+                    entries_received=len(repo_entry.work_entries),
+                    entries_inserted=0,
+                    entries_deduplicated=0,
+                    message=rejection_map[repo_entry.repo_name],
+                )
+            )
         else:
-            per_repo.append(RepoStoreStatus(
-                repo_name=repo_entry.repo_name,
-                status="stored",
-                entries_received=len(repo_entry.work_entries),
-                entries_inserted=len(repo_entry.work_entries),
-                entries_deduplicated=0,
-                message=None,
-            ))
+            per_repo.append(
+                RepoStoreStatus(
+                    repo_name=repo_entry.repo_name,
+                    status="stored",
+                    entries_received=len(repo_entry.work_entries),
+                    entries_inserted=len(repo_entry.work_entries),
+                    entries_deduplicated=0,
+                    message=None,
+                )
+            )
 
     if rejection_map:
         status = "partial" if repos_stored > 0 else "failed"

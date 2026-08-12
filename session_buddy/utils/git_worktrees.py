@@ -501,23 +501,81 @@ def _parse_git_status(status_lines: list[str]) -> tuple[list[str], list[str]]:
     return modified_files, untracked_files
 
 
+def _is_worktree(directory: Path) -> bool:
+    """Detect whether ``directory`` is inside a git worktree (vs. main checkout).
+
+    In a worktree, ``<directory>/.git`` is a file containing
+    ``gitdir: <main-repo>/.git/worktrees/<name>``. In a main checkout,
+    ``.git`` is a directory. This distinction is the session boundary
+    for auto-checkpoints: ``git add -A`` inside a worktree is scoped to
+    that worktree's working tree, while on main it sweeps the entire
+    project's dirty tree. See ``stage_files`` for the policy that uses
+    this check.
+
+    Returns False when ``directory`` is not a git repository at all
+    (no ``.git`` file or directory present).
+    """
+    git_path = Path(directory) / ".git"
+    return git_path.is_file()
+
+
 def stage_files(directory: Path, files: list[str]) -> bool:
-    """Stage files for commit."""
-    if not is_git_repository(directory) or not files:
+    """Stage files for commit.
+
+    Policy (worktree isolation):
+    - In a worktree, ``files`` is unused — the worktree IS the session
+      boundary, so ``git add -A`` is scoped to that worktree's working
+      tree. ``files`` is accepted for API parity but ignored.
+    - On the main checkout, ``files`` MUST be the explicit set to stage.
+      An empty ``files`` on main refuses, preventing an accidental
+      ``git add -A`` that would sweep unrelated dirty files into the
+      checkpoint commit.
+    - When ``files`` is non-empty, ``git add -- <files>`` is used (the
+      ``--`` guards against filenames that start with ``-``).
+
+    Crackerjack commit stages do not call this helper; they go through
+    their own path that intentionally uses ``git add -A`` to catch
+    straggler files before release. The ``files`` argument becomes
+    load-bearing only on main checkouts, where the per-session boundary
+    must be supplied explicitly.
+    """
+    if not is_git_repository(directory):
         return False
 
+    is_worktree = _is_worktree(directory)
+
+    # Main checkout without explicit list → refuse (unsafe sweep).
+    if not is_worktree and not files:
+        logger.warning(
+            "stage_files_refused_unsafe_sweep",
+            extra={
+                "reason": "main checkout without explicit file list",
+                "directory": str(directory),
+            },
+        )
+        return False
+
+    # Choose command: explicit list → selective; otherwise worktree bulk.
+    cmd = ["git", "add", "--", *files] if files else ["git", "add", "-A"]
+
     try:
-        # Stage all changes (handles modified, deleted, and new files)
         subprocess.run(
-            ["git", "add", "-A"],
+            cmd,
             cwd=directory,
             capture_output=True,
             text=True,
             check=True,
         )
         return True
-    except subprocess.CalledProcessError:
-        # Debug: Print the actual error
+    except subprocess.CalledProcessError as e:
+        logger.debug(
+            "stage_files_git_failed",
+            extra={
+                "cmd": cmd,
+                "stderr": e.stderr.strip() if e.stderr else "",
+                "directory": str(directory),
+            },
+        )
         return False
 
 
@@ -655,8 +713,17 @@ def _perform_staging_and_commit(
     directory: Path,
     project: str,
     quality_score: int,
+    *,
+    explicit_files: list[str] | None = None,
 ) -> tuple[bool, str, list[str]]:
-    """Stage changes and create commit."""
+    """Stage changes and create commit.
+
+    Pass ``explicit_files`` to restrict the staged set on the main
+    checkout. In a worktree, ``explicit_files`` is optional — the
+    worktree boundary gives session scope, so an empty list falls back
+    to ``git add -A`` (which is safe there). On main, an empty list
+    refuses (see ``stage_files`` policy).
+    """
     output = []
 
     # Create commit message
@@ -665,17 +732,18 @@ def _perform_staging_and_commit(
         f"checkpoint: {project} (quality: {quality_score}/100) - {timestamp}"
     )
 
-    # Stage changes
-    stage_result = subprocess.run(
-        ["git", "add", "-A"],
-        cwd=directory,
-        capture_output=True,
-        text=True,
-        check=False,
+    # Stage changes — route through stage_files so the worktree/main
+    # policy lives in one place. Passing explicit_files when given,
+    # otherwise letting stage_files decide based on its own policy.
+    stage_ok = stage_files(
+        directory,
+        [] if explicit_files is None else list(explicit_files),
     )
-
-    if stage_result.returncode != 0:
-        output.append(f"⚠️ Failed to stage changes: {stage_result.stderr.strip()}")
+    if not stage_ok:
+        output.append(
+            "⚠️ Failed to stage changes: refused or errored "
+            "(main checkout requires explicit_files)"
+        )
         return False, "staging failed", output
 
     # Create commit
@@ -717,8 +785,16 @@ def create_checkpoint_commit(
     directory: Path,
     project: str,
     quality_score: int,
+    *,
+    explicit_files: list[str] | None = None,
 ) -> tuple[bool, str, list[str]]:
     """Create an automatic checkpoint commit.
+
+    Pass ``explicit_files`` when running on the main checkout to
+    restrict the commit to that exact set. In a worktree the parameter
+    is optional — the worktree boundary gives session scope and an
+    empty list falls back to ``git add -A``. On main, an empty list
+    refuses the commit to avoid sweeping unrelated dirty files.
 
     Returns:
         tuple: (success, commit_hash_or_error, output_messages)
@@ -743,6 +819,7 @@ def create_checkpoint_commit(
                 directory,
                 project,
                 quality_score,
+                explicit_files=explicit_files,
             )
             output.extend(commit_output)
             return success, result, output

@@ -3,6 +3,7 @@
 Per spec line 384: "TTL-based: 7-day default TTL. Background cleanup task
 removes expired snapshots."
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -36,7 +37,10 @@ class SnapshotCleanupTask:
                     path.unlink()
                     removed += 1
             except (FileNotFoundError, OSError) as exc:
-                _log.warning("snapshot_cleanup_skip", extra={"path": str(path), **safe_transient_info(exc)})
+                _log.warning(
+                    "snapshot_cleanup_skip",
+                    extra={"path": str(path)} | safe_transient_info(exc),
+                )
         if removed:
             _log.info("snapshot_cleanup_completed", extra={"removed": removed})
         return removed

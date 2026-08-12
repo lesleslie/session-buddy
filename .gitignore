@@ -43,6 +43,7 @@ tox/
 coverage
 coverage.py
 coverage.*
+coverage-batch*.json
 nosetests.xml
 coverage.xml
 coverage.json

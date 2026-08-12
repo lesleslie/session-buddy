@@ -8,6 +8,7 @@ Composition:
 The client-visible name is "mcp__session-buddy__store_cross_repo_work"
 (the client prefix is added by FastMCP).
 """
+
 from __future__ import annotations
 
 from fastmcp import FastMCP

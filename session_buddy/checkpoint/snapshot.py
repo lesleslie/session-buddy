@@ -5,6 +5,7 @@ working tree. `restore()` is a separate explicit user action with fail-loud
 failure modes (patch missing, git apply conflicts with hunk detail,
 working-tree drift warning).
 """
+
 from __future__ import annotations
 
 import re
@@ -60,7 +61,9 @@ class SnapshotMechanism:
         snapshot_dir: Path | None = None,
     ) -> None:
         self._working_dir = working_dir
-        self._snapshot_dir = snapshot_dir or Path(tempfile.gettempdir()) / "session-buddy-snapshots"
+        self._snapshot_dir = (
+            snapshot_dir or Path(tempfile.gettempdir()) / "session-buddy-snapshots"
+        )
 
     def capture(self, label: str) -> Snapshot:
         self._snapshot_dir.mkdir(parents=True, exist_ok=True)
@@ -71,25 +74,38 @@ class SnapshotMechanism:
         parent_commit = self._current_head()
         dirty_files = self._list_dirty_files()
 
-        diff_result = subprocess.run(  # noqa: S603
+        diff_result = subprocess.run(
             ["git", "diff", "HEAD"],
-            cwd=self._working_dir, capture_output=True, text=True,
-            check=False, timeout=_GIT_TIMEOUT_S,
+            cwd=self._working_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_S,
         )
-        untracked_result = subprocess.run(  # noqa: S603
+        untracked_result = subprocess.run(
             ["git", "ls-files", "--others", "--exclude-standard"],
-            cwd=self._working_dir, capture_output=True, text=True,
-            check=False, timeout=_GIT_TIMEOUT_S,
+            cwd=self._working_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_S,
         )
 
         if diff_result.returncode != 0:
             _log.error(
                 "snapshot_capture_git_diff_failed",
-                extra={"working_dir": str(self._working_dir), "stderr": diff_result.stderr[:500]},
+                extra={
+                    "working_dir": str(self._working_dir),
+                    "stderr": diff_result.stderr[:500],
+                },
             )
             return Snapshot(
-                path=snap_path, label=label, snapshot_id=snap_id,
-                captured_at=captured_at, parent_commit=parent_commit, dirty_files=[],
+                path=snap_path,
+                label=label,
+                snapshot_id=snap_id,
+                captured_at=captured_at,
+                parent_commit=parent_commit,
+                dirty_files=[],
             )
 
         body = diff_result.stdout
@@ -116,13 +132,20 @@ class SnapshotMechanism:
                 full_path = self._working_dir / rel_path
                 if not full_path.is_file():
                     continue
-                nd = subprocess.run(  # noqa: S603
+                nd = subprocess.run(
                     [
-                        "git", "diff", "--no-index",
-                        "--", "/dev/null", rel_path,
+                        "git",
+                        "diff",
+                        "--no-index",
+                        "--",
+                        "/dev/null",
+                        rel_path,
                     ],
-                    cwd=self._working_dir, capture_output=True, text=True,
-                    check=False, timeout=_GIT_TIMEOUT_S,
+                    cwd=self._working_dir,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=_GIT_TIMEOUT_S,
                 )
                 # git diff --no-index exits 0 when files identical, 1 when differ
                 if nd.returncode in (0, 1) and nd.stdout.strip():
@@ -134,8 +157,12 @@ class SnapshotMechanism:
         snap_path.chmod(0o444)  # immutable after capture
 
         return Snapshot(
-            path=snap_path, label=label, snapshot_id=snap_id,
-            captured_at=captured_at, parent_commit=parent_commit, dirty_files=dirty_files,
+            path=snap_path,
+            label=label,
+            snapshot_id=snap_id,
+            captured_at=captured_at,
+            parent_commit=parent_commit,
+            dirty_files=dirty_files,
         )
 
     def restore(self, snapshot: Snapshot) -> RestoreResult:
@@ -148,7 +175,10 @@ class SnapshotMechanism:
 
         # Drift detection (spec line 378)
         current_head = self._current_head()
-        drift = current_head != snapshot.parent_commit and snapshot.parent_commit != "unknown"
+        drift = (
+            current_head != snapshot.parent_commit
+            and snapshot.parent_commit != "unknown"
+        )
 
         patch_text = snapshot.path.read_text()
 
@@ -190,18 +220,23 @@ class SnapshotMechanism:
                 if hunks:
                     error_msg += "\nHunks: " + " | ".join(hunks[:10])
                 return RestoreResult(
-                    success=False, error=error_msg,
-                    hunks=hunks, drift_detected=drift,
+                    success=False,
+                    error=error_msg,
+                    hunks=hunks,
+                    drift_detected=drift,
                 )
             # Line counts match — the existing file is the captured content.
             # Remove it so git apply can recreate it from the patch (this
             # also revives any uncommitted changes captured by the snapshot).
             full_path.unlink()
 
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             ["git", "apply", "--whitespace=nowarn", "--reject", str(snapshot.path)],
-            cwd=self._working_dir, capture_output=True, text=True,
-            check=False, timeout=_GIT_TIMEOUT_S,
+            cwd=self._working_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_S,
         )
         if result.returncode != 0:
             hunks = _HUNK_RE.findall(result.stderr + result.stdout)
@@ -209,24 +244,32 @@ class SnapshotMechanism:
             if hunks:
                 error_msg += "\nHunks: " + " | ".join(hunks[:10])
             return RestoreResult(
-                success=False, error=error_msg,
-                hunks=hunks, drift_detected=drift,
+                success=False,
+                error=error_msg,
+                hunks=hunks,
+                drift_detected=drift,
             )
         return RestoreResult(success=True, drift_detected=drift)
 
     def _current_head(self) -> str:
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=self._working_dir, capture_output=True, text=True,
-            check=False, timeout=_GIT_TIMEOUT_S,
+            cwd=self._working_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_S,
         )
         return result.stdout.strip() if result.returncode == 0 else "unknown"
 
     def _list_dirty_files(self) -> list[str]:
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             ["git", "status", "--porcelain"],
-            cwd=self._working_dir, capture_output=True, text=True,
-            check=False, timeout=_GIT_TIMEOUT_S,
+            cwd=self._working_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_S,
         )
         if result.returncode != 0:
             return []

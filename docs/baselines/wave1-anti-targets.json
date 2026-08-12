@@ -1,10 +1,10 @@
 {
+  "anti_targets": [
+    "session_buddy/utils.py"
+  ],
   "generated_at": "2026-08-04T03:36:06Z",
   "rules": [
     "sys.modules[",
     "monkeypatch.setattr with string-form dotted path"
-  ],
-  "anti_targets": [
-    "session_buddy/utils.py"
   ]
 }

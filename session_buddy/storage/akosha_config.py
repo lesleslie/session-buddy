@@ -23,7 +23,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from session_buddy.utils.error_management import _get_logger
 
@@ -309,7 +309,14 @@ class AkoshaSyncConfig:
         force_method_raw = _string("akosha_force_method", "auto")
         if force_method_raw not in {"auto", "cloud", "http"}:
             force_method_raw = "auto"
-        force_method: Literal["auto", "cloud", "http"] = force_method_raw
+        # Set-membership check above narrows force_method_raw to the
+        # Literal union at runtime; cast() tells the type checker the
+        # same thing (some ty versions do not narrow str from set
+        # membership). The annotation keeps the dataclass field
+        # signature honest even if the runtime value drifts.
+        force_method: Literal["auto", "cloud", "http"] = cast(
+            "Literal['auto', 'cloud', 'http']", force_method_raw
+        )
 
         return cls(
             # Cloud settings

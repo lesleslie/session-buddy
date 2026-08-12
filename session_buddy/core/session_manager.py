@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import typing as t
 from contextlib import suppress
+from datetime import datetime
 from pathlib import Path
 
 from session_buddy.core.hooks import HooksManager
@@ -511,7 +512,7 @@ class SessionLifecycleManager:
 
         """
         # Lazy import: avoid eager-load cycles in lite mode and at import time.
-        from session_buddy.checkpoint import (  # noqa: PLC0415
+        from session_buddy.checkpoint import (
             CheckpointOrchestrator,
             CheckpointPhase,
             CheckpointPolicy,
@@ -533,9 +534,7 @@ class SessionLifecycleManager:
         # string ``"end_of_task"`` while the production call site passes the
         # enum). Either form is valid here.
         phase_enum = (
-            CheckpointPhase(phase)
-            if not isinstance(phase, CheckpointPhase)
-            else phase
+            CheckpointPhase(phase) if not isinstance(phase, CheckpointPhase) else phase
         )
 
         # Security (MEDIUM finding): validate ``current_dir`` before
@@ -551,7 +550,8 @@ class SessionLifecycleManager:
         validated_dir = self._validate_orchestrator_path(current_dir)
         if validated_dir is None:
             git_output = await self.perform_git_checkpoint(
-                current_dir, quality_score,
+                current_dir,
+                quality_score,
             )
             git_output.append(
                 "checkpoint_orchestrator_decision: safety_capture_skipped "
@@ -598,9 +598,7 @@ class SessionLifecycleManager:
         # Always run the legacy commit after the orchestrator captures
         # (or fails to capture) the snapshot. The orchestrator's job is
         # safety; the commit is the user's explicit end-of-task request.
-        git_output.extend(
-            await self.perform_git_checkpoint(current_dir, quality_score)
-        )
+        git_output.extend(await self.perform_git_checkpoint(current_dir, quality_score))
 
         summary = (
             f"checkpoint_orchestrator_decision: phase={phase_enum.value} "
@@ -1093,10 +1091,16 @@ class SessionLifecycleManager:
                     row_dict["contributor_sources"]
                 )
                 read_rows.append(CrossRepoWorkRowRead.model_validate(row_dict))
+            # `self.conversation_id` is declared `str | None` but the query
+            # above already consumed it as a parameter, so reaching this
+            # point implies it was a non-None str. The cast is the
+            # narrowest expression of that invariant.
             markdown_content.append(
-                HandoffLink.render_section(self.conversation_id, read_rows)
+                HandoffLink.render_section(
+                    t.cast("str", self.conversation_id), read_rows
+                )
             )
-        except Exception as exc:  # noqa: BLE001 - sentinel path; never break handoff
+        except Exception as exc:
             self.logger.exception("cross_repo_work_handoff_render_failed")
             markdown_content.append(
                 "## Cross-Repo Work\n\n"
@@ -1358,7 +1362,7 @@ class SessionLifecycleManager:
             # Git checkpoint — Task 8 wires through the safe orchestrator
             # so capture-then-commit runs in standard mode; lite mode
             # bypasses the orchestrator entirely inside the wrapper.
-            from session_buddy.checkpoint import (  # noqa: PLC0415
+            from session_buddy.checkpoint import (
                 CheckpointPhase,
             )
 
@@ -1448,9 +1452,7 @@ class SessionLifecycleManager:
                         extra={
                             "repos_captured": summary.repos_captured,
                             "entries_inserted": summary.entries_inserted,
-                            "entries_deduplicated": (
-                                summary.entries_deduplicated
-                            ),
+                            "entries_deduplicated": (summary.entries_deduplicated),
                             "ambient_failures": summary.ambient_failures,
                         },
                     )
@@ -1710,19 +1712,18 @@ class SessionLifecycleManager:
             # fires the orchestrator identically to the MCP server
             # lifespan loop — both call sites must NOT silently drop the
             # deferred commit.
-            from session_buddy.checkpoint import (  # noqa: PLC0415
+            from session_buddy.checkpoint import (
                 consume_pending_marker,
             )
-            from session_buddy.checkpoint.pending import PENDING_DIR  # noqa: PLC0415
+            from session_buddy.checkpoint.pending import PENDING_DIR
 
             if PENDING_DIR.exists():
                 for marker in PENDING_DIR.glob("*.json"):
 
                     async def _build(wd: Path) -> t.Any:
                         # Lazy import: avoid eager-load cycles in lite mode.
-                        from session_buddy.checkpoint import (  # noqa: PLC0415
+                        from session_buddy.checkpoint import (
                             CheckpointOrchestrator,
-                            CheckpointPhase,
                             CheckpointPolicy,
                             LockfileSignalSource,
                             MidpointCriteria,
@@ -1748,6 +1749,7 @@ class SessionLifecycleManager:
                             # deferred checkpoint is honored, not
                             # silently dropped (Finding I-2).
                             import asyncio
+
                             from session_buddy.utils.git_worktrees import (
                                 create_checkpoint_commit,
                             )
@@ -1768,8 +1770,9 @@ class SessionLifecycleManager:
                         )
 
                     try:
-                        pending = await consume_pending_marker(
-                            marker, build_orchestrator=_build,
+                        await consume_pending_marker(
+                            marker,
+                            build_orchestrator=_build,
                         )
                         self.logger.info(
                             "pending_checkpoint_drained",

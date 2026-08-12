@@ -15,6 +15,7 @@ import sqlite3
 import tempfile
 import time
 import warnings
+from contextlib import suppress
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -411,18 +412,12 @@ class CrackerjackIntegration:
             )
         except TimeoutError:
             if process.returncode is None:
-                try:
+                with suppress(ProcessLookupError, Exception):
                     process.kill()
-                except ProcessLookupError:
-                    pass
-                except Exception:  # noqa: BLE001 - cleanup is best-effort
-                    pass
-            try:
+            with suppress(Exception):  # cleanup is best-effort
                 # Wait so the transport/fds are released; ignore secondary
                 # errors since killing the process is the primary goal.
                 await process.wait()
-            except Exception:  # noqa: BLE001 - cleanup is best-effort
-                pass
             raise
 
         exit_code = process.returncode or 0
@@ -989,9 +984,7 @@ class CrackerjackIntegration:
         return {}
 
     @staticmethod
-    def _calculate_coverage_metrics(
-        parsed_data: dict[str, Any]
-    ) -> dict[str, float]:
+    def _calculate_coverage_metrics(parsed_data: dict[str, Any]) -> dict[str, float]:
         """Calculate code coverage metrics."""
         metrics = {}
         coverage_summary = parsed_data.get("coverage_summary", {})
@@ -1000,9 +993,7 @@ class CrackerjackIntegration:
         return metrics
 
     @staticmethod
-    def _calculate_lint_metrics(
-        lint_issues: list[dict[str, Any]]
-    ) -> dict[str, float]:
+    def _calculate_lint_metrics(lint_issues: list[dict[str, Any]]) -> dict[str, float]:
         """Compute lint score by severity tier.
 
         Consumes parsed_data["lint_issues"] (per-finding dicts already emitted
@@ -1018,7 +1009,7 @@ class CrackerjackIntegration:
 
     @staticmethod
     def _calculate_security_metrics(
-        security_issues: list[dict[str, Any]]
+        security_issues: list[dict[str, Any]],
     ) -> dict[str, float]:
         """Compute security score by bandit severity tier.
 
@@ -1037,7 +1028,7 @@ class CrackerjackIntegration:
 
     @staticmethod
     def _calculate_complexity_metrics(
-        complexity_data: dict[str, dict[str, Any]]
+        complexity_data: dict[str, dict[str, Any]],
     ) -> dict[str, float]:
         """Compute complexity score from line-weighted average cyclomatic value.
 

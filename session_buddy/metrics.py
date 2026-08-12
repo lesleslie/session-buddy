@@ -30,7 +30,13 @@ values match the return-dict values from a given
 
 from __future__ import annotations
 
-from prometheus_client import REGISTRY, CollectorRegistry, Counter, Histogram, generate_latest
+from prometheus_client import (
+    REGISTRY,
+    CollectorRegistry,
+    Counter,
+    Histogram,
+    generate_latest,
+)
 
 # Module-level registry. ``prometheus_client.REGISTRY`` is the
 # default global registry, but we keep a reference here so tests

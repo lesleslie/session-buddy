@@ -304,4 +304,3 @@ async def test_make_end_of_task_forward_works_for_multiple_working_dirs(
     await fwd_b(None)
 
     assert calls == [wd_a, wd_b]
-

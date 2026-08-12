@@ -667,9 +667,7 @@ def _format_metrics_section(result: CrackerjackResult) -> str:
             for insight in result.memory_insights:
                 output += f"- {insight}\n"
         if getattr(result, "working_directory", None):
-            output += (
-                f"\nProject: `{result.working_directory}`\n"
-            )
+            output += f"\nProject: `{result.working_directory}`\n"
         return output
 
     output = "📊 **Quality Metrics**\n\n"
@@ -1291,7 +1289,8 @@ async def _latest_crackerjack_result_unavailable(
                     import json as _json
 
                     quality_metrics = _json.loads(quality_metrics)
-                except Exception:  # noqa: BLE001 - malformed row: skip
+                except (ValueError, TypeError):
+                    logger.debug("crackerjack_metrics_json_parse_failed", exc_info=True)
                     continue
             if not isinstance(quality_metrics, dict):
                 continue
@@ -1328,7 +1327,9 @@ async def _crackerjack_metrics_impl(
         )
         unavailable = await _latest_crackerjack_result_unavailable(project_path, days)
         if history or unavailable:
-            return _format_quality_metrics_history(days, history, unavailable=unavailable)
+            return _format_quality_metrics_history(
+                days, history, unavailable=unavailable
+            )
     except Exception:  # noqa: BLE001 - quality metrics primary read failed: must fall through to the legacy reflection-DB path rather than abort
         _get_logger().exception(
             "Integration quality_metrics_history read failed",

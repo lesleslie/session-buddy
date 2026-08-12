@@ -1130,7 +1130,11 @@ def register_session_tools(mcp_server: FastMCP) -> None:
     @mcp_server.tool()
     async def start(working_directory: str | None = None) -> str:
         """Initialize Claude session with comprehensive setup including UV dependencies and automation tools."""
-        return await _start_impl(working_directory)
+        # _start_impl returns (prose, conversation_id); the MCP surface
+        # only exposes the prose so callers downstream of FastMCP stay on
+        # the historical single-string contract.
+        prose, _conversation_id = await _start_impl(working_directory)
+        return prose
 
     @mcp_server.tool()
     async def checkpoint(working_directory: str | None = None) -> str:

@@ -3,12 +3,14 @@
 **Created:** 2026-07-27
 **Owner:** session-buddy maintainers
 **Metrics:**
+
 - `session_buddy_crackerjack_fallback_invocations_total{command, outcome, caller}` (counter)
 - `session_buddy_crackerjack_fallback_duration_seconds{command, caller}` (histogram)
 
 ## Alert rules (PromQL)
 
 ### A1. Outcome ≠ success rate exceeds 10% over 5 minutes
+
 - **Severity:** Slack (not PagerDuty; the fallback is a recovery, not an outage)
 - **PromQL:**
   ```promql
@@ -20,6 +22,7 @@
 - **Runbook:** Check `outcome` distribution. If most failures are `timeout`, the lock may be contended or the helper is slow. If most are `nonzero_exit`, the crackerjack invocation has a config issue. If most are `disabled`, someone flipped the kill switch and forgot.
 
 ### A2. Disabled outcome rate > 0
+
 - **Severity:** Slack (informational; the kill switch was tripped)
 - **PromQL:**
   ```promql
@@ -28,6 +31,7 @@
 - **Runbook:** The operator deliberately disabled the fallback. Confirm with the on-call channel that this is intentional.
 
 ### A3. p99 duration > 25s (close to the 30s timeout)
+
 - **Severity:** Slack
 - **PromQL:**
   ```promql

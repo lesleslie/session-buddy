@@ -9,6 +9,7 @@ Idempotency on (conversation_id, repo_name, sha) is enforced HERE,
 not by a schema UNIQUE constraint (DuckDB JSON columns can't deduplicate
 elements natively).
 """
+
 from __future__ import annotations
 
 import json
@@ -64,27 +65,28 @@ def _merge_entries(
         if key in by_key:
             existing_entry = by_key[key]
             winner = entry
-            if existing_entry.provenance == "explicit" and entry.provenance == "ambient":
+            if (
+                existing_entry.provenance == "explicit"
+                and entry.provenance == "ambient"
+            ):
                 winner = existing_entry  # ambient suppressed by existing explicit
                 _log.debug("cross_repo_dedup_suppressed_ambient", extra={"sha": key[1]})
             else:
                 # Merge fields per spec: max files_changed_count, first-observed timestamp.
-                if (
-                    isinstance(winner, CommitEntry)
-                    and isinstance(existing_entry, CommitEntry)
+                if isinstance(winner, CommitEntry) and isinstance(
+                    existing_entry, CommitEntry
                 ):
                     max_fcc = max(
                         existing_entry.files_changed_count or 0,
                         winner.files_changed_count or 0,
                     )
-                    first_ts = (
-                        existing_entry.timestamp
-                        if existing_entry.timestamp
-                        else winner.timestamp
-                    )
-                    winner = CommitEntry(
-                        **{
-                            **winner.model_dump(),
+                    first_ts = existing_entry.timestamp or winner.timestamp
+                    # model_copy(update=...) avoids the dict-spread kwarg
+                    # union that breaks ty's field-type narrowing — Pydantic
+                    # validates each override against the model's field schema
+                    # directly rather than via dict-literal inference.
+                    winner = winner.model_copy(
+                        update={
                             "files_changed_count": max_fcc,
                             "timestamp": first_ts,
                         }
@@ -98,11 +100,10 @@ def _merge_entries(
 
 
 def _union_provenance(existing: Iterable[str], incoming: Iterable[str]) -> list[str]:
-    seen: list[str] = []
-    for prov in list(existing) + list(incoming):
-        if prov not in seen:
-            seen.append(prov)
-    return seen
+    # dict.fromkeys preserves insertion order while collapsing duplicates
+    # in a single C-level pass — both faster and clearer than the
+    # list-membership accumulator.
+    return list(dict.fromkeys([*existing, *incoming]))
 
 
 class MergePrimitive:
@@ -142,10 +143,10 @@ class MergePrimitive:
         ).fetchone()
 
         if row is None:
-            merged_entries = list(incoming.work_entries)
+            merged_entries = incoming.work_entries.copy()
             inserted = len(merged_entries)
             deduplicated = 0
-            merged_provenance = list(incoming.contributor_sources)
+            merged_provenance = incoming.contributor_sources.copy()
             new_session_window_end = incoming.session_window_end
         else:
             existing_entries_raw, existing_prov_raw, existing_end = row
@@ -155,7 +156,7 @@ class MergePrimitive:
             ]
             existing_prov = json.loads(existing_prov_raw)
             merged_entries, inserted, deduplicated = _merge_entries(
-                existing_entries, list(incoming.work_entries)
+                existing_entries, incoming.work_entries.copy()
             )
             merged_provenance = _union_provenance(
                 existing_prov, incoming.contributor_sources
@@ -187,8 +188,10 @@ class MergePrimitive:
                 incoming.repo_role,
                 incoming.session_window_start,
                 new_session_window_end,
-                entries_json, prov_json,
-                entries_json, prov_json,
+                entries_json,
+                prov_json,
+                entries_json,
+                prov_json,
             ],
         )
 
@@ -200,17 +203,36 @@ class MergePrimitive:
             "WHERE conversation_id = ? AND repo_name = ?",
             [incoming.conversation_id, incoming.repo_name],
         ).fetchone()
+        if read_row is None:
+            # We just inserted the row above, so it must be readable.
+            # A None here indicates a transactional visibility problem
+            # (writer race, broken COMMIT) — surface it loudly rather
+            # than silently emitting an invalid model_validate call.
+            raise RuntimeError(
+                "cross_repo_work_v2 row vanished after insert; "
+                "check transaction isolation and PRAGMA settings"
+            )
         # DuckDB returns JSON columns as raw strings; parse before Pydantic validate
         # (CrossRepoWorkRowRead expects work_entries: list[WorkEntry] and
         # contributor_sources: list[Provenance], not JSON strings).
-        read_dict = dict(zip(
-            [
-                "id", "conversation_id", "repo_name", "repo_path", "repo_role",
-                "session_window_start", "session_window_end", "work_entries",
-                "contributor_sources", "created_at", "updated_at",
-            ],
-            read_row,
-        ))
+        read_dict = dict(
+            zip(
+                [
+                    "id",
+                    "conversation_id",
+                    "repo_name",
+                    "repo_path",
+                    "repo_role",
+                    "session_window_start",
+                    "session_window_end",
+                    "work_entries",
+                    "contributor_sources",
+                    "created_at",
+                    "updated_at",
+                ],
+                read_row,
+            )
+        )
         read_dict["work_entries"] = json.loads(read_dict["work_entries"])
         read_dict["contributor_sources"] = json.loads(read_dict["contributor_sources"])
         return (

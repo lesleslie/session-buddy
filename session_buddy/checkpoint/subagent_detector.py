@@ -7,6 +7,7 @@ defer) — safer to defer unnecessarily than to risk clobbering.
 Lockfile path is per-working-tree: <working_dir>/.session-buddy/subagent.lock.
 Prevents cross-project false deferral in multi-session deployments.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -72,7 +73,8 @@ class SubagentDetector:
         except Exception as exc:  # noqa: BLE001 — fail open per spec
             _log.warning(
                 "subagent_detector_is_active_failed",
-                extra={**safe_transient_info(exc), "working_dir": str(self._working_dir)},
+                extra=safe_transient_info(exc)
+                | {"working_dir": str(self._working_dir)},
             )
             return True
 
@@ -81,7 +83,7 @@ class SubagentDetector:
         try:
             await asyncio.wait_for(self._poll_until_idle(), timeout=timeout)
             return True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _log.warning(
                 "subagent_detector_wait_timeout",
                 extra={"timeout_s": timeout, "working_dir": str(self._working_dir)},

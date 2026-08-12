@@ -1,7 +1,6 @@
 {
   "captured_at": "2026-08-05T01:55:39.526812Z",
   "captured_on_commit": "09d4c65865f8b31e48920ff9372e71df3c54b3b6",
-  "phase": "wave1",
   "files_lifted_to_95_plus": [
     "session_buddy/cli.py",
     "session_buddy/cli_with_modes.py",
@@ -245,1684 +244,1685 @@
     "session_buddy/worker.py",
     "session_buddy/worktree_manager.py"
   ],
-  "summary_counts": {
-    "total_files": 239,
-    "files_lifted_to_95_plus": 13,
-    "files_unchanged_or_regressed": 226
-  },
   "per_file_delta": {
     "session_buddy/__main__.py": {
-      "before_pct": 100.0,
       "after_pct": 71.42857142857143,
+      "before_pct": 100.0,
       "delta_pct": -28.57,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/adapters/knowledge_graph_adapter.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/adapters/knowledge_graph_adapter_oneiric.py": {
-      "before_pct": 81.8,
       "after_pct": 80.25751072961373,
+      "before_pct": 81.8,
       "delta_pct": -1.54,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/adapters/knowledge_graph_adapter_phase3.py": {
-      "before_pct": 97.33,
       "after_pct": 97.32620320855615,
+      "before_pct": 97.33,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/adapters/knowledge_graph_phase3_patch.py": {
-      "before_pct": 96.63,
       "after_pct": 96.62921348314607,
+      "before_pct": 96.63,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/adapters/lifecycle.py": {
-      "before_pct": 43.67,
       "after_pct": 43.45238095238095,
+      "before_pct": 43.67,
       "delta_pct": -0.22,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/adapters/reflection_adapter.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/adapters/reflection_adapter_oneiric.py": {
-      "before_pct": 85.22,
       "after_pct": 74.43396226415095,
+      "before_pct": 85.22,
       "delta_pct": -10.79,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/adapters/serverless_storage_adapter.py": {
-      "before_pct": 83.56,
       "after_pct": 83.56164383561644,
+      "before_pct": 83.56,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/adapters/session_storage_adapter.py": {
-      "before_pct": 93.64,
       "after_pct": 93.63636363636364,
+      "before_pct": 93.64,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/adapters/settings.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/adapters/storage_oneiric.py": {
-      "before_pct": 87.29,
       "after_pct": 87.29281767955801,
+      "before_pct": 87.29,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/advanced_features.py": {
-      "before_pct": 95.15,
       "after_pct": 94.88752556237219,
+      "before_pct": 95.15,
       "delta_pct": -0.26,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/advanced_search.py": {
-      "before_pct": 75.48,
       "after_pct": 75.47528517110266,
+      "before_pct": 75.48,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/analytics/ab_testing.py": {
-      "before_pct": 98.8,
       "after_pct": 100.0,
+      "before_pct": 98.8,
       "delta_pct": 1.2,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/analytics/cli.py": {
-      "before_pct": 100.0,
       "after_pct": 99.07834101382488,
+      "before_pct": 100.0,
       "delta_pct": -0.92,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/analytics/collaborative_filtering.py": {
-      "before_pct": 71.14,
       "after_pct": 15.333333333333334,
+      "before_pct": 71.14,
       "delta_pct": -55.81,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/analytics/predictive.py": {
-      "before_pct": 20.56,
       "after_pct": 20.560747663551403,
+      "before_pct": 20.56,
       "delta_pct": 0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/analytics/session_analytics.py": {
-      "before_pct": 93.45,
       "after_pct": 92.62536873156343,
+      "before_pct": 93.45,
       "delta_pct": -0.82,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/analytics/time_series.py": {
-      "before_pct": 80.92,
       "after_pct": 80.92105263157895,
+      "before_pct": 80.92,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/analytics/usage_tracker.py": {
-      "before_pct": 94.2,
       "after_pct": 94.20289855072464,
+      "before_pct": 94.2,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/app_monitor.py": {
-      "before_pct": 89.07,
       "after_pct": 86.2369337979094,
+      "before_pct": 89.07,
       "delta_pct": -2.83,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/backends/base.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/backends/local_backend.py": {
-      "before_pct": 84.26,
       "after_pct": 84.25925925925925,
+      "before_pct": 84.26,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/backends/redis_backend.py": {
-      "before_pct": 86.71,
       "after_pct": 87.16216216216216,
+      "before_pct": 86.71,
       "delta_pct": 0.45,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/backends/s3_backend.py": {
-      "before_pct": 82.88,
       "after_pct": 83.22147651006712,
+      "before_pct": 82.88,
       "delta_pct": 0.34,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/cache/query_cache.py": {
-      "before_pct": 60.92,
       "after_pct": 60.91549295774648,
+      "before_pct": 60.92,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/cli.py": {
-      "before_pct": 71.68,
       "after_pct": 98.2905982905983,
+      "before_pct": 71.68,
       "delta_pct": 26.61,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/cli_with_modes.py": {
-      "before_pct": 78.72,
       "after_pct": 97.95918367346938,
+      "before_pct": 78.72,
       "delta_pct": 19.24,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/code_analysis/kg_extractor.py": {
-      "before_pct": 99.08,
       "after_pct": 99.08256880733946,
+      "before_pct": 99.08,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/commands/checkpoint.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/config/feature_flags.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/context/optimizer.py": {
-      "before_pct": 72.08,
       "after_pct": 72.25806451612904,
+      "before_pct": 72.08,
       "delta_pct": 0.18,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/context_manager.py": {
-      "before_pct": 95.72,
       "after_pct": 95.72192513368984,
+      "before_pct": 95.72,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/bottleneck_detector.py": {
-      "before_pct": 75.34,
       "after_pct": 75.33632286995515,
+      "before_pct": 75.34,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/core/causal_chains.py": {
-      "before_pct": 57.04,
       "after_pct": 100.0,
+      "before_pct": 57.04,
       "delta_pct": 42.96,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/core/conversation_storage.py": {
-      "before_pct": 76.71,
       "after_pct": 100.0,
+      "before_pct": 76.71,
       "delta_pct": 23.29,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/core/features.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/hooks.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/intelligence.py": {
-      "before_pct": 89.95,
       "after_pct": 90.05145797598628,
+      "before_pct": 89.95,
       "delta_pct": 0.1,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/intent_detector.py": {
-      "before_pct": 98.22,
       "after_pct": 97.6608187134503,
+      "before_pct": 98.22,
       "delta_pct": -0.56,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/lifecycle/handoff.py": {
-      "before_pct": 95.83,
       "after_pct": 95.83333333333333,
+      "before_pct": 95.83,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/lifecycle/project_context.py": {
-      "before_pct": 97.92,
       "after_pct": 97.91666666666667,
+      "before_pct": 97.92,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/lifecycle/service_registry.py": {
-      "before_pct": 94.54,
       "after_pct": 94.53551912568307,
+      "before_pct": 94.54,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/lifecycle/session_info.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/memory_health.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/permissions.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/quality_scoring.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/session_analytics.py": {
-      "before_pct": 21.43,
       "after_pct": 21.428571428571427,
+      "before_pct": 21.43,
       "delta_pct": -0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/core/session_manager.py": {
-      "before_pct": 96.8,
       "after_pct": 92.08523592085236,
+      "before_pct": 96.8,
       "delta_pct": -4.71,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/skills_tracker.py": {
-      "before_pct": 68.73,
       "after_pct": 68.40390879478828,
+      "before_pct": 68.73,
       "delta_pct": -0.33,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/core/ulid_generator.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/core/workflow_metrics.py": {
-      "before_pct": 95.36,
       "after_pct": 93.67088607594937,
+      "before_pct": 95.36,
       "delta_pct": -1.69,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/crackerjack_integration.py": {
-      "before_pct": 91.21,
       "after_pct": 90.14336917562724,
+      "before_pct": 91.21,
       "delta_pct": -1.07,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/di/config.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/di/constants.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/di/container.py": {
-      "before_pct": 62.65,
       "after_pct": 63.855421686746986,
+      "before_pct": 62.65,
       "delta_pct": 1.21,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/doctor.py": {
-      "before_pct": 95.95,
       "after_pct": 96.0,
+      "before_pct": 95.95,
       "delta_pct": 0.05,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/health_checks.py": {
-      "before_pct": 90.39,
       "after_pct": 89.19860627177701,
+      "before_pct": 90.39,
       "delta_pct": -1.19,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/hooks/single_flight.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/ingesters/claude_code_transcript.py": {
-      "before_pct": 97.8,
       "after_pct": 97.8021978021978,
+      "before_pct": 97.8,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/ingesters/redaction.py": {
-      "before_pct": 96.61,
       "after_pct": 63.333333333333336,
+      "before_pct": 96.61,
       "delta_pct": -33.28,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/insights/console.py": {
-      "before_pct": 84.75,
       "after_pct": 84.7457627118644,
+      "before_pct": 84.75,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/insights/extractor.py": {
-      "before_pct": 91.74,
       "after_pct": 91.73913043478261,
+      "before_pct": 91.74,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/insights/models.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/integrations/cicd_tracker.py": {
-      "before_pct": 97.33,
       "after_pct": 97.33333333333333,
+      "before_pct": 97.33,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/integrations/crackerjack_hooks.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/integrations/ide_plugin.py": {
-      "before_pct": 91.4,
       "after_pct": 91.39784946236558,
+      "before_pct": 91.4,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/interruption_manager.py": {
-      "before_pct": 74.41,
       "after_pct": 82.83062645011601,
+      "before_pct": 74.41,
       "delta_pct": 8.42,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/knowledge_graph_db.py": {
-      "before_pct": 95.37,
       "after_pct": 94.27480916030534,
+      "before_pct": 95.37,
       "delta_pct": -1.1,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/llm/base.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/llm/models.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/llm/providers/anthropic_provider.py": {
-      "before_pct": 100.0,
       "after_pct": 98.6842105263158,
+      "before_pct": 100.0,
       "delta_pct": -1.32,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/llm/providers/gemini_provider.py": {
-      "before_pct": 97.2,
       "after_pct": 97.27272727272727,
+      "before_pct": 97.2,
       "delta_pct": 0.07,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/llm/providers/ollama_provider.py": {
-      "before_pct": 83.75,
       "after_pct": 82.63473053892216,
+      "before_pct": 83.75,
       "delta_pct": -1.12,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/llm/providers/openai_provider.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/llm/security.py": {
-      "before_pct": 97.93,
       "after_pct": 96.66666666666667,
+      "before_pct": 97.93,
       "delta_pct": -1.26,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/llm_providers.py": {
-      "before_pct": 87.31,
       "after_pct": 86.65207877461707,
+      "before_pct": 87.31,
       "delta_pct": -0.66,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/auth.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/code_formatter.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/event_models.py": {
-      "before_pct": 99.57,
       "after_pct": 83.47826086956522,
+      "before_pct": 99.57,
       "delta_pct": -16.09,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/metrics.py": {
-      "before_pct": 100.0,
       "after_pct": 99.05660377358491,
+      "before_pct": 100.0,
       "delta_pct": -0.94,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/quality_scorer.py": {
-      "before_pct": 75.0,
       "after_pct": 70.58823529411765,
+      "before_pct": 75.0,
       "delta_pct": -4.41,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/schemas.py": {
-      "before_pct": 100.0,
       "after_pct": 97.53086419753086,
+      "before_pct": 100.0,
       "delta_pct": -2.47,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/server.py": {
-      "before_pct": 75.93,
       "after_pct": 75.92592592592592,
+      "before_pct": 75.93,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/server_core.py": {
-      "before_pct": 94.14,
       "after_pct": 93.59756097560975,
+      "before_pct": 94.14,
       "delta_pct": -0.54,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/session_tracker.py": {
-      "before_pct": 100.0,
       "after_pct": 17.1875,
+      "before_pct": 100.0,
       "delta_pct": -82.81,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/mcp/telemetry.py": {
-      "before_pct": 100.0,
       "after_pct": 88.88888888888889,
+      "before_pct": 100.0,
       "delta_pct": -11.11,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/advanced/conscious_agent_tools.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/advanced/entity_extraction_tools.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/advanced/fingerprint_tools.py": {
-      "before_pct": 85.2,
       "after_pct": 77.6,
+      "before_pct": 85.2,
       "delta_pct": -7.6,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/tools/advanced/intent_detection_tools.py": {
-      "before_pct": 86.96,
       "after_pct": 86.95652173913044,
+      "before_pct": 86.96,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/advanced/intent_tools_registration.py": {
-      "before_pct": 100.0,
       "after_pct": 80.26315789473684,
+      "before_pct": 100.0,
       "delta_pct": -19.74,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/advanced/recommendation_engine.py": {
-      "before_pct": 84.67,
       "after_pct": 84.66898954703832,
+      "before_pct": 84.67,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/advanced/rewriting_tools.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/code_analysis/tools.py": {
-      "before_pct": 40.82,
       "after_pct": 40.816326530612244,
+      "before_pct": 40.82,
       "delta_pct": -0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/mcp/tools/code_graph.py": {
-      "before_pct": 74.32,
       "after_pct": 100.0,
+      "before_pct": 74.32,
       "delta_pct": 25.68,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/collaboration/knowledge_graph_phase3_tools.py": {
-      "before_pct": 85.71,
       "after_pct": 85.71428571428571,
+      "before_pct": 85.71,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/collaboration/knowledge_graph_tools.py": {
-      "before_pct": 85.37,
       "after_pct": 85.36585365853658,
+      "before_pct": 85.37,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/collaboration/team_tools.py": {
-      "before_pct": 94.3,
       "after_pct": 95.03105590062111,
+      "before_pct": 94.3,
       "delta_pct": 0.73,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/conversation/conversation_tools.py": {
-      "before_pct": 19.38,
       "after_pct": 19.37984496124031,
+      "before_pct": 19.38,
       "delta_pct": -0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/mcp/tools/discovery_tools.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/ide.py": {
-      "before_pct": 99.32,
       "after_pct": 99.66101694915254,
+      "before_pct": 99.32,
       "delta_pct": 0.34,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/infrastructure/access_log_tools.py": {
-      "before_pct": 96.1,
       "after_pct": 96.1038961038961,
+      "before_pct": 96.1,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/infrastructure/cache_tools.py": {
-      "before_pct": 32.48,
       "after_pct": 32.47863247863248,
+      "before_pct": 32.48,
       "delta_pct": -0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/mcp/tools/infrastructure/feature_flags_tools.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/infrastructure/history_cache.py": {
-      "before_pct": 94.0,
       "after_pct": 100.0,
+      "before_pct": 94.0,
       "delta_pct": 6.0,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/infrastructure/hook_parser.py": {
-      "before_pct": 96.0,
       "after_pct": 96.20253164556962,
+      "before_pct": 96.0,
       "delta_pct": 0.2,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/infrastructure/pools.py": {
-      "before_pct": 51.43,
       "after_pct": 51.42857142857143,
+      "before_pct": 51.43,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/tools/infrastructure/protocols.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/infrastructure/serverless_tools.py": {
-      "before_pct": 93.45,
       "after_pct": 93.45238095238095,
+      "before_pct": 93.45,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/intelligence/agent_analyzer.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/intelligence/intelligence_tools.py": {
-      "before_pct": 22.3,
       "after_pct": 22.2972972972973,
+      "before_pct": 22.3,
       "delta_pct": -0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/mcp/tools/intelligence/llm_tools.py": {
-      "before_pct": 85.25,
       "after_pct": 85.38812785388127,
+      "before_pct": 85.25,
       "delta_pct": 0.14,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/memory/akosha_tools.py": {
-      "before_pct": 84.38,
       "after_pct": 100.0,
+      "before_pct": 84.38,
       "delta_pct": 15.62,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/memory/category_tools.py": {
-      "before_pct": 11.95,
       "after_pct": 11.949685534591195,
+      "before_pct": 11.95,
       "delta_pct": -0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/mcp/tools/memory/export_tools.py": {
-      "before_pct": 54.21,
       "after_pct": 54.21052631578947,
+      "before_pct": 54.21,
       "delta_pct": 0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/tools/memory/memory_tools.py": {
-      "before_pct": 93.24,
       "after_pct": 93.23671497584542,
+      "before_pct": 93.24,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/memory/otel_trace_tools.py": {
-      "before_pct": 68.04,
       "after_pct": 68.04123711340206,
+      "before_pct": 68.04,
       "delta_pct": 0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/tools/memory/search_tools.py": {
-      "before_pct": 57.09,
       "after_pct": 55.529411764705884,
+      "before_pct": 57.09,
       "delta_pct": -1.56,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/tools/memory/validated_memory_tools.py": {
-      "before_pct": 91.43,
       "after_pct": 88.6977886977887,
+      "before_pct": 91.43,
       "delta_pct": -2.73,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/monitoring/bottleneck_tools.py": {
-      "before_pct": 65.28,
       "after_pct": 65.28497409326425,
+      "before_pct": 65.28,
       "delta_pct": 0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/tools/monitoring/health_tools.py": {
-      "before_pct": 20.34,
       "after_pct": 20.338983050847457,
+      "before_pct": 20.34,
       "delta_pct": -0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/mcp/tools/monitoring/memory_health_tools.py": {
-      "before_pct": 79.02,
       "after_pct": 79.02097902097903,
+      "before_pct": 79.02,
       "delta_pct": 0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/tools/monitoring/monitoring_tools.py": {
-      "before_pct": 81.56,
       "after_pct": 81.56028368794327,
+      "before_pct": 81.56,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/monitoring/prometheus_metrics_tools.py": {
-      "before_pct": 91.67,
       "after_pct": 86.04651162790698,
+      "before_pct": 91.67,
       "delta_pct": -5.62,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/monitoring/session_analytics_tools.py": {
-      "before_pct": 50.41,
       "after_pct": 50.40650406504065,
+      "before_pct": 50.41,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/tools/monitoring/workflow_metrics_tools.py": {
-      "before_pct": 78.95,
       "after_pct": 78.94736842105263,
+      "before_pct": 78.95,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/tools/profiles.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/session/admin_shell_tracking_tools.py": {
-      "before_pct": 62.5,
       "after_pct": 100.0,
+      "before_pct": 62.5,
       "delta_pct": 37.5,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/session/channel_tracking_tools.py": {
-      "before_pct": 88.68,
       "after_pct": 87.5776397515528,
+      "before_pct": 88.68,
       "delta_pct": -1.1,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/session/crackerjack_tools.py": {
-      "before_pct": 81.65,
       "after_pct": 82.37791932059449,
+      "before_pct": 81.65,
       "delta_pct": 0.73,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/session/hooks_tools.py": {
-      "before_pct": 26.14,
       "after_pct": 26.136363636363637,
+      "before_pct": 26.14,
       "delta_pct": -0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/mcp/tools/session/migration_tools.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/session/prompt_tools.py": {
-      "before_pct": 85.0,
       "after_pct": 100.0,
+      "before_pct": 85.0,
       "delta_pct": 15.0,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/session/session_tools.py": {
-      "before_pct": 73.54,
       "after_pct": 74.04326123128119,
+      "before_pct": 73.54,
       "delta_pct": 0.5,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/mcp/tools/skills/phase4_tools.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/mcp/tools/worktree_tools.py": {
-      "before_pct": 65.0,
       "after_pct": 65.0,
+      "before_pct": 65.0,
       "delta_pct": 0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/memory/category_evolution.py": {
-      "before_pct": 86.34,
       "after_pct": 86.51851851851852,
+      "before_pct": 86.34,
       "delta_pct": 0.18,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/memory/causal.py": {
-      "before_pct": 85.83,
       "after_pct": 15.833333333333334,
+      "before_pct": 85.83,
       "delta_pct": -70.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/memory/conscious_agent.py": {
-      "before_pct": 67.24,
       "after_pct": 52.706552706552706,
+      "before_pct": 67.24,
       "delta_pct": -14.53,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/memory/entity_extractor.py": {
-      "before_pct": 65.54,
       "after_pct": 64.23841059602648,
+      "before_pct": 65.54,
       "delta_pct": -1.3,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/memory/evolution_config.py": {
-      "before_pct": 71.82,
       "after_pct": 71.81818181818181,
+      "before_pct": 71.82,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/memory/file_context.py": {
-      "before_pct": 92.0,
       "after_pct": 92.0,
+      "before_pct": 92.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/memory/migration.py": {
-      "before_pct": 73.93,
       "after_pct": 63.84976525821596,
+      "before_pct": 73.93,
       "delta_pct": -10.08,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/memory/peer_modeling.py": {
-      "before_pct": 62.34,
       "after_pct": 15.584415584415584,
+      "before_pct": 62.34,
       "delta_pct": -46.76,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/memory/persistence.py": {
-      "before_pct": 89.47,
       "after_pct": 86.07594936708861,
+      "before_pct": 89.47,
       "delta_pct": -3.39,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/memory/schema_v2.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/memory_optimizer.py": {
-      "before_pct": 93.92,
       "after_pct": 93.92405063291139,
+      "before_pct": 93.92,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/metrics.py": {
-      "before_pct": 88.37,
       "after_pct": 76.74418604651163,
+      "before_pct": 88.37,
       "delta_pct": -11.63,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/modes/base.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/modes/lite.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/modes/standard.py": {
-      "before_pct": 100.0,
       "after_pct": 93.33333333333333,
+      "before_pct": 100.0,
       "delta_pct": -6.67,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/multi_project_coordinator.py": {
-      "before_pct": 94.04,
       "after_pct": 94.04388714733543,
+      "before_pct": 94.04,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/natural_scheduler.py": {
-      "before_pct": 93.98,
       "after_pct": 93.97590361445783,
+      "before_pct": 93.98,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/parameter_models.py": {
-      "before_pct": 83.95,
       "after_pct": 83.99014778325123,
+      "before_pct": 83.95,
       "delta_pct": 0.04,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/pools.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/quality_engine.py": {
-      "before_pct": 96.07,
       "after_pct": 95.40229885057471,
+      "before_pct": 96.07,
       "delta_pct": -0.67,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/realtime/auth.py": {
-      "before_pct": 90.91,
       "after_pct": 90.9090909090909,
+      "before_pct": 90.91,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/realtime/metrics_exporter.py": {
-      "before_pct": 100.0,
       "after_pct": 66.01941747572816,
+      "before_pct": 100.0,
       "delta_pct": -33.98,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/realtime/websocket_server.py": {
-      "before_pct": 60.45,
       "after_pct": 12.267657992565056,
+      "before_pct": 60.45,
       "delta_pct": -48.18,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/reflection/database.py": {
-      "before_pct": 69.52,
       "after_pct": 74.46808510638297,
+      "before_pct": 69.52,
       "delta_pct": 4.95,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/reflection/embeddings.py": {
-      "before_pct": 66.09,
       "after_pct": 41.73913043478261,
+      "before_pct": 66.09,
       "delta_pct": -24.35,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/reflection/schema.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/reflection/search.py": {
-      "before_pct": 54.67,
       "after_pct": 54.666666666666664,
+      "before_pct": 54.67,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/reflection/storage.py": {
-      "before_pct": 47.64,
       "after_pct": 57.868020304568525,
+      "before_pct": 47.64,
       "delta_pct": 10.23,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/reflection_tools.py": {
-      "before_pct": 100.0,
       "after_pct": 91.30434782608695,
+      "before_pct": 100.0,
       "delta_pct": -8.7,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/resource_cleanup.py": {
-      "before_pct": 98.68,
       "after_pct": 97.85407725321889,
+      "before_pct": 98.68,
       "delta_pct": -0.83,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/rewriting/hooks_integration.py": {
-      "before_pct": 21.62,
       "after_pct": 21.62162162162162,
+      "before_pct": 21.62,
       "delta_pct": 0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/rewriting/query_rewriter.py": {
-      "before_pct": 97.2,
       "after_pct": 97.2,
+      "before_pct": 97.2,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/search/progressive_search.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/search_enhanced.py": {
-      "before_pct": 98.54,
       "after_pct": 97.96511627906976,
+      "before_pct": 98.54,
       "delta_pct": -0.57,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/security/memory_guard_adapter.py": {
-      "before_pct": 88.79,
       "after_pct": 88.88888888888889,
+      "before_pct": 88.79,
       "delta_pct": 0.1,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/server.py": {
-      "before_pct": 90.95,
       "after_pct": 89.52380952380952,
+      "before_pct": 90.95,
       "delta_pct": -1.43,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/server_optimized.py": {
-      "before_pct": 87.02,
       "after_pct": 80.97686375321337,
+      "before_pct": 87.02,
       "delta_pct": -6.04,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/serverless_mode.py": {
-      "before_pct": 98.29,
       "after_pct": 98.30508474576271,
+      "before_pct": 98.29,
       "delta_pct": 0.02,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/services/git_maintenance.py": {
-      "before_pct": 92.02,
       "after_pct": 92.01680672268908,
+      "before_pct": 92.02,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/session_commands.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/session_types.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/settings.py": {
-      "before_pct": 91.0,
       "after_pct": 91.0,
+      "before_pct": 91.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/shell/adapter.py": {
-      "before_pct": 98.39,
       "after_pct": 98.38709677419355,
+      "before_pct": 98.39,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/shutdown_manager.py": {
-      "before_pct": 97.65,
       "after_pct": 97.6470588235294,
+      "before_pct": 97.65,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/skills/distiller.py": {
-      "before_pct": 86.46,
       "after_pct": 21.875,
+      "before_pct": 86.46,
       "delta_pct": -64.58,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/storage/akosha_config.py": {
-      "before_pct": 92.86,
       "after_pct": 81.65680473372781,
+      "before_pct": 92.86,
       "delta_pct": -11.2,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/storage/akosha_sync.py": {
-      "before_pct": 52.4,
       "after_pct": 48.113207547169814,
+      "before_pct": 52.4,
       "delta_pct": -4.29,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/storage/cloud_sync.py": {
-      "before_pct": 65.76,
       "after_pct": 43.68421052631579,
+      "before_pct": 65.76,
       "delta_pct": -22.08,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/storage/ipfs.py": {
-      "before_pct": 15.53,
       "after_pct": 15.527950310559007,
+      "before_pct": 15.53,
       "delta_pct": -0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/storage/skills_embeddings.py": {
-      "before_pct": 84.03,
       "after_pct": 48.97959183673469,
+      "before_pct": 84.03,
       "delta_pct": -35.05,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/storage/skills_storage.py": {
-      "before_pct": 60.55,
       "after_pct": 17.636363636363637,
+      "before_pct": 60.55,
       "delta_pct": -42.91,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/storage/sync_protocol.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/subscribers/code_graph_subscriber.py": {
-      "before_pct": 11.9,
       "after_pct": 11.898016997167138,
+      "before_pct": 11.9,
       "delta_pct": -0.0,
-      "tier_now": "low",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "low"
     },
     "session_buddy/sync.py": {
-      "before_pct": 93.39,
       "after_pct": 91.11969111969113,
+      "before_pct": 93.39,
       "delta_pct": -2.27,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/team_knowledge.py": {
-      "before_pct": 95.82,
       "after_pct": 95.82172701949861,
+      "before_pct": 95.82,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/token_optimizer.py": {
-      "before_pct": 96.1,
       "after_pct": 95.56786703601108,
+      "before_pct": 96.1,
       "delta_pct": -0.53,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/tools/health_tools.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/tools/memory_tools.py": {
-      "before_pct": 56.25,
       "after_pct": 56.25,
+      "before_pct": 56.25,
       "delta_pct": 0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/tools/quality_metrics.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/tools/search_tools.py": {
-      "before_pct": 61.54,
       "after_pct": 61.53846153846154,
+      "before_pct": 61.54,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/tools/session_tools.py": {
-      "before_pct": 66.67,
       "after_pct": 66.66666666666667,
+      "before_pct": 66.67,
       "delta_pct": -0.0,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/types.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/crackerjack/fallback.py": {
-      "before_pct": 85.41,
       "after_pct": 81.22448979591837,
+      "before_pct": 85.41,
       "delta_pct": -4.19,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/crackerjack/output_parser.py": {
-      "before_pct": 66.27,
       "after_pct": 62.60623229461756,
+      "before_pct": 66.27,
       "delta_pct": -3.66,
-      "tier_now": "partial",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "partial"
     },
     "session_buddy/utils/crackerjack/pattern_builder.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/database_pool.py": {
-      "before_pct": 88.02,
       "after_pct": 96.44670050761421,
+      "before_pct": 88.02,
       "delta_pct": 8.43,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/utils/database_tools.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/encryption.py": {
-      "before_pct": 100.0,
       "after_pct": 98.31932773109244,
+      "before_pct": 100.0,
       "delta_pct": -1.68,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/error_management.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/file_utils.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/filesystem.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/fingerprint.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/git_operations.py": {
-      "before_pct": 98.99,
       "after_pct": 98.98989898989899,
+      "before_pct": 98.99,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/git_worktrees.py": {
-      "before_pct": 87.68,
       "after_pct": 87.5,
+      "before_pct": 87.68,
       "delta_pct": -0.18,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/instance_managers.py": {
-      "before_pct": 96.77,
       "after_pct": 95.68345323741008,
+      "before_pct": 96.77,
       "delta_pct": -1.09,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/lazy_imports.py": {
-      "before_pct": 99.32,
       "after_pct": 98.73417721518987,
+      "before_pct": 99.32,
       "delta_pct": -0.59,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/logging.py": {
-      "before_pct": 99.35,
       "after_pct": 99.34640522875817,
+      "before_pct": 99.35,
       "delta_pct": -0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/logging_utils.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/messages.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/path_validation.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/project_analysis.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/quality/compaction.py": {
-      "before_pct": 98.59,
       "after_pct": 98.59154929577464,
+      "before_pct": 98.59,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/quality/recommendations.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/quality/summary.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/quality_score_parser.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/quality_scoring.py": {
-      "before_pct": 91.88,
       "after_pct": 96.12277867528272,
+      "before_pct": 91.88,
       "delta_pct": 4.24,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/utils/quality_utils_v2.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/reflection_utils.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/regex_patterns.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/runtime_snapshots.py": {
-      "before_pct": 97.32,
       "after_pct": 97.32142857142857,
+      "before_pct": 97.32,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/scheduler/models.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/scheduler/time_parser.py": {
-      "before_pct": 70.95,
       "after_pct": 97.75784753363229,
+      "before_pct": 70.95,
       "delta_pct": 26.81,
-      "tier_now": "good",
-      "lifted": true
+      "lifted": true,
+      "tier_now": "good"
     },
     "session_buddy/utils/search/models.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/search/utilities.py": {
-      "before_pct": 98.92,
       "after_pct": 98.9247311827957,
+      "before_pct": 98.92,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/session_formatters.py": {
-      "before_pct": 97.22,
       "after_pct": 97.22222222222223,
+      "before_pct": 97.22,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/subprocess_executor.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/text_formatter.py": {
-      "before_pct": 97.74,
       "after_pct": 97.74436090225564,
+      "before_pct": 97.74,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/time.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/utils/tool_wrapper.py": {
-      "before_pct": 100.0,
       "after_pct": 100.0,
+      "before_pct": 100.0,
       "delta_pct": 0.0,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/worker.py": {
-      "before_pct": 99.36,
       "after_pct": 99.37106918238993,
+      "before_pct": 99.36,
       "delta_pct": 0.01,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     },
     "session_buddy/worktree_manager.py": {
-      "before_pct": 82.69,
       "after_pct": 87.08791208791209,
+      "before_pct": 82.69,
       "delta_pct": 4.4,
-      "tier_now": "good",
-      "lifted": false
+      "lifted": false,
+      "tier_now": "good"
     }
+  },
+  "phase": "wave1",
+  "summary_counts": {
+    "files_lifted_to_95_plus": 13,
+    "files_unchanged_or_regressed": 226,
+    "total_files": 239
   }
 }

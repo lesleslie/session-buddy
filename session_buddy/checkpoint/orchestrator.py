@@ -7,6 +7,7 @@ Per spec invariants:
   - Two simultaneous checkpoints serialized by asyncio.Lock
   - Failures fail closed; programming errors propagate
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -14,10 +15,8 @@ import subprocess
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import httpx
-
 from oneiric.core.logging import get_logger
 
 from session_buddy.checkpoint.metrics import CheckpointMetrics
@@ -26,9 +25,6 @@ from session_buddy.checkpoint.policy import CheckpointPhase, CheckpointPolicy
 from session_buddy.checkpoint.scrubbing import safe_error_message, safe_transient_info
 from session_buddy.checkpoint.snapshot import SnapshotMechanism
 from session_buddy.checkpoint.subagent_detector import SubagentDetector
-
-if TYPE_CHECKING:
-    pass
 
 _log = get_logger(__name__)
 
@@ -126,7 +122,7 @@ class CheckpointOrchestrator:
                 self._run_impl(phase=phase, hook_request=hook_request),
                 timeout=self._run_timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._metrics.inc_failure("orchestrator_timeout")
             _log.warning(
                 "checkpoint_orchestrator_timeout",
@@ -145,12 +141,17 @@ class CheckpointOrchestrator:
     ) -> CheckpointResult:
         decision = self._policy.decide(phase=phase, hook_request=hook_request)
         result = CheckpointResult(
-            fired=False, snapshot_id=None, session_buddy_id=None,
+            fired=False,
+            snapshot_id=None,
+            session_buddy_id=None,
             decision_reason=decision.reason,
         )
 
         if not decision.should_fire:
-            _log.info("checkpoint_skipped", extra={"phase": phase.value, "reason": decision.reason})
+            _log.info(
+                "checkpoint_skipped",
+                extra={"phase": phase.value, "reason": decision.reason},
+            )
             return result
 
         if phase == CheckpointPhase.END_OF_TASK:
@@ -164,7 +165,8 @@ class CheckpointOrchestrator:
             if not idle:
                 marker = save_pending(
                     PendingCheckpoint(
-                        working_dir=self._working_dir, reason="subagent_idle_timeout",
+                        working_dir=self._working_dir,
+                        reason="subagent_idle_timeout",
                     ),
                 )
                 result.pending_marker_path = marker
@@ -206,14 +208,18 @@ class CheckpointOrchestrator:
         if not snapshot.dirty_files:
             result.fired = True
             result.decision_reason = f"{decision.reason} (clean tree, no commit)"
-            _log.info("checkpoint_clean_skip", extra={"phase": phase.value, "snapshot": snapshot.snapshot_id})
+            _log.info(
+                "checkpoint_clean_skip",
+                extra={"phase": phase.value, "snapshot": snapshot.snapshot_id},
+            )
             return result
 
         # Re-check subagent (might have become active during capture) per integration-risk M5
         if self._detector.is_active():
             marker = save_pending(
                 PendingCheckpoint(
-                    working_dir=self._working_dir, reason="subagent_active_during_capture",
+                    working_dir=self._working_dir,
+                    reason="subagent_active_during_capture",
                 ),
             )
             result.pending_marker_path = marker
@@ -240,14 +246,18 @@ class CheckpointOrchestrator:
         _log.info(
             "checkpoint_fired",
             extra={
-                "phase": phase.value, "reason": decision.reason,
-                "snapshot": snapshot.snapshot_id, "dirty_files": len(snapshot.dirty_files),
+                "phase": phase.value,
+                "reason": decision.reason,
+                "snapshot": snapshot.snapshot_id,
+                "dirty_files": len(snapshot.dirty_files),
             },
         )
         return result
 
     async def _forward_with_retry(
-        self, result: CheckpointResult, phase: CheckpointPhase,
+        self,
+        result: CheckpointResult,
+        phase: CheckpointPhase,
     ) -> None:
         """Retry-once-with-backoff for 5xx per spec line 372. 4xx no retry."""
         try:
@@ -255,7 +265,9 @@ class CheckpointOrchestrator:
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
             if 500 <= status < 600:
-                _log.warning("checkpoint_forward_5xx_retrying", extra={"status": status})
+                _log.warning(
+                    "checkpoint_forward_5xx_retrying", extra={"status": status}
+                )
                 await asyncio.sleep(0.5)  # backoff
                 await self._forward_to(result)  # second attempt; propagate if it fails
             else:

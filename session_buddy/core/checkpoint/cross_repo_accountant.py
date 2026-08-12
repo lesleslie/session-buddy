@@ -4,11 +4,13 @@ checkpoint. Coordinates AmbientPuller (per-repo groups) + MergePrimitive
 checkpoint log. Cross-repo accounting failures NEVER block the git
 commit / handoff doc (G6).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 import duckdb
 import yaml
@@ -21,6 +23,7 @@ from session_buddy.core.ulid_generator import generate_ulid
 from session_buddy.memory.cross_repo_work import (
     CrossRepoWorkRowCreate,
     UlidStr,
+    WorkEntry,
 )
 
 _log = get_logger(__name__)
@@ -81,7 +84,9 @@ class CheckpointCrossRepoAccountant:
         if manifest.exists():
             try:
                 loaded = yaml.safe_load(manifest.read_text()) or {}
-                ecosystem = loaded.get("ecosystem", {}) if isinstance(loaded, dict) else {}
+                ecosystem = (
+                    loaded.get("ecosystem", {}) if isinstance(loaded, dict) else {}
+                )
             except (yaml.YAMLError, OSError):
                 # YAMLError: parse failure. OSError: TOCTOU race,
                 # PermissionError, IsADirectoryError, etc. G6 — never raise.
@@ -90,6 +95,10 @@ class CheckpointCrossRepoAccountant:
         rows: list[CrossRepoWorkRowCreate] = []
         for repo_name, entries in grouped.items():
             entry = ecosystem.get(repo_name, {})
+            # AmbientPuller returns list[CommitEntry]; widen to the union
+            # for CrossRepoWorkRowCreate (every CommitEntry is a WorkEntry).
+            # Cast is safe — the list is treated as read-only here.
+            work_entries: list[WorkEntry] = cast("list[WorkEntry]", entries)
             rows.append(
                 CrossRepoWorkRowCreate(
                     id=generate_ulid(),
@@ -99,14 +108,14 @@ class CheckpointCrossRepoAccountant:
                     repo_role=entry.get("role"),
                     session_window_start=session_window_start,
                     session_window_end=session_window_end,
-                    work_entries=entries,
+                    work_entries=work_entries,
                     contributor_sources=["ambient"],
                 )
             )
 
         try:
             self._conn.execute("BEGIN TRANSACTION")
-            _reads, ins, ded = self._merge.multi_merge(self._conn, rows)
+            _reads, ins, dead = self._merge.multi_merge(self._conn, rows)
             self._conn.execute("COMMIT")
         except Exception as exc:  # noqa: BLE001 — never raise (G6)
             try:
@@ -126,6 +135,6 @@ class CheckpointCrossRepoAccountant:
             return summary
 
         summary.entries_inserted += ins
-        summary.entries_deduplicated += ded
+        summary.entries_deduplicated += dead
         summary.repos_captured = len(grouped)
         return summary

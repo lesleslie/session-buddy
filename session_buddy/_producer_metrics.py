@@ -1,4 +1,5 @@
 """Producer-side observability counters (cross-portfolio shape)."""
+
 from __future__ import annotations
 
 from prometheus_client import Counter

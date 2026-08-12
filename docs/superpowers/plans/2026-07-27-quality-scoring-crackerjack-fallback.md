@@ -107,7 +107,7 @@ The v2 plan had 10 NEW Critical issues from a 4-agent review (MCP agent failed a
 - **Bodai pre-1.0 merge policy**: components merge directly to `main`; no PRs.
 - **Coverage target**: 100% line + branch for the new helper; ≥95% for modified sections of existing modules.
 
----
+______________________________________________________________________
 
 ## File Structure
 
@@ -133,7 +133,7 @@ The v2 plan had 10 NEW Critical issues from a 4-agent review (MCP agent failed a
 | `tests/integration/test_crackerjack_fallback_real.py` | Real-subprocess smoke | NEW |
 | `docs/superpowers/plans/2026-07-27-cli-flag-mapping.md` | Task 0 evidence file (committed as part of Task 0) | NEW (or no commit) |
 
----
+______________________________________________________________________
 
 ## Task 0: Preflight — Verify Crackerjack CLI flag-to-metric mapping
 
@@ -193,6 +193,7 @@ The file MUST contain a markdown table mapping `crackerjack` CLI invocations to 
 **Step 0.4: Skip if crackerjack not installed**
 
 If the probe fails with `ModuleNotFoundError: crackerjack`:
+
 - Create the mapping file with a note: "crackerjack not installed; mapping inferred from `_get_applicable_parsers` at `output_parser.py:71-82`. Task 4 implementation must use this mapping and the integration test in Task 12 must `importorskip("crackerjack")`."
 - The integration test in Task 12 is the runtime check.
 
@@ -209,11 +210,12 @@ Verified by running crackerjack against /tmp/lychee-cli-verify
 and capturing parsed_data keys per flag combination."
 ```
 
----
+______________________________________________________________________
 
 ## Task 1: Add `enable_crackerjack_fallback` to feature flags (with full wiring)
 
 **Files:**
+
 - Modify: `session_buddy/config/feature_flags.py` (add field to `FeatureFlags`; wire env var in `get_feature_flags()`)
 - Modify: `session_buddy/settings.py` (add `enable_crackerjack_fallback: bool = Field(default=False, description="...")` to `SessionMgmtSettings`)
 - Modify: `settings/session-buddy.yaml` (add the flat YAML key with 0 leading spaces)
@@ -356,11 +358,12 @@ git -c user.name="les" -c user.email="les@local" commit -m "feat(feature-flags):
 - 5 tests cover default, YAML-only, env-var true, env-var 1, env-var 0"
 ```
 
----
+______________________________________________________________________
 
 ## Task 2: Refactor pure helpers to `@staticmethod`
 
 **Files:**
+
 - Modify: `session_buddy/crackerjack_integration.py:946-1002`
 - Test: `tests/unit/test_pure_helpers_purity.py` (NEW)
 
@@ -468,11 +471,12 @@ the no-self-access invariant. No behavior change; existing
 TestQualityMetricsCalculation tests still pass."
 ```
 
----
+______________________________________________________________________
 
 ## Task 3: Helper skeleton — module + lock + OTel span + disabled check
 
 **Files:**
+
 - Create: `session_buddy/utils/crackerjack/fallback.py`
 - Modify: `session_buddy/utils/crackerjack/__init__.py` (add export)
 - Test: `tests/unit/test_crackerjack_fallback.py` (NEW)
@@ -650,11 +654,12 @@ symbol."
 
 Actually, the export is needed for the test. Adjust: keep the export in Step 3.4 as written.
 
----
+______________________________________________________________________
 
 ## Task 4: Subprocess invocation + cleanup + flag selection from Task 0
 
 **Files:**
+
 - Modify: `session_buddy/utils/crackerjack/fallback.py` (extend helper body inside the lock)
 
 This task consumes the Task 0 mapping file. The metric-to-flag selection is the central piece of the design.
@@ -999,11 +1004,12 @@ non-zero exit, sys.executable, --comp for all-four, --run-tests
 for coverage-only, 30s default timeout."
 ```
 
----
+______________________________________________________________________
 
 ## Task 5: Parse output + post-filter + success-path return
 
 **Files:**
+
 - Modify: `session_buddy/utils/crackerjack/fallback.py` (replace `# TODO: parse + extract` block; pass the `semantic_command` to the parser instead of `"run"`)
 
 **Step 5.1: Write the failing tests for success / partial / empty-success**
@@ -1250,11 +1256,12 @@ name (lint/check/security/test) is what the parser is keyed on,
 not the literal 'run' subcommand."
 ```
 
----
+______________________________________________________________________
 
 ## Task 6: Error-path coverage (cancelled, parse, empty, missing, permission, os_error)
 
 **Files:**
+
 - Modify: `session_buddy/utils/crackerjack/fallback.py` (the cancelled re-raise is already in Task 4; add the parse_error and empty_stdout counters and the os_error test)
 
 **Step 6.1: Write the failing tests for each error path**
@@ -1413,11 +1420,12 @@ os_error, plus timeout-override. The production code in Tasks
 regression coverage."
 ```
 
----
+______________________________________________________________________
 
 ## Task 7: Observability — Prometheus counters, structured logs, OTel span
 
 **Files:**
+
 - Modify: `session_buddy/utils/crackerjack/fallback.py` (fill in all `# TODO: log + counter` markers; add OTel span; add Histogram observation)
 - Modify: `session_buddy/metrics.py` (add `Histogram` to the import; register the two new metrics)
 - Test: extend `tests/unit/test_crackerjack_fallback.py`
@@ -1983,11 +1991,12 @@ would yield ~0.05s. The histogram label-set test
 
 Splitting into four commits gives each one an independent reviewer gate. The "Commit" step previously shown as Step 7.8 is replaced by these four.
 
----
+______________________________________________________________________
 
 ## Task 8: Synthesis replacement — drop `coverage_pct`, emit `None` + `unavailable: True`
 
 **Files:**
+
 - Modify: `session_buddy/utils/quality_scoring.py` (rewrite `_create_fallback_metrics`; update both internal callers at lines 891 and 924 to remove `coverage_pct=` argument)
 
 **Step 8.1: Search for any callers passing `coverage_pct`**
@@ -2106,11 +2115,12 @@ flag's value. Both internal callers (lines 891 and 924)
 updated to drop the legacy coverage_pct argument."
 ```
 
----
+______________________________________________________________________
 
 ## Task 9: Wire helper into consumer chain (`_get_crackerjack_metrics`)
 
 **Files:**
+
 - Modify: `session_buddy/utils/quality_scoring.py` (insert new tier; use top-level import)
 - Test: `tests/unit/test_quality_scoring.py` (extend; add regression tests from Observability C4)
 
@@ -2305,11 +2315,12 @@ helper or a transient network error cannot crash the consumer
 chain. DB-hit path still skips the helper (early-return guard)."
 ```
 
----
+______________________________________________________________________
 
 ## Task 10: Wire helper into producer retry (`execute_crackerjack_command`)
 
 **Files:**
+
 - Modify: `session_buddy/crackerjack_integration.py` (top-level helper import; producer retry; add `fallback_used` field; add `quality_metrics` parameter to `_create_error_result`)
 
 **Step 10.1: Add top-level import in `crackerjack_integration.py`**
@@ -2495,11 +2506,12 @@ git -c user.name="les" -c user.email="les@local" commit -m "feat(crackerjack): p
   used a 3-arg form that would TypeError at runtime)"
 ```
 
----
+______________________________________________________________________
 
 ## Task 11: Harden `_format_metrics_section` and add unavailable banner
 
 **Files:**
+
 - Modify: `session_buddy/mcp/tools/session/crackerjack_tools.py` (find `_format_metrics_section` around line 655; harden against `None`; inspect `result.quality_metrics` for `unavailable` flag; render banner)
 - Test: `tests/unit/test_crackerjack_tools.py` (extend the existing `TestFormatMetricsSection` class)
 
@@ -2651,11 +2663,12 @@ A follow-up could add a parallel formatter for consumer
 synthesis if MCP-tool-side visibility is needed."
 ```
 
----
+______________________________________________________________________
 
 ## Task 12: Real-subprocess integration test (gated, with `importorskip`)
 
 **Files:**
+
 - Create: `tests/integration/test_crackerjack_fallback_real.py`
 
 **Step 12.1: Write the integration test**
@@ -2742,18 +2755,19 @@ is not None, which would vacuously pass if parsed_data was
 empty)."
 ```
 
----
+______________________________________________________________________
 
 ## Task 13: Observability — alert rules and dashboard panel
 
 **Files:**
+
 - Create: `docs/observability/crackerjack-fallback-alerts.md`
 
 **Step 13.1: Write the alert rules document**
 
 Create `docs/observability/crackerjack-fallback-alerts.md`:
 
-```markdown
+````markdown
 # Crackerjack CLI Fallback — Alert Rules and Dashboard Panel
 
 **Created:** 2026-07-27
@@ -2772,10 +2786,12 @@ Create `docs/observability/crackerjack-fallback-alerts.md`:
     /
   sum(rate(session_buddy_crackerjack_fallback_invocations_total[5m]))
     > 0.10
-  ```
+````
+
 - **Runbook:** Check `outcome` distribution. If most failures are `timeout`, the lock may be contended or the helper is slow. If most are `nonzero_exit`, the crackerjack invocation has a config issue. If most are `disabled`, someone flipped the kill switch and forgot.
 
 ### A2. Disabled outcome rate > 0
+
 - **Severity:** Slack (informational; the kill switch was tripped)
 - **PromQL:**
   ```promql
@@ -2784,6 +2800,7 @@ Create `docs/observability/crackerjack-fallback-alerts.md`:
 - **Runbook:** The operator deliberately disabled the fallback. Confirm with the on-call channel that this is intentional.
 
 ### A3. p99 duration > 25s (close to the 30s timeout)
+
 - **Severity:** Slack
 - **PromQL:**
   ```promql
@@ -2813,7 +2830,8 @@ Suggested panel: "Crackerjack Fallback" with these queries:
 ## Counter-name double-counting warning
 
 The plan does NOT register dedicated `crackerjack.fallback.timeout{command}` or `crackerjack.fallback.disabled{command}` counters. Operators aggregating dashboards should query the unified `session_buddy_crackerjack_fallback_invocations_total{outcome="timeout"}` (not a separate counter) to avoid double-counting.
-```
+
+````
 
 **Step 13.2: Commit**
 
@@ -2826,13 +2844,14 @@ Three PromQL alert rules and a dashboard panel for the
 session_buddy_crackerjack_fallback_* metrics. Documents the
 counter double-counting warning: no dedicated timeout/disabled
 counters; use the outcome label on the unified counter."
-```
+````
 
----
+______________________________________________________________________
 
 ## Self-Review (per writing-plans skill)
 
 **1. Spec coverage:**
+
 - [x] Helper module + lock + OTel → Tasks 3, 7
 - [x] Subprocess invocation with timeout/kill/cancel split → Task 4
 - [x] CLI flag selection from Task 0 mapping → Task 4
@@ -2855,6 +2874,7 @@ counters; use the outcome label on the unified counter."
 **3. Type consistency:** `try_crackerjack_cli` signature in Tasks 3, 4, 5, 6, 7 matches the spec verbatim. `CrackerjackResult.fallback_used: bool = False` consistent across Tasks 10, 11. The four `_*_metrics` helpers called via `CrackerjackIntegration._calculate_X(...)` (no instance) consistent with Task 2's `@staticmethod` refactor.
 
 **4. Resolved v1 issues (cross-checked against the 5-agent review):**
+
 - ✅ Wrong function signatures → fixed in Tasks 10, 11
 - ✅ Wrong import paths → top-level imports in Tasks 9, 10
 - ✅ Task 0 result unused → consumed in Task 4 (`_pick_invocation`)
@@ -2879,6 +2899,7 @@ counters; use the outcome label on the unified counter."
 - ✅ Alert guidance missing → new Task 13
 
 **5. Resolved v2 issues (cross-checked against the 4-agent review; the 5th MCP agent failed at the API tier):**
+
 - ✅ Python C1: bare `_calculate_X` calls → use `cls = _get_crackerjack_integration_class()` then `cls._calculate_X(...)`
 - ✅ Python C2: test data mismatch → `lint_issues: []` so `== 100.0` assertion holds
 - ✅ Python C3: undefined `_NoOpSpan` → class defined in Task 7 step 7.5
@@ -2891,19 +2912,20 @@ counters; use the outcome label on the unified counter."
 - ✅ voice-chat C5: banner never fires → `synthesize_unavailable_result` writes to history when consumer reaches synthesis
 
 **6. Identified residual concerns:**
+
 - Tasks 8-11-12 numbering is non-monotonic (8, 9, 10, 11, 12 reflect post-reorder ordering). This is a documentation quirk; the actual commit history is what matters.
 - Task 0 is a preflight that produces evidence; it commits the mapping file. If crackerjack is not installed, the mapping is inferred from `_get_applicable_parsers` source. The integration test in Task 12 is the runtime check.
 - The plan does not address pre-existing test collection issues (`tests/unit/test_quality_scoring.py` fails on `ModuleNotFoundError: duckdb`; `tests/unit/test_crackerjack_integration.py` collection pollution). Tests use `--noconftest --override-ini="addopts="` to work around. Pre-existing — not addressed by this branch.
 - The MCP v2 review agent failed at the API tier (token-plan cap); only 4 of 5 agents reported. If a future review surfaces issues that the 4 agents missed, those would need another rework pass.
 - Task 11 step 11.4's wire-up depends on the producer's `_store_result` writing to history. If the actual MCP read path uses a different lookup (e.g., a separate consumer-side history), the implementer must adjust accordingly. Step 11.4's design assumes "MCP tool reads from history that the producer writes to."
 
----
+______________________________________________________________________
 
 ## Execution Handoff
 
 Plan complete and saved to `docs/superpowers/plans/2026-07-27-quality-scoring-crackerjack-fallback.md`. Two execution options:
 
 1. **Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration
-2. **Inline Execution** — Execute tasks in this session using executing-plans, batch execution with checkpoints
+1. **Inline Execution** — Execute tasks in this session using executing-plans, batch execution with checkpoints
 
 Which approach?

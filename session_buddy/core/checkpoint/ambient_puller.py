@@ -4,12 +4,14 @@ Returns per-repo groups (dict[str, list[CommitEntry]]) plus per-repo
 failure names. Per-repo timeout 10s, per-batch timeout 30s, transient
 git failure retry 2x with backoff. Never raises.
 """
+
 from __future__ import annotations
 
 import asyncio
 import re
 import subprocess
 from datetime import datetime
+from itertools import starmap
 from pathlib import Path
 
 import yaml
@@ -78,7 +80,7 @@ class AmbientPuller:
                     )
                     captured[target_name] = entries
                     return
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     _log.warning(
                         "ambient_pull_git_log_timeout",
                         extra={"repo": target_name, "timeout_s": _PER_REPO_TIMEOUT_S},
@@ -106,18 +108,23 @@ class AmbientPuller:
         try:
             await asyncio.wait_for(
                 asyncio.gather(
-                    *(_run_one(name, path) for name, path in repos),
+                    *starmap(_run_one, repos),
                     return_exceptions=True,
                 ),
                 timeout=_BATCH_TIMEOUT_S,
             )
-        except asyncio.TimeoutError:
-            _log.warning("ambient_pull_batch_timeout", extra={"timeout_s": _BATCH_TIMEOUT_S})
+        except TimeoutError:
+            _log.warning(
+                "ambient_pull_batch_timeout", extra={"timeout_s": _BATCH_TIMEOUT_S}
+            )
         return captured, failures
 
     def _load_repos(self, working_directory: Path) -> list[tuple[str, Path]]:
         if not self._manifest_path.exists():
-            _log.info("ambient_pull_manifest_missing", extra={"path": str(self._manifest_path)})
+            _log.info(
+                "ambient_pull_manifest_missing",
+                extra={"path": str(self._manifest_path)},
+            )
             return []
         try:
             data = yaml.safe_load(self._manifest_path.read_text())
@@ -151,8 +158,11 @@ class AmbientPuller:
             f"-n{_MAX_COMMITS}",
             "--format=%H%x09%s%x09%an%x09%ae%x09%aI",
         ]
-        proc = subprocess.run(  # noqa: S603 — argv list
-            argv, capture_output=True, text=True, check=False,
+        proc = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            check=False,
             timeout=_PER_REPO_TIMEOUT_S + 1,
             cwd=str(repo_path),
         )
@@ -174,7 +184,7 @@ class AmbientPuller:
                     sha=safe_sha,
                     subject=safe_subject or None,
                     author=f"{safe_name} <{safe_email}>",
-                    timestamp=datetime.fromisoformat(ts.replace("Z", "+00:00")),
+                    timestamp=datetime.fromisoformat(ts),
                     provenance="ambient",
                 )
             )

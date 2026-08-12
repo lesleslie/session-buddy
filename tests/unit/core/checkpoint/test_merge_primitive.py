@@ -66,15 +66,15 @@ def _make_conn() -> duckdb.DuckDBPyConnection:
 def _merge(mp: MergePrimitive, conn: duckdb.DuckDBPyConnection, row: CrossRepoWorkRowCreate):
     """Single-row helper used by tests after the collapse of MergePrimitive.merge
     into multi_merge. Returns (read, inserted, deduplicated) for the single row."""
-    reads, ins, ded = mp.multi_merge(conn, [row])
-    return reads[0], ins, ded
+    reads, ins, dead = mp.multi_merge(conn, [row])
+    return reads[0], ins, dead
 
 
 def test_merge_first_write_inserts() -> None:
     conn = _make_conn()
     mp = MergePrimitive()
-    read, ins, ded = _merge(mp, conn, _row("sha1"))
-    assert ins == 1 and ded == 0
+    read, ins, dead = _merge(mp, conn, _row("sha1"))
+    assert ins == 1 and dead == 0
     assert len(read.work_entries) == 1
 
 

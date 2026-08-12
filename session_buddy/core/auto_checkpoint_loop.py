@@ -7,10 +7,12 @@ consumed. Also consumes `~/.session-buddy/pending/*.json` markers — each
 represents an end-of-task checkpoint that was deferred when a subagent was
 still active.
 """
+
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -31,7 +33,7 @@ class AutoCheckpointLoop:
         *,
         interval_s: int,
         working_dir_resolver: Callable[[], Path],
-        orch_factory: Callable[[Path], "CheckpointOrchestrator"],
+        orch_factory: Callable[[Path], CheckpointOrchestrator],
         pending_consume_fn: Callable[[Path], Awaitable[None]] | None = None,
         forward_to_factory: Callable[[Path], object] | None = None,
     ) -> None:
@@ -57,7 +59,9 @@ class AutoCheckpointLoop:
             return
         self._stopped.clear()
         self._task = asyncio.create_task(self._run(), name="auto-checkpoint-loop")
-        _log.info("auto_checkpoint_loop_started", extra={"interval_s": self._interval_s})
+        _log.info(
+            "auto_checkpoint_loop_started", extra={"interval_s": self._interval_s}
+        )
 
     async def stop(self) -> None:
         self._stopped.set()
@@ -66,8 +70,11 @@ class AutoCheckpointLoop:
         self._task.cancel()
         try:
             await self._task
-        except (asyncio.CancelledError, Exception):  # noqa: BLE001
-            pass
+        except (asyncio.CancelledError, Exception) as exc:  # noqa: BLE001
+            _log.debug(
+                "auto_checkpoint_loop_stop_completed",
+                extra=safe_transient_info(exc),
+            )
         self._task = None
         _log.info("auto_checkpoint_loop_stopped")
 
@@ -79,14 +86,15 @@ class AutoCheckpointLoop:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001
-                _log.warning("auto_checkpoint_loop_tick_error", extra=safe_transient_info(exc))
-            try:
+                _log.warning(
+                    "auto_checkpoint_loop_tick_error", extra=safe_transient_info(exc)
+                )
+            with suppress(TimeoutError):
                 await asyncio.wait_for(self._stopped.wait(), timeout=self._interval_s)
-            except asyncio.TimeoutError:
-                pass
 
     async def _tick(self) -> None:
         from session_buddy.checkpoint import CheckpointPhase
+
         working_dir = self._resolver()
         orch = self._orch_factory(working_dir)
         await orch.run_checkpoint(phase=CheckpointPhase.MIDPOINT_TIME)
@@ -95,13 +103,17 @@ class AutoCheckpointLoop:
         if self._pending_consume_fn is None:
             return
         from session_buddy.checkpoint.pending import PENDING_DIR
+
         if not PENDING_DIR.exists():
             return
         for marker in PENDING_DIR.glob("*.json"):
             try:
                 await self._pending_consume_fn(marker)
             except Exception as exc:  # noqa: BLE001
-                _log.warning("pending_consume_failed", extra={"marker": str(marker), **safe_transient_info(exc)})
+                _log.warning(
+                    "pending_consume_failed",
+                    extra={"marker": str(marker)} | safe_transient_info(exc),
+                )
 
 
 async def _midpoint_commit_forward(working_dir: Path) -> None:
@@ -113,7 +125,9 @@ async def _midpoint_commit_forward(working_dir: Path) -> None:
     have. Midpoint commits are local, periodic, low-stakes.
     """
     import asyncio
+
     from session_buddy.utils.git_worktrees import create_checkpoint_commit
+
     await asyncio.to_thread(
         create_checkpoint_commit,
         working_dir,
@@ -129,6 +143,7 @@ class QualityDeltaSignal:
     Pairs with settings.midpoint_commit_min_quality_delta (default 10).
     Inactive when no quality source is wired — the provider returns (None, None).
     """
+
     min_delta: int = 10
     quality_provider: Callable[[], tuple[int | None, int | None]] | None = None
 

@@ -197,7 +197,7 @@ def test_try_parsing_strategies_all_paths(monkeypatch: pytest.MonkeyPatch) -> No
     r = p._try_parsing_strategies("December 25 2026", base)
     assert r is not None and r.month == 12 and r.day == 25
     monkeypatch.setattr(time_parser, "DATEUTIL_AVAILABLE", False)
-    assert p._try_parsing_strategies("unparseable", base) is None
+    assert p._try_parsing_strategies("unparsable", base) is None
 
 
 def test_parse_time_expression_empty_and_whitespace() -> None:

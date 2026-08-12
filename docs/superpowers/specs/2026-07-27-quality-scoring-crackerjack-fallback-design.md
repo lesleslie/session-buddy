@@ -37,7 +37,7 @@ The v1 spec was reviewed by five agents (mcp-integration-expert, oneiric-special
 The recent `quality-scoring-field-audit` branch (commits `ceb181d7..63f4de63`) fixed what `_calculate_quality_metrics` does when specific metric keys are missing from a result dict. That fix distinguished "field absent" from "field present and zero," but it did not address two remaining gaps:
 
 1. **Producer-side recovery**: when `execute_crackerjack_command`'s subprocess fails (timeout, exception, exit ≠ 0), `_create_error_result` returns `quality_metrics={}` with no recovery path.
-2. **Consumer-side synthesis antipattern**: when no historical metrics exist, the coverage-file fallback path is absent, AND the reflection-DB search returns nothing, `_create_fallback_metrics` synthesizes perfect scores (`lint_score=100`, `security_score=100`, `complexity_score=100`) — the very antipattern Task 1 of the recent audit was adjacent to.
+1. **Consumer-side synthesis antipattern**: when no historical metrics exist, the coverage-file fallback path is absent, AND the reflection-DB search returns nothing, `_create_fallback_metrics` synthesizes perfect scores (`lint_score=100`, `security_score=100`, `complexity_score=100`) — the very antipattern Task 1 of the recent audit was adjacent to.
 
 This design introduces a CLI-invocation helper that fires in both layers when prior data sources are insufficient, plus an unconditional rewrite of the synthesis function to emit explicit "unavailable" markers instead of perfect scores.
 
@@ -83,20 +83,24 @@ async def try_crackerjack_cli(
 ### Three integration points
 
 1. **Producer retry** (`session_buddy/crackerjack_integration.py:470` — `execute_crackerjack_command`)
+
    - On `TimeoutError`, before `_create_error_result(exit_code=-1, quality_metrics={})`, attempt one `try_crackerjack_cli` call with `caller="producer_retry"`.
    - Helper result (if any) merged into the metrics dict. `fallback_used=True` flag set on `CrackerjackResult`.
    - Subprocess leak prevention: `try/finally` with `proc.kill()` + `proc.wait()`.
 
-2. **Consumer chain tier** (`session_buddy/utils/quality_scoring.py:_get_crackerjack_metrics`)
+1. **Consumer chain tier** (`session_buddy/utils/quality_scoring.py:_get_crackerjack_metrics`)
+
    - New tier between the coverage-file fallback and `_create_fallback_metrics`.
    - Calls `try_crackerjack_cli` with `caller="consumer_chain"` for any of the four scoring keys still absent.
    - **Module-level `asyncio.Lock`** serializes invocations to prevent N parallel subprocesses.
 
-3. **Synthesis replacement** (`session_buddy/utils/quality_scoring.py:_create_fallback_metrics`)
+1. **Synthesis replacement** (`session_buddy/utils/quality_scoring.py:_create_fallback_metrics`)
+
    - **Unconditional**: returns `{code_coverage: None, lint_score: None, security_score: None, complexity_score: None, unavailable: True}`.
    - Old `coverage_pct` parameter dropped entirely (per Bodai pre-1.0 merge policy, no external callers).
 
-4. **MCP banner rendering** (`session_buddy/mcp/tools/session/crackerjack_tools.py:_format_metrics_section`)
+1. **MCP banner rendering** (`session_buddy/mcp/tools/session/crackerjack_tools.py:_format_metrics_section`)
+
    - Hardened to handle `None` values (currently crashes per MCP C2).
    - Renders "⚠️ Quality metrics unavailable" banner when `unavailable: True` is in the dict.
 
@@ -147,17 +151,17 @@ The v2 helper uses `CrackerjackIntegration._build_command_flags(command, ai_agen
 ### Internal pipeline (inside `try_crackerjack_cli`)
 
 1. **Disabled check**: if `not get_feature_flags().enable_crackerjack_fallback` → return `None` (early, DEBUG log, `disabled` outcome).
-2. **Lock acquire**: `async with _FALLBACK_LOCK:` to serialize.
-3. **Disabled re-check** (after lock): a second check inside the lock to handle race where the flag was flipped between step 1 and step 3.
-4. **Build argv**: `_build_command_flags(command, ai_agent_mode=False)` from `CrackerjackIntegration`.
-5. **OTel span start**: `with tracer.start_as_current_span("crackerjack.fallback", attributes={...})` (no-op if tracer not configured).
-6. **Spawn subprocess**: `asyncio.create_subprocess_exec(*argv, cwd=project_dir, stdout=PIPE, stderr=PIPE)`.
-7. **Wait with timeout**: `try: stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout); except (TimeoutError, asyncio.CancelledError): proc.kill(); await proc.wait(); raise`.
-8. **Check exit code**: `if proc.returncode != 0` → log/counter `nonzero_exit`, return `None`.
-9. **Parse output**: `CrackerjackOutputParser.parse_output(command, stdout, stderr)`.
-10. **Extract requested keys**: call the four pure helpers; **post-filter** to drop keys whose corresponding section of `parsed_data` was empty.
-11. **Return on success**: `{key: value for key, value in metrics.items() if key in missing}`.
-12. **Return on any failure**: `None` with structured log + counter.
+1. **Lock acquire**: `async with _FALLBACK_LOCK:` to serialize.
+1. **Disabled re-check** (after lock): a second check inside the lock to handle race where the flag was flipped between step 1 and step 3.
+1. **Build argv**: `_build_command_flags(command, ai_agent_mode=False)` from `CrackerjackIntegration`.
+1. **OTel span start**: `with tracer.start_as_current_span("crackerjack.fallback", attributes={...})` (no-op if tracer not configured).
+1. **Spawn subprocess**: `asyncio.create_subprocess_exec(*argv, cwd=project_dir, stdout=PIPE, stderr=PIPE)`.
+1. **Wait with timeout**: `try: stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout); except (TimeoutError, asyncio.CancelledError): proc.kill(); await proc.wait(); raise`.
+1. **Check exit code**: `if proc.returncode != 0` → log/counter `nonzero_exit`, return `None`.
+1. **Parse output**: `CrackerjackOutputParser.parse_output(command, stdout, stderr)`.
+1. **Extract requested keys**: call the four pure helpers; **post-filter** to drop keys whose corresponding section of `parsed_data` was empty.
+1. **Return on success**: `{key: value for key, value in metrics.items() if key in missing}`.
+1. **Return on any failure**: `None` with structured log + counter.
 
 The four pure helpers (`_calculate_lint_metrics`, etc.) live on `CrackerjackIntegration` but should be refactored to `@staticmethod` (per Python I2) so the helper can call them without instantiating a DB-touching `CrackerjackIntegration` object. The plan includes a purity-verification + refactor task.
 
@@ -216,12 +220,14 @@ Following `session_buddy/metrics.py` and `session_buddy/mcp/metrics.py` (e.g., `
 ### Structured logs
 
 Log level per outcome:
+
 - `success` → **INFO** (the new normal; not actionable)
 - `timeout`, `nonzero_exit`, `parse_error`, `empty_stdout`, `permission_error`, `cancelled`, `os_error` → **WARNING** (actionable failures)
 - `missing_executable` → **ERROR** (environment problem, operator should investigate)
 - `disabled` → **DEBUG** (silent path)
 
 Log fields:
+
 ```python
 logger.log(level, "crackerjack fallback invoked", extra={
     "command": command,
@@ -241,6 +247,7 @@ logger.log(level, "crackerjack fallback invoked", extra={
 ### OpenTelemetry spans
 
 Every invocation wrapped in:
+
 ```python
 with tracer.start_as_current_span(
     "crackerjack.fallback",
@@ -264,9 +271,10 @@ No-op when the tracer is not configured (matches `session_buddy/mcp/telemetry.py
 ### Alert guidance (added — v1 omitted this)
 
 Three recommended alert rules on the new metrics:
+
 1. **Outcome ≠ success rate > 10% over 5 minutes** → Slack/PagerDuty
-2. **`outcome="disabled"` rate > 0** → Slack (someone flipped the kill switch; informational)
-3. **`session_buddy_crackerjack_fallback_duration_seconds` p99 > 25s** → Slack (close to the 30s timeout)
+1. **`outcome="disabled"` rate > 0** → Slack (someone flipped the kill switch; informational)
+1. **`session_buddy_crackerjack_fallback_duration_seconds` p99 > 25s** → Slack (close to the 30s timeout)
 
 ## Error contract (precise return-value semantics)
 
@@ -291,6 +299,7 @@ The helper returns `dict[str, float] | None`. Callers branch on truthiness (`if 
 **Asymmetry**: helper returns `{}` for the "succeeded but empty" case, not `None`. Both are falsy; callers treat them identically. The log/counter distinguishes them for operators.
 
 **Cascade**:
+
 - Producer (after `None` or `{}`): falls through to `_create_error_result(exit_code=-1, quality_metrics={})`. Caller sees empty metrics, `fallback_used=False`.
 - Consumer (after `None` or `{}`): falls through to `_create_fallback_metrics()` → `None` + `unavailable: True` dict.
 
@@ -367,8 +376,9 @@ def _create_fallback_metrics() -> dict[str, Any]:
 ### MCP banner rendering
 
 `session_buddy/mcp/tools/session/crackerjack_tools.py:_format_metrics_section` is hardened to:
+
 1. Detect `unavailable: True` upfront and render `"⚠️ Quality metrics unavailable — every tier failed or was disabled"`.
-2. Replace `f"{value:.1f}"` with `f"{value:.1f}" if value is not None else "unavailable"` to handle None values without crashing.
+1. Replace `f"{value:.1f}"` with `f"{value:.1f}" if value is not None else "unavailable"` to handle None values without crashing.
 
 ### Shared changes
 
@@ -383,7 +393,7 @@ def _create_fallback_metrics() -> dict[str, Any]:
 
 | Layer | File | Markers | Speed |
 |---|---|---|---|
-| Pure helper tests | `tests/unit/test_crackerjack_fallback.py` (NEW) | `unit` | Fast (<1s total) |
+| Pure helper tests | `tests/unit/test_crackerjack_fallback.py` (NEW) | `unit` | Fast (\<1s total) |
 | Command-selection tests | `tests/unit/test_crackerjack_fallback.py` (NEW) | `unit` | Fast |
 | Producer retry tests | `tests/unit/test_crackerjack_integration.py` (extend) | `unit` | Fast |
 | Consumer chain tests | `tests/unit/test_quality_scoring.py` (extend) | `unit` | Fast |
@@ -498,8 +508,8 @@ async def test_helper_invokes_real_crackerjack(tmp_path):
 Three escalation tiers, in order of preference:
 
 1. **Disable the CLI fallback layer** via `SESSION_BUDDY_CRACKERJACK_FALLBACK=false`. Synthesis change is unaffected; consumers still get `None` + `unavailable: True` instead of perfect scores. This is the safe rollback.
-2. **Revert the synthesis replacement** if downstream consumers (after a full rollout) can't tolerate the new `None` contract. One-commit revert. Restores the synthesize-100s behavior, but the rest of the fallback layer continues to work.
-3. **Full revert** of the four-to-six commits. Returns to pre-v2 behavior. Use only if the entire feature is misbehaving.
+1. **Revert the synthesis replacement** if downstream consumers (after a full rollout) can't tolerate the new `None` contract. One-commit revert. Restores the synthesize-100s behavior, but the rest of the fallback layer continues to work.
+1. **Full revert** of the four-to-six commits. Returns to pre-v2 behavior. Use only if the entire feature is misbehaving.
 
 ## Out-of-scope follow-ups
 

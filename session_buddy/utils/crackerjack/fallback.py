@@ -4,17 +4,37 @@ Invokes the Crackerjack CLI on-demand when the consumer chain has no
 historical metrics or the producer subprocess failed. Returns the
 requested metric keys (subset of parsed_data), or None on any failure.
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import sys
 import time
+from asyncio.subprocess import Process as _SubprocessProcess
+from contextlib import suppress
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol, Self
 
 from session_buddy.config import feature_flags
 from session_buddy.utils.crackerjack.output_parser import CrackerjackOutputParser
+
+
+class _SpanLike(Protocol):
+    """Structural type for the span attribute surface used by this module.
+
+    Both the real OpenTelemetry ``Span`` and the local ``_NoOpSpan``
+    implement ``set_attribute`` / ``set_status`` with compatible
+    signatures, so callers can treat either uniformly. Declaring a
+    Protocol keeps ty happy at the boundary while avoiding a hard
+    runtime import of OpenTelemetry.
+    """
+
+    def set_attribute(self, key: str, value: object) -> None: ...
+    def set_status(
+        self, status_code: object, description: str | None = None
+    ) -> None: ...
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +63,7 @@ class _NoOpSpan:
     because there is no underlying span to mutate.
     """
 
-    def __enter__(self) -> "_NoOpSpan":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
@@ -65,33 +85,29 @@ def _get_tracer():
         from opentelemetry import trace
 
         _TRACER = trace.get_tracer(__name__)
-    except Exception:
+    except (ImportError, AttributeError):
         _TRACER = None
     return _TRACER
 
 
 def _emit_counter(command: str, outcome: str, caller: str) -> None:
     """Increment the unified invocation counter with command+outcome+caller labels."""
-    try:
+    with suppress(Exception):  # metrics are best-effort
         from session_buddy.metrics import CRACKERJACK_FALLBACK_INVOCATIONS
 
         CRACKERJACK_FALLBACK_INVOCATIONS.labels(
             command=command, outcome=outcome, caller=caller
         ).inc()
-    except Exception:
-        pass  # metrics are best-effort
 
 
 def _observe_duration(command: str, caller: str, duration_seconds: float) -> None:
     """Record the invocation duration in the histogram."""
-    try:
+    with suppress(Exception):  # metrics are best-effort
         from session_buddy.metrics import CRACKERJACK_FALLBACK_DURATION_SECONDS
 
         CRACKERJACK_FALLBACK_DURATION_SECONDS.labels(
             command=command, caller=caller
         ).observe(duration_seconds)
-    except Exception:
-        pass
 
 
 def _finalize(
@@ -102,7 +118,7 @@ def _finalize(
     missing_metrics: frozenset[str],
     duration_seconds: float,
     correlation_context: dict[str, str] | None,
-    span: object | None = None,
+    span: _SpanLike | None = None,
 ) -> None:
     """Single point of observability emission. Exactly one log + one counter + one histogram observation per invocation.
 
@@ -135,7 +151,7 @@ def _finalize(
     _observe_duration(command, caller, duration_seconds)
     # OTel: tag the span with outcome + mark failures as errors
     if span is not None:
-        try:
+        with suppress(Exception):
             span.set_attribute("outcome", outcome)
             span.set_attribute("project_dir", str(project_dir))
             if outcome not in ("success", "disabled"):
@@ -143,8 +159,6 @@ def _finalize(
                 from opentelemetry.trace import Status, StatusCode
 
                 span.set_status(Status(StatusCode.ERROR, f"{outcome}: {caller}"))
-        except Exception:
-            pass
 
 
 # All-four convenience: pick the most general semantic command that
@@ -182,7 +196,7 @@ def _classify_proc_failure(returncode: int | None, stderr_text: str) -> str:
     return "nonzero_exit"
 
 
-async def _acquire_fallback_lock(span: object | None = None) -> None:
+async def _acquire_fallback_lock(span: _SpanLike | None = None) -> None:
     """Acquire the module-level serialization lock.
 
     Wraps ``_FALLBACK_LOCK.acquire()`` so a ``CancelledError`` raised
@@ -198,21 +212,19 @@ async def _acquire_fallback_lock(span: object | None = None) -> None:
         # Observability is best-effort here — the lock is already in its
         # own micro-task; emitting a counter increment without the
         # other finalize fields would understate severity. Just log.
-        try:
+        with suppress(Exception):
             logger.warning(
                 "crackerjack fallback cancelled while waiting for serialization lock",
                 extra={"outcome": "cancelled_lock_wait"},
             )
             _emit_counter("check", "cancelled_lock_wait", "consumer_chain")
-        except Exception:
-            pass
         raise
 
 
 async def _spawn_subprocess(
     argv: list[str],
     project_path: Path,
-) -> tuple[object | None, str | None]:
+) -> tuple[_SubprocessProcess | None, str | None]:
     """Spawn the crackerjack subprocess.
 
     Returns ``(proc, None)`` on success or ``(None, outcome_label)`` when
@@ -236,9 +248,9 @@ async def _spawn_subprocess(
 
 
 async def _wait_for_proc(
-    proc: object,
+    proc: _SubprocessProcess,
     timeout: float,
-    span: object | None = None,
+    span: _SpanLike | None = None,
 ) -> tuple[bytes | None, bytes | None, str | None]:
     """Wait for the subprocess to finish.
 
@@ -251,31 +263,21 @@ async def _wait_for_proc(
     shape matches the parser's documented str signature.
     """
     try:
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(), timeout=timeout
-        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         return stdout, stderr, None
     except TimeoutError:
         if proc.returncode is None:
-            try:
+            with suppress(Exception):
                 proc.kill()
-            except Exception:
-                pass
-            try:
+            with suppress(Exception):
                 await proc.wait()
-            except Exception:
-                pass
         return None, None, "timeout"
     except asyncio.CancelledError:
         if proc.returncode is None:
-            try:
+            with suppress(Exception):
                 proc.kill()
-            except Exception:
-                pass
-            try:
+            with suppress(Exception):
                 await proc.wait()
-            except Exception:
-                pass
         return None, None, "cancelled"
 
 
@@ -336,7 +338,7 @@ async def _dispatch(
     missing: frozenset[str],
     caller: str,
     start_time: float,
-    span: object | None,
+    span: _SpanLike | None,
     correlation_context: dict[str, str] | None,
 ) -> dict[str, float] | None:
     """Run the crackerjack subprocess end-to-end and return parsed metrics.
@@ -446,7 +448,7 @@ async def _dispatch(
         parsed_data, _memory_insights = CrackerjackOutputParser().parse_output(
             semantic_command, stdout_text, stderr_text
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 - parse errors funnel to _finalize("parse_error")
         _finalize(
             "parse_error",
             semantic_command,
@@ -461,10 +463,8 @@ async def _dispatch(
 
     candidate = _extract_sections(parsed_data, missing)
     if span is not None:
-        try:
+        with suppress(Exception):
             span.set_attribute("metrics_returned", sorted(candidate.keys()))
-        except Exception:
-            pass
     return candidate
 
 
@@ -513,7 +513,7 @@ async def try_crackerjack_cli(
         if tracer is not None
         else _NoOpSpan()
     )
-    span: object
+    span: _SpanLike
     with span_cm as span:
         # Disabled check (early)
         if not feature_flags.get_feature_flags().enable_crackerjack_fallback:
@@ -573,10 +573,8 @@ async def try_crackerjack_cli(
                 span=span,
             )
             if span is not None:
-                try:
+                with suppress(Exception):
                     span.set_attribute("metrics_returned", sorted(result.keys()))
-                except Exception:
-                    pass
             return result
         finally:
             _FALLBACK_LOCK.release()

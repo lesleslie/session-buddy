@@ -7,7 +7,9 @@
 
 Channel-session records are persisted at:
 
-    channel-sessions/{channel_id}/{sender_id}
+```
+channel-sessions/{channel_id}/{sender_id}
+```
 
 No trailing slash. The consumer's `get` call must use the same shape
 (no trailing slash) for the lookup to succeed. The producer-half test
@@ -25,10 +27,10 @@ The substrate key omits `thread_id` because:
 1. **Substrate index efficiency** — keys are bounded by `{channel_id, sender_id}`.
    thread_id can be long (Slack thread_ts is e.g. `1712345678.123456`) and
    unbounded across channels.
-2. **Thread lives in payload** — `ChannelSessionState.metadata` already carries
+1. **Thread lives in payload** — `ChannelSessionState.metadata` already carries
    the active thread context (if any) via the producer's `metadata={...}`
    passthrough. Future thread-scoped reads can filter on metadata, not key.
-3. **Multi-thread semantics** — a single `(channel_id, sender_id)` can have
+1. **Multi-thread semantics** — a single `(channel_id, sender_id)` can have
    multiple active threads. Putting thread_id in the substrate key would
    either (a) fan out to multiple records (changes durability semantics) or
    (b) overwrite the main thread record on each thread event (data loss).

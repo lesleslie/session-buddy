@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "session-buddy"
-version = "0.21.0"
+version = "0.22.0"
 description = "A Session Management MCP Server for Claude Code"
 readme = "README.md"
 authors = [{name = "Les Leslie", email = "les@wedgwoodwebworks.com"}]
@@ -211,8 +211,14 @@ deps-file = "pyproject.toml"
 exclude-deps = [
     # Optional/missing imports - all use try/except ImportError patterns
     "aiofiles",     # team_knowledge uses importlib find_spec, not direct import
-    "dhara",        # settings.py has optional URL field, may not connect
     "rich",         # quality_engine.py only uses in f-string for output formatting
+    # Transitive dependency pins — declared in pyproject.toml so the
+    # runtime contract is explicit, but not imported directly by
+    # session-buddy source code. DuckDB's Python client requires pytz
+    # at runtime to read TIMESTAMP WITH TIME ZONE columns used by
+    # session-buddy's reflection tables (conversations_v2,
+    # session_windows, cross_repo_work_v2).
+    "pytz",
     # Only keep hatchling - the only dependency from pyproject.toml that's in exclude-deps
     "hatchling",
 ]

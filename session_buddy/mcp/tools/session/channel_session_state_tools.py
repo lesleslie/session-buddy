@@ -26,7 +26,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import dhara
 from oneiric.core.logging import get_logger
 
 from session_buddy._dhara_substrate_compat import (

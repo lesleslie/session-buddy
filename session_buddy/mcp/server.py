@@ -16,7 +16,6 @@ variable.  When unset or invalid the default is ``FULL`` (all tools).
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -37,15 +36,16 @@ logger = logging.getLogger(__name__)
 # Path validation (Finding C-7): shared with SessionLifecycleManager so the
 # two call sites cannot drift. Imported at module level (not lazily) because
 # the symbol is referenced in the lifespan closure below.
-from session_buddy.core.session_manager import validate_orchestrator_working_dir  # noqa: E402
-from session_buddy.checkpoint.pending import load_pending as _load_pending  # noqa: E402
+from session_buddy.checkpoint.pending import load_pending as _load_pending
+from session_buddy.core.session_manager import (
+    validate_orchestrator_working_dir,
+)
 
 # ---------------------------------------------------------------------------
 # Import every registration function that *could* be called.
 # Keeping them all imported avoids import errors when a profile references
 # a function that would otherwise be lazy-loaded.
 # ---------------------------------------------------------------------------
-
 from .tools import (
     register_access_log_tools,
     register_admin_shell_tracking_tools,
@@ -192,9 +192,8 @@ if _skipped:
 # ---------------------------------------------------------------------------
 
 # Late imports for the helper functions (after registration block above).
-from session_buddy.checkpoint import (  # noqa: E402
+from session_buddy.checkpoint import (
     CheckpointOrchestrator,
-    CheckpointPhase,
     CheckpointPolicy,
     DirtyFilesSignal,
     LockfileSignalSource,
@@ -218,7 +217,6 @@ class _OrchestratorCwdInvalid(Exception):
 
 async def _noop_forward(_result: Any) -> None:
     """Analytics-only tick: forward_to is a no-op. Snapshot was already captured."""
-    return None
 
 
 async def _consume_pending(marker: Path) -> None:
@@ -258,7 +256,7 @@ async def _consume_pending(marker: Path) -> None:
         return _build_orchestrator(
             wd,
             MidpointCriteria(signals=[]),
-            lambda working_dir: _make_end_of_task_forward(working_dir),
+            _make_end_of_task_forward,
         )
 
     await consume_pending_marker(marker, build_orchestrator=_build)
@@ -276,7 +274,9 @@ def _make_end_of_task_forward(working_dir: Path):
 
     async def _end_of_task_forward(_result: Any) -> None:
         import asyncio
+
         from session_buddy.utils.git_worktrees import create_checkpoint_commit
+
         await asyncio.to_thread(
             create_checkpoint_commit,
             working_dir,
@@ -293,13 +293,15 @@ def _build_quality_provider():
     Best-effort: returns None when no quality source is configured, which
     makes the QualityDeltaSignal stay inactive (its ``is_active()`` returns
     False when the provider returns (None, None)).
-    """
-    try:
-        from session_buddy.core.quality_cache import get_last_and_current
 
-        return get_last_and_current
-    except ImportError:
-        return None
+    Note: ``session_buddy.core.quality_cache.get_last_and_current`` was the
+    candidate provider but never landed in the tree. Until that module ships,
+    no provider is wired and the signal stays inactive by design.
+    """
+    # The previous try/except ImportError wrapper masked the fact that
+    # ``session_buddy.core.quality_cache`` was never implemented. Returning
+    # None here is the documented best-effort contract and keeps the
+    # QualityDeltaSignal path self-inert until a real provider ships.
 
 
 def _build_orchestrator(
@@ -346,7 +348,7 @@ async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
 
         mode_cfg = get_mode().get_config()
         loop_enabled = getattr(mode_cfg, "enable_auto_checkpoint", True)
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort mode gate, default to enabled
         loop_enabled = True
 
     # Effective interval: 10 min (commits) vs 30 min (analytics-only)
@@ -395,7 +397,7 @@ async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
             def _validate_or_raise() -> Path:
                 validated = validate_orchestrator_working_dir(logger=logger)
                 if validated is None:
-                    raise _OrchestratorCwdInvalid(os.getcwd())
+                    raise _OrchestratorCwdInvalid(Path.cwd())
                 return validated
 
             auto_loop = AutoCheckpointLoop(

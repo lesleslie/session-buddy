@@ -23,16 +23,19 @@ These constraints apply to **every task** below.
 - Feature flag: `S_CHANNEL_DURABLE_V1_ENABLED` (default True); rollback restores in-memory store.
 - Bodai pre-1.0 merge policy: commits to main directly.
 
----
+______________________________________________________________________
 
 ### Task 1: Producer — `state_writer.py`
 
 **Files:**
+
 - Create: `session_buddy/channel/state_writer.py`
 - Test: `tests/unit/channel/test_state_writer.py`
 
 **Interfaces:**
+
 - Consumes: `dhara.schema.channel_session_state.ChannelSessionState`, `validate(...)` from `SCHEMA_REGISTRY`
+
 - Produces: `record_channel_session_state(channel_type, channel_id, sender_id, started_at, last_event_at, metadata=None) -> ChannelSessionState`
 
 - [ ] **Step 1: Write the failing test**
@@ -160,16 +163,19 @@ git add session_buddy/channel/state_writer.py tests/unit/channel/test_state_writ
 git -c user.name="lesleslie" -c user.email="les@wedgwoodwebworks.local" commit -m "feat(channel): state_writer — validate-on-write at channel event boundaries"
 ```
 
----
+______________________________________________________________________
 
 ### Task 2: Consumer MCP tool — `channel_session_get_state`
 
 **Files:**
+
 - Create: `session_buddy/mcp_tools/channel_tools.py`
 - Test: `tests/unit/mcp_tools/test_channel_tools.py`
 
 **Interfaces:**
+
 - Consumes: `from_dict("channel_session_state", payload)`, `dhara.get(...)`
+
 - Produces: `channel_session_get_state(channel_id, sender_id) -> ChannelSessionState | None`
 
 - [ ] **Step 1: Write the failing test**
@@ -251,16 +257,19 @@ git add session_buddy/mcp_tools/channel_tools.py tests/unit/mcp_tools/test_chann
 git -c user.name="lesleslie" -c user.email="les@wedgwoodwebworks.local" commit -m "feat(channel): channel_session_get_state MCP tool — read-back via from_dict"
 ```
 
----
+______________________________________________________________________
 
 ### Task 3: Wire producer into `track_channel_session`
 
 **Files:**
+
 - Modify: `session_buddy/track_channel_session.py` (find existing event handlers; add `record_channel_session_state` calls on start/heartbeat/end events)
 - Test: `tests/integration/channel/test_track_emits_state.py`
 
 **Interfaces:**
+
 - Consumes: existing `track_channel_session` event handlers + `record_channel_session_state` from Task 1
+
 - Produces: start/heartbeat/end events emit ChannelSessionState records
 
 - [ ] **Step 1: Write the failing test**
@@ -306,12 +315,14 @@ git add session_buddy/track_channel_session.py tests/integration/channel/test_tr
 git -c user.name="lesleslie" -c user.email="les@wedgwoodwebworks.local" commit -m "feat(channel): wire track_channel_session to record_channel_session_state"
 ```
 
----
+______________________________________________________________________
 
 ### Task 4: Cross-process durability test + crackerjack gate + completion report
 
 **Files:**
+
 - Test: `tests/integration/channel/test_durable_restart.py`
+
 - Create: `docs/feature-tracking/2026-08-10-s-channel-durable.md`
 
 - [ ] **Step 1: Write durability-across-restart test**
@@ -345,7 +356,7 @@ git add tests/integration/channel/test_durable_restart.py docs/feature-tracking/
 git -c user.name="lesleslie" -c user.email="les@wedgwoodwebworks.local" commit -m "test(channel): cross-process durability + completion report for S-CHANNEL-DURABLE"
 ```
 
----
+______________________________________________________________________
 
 ## Spec coverage map
 

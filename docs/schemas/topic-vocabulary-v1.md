@@ -46,6 +46,10 @@ contribution workflow below.
 | `lifecycle` | Wiring lifecycle for components, plans, and followups — drafted/active/partial/shipped/complete transitions, completion reports, plan-to-followup handoffs. |
 | `plugin-standardization` | Claude Code plugin manifest, marketplace layout, slash command namespace, plugin validation scaffold (introduced for Bodai plugin rollout 2026-07-16). |
 | `architecture` | Component architecture / DI / pooling / module boundaries / refactor plans / phase integration. Session-buddy-specific addition (introduced 2026-07-16 by P7.A cross-repo template). |
+| `quality-scoring` | Quality-scoring metric synthesis, calculation, and registry contracts; the v1 metric family (code_coverage, lint_score, security_score, complexity_score, build_status) and the quality-scoring consumer regression net. |
+| `ruff-016-source-remediation` | Ruff 0.16 source-remediation plan: non-negotiable rules, the new rule policy, and the B-series manual fixes swept across the codebase. |
+| `s-channel-durable` | S-CHANNEL-DURABLE plan family: durable structured `channel_session_state` records persisted via Dhara, with producer-side validate-on-write and consumer-side read-back-and-validate. |
+| `cross-repo-work-vs-eventbridge` | Comparison of cross-repo work accounting (ambient puller + DuckDB merge) vs EventBridge cross-system messaging. Decision rationale for when each substrate applies. |
 
 ## Contribution Workflow
 

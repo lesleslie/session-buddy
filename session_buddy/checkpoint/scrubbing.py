@@ -4,8 +4,10 @@ These helpers are public within the checkpoint package; do NOT re-export
 from the top-level session_buddy namespace. They are intentionally narrow
 to the checkpoint subsystem and not a general-purpose logging framework.
 """
+
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import Any
 
 import httpx
@@ -21,23 +23,18 @@ def safe_transient_info(exc: BaseException) -> dict[str, Any]:
     """
     info: dict[str, Any] = {"type": type(exc).__name__}
     if isinstance(exc, httpx.HTTPStatusError):
-        try:
+        with suppress(Exception):  # best-effort, never raise from logging
             info["status"] = exc.response.status_code
-        except Exception:  # noqa: BLE001 — best-effort, never raise from logging
-            pass
         # `exc.request` is an httpx property that raises RuntimeError
         # when the underlying _request slot is None. Wrap defensively.
-        try:
+        request: httpx.Request | None = None
+        with suppress(Exception):
             request = exc.request
-        except Exception:  # noqa: BLE001
-            request = None
         if request is not None:
-            try:
+            with suppress(AttributeError, ValueError, TypeError):
                 host = request.url.host
-            except (AttributeError, ValueError, TypeError):
-                host = None
-            if host:
-                info["host"] = host
+                if host:
+                    info["host"] = host
     return info
 
 

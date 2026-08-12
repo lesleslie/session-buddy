@@ -2,6 +2,7 @@
 ECOSYSTEM_MANIFEST env-var pattern that previously appeared in both
 AmbientPuller and store_cross_repo_work (python-pro M1 / mcp I5).
 """
+
 from __future__ import annotations
 
 import os

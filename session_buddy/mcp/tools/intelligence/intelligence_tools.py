@@ -50,6 +50,7 @@ def _get_mcp() -> t.Any:
     server_optimized = import_module("session_buddy.server_optimized")
     return server_optimized.mcp
 
+
 # Global intelligence engine instance (initialized at startup)
 _intelligence_engine: IntelligenceEngine | None = None
 

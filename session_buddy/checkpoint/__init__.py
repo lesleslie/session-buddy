@@ -1,4 +1,5 @@
 """Auto-checkpoint orchestration: policy + snapshot + subagent detector."""
+
 from __future__ import annotations
 
 from session_buddy.checkpoint.cleanup import SnapshotCleanupTask
@@ -36,11 +37,11 @@ from session_buddy.checkpoint.subagent_detector import (
 )
 
 __all__ = [
+    "CheckpointMetrics",
     "CheckpointOrchestrator",
     "CheckpointPhase",
     "CheckpointPolicy",
     "CheckpointResult",
-    "CheckpointMetrics",
     "DirtyFilesSignal",
     "LockfileSignalSource",
     "MidpointCriteria",

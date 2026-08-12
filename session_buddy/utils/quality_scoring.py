@@ -46,6 +46,17 @@ try:
 except ImportError:
     CRACKERJACK_AVAILABLE = False
 
+# The four scoring keys the metrics dict is contractually required to
+# address. Used by ``_populate_cli_metrics`` to identify which keys
+# still need CLI fallback and by ``_finalize_crackerjack_metrics_async``
+# to detect the "every key missing" branch that triggers synthesis.
+# Hoisted to module scope so the helpers share one definition; the
+# previous local-scope re-creation was both wasteful and prone to
+# silent drift when one helper picked up a stale snapshot.
+_SCORING_KEYS: frozenset[str] = frozenset(
+    {"code_coverage", "lint_score", "security_score", "complexity_score"},
+)
+
 
 # ---------------------------------------------------------------------------
 # Async dispatch helper (asyncio.to_thread)
@@ -887,6 +898,12 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
     Always returns a dict with all four scoring keys explicitly addressed.
     Missing measurements stay ``None``; the chain falls through CLI
     fallback + final synthesis instead of ever returning a partial dict.
+
+    The function is the orchestrator for three tiers (coverage files,
+    DB history, CLI fallback) and a final synthesis pass. Each tier is
+    a separate helper so this function stays under the C901 ceiling;
+    readers can follow one tier at a time without parsing nested
+    try/except scaffolding inline.
     """
     # Ensure project_dir is a Path object
     if isinstance(project_dir, str):
@@ -897,104 +914,135 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
     if cached := _get_cached_metrics(cache_key):
         return cached
 
-    # Start with an empty dict populated key-by-key — never returns {}
-    # early. Coverage files are a free signal even when Crackerjack is
-    # unavailable so pick them up here. Use a truthy check so a literal
-    # 0.0 reading (test fixtures + degenerate real projects) is still
-    # treated as "no measurement," matching the pre-Task-9 behavior.
+    metrics = await _collect_crackerjack_metrics(project_dir)
+    return await _finalize_crackerjack_metrics_async(project_dir, metrics)
+
+
+async def _collect_crackerjack_metrics(project_dir: Path) -> dict[str, Any]:
+    """Walk the coverage/DB/CLI tiers and return a partial metrics dict.
+
+    Any individual tier that fails leaves its keys unset (``None``); the
+    orchestrator decides whether to synthesize the unavailable sentinel
+    or return partial truth. Errors in each tier are non-fatal because
+    the next tier can still recover the missing keys.
+    """
     metrics: dict[str, Any] = {}
+
+    # Coverage tier. A coverage file is a free signal even when
+    # Crackerjack is unavailable so always probe it first.
     coverage_pct = _read_coverage_json(project_dir) or _read_coverage_dotfile(
         project_dir
     )
     if coverage_pct:
         metrics["code_coverage"] = coverage_pct
 
-    # DB tier: pull the most recent historical values when Crackerjack
-    # is available. Errors here are non-fatal because the CLI tier below
-    # can still recover the missing keys.
-    if CRACKERJACK_AVAILABLE:
-        with suppress(ImportError, RuntimeError, ValueError, AttributeError, OSError):
-            metrics_history = await get_quality_metrics_history(
-                str(project_dir),
-                None,
-                days=1,
+    await _populate_db_metrics(project_dir, metrics)
+    await _populate_cli_metrics(project_dir, metrics)
+    return metrics
+
+
+async def _populate_db_metrics(project_dir: Path, metrics: dict[str, Any]) -> None:
+    """DB tier: pull the most recent historical values when available."""
+    if not CRACKERJACK_AVAILABLE:
+        return
+    with suppress(ImportError, RuntimeError, ValueError, AttributeError, OSError):
+        metrics_history = await get_quality_metrics_history(
+            str(project_dir),
+            None,
+            days=1,
+        )
+        if metrics_history:
+            metrics.update(_parse_metrics_history(metrics_history))
+
+
+async def _populate_cli_metrics(project_dir: Path, metrics: dict[str, Any]) -> None:
+    """CLI fallback tier: invoke Crackerjack for still-missing scoring keys.
+
+    Always attempted when any scoring key is still missing — including
+    the partial-DB-history case the previous implementation short-
+    circuited past (final-review C1).
+    """
+    if not CRACKERJACK_AVAILABLE:
+        return
+    missing = frozenset(k for k in _SCORING_KEYS if metrics.get(k) is None)
+    if not missing:
+        return
+    try:
+        fallback = await try_crackerjack_cli(
+            project_dir=project_dir,
+            missing_metrics=missing,
+            timeout=30.0,
+            caller="consumer_chain",
+        )
+    except Exception:  # noqa: BLE001 - try_crackerjack_cli is best-effort
+        fallback = None
+    if fallback:
+        metrics.update(fallback)
+
+
+async def _persist_unavailable_result(project_dir: Path) -> None:
+    """Persist a synthesized unavailable-result sentinel to the history DB.
+
+    Best-effort: any failure is logged at DEBUG so the unavailable read
+    path can still render the banner. Previously this branch was
+    silently swallowed (final-review I5); keeping the log channel
+    observable preserves diagnostic parity with the previous behavior
+    without raising a hard warning on every CLI-disabled call.
+    """
+    try:
+        from session_buddy.crackerjack_integration import (
+            CrackerjackIntegration,
+            synthesize_unavailable_result,
+        )
+        from session_buddy.crackerjack_integration import (
+            get_crackerjack_integration as _get_global_integration,
+        )
+
+        try:
+            db_path = _get_global_integration().db_path
+        except Exception:  # noqa: BLE001 - db_path resolution is best-effort
+            db_path = str(
+                Path.home() / ".claude" / "data" / "crackerjack_integration.db"
             )
-            if metrics_history:
-                metrics.update(_parse_metrics_history(metrics_history))
+        integration = CrackerjackIntegration(db_path=db_path)
+        synthesized = synthesize_unavailable_result(str(project_dir))
+        await integration._store_result(
+            f"cj_unavailable_{int(utc_now().timestamp() * 1000)}",
+            synthesized,
+        )
+    except Exception as exc:  # noqa: BLE001 - history-write best-effort
+        logger.debug(
+            "synthesis history write skipped",
+            extra={
+                "project_dir": str(project_dir),
+                "error": repr(exc),
+            },
+        )
 
-    SCORING_KEYS = frozenset(
-        {"code_coverage", "lint_score", "security_score", "complexity_score"},
-    )
 
-    # CLI fallback tier. Always attempted when any scoring key is still
-    # missing — including the partial-DB-history case the previous
-    # implementation short-circuited past (final-review C1).
-    if CRACKERJACK_AVAILABLE:
-        missing = frozenset(k for k in SCORING_KEYS if metrics.get(k) is None)
-        if missing:
-            try:
-                fallback = await try_crackerjack_cli(
-                    project_dir=project_dir,
-                    missing_metrics=missing,
-                    timeout=30.0,
-                    caller="consumer_chain",
-                )
-            except Exception:
-                fallback = None
-            if fallback:
-                metrics.update(fallback)
+async def _finalize_crackerjack_metrics_async(
+    project_dir: Path, metrics: dict[str, Any]
+) -> dict[str, Any]:
+    """Apply the final synthesis pass and shape the return value.
 
-    # Final synthesis tier. When ALL scoring keys are still missing we
-    # persist the synthesized CrackerjackResult (so the MCP
-    # ``crackerjack_metrics`` read path can render the unavailable
-    # banner) and return the explicit ``_create_fallback_metrics``
-    # sentinel. When only some keys are missing we keep any measured
-    # values (coverage file, partial DB, partial CLI) and return a
-    # partial dict without the ``unavailable: True`` flag — partial
-    # truth beats masquerading-as-no-data.
-    missing_keys = {k for k in SCORING_KEYS if metrics.get(k) is None}
-    if missing_keys == SCORING_KEYS:
-        # Every key missing — synthesize.
-        synthesis = _create_fallback_metrics()
-        if CRACKERJACK_AVAILABLE:
-            try:
-                from session_buddy.crackerjack_integration import (
-                    CrackerjackIntegration,
-                    get_crackerjack_integration as _get_global_integration,
-                    synthesize_unavailable_result,
-                )
-
-                try:
-                    db_path = _get_global_integration().db_path
-                except Exception:
-                    db_path = str(
-                        Path.home()
-                        / ".claude"
-                        / "data"
-                        / "crackerjack_integration.db",
-                    )
-                integration = CrackerjackIntegration(db_path=db_path)
-                synthesized = synthesize_unavailable_result(str(project_dir))
-                await integration._store_result(
-                    f"cj_unavailable_{int(utc_now().timestamp() * 1000)}",
-                    synthesized,
-                )
-            except Exception as exc:  # noqa: BLE001 - history-write best-effort
-                # Previously swallowed silently (final-review I5). Log at
-                # DEBUG so operators can debug the integration without
-                # raising a hard warning on every CLI-disabled call.
-                logger.debug(
-                    "synthesis history write skipped",
-                    extra={
-                        "project_dir": str(project_dir),
-                        "error": repr(exc),
-                    },
-                )
-        return synthesis
+    When ALL scoring keys are missing we persist the synthesized
+    CrackerjackResult (so the MCP ``crackerjack_metrics`` read path can
+    render the unavailable banner) and return the explicit
+    ``_create_fallback_metrics`` sentinel. When only some keys are
+    missing we keep any measured values (coverage file, partial DB,
+    partial CLI) and return a partial dict without the
+    ``unavailable: True`` flag — partial truth beats masquerading-as-no-
+    data.
+    """
+    missing_keys = {k for k in _SCORING_KEYS if metrics.get(k) is None}
+    if missing_keys == _SCORING_KEYS:
+        # Every key missing — synthesize and persist the unavailable
+        # sentinel so downstream reads render the banner.
+        await _persist_unavailable_result(project_dir)
+        return _create_fallback_metrics()
 
     # Partial measurements — keep what we have, leave the rest as None.
-    # Don't emit the synthesis flag for partial-truth output.
-    for k in SCORING_KEYS:
+    for k in _SCORING_KEYS:
         metrics.setdefault(k, None)
     return metrics
 

@@ -3,6 +3,7 @@
 Public surface is the staticmethod render_section, which keeps the read path
 testable without instantiating a CheckpointCrossRepoAccountant.
 """
+
 from __future__ import annotations
 
 import html

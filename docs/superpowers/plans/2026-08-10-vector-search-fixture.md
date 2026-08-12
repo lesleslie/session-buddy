@@ -7,10 +7,11 @@
 **Architecture:**
 
 1. New fixture `adapter_with_vss` in `tests/unit/conftest.py` that mirrors `fast_temp_db` (from `tests/conftest.py`) but with `enable_embeddings=True` and `enable_vss=True`. The fixture must:
+
    - Try `INSTALL vss; LOAD vss;` before `await db.initialize()`; `pytest.skip()` on failure (mirrors the `duckdb_connection` pattern at `tests/conftest.py:838-848`)
    - Rely on the existing autouse `_stub_embedding_provider` fixture in `tests/unit/conftest.py:58-91` to supply deterministic 384d vectors via `_try_http_embedding_providers`. **No embedding mock needed in the new fixture.**
 
-2. New test `test_vector_search_filters_by_project` appended to `TestProjectScopedSearch` in `tests/unit/test_reflection_adapter_oneiric.py`. Same shape as `test_text_search_filters_by_project` but uses `adapter_with_vss` and uses two distinct text strings (so the deterministic embeddings produce different vectors, exercising the full vector-comparison path).
+1. New test `test_vector_search_filters_by_project` appended to `TestProjectScopedSearch` in `tests/unit/test_reflection_adapter_oneiric.py`. Same shape as `test_text_search_filters_by_project` but uses `adapter_with_vss` and uses two distinct text strings (so the deterministic embeddings produce different vectors, exercising the full vector-comparison path).
 
 **Background:** This is the third phase of work on the `search_conversations` project-filter bug:
 
@@ -37,6 +38,7 @@ Phase 1's reviewer flagged vector-search untested as LOW. The reviewer assumed a
 ## Task 1: Add `adapter_with_vss` fixture + vector-search regression test
 
 **Files:**
+
 - `tests/unit/conftest.py` (append new fixture)
 - `tests/unit/test_reflection_adapter_oneiric.py` (append `test_vector_search_filters_by_project` to `TestProjectScopedSearch`)
 
@@ -143,7 +145,7 @@ Commit message: `test(adapter): cover vector-search project filter via VSS-enabl
 
 Branch: `test/vector-search-project-filter`. Squash-merge to `main` per Bodai pre-1.0 policy. Update `.superpowers/sdd/2026-08-10-vector-search-fixture/progress.md` to mark Task 1 complete.
 
----
+______________________________________________________________________
 
 ## Critical files
 

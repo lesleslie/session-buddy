@@ -100,7 +100,7 @@ async def test_checkpoint_session_invokes_accountant(
 
     result = await mgr.checkpoint_session(working_directory=str(workdir))
 
-    # Re-use the persistent connection for verification (DuckDB rejects
+    # Reuse the persistent connection for verification (DuckDB rejects
     # mixed read-only / read-write on the same file path).
     count = persistent_conn.execute(
         "SELECT COUNT(*) FROM cross_repo_work_v2 WHERE conversation_id = ?",

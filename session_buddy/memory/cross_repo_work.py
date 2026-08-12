@@ -3,13 +3,13 @@
 Discriminated union over WorkEntry kind, with extra="forbid" on every model.
 Split into Create (write path) and Read (read path with DB-generated timestamps).
 """
+
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
-
 
 Provenance = Literal["ambient", "explicit"]
 
@@ -34,10 +34,11 @@ class _BaseEntry(BaseModel):
     """Shared shape for cross-repo work entries. extra='forbid' prevents
     silent field-drop on typos and surfaces them as ValidationError instead.
     """
+
     model_config = ConfigDict(extra="forbid")
     provenance: Provenance
     correlation_id: str | None = None  # future consumer pattern
-    causation_id: str | None = None    # future consumer pattern
+    causation_id: str | None = None  # future consumer pattern
 
 
 class CommitEntry(_BaseEntry):
@@ -59,7 +60,7 @@ class PlanRefEntry(_BaseEntry):
 # with required-field contracts. Adding them is a Pydantic-only change.
 
 WorkEntry = Annotated[
-    Union[CommitEntry, PlanRefEntry],
+    CommitEntry | PlanRefEntry,
     Field(discriminator="kind"),
 ]
 
@@ -67,6 +68,7 @@ WorkEntry = Annotated[
 class CrossRepoWorkRowCreate(BaseModel):
     """Write-path model: orchestrator builds this from AmbientPuller or
     CrossRepoPusher before INSERT. No DB-generated timestamps."""
+
     model_config = ConfigDict(extra="forbid")
     id: str  # ULID; orchestrator generates
     conversation_id: UlidStr
@@ -81,6 +83,7 @@ class CrossRepoWorkRowCreate(BaseModel):
 
 class CrossRepoWorkRowRead(BaseModel):
     """Read-path model: includes DB-generated created_at / updated_at."""
+
     model_config = ConfigDict(extra="forbid")
     id: str
     conversation_id: UlidStr

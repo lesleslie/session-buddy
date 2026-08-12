@@ -13,29 +13,30 @@
 The spec's wave-shape rules are the source of truth. Each task's implementer MUST read the spec section named below before starting that task. Constraints:
 
 1. **Branch coverage MUST be enabled in `[tool.coverage.run]` (`branch = true`)** — Task 1 enforces this and is the only pyproject.toml change permitted.
-2. **The wave does NOT change `--cov-fail-under=85`** — CLAUDE.md mandates it; the gate remains globally failing. Wave-1 runs measurement-only.
-3. **Per-subagent checks (a)(b-fast)(c)(e) are TARGETED** to `tests/unit/test_<module>.py` with `--override-ini="addopts="` so global addopts don't pull in the full suite. Check (d) moves out of per-subagent briefs entirely; the wave-lead runs one serialized full-suite diff per merged batch.
-4. **Worktree isolation** — every wave-1 subagent operates in its own worktree at `.worktrees/wave1-batch<X>-<name>/` on branch `feat/coverage-wave1-batch<X>-<name>`.
-5. **Per-agent `COVERAGE_FILE=$PWD/.coverage.wave1.<name>`** — no two subagents write the same coverage file. Combine happens once per batch via `coverage combine`.
-6. **`scripts/run_coverage_audit.sh` MUST use `set +e`, `|| true` around pytest, end with explicit `exit 0`.** Phase-0 self-test of `--self-test` proves the script exits 0 with a forced pytest failure.
-7. **New `# pragma: no cover` requires wave-1 reviewer approval + one-line `# reason:`** comment. Unreviewed pragmas are auto-rejected.
-8. **Module selection floor:** ≥20 statements, current 30-94% coverage, <600 LOC, matches a slot in the table.
-9. **MCP/CLI smoke for those target types:** `python -c "from session_buddy.<x> import <X>; assert <X> is not None"` + (CLI only) `python -m session_buddy.cli <cmd> --help` exit-0.
-10. **Sync/async defensiveness is BLOCKING** — `inspect.iscoroutinefunction` run + grep `(asyncio\.run|run_until_complete|get_event_loop\(\)\.run)` empty in `tests/unit/test_<module>.py` (or each hit `# reason:`-justified in REPORT).
-11. **`sync_async_hit_count` for G6 report = new occurrences of `asyncio.run` / `run_until_complete` / `get_event_loop().run` in wave-1-authored `tests/unit/test_<module>.py`** — define concretely; report verbatim.
-12. **Anti-target fingerprint (conftest pollution)** — patterns are inline below in **Task 4**. Any matching module is excluded.
-13. **Wave-lead full-suite gate is a node-id set-diff, NOT a rate** — `current_failure_nodeids - baseline_failure_nodeids = ∅`; pass-rate ratio is irrelevant (shifts on every test addition).
-14. **Per-batch ruff/pyright gate is deferred (Q3)**: TODO note goes in `scripts/combine_wave_coverage.py`; wave-1 may ship without it; wave-2 should land it.
+1. **The wave does NOT change `--cov-fail-under=85`** — CLAUDE.md mandates it; the gate remains globally failing. Wave-1 runs measurement-only.
+1. **Per-subagent checks (a)(b-fast)(c)(e) are TARGETED** to `tests/unit/test_<module>.py` with `--override-ini="addopts="` so global addopts don't pull in the full suite. Check (d) moves out of per-subagent briefs entirely; the wave-lead runs one serialized full-suite diff per merged batch.
+1. **Worktree isolation** — every wave-1 subagent operates in its own worktree at `.worktrees/wave1-batch<X>-<name>/` on branch `feat/coverage-wave1-batch<X>-<name>`.
+1. **Per-agent `COVERAGE_FILE=$PWD/.coverage.wave1.<name>`** — no two subagents write the same coverage file. Combine happens once per batch via `coverage combine`.
+1. **`scripts/run_coverage_audit.sh` MUST use `set +e`, `|| true` around pytest, end with explicit `exit 0`.** Phase-0 self-test of `--self-test` proves the script exits 0 with a forced pytest failure.
+1. **New `# pragma: no cover` requires wave-1 reviewer approval + one-line `# reason:`** comment. Unreviewed pragmas are auto-rejected.
+1. **Module selection floor:** ≥20 statements, current 30-94% coverage, \<600 LOC, matches a slot in the table.
+1. **MCP/CLI smoke for those target types:** `python -c "from session_buddy.<x> import <X>; assert <X> is not None"` + (CLI only) `python -m session_buddy.cli <cmd> --help` exit-0.
+1. **Sync/async defensiveness is BLOCKING** — `inspect.iscoroutinefunction` run + grep `(asyncio\.run|run_until_complete|get_event_loop\(\)\.run)` empty in `tests/unit/test_<module>.py` (or each hit `# reason:`-justified in REPORT).
+1. **`sync_async_hit_count` for G6 report = new occurrences of `asyncio.run` / `run_until_complete` / `get_event_loop().run` in wave-1-authored `tests/unit/test_<module>.py`** — define concretely; report verbatim.
+1. **Anti-target fingerprint (conftest pollution)** — patterns are inline below in **Task 4**. Any matching module is excluded.
+1. **Wave-lead full-suite gate is a node-id set-diff, NOT a rate** — `current_failure_nodeids - baseline_failure_nodeids = ∅`; pass-rate ratio is irrelevant (shifts on every test addition).
+1. **Per-batch ruff/pyright gate is deferred (Q3)**: TODO note goes in `scripts/combine_wave_coverage.py`; wave-1 may ship without it; wave-2 should land it.
 
 All deliverable code lands in `session-buddy/`. The plan assumes the working directory at task start is the repo root (`/Users/les/Projects/session-buddy`).
 
----
+______________________________________________________________________
 
 ## Phase 0: Observability Stack
 
 ### Task 0: Preflight — capture repo state
 
 **Files:**
+
 - Read: `pyproject.toml`, `CLAUDE.md`, `docs/developer/TESTING.md`
 - Create: `docs/baselines/wave1-preflight.json`
 
@@ -97,6 +98,7 @@ git commit -m "chore(coverage-wave1): preflight baseline failure manifest"
 ### Task 1: Verify `branch = true`; add if missing
 
 **Files:**
+
 - Modify: `pyproject.toml` (only `[tool.coverage.run]` block; ONLY change is `branch = true` if missing)
 
 **Steps:**
@@ -142,6 +144,7 @@ git commit -m "chore(coverage): enable branch coverage in [tool.coverage.run]"
 ### Task 2: `scripts/run_coverage_audit.sh` with `--self-test`
 
 **Files:**
+
 - Create: `session-buddy/scripts/run_coverage_audit.sh`
 - Create: `tests/unit/scripts/test_run_coverage_audit.py`
 
@@ -375,6 +378,7 @@ git commit -m "feat(scripts): coverage audit script with --self-test mode"
 ### Task 3: `scripts/verify_backlog.py` + tests
 
 **Files:**
+
 - Create: `session-buddy/scripts/verify_backlog.py`
 - Create: `tests/unit/scripts/test_verify_backlog.py`
 
@@ -661,6 +665,7 @@ git commit -m "feat(scripts): deterministic backlog validator"
 ### Task 4: Generate wave-1 baseline manifest + first backlog doc
 
 **Files:**
+
 - Create: `session-buddy/docs/baselines/wave1-baseline.json`
 - Modify: (or extend) `session-buddy/scripts/analyze_coverage.py` — see Step 3 note
 - Modify (regenerate): `session-buddy/docs/coverage-backlog.md`
@@ -694,7 +699,7 @@ wc -l /tmp/baseline-failures.txt
 
 - [ ] **Step 3: Generate backlog doc from coverage.json**
 
-If `scripts/analyze_coverage.py` already produces the correct per-file format (with `### \`path\`` headings and `pct: NN, tier: <name>` rows), invoke it:
+If `scripts/analyze_coverage.py` already produces the correct per-file format (with `### \`path\``headings and`pct: NN, tier: <name>\` rows), invoke it:
 
 ```bash
 python scripts/analyze_coverage.py coverage.json --output docs/coverage-backlog.md
@@ -814,6 +819,7 @@ Note: `coverage.json` is typically gitignored. If so, write `coverage.json` to `
 ### Task 5: `scripts/wave1_select_modules.py` (Phase 0.5 — module selection)
 
 **Files:**
+
 - Create: `session-buddy/scripts/wave1_select_modules.py`
 - Create: `session-buddy/docs/baselines/wave1-anti-targets.json`
 - Create: `session-buddy/docs/baselines/wave1-selected.json`
@@ -1238,7 +1244,7 @@ git commit --allow-empty -m "chore(coverage-wave1): close Phase 0 — observabil
 
 **Reports:** Audit script exit code; validator exit code; selected.json slot counts.
 
----
+______________________________________________________________________
 
 ## Phase 1: Per-Module Lifts (10 Tasks, Tasks 6-10 + 12-16)
 
@@ -1247,6 +1253,7 @@ git commit --allow-empty -m "chore(coverage-wave1): close Phase 0 — observabil
 ### Task 6: Reference module lift — full TDD with subagent brief (Module #1)
 
 **Files (in worktree `.worktrees/wave1-batch1a-<module1>`):**
+
 - Create: `tests/unit/test_<module1>.py`
 - Read: `session_buddy/<module1>.py` (target)
 
@@ -1267,6 +1274,7 @@ Open `docs/superpowers/specs/2026-08-03-session-buddy-coverage-improvement-desig
 - [ ] **Step 3: Write module tests (TDD: write tests first against the public surface)**
 
 Read `session_buddy/<module1>.py`. For every public function (`def [a-z]` excluding `_`-prefixed):
+
 - Write a happy-path test with a known input
 - Write at least one unhappy-path test (validation failure, empty input, type error, etc.)
 
@@ -1326,6 +1334,7 @@ git commit -m "test(coverage): lift <module1> to ≥95% line / ≥90% branch"
 - [ ] **Step 9: Report**
 
 Write `task6-report.md`:
+
 - Test count, line count added
 - Before/after coverage
 - (c1) coroutine list
@@ -1340,6 +1349,7 @@ Write `task6-report.md`:
 **Same shape as Task 6**, with `<module2>` / `<module3>` / etc. substituted.
 
 For each task:
+
 - Create worktree `.worktrees/wave1-batch1a-module<N>` on `feat/coverage-wave1-batch1a-module<N>`
 - Set `COVERAGE_FILE="$PWD/.coverage.wave1.module<N>"`
 - Execute steps 3-9 from Task 6
@@ -1351,6 +1361,7 @@ For each task:
 ### Task 11: Wave-lead batch 1a gate
 
 **Files (in the controller session, not a worktree):**
+
 - Modify: `coverage.json` (combine agent reports)
 - Create: `docs/baselines/wave1-batch1a-delta.json`
 
@@ -1403,6 +1414,7 @@ wc -l /tmp/batch1a-new-failures.txt
 - [ ] **Step 4: Decision**
 
 - If `wc -l /tmp/batch1a-new-failures.txt` is 0 → batch 1a PASSES; proceed.
+
 - If >0 → review each new failure. If wave-1 caused it, revert the responsible subagent's commit (`git revert <sha>`) and re-run Step 2. If pre-existing in a flaky-test sense, escalate to user.
 
 - [ ] **Step 5: Write delta JSON**
@@ -1442,13 +1454,14 @@ Same shape as Task 16 (merged into `feat/coverage-wave1-batch1b`, combined cover
 
 **Special note:** The baseline is `wave1-baseline.json` (captured in Task 4) — NOT the batch1a delta. The batch1a failures (now fixed or unfixed) are baseline-checked, but `baseline_failure_nodeids` is the master set.
 
----
+______________________________________________________________________
 
 ## Phase 2: Closing
 
 ### Task 18: Regenerate backlog + delta JSON
 
 **Files:**
+
 - Modify (regenerate): `session-buddy/docs/coverage-backlog.md`
 - Create: `session-buddy/docs/baselines/wave1-delta.json` (wave-end summary)
 - Modify (remove if stale): `coverage.json` (or keep but gitignored)
@@ -1473,7 +1486,7 @@ uv run pytest tests/ \
 - [ ] **Step 2: Regenerate backlog**
 
 ```bash
-# Re-use Task 4's Step 3 inline generator (or scripts/analyze_coverage.py)
+# Reuse Task 4's Step 3 inline generator (or scripts/analyze_coverage.py)
 python -c "
 import json
 from pathlib import Path
@@ -1546,6 +1559,7 @@ git commit -m "feat(coverage-wave1): regenerated backlog + end-of-wave delta"
 ### Task 19: Completion report
 
 **Files:**
+
 - Create: `session-buddy/docs/archive/completion-reports/2026-08-03-session-buddy-coverage-wave1.md`
 
 **Steps:**
@@ -1681,11 +1695,11 @@ Expected: exit 0, summary printed.
 
 **Reports:** Completion report path, all G-numbers' PASS/FAIL, branch state (clean), worktree list empty.
 
----
+______________________________________________________________________
 
 ## Self-Review (run before opening for execution)
 
 1. **Spec coverage:** Each goal G1-G7 maps to a task (G1 → Tasks 4+18, G2 → Task 2, G3 → Tasks 6-10 + 12-16, G4 → Step 6 of Task 6 (and 7-10, 12-16 by reference), G5 → Steps 3-4 of Tasks 11+17, G6 → Task 19, G7 → Tasks 11+17).
-2. **Placeholder scan:** All scripts and tasks have concrete commands — no "TODO", "TBD", or "add appropriate". The exception: `scripts/analyze_coverage.py` may need extension (Step 3, Task 4 handles this conditionally).
-3. **Type consistency:** Worktree paths (`wave1-batchX-moduleN`), coverage file names (`.coverage.wave1.<name>`), branch names (`feat/coverage-wave1-batch<X>-<module>`) used uniformly.
-4. **Scope:** Plan is single-implementation. Phase 2 / completion report is in scope; CLAUDE.md amendment is explicitly out of scope (per N1 reframe).
+1. **Placeholder scan:** All scripts and tasks have concrete commands — no "TODO", "TBD", or "add appropriate". The exception: `scripts/analyze_coverage.py` may need extension (Step 3, Task 4 handles this conditionally).
+1. **Type consistency:** Worktree paths (`wave1-batchX-moduleN`), coverage file names (`.coverage.wave1.<name>`), branch names (`feat/coverage-wave1-batch<X>-<module>`) used uniformly.
+1. **Scope:** Plan is single-implementation. Phase 2 / completion report is in scope; CLAUDE.md amendment is explicitly out of scope (per N1 reframe).

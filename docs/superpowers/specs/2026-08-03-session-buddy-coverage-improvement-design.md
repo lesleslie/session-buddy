@@ -28,7 +28,7 @@ v1 was reviewed by three agents (general-purpose/random, test-coverage-review-sp
 | **`docs/completion-reports/` doesn't exist; history uses `docs/archive/completion-reports/`** | qa-st #13 | Pin destination = `docs/archive/completion-reports/2026-08-03-session-buddy-coverage-wave1.md`. Update Critical files table. |
 | **`coverage.json` not durable; wave-start diff not machine-comparable** | qa-st #8 | Phase 0 writes `docs/baselines/wave1-baseline.json` (commit SHA, full pytest invocation, fail signatures, per-file line/branch metrics). Phase 2 emits delta from baseline. |
 | **Backlog doc verification was manual eyeball (top 5 entries read against coverage.json)** | qa-st #16 (peer follow-up) | Add deterministic validator `scripts/verify_backlog.py coverage.json docs/coverage-backlog.md`: every backlog row's path/tier/percentage must match `coverage.json` exactly; fails on missing, duplicate, stale, or mis-tiered entries. Phase 0 + Phase 2 both run it. |
-| **14% module too aggressive for one subagent** | cov #9 | Hard floor: skip modules <30% in wave-1 (wave-2 candidate). Cap lines-added-per-module ≤400. |
+| **14% module too aggressive for one subagent** | cov #9 | Hard floor: skip modules \<30% in wave-1 (wave-2 candidate). Cap lines-added-per-module ≤400. |
 | **Sync/async hit count metric undefined** | cov #11; gp #6; qa-st #15 | Pin metric: `sync_async_hit_count = new occurrences of asyncio.run / run_until_complete / get_event_loop().run in tests/unit/test_<module>.py authored by wave 1 (post-wave grep)`. Report verbatim. |
 | **Primary vs sibling tie-breaker missing** | gp #5 | New tie-breaker #5: prefer the candidate whose module path appears in the crackerjack-fallback commit `188d7fd0`'s diff (recently touched). |
 | **>600 LOC handling in BLOCKED** | cov #13 | Brief adds: "If `wc -l session_buddy/<module>.py` exceeds 600, BLOCKED with the line count; do not split." |
@@ -55,7 +55,7 @@ Two sibling Bodai repos have established a coverage-recipe pattern this spec por
 
 - **G1.** Generate `session-buddy/docs/coverage-backlog.md` (4-tier categorization) modeled on `mahavishnu/docs/coverage-backlog.md`, regeneratable from `coverage.json` in one shell command.
 - **G2.** Add `session-buddy/scripts/run_coverage_audit.sh` modeled on crackerjack's: runs pytest --cov, prints a summary, **exits 0 regardless of pytest outcome** (does not fail the build), but surfaces pytest failures and collection errors in its output. Reuses existing `scripts/analyze_coverage.py` for the JSON→Markdown transform.
-- **G3.** Wave-1 lifts 10 modules to **≥95% line coverage AND ≥90% branch coverage** each, picked by mixed-layer criteria (5 MCP-tool surface, 2 CLI, 2 core/orchestrator, 1 cross-module utility), with new focused unit tests in `tests/unit/`. Modules <30% are deferred to wave-2.
+- **G3.** Wave-1 lifts 10 modules to **≥95% line coverage AND ≥90% branch coverage** each, picked by mixed-layer criteria (5 MCP-tool surface, 2 CLI, 2 core/orchestrator, 1 cross-module utility), with new focused unit tests in `tests/unit/`. Modules \<30% are deferred to wave-2.
 - **G4.** Each wave-1 subagent runs an explicit sync/async pre-merge check (the crackerjack gotcha) using `inspect.iscoroutinefunction` + a blocking grep for sync event-loop bootstraps. **Sync wrappers are a blocker, not a warning.**
 - **G5.** Pre-existing test pass-rate is preserved across the wave (no NEW failures on tests the wave didn't author). Any new failure is a blocker; rollback is per-commit, never blanket.
 - **G6.** Completion report at `docs/archive/completion-reports/2026-08-03-session-buddy-coverage-wave1.md` records per-module before/after, `sync_async_hit_count` (defined), and any blockers hit.
@@ -72,29 +72,31 @@ Two sibling Bodai repos have established a coverage-recipe pattern this spec por
 
 ## Selection criteria (for wave-1 module picks)
 
-| Slot | Layer                                    | Coverage cutoff |
+| Slot | Layer | Coverage cutoff |
 |------|------------------------------------------|-----------------|
-| 5    | `session_buddy/mcp/tools/**/*.py`        | 30-94%          |
-| 2    | `session_buddy/cli.py`, `session_buddy/cli_with_modes.py` | 30-94% |
-| 2    | `session_buddy/core/**`, `session_buddy/*coordinator*.py`, `session_buddy/*manager*.py`, `session_buddy/app_monitor.py`, `session_buddy/natural_scheduler.py` | 30-94% |
-| 1    | `session_buddy/utils/**/*.py` (cross-module dependency) | 30-94% |
+| 5 | `session_buddy/mcp/tools/**/*.py` | 30-94% |
+| 2 | `session_buddy/cli.py`, `session_buddy/cli_with_modes.py` | 30-94% |
+| 2 | `session_buddy/core/**`, `session_buddy/*coordinator*.py`, `session_buddy/*manager*.py`, `session_buddy/app_monitor.py`, `session_buddy/natural_scheduler.py` | 30-94% |
+| 1 | `session_buddy/utils/**/*.py` (cross-module dependency) | 30-94% |
 
 > **The concrete pick table from v1 is REMOVED.** Several paths in that table (`mcp/tools/.../usage_tools.py`, `coordinator.py`, `cli/team_cli.py`) do not exist in this repo. The implementation plan enumerates real candidates via a hard machine-checked Phase 0.5 step.
 
 **Tie-breakers (applied in order) when more candidates than slots:**
+
 1. **Recently touched in a known-buggy area** — if the candidate's diff appears in the crackerjack-fallback commit's changes (anchor SHA re-verified at plan start), prefer it (regression net needs to be solid).
-2. **Smaller LOC** — easier to ship first as a wave-1 proof.
-3. **Closer to 30% from below** — bigger visible delta per module.
-4. **Skip modules > 600 LOC** in wave-1 — wave-2 candidate after calibration.
-5. **Don't pick >400 lines of new test code per module** — cap lines-added so a single module doesn't dominate a subagent's brief.
+1. **Smaller LOC** — easier to ship first as a wave-1 proof.
+1. **Closer to 30% from below** — bigger visible delta per module.
+1. **Skip modules > 600 LOC** in wave-1 — wave-2 candidate after calibration.
+1. **Don't pick >400 lines of new test code per module** — cap lines-added so a single module doesn't dominate a subagent's brief.
 
 **Anti-targets (Phase 0.5 pre-computes `docs/baselines/wave1-anti-targets.json`):**
+
 - Any module whose existing test directory matches the **conftest pollution fingerprint**:
   > Modules whose test files do `sys.modules['session_buddy.<x>'] = <stub>` at module load time AND use `monkeypatch.setattr(..., raising=False)` against a string-form dotted path.
   > Detection grep: `grep -l "sys.modules\[" tests/unit/test_*.py` plus `grep -lE "monkeypatch\.setattr\([^,]+,[^,]+," tests/unit/test_*.py`.
 - Modules explicitly whitelisted in `pyproject.toml [tool.coverage.report].exclude_also` (already excluded for a reason).
 - `session_buddy/__init__.py` (not meaningful coverage target).
-- Any module at <30% current coverage (wave-2 candidate).
+- Any module at \<30% current coverage (wave-2 candidate).
 
 ## Architecture & data flow
 
@@ -267,13 +269,14 @@ comment that the wave-1 reviewer approves. Unreviewed pragmas are auto-rejected.
 | DONE with all five checks confirmed | Merge subagent branch into batch branch |
 | DONE with check gaps in REPORT | Ask subagent to fill gaps; if no fix in one round, escalate |
 | BLOCKED (anti-target, pollution, >600 LOC, >400 lines, missing file) | Re-pick module against same slot criteria; continue batch |
-| BLOCKED, no replacement fits in slot | Drop to N-1 modules that batch; wave-1 still ships with <10 if ≥5 |
+| BLOCKED, no replacement fits in slot | Drop to N-1 modules that batch; wave-1 still ships with \<10 if ≥5 |
 | Lost context / subagent terminated | Re-dispatch with same brief + REPORT path; if still fails, re-pick |
 | Severity flag (security / data loss / cross-tenant) | STOP, surface to user |
 
 **Sync/async defensive smoke:** in addition to per-subagent check (c), Phase 2 runs a repo-wide grep as defense-in-depth: `grep -rnE "(asyncio\.run|run_until_complete|get_event_loop\(\)\.run)" tests/unit/test_*.py` (excluding `# reason:`-annotated lines). Any new occurrence in wave-1-authored files is a Critical row in the completion report.
 
 **Audit script masking failures (regression-risk guardrail):**
+
 - `run_coverage_audit.sh` MUST be written with `set +e` (not `set -e`) and `|| true` around pytest — no exception.
 - The audit script ends with explicit `exit 0` regardless of pytest outcome.
 - Pytest failures, collection errors, and asyncio warnings appear in the audit output stream (stderr).
@@ -286,26 +289,28 @@ comment that the wave-1 reviewer approves. Unreviewed pragmas are auto-rejected.
 ## Testing strategy (this plan's deliverable IS tests)
 
 Each wave-1 subagent owns one module and writes its tests using the patterns already in `tests/unit/`:
+
 - Use the project pytest markers (`unit`, `integration`, `property`, `slow`) — do NOT invent new markers
 - Async tests don't need `@pytest.mark.asyncio` because `asyncio_mode = "auto"`
 - For tests touching module-level fixtures, prefer `tmp_path` and `monkeypatch` over global state
 - For MCP-tool modules specifically: import the underlying tool, assert it's exposed on the FastMCP server's tool registry, then exercise the underlying logic at the boundary. **Don't** mock the registry itself — that's the smoke gate.
 
 **Meta-tests at plan end:**
+
 1. `bash scripts/run_coverage_audit.sh` exits 0, prints summary, FAIL lines visible if any
-2. `bash scripts/run_coverage_audit.sh --self-test` exits 0 even when embedded pytest fails
-3. Coverage diff against `wave1-baseline.json` shows `10 modules lifted`, `0 new failures`
-4. Grep from "Sync/async defensive smoke" above returns 0 unannotated hits
-5. Smoke tests for each of the 10 modules' public MCP/CLI surface succeed
+1. `bash scripts/run_coverage_audit.sh --self-test` exits 0 even when embedded pytest fails
+1. Coverage diff against `wave1-baseline.json` shows `10 modules lifted`, `0 new failures`
+1. Grep from "Sync/async defensive smoke" above returns 0 unannotated hits
+1. Smoke tests for each of the 10 modules' public MCP/CLI surface succeed
 
 ## Verification at plan end
 
 1. Phase 2 commits regenerate backlog with new percentages; delta JSON shows the 10 modules lifted with line + branch metrics
-2. `python scripts/verify_backlog.py coverage.json docs/coverage-backlog.md` exits 0 (every row/tier/percentage matches coverage.json; no missing/dup/stale/mis-tiered entries)
-3. Full `pytest -q` (no marker filter) — `current_failure_nodeids` is a SET: `current_failure_nodeids - baseline_failure_nodeids = ∅` (no NODEID shifts upward because wave-1 added tests; pass-rate ratio is irrelevant)
-4. Smoke test: `bash scripts/run_coverage_audit.sh` exits 0 end-to-end
-5. `bash scripts/run_coverage_audit.sh --self-test` exits 0
-6. Completion report in `docs/archive/completion-reports/` contains per-module before/after, sync/async hit count (defined), baseline-delta JSON, and any blockers hit
+1. `python scripts/verify_backlog.py coverage.json docs/coverage-backlog.md` exits 0 (every row/tier/percentage matches coverage.json; no missing/dup/stale/mis-tiered entries)
+1. Full `pytest -q` (no marker filter) — `current_failure_nodeids` is a SET: `current_failure_nodeids - baseline_failure_nodeids = ∅` (no NODEID shifts upward because wave-1 added tests; pass-rate ratio is irrelevant)
+1. Smoke test: `bash scripts/run_coverage_audit.sh` exits 0 end-to-end
+1. `bash scripts/run_coverage_audit.sh --self-test` exits 0
+1. Completion report in `docs/archive/completion-reports/` contains per-module before/after, sync/async hit count (defined), baseline-delta JSON, and any blockers hit
 
 ## Rollback signal
 

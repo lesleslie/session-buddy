@@ -22,7 +22,7 @@ Every task's requirements implicitly include this section.
 - **Auth contract**: session-buddy's local `require_auth(optional=False)` decorator from `session_buddy/mcp/auth.py:79`. **It does NOT accept `Permission.WRITE` or `config=` kwargs** — the mcp-integration power-trio review assumed the `mcp-common` signature which does not apply here. The correct pattern is:
   ```python
   from session_buddy.mcp.auth import require_auth
-  
+
   @require_auth(optional=False)
   @mcp_server.tool(name="store_cross_repo_work")
   async def _store_cross_repo_work(
@@ -40,7 +40,7 @@ Every task's requirements implicitly include this section.
 - **Conventions** (crackerjack-compliant-code): imports sorted within sections (force-sort-within-sections), known-first-party=["session_buddy"]. Functions ≤15 branches, ≤6 returns, ≤55 statements. `logger.exception(...)` in `except` blocks. No `# type: ignore` — use `# ty: ignore[<code>]` if needed.
 - **Process Discipline** (CLAUDE.md): every task includes an **Integration Contract** block (Triggered from, Returns to / updates, Demonstrable by, Rollback signal, Observability added). Initialize a `docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md` in `built` state during Task 2; transition to `wired` at Task 11d; `adopted` at Task 13. Run `python scripts/audit_orphans.py --since=2026-08-05` in Task 13 Step 1.
 
----
+______________________________________________________________________
 
 ### Task 0: Preflight — verify `start_session` + DuckDB + adapter
 
@@ -73,11 +73,12 @@ Expected: `STANDARD_REGISTRATIONS: list[str]` (flat list of register-function na
 
 - [ ] **Step 6: Commit nothing.** Note outcomes in the next task's commit message.
 
----
+______________________________________________________________________
 
 ### Task 1.5: Refactor `_start_impl` to return typed envelope with `conversation_id`
 
 **Files:**
+
 - Modify: `session_buddy/mcp/tools/session/session_tools.py:start_session_tool` (return type) and `_start_impl` (return value)
 - Modify: `session_buddy/tools/session_tools.py:start_session_tool` (the wrapper that delegates to `_start_impl`)
 - Modify: `session_buddy/core/session_manager.py:initialize_session` (insert into `session_windows`, return `conversation_id` ULID — **v2.1 amendment**)
@@ -86,13 +87,16 @@ Expected: `STANDARD_REGISTRATIONS: list[str]` (flat list of register-function na
 **Why this task exists:** `start_session_tool` currently returns a formatted text string, not a typed envelope with `conversation_id`. The CrossRepoPusher's spec-required `conversation_id` validation can only work if `start_session` produces a parseable `conversation_id`.
 
 **v2.1 amendment (added 2026-08-05):**
+
 - `initialize_session` does NOT currently return `conversation_id` (verified by Task 0 — keys are `{success, project, working_directory, quality_score, quality_data, project_context, claude_directory, previous_session}`).
 - `conversations_v2` is a Memori-style memory table; its `id` is a memory entry ULID, NOT a session/conversation identifier.
 - Solution: extend `initialize_session` to (a) generate a 26-char Crockford ULID via `generate_ulid()`, (b) insert into the new `session_windows` table (DDL added in Task 2), (c) return the ULID as `conversation_id` in the dict.
 - The schema table `session_windows` is added in Task 2. Task 1.5 references it as if it exists; if the migration hasn't run yet, `_store_session_window` must handle the missing-table case (log WARNING and return None for the ULID, never raise — G6 sentinel).
 
 **Interfaces:**
+
 - Consumes: existing `start_session_tool(...)` callers (their return value is a `str`).
+
 - Produces: `_start_impl(...) -> tuple[str, str]` where the second element is the `conversation_id` ULID. The `start_session_tool` wrapper returns just the first element to preserve existing callers.
 
 - [ ] **Step 1: Write the failing test**
@@ -229,28 +233,33 @@ git commit -m "feat(start_session): return typed envelope (prose, conversation_i
 ```
 
 **Integration Contract:**
+
 - Triggered from: existing `start_session_tool` callers (Claude Code session startup).
 - Returns to / updates: `session_buddy.tools.session_tools.start_session_tool` (returns prose unchanged); `_start_impl` callers (now have parseable ULID).
 - Demonstrable by: `tests/unit/mcp/tools/session/test_start_session_returns_typed_envelope.py`.
 - Rollback signal: revert the commit; existing callers use prose-only.
 - Observability added: existing `_start_impl` logging unchanged.
 
----
+______________________________________________________________________
 
 ### Task 2: Schema — `cross_repo_work_v2` table + migration registration
 
 **Files:**
+
 - Modify: `session_buddy/memory/schema_v2.py` (add DDL after `conversations_v2` block, ~line 119 — **include `session_windows` table for conversation identity**)
 - Modify: `session_buddy/memory/migration.py` (register the new DDL with a version key — include both tables)
 - Create: `docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md` (initialize in `built` state per CLAUDE.md Process Discipline)
 - Test: `tests/unit/memory/test_cross_repo_work_v2_schema.py` (extend with `session_windows` presence test)
 
 **v2.1 amendment (added 2026-08-05):**
+
 - **New table `session_windows`** for conversation identity. The existing `conversations_v2` is a Memori-style *memory* table (id is a memory entry ULID), so `cross_repo_work_v2.conversation_id` cannot FK to `conversations_v2.id`. The new table tracks one row per session window.
 - All downstream references to "conversations_v2.id" as session identifier → `session_windows.id`. Affected: Task 1.5 (initialize_session), Task 8 (CrossRepoPusher validation), Task 11c (started_at lookup), Task 12 (test setup).
 
 **Interfaces:**
+
 - Consumes: `session_buddy.adapters.reflection_adapter_oneiric.require_reflection_database()` (existing).
+
 - Produces: a table `cross_repo_work_v2` registered in both `schema_v2.py::INIT_SCHEMA` and `migration.py::MIGRATIONS`.
 
 - [ ] **Step 1: Write the failing test** (same as v1)
@@ -379,43 +388,48 @@ git commit -m "feat(schema): add cross_repo_work_v2 table + migration registrati
 ```
 
 **Integration Contract:**
+
 - Triggered from: `apply_migrations()` on first session-buddy startup with a fresh DB.
 - Returns to / updates: `cross_repo_work_v2` table is queryable via `require_reflection_database()`.
 - Demonstrable by: `tests/unit/memory/test_cross_repo_work_v2_schema.py`.
 - Rollback signal: `DROP TABLE cross_repo_work_v2` (migration-revert or manual).
 - Observability added: `feature_tracking/2026-08-05-...md` transitions to `built`.
 
----
+______________________________________________________________________
 
 ### Task 3: Pydantic models — discriminated union + Create/Read split
 
 **Files:**
+
 - Create: `session_buddy/memory/cross_repo_work.py`
 - Test: `tests/unit/memory/test_cross_repo_work_pydantic.py`
 
 (Same as v1 — content unchanged from v1 Task 3.)
 
----
+______________________________________________________________________
 
 ### Task 4: HandoffLink — read consumer with sentinel rendering
 
 **Files:**
+
 - Create: `session_buddy/core/lifecycle/handoff_link.py`
 - Modify: `session_buddy/core/session_manager.py` (insert call into `_generate_handoff_documentation` after the "Quality Breakdown" section)
 - Test: `tests/unit/core/lifecycle/test_handoff_link.py`
 
 **v2 changes from v1:**
+
 - Move imports to module top (not function-local). The function-local import workaround is only valid when there's a circular import risk; here there isn't.
 - Add `test_render_section_returns_sentinel_on_internal_failure` that monkeypatches `_render_inner` to raise, asserting the sentinel substring is present.
 - Add `test_render_section_with_500_rows_under_200ms` for stress performance.
 
 (Same body as v1 Task 4 with the above test additions.)
 
----
+______________________________________________________________________
 
 ### Task 5: AmbientPuller — async git log with per-repo grouping from the start
 
 **Files:**
+
 - Create: `session_buddy/core/checkpoint/__init__.py`
 - Create: `session_buddy/core/checkpoint/ambient_puller.py`
 - Create: `session_buddy/core/checkpoint/manifest_resolver.py` (shared helper — used by AmbientPuller and CrossRepoPusher; eliminates the duplicate env-var pattern flagged by python-pro M1 and mcp I5)
@@ -428,7 +442,9 @@ git commit -m "feat(schema): add cross_repo_work_v2 table + migration registrati
 - **Per-repo timeout test** + **per-batch timeout test** + **git log retry test** + **clock-skew test** (per spec §Error handling resilience C2/C3/I1/I3).
 
 **Interfaces:**
+
 - Consumes: `Path` (manifest path), `Path` (working_directory), `UlidStr` (conversation_id), `datetime × 2` (window).
+
 - Produces: `tuple[dict[str, list[CommitEntry]], list[str]]` — per-repo entries + per-repo failure names. Never raises.
 
 - [ ] **Step 1: Write the failing tests**
@@ -823,30 +839,34 @@ git commit -m "feat(checkpoint): AmbientPuller with per-repo grouping + timeouts
 ```
 
 **Integration Contract:**
+
 - Triggered from: `CheckpointCrossRepoAccountant.capture()` (Task 7).
-- Returns to / updates: dict[str, list[CommitEntry]] per-repo + per-repo failure names.
+- Returns to / updates: dict\[str, list[CommitEntry]\] per-repo + per-repo failure names.
 - Demonstrable by: `tests/unit/core/checkpoint/test_ambient_puller.py` (5 tests including per-repo timeout).
 - Rollback signal: revert this commit; `CheckpointCrossRepoAccountant` callsite will fail with a clear error.
 - Observability added: `ambient_pull_failed`, `ambient_pull_git_log_timeout`, `ambient_pull_batch_timeout`, `ambient_pull_manifest_missing`, `ambient_pull_manifest_malformed` log events.
 
----
+______________________________________________________________________
 
 ### Task 6: MergePrimitive — Python dedup + atomic DuckDB transaction (caller-managed)
 
 **Files:**
+
 - Create: `session_buddy/core/checkpoint/merge_primitive.py`
 - Test: `tests/unit/core/checkpoint/test_merge_primitive.py`
 
 **v2 changes from v1 (multiple Criticals fixed):**
 
 1. **`BEGIN TRANSACTION` placed BEFORE the SELECT** (python-pro C2). The merge must read+dedup+write atomically.
-2. **The merge primitive does NOT open its own transaction.** The caller (CrossRepoPusher or CheckpointCrossRepoAccountant) wraps the batch in ONE `BEGIN TRANSACTION` and passes the connection through. The merge primitive is transaction-agnostic.
-3. **Fix the bogus `model_validate` call** (code-reviewer C3). DuckDB returns `datetime` for TIMESTAMP WITH TIME ZONE; no need to round-trip through `CrossRepoWorkRowRead`.
-4. **Spec merge collision rules** (code-reviewer M5): preserve max `files_changed_count`, preserve first-observed `timestamp` on provenance-tied collisions.
-5. **`contributor_sources` order-preserving union** (code-reviewer I5).
+1. **The merge primitive does NOT open its own transaction.** The caller (CrossRepoPusher or CheckpointCrossRepoAccountant) wraps the batch in ONE `BEGIN TRANSACTION` and passes the connection through. The merge primitive is transaction-agnostic.
+1. **Fix the bogus `model_validate` call** (code-reviewer C3). DuckDB returns `datetime` for TIMESTAMP WITH TIME ZONE; no need to round-trip through `CrossRepoWorkRowRead`.
+1. **Spec merge collision rules** (code-reviewer M5): preserve max `files_changed_count`, preserve first-observed `timestamp` on provenance-tied collisions.
+1. **`contributor_sources` order-preserving union** (code-reviewer I5).
 
 **Interfaces:**
+
 - Consumes: `CrossRepoWorkRowCreate` (incoming row), DuckDB connection (already inside a transaction managed by the caller).
+
 - Produces: `tuple[CrossRepoWorkRowRead, int, int]` — post-merge row, `entries_inserted`, `entries_deduplicated`. **Never opens or closes transactions.**
 
 - [ ] **Step 1: Write the failing tests**
@@ -910,8 +930,8 @@ def _make_conn() -> duckdb.DuckDBPyConnection:
 def test_merge_first_write_inserts():
     conn = _make_conn()
     mp = MergePrimitive()
-    read, ins, ded = mp.merge(conn, _row("sha1"))
-    assert ins == 1 and ded == 0
+    read, ins, dead = mp.merge(conn, _row("sha1"))
+    assert ins == 1 and dead == 0
     assert len(read.work_entries) == 1
 
 
@@ -919,8 +939,8 @@ def test_merge_dedup_prefers_explicit():
     conn = _make_conn()
     mp = MergePrimitive()
     mp.merge(conn, _row("sha1", "ambient"))
-    read, ins, ded = mp.merge(conn, _row("sha2", "explicit"))  # second merge is a fresh call
-    assert ins == 1 and ded == 0
+    read, ins, dead = mp.merge(conn, _row("sha2", "explicit"))  # second merge is a fresh call
+    assert ins == 1 and dead == 0
     # Now collide: insert sha1 again from explicit source
     read2, ins2, ded2 = mp.merge(conn, _row("sha1", "explicit"))
     assert ins2 == 0 and ded2 == 1
@@ -1167,10 +1187,10 @@ class MergePrimitive:
         total_ins = 0
         total_ded = 0
         for row in rows:
-            read, ins, ded = self.merge(conn, row)
+            read, ins, dead = self.merge(conn, row)
             results.append(read)
             total_ins += ins
-            total_ded += ded
+            total_ded += dead
         return results, total_ins, total_ded
 ```
 
@@ -1187,17 +1207,19 @@ git commit -m "feat(checkpoint): MergePrimitive caller-managed transaction + col
 ```
 
 **Integration Contract:**
+
 - Triggered from: `CheckpointCrossRepoAccountant.capture()` (Task 7) and `store_cross_repo_work` MCP handler (Task 8).
 - Returns to / updates: `CrossRepoWorkRowRead` post-merge + insertion/dedup counts.
 - Demonstrable by: `tests/unit/core/checkpoint/test_merge_primitive.py` (6 tests).
 - Rollback signal: revert commit; callers raise on `ModuleNotFoundError`.
 - Observability added: `cross_repo_dedup_suppressed_ambient` DEBUG log when ambient is suppressed by an existing explicit entry.
 
----
+______________________________________________________________________
 
 ### Task 7: CheckpointCrossRepoAccountant — per-repo orchestrator
 
 **Files:**
+
 - Create: `session_buddy/core/checkpoint/cross_repo_accountant.py`
 - Test: `tests/unit/core/checkpoint/test_cross_repo_accountant.py`
 
@@ -1207,7 +1229,9 @@ git commit -m "feat(checkpoint): MergePrimitive caller-managed transaction + col
 - Multi-repo integration test (verifies two sibling repos' entries land in separate rows).
 
 **Interfaces:**
+
 - Consumes: `Path`, `UlidStr`, `datetime × 2`, `AmbientPuller` (per-repo dict return), `MergePrimitive`, DuckDB connection (caller-managed transaction).
+
 - Produces: `CrossRepoCaptureSummary` — `{repos_captured, entries_inserted, entries_deduplicated, ambient_failures}`. Never raises.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1425,7 +1449,7 @@ class CheckpointCrossRepoAccountant:
 
         try:
             conn.execute("BEGIN TRANSACTION")
-            _reads, ins, ded = self._merge.multi_merge(conn, rows)
+            _reads, ins, dead = self._merge.multi_merge(conn, rows)
             conn.execute("COMMIT")
         except Exception as exc:  # noqa: BLE001 — never raise
             conn.execute("ROLLBACK")
@@ -1436,7 +1460,7 @@ class CheckpointCrossRepoAccountant:
             return summary
 
         summary.entries_inserted += ins
-        summary.entries_deduplicated += ded
+        summary.entries_deduplicated += dead
         summary.repos_captured = len(grouped)
         return summary
 ```
@@ -1454,17 +1478,19 @@ git commit -m "feat(checkpoint): CheckpointCrossRepoAccountant per-repo orchestr
 ```
 
 **Integration Contract:**
+
 - Triggered from: `session_manager.checkpoint_session` (Task 11d).
 - Returns to / updates: `CrossRepoCaptureSummary` for the checkpoint log; one row per (conversation_id, repo_name) in `cross_repo_work_v2`.
 - Demonstrable by: `tests/unit/core/checkpoint/test_cross_repo_accountant.py` (multi-repo + never-raises).
 - Rollback signal: revert commit; `checkpoint_session` integration would not invoke the accountant.
 - Observability added: `cross_repo_accountant_pull_failed`, `cross_repo_accountant_merge_failed` WARNING logs.
 
----
+______________________________________________________________________
 
 ### Task 8: CrossRepoPusher MCP tool — auth + validation + multi-repo atomicity
 
 **Files:**
+
 - Create: `session_buddy/mcp/tools/cross_repo_work.py`
 - Create: `session_buddy/mcp/tools/cross_repo_work_register.py` (the `register_cross_repo_work_tools` function — separate file per project convention)
 - Test: `tests/unit/mcp/tools/test_cross_repo_work.py`
@@ -1472,17 +1498,19 @@ git commit -m "feat(checkpoint): CheckpointCrossRepoAccountant per-repo orchestr
 **v2 changes from v1 (multiple Criticals fixed):**
 
 1. **Add `conversation_id` validation** (architect C3, code-reviewer C1, mcp C4). Before any merge, `SELECT 1 FROM session_windows WHERE id = ?` (NOT `conversations_v2` — that's a Memori memory table per the v2.1 amendment) — on miss, return `CrossRepoStoreResult(status="failed", error_code="session_not_found", retryable=False)`.
-2. **Multi-repo atomicity** (code-reviewer C2). The whole per-call loop runs in ONE `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK`. The merge primitive does NOT open its own (Task 6 refactor).
-3. **`_ResolvedRepoEntry` Pydantic model** (mcp I2). Internal type for server-side path resolution. `extra="forbid"`.
-4. **`repo_name` normalization** (mcp I3). Lowercase both sides of the ecosystem lookup.
-5. **Import order** (python-pro C4). Alphabetize within sections; combine `from pydantic import ...`.
-6. **Type parameters on `dict`** (python-pro C5). `dict[str, dict[str, str | None]]` with `TypedDict`.
-7. **`_load_ecosystem` uses `manifest_resolver`** (mcp I5). Eliminates duplicate env-var pattern.
-8. **`status="partial"` is reachable** (code-reviewer M4). When the unknown-repo rejection is mixed with successful inserts, return `status="partial"` with the rejections in `per_repo[].status="rejected"`.
-9. **Use session-buddy's local auth** (mcp C1). `from session_buddy.mcp.auth import require_auth`. NOT `mcp_common.auth.require_auth`.
+1. **Multi-repo atomicity** (code-reviewer C2). The whole per-call loop runs in ONE `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK`. The merge primitive does NOT open its own (Task 6 refactor).
+1. **`_ResolvedRepoEntry` Pydantic model** (mcp I2). Internal type for server-side path resolution. `extra="forbid"`.
+1. **`repo_name` normalization** (mcp I3). Lowercase both sides of the ecosystem lookup.
+1. **Import order** (python-pro C4). Alphabetize within sections; combine `from pydantic import ...`.
+1. **Type parameters on `dict`** (python-pro C5). `dict[str, dict[str, str | None]]` with `TypedDict`.
+1. **`_load_ecosystem` uses `manifest_resolver`** (mcp I5). Eliminates duplicate env-var pattern.
+1. **`status="partial"` is reachable** (code-reviewer M4). When the unknown-repo rejection is mixed with successful inserts, return `status="partial"` with the rejections in `per_repo[].status="rejected"`.
+1. **Use session-buddy's local auth** (mcp C1). `from session_buddy.mcp.auth import require_auth`. NOT `mcp_common.auth.require_auth`.
 
 **Interfaces:**
+
 - Consumes: `StoreCrossRepoWorkRequest` (Pydantic model), session-buddy's local `require_auth`, `MergePrimitive`, DuckDB connection.
+
 - Produces: `CrossRepoStoreResult` (typed domain result with `status`, `error_code`, `retryable`, per-repo breakdown).
 
 - [ ] **Step 1: Write the failing tests**
@@ -1821,10 +1849,10 @@ async def store_cross_repo_work(
     if rows_to_write:
         conn.execute("BEGIN TRANSACTION")
         try:
-            _reads, ins, ded = merge_primitive.multi_merge(conn, rows_to_write)
+            _reads, ins, dead = merge_primitive.multi_merge(conn, rows_to_write)
             conn.execute("COMMIT")
             total_inserted = ins
-            total_deduplicated = ded
+            total_deduplicated = dead
             repos_stored = len(rows_to_write)
         except Exception as exc:  # noqa: BLE001
             conn.execute("ROLLBACK")
@@ -1895,17 +1923,19 @@ git commit -m "feat(mcp): store_cross_repo_work with conversation_id check + mul
 ```
 
 **Integration Contract:**
+
 - Triggered from: external Bodai repos calling `mcp__session-buddy__store_cross_repo_work` (e.g., mahavishnu workers, akosha aggregations).
 - Returns to / updates: `cross_repo_work_v2` rows + `CrossRepoStoreResult` to caller.
 - Demonstrable by: `tests/unit/mcp/tools/test_cross_repo_work.py` (3 tests including rejection paths and atomic rollback).
 - Rollback signal: revert commit; callers fall back to ambient-only path.
 - Observability added: `store_cross_repo_work_failed` log event; per-repo status surfaced in `CrossRepoStoreResult`.
 
----
+______________________________________________________________________
 
 ### Task 9: MCP registration — using actual session-buddy profile shape
 
 **Files:**
+
 - Modify: `session_buddy/mcp/tools/__init__.py` (export `register_cross_repo_work_tools`)
 - Modify: `session_buddy/mcp/server.py` (add to `_ALL_REGISTERS` dict, line 88)
 - Modify: `session_buddy/mcp/tools/profiles.py` (add `"register_cross_repo_work_tools"` string to `STANDARD_REGISTRATIONS: list[str]`, line 36)
@@ -1915,8 +1945,11 @@ git commit -m "feat(mcp): store_cross_repo_work with conversation_id check + mul
 **v2 changes from v1:**
 
 - **Use session-buddy local auth**: `@require_auth(optional=False)` (NOT `mcp-common` signature).
+
 - **`STANDARD_REGISTRATIONS: list[str]`** is the correct shape — append a STRING, not a dict.
+
 - **`_ALL_REGISTRATIONS` is a dict** keyed by register-function name mapping to the callable.
+
 - **`AuthConfig.from_settings()` doesn't exist** — use `get_auth_config()` from `session_buddy/mcp/auth`.
 
 - [ ] **Step 1: Write the failing test**
@@ -2070,17 +2103,19 @@ git commit -m "feat(mcp): register store_cross_repo_work (3 wiring steps + STAND
 ```
 
 **Integration Contract:**
+
 - Triggered from: `session_buddy/mcp/server.py` startup; `register_all()` loops over `_ALL_REGISTRATIONS` and calls each.
 - Returns to / updates: tool available under `mcp__session-buddy__store_cross_repo_work` for STANDARD profile deployments.
 - Demonstrable by: `tests/integration/test_mcp_registration_standard_profile.py`.
 - Rollback signal: remove the line from `STANDARD_REGISTRATIONS`, remove from `_ALL_REGISTRATIONS`, remove the export.
 - Observability added: FastMCP server logs tool registration at startup.
 
----
+______________________________________________________________________
 
 ### Task 10: `settings/ecosystem.yaml` + bootstrap script
 
 **Files:**
+
 - Create: `scripts/bootstrap_ecosystem_manifest.py`
 - Test: `tests/unit/scripts/test_bootstrap_ecosystem_manifest.py`
 - Modify: `.gitignore` (add `settings/ecosystem.yaml`)
@@ -2092,7 +2127,9 @@ git commit -m "feat(mcp): register store_cross_repo_work (3 wiring steps + STAND
 - **Read source path from env var** `MAHAVISHNU_REPOS_YAML` with sibling fallback (architect I5).
 
 **Interfaces:**
+
 - Consumes: `mahavishnu/settings/repos.yaml` (or env var override).
+
 - Produces: `settings/ecosystem.yaml` keyed by slug (e.g., `"mahavishnu"`, not `"/Users/les/Projects/mahavishnu"`).
 
 - [ ] **Step 1: Write the failing tests**
@@ -2236,17 +2273,18 @@ git add scripts/bootstrap_ecosystem_manifest.py tests/unit/scripts/test_bootstra
 git commit -m "feat(scripts): bootstrap_ecosystem_manifest keyed by slug"
 ```
 
----
+______________________________________________________________________
 
 ### Task 11: Wire `CheckpointCrossRepoAccountant` into `session_manager.checkpoint_session` — split into 11a/11b/11c/11d
 
 **v2 splits the original monolithic Task 11 into 4 atomic tasks** (architect I1). Each produces one reviewable commit.
 
----
+______________________________________________________________________
 
 ### Task 11a: Cross-repo accountants in `feature_tracking` — `built → wired`
 
 **Files:**
+
 - Modify: `docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md` (status update)
 
 - [ ] **Step 1: Update feature-tracking to `wired`**
@@ -2266,12 +2304,14 @@ git add docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md
 git commit -m "chore(feature-tracking): mark cross-repo checkpoint accounting as wired"
 ```
 
----
+______________________________________________________________________
 
 ### Task 11b: Wire HandoffLink into `_generate_handoff_documentation`
 
 **Files:**
+
 - Modify: `session_buddy/core/session_manager.py:818` (the "Quality Breakdown" section block)
+
 - Test: extend `tests/unit/core/lifecycle/test_handoff_link.py` to cover wired-in path
 
 - [ ] **Step 1: Write the failing test**
@@ -2340,11 +2380,12 @@ git add session_buddy/core/session_manager.py tests/unit/core/lifecycle/test_han
 git commit -m "feat(handoff): wire HandoffLink into _generate_handoff_documentation (after Quality Breakdown)"
 ```
 
----
+______________________________________________________________________
 
 ### Task 11c: Wire CheckpointCrossRepoAccountant into `checkpoint_session` — with `start_session` conversation_id lookup
 
 **Files:**
+
 - Modify: `session_buddy/core/session_manager.py:908-1082` (the `checkpoint_session` method)
 
 - [ ] **Step 1: Write the failing test**
@@ -2512,7 +2553,7 @@ git add session_buddy/core/session_manager.py tests/integration/test_checkpoint_
 git commit -m "feat(checkpoint): wire CheckpointCrossRepoAccountant into checkpoint_session"
 ```
 
----
+______________________________________________________________________
 
 ### Task 11d: Update feature-tracking to `wired` (after Task 11b + 11c ship)
 
@@ -2531,11 +2572,12 @@ git add docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md
 git commit -m "chore(feature-tracking): mark cross-repo checkpoint accounting as wired"
 ```
 
----
+______________________________________________________________________
 
 ### Task 12: End-to-end integration test
 
 **Files:**
+
 - Create: `tests/integration/test_e2e_cross_repo_checkpoint.py`
 
 - [ ] **Step 1: Write the integration test** (similar to v1 with the `start_session` prerequisite enforced)
@@ -2558,12 +2600,14 @@ git add tests/integration/test_e2e_cross_repo_checkpoint.py
 git commit -m "test(integration): e2e checkpoint pipeline includes Cross-Repo Work"
 ```
 
----
+______________________________________________________________________
 
 ### Task 13: Final gate + completion report + orphan audit
 
 **Files:**
+
 - Create: `docs/archive/completion-reports/2026-08-05-cross-repo-checkpoint-accounting.md`
+
 - Modify: `docs/feature-tracking/2026-08-05-cross-repo-checkpoint-accounting.md` (final `adopted` state)
 
 - [ ] **Step 1: Run orphan audit**
@@ -2579,12 +2623,19 @@ Expected: passes with no new violations.
 - [ ] **Step 3: Generate completion report**
 
 Create `docs/archive/completion-reports/2026-08-05-cross-repo-checkpoint-accounting.md` with:
+
 - Goals G1-G8 status (all met)
+
 - Components shipped (AmbientPuller, MergePrimitive, CheckpointCrossRepoAccountant, CrossRepoPusher, HandoffLink, ecosystem.yaml, bootstrap script, register_cross_repo_work_tools)
+
 - Tests added (per-task counts; total ≥ 25 tests)
+
 - Coverage on the 5 new modules (must clear 80%)
+
 - **EventBridge migration decision** (mahavishnu I1): option (a) "keep both with `cross_repo_work_v2` as the checkpoint-time mirror" is the chosen default. Recorded in `.claude/decisions/cross-repo-work-vs-eventbridge.md`.
+
 - Open follow-ups:
+
   - `bind_conversation` MCP tool for cross-pusher conversation_id discovery (mahavishnu C2)
   - Cross-MCP auth identity ADR (mahavishnu C3)
   - STANDARD profile gating CI guard (mahavishnu I3)
@@ -2606,7 +2657,7 @@ git add docs/archive/completion-reports/2026-08-05-cross-repo-checkpoint-account
 git commit -m "docs: wave-1 completion report for cross-repo-checkpoint-accounting + EventBridge decision"
 ```
 
----
+______________________________________________________________________
 
 ## Self-Review Checklist
 
@@ -2624,12 +2675,12 @@ git commit -m "docs: wave-1 completion report for cross-repo-checkpoint-accounti
   - Wave-1 manual smoke: remains in Task 12 Step 3 (manual, not fixture).
   - Standard vs full profile: STANDARD per Task 9 (cross-pushers need STANDARD).
 
----
+______________________________________________________________________
 
 ## Open Questions for Implementation Reviewer
 
 1. **`start_session` envelope refactor** (Task 1.5): if `_start_impl` already returns a `conversation_id` in its dict (verify in step 3), the refactor is a one-line `return prose, conversation_id`. If not, this task escalates to a deeper change. The plan assumes the former.
 
-2. **EventBridge migration decision** (Task 13 Step 3): the plan picks option (a) "keep both" as the default. The implementer may want to record a different decision in `.claude/decisions/cross-repo-work-vs-eventbridge.md` after discussion with the mahavishnu team.
+1. **EventBridge migration decision** (Task 13 Step 3): the plan picks option (a) "keep both" as the default. The implementer may want to record a different decision in `.claude/decisions/cross-repo-work-vs-eventbridge.md` after discussion with the mahavishnu team.
 
-3. **Cross-MCP auth ADR** (mahavishnu C3): not in scope for this wave. Tracked as a follow-up.
+1. **Cross-MCP auth ADR** (mahavishnu C3): not in scope for this wave. Tracked as a follow-up.

@@ -18,6 +18,7 @@ Usage in producer modules:
     if put is not None:
         put(key, validated)
 """
+
 from __future__ import annotations
 
 from typing import Any, Final

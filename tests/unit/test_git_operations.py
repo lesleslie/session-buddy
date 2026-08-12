@@ -324,8 +324,11 @@ class TestCheckpointCommitCreation:
         readme = tmp_git_repo / "README.md"
         readme.write_text("# Modified\n")
 
+        # Main checkout requires explicit_files (worktree isolation is
+        # not available here) — see TestWorktreeAwareStaging for the
+        # worktree→add -A path.
         success, commit_hash, output = create_checkpoint_commit(
-            tmp_git_repo, "test-project", 85
+            tmp_git_repo, "test-project", 85, explicit_files=["README.md"]
         )
 
         assert success is True
@@ -369,8 +372,10 @@ class TestCheckpointCommitCreation:
         readme = tmp_git_repo / "README.md"
         readme.write_text("# Modified for checkpoint test\n")
 
+        # Pass explicit_files because tmp_git_repo is the main checkout —
+        # see TestWorktreeAwareStaging for the worktree isolation contract.
         success, _commit_hash, _output = create_checkpoint_commit(
-            tmp_git_repo, "session-mgmt-mcp", 75
+            tmp_git_repo, "session-mgmt-mcp", 75, explicit_files=["README.md"]
         )
 
         assert success is True
@@ -522,8 +527,10 @@ class TestGitOperationsEdgeCases:
         readme = tmp_git_repo / "README.md"
         readme.write_text("# Modified with many changes\n" * 50)
 
+        # Pass explicit_files because tmp_git_repo is the main checkout —
+        # see TestWorktreeAwareStaging for the worktree isolation contract.
         success, commit_hash, _output = create_checkpoint_commit(
-            tmp_git_repo, "test-project", 90
+            tmp_git_repo, "test-project", 90, explicit_files=["README.md"]
         )
 
         assert success is True
@@ -539,6 +546,143 @@ class TestGitOperationsEdgeCases:
 
         # Git wraps filenames with spaces in quotes
         assert any("file with spaces.txt" in f for f in untracked)
+
+
+class TestWorktreeAwareStaging:
+    """stage_files / create_checkpoint_commit must respect worktree isolation.
+
+    Worktree scope (``<dir>/.git`` is a file) is the auto-checkpoint's
+    implicit session boundary: ``git add -A`` there is safe. Main scope
+    (``<dir>/.git`` is a directory) requires an explicit file list or the
+    call refuses — otherwise a single agent's checkpoint would sweep every
+    dirty file in the project.
+    """
+
+    def test_is_worktree_returns_false_for_main_checkout(
+        self, tmp_git_repo: Path
+    ) -> None:
+        """_is_worktree returns False when .git is a directory (main)."""
+        is_worktrees = git_worktrees._is_worktree
+        assert (tmp_git_repo / ".git").is_dir()
+        assert is_worktrees(tmp_git_repo) is False
+
+    def test_is_worktree_returns_true_for_worktree(self, tmp_git_repo: Path) -> None:
+        """_is_worktree returns True when .git is a file (worktree)."""
+        # Create a sibling worktree from tmp_git_repo. The new directory's
+        # .git will be a file containing 'gitdir: .../worktrees/<name>'.
+        wt_path = tmp_git_repo.parent / (tmp_git_repo.name + "-wt")
+        subprocess.run(
+            ["git", "worktree", "add", str(wt_path), "-b", "wt-branch"],
+            cwd=tmp_git_repo,
+            check=True,
+            capture_output=True,
+        )
+        try:
+            assert (wt_path / ".git").is_file()
+            assert git_worktrees._is_worktree(wt_path) is True
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(wt_path)],
+                cwd=tmp_git_repo,
+                check=False,
+                capture_output=True,
+            )
+
+    def test_stage_files_refuses_on_main_with_empty_list(
+        self, tmp_git_repo: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Main checkout + empty files list refuses (logs WARNING)."""
+        # Make a dirty change so a successful sweep would actually stage.
+        (tmp_git_repo / "README.md").write_text("# dirty\n")
+
+        with caplog.at_level("WARNING"):
+            success = stage_files(tmp_git_repo, [])
+
+        assert success is False
+        assert any(
+            "stage_files_refused_unsafe_sweep" in record.message
+            for record in caplog.records
+        )
+
+    def test_stage_files_uses_add_dash_a_in_worktree(
+        self, tmp_git_repo: Path
+    ) -> None:
+        """Worktree + empty list falls back to ``git add -A``."""
+        wt_path = tmp_git_repo.parent / (tmp_git_repo.name + "-wt")
+        subprocess.run(
+            ["git", "worktree", "add", str(wt_path), "-b", "wt-branch-add"],
+            cwd=tmp_git_repo,
+            check=True,
+            capture_output=True,
+        )
+        try:
+            (wt_path / "README.md").write_text("# dirty in worktree\n")
+
+            assert stage_files(wt_path, []) is True
+            staged = get_staged_files(wt_path)
+            assert "README.md" in staged
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(wt_path)],
+                cwd=tmp_git_repo,
+                check=False,
+                capture_output=True,
+            )
+
+    def test_stage_files_uses_selective_add_on_main(self, tmp_git_repo: Path) -> None:
+        """Main + non-empty list uses ``git add -- <files>`` (selective)."""
+        (tmp_git_repo / "README.md").write_text("# selective\n")
+        (tmp_git_repo / "ignored.txt").write_text("should remain unstaged\n")
+
+        assert stage_files(tmp_git_repo, ["README.md"]) is True
+        staged = get_staged_files(tmp_git_repo)
+        assert "README.md" in staged
+        assert "ignored.txt" not in staged
+
+    def test_create_checkpoint_commit_refuses_on_main_without_explicit(
+        self, tmp_git_repo: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Main checkout without explicit_files refuses the auto-checkpoint."""
+        (tmp_git_repo / "README.md").write_text("# refuse me\n")
+
+        with caplog.at_level("WARNING"):
+            success, result, _output = create_checkpoint_commit(
+                tmp_git_repo, "test-project", 90
+            )
+
+        assert success is False
+        assert result == "staging failed"
+        assert any(
+            "stage_files_refused_unsafe_sweep" in record.message
+            for record in caplog.records
+        )
+
+    def test_create_checkpoint_commit_succeeds_in_worktree(
+        self, tmp_git_repo: Path
+    ) -> None:
+        """Worktree allows the no-explicit-files path (worktree isolation)."""
+        wt_path = tmp_git_repo.parent / (tmp_git_repo.name + "-wt-commit")
+        subprocess.run(
+            ["git", "worktree", "add", str(wt_path), "-b", "wt-branch-commit"],
+            cwd=tmp_git_repo,
+            check=True,
+            capture_output=True,
+        )
+        try:
+            (wt_path / "README.md").write_text("# commit me in worktree\n")
+
+            success, commit_hash, _output = create_checkpoint_commit(
+                wt_path, "test-project", 90
+            )
+            assert success is True
+            assert len(commit_hash) == 8
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(wt_path)],
+                cwd=tmp_git_repo,
+                check=False,
+                capture_output=True,
+            )
 
 
 class TestGitMaintenanceOperations:

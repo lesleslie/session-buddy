@@ -102,7 +102,9 @@ session-buddy
 ### NEW: `CrossRepoPusher` (MCP tool — receiver-side; rename candidate: `register_cross_repo_work_tools`)
 
 - Location: `session_buddy/mcp/tools/cross_repo_work.py`
+
 - FastMCP registers the tool as `store_cross_repo_work`; Claude clients display it as `mcp__session-buddy__store_cross_repo_work` (the `mcp__session-buddy__` prefix is the client namespace, not the registered name — review mcp-integration-expert Minor #1).
+
 - Signature (Pydantic-typed, per review mcp-integration-expert Critical #1):
 
   ```python
@@ -162,12 +164,18 @@ session-buddy
   ```
 
 - **Auth contract** (review mcp-integration-expert Critical #7 + power-trio C1): the `@require_auth()` decorator MUST be called with `Permission.WRITE` AND an explicit `config=` argument pointing at session-buddy's `AuthConfig`. `mcp-common`'s `@require_auth()` defaults to `Permission.READ` when `config=None` and bypasses authentication entirely — the literal invocation `@require_auth()` would expose this write tool to read-only or anonymous callers. The authenticated `request.context` provides `conversation_id` validation against `conversations_v2`. Newer session-tracking tools (`admin_shell_tracking_tools.py`, `channel_tracking_tools.py`) use `@require_auth()` without `Permission.WRITE` — the spec is explicit so the implementer doesn't copy either the unguarded `store_code_graph_from_mahavishnu` precedent OR the missing-Permission.WRITE precedent.
+
 - **Error contract (power-trio C4)**: two distinct lanes:
+
   - **FastMCP / Pydantic validation errors** (malformed payload, missing `conversation_id`, empty `repos`, `extra="forbid"` violation): raised as MCP protocol errors. Client should treat as 4xx-class — non-retryable.
   - **Domain errors** (unknown `conversation_id`, unknown `repo_name`, storage lock): returned as `CrossRepoStoreResult` with `status="failed"`, `error_code="<specific>"`, `message=<reason>`, `retryable=True|False`. Client branches on `status` and `retryable`.
+
 - **Idempotency**: server-side, via §Merge primitive. Re-pushing the same `(conversation_id, repo_name, sha)` is a no-op recorded as `status="deduplicated"`. Callers don't preflight or maintain local dedupe caches — review mcp-integration-expert Critical #4.
+
 - **Multi-repo batch atomicity** (review mcp-integration-expert Important #2 + resilience C8 + power-trio C5/C6): all repos in a single call are written inside a Python-managed `BEGIN TRANSACTION` (DuckDB has no `IMMEDIATE` qualifier; see §Merge primitive). Either the whole call succeeds (all repos stored, `status="ok"`) or it fails with `status="failed"`, `retryable=True`, and the transaction rolled back. The result's `per_repo` list reports per-repo `entries_received/inserted/deduplicated` counts on success.
+
 - **Registration contract** (review mcp-integration-expert Critical #6 + power-trio I3): the registration must (1) export `register_cross_repo_work_tools` from `session_buddy/mcp/tools/__init__.py`, (2) add it to `_ALL_REGISTERS` in `session_buddy/mcp/server.py:40-153`, and (3) wire it into the `STANDARD` profile in `session_buddy/mcp/tools/profiles.py:42-76`. The testing matrix includes a STANDARD-profile smoke test that loads the profile and asserts `store_cross_repo_work` is in the advertised tool list.
+
 - **Path authority** (review mcp-integration-expert Important #5 + power-trio C2): `RepoWorkEntry` does NOT carry `repo_path` — the wire shape is the slug only. The server resolves `repo_path` from `ecosystem.yaml` keyed on normalized `repo_name` and **never** runs filesystem operations against a caller-supplied path. A separate internal model (`_ResolvedRepoEntry`) carries the manifest-derived path used by the merge primitive.
 
 ### NEW: `HandoffLink` (consumer in `core/lifecycle/handoff.py`)
@@ -305,12 +313,12 @@ ON CONFLICT (conversation_id, repo_name) DO UPDATE SET
 The Python merge step (in the application's transaction body, before the INSERT/UPDATE) does:
 
 1. Read existing `cross_repo_work_v2.work_entries` JSON (inside the transaction).
-2. Parse incoming `StoreCrossRepoWorkRequest.repos[*].work_entries` into `list[WorkEntry]` via Pydantic validation.
-3. Build a dedup key for each entry: `(kind, sha)` for `CommitEntry`, `(kind, plan_path)` for `PlanRefEntry`.
-4. For collisions: prefer `provenance="explicit"` over `"ambient"` (review resilience C6); take the max `files_changed_count`; preserve the first-observed `timestamp`.
-5. Compute the new `contributor_sources` as the order-preserving set union of existing and incoming.
-6. Compute the new `session_window_end` as `GREATEST(existing, incoming)`.
-7. Pass merged JSON values as `CAST(? AS JSON)` parameters to the INSERT/UPDATE.
+1. Parse incoming `StoreCrossRepoWorkRequest.repos[*].work_entries` into `list[WorkEntry]` via Pydantic validation.
+1. Build a dedup key for each entry: `(kind, sha)` for `CommitEntry`, `(kind, plan_path)` for `PlanRefEntry`.
+1. For collisions: prefer `provenance="explicit"` over `"ambient"` (review resilience C6); take the max `files_changed_count`; preserve the first-observed `timestamp`.
+1. Compute the new `contributor_sources` as the order-preserving set union of existing and incoming.
+1. Compute the new `session_window_end` as `GREATEST(existing, incoming)`.
+1. Pass merged JSON values as `CAST(? AS JSON)` parameters to the INSERT/UPDATE.
 
 **Why not a normalized child table with `UNIQUE(conversation_id, repo_name, sha)`:** Reviewer mcp-integration-expert #4 suggested it as an alternative. We choose the JSON-merge approach because (a) the read path (HandoffLink) renders a single section per repo, so one row per (session, repo) is the natural read shape; (b) the JSON is small (~10 entries typical, 200 cap) so JSON-vs-normalized performance is irrelevant; (c) consolidating per-row provenance via `contributor_sources` keeps the "what paths contributed" answer cheap. The trade-off is documented in the testing matrix (the merge primitive gets its own unit test).
 
@@ -511,7 +519,7 @@ Per-review trend-analyst C1, C2, I5 (and Important #1, #2): the Bodai Observabil
 - Existing session tracker reference: `session_buddy/mcp/tools/session/admin_shell_tracking_tools.py:147-262` and `session_buddy/mcp/tools/session/channel_tracking_tools.py:224-337` — the new tool's `@require_auth()` precedent.
 - MCP registration surface: `session_buddy/mcp/tools/__init__.py`, `session_buddy/mcp/server.py:40-153`, `session_buddy/mcp/tools/profiles.py:42-76` — `_ALL_REGISTERS` and `STANDARD` profile wiring for the new tool (review mcp-integration-expert Critical #6).
 
----
+______________________________________________________________________
 
 ## Spec self-review checklist
 

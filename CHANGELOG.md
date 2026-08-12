@@ -9,6 +9,153 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.22.0] - 2026-08-12
+
+### Added
+
+- Add CheckpointOrchestrator with retry, lock, narrow exceptions
+- Add CheckpointPolicy + WorkingTreeInspector
+- Add PendingCheckpoint marker + CheckpointMetrics
+- Adopt coverage-ratchet at current coverage
+- AutoCheckpointLoop with pending-marker drain + opt-in mid-task commits
+- Channel_session_get_state MCP tool — read-back via from_dict
+- Channel_session_get_state MCP tool — read-back via from_dict
+- checkpoint: Add SnapshotCleanupTask (7-day TTL)
+- checkpoint: Add stash-free SnapshotMechanism with hardened restore
+- checkpoint: Add SubagentDetector with per-tree lockfile signal source
+- checkpoint: Module re-exports + cleanup-snapshots CLI
+- checkpoint: Promote PII-scrubbing helpers + migrate 5 log sites     Extracts _safe_transient_info and _safe_error_message from orchestrator.py
+- coverage-wave1: Regenerated backlog + end-of-wave delta (10 modules lifted)
+- coverage: Batch 1a gate — 5 modules lifted, 0 new failures
+- coverage: Batch 1a gate — 5 modules lifted, 0 wave-1 regressions (3 pre-existing flakies documented)
+- coverage: Batch 1b gate — 5 modules lifted, 0 wave-1 regressions (7 pre-existing flakies documented)
+- coverage: Batch 1b gate — 5 modules lifted, 0 wave-1 regressions (F13 sys.modules fix applied; 2 pre-existing flakies documented)
+- coverage: Wave-1 baseline manifest + first backlog doc
+- crackerjack-tools: Harden _format_metrics_section and add unavailable banner
+- crackerjack: Producer retry invokes CLI fallback on timeout
+- fallback: _finalize() single observability-emit point
+- fallback: Helper skeleton with lock and disabled check
+- fallback: Parse output, post-filter empty sections, success return
+- fallback: Subprocess invocation with split timeout/cancel handlers
+- fallback: Wire _finalize and OTel span across all outcomes
+- feature-flags: Add enable_crackerjack_fallback with full wiring
+- metrics: Register CRACKERJACK_FALLBACK_* counters and histogram
+- precommit: Add Prometheus counter to channel_session_state_writer (task 145)
+- quality-scoring: Synthesis emits None + unavailable: True
+- quality-scoring: Wire try_crackerjack_cli into consumer chain
+- Restore channel_session_get_state under canonical MCP path
+- scripts: Coverage audit script with --self-test mode
+- scripts: Deterministic backlog validator
+- scripts: Wave-1 module selector + anti-target detection
+- session-buddy: Hook single-flight gate + thin-shell plugin manifest
+- session-buddy: Search_code_graph MCP tool (read-through facade over code_graphs)
+- State_writer — validate-on-write at channel event boundaries
+- State_writer — validate-on-write at channel event boundaries
+- substrate-compat: Extract stamp/calltime pattern into shared helper (task 144)
+- Wire CheckpointOrchestrator into session_manager with lite-mode bypass
+- Wire cross-repo work accounting into checkpoint pipeline (wave-1)
+- Wire track_channel_session to record_channel_session_state
+- Wire track_channel_session to record_channel_session_state
+
+### Changed
+
+- adapter: Drop dead v1 SQL branches in conversation search
+- crackerjack: Make pure calculation helpers @staticmethod
+- Revert "merge: batch1a module5"
+- Scrub PII from error paths + bounded outer run timeout
+- Session-buddy (quality: 0/100) - 2026-08-04 23:02:05
+- Session-buddy (quality: 0/100) - 2026-08-05 00:18:26
+- Session-buddy (quality: 47/100) - 2026-08-04 01:58:34
+- Session-buddy (quality: 66/100) - 2026-08-03 03:08:46
+- Session-buddy (quality: 67/100) - 2026-07-29 21:37:40
+- session-buddy: Coverage-improvement wave-1 design (v1)
+- session-buddy: Coverage-improvement wave-1 design (v2)
+- session-buddy: Coverage-improvement wave-1 implementation plan
+- session-buddy: Cross-repo work accounting in checkpoint
+- session-buddy: Cross-repo work accounting in checkpoint (v1)
+- session-buddy: Cross-repo work accounting v2 (post-7-agent-review)
+- session-buddy: Cross-repo work accounting v2 (post-power-trio)
+- session-buddy: Cross-repo work accounting v3 (post-power-trio)
+
+### Fixed
+
+- adapter: Honor project filter in search_conversations + add plan
+- channel: Close parallel-package hazard by deleting orphan mcp_tools
+- checkpoint: Align narrow-exception tuple + remove catch-all + pin backoff
+- checkpoint: Atomic pending-marker writes + malformed-state handling
+- checkpoint: Close 2 additional C-5 str(exc) PII routes
+- checkpoint: Close durability + TOCTOU + budget gaps surfaced by final review
+- checkpoint: Rename to advisory wrapper + validate working_dir
+- checkpoint: Restore missing PII-scrubbing helpers module
+- checkpoint: Validate os.getcwd() in lifespan + strengthen lite-mode test
+- cleanup: Collapse MergePrimitive.merge() + break intelligence_tools.py circular import
+- Code_graph tool wireup + typer 0.27.1 regression + checkpoint cycle
+- crackerjack-fallback: Address 14 final-review issues in single consolidated patch
+- Env-var gate + call-time substrate compat (S-CHANNEL-DURABLE v1.1)
+- fallback: Route get_feature_flags through module attribute and cover enabled path
+- mcp: Restore blanket suppression for _dhara_publisher.aclose()
+- session-buddy: Deprecation-safe loop + symbol mapping in code-graph SQL fallback
+- session-buddy: Remove orphan tool + sync profile docstring
+- utils: 2 worktree MCP bugs (sanitization, timeout)
+
+### Documentation
+
+- channel-durable: Flip status to built per multi-agent review
+- checkpoint: Clarify LockfileSignalSource.write() docstring
+- coverage-wave1: Completion report
+- observability: Add Crackerjack fallback alert rules and dashboard panel
+- plan: Quality-scoring crackerjack fallback v2 - applies 5-agent review
+- plan: Quality-scoring crackerjack fallback v3 - applies 10 new Criticals from v2 review
+- plan: Restructure Tasks 9/11 to remove cross-task forward reference
+- plan: S-CHANNEL-DURABLE — wire channel_session_state into session-buddy (4 tasks)
+- plan: V5 - record 4 brief defects fixed in Task 5 implementer commit 49af617e
+- preflight: Record crackerjack CLI flag-to-metric mapping
+- Quality-scoring crackerjack CLI fallback implementation plan
+- Reconcile auto-checkpoint review findings
+- S-CHANNEL-DURABLE substrate key shape + thread_id collapse rationale
+- S-CHANNEL-DURABLE wire-up spec
+- spec: Quality-scoring crackerjack CLI fallback design
+- spec: Quality-scoring crackerjack CLI fallback design v2
+- task-13: Regenerate verification numerics per reviewer (ruff/tests/orphan/coverage)
+- V4 - fix 4 plan-vs-reality discrepancies from Task 0 preflight
+
+### Testing
+
+- adapter: Cover vector-search project filter via VSS-enabled fixture
+- channel: Rewrite durable_restart to producer-half only after consumer deletion
+- checkpoint: End-to-end loop coverage + tautology fix
+- checkpoint: Harden stash-spy against subcommand-position false positives
+- checkpoint: Property-based keystone + stash-clobber regression + coverage gate
+- coverage: Add cli_with_modes to pytest_runtest_setup re-attach list (F13)
+- coverage: Fix shared-state race in test_resolve_default_db_returns_required_database
+- coverage: Fix sys.modules pollution in TestModuleSysPathBranch (F13)
+- coverage: Lift admin_shell_tracking_tools to 100% line / 100% branch
+- coverage: Lift akosha_tools to ≥95% line / ≥90% branch
+- coverage: Lift cli_with_modes to 100% line / 100% branch
+- coverage: Lift history_cache to 100% line / 100% branch
+- coverage: Lift prompt_tools to ≥95% line / ≥90% branch
+- coverage: Lift session_buddy.cli to 100% line / 100% branch
+- coverage: Lift session_buddy.utils.scheduler.time_parser to 99% line / 95% branch
+- coverage: Replace pragma-hidden helpers with explicit call-counter assertions
+- Cross-process durability + completion report for S-CHANNEL-DURABLE
+- Cross-process durability + completion report for S-CHANNEL-DURABLE
+- fallback: 7 error-path tests covering all 10 outcomes
+- fallback: Concurrency test asserts module-level lock serializes
+- fallback: Real-subprocess integration test (gated, importorskip)
+- Lift causal chains to full coverage
+- Lift code graph to full coverage
+- Lift conversation storage coverage
+
+### Internal
+
+- channel: Backfill <NEW> placeholder + drop defensive hasattr guard
+- coverage-wave1: Close Phase 0 — observability stack ready
+- coverage-wave1: Fix F3 — restore --ignore flag in test_invocation field
+- coverage-wave1: Preflight baseline failure manifest
+- gitignore: Also match .lycheecache/ directory form
+- gitignore: Fix .lycheecache trailing slash; ignore .superpowers/
+- Remove .superprofits/ scratch typo, add to .gitignore
+
 ## [0.21.0] - 2026-07-29
 
 ### Added

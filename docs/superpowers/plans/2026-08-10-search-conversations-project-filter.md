@@ -21,6 +21,7 @@
 ## Task 1: Apply project filter in `search_conversations` + add regression test
 
 **Files:**
+
 - `session_buddy/adapters/reflection_adapter_oneiric.py` (3 method signature changes, 2 SQL updates, 1 docstring fix)
 - `tests/unit/test_reflection_adapter_oneiric.py` (new `TestProjectScopedSearch` class with 2 tests)
 
@@ -188,7 +189,7 @@ All four must pass. Commit message: `fix(adapter): honor project filter in searc
 
 Commit with the message above, squash-merge to `main` per Bodai pre-1.0 policy. Update `.superpowers/sdd/2026-08-10-search-conversations-project-filter/progress.md` to mark Task 1 complete. Move the plan file to `docs/plans/_completed/` or leave in place — follow whichever convention the cross-repo-checkpoint plan settled on.
 
----
+______________________________________________________________________
 
 ## Critical files
 
@@ -198,7 +199,8 @@ Commit with the message above, squash-merge to `main` per Bodai pre-1.0 policy. 
 ## Rollback signal
 
 If `pytest tests/unit/test_reflection_adapter_oneiric.py` fails after the fix (e.g., the result-dict shape change in Step 6 breaks an existing test that reads `.get("score")` or similar), revert by:
+
 1. `git revert <commit-hash>` to undo the merge
-2. Check whether the existing return-dict shape needs `project` added vs whether the test should be loosened to accept either shape
+1. Check whether the existing return-dict shape needs `project` added vs whether the test should be loosened to accept either shape
 
 The bug is real and currently shippable (only affects users with multi-project isolation needs), so no urgency if rollback is needed.
