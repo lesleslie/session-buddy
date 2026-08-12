@@ -1,4 +1,5 @@
 """Checkpoint CLI: cleanup-snapshots manual command per spec line 388."""
+
 from __future__ import annotations
 
 import asyncio
@@ -15,13 +16,19 @@ app = typer.Typer(help="Checkpoint utilities")
 @app.command(name="cleanup-snapshots")
 def cleanup_snapshots(
     older_than: int = typer.Option(
-        7, "--older-than", help="Remove snapshots older than N days",
+        7, "--older-than", help="Remove snapshots older than N days"
     ),
     snapshot_dir: Path | None = typer.Option(
-        None, "--snapshot-dir", help="Override snapshot directory",
+        None, "--snapshot-dir", help="Override snapshot directory"
     ),
 ) -> None:
     """Remove snapshots older than the TTL."""
+    # NOTE: prefer the plain ``int = typer.Option(...)`` form here over
+    # ``Annotated[int, typer.Option(...)]``; typer 0.27.1 mis-parses the
+    # ``Annotated`` form when the Option's default is a literal int and
+    # raises ``AttributeError: 'int' object has no attribute
+    # 'isidentifier'`` while collecting the subcommand's parameter
+    # declarations.
     sd = snapshot_dir or Path(tempfile.gettempdir()) / "session-buddy-snapshots"
     task = SnapshotCleanupTask(sd, ttl_seconds=older_than * 86400)
     removed = asyncio.run(task.cleanup_once())

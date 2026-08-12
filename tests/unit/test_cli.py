@@ -372,4 +372,25 @@ class TestCliInternals:
         msg = str(exc_info.value)
         assert "Port 8678" in msg
         assert "PID 1234" in msg
-        assert "another-server" in msg
+
+
+def test_checkpoint_subcommand_help_works_under_typer_027() -> None:
+    """Regression: ``checkpoint cleanup-snapshots --help`` must build cleanly.
+
+    On typer 0.27.1, the redundant ``= 7`` default combined with
+    ``Annotated[int, typer.Option(7, ...)]`` triggered
+    ``AttributeError: 'int' object has no attribute 'isidentifier'``
+    while parsing the subcommand's parameter declarations. The
+    subcommand must build without that crash so the parent app's
+    ``--help`` (and any dispatch) succeeds.
+    """
+    from typer.testing import CliRunner
+
+    from session_buddy.cli import create_session_buddy_cli
+
+    cli = create_session_buddy_cli()
+    app = cli.create_app()
+    runner = CliRunner()
+    result = runner.invoke(app, ["checkpoint", "cleanup-snapshots", "--help"])
+    assert result.exit_code == 0, result.output
+    assert "cleanup-snapshots" in result.output

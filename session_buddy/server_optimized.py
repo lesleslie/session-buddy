@@ -287,6 +287,7 @@ async def metrics_check(request: Any) -> Any:
 
 
 # Register modularized tools
+from session_buddy.subscribers.code_graph_subscriber import register_code_graph_tools
 from session_buddy.tools import (
     register_category_tools,
     register_fingerprint_tools,
@@ -307,6 +308,11 @@ register_fingerprint_tools(mcp)
 
 # Category evolution tools (Phase 5: Category Evolution)
 register_category_tools(mcp)
+
+# Code graph storage and query tools (used by Mahavishnu's local
+# indexer; see ``store_code_graph_from_mahavishnu`` at
+# session_buddy/subscribers/code_graph_subscriber.py).
+register_code_graph_tools(mcp)
 
 # MCP prompts for slash command support
 register_prompt_tools(mcp)

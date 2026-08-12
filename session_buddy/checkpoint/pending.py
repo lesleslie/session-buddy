@@ -1,14 +1,23 @@
 """Pending-checkpoint durability for subagent-timeout handoff."""
+
 from __future__ import annotations
 
 import json
 import os
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from oneiric.core.logging import get_logger
+
+if TYPE_CHECKING:
+    # Imported only for the type hint on ``consume_pending_marker``;
+    # eager import would form a cycle with orchestrator.py, which itself
+    # imports ``PendingCheckpoint`` and ``save_pending`` from this module.
+    from session_buddy.checkpoint.orchestrator import CheckpointOrchestrator
 
 PENDING_DIR = Path("~/.session-buddy/pending").expanduser()
 
@@ -59,10 +68,8 @@ def save_pending(p: PendingCheckpoint) -> Path:
         os.replace(tmp_path, marker_path)
     except OSError:
         # Clean up the orphan .tmp on rename failure so we don't leak it.
-        try:
+        with suppress(OSError):
             tmp_path.unlink()
-        except OSError:
-            pass
         raise
     return marker_path
 
@@ -97,7 +104,7 @@ def consume_pending(path: Path) -> None:
 async def consume_pending_marker(
     marker: Path,
     *,
-    build_orchestrator: Callable[[Path], Awaitable[object]],
+    build_orchestrator: Callable[[Path], Awaitable[CheckpointOrchestrator]],
 ) -> None:
     """Drain a pending-checkpoint marker by re-firing the orchestrator.
 
@@ -134,18 +141,14 @@ async def consume_pending_marker(
         )
         # Best-effort delete; swallow further errors so a delete failure
         # does not propagate and crash the draining loop.
-        try:
+        with suppress(OSError):
             marker.unlink(missing_ok=True)
-        except OSError:
-            pass
         return
 
     if pending is None:
         # Marker was deleted between glob and load (race); nothing to do.
-        try:
+        with suppress(OSError):
             marker.unlink(missing_ok=True)
-        except OSError:
-            pass
         return
 
     # Local import: avoid eager load cycles for deployments that never
