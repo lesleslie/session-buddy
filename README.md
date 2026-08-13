@@ -370,44 +370,17 @@ flowchart TD
 
 ## Available MCP Tools
 
-This server provides **85+ specialized tools** organized into 12 functional categories.
+This server provides **42 MCP tools** across 8 functional categories (as of 2026-08-12 live introspection).
 For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_REFERENCE.md).
 
-### Phase 4 Analytics Tools
-
-**Real-Time Monitoring:**
-
-- `get_real_time_metrics` - Get top skills by usage with live dashboard data
-- `detect_anomalies` - Detect performance anomalies using Z-score analysis
-
-**Advanced Analytics:**
-
-- `get_skill_trend` - Analyze skill effectiveness trends over time
-- `get_collaborative_recommendations` - Get personalized recommendations from similar users
-- `get_community_baselines` - Compare user performance vs global community
-- `get_skill_dependencies` - Explore skill co-occurrence patterns
-
-### Intelligence Tools
-
-**Insights Management:**
-
-- `search_insights` - Search captured insights by topic or query with semantic matching
-- `insights_statistics` - View statistics about captured insights (types, topics, confidence scores)
-- Wildcard search with `*` to view all captured insights
-
-**Multi-Project Coordination:**
-
-- `create_project_group` - Create groups of related projects for coordinated development
-- `add_project_dependency` - Track relationships between projects (uses, extends, references)
-- `search_across_projects` - Search across all projects with dependency-aware ranking
-- `get_project_insights` - Get cross-project insights and collaboration opportunities
-
-**Team Collaboration:**
-
-- `create_team` - Create teams for knowledge sharing
-- `search_team_knowledge` - Search across team reflections with access control
-- `get_team_statistics` - View team activity and contribution metrics
-- `vote_on_reflection` - Upvote/downvote team reflections for quality filtering
+> **Removed in 2026-08-12 audit:** The following tools were documented but not
+> wired into the default `server_optimized.py` entrypoint (which loads
+> `register_session_tools`, `register_memory_tools`, `register_fingerprint_tools`,
+> `register_category_tools`, `register_code_graph_tools`, `register_prompt_tools`).
+> They remain available through the alternative `session_buddy.mcp.server`
+> profile-driven entrypoint when `SESSION_BUDDY_TOOL_PROFILE=full` is set,
+> but the canonical Phase 4 / Intelligence sections below were misleading
+> because the default startup does not register them.
 
 ______________________________________________________________________
 
@@ -648,7 +621,7 @@ Complete documentation is available in the `docs/` directory:
 
 ### Intelligence Features
 
-- **Intelligence Features Quick Start\](docs/features/INTELLIGENCE_QUICK_START.md)** ⭐ **Start Here** - 5-minute practical guide
+- **[Intelligence Features Quick Start](docs/features/INTELLIGENCE_QUICK_START.md)** ⭐ **Start Here** - 5-minute practical guide
 
   - Automatic insights capture (how to use `★ Insight ─────` delimiters)
   - Cross-project intelligence (group related projects)
@@ -656,7 +629,7 @@ Complete documentation is available in the `docs/` directory:
   - Advanced search techniques (semantic, faceted, temporal)
   - Configuration and troubleshooting
 
-- **Insights Capture & Deduplication\](docs/features/INSIGHTS_CAPTURE.md)** ⭐ **Deep Dive**
+- **[Insights Capture & Deduplication](docs/features/INSIGHTS_CAPTURE.md)** ⭐ **Deep Dive**
 
   - Automatic extraction of educational insights from conversations
   - Multi-point capture strategy (checkpoint + session end)

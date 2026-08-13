@@ -73,11 +73,10 @@ pytest --cov=session_buddy --cov-fail-under=85 && crackerjack security && cracke
 
 ## Architecture Overview
 
-### Recent Changes (January 2025)
-
-- **Removed sitecustomize.py** - Eliminated 115 lines of startup-time patches
-- **Updated FastAPI to >=0.124.2** - Removed upper bound constraint
-- **Documentation Reorganization** - Archived 80 historical docs to `docs/archive/`
+> **Note:** This section was removed during the 2026-08-12 audit because the
+> "Recent Changes (January 2025)" header was 19 months stale. See `CHANGELOG.md`
+> for the authoritative change log, and the `### Phase 2 Architecture Refactoring
+> (February 2026)` section below for the current architecture summary.
 
 ### Oneiric Adapter Migration (COMPLETE)
 
@@ -106,7 +105,7 @@ async def create_entity(self, name: str, ...) -> dict:
 - 908 lines of code reduction through deprecated code removal
 - 18/18 architecture validation checks passed
 
-**Details**: `docs/PHASE2_SUMMARY.md`
+**Details**: `docs/PHASE3_README.md`, `docs/PHASE3_ARCHITECTURE.md`, `docs/PHASE2_3_SINGLETON_CLEANUP_PLAN.md`
 
 #### Layer Separation
 
@@ -223,7 +222,7 @@ reflection_tools.py (37 lines) - Compatibility wrapper
 
 ### Core Components
 
-**server.py** (~3,500+ lines): FastMCP integration, tool registration, session lifecycle, permissions, project analysis, Git integration, structured logging
+**server.py** (~336 lines): Thin entrypoint that re-exports the FastMCP instance from `server_optimized.py` and runs `python -m session_buddy.server`. Bulk of the MCP wiring lives in `server_optimized.py` (~1,100+ lines) and `session_buddy/mcp/server.py` (~300 lines, profile-driven registrations). Verified via `wc -l session_buddy/server.py` on 2026-08-12.
 
 **reflection_tools.py**: DuckDB database with FLOAT[384] vector embeddings, local ONNX model (all-MiniLM-L6-v2), async architecture with executor threads, text search fallback
 
@@ -442,7 +441,7 @@ storage:
 
 ## Available MCP Tools
 
-**Total: 70+ tools** across 10 categories. See [README.md](README.md#available-mcp-tools) for complete list.
+**Total: 42 MCP tools** across 8 categories (verified via live introspection 2026-08-12). See [README.md](README.md#available-mcp-tools) for complete list.
 
 ### Core Session Management (8 tools)
 
@@ -455,12 +454,18 @@ storage:
 
 ### Advanced Categories
 
-- **Crackerjack** (11): Command execution, quality metrics, patterns, health monitoring
+- **Crackerjack integration**: `crackerjack_integration.py` parses real-time Crackerjack output but no Crackerjack-specific MCP tools ship in the default profile.
 - **LLM Management** (6): `list_llm_providers`, `test_llm_providers`, `generate_with_llm`, `chat_with_llm`, `configure_llm_provider`, `sync_claude_qwen_config`
-- **Serverless** (8): External storage integration (Redis, S3, local)
-- **Team** (4): `create_team`, `search_team_knowledge`, `get_team_statistics`, `vote_on_reflection`
-- **Multi-Project** (4): `create_project_group`, `add_project_dependency`, `search_across_projects`, `get_project_insights`
-- **Plus**: App Monitoring (5), Interruption Management (7), Natural Scheduling (5), Git Worktree (3), Advanced Search (3)
+- **Git Worktree** (3): Available via `session_buddy.mcp.server` when `SESSION_BUDDY_TOOL_PROFILE=full`; not in the default profile.
+
+> **Removed in 2026-08-12 audit:** Serverless, Team, Multi-Project, App Monitoring,
+> Interruption Management, and Natural Scheduling categories were documented
+> but their `register_*` functions (`register_serverless_tools`,
+> `register_team_tools`, `register_multi_project_tools` (does not exist),
+> `register_app_monitoring_tools` (does not exist), `register_interruption_tools`
+> (does not exist), `register_natural_scheduling_tools` (does not exist)) are
+> not called by `server_optimized.py:301-318`. They are reachable only via
+> the alternative profile-driven entrypoint.
 
 ## Operational Notes
 
@@ -475,14 +480,15 @@ Session-Buddy uses MiniMax as the primary cloud LLM provider:
 
 `http://localhost:11434`)
 
-- **Default model**: `MiniMax-M2.7` (general), `MiniMax-M2.7-highspeed` (quick/background tasks)
+- **Default model (ecosystem-wide)**: `MiniMax-M3` (general), `MiniMax-M3-highspeed` (quick/background tasks) — see Mahavishnu `settings/models.yaml:5`.
+- **Local override (this repo)**: `MiniMax-M2.7` — `settings/session-buddy.yaml:16` pins the older model for backward compatibility. Align with the ecosystem default by changing `minimax_default_model` in `settings/session-buddy.yaml`.
 - **Provider chain**: `minimax -> ollama`
 
 **Configuration** (in `settings/session-buddy.yaml` or environment variables):
 
 - `minimax_api_key` / `MINIMAX_API_KEY` — MiniMax API key
 - `minimax_base_url` — API endpoint (default: `https://api.minimax.io/v1`)
-- `minimax_default_model` — Default model (default: `MiniMax-M2.7`)
+- `minimax_default_model` — Default model. Ecosystem default `MiniMax-M3`; this repo's `settings/session-buddy.yaml` overrides to `MiniMax-M2.7`.
 - `zai_api_key` / `ZAI_API_KEY` — optional ZAI compatibility key
 - `zai_base_url` — optional compatibility endpoint (default: `https://api.z.ai/api/coding/paas/v4`)
 - `zai_default_model` — optional compatibility model (default: `glm-4.7`)
