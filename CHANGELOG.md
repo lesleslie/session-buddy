@@ -9,6 +9,37 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.22.1] - 2026-08-17
+
+### Added
+
+- session-buddy: Expand canonical ecosystem diagram with Dhara + Oneiric
+- session-buddy: Mirror wave-11 mermaid CI guard from crackerjack
+
+### Fixed
+
+- session-buddy: Drop aspirational tables from MEMORY_ARCHITECTURE ER diagram
+- session-buddy: Drop Redis L2 from cache-tier diagram (no redis client)
+- session-buddy: Fix table names in developer ARCHITECTURE ER diagram
+- session-buddy: Refine canonical diagram per wave-11 review
+- session-buddy: Remove duplicate session lifecycle flowchart from README
+- session-buddy: Rename __code_ingest_file_impl to public code_ingest_file
+- session-buddy: Replace pie chart in QUALITY_SCORING_V2 with table
+
+### Documentation
+
+- Fix broken badge images in README + Mahavishnu typos in ARCHITECTURE
+- session-buddy: Apply 10 P0 doc drift fixes from 2026-08-12 audit
+- session-buddy: Mark service-dependencies ecosystem diagram as canonical
+
+### Internal
+
+- gitignore: Add .coverage* + untrack .coverage-ratchet.json (bodai 2026-08-17)
+- session-buddy: Remove 6 archived duplicate diagram blocks
+- session-buddy: Remove 6 trivially-low-info diagram blocks from active docs
+- session-buddy: Strip PostgreSQL + Ollama from canonical diagram
+- session-buddy: Widen DEFAULT_SKIP_DIRS to include .crackerjack + uv
+
 ## [0.22.0] - 2026-08-12
 
 ### Added

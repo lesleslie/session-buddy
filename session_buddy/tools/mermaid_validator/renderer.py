@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 
@@ -110,9 +111,7 @@ DEFAULT_MERMAID_PREFIXES: tuple[str, ...] = (
 # imported and executed as code. We trust only the locally-vendored
 # `node_modules/jsdom/` installed in the session-buddy repo by `npm install`
 # (which pins the version in package.json). The path is `<repo>/node_modules/`.
-DEFAULT_JSDOM_LOCATIONS: tuple[str, ...] = (
-    "node_modules/jsdom/lib/api.js",
-)
+DEFAULT_JSDOM_LOCATIONS: tuple[str, ...] = ("node_modules/jsdom/lib/api.js",)
 
 
 def _locate_mermaid_core() -> Path | None:
@@ -201,9 +200,7 @@ def _locate_jsdom() -> Path | None:
 def _is_trusted_mermaid_path(path: Path) -> bool:
     """Allow-list check: `path` must live under a known-good mermaid prefix."""
     resolved = str(path.resolve())
-    return any(
-        resolved.startswith(prefix) for prefix in DEFAULT_MERMAID_PREFIXES
-    )
+    return any(resolved.startswith(prefix) for prefix in DEFAULT_MERMAID_PREFIXES)
 
 
 def validate_mermaid_blocks(
@@ -240,31 +237,8 @@ def validate_mermaid_blocks(
             "wave-11 dev dep, or set SESSION_BUDDY_JSDOM to its absolute path"
         )
 
-    payload = json.dumps(
-        [
-            {"file": str(b.file), "line": b.line, "code": b.code}
-            for b in blocks
-        ]
-    )
-
-    try:
-        completed = subprocess.run(
-            ["node", str(runner), str(mermaid_core), str(jsdom)],
-            input=payload,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-    except FileNotFoundError as e:
-        raise RuntimeError(
-            "node is not on PATH; install Node.js to run the mermaid CI guard"
-        ) from e
-    except subprocess.TimeoutExpired as e:
-        raise RuntimeError(
-            f"validate_mermaid.mjs timed out after {timeout}s on {len(blocks)} "
-            f"blocks"
-        ) from e
+    payload = _build_payload(blocks)
+    completed = _run_mermaid_subprocess(runner, mermaid_core, jsdom, payload, timeout)
 
     if completed.returncode != 0:
         raise RuntimeError(
@@ -280,17 +254,56 @@ def validate_mermaid_blocks(
             f"stdout={completed.stdout[:200]!r}"
         ) from e
 
-    errors: list[MermaidValidationError] = []
-    for entry in results:
-        if entry.get("status") == "error":
-            errors.append(
-                MermaidValidationError(
-                    file=Path(entry["file"]),
-                    line=entry["line"],
-                    error=entry.get("error", "<unknown error>"),
-                )
-            )
-    return errors
+    return _parse_results(results)
+
+
+def _build_payload(blocks: list[MermaidBlock]) -> str:
+    """Serialize the blocks into the JSON shape the Node runner expects."""
+    return json.dumps(
+        [{"file": str(b.file), "line": b.line, "code": b.code} for b in blocks]
+    )
+
+
+def _run_mermaid_subprocess(
+    runner: Path,
+    mermaid_core: Path,
+    jsdom: Path,
+    payload: str,
+    timeout: float,
+) -> subprocess.CompletedProcess[str]:
+    """Invoke the Node validator, translating subprocess errors into RuntimeError."""
+    try:
+        return subprocess.run(
+            ["node", str(runner), str(mermaid_core), str(jsdom)],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as e:
+        raise RuntimeError(
+            "node is not on PATH; install Node.js to run the mermaid CI guard"
+        ) from e
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"validate_mermaid.mjs timed out after {timeout}s on {len(payload)} bytes"
+        ) from e
+
+
+def _parse_results(
+    results: list[dict[str, Any]],
+) -> list[MermaidValidationError]:
+    """Filter the runner output down to entries that flagged an error."""
+    return [
+        MermaidValidationError(
+            file=Path(entry["file"]),
+            line=entry["line"],
+            error=entry.get("error", "<unknown error>"),
+        )
+        for entry in results
+        if entry.get("status") == "error"
+    ]
 
 
 def find_broken_mermaid_blocks(

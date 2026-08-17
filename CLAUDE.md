@@ -75,8 +75,7 @@ pytest --cov=session_buddy --cov-fail-under=85 && crackerjack security && cracke
 
 > **Note:** This section was removed during the 2026-08-12 audit because the
 > "Recent Changes (January 2025)" header was 19 months stale. See `CHANGELOG.md`
-> for the authoritative change log, and the `### Phase 2 Architecture Refactoring
-> (February 2026)` section below for the current architecture summary.
+> for the authoritative change log, and the `### Phase 2 Architecture Refactoring (February 2026)` section below for the current architecture summary.
 
 ### Oneiric Adapter Migration (COMPLETE)
 
