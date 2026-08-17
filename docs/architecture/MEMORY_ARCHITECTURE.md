@@ -236,7 +236,7 @@ sequenceDiagram
     HK->>SCR: spawn sb_post_tool.py
     SCR->>MCP: store_reflection(content="Edited file: X", tags=["file_edit", <ext>])
     MCP->>DB: INSERT reflections_v2 (tier=working)
-    SCR->>MCP: __code_ingest_file_impl(file_path=X) [fire-and-forget]
+    SCR->>MCP: code_ingest_file(file_path=X) [fire-and-forget]
     MCP->>DB: update kg_entities for symbols in X
     DB-->>MCP: reflection_id
     MCP-->>SCR: status: stored
