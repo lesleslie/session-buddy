@@ -568,30 +568,45 @@ ______________________________________________________________________
 ```mermaid
 graph TB
     subgraph "Required"
-        SB[Session-Buddy]
+        SB["Session-Buddy<br/>(Builder/Memory)"]
     end
 
     subgraph "Optional - Ecosystem"
-        MV[Mahavishnu]
-        AK[Akosha]
-        CJ[Crackerjack]
+        MV["Mahavishnu<br/>(Orchestrator)"]
+        AK["Akosha<br/>(Seer/Intelligence)"]
+        CJ["Crackerjack<br/>(Inspector/Quality)"]
+        DH["Dhara<br/>(Curator/State)"]
+        ON["Oneiric<br/>(Foundation)"]
     end
 
     subgraph "Optional - Infrastructure"
-        PG[PostgreSQL]
-        OL[Ollama]
+        PG["PostgreSQL<br/>(Dhara storage)"]
+        OL["Ollama<br/>(Local embeddings)"]
     end
 
     MV --> SB
     SB --> AK
     SB --> CJ
+    SB --> DH
+    DH --> ON
+    MV --> DH
+    CJ --> SB
+    AK --> SB
+    ON --> MV
+    ON --> SB
+    ON --> AK
+    ON --> CJ
+    ON --> DH
+
     SB --> PG
-    SB --> OL
+    AK --> OL
 
     style SB fill:#90EE90,stroke:#2E7D32,stroke-width:3px
     style MV fill:#FFD700,stroke:#B8860B,stroke-width:2px
     style AK fill:#FFD700,stroke:#B8860B,stroke-width:2px
     style CJ fill:#FFD700,stroke:#B8860B,stroke-width:2px
+    style DH fill:#FFD700,stroke:#B8860B,stroke-width:2px
+    style ON fill:#FFD700,stroke:#B8860B,stroke-width:2px
     style PG fill:#87CEEB,stroke:#1565C0,stroke-width:2px
     style OL fill:#FFA500,stroke:#B8860B,stroke-width:2px
 ```
@@ -599,9 +614,21 @@ graph TB
 **Legend**:
 
 - **Green**: Required (Session-Buddy itself)
-- **Yellow**: Optional ecosystem services
-- **Blue**: Optional infrastructure
-- **Orange**: Optional AI/ML services
+- **Yellow**: Optional Bodai ecosystem components (all 5 others)
+- **Blue**: Optional infrastructure (PostgreSQL via Dhara)
+- **Orange**: Optional AI/ML services (Ollama for local embeddings)
+
+**Component roles** (Bodai ecosystem convention):
+
+- **Session-Buddy** — Builder / Memory (port 8678)
+- **Mahavishnu** — Orchestrator / Routing (port 8680)
+- **Akosha** — Seer / Intelligence (port 8682)
+- **Crackerjack** — Inspector / Quality (port 8676)
+- **Dhara** — Curator / Persistent state (port 8683)
+- **Oneiric** — Foundation / Layered config (no port)
+
+This is the **canonical** Bodai ecosystem diagram. If you find a
+copy in another repo's docs, please link here instead of duplicating.
 
 ______________________________________________________________________
 
@@ -610,9 +637,11 @@ ______________________________________________________________________
 | Service | Default Port | Configurable | Required |
 |---------|--------------|--------------|----------|
 | Session-Buddy MCP | 8678 | Yes (CLI) | Yes (standard mode) |
-| Mahavishna MCP | 8680 | Yes | No |
+| Mahavishnu MCP | 8680 | Yes | No |
 | Akosha MCP | 8682 | Yes | No |
 | Crackerjack MCP | 8676 | Yes | No |
+| Dhara MCP | 8683 | Yes | No |
+| Oneiric | n/a | n/a | Yes (library) |
 | PostgreSQL | 5432 | Yes | No (SQLite default) |
 | Ollama | 11434 | No | No |
 
