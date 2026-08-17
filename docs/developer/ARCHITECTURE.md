@@ -840,8 +840,8 @@ class ShardedDatabase:
 ```mermaid
 graph LR
     Request --> L1[L1: In-Memory Cache]
-    L1 --> L2[L2: Redis Cache]
-    L2 --> L3[L3: Database]
+    L1 --> L2[L2: DuckDB Materialized View]
+    L2 --> L3[L3: DuckDB Base Table]
 
     L1 -.-> |TTL: 5min| L1
     L2 -.-> |TTL: 30min| L2
