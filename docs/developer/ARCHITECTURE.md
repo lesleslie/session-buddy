@@ -155,61 +155,6 @@ graph TB
     style DuckDB fill:#bbdefb
 ```
 
-### Component Interaction Layers
-
-```mermaid
-graph LR
-    subgraph Layer1["Presentation Layer"]
-        MCP[MCP Tools & Prompts]
-    end
-
-    subgraph Layer2["Application Layer"]
-        Session[Session Management]
-        Hooks[Hooks System]
-        Intel[Intelligence Features]
-    end
-
-    subgraph Layer3["Domain Layer"]
-        Memory[Memory System]
-        Quality[Quality Monitoring]
-        Permissions[Permission System]
-    end
-
-    subgraph Layer4["Infrastructure Layer"]
-        Storage[DuckDB Storage]
-        Cache[Query Cache]
-        Search[Vector Search]
-    end
-
-    subgraph Layer5["External Layer"]
-        Git[Git Integration]
-        CJ[Crackerjack]
-        Oneiric[Oneiric Runtime]
-    end
-
-    MCP --> Session
-    MCP --> Hooks
-    MCP --> Intel
-
-    Session --> Memory
-    Hooks --> Quality
-    Intel --> Permissions
-
-    Memory --> Storage
-    Quality --> Cache
-    Permissions --> Search
-
-    Storage --> Git
-    Cache --> CJ
-    Search --> Oneiric
-
-    style Layer1 fill:#e3f2fd
-    style Layer2 fill:#fff9c4
-    style Layer3 fill:#c8e6c9
-    style Layer4 fill:#b2dfdb
-    style Layer5 fill:#ffccbc
-```
-
 ## Core Architecture Components
 
 ### 1. MCP Server Layer

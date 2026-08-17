@@ -371,29 +371,10 @@ ______________________________________________________________________
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                   RealTimeMetricsServer                      │
-│                                                              │
-│  ┌──────────────┐    ┌───────────────────────────────────┐  │
-│  │   Clients    │    │     Background Broadcaster        │  │
-│  │              │    │                                   │  │
-│  │  ┌────────┐  │    │  • Fetch top 10 skills/sec       │  │
-│  │  │Client 1│──│───│>  • Detect anomalies             │  │
-│  │  └────────┘  │    │  • Build JSON payload            │  │
-│  │  ┌────────┐  │    │  • Broadcast to all clients     │  │
-│  │  │Client 2│──│───│>                                   │  │
-│  │  └────────┘  │    └───────────────────────────────────┘  │
-│  │  ┌────────┐  │                │                         │
-│  │  │Client 3│──│───┐            │                         │
-│  │  └────────┘  │    │            ▼                         │
-│  └──────────────┘    │  ┌─────────────────────┐              │
-│                      └──│   SkillsStorage     │              │
-│                         │  • get_top_skills() │              │
-│                         │  • _detect_anomalies│              │
-│                         └─────────────────────┘              │
-└─────────────────────────────────────────────────────────────┘
-```
+See `docs/reference/architecture-overview.md` for the current WebSocket
+broadcasting architecture (per-client subscribers, broadcaster loop, and
+`SkillsStorage` backplane). This delivery report captures the v1 build that
+has since been superseded.
 
 ______________________________________________________________________
 

@@ -77,69 +77,6 @@ ______________________________________________________________________
 
 ## Data Flow Architecture
 
-### Session Lifecycle
-
-```mermaid
-graph LR
-    A[User Request] --> B[SessionManager]
-    B --> C[Session Storage]
-    C --> D[DuckDB Database]
-    D --> E[Analytics Engine]
-    E --> F[Insights Generation]
-    F --> G[Memory Store]
-    G --> H[MCP Server]
-
-    style B fill:#90EE90,stroke:#2E7D32,stroke-width:3px
-    style D fill:#87CEEB,stroke:#1565C0,stroke-width:2px
-    style H fill:#FFD700,stroke:#B8860B,stroke-width:2px
-```
-
-### Memory Storage Flow
-
-```mermaid
-graph TB
-    subgraph "Input Sources"
-        A1[User Messages]
-        A2[AI Responses]
-        A3[Code Changes]
-    end
-
-    subgraph "Processing"
-        B1[Validation]
-        B2[Tagging]
-        B3[Embedding Generation]
-    end
-
-    subgraph "Storage"
-        C1[Memory Store]
-        C2[DuckDB]
-        C3[Vector Index]
-    end
-
-    subgraph "Output"
-        D1[Search Results]
-        D2[Analytics]
-        D3[Insights]
-    end
-
-    A1 --> B1
-    A2 --> B1
-    A3 --> B1
-    B1 --> B2
-    B2 --> B3
-    B3 --> C1
-    B3 --> C2
-    B3 --> C3
-
-    C1 --> D1
-    C2 --> D2
-    C3 --> D3
-
-    style C1 fill:#90EE90,stroke:#2E7D32,stroke-width:2px
-    style C2 fill:#87CEEB,stroke:#1565C0,stroke-width:2px
-    style C3 fill:#FFD700,stroke:#B8860B,stroke-width:2px
-```
-
 ### MCP Integration Flow
 
 ```mermaid

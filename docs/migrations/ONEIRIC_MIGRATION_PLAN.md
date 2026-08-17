@@ -86,33 +86,8 @@ gantt
 
 ### Migration Phase Dependencies
 
-```mermaid
-graph TD
-    P0[Phase 0:<br/>Alignment] --> P1[Phase 1:<br/>CLI Factory]
-    P1 --> P2[Phase 2:<br/>Snapshots]
-    P2 --> P3[Phase 3:<br/>Settings]
-
-    P0 --> P4[Phase 4:<br/>DI Conversion]
-
-    P3 --> P5[Phase 5:<br/>Adapters]
-    P4 --> P5
-
-    P5 --> P6[Phase 6:<br/>Validation]
-    P6 --> P7[Phase 7:<br/>Documentation]
-
-    P6 -.->|100% Pass| Release[Production<br/>Release]
-    P7 --> Release
-
-    style P0 fill:#c8e6c9
-    style P1 fill:#c8e6c9
-    style P2 fill:#c8e6c9
-    style P3 fill:#c8e6c9
-    style P4 fill:#c8e6c9
-    style P5 fill:#c8e6c9
-    style P6 fill:#fff9c4
-    style P7 fill:#ffccbc
-    style Release fill:#b2dfdb
-```
+See the gantt chart above for the migration timeline. Phase dependencies follow
+linear sequencing (P0 → P1 → … → P7) with two cross-cuts: P0 → P4 and P3 → P5.
 
 ### Test Status (last verified 2024-12-28)
 

@@ -15,30 +15,17 @@ This document defines a privacy-first, cross-project skill metrics aggregation s
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Mahavishnu Orchestrator                      │
-│                    (session-buddy)                              │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ├─── Project Registry
-                              │    └── Track all known projects
-                              │
-                              ├─── Metrics Collector (NEW)
-                              │    ├── Collect from .session-buddy/skill_metrics.json
-                              │    ├── Normalize and validate
-                              │    └── Store in aggregated DuckDB
-                              │
-                              ├─── Aggregation Engine (NEW)
-                              │    ├── Cross-project rollups
-                              │    ├── Time-series analysis
-                              │    └── Pattern detection
-                              │
-                              └── Workflow Telemetry (ENHANCED)
-                                   ├── Skill usage per workflow
-                                   ├── Effectiveness correlation
-                                   └── Optimization recommendations
-```
+The skill metrics aggregation layer sits between the **Mahavishnu
+Orchestrator (session-buddy)** and per-project skill data. Its four
+sub-components:
+
+- **Project Registry** — track all known projects
+- **Metrics Collector** — collect from `.session-buddy/skill_metrics.json`,
+  normalize, validate, store in aggregated DuckDB
+- **Aggregation Engine** — cross-project rollups, time-series analysis,
+  pattern detection
+- **Workflow Telemetry** — skill usage per workflow, effectiveness
+  correlation, optimization recommendations
 
 ## Design Principles
 
