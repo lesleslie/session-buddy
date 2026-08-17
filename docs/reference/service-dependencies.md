@@ -583,9 +583,10 @@ graph TB
     SB --> AK
     SB --> CJ
     SB --> DH
+    AK --> DH
+    CJ --> DH
     DH --> ON
     MV --> DH
-    CJ --> SB
     AK --> SB
     ON --> MV
     ON --> SB
@@ -607,8 +608,10 @@ graph TB
 - **Yellow**: Optional Bodai ecosystem components (all 5 others)
 
 This diagram shows **only Bodai-ecosystem topology**. External
-dependencies (PostgreSQL via Dhara, llama.cpp for local embeddings) are
-implementation details — see per-component docs for those.
+dependencies (PostgreSQL as Dhara's opt-in storage backend; llama.cpp
+for local embeddings with Ollama retained as a fallback tier in
+Mahavishnu's three-tier chain) are implementation details — see
+per-component docs for those.
 
 **Component roles** (Bodai ecosystem convention):
 
@@ -617,7 +620,15 @@ implementation details — see per-component docs for those.
 - **Akosha** — Seer / Intelligence (port 8682)
 - **Crackerjack** — Inspector / Quality (port 8676)
 - **Dhara** — Curator / Persistent state (port 8683)
-- **Oneiric** — Foundation / Layered config (no port)
+- **Oneiric** — Foundation / Layered config (no port by default; an
+  optional scheduler HTTP server binds 8080 in the `serverless` profile)
+
+**Edge caveats**:
+
+- `SB --> CJ` is implemented via `subprocess.run("python -m crackerjack ...")`,
+  not over MCP. See `session_buddy/crackerjack_integration.py:210-225`.
+- Oneiric directly depends on Dhara too (`oneiric/core/ulid.py` imports
+  from `dhara`); the `ON --> DH` arrow captures that.
 
 This is the **canonical** Bodai ecosystem diagram. If you find a
 copy in another repo's docs, please link here instead of duplicating.
