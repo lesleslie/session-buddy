@@ -178,3 +178,9 @@ tests/archived/
 .worktrees/
 
 .superprofits/
+
+# ============================================================================
+# Node.js - Wave-11 mermaid CI guard
+# ============================================================================
+node_modules/
+!node_modules/.gitkeep

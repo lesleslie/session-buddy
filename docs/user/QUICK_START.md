@@ -156,7 +156,7 @@ flowchart TD
     Install --> Detect
 
     Detect -->|Yes| Auto[Auto-Initialize]
-    Detect -->|No| Manual[/start Command]
+    Detect -->|No| Manual[/start Command/]
 
     Auto --> Setup[Session Setup]
     Manual --> Setup
