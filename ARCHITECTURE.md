@@ -82,7 +82,7 @@ ______________________________________________________________________
 ```mermaid
 graph TB
     subgraph "External Services"
-        A[Mahavishna Orchestrator]
+        A[Mahavishnu Orchestrator]
         B[Akosha Analytics]
         C[Crackerjack QC]
     end
@@ -472,13 +472,13 @@ ______________________________________________________________________
 **Usage**:
 
 ```python
-# Mahavishnua creates session via MCP
+# Mahavishnu creates session via MCP
 await mcp.call_tool("create_session", {
     "name": "microservice-auth",
     "metadata": {"project": "auth-service"}
 })
 
-# Mahavishnua stores progress
+# Mahavishnu stores progress
 await mcp.call_tool("add_message", {
     "session_id": "abc123",
     "role": "assistant",
