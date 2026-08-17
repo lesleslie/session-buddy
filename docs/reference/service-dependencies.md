@@ -560,6 +560,11 @@ ______________________________________________________________________
 
 ## Dependency Graph
 
+!!! note "Canonical ecosystem view"
+    This is the canonical Bodai ecosystem-dependencies diagram. Earlier copies appear in
+    `ARCHITECTURE.md:145` and `docs/archive/uncategorized/DOCS_CONSOLIDATION_PLAN.md:593`
+    (archived); those should link here, not duplicate.
+
 ```mermaid
 graph TB
     subgraph "Required"
