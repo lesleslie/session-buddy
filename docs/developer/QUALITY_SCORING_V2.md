@@ -253,13 +253,15 @@ flowchart TD
 
 ### Scoring Category Breakdown
 
-```mermaid
-pie title Quality Scoring Distribution
-    "Code Quality (Tests + Lint + Types)" : 40
-    "Project Health (Structure + Docs)" : 30
-    "Development Velocity (Git + Productivity)" : 20
-    "Security (Vulnerabilities + Scanning)" : 10
-```
+The flowchart above shows the same 40/30/20/10 split — tabulated here for reference:
+
+| Category | Points | Components |
+|----------|--------|------------|
+| Code Quality | 40 | Tests (15) + Lint (10) + Types (10) + Complexity (5) |
+| Project Health | 30 | Modern Tooling (15) + Project Maturity (15) |
+| Development Velocity | 20 | Git Activity (10) + Dev Patterns (10) |
+| Security | 10 | Security Tooling (5) + Security Hygiene (5) |
+| **Total** | **100** | |
 
 ## Implementation Strategy
 
