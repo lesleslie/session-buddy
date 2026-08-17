@@ -579,11 +579,6 @@ graph TB
         ON["Oneiric<br/>(Foundation)"]
     end
 
-    subgraph "Optional - Infrastructure"
-        PG["PostgreSQL<br/>(Dhara storage)"]
-        OL["Ollama<br/>(Local embeddings)"]
-    end
-
     MV --> SB
     SB --> AK
     SB --> CJ
@@ -598,25 +593,22 @@ graph TB
     ON --> CJ
     ON --> DH
 
-    SB --> PG
-    AK --> OL
-
     style SB fill:#90EE90,stroke:#2E7D32,stroke-width:3px
     style MV fill:#FFD700,stroke:#B8860B,stroke-width:2px
     style AK fill:#FFD700,stroke:#B8860B,stroke-width:2px
     style CJ fill:#FFD700,stroke:#B8860B,stroke-width:2px
     style DH fill:#FFD700,stroke:#B8860B,stroke-width:2px
     style ON fill:#FFD700,stroke:#B8860B,stroke-width:2px
-    style PG fill:#87CEEB,stroke:#1565C0,stroke-width:2px
-    style OL fill:#FFA500,stroke:#B8860B,stroke-width:2px
 ```
 
 **Legend**:
 
 - **Green**: Required (Session-Buddy itself)
 - **Yellow**: Optional Bodai ecosystem components (all 5 others)
-- **Blue**: Optional infrastructure (PostgreSQL via Dhara)
-- **Orange**: Optional AI/ML services (Ollama for local embeddings)
+
+This diagram shows **only Bodai-ecosystem topology**. External
+dependencies (PostgreSQL via Dhara, llama.cpp for local embeddings) are
+implementation details — see per-component docs for those.
 
 **Component roles** (Bodai ecosystem convention):
 
@@ -642,8 +634,6 @@ ______________________________________________________________________
 | Crackerjack MCP | 8676 | Yes | No |
 | Dhara MCP | 8683 | Yes | No |
 | Oneiric | n/a | n/a | Yes (library) |
-| PostgreSQL | 5432 | Yes | No (SQLite default) |
-| Ollama | 11434 | No | No |
 
 **Configure Ports**:
 
