@@ -345,11 +345,11 @@ CREATE TABLE project_dependencies (
 erDiagram
     conversations ||--o{ reflections : contains
     conversations ||--o{ project_dependencies : related
-    conversations ||--o{ knowledge_graph_entities : references
-    reflections ||--o{ reflections_tags : has
+    conversations ||--o{ kg_entities : references
+    reflections ||--o{ reflection_tags : has
     reflections ||--o{ team_reflections : shared
     project_dependencies ||--o{ project_groups : part_of
-    knowledge_graph_entities ||--o{ knowledge_graph_relationships : connected
+    kg_entities ||--o{ kg_relationships : connected
 
     conversations {
         text id PK
@@ -389,7 +389,7 @@ erDiagram
         text description
     }
 
-    knowledge_graph_entities {
+    kg_entities {
         text id PK
         text name
         text entity_type
@@ -397,7 +397,7 @@ erDiagram
         timestamp created_at
     }
 
-    knowledge_graph_relationships {
+    kg_relationships {
         text id PK
         text source_entity_id FK
         text target_entity_id FK
@@ -413,7 +413,7 @@ erDiagram
         int vote_score
     }
 
-    reflections_tags {
+    reflection_tags {
         text reflection_id FK
         text tag
     }
