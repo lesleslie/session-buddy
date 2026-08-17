@@ -153,35 +153,10 @@ Phase 4 "Advanced Analytics & Integration" for Session-Buddy has been **successf
 
 ### **Component Architecture**
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    MCP Server Layer                        │
-│  - 6 Phase 4 tools (real-time, analytics, collaborative)    │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-┌────────────────────────┴────────────────────────────────────┐
-│                  Application Layer                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ WebSocket   │  │   Analytics   │  │ Integration  │      │
-│  │   Server     │  │   Engine      │  │    Layer     │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-┌────────────────────────┴────────────────────────────────────┐
-│                  Data Access Layer                          │
-│  ┌──────────────────────────────────────────────────┐     │
-│  │         SkillsStorage (V4 Extensions)           │     │
-│  │  - 6 new query methods for V4 data             │     │
-│  └──────────────────────────────────────────────────┘     │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-┌────────────────────────┴────────────────────────────────────┐
-│                   V4 Database Schema                         │
-│  - 14 new tables (real-time, analytics, taxonomy)      │
-│  - 6 new views (dashboards, trends, comparisons)       │
-│  - Triggers for real-time cache updates                  │
-└───────────────────────────────────────────────────────────┘
-```
+The Phase 4 stack has four layers — MCP Server (6 new tools),
+Application (WebSocket / Analytics / Integration), Data Access
+(`SkillsStorage` V4 extensions, 6 new query methods), and V4 Database
+Schema (14 new tables, 6 views, real-time cache triggers).
 
 ---
 

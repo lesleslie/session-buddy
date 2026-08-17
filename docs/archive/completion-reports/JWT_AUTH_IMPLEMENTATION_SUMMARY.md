@@ -49,38 +49,10 @@ Implemented JWT-based authentication for Session-Buddy MCP tools, providing secu
 
 ### Token Flow
 
-```
-┌─────────────────┐
-│ Client Request  │
-│ (with token)    │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────────────────┐
-│ Check if auth enabled       │
-│ (SESSION_BUDDY_SECRET set?) │
-└────────┬────────────────────┘
-         │
-    ┌────┴────┐
-    │         │
-   No        Yes
-    │         │
-    ▼         ▼
-┌────────┐ ┌──────────────────┐
-│ Proceed│ │ Validate token   │
-│ (no    │ │ (HS256 verify)   │
-│ auth)  │ └──────┬───────────┘
-└────────┘        │
-             ┌────┴────┐
-             │         │
-           Valid    Invalid
-             │         │
-             ▼         ▼
-        ┌────────┐ ┌────────────┐
-        │Execute │ │ Return     │
-        │tool    │ │error       │
-        └────────┘ └────────────┘
-```
+The JWT auth flow is: client sends a request with a token → if
+`SESSION_BUDDY_SECRET` is unset, proceed without auth; if set, validate
+the HS256 token → on success, execute the tool; on failure, return an
+error. No `403` is raised for missing secrets (backward compatible).
 
 ## Usage
 

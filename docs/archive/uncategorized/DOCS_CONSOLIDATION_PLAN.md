@@ -359,29 +359,6 @@ ______________________________________________________________________
 
 ## Data Flow
 
-### Session Lifecycle
-
-```mermaid
-stateDiagram-v2
-    [*] --> GitRepo: Claude Code Connects
-    [*] --> ManualInit: Non-Git Project
-
-    GitRepo --> AutoStart: Auto-detect Git
-    AutoStart --> Working: Development
-
-    ManualInit --> ManualStart: User runs /start
-    ManualStart --> Working: Development
-
-    Working --> Checkpoint: /checkpoint
-    Checkpoint --> Working: Continue
-
-    Working --> AutoEnd: Disconnect/Quit
-    Working --> ManualEnd: User runs /end
-
-    AutoEnd --> [*]: Session Handoff
-    ManualEnd --> [*]: Session Handoff
-```
-
 ### Insights Capture Flow
 
 ```mermaid
@@ -590,28 +567,8 @@ database:
 
 ## Dependency Graph
 
-```mermaid
-graph TB
-    SB[Session-Buddy]
-
-    SB --> MB{Mahavishnu}
-    SB --> AK{Akosha}
-    SB --> CJ{Crackerjack}
-    SB --> DB{(Database)}
-
-    MB -.Optional.-> SB
-    AK -.Optional.-> SB
-    CJ -.Optional.-> SB
-
-    DB -->|DuckDB| SB
-    DB -.Optional PostgreSQL.-> SB
-
-    style SB fill:#90EE90
-    style MB fill:#FFD700
-    style AK fill:#FFD700
-    style CJ fill:#FFD700
-    style DB fill:#87CEEB
-```
+See `docs/reference/service-dependencies.md` for the canonical Bodai
+ecosystem-dependencies diagram.
 
 ## Startup Order
 

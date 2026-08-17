@@ -43,67 +43,19 @@ This separation enables independent development, testing, and gradual rollout.
 
 ## Integration Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                           COMPLETE DATA FLOW                                    │
-├─────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                    │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │ QUERY PROCESSING PIPELINE (Phases 1-3)                                    │ │
-│  ├────────────────────────────────────────────────────────────────────────────┤ │
-│  │                                                                            │ │
-│  │  User Query ──┬──► [Phase 2] Query Rewriting ──┬──► Expanded Query       │ │
-│  │               │      (LLM expands pronouns)     │                          │ │
-│  │               └──────────────────────────────────┘                          │ │
-│  │                                                     │                        │                 │
-│  │                                                     ▼                        │                 │
-│  │  [Phase 1] Query Cache Lookup (hash-based O(1))                        │ │
-│  │                     │                                    │                 │
-│  │                     ├─ Hit? ──────────────────────────► Return (<1ms)   │ │
-│  │                     │                                                        │ │
-│  │                     └─ Miss ────────────────────────────┐                  │ │
-│  │                                                          │                  │ │
-│  │                                                          ▼                  │ │
-│  │                                         ┌──────────────────────────────────┐       │ │
-│  │                                         │ [Phase 3] Progressive Search    │       │ │
-│  │                                         │ ├─ Tier 1: Categories       │       │ │
-│  │                                         │ ├─ Tier 2: Insights           │       │ │
-│  │                                         │ ├─ Tier 3: Reflections       │       │ │
-│  │                                         │ ├─ Tier 4: Conversations      │       │ │
-│  │                                         │ │   (stop when sufficient)    │       │ │
-│  │                                         │ └──────────────────────────────────┘       │ │
-│  │                                                            │             │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                    │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │ STORAGE & ORGANIZATION PIPELINE (Phases 4-5)                                  │ │
-│  ├────────────────────────────────────────────────────────────────────────────┤ │
-│  │                                                                            │ │
-│  │  New Content ──┬──► [Phase 4] N-gram Fingerprinting ──┬──► Duplicate?     │ │
-│  │               │      (MinHash signature)              │                  │ │
-│  │               │                                       │                  │ │
-│  │               │                                       ├─ Yes ──► Skip/Merge │ │
-│  │               │                                       │                  │ │
-│  │               │                                       └─ No ────┐        │ │
-│  │               │                                                 │        │ │
-│  │               └─────────────────────────────────────────────────┘        │ │
-│  │                                                                   │        │ │
-│  │                                                                   ▼        │ │
-│  │                                                      Store Content         │ │
-│  │                                                                   │        │ │
-│  │                                                                   ▼        │ │
-│  │                                         ┌──────────────────────────────────┐       │ │
-│  │                                         │ [Phase 5] Category Evolution    │       │ │
-│  │                                         │ (background clustering job)    │       │ │
-│  │                                         │ ├─ Assign to subcategory      │       │ │
-│  │                                         │ ├─ Update cluster centroids   │       │ │
-│  │                                         │ └─ Reorganize periodically    │       │ │
-│  │                                         └──────────────────────────────────┘       │ │
-│  │                                                                                    │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                    │
-└─────────────────────────────────────────────────────────────────────────────────────┘
-```
+The data flow is two parallel pipelines:
+
+**Query Processing (Phases 1-3):** user query → Phase 2 query
+rewriting (LLM expands pronouns) → Phase 1 hash-based cache lookup
+(O(1) hit → return <1ms, miss → fall through) → Phase 3 progressive
+search across Categories (T1) → Insights (T2) → Reflections (T3) →
+Conversations (T4), stopping as soon as results are sufficient.
+
+**Storage & Organization (Phases 4-5):** new content → Phase 4
+N-gram fingerprinting (MinHash signature) → duplicate check
+(yes → skip/merge, no → store) → Phase 5 category evolution
+(background clustering, subcategory assignment, cluster-centroid
+updates, periodic reorganization).
 
 ## Critical Integration Points
 
