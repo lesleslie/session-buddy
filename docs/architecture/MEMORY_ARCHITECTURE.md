@@ -76,12 +76,10 @@ erDiagram
     kg_entities ||--o{ kg_relationships : "subject of"
     kg_entities ||--o{ kg_observations : "described by"
 
-    %% Crackerjack memory
-    fix_attempts ||--o{ distilled_skills : "feeds"
-    git_metrics ||--o{ fix_attempts : "context for"
-
-    %% Serverless sessions
-    serverless_sessions ||--o{ session_acl : "scoped by"
+    %% Causal chains (Phase 2.5) — actual SQL tables from causal_chains.py
+    causal_error_events ||--o{ causal_fix_attempts : "attempts"
+    causal_error_events ||--o{ causal_chains : "resolves"
+    causal_fix_attempts ||--o{ causal_chains : "successful"
 
     reflections {
         uuid id PK
@@ -126,11 +124,29 @@ erDiagram
         string entity_type
         text observations
     }
-    fix_attempts {
-        uuid id PK
-        string error_pattern FK
-        string action_taken
-        bool resolved
+    causal_error_events {
+        string id PK
+        text error_message
+        text error_type
+        json context
+        timestamp timestamp
+        string session_id
+        float embedding
+    }
+    causal_fix_attempts {
+        string id PK
+        string error_id FK
+        text action_taken
+        text code_changes
+        bool successful
+        timestamp timestamp
+    }
+    causal_chains {
+        string id PK
+        string error_id FK
+        string successful_fix_id FK
+        float resolution_time_minutes
+        timestamp created_at
     }
 
     style reflections fill:#fdd,stroke:#933
@@ -138,7 +154,9 @@ erDiagram
     style memory_entities fill:#dfd,stroke:#383
     style distilled_skills fill:#ffd,stroke:#993
     style kg_entities fill:#ddf,stroke:#339
-    style fix_attempts fill:#dff,stroke:#399
+    style causal_error_events fill:#dff,stroke:#399
+    style causal_fix_attempts fill:#dff,stroke:#399
+    style causal_chains fill:#dff,stroke:#399
 ```
 
 ### Per-table ownership map
