@@ -1,19 +1,21 @@
 """Verify Task 9 wiring: store_cross_repo_work registered for STANDARD profile.
 
 Tests three independent wiring steps:
-1. ``register_cross_repo_work_tools`` is appended to ``STANDARD_REGISTRATIONS``.
-2. ``register_cross_repo_work_tools`` is keyed in ``_ALL_REGISTERS``.
+1. ``register_cross_repo_work_tools`` is in ``STANDARD_REGISTRATIONS``.
+2. ``register_cross_repo_work_tools`` is keyed in ``REGISTRATION_MAP``
+   (W0 helper dispatch map in ``profiles.py`` -- replaces the legacy
+   ``_ALL_REGISTERS`` dict that lived in ``server.py``).
 3. The function composes the tool with the correct MCP-visible name.
 
 These are integration tests because they touch multiple layers (profile
-registry, server module, registration callable).
+registry, profiles module, registration callable).
 
-Step 2 deliberately uses AST parsing of ``server.py`` instead of importing
-it. Importing ``session_buddy.mcp.server`` triggers a pre-existing
-circular import through ``intelligence_tools.py``'s eager
-``from session_buddy.mcp.server import mcp``; the membership check below
-is satisfied as long as the registration key is present in the
-``_ALL_REGISTERS`` dict literal at module level, which is the same
+Step 2 deliberately uses AST parsing of ``profiles.py`` instead of
+importing it. Importing ``session_buddy.mcp.profiles`` triggers a
+pre-existing circular import through ``intelligence_tools.py``'s
+eager ``from session_buddy.mcp.server import mcp``; the membership
+check below is satisfied as long as the registration key is present in
+the ``REGISTRATION_MAP`` dict literal at module level, which is the same
 property the sibling drift test
 (:mod:`tests.unit.mcp.test_tool_profile_drift`) verifies via AST.
 """
@@ -23,7 +25,7 @@ import ast
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_SERVER_PY = _REPO_ROOT / "session_buddy" / "mcp" / "server.py"
+_PROFILES_PY = _REPO_ROOT / "session_buddy" / "mcp" / "tools" / "profiles.py"
 
 
 def test_register_cross_repo_work_tools_in_standard_profile() -> None:
@@ -35,18 +37,24 @@ def test_register_cross_repo_work_tools_in_standard_profile() -> None:
     )
 
 
-def test_register_cross_repo_work_tools_in_all_registers() -> None:
-    """Assert the registration key is present in ``_ALL_REGISTERS`` via AST."""
-    tree = ast.parse(_SERVER_PY.read_text())
+def test_register_cross_repo_work_tools_in_registration_map() -> None:
+    """Assert the registration key is present in ``REGISTRATION_MAP`` via AST.
+
+    After the W0 (mcp-common>=0.18.0) refactor, ``REGISTRATION_MAP`` lives
+    in ``session_buddy/mcp/tools/profiles.py`` and is the canonical
+    dispatch map consumed by ``_apply_tool_profile``. The legacy
+    ``_ALL_REGISTERS`` dict in ``server.py`` has been removed.
+    """
+    tree = ast.parse(_PROFILES_PY.read_text())
     keys: set[str] = set()
     for node in ast.walk(tree):
         value: ast.AST | None = None
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            if node.target.id == "_ALL_REGISTERS":
+            if node.target.id == "REGISTRATION_MAP":
                 value = node.value
         elif isinstance(node, ast.Assign) and node.targets:
             target = node.targets[0]
-            if isinstance(target, ast.Name) and target.id == "_ALL_REGISTERS":
+            if isinstance(target, ast.Name) and target.id == "REGISTRATION_MAP":
                 value = node.value
         if not isinstance(value, ast.Dict):
             continue

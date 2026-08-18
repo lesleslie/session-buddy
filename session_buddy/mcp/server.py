@@ -1,34 +1,45 @@
 """MCP Server module - imports and exports the mcp instance.
 
 This module imports the mcp instance from server_optimized and registers
-tool modules based on the active ``ToolProfile``.
+tool modules based on the active ``ToolProfile`` via the W0 helper in
+``mcp_common.tools.dispatch``.
 
 Profile configuration
 ---------------------
 The profile is read from the ``SESSION_BUDDY_TOOL_PROFILE`` environment
 variable.  When unset or invalid the default is ``FULL`` (all tools).
 
-    SESSION_BUDDY_TOOL_PROFILE=minimal   # ~12 tools
-    SESSION_BUDDY_TOOL_PROFILE=standard  # ~35 tools
+    SESSION_BUDDY_TOOL_PROFILE=minimal   # minimal core + mandatory health
+    SESSION_BUDDY_TOOL_PROFILE=standard  # daily-development essentials
     SESSION_BUDDY_TOOL_PROFILE=full      # all tools (default)
+
+W0 helper integration
+---------------------
+Tool registration is delegated to ``_apply_tool_profile`` from
+``mcp-common>=0.18.0``. ``REGISTRATION_MAP`` and
+``SESSION_BUDDY_MANDATORY_GROUPS`` are defined in
+``session_buddy/mcp/tools/profiles.py``. ``admin_shell_tracking_tools``
+is registered at FULL profile via the same mechanism (preserves
+pre-refactor behavior).
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
-from mcp_common.tools import ToolProfile
+from mcp_common.tools.dispatch import _apply_tool_profile
 
 from ..server_optimized import mcp
 from .tools.profiles import (
-    MANDATORY_REGISTRATIONS,
     PROFILE_REGISTRATIONS,
+    REGISTRATION_MAP,
+    SESSION_BUDDY_MANDATORY_GROUPS,
 )
-from .tools.session.channel_tracking_tools import _make_dhara_publisher
 
 logger = logging.getLogger(__name__)
 
@@ -42,141 +53,41 @@ from session_buddy.core.session_manager import (
 )
 
 # ---------------------------------------------------------------------------
-# Import every registration function that *could* be called.
-# Keeping them all imported avoids import errors when a profile references
-# a function that would otherwise be lazy-loaded.
+# W0 helper wiring
 # ---------------------------------------------------------------------------
-from .tools import (
-    register_access_log_tools,
-    register_admin_shell_tracking_tools,
-    register_akosha_tools,
-    register_bottleneck_tools,
-    register_cache_tools,
-    register_channel_session_state_tools,
-    register_channel_tracking_tools,
-    register_code_analysis_tools,  # Tree-sitter integration
-    register_code_graph_tools,
-    register_conscious_agent_tools,
-    register_conversation_tools,
-    register_crackerjack_tools,
-    register_cross_repo_work_tools,
-    register_export_tools,
-    register_extraction_tools,
-    register_feature_flags_tools,
-    register_health_tools_sb,
-    register_hooks_tools,
-    register_intent_tools,
-    register_knowledge_graph_tools,
-    register_llm_tools,
-    register_memory_health_tools,
-    register_migration_tools,
-    register_monitoring_tools,
-    register_phase3_knowledge_graph_tools,
-    register_phase4_tools,  # Phase 4 Skills Analytics
-    register_pool_tools,
-    register_prompt_tools,
-    register_search_tools,
-    register_serverless_tools,
-    register_session_analytics_tools,
-    register_session_tools,
-    register_team_tools,
-    register_workflow_metrics_tools,
-    register_worktree_tools,
+
+
+def _register_all_tool_groups(server: Any) -> None:
+    """Bulk register every tool group at FULL profile.
+
+    The W0 helper invokes this once when ``PROFILE_REGISTRATIONS[FULL]``
+    is ``ALL_TOOLS``. We skip the mandatory groups because the helper
+    re-registers them in its mandatory_groups pass; running them here
+    would create duplicate tool registration warnings from FastMCP.
+    """
+    for name, fn in REGISTRATION_MAP.items():
+        if name in SESSION_BUDDY_MANDATORY_GROUPS:
+            continue
+        fn(server)
+
+
+# Apply the profile at module load. ``_apply_tool_profile`` is async; the
+# helper raises if called from inside a running event loop, so wrap with
+# ``asyncio.run`` (which spins a fresh loop and is safe at module-import
+# time when no loop is running). session-buddy is env-only so
+# ``yaml_loader=None`` -- no settings/local.yaml lookup.
+asyncio.run(
+    _apply_tool_profile(
+        mcp,
+        profile_env_var="SESSION_BUDDY_TOOL_PROFILE",
+        registrations=PROFILE_REGISTRATIONS,
+        registration_map=REGISTRATION_MAP,
+        register_all_fn=_register_all_tool_groups,
+        mandatory_groups=SESSION_BUDDY_MANDATORY_GROUPS,
+        essential_tool_names=set(),
+        yaml_loader=None,
+    )
 )
-
-# Import discovery tools (always registered)
-from .tools.discovery_tools import register_discovery_tools
-
-# Import Prometheus metrics tools
-from .tools.monitoring.prometheus_metrics_tools import (
-    register_prometheus_metrics_tools,
-)
-
-# ---------------------------------------------------------------------------
-# Registry: map function name -> callable
-# ---------------------------------------------------------------------------
-
-_ALL_REGISTERS: dict[str, Any] = {
-    "register_access_log_tools": register_access_log_tools,
-    "register_admin_shell_tracking_tools": register_admin_shell_tracking_tools,
-    "register_channel_tracking_tools": register_channel_tracking_tools,
-    "register_akosha_tools": register_akosha_tools,
-    "register_bottleneck_tools": register_bottleneck_tools,
-    "register_cache_tools": register_cache_tools,
-    "register_channel_session_state_tools": register_channel_session_state_tools,
-    "register_code_analysis_tools": register_code_analysis_tools,
-    "register_code_graph_tools": register_code_graph_tools,
-    "register_conscious_agent_tools": register_conscious_agent_tools,
-    "register_conversation_tools": register_conversation_tools,
-    "register_crackerjack_tools": register_crackerjack_tools,
-    "register_cross_repo_work_tools": register_cross_repo_work_tools,
-    "register_export_tools": register_export_tools,
-    "register_extraction_tools": register_extraction_tools,
-    "register_feature_flags_tools": register_feature_flags_tools,
-    "register_health_tools_sb": register_health_tools_sb,
-    "register_hooks_tools": register_hooks_tools,
-    "register_intent_tools": register_intent_tools,
-    "register_knowledge_graph_tools": register_knowledge_graph_tools,
-    "register_llm_tools": register_llm_tools,
-    "register_memory_health_tools": register_memory_health_tools,
-    "register_migration_tools": register_migration_tools,
-    "register_monitoring_tools": register_monitoring_tools,
-    "register_phase3_knowledge_graph_tools": register_phase3_knowledge_graph_tools,
-    "register_phase4_tools": register_phase4_tools,
-    "register_pool_tools": register_pool_tools,
-    "register_prometheus_metrics_tools": register_prometheus_metrics_tools,
-    "register_prompt_tools": register_prompt_tools,
-    "register_search_tools": register_search_tools,
-    "register_serverless_tools": register_serverless_tools,
-    "register_session_analytics_tools": register_session_analytics_tools,
-    "register_session_tools": register_session_tools,
-    "register_team_tools": register_team_tools,
-    "register_workflow_metrics_tools": register_workflow_metrics_tools,
-    "register_worktree_tools": register_worktree_tools,
-}
-
-# ---------------------------------------------------------------------------
-# Resolve the active profile and register tools
-# ---------------------------------------------------------------------------
-
-_active_profile = ToolProfile.from_env("SESSION_BUDDY_TOOL_PROFILE")
-_registration_list = PROFILE_REGISTRATIONS[_active_profile]
-
-# Deduplicate: mandatory registrations may overlap with profile list.
-_names_to_register = list(dict.fromkeys(MANDATORY_REGISTRATIONS + _registration_list))
-
-_skipped: list[str] = []
-_registered: list[str] = []
-
-# Build the Dhara publisher once before the loop so the same instance is
-# reused for every iteration (avoids creating a new httpx.AsyncClient per
-# call and ensures idempotent wiring).
-_dhara_publisher = _make_dhara_publisher()
-
-for _name in _names_to_register:
-    _fn = _ALL_REGISTERS.get(_name)
-    if _fn is None:
-        logger.warning("profile references unknown register function: %s", _name)
-        _skipped.append(_name)
-        continue
-    if _fn is register_channel_tracking_tools:
-        _fn(mcp, dhara_publisher=_dhara_publisher)
-    else:
-        _fn(mcp)
-    _registered.append(_name)
-
-# Always register the discovery meta-tool
-register_discovery_tools(mcp)
-
-logger.info(
-    "tool profile=%s registered=%d skipped=%d discovery=enabled",
-    _active_profile.value,
-    len(_registered),
-    len(_skipped),
-)
-
-if _skipped:
-    logger.warning("skipped unknown registration functions: %s", _skipped)
 
 # ---------------------------------------------------------------------------
 # AutoCheckpointLoop + pending-marker drain wiring (Task 9).

@@ -2479,7 +2479,7 @@ wheels = [
 
 [[package]]
 name = "mcp-common"
-version = "0.17.10"
+version = "0.18.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -2494,9 +2494,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bb/81/8a9fa9932b1f9bb4c27171d5989c5b464c590cddf933744f4b458e8dbc19/mcp_common-0.17.10.tar.gz", hash = "sha256:3b9b6b4e7179f9dcb08688b1b6324fcd1551a3b7c1ff41d9004f60a2e799a52d", size = 1041630, upload-time = "2026-08-17T21:20:33.584Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/76/1dba908a33ea09a67e4d47256c83cc26debcbe63d87f821052e968fe2570/mcp_common-0.18.0.tar.gz", hash = "sha256:7f1373c029d556553e5c5b237626cb4459e73f95d789408502b5f2279cf9f673", size = 1076521, upload-time = "2026-08-18T12:17:59.752Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/94/8bb514892bd497c46a70313fa786207adbddbf32f87d780da7d741c3ce66/mcp_common-0.17.10-py3-none-any.whl", hash = "sha256:b3864e19be865b1b4ed54507f6d3bae6e3a5bdb57cf8e69a737864070079e895", size = 388769, upload-time = "2026-08-17T21:20:32.033Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/e7/24fd7349ec554b481b238f11de2120094086a56d3c28f6847c033a890c00/mcp_common-0.18.0-py3-none-any.whl", hash = "sha256:00e68a4379ab0836ff821dd27c68da91c9ac34fdc30979b97957cd111d1facaa", size = 393700, upload-time = "2026-08-18T12:17:58.144Z" },
 ]
 
 [[package]]
@@ -4416,7 +4416,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.22.0"
+version = "0.22.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -4480,7 +4480,7 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=3.4.0,<4" },
     { name = "hatchling", specifier = ">=1.30.1" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "mcp-common", specifier = ">=0.17.0" },
+    { name = "mcp-common", specifier = ">=0.18.0" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "prometheus-client", specifier = ">=0.25.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
