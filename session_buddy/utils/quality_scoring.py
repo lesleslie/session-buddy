@@ -220,7 +220,10 @@ async def _calculate_code_quality(project_dir: Path) -> CodeQualityScore:
     metrics = await _get_crackerjack_metrics(project_dir)
 
     # Test coverage (0-15 points)
-    coverage_pct = metrics.get("code_coverage", 0)
+    # ``metrics.get(key, 0)`` only falls back to ``0`` when the key is
+    # *absent* — a present-but-None value (the documented "missing"
+    # sentinel) would otherwise blow up with TypeError on division.
+    coverage_pct = metrics.get("code_coverage") or 0
     test_coverage = (coverage_pct / 100) * 15
 
     # Lint score (0-10 points)

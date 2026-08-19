@@ -600,7 +600,7 @@ async def analyze_project_workflow_patterns(current_dir: Path) -> dict[str, Any]
             "project_characteristics": project_characteristics,
         }
 
-    except OSError as e:
+    except (OSError, Exception) as e:  # noqa: BLE001 - G6: any failure path returns the fallback envelope
         return {
             "workflow_recommendations": ["Use basic project workflow patterns"],
             "error": str(e),
