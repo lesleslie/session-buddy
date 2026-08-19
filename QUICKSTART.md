@@ -162,6 +162,10 @@ lsof -i :8678
 
 # Use a different port
 session-buddy start --port 8679
+
+# Or override the default port via settings YAML at settings/session-buddy.yaml
+# (server_port: 8678) — Oneiric's layered loader merges YAML + env vars
+# last-wins, so env takes precedence at process start.
 ```
 
 **Problem**: "Cannot connect to Mahavishnu"

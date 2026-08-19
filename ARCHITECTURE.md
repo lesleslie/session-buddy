@@ -33,10 +33,24 @@ ______________________________________________________________________
 ```
 Session-Buddy
 ├── Core Application (session_buddy/core/)
-│   ├── app.py                  # SessionBuddyApp - main application
-│   ├── config.py               # Configuration with Oneiric patterns
+│   ├── session_manager.py      # SessionManager - session lifecycle
+│   ├── conversation_storage.py # Persistent conversation storage
 │   ├── permissions.py          # JWT authentication and authorization
-│   └── validators.py           # Input validation and security
+│   ├── auto_checkpoint_loop.py # Automatic checkpoint loop
+│   ├── bottleneck_detector.py  # Performance bottleneck detection
+│   ├── causal_chains.py        # Causal chain tracking
+│   ├── features.py             # Feature flags
+│   ├── hooks.py                # Lifecycle hooks
+│   ├── intelligence.py         # Intelligence layer
+│   ├── intent_detector.py      # Intent detection
+│   ├── memory_health.py        # Memory health monitoring
+│   ├── quality_scoring.py      # Quality scoring
+│   ├── session_analytics.py    # Session analytics
+│   ├── skills_tracker.py       # Skills tracking
+│   ├── ulid_generator.py       # ULID generation
+│   ├── workflow_metrics.py     # Workflow metrics
+│   ├── checkpoint/             # Checkpoint subpackage
+│   └── lifecycle/              # Lifecycle subpackage
 │
 ├── Session Management (session_buddy/session/)
 │   ├── manager.py              # SessionManager - session lifecycle

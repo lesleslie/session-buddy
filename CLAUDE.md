@@ -27,7 +27,7 @@ PYTHONPATH=. python -m session_buddy.server --debug
 
 # Verify installation
 python -c "from session_buddy.server import mcp; print('✅ MCP server ready')"
-python -c "from session_buddy.reflection_tools import ReflectionDatabase; print('✅ Memory system ready')"
+python -c "from session_buddy.reflection import ReflectionDatabase; print('✅ Memory system ready')"
 ```
 
 ### Quick Start
@@ -365,7 +365,7 @@ CREATE TABLE reflections (
 );
 ```
 
-**Vector Search**: Local ONNX model (all-MiniLM-L6-v2, 384-dim), cosine similarity, text search fallback, async executor threads
+**Vector Search**: HTTP embedding via llama-server (preferred) or Ollama with graceful degradation; 384-dim vectors from all-MiniLM-L6-v2 or nomic-embed-text
 
 **Multi-Project**: `ProjectGroup`/`ProjectDependency` tables, cross-project search with dependency-aware ranking, typed relationships (continuation/reference/related)
 
