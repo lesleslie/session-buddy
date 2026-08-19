@@ -861,12 +861,22 @@ def _parse_reinforced_ts(value: Any) -> datetime:
     The v2 schema stores ``TIMESTAMP`` which DuckDB returns as a
     ``datetime`` instance, but tests and ad-hoc inserts sometimes
     hand us a string. Accept both forms rather than crash.
+
+    Always return a timezone-aware datetime (UTC) so comparisons against
+    ``utc_now()`` never trip the
+    ``can't subtract offset-naive and offset-aware datetimes`` error.
     """
+    from datetime import UTC
+
     if isinstance(value, datetime):
-        return value
-    if isinstance(value, str):
-        return datetime.fromisoformat(value)
-    raise TypeError(f"unsupported last_reinforced_at type: {type(value)!r}")
+        dt = value
+    elif isinstance(value, str):
+        dt = datetime.fromisoformat(value)
+    else:
+        raise TypeError(f"unsupported last_reinforced_at type: {type(value)!r}")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt
 
 
 async def _distilled_skill_health_impl(

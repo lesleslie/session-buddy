@@ -135,6 +135,9 @@ class AdvancedSearchEngine:
         limit: int = 10,
     ) -> list[dict[str, Any]]:
         """Get search completion suggestions."""
+        # Tables may not exist when callers touch the engine before the
+        # indexer has run. Create them lazily on read access.
+        self._ensure_advanced_search_tables()
         # Use parameterized queries with predefined SQL patterns to prevent injection
         field_queries = {
             "content": """
@@ -187,6 +190,9 @@ class AdvancedSearchEngine:
         limit: int = 5,
     ) -> list[SearchResult]:
         """Find similar content using embeddings or text similarity."""
+        # Tables may not exist when callers touch the engine before the
+        # indexer has run. Create them lazily on read access.
+        self._ensure_advanced_search_tables()
         # Get the source content
         sql = """
             SELECT indexed_content, search_metadata
@@ -247,6 +253,10 @@ class AdvancedSearchEngine:
         time_range = parse_timeframe(timeframe)
         start_time, end_time = time_range.start, time_range.end
 
+        # Tables may not exist when callers touch the engine before the
+        # indexer has run. Create them lazily on read access.
+        self._ensure_advanced_search_tables()
+
         # Build time filter
         time_filter = SearchFilter(
             field="timestamp",
@@ -292,6 +302,9 @@ class AdvancedSearchEngine:
         filters: list[SearchFilter] | None = None,
     ) -> dict[str, Any]:
         """Calculate aggregate metrics from search data."""
+        # Tables may not exist when callers touch the engine before the
+        # indexer has run. Create them lazily on read access.
+        self._ensure_advanced_search_tables()
         time_range = parse_timeframe(timeframe)
         start_time, end_time = time_range.start, time_range.end
 
@@ -727,6 +740,10 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return
 
+        # Tables may not exist when callers touch the engine before the
+        # indexer has run. Create them lazily on write access too.
+        self._ensure_advanced_search_tables()
+
         try:
             # Clear existing facets
             self.reflection_db.conn.execute("DELETE FROM search_facets")
@@ -852,11 +869,21 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return []
 
+        # Tables may not exist when callers touch the engine before the
+        # indexer has run. Create them lazily on read access.
+        self._ensure_advanced_search_tables()
+
         try:
-            results = self.reflection_db.conn.execute(
+            cursor = self.reflection_db.conn.execute(
                 sql_result.condition,
                 self._prepare_sql_params(sql_result.params),
-            ).fetchall()
+            )
+            # DuckDB returns None from .execute() when no result set is
+            # produced (empty SQL, DDL, etc.); fall back to an empty list
+            # rather than NPE'ing in .fetchall().
+            if cursor is None:
+                return []
+            results = cursor.fetchall()
             return self._convert_sql_results_to_search_results(results)
         except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
             # Table doesn't exist yet, will be created during index rebuild
@@ -1216,6 +1243,9 @@ class AdvancedSearchEngine:
         requested_facets: list[str],
     ) -> dict[str, SearchFacet]:
         """Calculate facet counts for search results."""
+        # Tables may not exist when callers touch the engine before the
+        # indexer has run. Create them lazily on read access.
+        self._ensure_advanced_search_tables()
         facets = {}
 
         for facet_name in requested_facets:

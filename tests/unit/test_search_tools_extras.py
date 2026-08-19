@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import operator
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -292,14 +292,24 @@ class TestParseReinforcedTsExtras:
     """Branch coverage for _parse_reinforced_ts (datetime / str / other)."""
 
     def test_passthrough_datetime(self):
-        """A real datetime is returned unchanged."""
+        """A real datetime is returned with a UTC ``tzinfo`` stamp.
+
+        Production callers compare the result against ``utc_now()`` (an
+        aware datetime), so the helper normalises naive datetimes to UTC.
+        The wall-clock value MUST match the input's, and the result MUST
+        be timezone-aware.
+        """
         dt = datetime(2026, 1, 2, 3, 4, 5)
-        assert _parse_reinforced_ts(dt) is dt
+        result = _parse_reinforced_ts(dt)
+        # Compare the equivalent naive datetime of the result against the
+        # naive input — value equality, not tz-naive vs tz-aware mismatch.
+        assert result.replace(tzinfo=None) == dt
+        assert result.tzinfo is UTC
 
     def test_parses_iso_string(self):
-        """An ISO-8601 string is converted to a datetime."""
+        """An ISO-8601 string is converted to a datetime (UTC)."""
         result = _parse_reinforced_ts("2026-01-02T03:04:05")
-        assert result == datetime(2026, 1, 2, 3, 4, 5)
+        assert result == datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
     def test_rejects_unsupported_type(self):
         """Anything that isn't datetime / str raises TypeError."""
