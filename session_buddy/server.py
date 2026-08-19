@@ -110,7 +110,7 @@ async def reflect_on_past(
                     max_tokens=max_tokens,
                 )
             except Exception:
-                session_logger.exception("Token optimization failed")
+                session_logger.warning("Token optimization failed")
                 optimization_info = {}
 
         lines = _format_reflection_results(query, results, optimization_info)

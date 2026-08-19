@@ -1181,7 +1181,7 @@ def _generate_recommendations_v2(
 
     # Security recommendations
     if security.total < 8:
-        recommendations.append("🔒 Address security issues (run bandit, check secrets)")
+        recommendations.append("🔒 Address security issues (run bandit, audit configs)")
 
     return recommendations
 

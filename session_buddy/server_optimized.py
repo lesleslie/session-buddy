@@ -247,6 +247,26 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
 
 # Initialize MCP server with lifespan
 mcp = FastMCP("session-buddy", version=__version__, lifespan=session_lifecycle)
+
+# Add ``get_tools`` alias for parity with parity-matrix assertions in the test
+# suite. Some FastMCP versions expose ``list_tools`` only; the suite expects
+# ``get_tools``. We delegate and normalise the return value so the awaitable
+# helper matches the contract used by callers.
+if not hasattr(mcp, "get_tools"):
+
+    async def _get_tools(*args: Any, **kwargs: Any) -> list[Any]:
+        result = mcp.list_tools(*args, **kwargs)
+        if inspect.isawaitable(result):
+            result = await result
+        # Normalise to a list so callers get consistent shape whether the
+        # underlying FastMCP returns a mapping or sequence.
+        if isinstance(result, dict):
+            return list(result.values())
+        return list(result) if result is not None else []
+
+    mcp.get_tools = _get_tools  # type: ignore[attr-defined]
+
+
 attach_otel_middleware(
     mcp,
     service_name="session-buddy",
