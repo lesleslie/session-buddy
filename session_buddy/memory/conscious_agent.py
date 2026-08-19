@@ -15,7 +15,7 @@ import os
 import tempfile
 import typing as t
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -653,6 +653,11 @@ class ConsciousAgent:
             float: Recency score (1.0 = accessed now, 0.0 = very old)
 
         """
+        # Normalise to UTC-aware so subtracting ``utc_now()`` never trips
+        # the offset-naive vs offset-aware TypeError when callers hand
+        # us a naive value (DuckDB TIMESTAMP, ad-hoc inserts, tests).
+        if last_accessed.tzinfo is None:
+            last_accessed = last_accessed.replace(tzinfo=UTC)
         time_delta = utc_now() - last_accessed
         hours_ago = time_delta.total_seconds() / 3600
 
@@ -693,7 +698,10 @@ class ConsciousAgent:
         if pattern.access_count > 5:
             reasons.append(f"high access frequency ({pattern.access_count}x)")
 
-        recency_hours = (utc_now() - pattern.last_accessed).total_seconds() / 3600
+        last_accessed = pattern.last_accessed
+        if last_accessed.tzinfo is None:
+            last_accessed = last_accessed.replace(tzinfo=UTC)
+        recency_hours = (utc_now() - last_accessed).total_seconds() / 3600
         if recency_hours < 6:
             reasons.append("recently accessed")
 

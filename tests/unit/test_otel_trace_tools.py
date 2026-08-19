@@ -132,6 +132,10 @@ def test_query_local_traces_and_registration(monkeypatch: pytest.MonkeyPatch) ->
         return FakeDB()
 
     fake_module = SimpleNamespace(get_reflection_database=fake_get_reflection_database)
+    # Production imports from ``session_buddy.reflection_tools``, so the
+    # fake module also has to be parked under that key for ``get_reflection_database``
+    # to resolve into the test's FakeDB.
+    monkeypatch.setitem(sys.modules, "session_buddy.reflection_tools", fake_module)
     monkeypatch.setitem(
         sys.modules,
         "session_buddy.adapters.reflection_adapter_oneiric",
