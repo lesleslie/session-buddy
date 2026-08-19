@@ -329,7 +329,7 @@ class PyCharmMCPAdapter:
                             )
                         )
 
-        except (OSError, subprocess.SubprocessError) as e:
+        except (OSError, subprocess.SubprocessError, Exception) as e:  # noqa: BLE001 - tolerated: best-effort grep fallback
             self._logger.debug(f"Fallback search failed: {e}")
 
         return results

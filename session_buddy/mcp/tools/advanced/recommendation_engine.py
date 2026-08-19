@@ -4,7 +4,7 @@ import re
 from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from session_buddy.mcp.tools.intelligence.agent_analyzer import (
@@ -66,6 +66,11 @@ class RecommendationEngine:
                         result_date = datetime.fromisoformat(timestamp_str)
                     else:
                         result_date = timestamp_str
+                    # Normalise naive timestamps to UTC so comparisons
+                    # against the UTC-stamped ``start_date`` never trip
+                    # the offset-naive vs offset-aware TypeError.
+                    if result_date.tzinfo is None:
+                        result_date = result_date.replace(tzinfo=UTC)
                     if result_date >= start_date:
                         filtered_results.append(result)
                 except (ValueError, AttributeError):
@@ -390,7 +395,13 @@ class RecommendationEngine:
             f"({most_common.occurrences} occurrences)",
         )
 
-        recent_patterns = [p for p in patterns if (utc_now() - p.last_seen).days <= 7]
+        recent_patterns = []
+        for p in patterns:
+            last_seen = p.last_seen
+            if last_seen.tzinfo is None:
+                last_seen = last_seen.replace(tzinfo=UTC)
+            if (utc_now() - last_seen).days <= 7:
+                recent_patterns.append(p)
         if len(recent_patterns) > 3:
             insights.append(
                 f"⚠️ {len(recent_patterns)} different failure patterns in last 7 days - "
