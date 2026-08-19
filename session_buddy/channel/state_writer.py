@@ -35,6 +35,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, cast
 
+import dhara
 from dhara.schema import ChannelSessionState, validate
 from oneiric.core.logging import get_logger
 

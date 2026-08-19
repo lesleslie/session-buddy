@@ -474,6 +474,8 @@ def _setup_uv_dependencies(current_dir: Path) -> list[str]:
             )
         except OSError as e:
             output.append(f"⚠️ UV sync error: {e}")
+        except Exception as e:  # noqa: BLE001 - graceful broad-fallback expected by tests
+            output.append(f"⚠️ UV sync error: {e}")
     else:
         output.extend(
             (

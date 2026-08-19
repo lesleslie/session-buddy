@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -39,6 +40,7 @@ from .tools.profiles import (
     PROFILE_REGISTRATIONS,
     REGISTRATION_MAP,
     SESSION_BUDDY_MANDATORY_GROUPS,
+    _dhara_publisher,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,18 +78,50 @@ def _register_all_tool_groups(server: Any) -> None:
 # ``asyncio.run`` (which spins a fresh loop and is safe at module-import
 # time when no loop is running). session-buddy is env-only so
 # ``yaml_loader=None`` -- no settings/local.yaml lookup.
-asyncio.run(
-    _apply_tool_profile(
-        mcp,
-        profile_env_var="SESSION_BUDDY_TOOL_PROFILE",
-        registrations=PROFILE_REGISTRATIONS,
-        registration_map=REGISTRATION_MAP,
-        register_all_fn=_register_all_tool_groups,
-        mandatory_groups=SESSION_BUDDY_MANDATORY_GROUPS,
-        essential_tool_names=set(),
-        yaml_loader=None,
+#
+# ``pytest-asyncio``'s ``asyncio_mode = "auto"`` runs every test inside a
+# running event loop, which would make ``asyncio.run`` blow up at module
+# import under those test runs. Detect that case and defer to a
+# background task scheduled on the running loop instead -- the profile
+# still gets applied, just not from a freshly-spun loop.
+try:
+    asyncio.get_running_loop()
+    loop_running = True
+except RuntimeError:
+    loop_running = False
+
+if loop_running:
+    import contextlib
+
+    # Schedule the profile dispatch on the running loop. We can't await
+    # it here (module import is synchronous), so create a task and let
+    # it run when the loop next yields.
+    with contextlib.suppress(RuntimeError):
+        asyncio.ensure_future(
+            _apply_tool_profile(
+                mcp,
+                profile_env_var="SESSION_BUDDY_TOOL_PROFILE",
+                registrations=PROFILE_REGISTRATIONS,
+                registration_map=REGISTRATION_MAP,
+                register_all_fn=_register_all_tool_groups,
+                mandatory_groups=SESSION_BUDDY_MANDATORY_GROUPS,
+                essential_tool_names=set(),
+                yaml_loader=None,
+            )
+        )
+else:
+    asyncio.run(
+        _apply_tool_profile(
+            mcp,
+            profile_env_var="SESSION_BUDDY_TOOL_PROFILE",
+            registrations=PROFILE_REGISTRATIONS,
+            registration_map=REGISTRATION_MAP,
+            register_all_fn=_register_all_tool_groups,
+            mandatory_groups=SESSION_BUDDY_MANDATORY_GROUPS,
+            essential_tool_names=set(),
+            yaml_loader=None,
+        )
     )
-)
 
 # ---------------------------------------------------------------------------
 # AutoCheckpointLoop + pending-marker drain wiring (Task 9).

@@ -101,7 +101,13 @@ class TestChannelSessionGetStateTool:
             last_event_at=datetime(2026, 8, 11, 12, 5, 0, tzinfo=UTC),
             metadata={"branch_reason": "happy-path test"},
         )
-        expected = written.to_dict()
+        # Use the dhara registry's ``to_dict`` (the same serializer the
+        # consumer tool invokes at read-time) to derive the expected
+        # payload from the validated struct — ChannelSessionState is a
+        # msgspec.Struct with no ``to_dict`` instance method.
+        from dhara.schema import to_dict as dhara_to_dict
+
+        expected = dhara_to_dict(written)
 
         _server, tools = _make_server_and_tools()
         tool = tools["channel_session_get_state_tool"]

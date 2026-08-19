@@ -140,7 +140,7 @@ class TestCreateSessionShortcuts:
         """Should create shortcuts in ~/.claude/commands/."""
         from session_buddy.tools.session_tools import _create_session_shortcuts
 
-        with patch("session_buddy.tools.session_tools.Path.home") as mock_home:
+        with patch("session_buddy.mcp.tools.session.session_tools.Path.home") as mock_home:
             mock_home.return_value = tmp_path
             result = _create_session_shortcuts()
 
@@ -159,7 +159,7 @@ class TestCreateSessionShortcuts:
         """Should detect when shortcuts already exist."""
         from session_buddy.tools.session_tools import _create_session_shortcuts
 
-        with patch("session_buddy.tools.session_tools.Path.home") as mock_home:
+        with patch("session_buddy.mcp.tools.session.session_tools.Path.home") as mock_home:
             mock_home.return_value = tmp_path
 
             # Create shortcuts first
@@ -180,7 +180,7 @@ class TestWorkingDirectoryDetection:
         from session_buddy.tools.session_tools import _check_environment_variables
 
         with patch.dict("os.environ", {"CLAUDE_WORKING_DIR": "/test/dir"}):
-            with patch("session_buddy.tools.session_tools.Path") as mock_path:
+            with patch("session_buddy.mcp.tools.session.session_tools.Path") as mock_path:
                 mock_path.return_value.exists.return_value = True
                 result = _check_environment_variables()
 
@@ -199,7 +199,7 @@ class TestWorkingDirectoryDetection:
             test_dir = "/test/project/dir"
             working_dir_file.write_text(test_dir)
 
-            with patch("session_buddy.tools.session_tools.Path") as mock_path_cls:
+            with patch("session_buddy.mcp.tools.session.session_tools.Path") as mock_path_cls:
                 # Mock Path().exists() to return True
                 mock_path = MagicMock()
                 mock_path.exists.return_value = True
@@ -249,16 +249,16 @@ class TestStartTool:
         )
 
         with patch(
-            "session_buddy.tools.session_tools._get_session_manager",
+            "session_buddy.mcp.tools.session.session_tools._get_session_manager",
             return_value=mock_manager,
         ):
             with patch(
-                "session_buddy.tools.session_tools._setup_uv_dependencies"
+                "session_buddy.mcp.tools.session.session_tools._setup_uv_dependencies"
             ) as mock_uv:
                 mock_uv.return_value = ["UV setup complete"]
 
                 with patch(
-                    "session_buddy.tools.session_tools._create_session_shortcuts"
+                    "session_buddy.mcp.tools.session.session_tools._create_session_shortcuts"
                 ) as mock_shortcuts:
                     mock_shortcuts.return_value = {
                         "created": True,
@@ -267,6 +267,11 @@ class TestStartTool:
 
                     result = await _start_impl("/test/dir")
 
+                    # _start_impl returns (prose, conversation_id) per the
+                    # new MCP-first contract; unpack for assertion parity
+                    # with the historical str-return shape.
+                    if isinstance(result, tuple):
+                        result = result[0]
                     assert isinstance(result, str)
                     assert "Session Initialization" in result or "🚀" in result
                     assert "test-project" in result
@@ -296,11 +301,11 @@ class TestCheckpointTool:
         )
 
         with patch(
-            "session_buddy.tools.session_tools._get_session_manager",
+            "session_buddy.mcp.tools.session.session_tools._get_session_manager",
             return_value=mock_manager,
         ):
             with patch(
-                "session_buddy.tools.session_tools._handle_auto_compaction"
+                "session_buddy.mcp.tools.session.session_tools._handle_auto_compaction"
             ) as mock_compact:
                 mock_compact.return_value = None
 
@@ -333,7 +338,7 @@ class TestEndTool:
         )
 
         with patch(
-            "session_buddy.tools.session_tools._get_session_manager",
+            "session_buddy.mcp.tools.session.session_tools._get_session_manager",
             return_value=mock_manager,
         ):
             result = await _end_impl("/test/dir")
@@ -381,7 +386,7 @@ class TestStatusTool:
         )
 
         with patch(
-            "session_buddy.tools.session_tools._get_session_manager",
+            "session_buddy.mcp.tools.session.session_tools._get_session_manager",
             return_value=mock_manager,
         ):
             result = await _status_impl("/test/dir")
@@ -574,7 +579,7 @@ class TestPreCompactSyncImplementation:
         from session_buddy.tools.session_tools import _pre_compact_sync_impl
 
         with patch(
-            "session_buddy.tools.session_tools._get_session_manager",
+            "session_buddy.mcp.tools.session.session_tools._get_session_manager",
             side_effect=Exception("Manager error"),
         ):
             result = await _pre_compact_sync_impl()
@@ -632,22 +637,22 @@ class TestCheckpointImplCoverage:
         )
 
         with patch(
-            "session_buddy.tools.session_tools._get_session_manager",
+            "session_buddy.mcp.tools.session.session_tools._get_session_manager",
             return_value=mock_manager,
         ):
             with patch(
-                "session_buddy.tools.session_tools._get_client_working_directory",
+                "session_buddy.mcp.tools.session.session_tools._get_client_working_directory",
                 return_value="/test/dir",
             ):
                 with patch(
-                    "session_buddy.tools.session_tools._handle_auto_store_reflection",
+                    "session_buddy.mcp.tools.session.session_tools._handle_auto_store_reflection",
                     side_effect=Exception("Auto-store failed"),
                 ):
                     with patch(
-                        "session_buddy.tools.session_tools._handle_auto_compaction",
+                        "session_buddy.mcp.tools.session.session_tools._handle_auto_compaction",
                     ):
                         with patch(
-                            "session_buddy.tools.session_tools.should_suggest_compact",
+                            "session_buddy.mcp.tools.session.session_tools.should_suggest_compact",
                             return_value=(False, "No compaction"),
                         ):
                             result = await _checkpoint_impl("/test/dir")
@@ -665,9 +670,9 @@ class TestSetupUvDependenciesCoverage:
 
         (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\n')
 
-        with patch("session_buddy.tools.session_tools.shutil.which", return_value="/usr/bin/uv"):
+        with patch("session_buddy.mcp.tools.session.session_tools.shutil.which", return_value="/usr/bin/uv"):
             with patch(
-                "session_buddy.tools.session_tools.subprocess.run",
+                "session_buddy.mcp.tools.session.session_tools.subprocess.run",
                 side_effect=Exception("Subprocess error"),
             ):
                 result = _setup_uv_dependencies(tmp_path)
@@ -702,16 +707,21 @@ class TestStartImplCoverage:
         )
 
         with patch(
-            "session_buddy.tools.session_tools._get_session_manager",
+            "session_buddy.mcp.tools.session.session_tools._get_session_manager",
             return_value=mock_manager,
         ):
             with patch(
-                "session_buddy.tools.session_tools._perform_environment_setup",
+                "session_buddy.mcp.tools.session.session_tools._perform_environment_setup",
                 side_effect=Exception("Setup failed"),
             ):
                 result = await _start_impl("/test/dir")
 
-                # Should return error message but not raise
+                # Should return error message but not raise.
+                # _start_impl returns (prose, conversation_id) per the
+                # new MCP-first contract; unpack for assertion parity
+                # with the historical str-return shape.
+                if isinstance(result, tuple):
+                    result = result[0]
                 assert isinstance(result, str)
 
 
@@ -882,7 +892,7 @@ class TestRegisterSessionToolsComplete:
         import asyncio
 
         # Mock the implementation
-        with patch("session_buddy.tools.session_tools._pre_compact_sync_impl") as mock_impl:
+        with patch("session_buddy.mcp.tools.session.session_tools._pre_compact_sync_impl") as mock_impl:
             mock_impl.return_value = {
                 "success": True,
                 "timestamp": "2024-01-01",
@@ -907,19 +917,19 @@ class TestClientWorkingDirectoryDetection:
         from session_buddy.tools.session_tools import _get_client_working_directory
 
         with patch(
-            "session_buddy.tools.session_tools._check_environment_variables",
+            "session_buddy.mcp.tools.session.session_tools._check_environment_variables",
             return_value=None,
         ) as mock_env:
             with patch(
-                "session_buddy.tools.session_tools._check_working_dir_file",
+                "session_buddy.mcp.tools.session.session_tools._check_working_dir_file",
                 return_value=None,
             ) as mock_file:
                 with patch(
-                    "session_buddy.tools.session_tools._check_parent_process_cwd",
+                    "session_buddy.mcp.tools.session.session_tools._check_parent_process_cwd",
                     return_value=None,
                 ) as mock_parent:
                     with patch(
-                        "session_buddy.tools.session_tools._find_recent_git_repository",
+                        "session_buddy.mcp.tools.session.session_tools._find_recent_git_repository",
                         return_value="/recent/repo",
                     ) as mock_repo:
                         result = _get_client_working_directory()
