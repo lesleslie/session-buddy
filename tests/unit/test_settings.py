@@ -1137,7 +1137,7 @@ class TestSessionMgmtSettingsMCPServer:
         from session_buddy.settings import SessionMgmtSettings
 
         settings = SessionMgmtSettings()
-        assert settings.server_port == 3000
+        assert settings.server_port == 8678
 
     def test_enable_websockets_default_true(self) -> None:
         """Test that WebSockets is enabled by default."""
