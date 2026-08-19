@@ -218,8 +218,17 @@ def _parse_worktree_entry(entry: dict[str, Any]) -> WorktreeInfo:
     path = Path(entry.get("path", ""))
     branch = entry.get("branch", entry.get("head", "unknown"))
 
-    # Check if this is the main worktree (bare repos don't have .git file)
-    is_main = not (path / ".git").is_file() if path.exists() else False
+    # Check if this is the main worktree (bare repos don't have .git file).
+    # An empty ``Path("")`` resolves to ``Path(".")`` which appears to
+    # "exist", so guard against that — a missing/empty path has no
+    # worktree parent to inspect and is never the main worktree.
+    raw_path = entry.get("path", "")
+    if not raw_path:
+        is_main = False
+    else:
+        is_main = (
+            path.exists() and not (path / ".git").is_file() if path.exists() else False
+        )
 
     return WorktreeInfo(
         path=path,
@@ -732,18 +741,47 @@ def _perform_staging_and_commit(
         f"checkpoint: {project} (quality: {quality_score}/100) - {timestamp}"
     )
 
-    # Stage changes — route through stage_files so the worktree/main
-    # policy lives in one place. Passing explicit_files when given,
-    # otherwise letting stage_files decide based on its own policy.
-    stage_ok = stage_files(
-        directory,
-        [] if explicit_files is None else list(explicit_files),
-    )
-    if not stage_ok:
+    # Decide the staging command (and whether to refuse up front). The
+    # same worktree/main-checkout policy that ``stage_files`` enforces
+    # is mirrored here so this function can capture the git stderr from
+    # a real ``git add`` failure and surface it to the caller. The
+    # policy only applies inside real git repositories — non-git
+    # directories simply get passed through to git so callers can see
+    # the underlying error.
+    in_git_repo = is_git_repository(directory)
+    is_worktree = _is_worktree(directory) if in_git_repo else False
+    if explicit_files:
+        stage_cmd = ["git", "add", "--", *explicit_files]
+    elif in_git_repo and is_worktree:
+        stage_cmd = ["git", "add", "-A"]
+    elif in_git_repo and not explicit_files:
+        # Main checkout with no explicit files — refuse to avoid sweep.
+        logger.warning(
+            "stage_files_refused_unsafe_sweep",
+            extra={
+                "reason": "main checkout without explicit file list",
+                "directory": str(directory),
+            },
+        )
         output.append(
             "⚠️ Failed to stage changes: refused or errored "
             "(main checkout requires explicit_files)"
         )
+        return False, "staging failed", output
+    else:
+        # Non-git directory — let ``git add`` surface the underlying error.
+        stage_cmd = ["git", "add", "-A"]
+
+    stage_result = subprocess.run(
+        stage_cmd,
+        cwd=directory,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if stage_result.returncode != 0:
+        stderr = stage_result.stderr.strip() if stage_result.stderr else "unknown"
+        output.append(f"⚠️ Failed to stage changes: {stderr}")
         return False, "staging failed", output
 
     # Create commit
