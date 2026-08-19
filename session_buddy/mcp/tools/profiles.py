@@ -44,7 +44,7 @@ from mcp_common.tools import ToolProfile
 from mcp_common.tools.dispatch import ALL_TOOLS
 
 if TYPE_CHECKING:
-    from fastmcp import FastMCP
+    from mcp_common.fastmcp import FastMCP
 
 
 # ---------------------------------------------------------------------------

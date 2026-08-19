@@ -11,7 +11,10 @@ The client-visible name is "mcp__session-buddy__store_cross_repo_work"
 
 from __future__ import annotations
 
-from fastmcp import FastMCP
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mcp_common.fastmcp import FastMCP
 
 from session_buddy.core.checkpoint.manifest_resolver import resolve_manifest_path
 from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
