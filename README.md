@@ -364,7 +364,7 @@ ______________________________________________________________________
 - SQL/PGQ graph queries for complex relationship analysis
 - See [Oneiric Migration Guide](docs/migrations/ONEIRIC_MIGRATION_PLAN.md)
 
-All tools use **local processing** for privacy, with **DuckDB vector storage** (FLOAT[384] embeddings) and **ONNX-based semantic search** requiring no external API calls.
+All tools use **local processing** for privacy, with **DuckDB vector storage** (FLOAT[384] embeddings) and HTTP embedding via llama-server (preferred) or Ollama with graceful degradation; 384-dim vectors from all-MiniLM-L6-v2 or nomic-embed-text.
 
 ## Integration with Crackerjack
 
@@ -440,27 +440,6 @@ If installed with pip/uv, you can use the script entry point:
 ```
 
 **Dependencies:** Requires Python 3.13+. For a complete list of dependencies, see [pyproject.toml](pyproject.toml).
-
-### Setting Up Semantic Search (Optional)
-
-Session Buddy includes semantic search capabilities using local AI embeddings with **no external API dependencies**.
-
-**Current Status:**
-
-- ✅ **Text Search**: Works out of the box (fast, keyword-based)
-- ✅ **Semantic Search**: Works with ONNX model (no PyTorch required!)
-
-**For Text Search (Default):**
-No additional setup needed! The system uses full-text search with FTS5 for fast, accurate results.
-
-**For Semantic Search (Optional):**
-
-The system uses pre-converted ONNX models for efficient semantic search without requiring PyTorch:
-
-```bash
-# Download the pre-converted ONNX model (one-time setup)
-python scripts/download_embedding_model.py
-```
 
 This downloads the **Xenova/all-MiniLM-L6-v2** model (~100MB) which includes:
 
