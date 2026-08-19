@@ -377,7 +377,7 @@ def _extract_mentioned_files(results: list[dict[str, Any]]) -> list[str]:
             files.extend(matches)
 
         return list(set(files))[:10] if files else []
-    except (re.error, AttributeError, TypeError):
+    except (re.error, AttributeError, TypeError, KeyError):
         return []
 
 
