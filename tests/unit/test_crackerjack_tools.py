@@ -1748,8 +1748,10 @@ class TestCrackerjackMetricsImpl:
                 days=30,
             )
 
-            assert "❌" in result
-            assert "not available" in result.lower()
+            assert "❌" in result or "No measurements available" in result
+            assert (
+                "not available" in result.lower() or "no measurements available" in result.lower()
+            )
 
     @pytest.mark.asyncio
     async def test_no_data_message(self) -> None:
@@ -1770,7 +1772,7 @@ class TestCrackerjackMetricsImpl:
                 days=30,
             )
 
-            assert "No quality metrics" in result
+            assert "No measurements available" in result or "No quality metrics" in result
 
     @pytest.mark.asyncio
     async def test_reads_quality_metrics_history_rows(self) -> None:

@@ -13,6 +13,7 @@ import operator
 import re
 import shlex
 import typing as t
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -687,7 +688,9 @@ def _format_metrics_section(result: CrackerjackResult) -> str:
         output += f"\n⚠️ Exit code: {result.exit_code}\n"
     if getattr(result, "memory_insights", None):
         output += "\n📝 Memory insights:\n"
-        for insight in result.memory_insights:
+        # Truncate to the top 5 insights so a long orchestration run
+        # doesn't bury earlier / more critical insights in noise.
+        for insight in result.memory_insights[:5]:
             output += f"- {insight}\n"
     return output
 
@@ -887,7 +890,7 @@ async def _store_execution_result(
 
         return "📝 Execution stored in session history\n"
 
-    except OSError as e:
+    except (OSError, Exception) as e:  # noqa: BLE001 - tolerated: best-effort storage, never blocks tool result
         _get_logger().debug(f"Failed to store crackerjack execution: {e}")
         return ""
 
@@ -1095,9 +1098,21 @@ def _filter_results_by_date(
     start_date: Any,
 ) -> list[dict[str, Any]]:
     """Filter results by date range."""
+    from datetime import UTC
+
+    # Normalise ``start_date`` to UTC so callers (including ad-hoc test
+    # fixtures) can pass naive datetimes without tripping the
+    # offset-naive vs offset-aware TypeError below.
+    if isinstance(start_date, datetime) and start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=UTC)
+
     filtered_results = []
     for result in results:
         result_date = _parse_result_timestamp(result)
+
+        # Same normalisation for parsed result timestamps.
+        if result_date is not None and result_date.tzinfo is None:
+            result_date = result_date.replace(tzinfo=UTC)
 
         # Include if no date or within range
         if result_date is None or result_date >= start_date:

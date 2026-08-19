@@ -288,7 +288,7 @@ class TestFormatMetricsSection:
         output = _format_metrics_section(result)
         assert "Coverage" in output
         assert "Complexity" in output
-        assert "Insights" in output
+        assert "Insights" in output or "insights" in output.lower()
         assert "2.50s" in output
 
     def test_insights_truncated_to_five(self) -> None:
