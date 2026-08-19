@@ -21,13 +21,11 @@ async def _attach_tool_call_helpers(mcp: FastMCP) -> FastMCP:  # noqa: C901
         if arguments is None:
             arguments = {}
 
-        # Access the registered tools from the mcp instance
-        if hasattr(mcp, "get_tools"):
-            tools = await mcp.get_tools()
-        elif hasattr(mcp, "tools"):
-            tools = mcp.tools
-        else:
-            tools = getattr(mcp, "_tools", {})
+        # Access the registered tools through FastMCP's public introspection
+        # API. FastMCP 3.x removed the ``get_tools()`` mapping accessor (and
+        # the private ``_tools`` attribute) in favour of ``list_tools()`` /
+        # ``get_tool()``.
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
 
         if tool_name not in tools:
             msg = f"Tool '{tool_name}' is not registered"
@@ -97,9 +95,9 @@ class TestMCPCrackerjackToolRegistration:
     @pytest.mark.asyncio
     async def test_tools_registered(self, mcp_server):
         """Test that crackerjack tools are properly registered."""
-        # Get list of registered tools
-        tools = await mcp_server.get_tools()
-        tool_names = list(tools.keys())
+        # Get list of registered tools via FastMCP's public introspection API
+        tools = await mcp_server.list_tools()
+        tool_names = [tool.name for tool in tools]
 
         # Should have crackerjack tools
         expected_tools = ["execute_crackerjack_command", "crackerjack_run"]
@@ -110,10 +108,13 @@ class TestMCPCrackerjackToolRegistration:
     @pytest.mark.asyncio
     async def test_execute_crackerjack_command_tool_exists(self, mcp_server):
         """Test that execute_crackerjack_command tool is accessible."""
-        tools = await mcp_server.get_tools()
+        tools = await mcp_server.list_tools()
 
         # Find the execute_crackerjack_command tool
-        execute_tool = tools.get("execute_crackerjack_command")
+        execute_tool = next(
+            (tool for tool in tools if tool.name == "execute_crackerjack_command"),
+            None,
+        )
 
         assert execute_tool is not None, "execute_crackerjack_command tool not found"
 
@@ -169,9 +170,9 @@ class TestMCPToolExecution:
         )
         mock_execute.return_value = mock_result
 
-        # Get the tool function
-        tools = await mcp_server.get_tools()
-        tools["execute_crackerjack_command"]
+        # Confirm the tool is registered before invoking it
+        tool_names = [tool.name for tool in await mcp_server.list_tools()]
+        assert "execute_crackerjack_command" in tool_names
 
         # Execute the tool via MCP
         result = await mcp_server._call_tool(
@@ -339,17 +340,22 @@ class TestErrorHandlingAndRecovery:
     @pytest.mark.asyncio
     async def test_import_error_handling(self, mcp_server):
         """Test handling of import errors."""
+        # Resolve the tool callable *before* patching ``builtins.__import__``.
+        # FastMCP's ``list_tools()`` performs lazy imports internally, so tool
+        # discovery has to happen outside the patch context or the injected
+        # ImportError fires in the test scaffolding instead of in the tool.
+        tools = {tool.name: tool for tool in await mcp_server.list_tools()}
+        tool_func = tools["execute_crackerjack_command"].fn
+
         # Simulate ImportError when importing CrackerjackIntegration
         with patch(
             "builtins.__import__",
             side_effect=ImportError("No module named 'crackerjack_integration'"),
         ):
-            result = await mcp_server._call_tool(
-                "execute_crackerjack_command", {"command": "lint"}
-            )
+            result = await tool_func(command="lint")
 
-            # Should handle import error gracefully
-            assert "not available" in result.lower() or "install" in result.lower()
+        # Should handle import error gracefully
+        assert "not available" in result.lower() or "install" in result.lower()
 
     @pytest.mark.asyncio
     @patch(
