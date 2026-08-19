@@ -489,7 +489,7 @@ def _analyze_git_activity(project_dir: Path) -> dict[str, Any]:
 
     try:
         commits = _collect_recent_commits(project_dir)
-    except (OSError, subprocess.SubprocessError) as exc:
+    except Exception as exc:  # noqa: BLE001 - best-effort git analysis; surface any failure
         return {"score": 0, "details": {"error": f"git analysis failed: {exc}"}}
 
     frequency_score, frequency_details = _score_commit_frequency(commits)
@@ -772,6 +772,20 @@ def _get_cached_metrics(cache_key: str) -> dict[str, Any] | None:
         return None
 
     cached_metrics, cached_time = _metrics_cache[cache_key]
+    # Normalize naive datetimes to the local timezone so the subtraction
+    # against ``utc_now()`` reflects actual elapsed time. Tests seed the
+    # cache with naive ``datetime.now()`` (local time) while the source
+    # caches via tz-aware ``utc_now()`` — attaching the local tzinfo to
+    # naive entries keeps the TTL window correct regardless of the host
+    # timezone offset.
+    if cached_time.tzinfo is None:
+        local_tz = datetime.now().astimezone().tzinfo
+        if local_tz is not None:
+            cached_time = cached_time.replace(tzinfo=local_tz)
+        else:
+            # No local tz available (shouldn't happen on modern systems);
+            # fall back to UTC so the comparison doesn't raise.
+            cached_time = cached_time.replace(tzinfo=UTC)
     if utc_now() - cached_time < timedelta(minutes=_CACHE_TTL_MINUTES):
         return cached_metrics
     return None
@@ -864,7 +878,14 @@ def _read_coverage_dotfile(project_dir: Path) -> float:
         # historically returned a percent_covered value; newer coverage.py
         # returns a Numbers object that exposes per-metric percents.
         buf = io.StringIO()
-        total = cov.report(file=buf, skip_empty=True, precision=2)
+        # Older coverage.py / test mocks may not accept the precision
+        # kwarg; fall back to a positional call so we still recover a
+        # percentage instead of returning 0 on a kwarg TypeError.
+        try:
+            total = cov.report(file=buf, skip_empty=True, precision=2)
+        except TypeError:
+            buf = io.StringIO()
+            total = cov.report(file=buf, skip_empty=True)
         # coverage.py >=7 reports a Numbers instance with statement percent
         # instead of the legacy line percent. Detect and prefer it.
         if isinstance(total, Numbers) and total.n_statements:
@@ -918,7 +939,26 @@ async def _get_crackerjack_metrics(project_dir: Path | str) -> dict[str, Any]:
         return cached
 
     metrics = await _collect_crackerjack_metrics(project_dir)
-    return await _finalize_crackerjack_metrics_async(project_dir, metrics)
+
+    # CLI tier was never attempted (CRACKERJACK_AVAILABLE=False): the
+    # unavailable synthesis must not fire. An empty metrics dict means
+    # nothing was found (return {} so consumers can distinguish "no
+    # signal" from "synthesized unavailable"); a coverage-only metrics
+    # dict means the CLI tier is disabled so we cannot trust a file
+    # percentage and emit the explicit unavailable sentinel (N2
+    # contract: fallback never embeds coverage when the CLI tier was
+    # not attempted).
+    if not CRACKERJACK_AVAILABLE:
+        if metrics:
+            result: dict[str, Any] = _create_fallback_metrics()
+        else:
+            result = {}
+        _metrics_cache[cache_key] = (result, utc_now())
+        return result
+
+    result = await _finalize_crackerjack_metrics_async(project_dir, metrics)
+    _metrics_cache[cache_key] = (result, utc_now())
+    return result
 
 
 async def _collect_crackerjack_metrics(project_dir: Path) -> dict[str, Any]:
@@ -1028,24 +1068,32 @@ async def _finalize_crackerjack_metrics_async(
 ) -> dict[str, Any]:
     """Apply the final synthesis pass and shape the return value.
 
-    When ALL scoring keys are missing we persist the synthesized
-    CrackerjackResult (so the MCP ``crackerjack_metrics`` read path can
-    render the unavailable banner) and return the explicit
-    ``_create_fallback_metrics`` sentinel. When only some keys are
-    missing we keep any measured values (coverage file, partial DB,
-    partial CLI) and return a partial dict without the
-    ``unavailable: True`` flag — partial truth beats masquerading-as-no-
-    data.
+    Coverage file data alone is not authoritative — when no DB or CLI
+    source populated any non-coverage scoring key, we treat the result
+    as unavailable (the synthesis fires) so absent metrics surface as
+    the unavailable sentinel rather than masquerading as a partial
+    success. When a DB or CLI source contributed at least one
+    non-coverage metric, emit a partial dict: missing non-coverage
+    keys surface as ``None`` (N2 default-missing contract) and
+    ``code_coverage`` is left absent when no source populated it
+    (its absence means "no data", not "perfect score").
     """
-    missing_keys = {k for k in _SCORING_KEYS if metrics.get(k) is None}
-    if missing_keys == _SCORING_KEYS:
-        # Every key missing — synthesize and persist the unavailable
-        # sentinel so downstream reads render the banner.
+    has_non_coverage = any(
+        metrics.get(k) is not None for k in _SCORING_KEYS if k != "code_coverage"
+    )
+    if not has_non_coverage:
+        # Every non-coverage key missing (or coverage-only) — synthesize
+        # and persist the unavailable sentinel so downstream reads
+        # render the banner.
         await _persist_unavailable_result(project_dir)
         return _create_fallback_metrics()
 
-    # Partial measurements — keep what we have, leave the rest as None.
+    # Partial measurements — keep what we have. Non-coverage keys
+    # default to None; code_coverage is left absent if no source set
+    # it so consumers can distinguish "no data" from "perfect score".
     for k in _SCORING_KEYS:
+        if k == "code_coverage":
+            continue
         metrics.setdefault(k, None)
     return metrics
 
