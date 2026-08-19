@@ -448,13 +448,6 @@ pip install session-buddy
 - **`/session-buddy:get_team_statistics`** - Team activity metrics
 - **`/session-buddy:vote_on_reflection`** - Vote on insights (upvote/downvote)
 
-### Multi-Project Coordination (4 tools)
-
-- **`/session-buddy:create_project_group`** - Group related projects
-- **`/session-buddy:add_project_dependency`** - Define dependencies
-- **`/session-buddy:search_across_projects`** - Cross-project search
-- **`/session-buddy:get_project_insights`** - Cross-project insights
-
 ### Activity Monitoring (5 tools)
 
 - **`/session-buddy:start_app_monitoring`** - Track IDE/browser activity
