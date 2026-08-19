@@ -204,8 +204,15 @@ class ProjectActivityMonitor:
             score = len(events)
             latest_event = max(events, key=lambda e: e.timestamp)
 
-            # Boost score for recent activity
-            time_diff = utc_now() - datetime.fromisoformat(latest_event.timestamp)
+            # Boost score for recent activity. Strip the offset before
+            # subtracting from the UTC-stamped ``utc_now()`` so naive
+            # timestamps (the common case for hand-inserted events) do
+            # not trip the offset-naive vs offset-aware TypeError.
+            ts = datetime.fromisoformat(latest_event.timestamp)
+            if ts.tzinfo is not None:
+                ts = ts.replace(tzinfo=None)
+            now = utc_now().replace(tzinfo=None)
+            time_diff = now - ts
             if time_diff.total_seconds() < 300:  # 5 minutes
                 score *= 2
 
