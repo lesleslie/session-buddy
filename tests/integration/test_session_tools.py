@@ -16,47 +16,42 @@ class TestSessionToolsRegistration:
     @pytest.fixture
     async def mcp_server(self):
         """Create MCP server with session tools registered."""
-        import asyncio
-        from unittest.mock import AsyncMock
+        from mcp.types import TextContent
 
         mcp = FastMCP("test-session")
         register_session_tools(mcp)
+
+        async def _build_tool_dict() -> dict:
+            """Return registered tools as {name: Tool} for legacy dict access."""
+            tools_list = await mcp.list_tools()
+            return {t.name: t for t in tools_list}
+
+        async def get_tools() -> dict:
+            return await _build_tool_dict()
 
         # Add a call_tool method for testing purposes
         async def call_tool(tool_name, arguments=None):
             if arguments is None:
                 arguments = {}
 
-            # Get the registered tools
-            tools = await mcp.get_tools()
+            tools = await _build_tool_dict()
             if tool_name not in tools:
                 msg = f"Tool '{tool_name}' not found"
                 raise ValueError(msg)
 
-            # Get the tool object and call it properly
             tool_obj = tools[tool_name]
+            result = await tool_obj.run(arguments)
 
-            # FastMCP tools are often wrapped in special function tool objects
-            # that have the actual function in the 'fn' attribute
-            if hasattr(tool_obj, "fn"):
-                # Extract the underlying function
-                actual_func = tool_obj.fn
-                if asyncio.iscoroutinefunction(actual_func):
-                    return await actual_func(**arguments)
-                return actual_func(**arguments)
-            if callable(tool_obj) or callable(tool_obj):
-                # Directly call the tool object
-                if asyncio.iscoroutinefunction(tool_obj):
-                    return await tool_obj(**arguments)
-                return tool_obj(**arguments)
-            # If it's not directly callable, it might be a FunctionTool-like object
-            # with an execute method or similar interface
-            if hasattr(tool_obj, "execute"):
-                return await tool_obj.execute(**arguments)
-            msg = f"Tool object {type(tool_obj)} is not callable and has no execute method"
-            raise TypeError(msg)
+            # Extract text from TextContent blocks (FastMCP 3.x returns a
+            # ToolResult envelope rather than a raw string).
+            parts: list[str] = []
+            for block in result.content:
+                if isinstance(block, TextContent):
+                    parts.append(block.text)
+            return "\n".join(parts) if parts else (result.structured_content or "")
 
-        # Attach the method to the instance
+        # Attach the methods to the instance
+        mcp.get_tools = get_tools
         mcp.call_tool = call_tool
 
         return mcp
@@ -66,9 +61,7 @@ class TestSessionToolsRegistration:
         """Test that session tools are properly registered."""
         # Get list of registered tools
         tools = await mcp_server.get_tools()
-        tool_names = list(
-            tools.keys()
-        )  # get_tools returns a dict of tool_name -> Tool object
+        tool_names = list(tools.keys())
 
         # Should have session tools
         expected_tools = [
@@ -152,52 +145,48 @@ class TestSessionToolExecution:
     @pytest.fixture
     async def mcp_server(self):
         """Create MCP server with session tools."""
-        import asyncio
+        from mcp.types import TextContent
 
         mcp = FastMCP("test-session-execution")
         register_session_tools(mcp)
+
+        async def _build_tool_dict() -> dict:
+            """Return registered tools as {name: Tool} for legacy dict access."""
+            tools_list = await mcp.list_tools()
+            return {t.name: t for t in tools_list}
+
+        async def get_tools() -> dict:
+            return await _build_tool_dict()
 
         # Add a call_tool method for testing purposes
         async def call_tool(tool_name, arguments=None):
             if arguments is None:
                 arguments = {}
 
-            # Get the registered tools
-            tools = await mcp.get_tools()
+            tools = await _build_tool_dict()
             if tool_name not in tools:
                 msg = f"Tool '{tool_name}' not found"
                 raise ValueError(msg)
 
-            # Get the tool object and call it properly
             tool_obj = tools[tool_name]
+            result = await tool_obj.run(arguments)
 
-            # FastMCP tools are often wrapped in special function tool objects
-            # that have the actual function in the 'fn' attribute
-            if hasattr(tool_obj, "fn"):
-                # Extract the underlying function
-                actual_func = tool_obj.fn
-                if asyncio.iscoroutinefunction(actual_func):
-                    return await actual_func(**arguments)
-                return actual_func(**arguments)
-            if callable(tool_obj) or callable(tool_obj):
-                # Directly call the tool object
-                if asyncio.iscoroutinefunction(tool_obj):
-                    return await tool_obj(**arguments)
-                return tool_obj(**arguments)
-            # If it's not directly callable, it might be a FunctionTool-like object
-            # with an execute method or similar interface
-            if hasattr(tool_obj, "execute"):
-                return await tool_obj.execute(**arguments)
-            msg = f"Tool object {type(tool_obj)} is not callable and has no execute method"
-            raise TypeError(msg)
+            # Extract text from TextContent blocks (FastMCP 3.x returns a
+            # ToolResult envelope rather than a raw string).
+            parts: list[str] = []
+            for block in result.content:
+                if isinstance(block, TextContent):
+                    parts.append(block.text)
+            return "\n".join(parts) if parts else (result.structured_content or "")
 
-        # Attach the method to the instance
+        # Attach the methods to the instance
+        mcp.get_tools = get_tools
         mcp.call_tool = call_tool
 
         return mcp
 
     @pytest.mark.asyncio
-    @patch("session_buddy.tools.session_tools._get_session_manager")
+    @patch("session_buddy.mcp.tools.session.session_tools._get_session_manager")
     async def test_start_tool_execution(self, mock_get_session_manager, mcp_server):
         mock_session_manager = mock_get_session_manager.return_value
         """Test start tool execution."""
@@ -235,7 +224,7 @@ class TestSessionToolExecution:
         assert "85/100" in result
 
     @pytest.mark.asyncio
-    @patch("session_buddy.tools.session_tools._get_session_manager")
+    @patch("session_buddy.mcp.tools.session.session_tools._get_session_manager")
     async def test_start_tool_failure(self, mock_get_session_manager, mcp_server):
         mock_session_manager = mock_get_session_manager.return_value
         """Test start tool execution with failure."""
@@ -255,7 +244,7 @@ class TestSessionToolExecution:
         assert "Initialization failed" in result
 
     @pytest.mark.asyncio
-    @patch("session_buddy.tools.session_tools._get_session_manager")
+    @patch("session_buddy.mcp.tools.session.session_tools._get_session_manager")
     async def test_checkpoint_tool_execution(
         self, mock_get_session_manager, mcp_server
     ):
@@ -283,7 +272,7 @@ class TestSessionToolExecution:
         assert "88/100" in result
 
     @pytest.mark.asyncio
-    @patch("session_buddy.tools.session_tools._get_session_manager")
+    @patch("session_buddy.mcp.tools.session.session_tools._get_session_manager")
     async def test_checkpoint_tool_failure(self, mock_get_session_manager, mcp_server):
         mock_session_manager = mock_get_session_manager.return_value
         """Test checkpoint tool execution with failure."""
@@ -303,7 +292,7 @@ class TestSessionToolExecution:
         assert "Checkpoint failed" in result
 
     @pytest.mark.asyncio
-    @patch("session_buddy.tools.session_tools._get_session_manager")
+    @patch("session_buddy.mcp.tools.session.session_tools._get_session_manager")
     async def test_end_tool_execution(self, mock_get_session_manager, mcp_server):
         mock_session_manager = mock_get_session_manager.return_value
         """Test end tool execution."""
@@ -334,7 +323,7 @@ class TestSessionToolExecution:
         assert "90/100" in result
 
     @pytest.mark.asyncio
-    @patch("session_buddy.tools.session_tools._get_session_manager")
+    @patch("session_buddy.mcp.tools.session.session_tools._get_session_manager")
     async def test_end_tool_failure(self, mock_get_session_manager, mcp_server):
         mock_session_manager = mock_get_session_manager.return_value
         """Test end tool execution with failure."""
@@ -354,7 +343,7 @@ class TestSessionToolExecution:
         assert "End session failed" in result
 
     @pytest.mark.asyncio
-    @patch("session_buddy.tools.session_tools._get_session_manager")
+    @patch("session_buddy.mcp.tools.session.session_tools._get_session_manager")
     async def test_status_tool_execution(self, mock_get_session_manager, mcp_server):
         mock_session_manager = mock_get_session_manager.return_value
         """Test status tool execution."""
@@ -396,7 +385,7 @@ class TestSessionToolExecution:
         assert "82/100" in result
 
     @pytest.mark.asyncio
-    @patch("session_buddy.tools.session_tools._get_session_manager")
+    @patch("session_buddy.mcp.tools.session.session_tools._get_session_manager")
     async def test_status_tool_failure(self, mock_get_session_manager, mcp_server):
         mock_session_manager = mock_get_session_manager.return_value
         """Test status tool execution with failure."""
@@ -422,46 +411,42 @@ class TestUtilityTools:
     @pytest.fixture
     async def mcp_server(self):
         """Create MCP server with session tools."""
-        import asyncio
+        from mcp.types import TextContent
 
         mcp = FastMCP("test-utility-tools")
         register_session_tools(mcp)
+
+        async def _build_tool_dict() -> dict:
+            """Return registered tools as {name: Tool} for legacy dict access."""
+            tools_list = await mcp.list_tools()
+            return {t.name: t for t in tools_list}
+
+        async def get_tools() -> dict:
+            return await _build_tool_dict()
 
         # Add a call_tool method for testing purposes
         async def call_tool(tool_name, arguments=None):
             if arguments is None:
                 arguments = {}
 
-            # Get the registered tools
-            tools = await mcp.get_tools()
+            tools = await _build_tool_dict()
             if tool_name not in tools:
                 msg = f"Tool '{tool_name}' not found"
                 raise ValueError(msg)
 
-            # Get the tool object and call it properly
             tool_obj = tools[tool_name]
+            result = await tool_obj.run(arguments)
 
-            # FastMCP tools are often wrapped in special function tool objects
-            # that have the actual function in the 'fn' attribute
-            if hasattr(tool_obj, "fn"):
-                # Extract the underlying function
-                actual_func = tool_obj.fn
-                if asyncio.iscoroutinefunction(actual_func):
-                    return await actual_func(**arguments)
-                return actual_func(**arguments)
-            if callable(tool_obj) or callable(tool_obj):
-                # Directly call the tool object
-                if asyncio.iscoroutinefunction(tool_obj):
-                    return await tool_obj(**arguments)
-                return tool_obj(**arguments)
-            # If it's not directly callable, it might be a FunctionTool-like object
-            # with an execute method or similar interface
-            if hasattr(tool_obj, "execute"):
-                return await tool_obj.execute(**arguments)
-            msg = f"Tool object {type(tool_obj)} is not callable and has no execute method"
-            raise TypeError(msg)
+            # Extract text from TextContent blocks (FastMCP 3.x returns a
+            # ToolResult envelope rather than a raw string).
+            parts: list[str] = []
+            for block in result.content:
+                if isinstance(block, TextContent):
+                    parts.append(block.text)
+            return "\n".join(parts) if parts else (result.structured_content or "")
 
-        # Attach the method to the instance
+        # Attach the methods to the instance
+        mcp.get_tools = get_tools
         mcp.call_tool = call_tool
 
         return mcp
