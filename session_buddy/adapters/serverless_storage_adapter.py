@@ -21,10 +21,10 @@ from __future__ import annotations
 
 import logging
 import typing as t
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from session_buddy.backends.base import SessionState, SessionStorage
-from session_buddy.utils.time import utc_now
+from session_buddy.utils.time import parse_utc_timestamp, utc_now
 
 if t.TYPE_CHECKING:
     from session_buddy.adapters.session_storage_adapter import (
@@ -156,7 +156,7 @@ class ServerlessStorageAdapter(SessionStorage):
             # Check TTL expiration
             ttl_info = state_dict.get("_ttl", {})
             if ttl_info and "expires_at" in ttl_info:
-                expires_at = datetime.fromisoformat(ttl_info["expires_at"])
+                expires_at = parse_utc_timestamp(ttl_info["expires_at"])
                 if utc_now() > expires_at:
                     # Session expired, delete it
                     await self.delete_session(session_id)
@@ -229,7 +229,7 @@ class ServerlessStorageAdapter(SessionStorage):
             # Check if expired
             expires_at_str = metadata.get("expires_at")
             if expires_at_str:
-                expires_at = datetime.fromisoformat(expires_at_str)
+                expires_at = parse_utc_timestamp(expires_at_str)
                 if utc_now() > expires_at:
                     continue
 
@@ -257,7 +257,7 @@ class ServerlessStorageAdapter(SessionStorage):
                 continue
 
             try:
-                expires_at = datetime.fromisoformat(expires_at_str)
+                expires_at = parse_utc_timestamp(expires_at_str)
                 if utc_now() > expires_at:
                     expired_sessions.append(session_id)
             except ValueError:
