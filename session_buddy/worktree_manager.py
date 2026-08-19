@@ -192,6 +192,9 @@ class WorktreeManager:
         except (OSError, subprocess.SubprocessError) as e:
             self._log(f"Failed to list worktrees: {e}", level="error")
             return {"success": False, "error": str(e), "worktrees": []}
+        except Exception as e:  # noqa: BLE001 - public API must return structured error envelope for any unexpected failure
+            self._log(f"Unexpected error listing worktrees: {e}", level="error")
+            return {"success": False, "error": str(e), "worktrees": []}
 
     def _validate_worktree_creation_request(
         self,
@@ -518,6 +521,9 @@ class WorktreeManager:
 
         except (OSError, subprocess.SubprocessError) as e:
             self._log(f"Failed to get worktree status: {e}", level="error")
+            return {"success": False, "error": str(e)}
+        except Exception as e:  # noqa: BLE001 - public API must return structured error envelope for any unexpected failure
+            self._log(f"Unexpected error getting worktree status: {e}", level="error")
             return {"success": False, "error": str(e)}
 
     def _check_session_exists(self, path: Path) -> bool:
