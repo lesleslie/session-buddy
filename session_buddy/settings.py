@@ -671,7 +671,7 @@ class SessionMgmtSettings(OneiricMCPConfig):
         description="MCP server host address",
     )
     server_port: int = Field(
-        default=3000,
+        default=8678,
         ge=1024,
         le=65535,
         description="MCP server port number",
