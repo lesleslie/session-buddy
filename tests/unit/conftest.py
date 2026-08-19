@@ -190,8 +190,8 @@ def real_settings(tmp_path):
     )
 
 
-def pytest_pycollect_makemodule(module_path, parent):
-    """Purge session_buddy / mcp_common stubs before each test module is imported.
+def _reset_unit_module_state() -> None:
+    """Purge session_buddy / mcp_common stubs and re-attach real packages.
 
     A safety net for test files that install their own stubs via
     ``sys.modules`` at module load time, leaving the stub in place
@@ -252,6 +252,29 @@ def pytest_pycollect_makemodule(module_path, parent):
             pass
 
     _re_attach_runtime_snapshots_submodule()
+
+
+def pytest_pycollect_makemodule(module_path, parent):
+    """Reset module state while building each test module collector.
+
+    In pytest 8 this hook fires for every file in a directory up front,
+    before any of them is imported, so it cannot on its own protect
+    module N+1 from a stub installed at module scope by module N. The
+    per-import protection lives in :func:`pytest_collectstart`.
+    """
+    _reset_unit_module_state()
+
+
+def pytest_collectstart(collector):
+    """Purge stubs immediately before each test module is imported.
+
+    ``pytest_collectstart`` fires right before ``collector.collect()``,
+    which for a :class:`pytest.Module` is what performs the import.
+    This is the only hook guaranteed to run *between* consecutive test
+    module imports, so it is where the stub purge must happen.
+    """
+    if isinstance(collector, pytest.Module):
+        _reset_unit_module_state()
 
 
 # Submodules of ``session_buddy.utils`` that the conftest must

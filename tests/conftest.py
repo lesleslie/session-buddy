@@ -1098,16 +1098,13 @@ def _purge_session_buddy_stubs() -> None:
             sys.modules.pop(name, None)
 
 
-def pytest_pycollect_makemodule(module_path, parent):
-    """Clean up ``sys.modules`` stubs before the next test file is imported.
+def _reset_session_buddy_module_state() -> None:
+    """Purge stubs and force real ``session_buddy`` packages back in place.
 
     Test files in :mod:`tests.unit` install synthetic packages via
-    :func:`sys.modules` at module load time. The autouse fixtures
-    alone cannot help because collection imports each test module
-    *before* any test runs, so a stub left in ``sys.modules`` during
-    collection breaks the *next* file's import. This hook fires before
-    each test file is imported, so any pollution from a previously
-    collected file is wiped before the new import begins.
+    :data:`sys.modules` at module load time. A stub left behind by one
+    test module breaks the *next* module's import with
+    ``ImportError: cannot import name '...' (unknown location)``.
     """
     _purge_session_buddy_stubs()
     # Defensive: re-import session_buddy.core from disk if it's missing
@@ -1155,6 +1152,90 @@ def pytest_pycollect_makemodule(module_path, parent):
                 __import__(target)
             except ImportError:
                 pass
+    _reattach_submodule_attrs()
+
+
+def pytest_pycollect_makemodule(module_path, parent):
+    """Reset ``sys.modules`` state while building each test module collector.
+
+    Note: in pytest 8 this hook fires for *every* file in a directory
+    up front, before any of them is imported, so it cannot by itself
+    protect module N+1 from a stub installed by module N. The
+    per-import protection lives in :func:`pytest_collectstart` below;
+    this hook is retained as a cheap pre-collection reset.
+    """
+    _reset_session_buddy_module_state()
+
+
+def pytest_collectstart(collector):
+    """Purge ``sys.modules`` stubs immediately before each module import.
+
+    ``pytest_collectstart`` fires right before ``collector.collect()``,
+    and for a :class:`pytest.Module` that call is what triggers the
+    actual import of the test file. This is therefore the only hook
+    that reliably runs *between* one test module's import (which may
+    install a synthetic ``session_buddy.*`` stub at module scope) and
+    the next module's import.
+    """
+    if isinstance(collector, pytest.Module):
+        _reset_session_buddy_module_state()
+
+
+def _reattach_submodule_attrs() -> None:
+    """Re-attach loaded ``session_buddy.*`` submodules onto their parents.
+
+    When :func:`_purge_session_buddy_stubs` drops a stubbed parent
+    package, the next access re-imports the *real* package from disk.
+    That fresh module object carries none of the submodule attributes
+    the previous object had, and :func:`importlib.import_module` will
+    not restore them: for a submodule already cached in
+    :data:`sys.modules` it returns the cached object without touching
+    the parent.
+
+    The visible symptom is a string-form monkeypatch failing::
+
+        monkeypatch.setattr("session_buddy.checkpoint.pending.os.replace", ...)
+        AttributeError: 'module' object at session_buddy.checkpoint
+                        has no attribute 'checkpoint'
+
+    Walking ``sys.modules`` and re-binding each loaded submodule onto
+    its parent fixes every such path at once, rather than needing a
+    bespoke ``_re_attach_<name>_submodule`` helper per module.
+
+    A parent attribute that is already the right object, or that holds
+    a non-module value (a real re-export shadowing the submodule name),
+    is left untouched.
+    """
+    import types
+
+    for name, module in list(sys.modules.items()):
+        if not name.startswith("session_buddy.") or module is None:
+            continue
+        parent_name, _, attr = name.rpartition(".")
+        parent = sys.modules.get(parent_name)
+        if parent is None:
+            continue
+        current = getattr(parent, attr, None)
+        if current is module:
+            continue
+        if current is not None and not isinstance(current, types.ModuleType):
+            # A real export shadows the submodule name; don't clobber it.
+            continue
+        try:
+            setattr(parent, attr, module)
+        except (AttributeError, TypeError):  # pragma: no cover - defensive
+            pass
+
+
+def pytest_runtest_setup(item):
+    """Restore parent-package submodule attributes before every test.
+
+    Collection-time purges and re-imports leave parent packages missing
+    submodule attributes. This hook runs immediately before each test,
+    so string-form ``monkeypatch.setattr("session_buddy.a.b.c", ...)``
+    calls resolve against a fully-populated package tree.
+    """
+    _reattach_submodule_attrs()
 
 
 def pytest_collection_finish(session):
