@@ -431,7 +431,7 @@ class JSONToDhruvaMigrator:
     def _ensure_schema(self, conn: sqlite3.Connection) -> None:
         """Ensure database schema exists.
 
-        Applies V1 migration if skill_invocation table doesn't exist.
+        Applies all pending migrations if skill_invocation table doesn't exist.
 
         Args:
             conn: Database connection
@@ -445,19 +445,19 @@ class JSONToDhruvaMigrator:
             # Schema already exists
             return
 
-        # Apply V1 migration directly
-        # Use absolute path from this file's location
+        # Apply all migrations via the migration manager
         # Script is in scripts/, go up to root, then into session_buddy/storage/migrations
         script_dir = Path(__file__).parent
         migration_dir = script_dir.parent / "session_buddy" / "storage" / "migrations"
-        up_migration = migration_dir / "V1__initial_schema__up.sql"
 
-        if not up_migration.exists():
-            raise FileNotFoundError(f"Migration file not found: {up_migration}")
+        if not migration_dir.exists():
+            raise FileNotFoundError(f"Migration directory not found: {migration_dir}")
 
-        # Read and execute migration SQL
-        sql = up_migration.read_text()
-        conn.executescript(sql)
+        # Use the migration manager to apply all pending migrations
+        from session_buddy.storage.migrations import get_migration_manager
+
+        manager = get_migration_manager(db_path=self.db_path, migration_dir=migration_dir)
+        manager.migrate()
 
     # -----------------------------------------------------------------------#
     # Backup

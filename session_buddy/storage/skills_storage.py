@@ -320,9 +320,9 @@ class SkillsStorage:
                 selection_rank=row["selection_rank"],
                 follow_up_actions=row["follow_up_actions"],
                 error_type=row["error_type"],
-                embedding=row.get("embedding"),
-                workflow_phase=row.get("workflow_phase"),
-                workflow_step_id=row.get("workflow_step_id"),
+                embedding=row["embedding"],
+                workflow_phase=row["workflow_phase"],
+                workflow_step_id=row["workflow_step_id"],
             )
 
     def get_session_invocations(self, session_id: str) -> list[StoredInvocation]:
@@ -364,9 +364,9 @@ class SkillsStorage:
                     selection_rank=row["selection_rank"],
                     follow_up_actions=row["follow_up_actions"],
                     error_type=row["error_type"],
-                    embedding=row.get("embedding"),
-                    workflow_phase=row.get("workflow_phase"),
-                    workflow_step_id=row.get("workflow_step_id"),
+                    embedding=row["embedding"],
+                    workflow_phase=row["workflow_phase"],
+                    workflow_step_id=row["workflow_step_id"],
                 )
                 for row in rows
             ]
@@ -1320,7 +1320,8 @@ class SkillsStorage:
         query_vec = unpack_embedding(query_embedding)
 
         for row in rows:
-            # Create StoredInvocation
+            # Create StoredInvocation (some columns may be missing from SELECT)
+            row_dict = dict(row)
             invocation = StoredInvocation(
                 id=row["id"],
                 skill_name=row["skill_name"],
@@ -1330,13 +1331,13 @@ class SkillsStorage:
                 completed=bool(row["completed"]),
                 duration_seconds=row["duration_seconds"],
                 user_query=row["user_query"],
-                alternatives_considered=row.get("alternatives_considered"),
-                selection_rank=row.get("selection_rank"),
-                follow_up_actions=row.get("follow_up_actions"),
-                error_type=row.get("error_type"),
+                alternatives_considered=row_dict.get("alternatives_considered"),
+                selection_rank=row_dict.get("selection_rank"),
+                follow_up_actions=row_dict.get("follow_up_actions"),
+                error_type=row_dict.get("error_type"),
                 embedding=row["embedding"],
                 workflow_phase=row["workflow_phase"],
-                workflow_step_id=row.get("workflow_step_id"),
+                workflow_step_id=row_dict.get("workflow_step_id"),
             )
 
             # Calculate semantic similarity
