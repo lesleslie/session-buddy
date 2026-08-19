@@ -6,7 +6,7 @@ ______________________________________________________________________
 
 **Single Source of Truth for Session-Buddy Architecture**
 
-**Last Updated**: 2026-02-09
+**Last Updated**: 2026-08-19
 **Status**: Production Ready <!-- legacy status — see YAML frontmatter -->
 **Role**: Manager (Session and Memory Management)
 
