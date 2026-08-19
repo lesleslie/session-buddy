@@ -196,18 +196,18 @@ class DefaultQualityScorer(QualityScorer):
 
 #### Reflection System Modularization
 
-**Before**: `reflection_tools.py` (1,345 lines) - Everything in one file
-**After**: Modular structure with 97% reduction in main file
+**Before**: `reflection_tools.py` (90 lines) - Compatibility wrapper around modular structure
+**After**: Modular structure under `session_buddy/reflection/`
 
 ```
 session_buddy/reflection/
-|-- __init__.py (50 lines) - Public API
-|-- database.py (380 lines) - Database class
-|-- embeddings.py (200 lines) - Vector generation
-|-- schema.py (160 lines) - Database structure
-|-- search.py (330 lines) - Semantic/text search
-|-- storage.py (280 lines) - CRUD operations
-reflection_tools.py (37 lines) - Compatibility wrapper
+|-- __init__.py - Public API
+|-- database.py - Database class
+|-- embeddings.py - Vector generation
+|-- schema.py - Database structure
+|-- search.py - Semantic/text search
+|-- storage.py - CRUD operations
+reflection_tools.py (90 lines) - Compatibility wrapper
 ```
 
 **Benefits**: Clear separation, better testability, 100% backward compatibility
@@ -221,7 +221,7 @@ reflection_tools.py (37 lines) - Compatibility wrapper
 
 ### Core Components
 
-**server.py** (~336 lines): Thin entrypoint that re-exports the FastMCP instance from `server_optimized.py` and runs `python -m session_buddy.server`. Bulk of the MCP wiring lives in `server_optimized.py` (~1,100+ lines) and `session_buddy/mcp/server.py` (~300 lines, profile-driven registrations). Verified via `wc -l session_buddy/server.py` on 2026-08-12.
+**server.py** (~336 lines): Thin entrypoint that re-exports the FastMCP instance from `server_optimized.py` and runs `python -m session_buddy.server`. Bulk of the MCP wiring lives in `server_optimized.py` (761 lines) and `session_buddy/mcp/server.py` (~300 lines, profile-driven registrations). Verified via `wc -l session_buddy/server.py session_buddy/server_optimized.py` on 2026-08-19.
 
 **reflection_tools.py**: DuckDB database with FLOAT[384] vector embeddings, local ONNX model (all-MiniLM-L6-v2), async architecture with executor threads, text search fallback
 
@@ -440,7 +440,7 @@ storage:
 
 ## Available MCP Tools
 
-**Total: 42 MCP tools** across 8 categories (verified via live introspection 2026-08-12). See [README.md](README.md#available-mcp-tools) for complete list.
+**Total: 199 MCP tools** across 31 tool groups when `SESSION_BUDDY_TOOL_PROFILE=full` (verified 2026-08-19). See [README.md](README.md#available-mcp-tools) for complete list.
 
 ### Tool Profile System
 

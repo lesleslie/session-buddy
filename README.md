@@ -327,7 +327,8 @@ stateDiagram-v2
 
 ## Available MCP Tools
 
-This server provides **42 MCP tools** across 8 functional categories (as of 2026-08-12 live introspection).
+This server provides **199 MCP tools** across 31 tool groups (verified 2026-08-19 via `SESSION_BUDDY_TOOL_PROFILE=full`).
+The actual count is gated by `SESSION_BUDDY_TOOL_PROFILE` (minimal/standard/full).
 For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_REFERENCE.md).
 
 > **Removed in 2026-08-12 audit:** The following tools were documented but not
