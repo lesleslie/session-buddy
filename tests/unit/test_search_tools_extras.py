@@ -526,13 +526,13 @@ class TestParseTimeExpressionExtras:
         """'today' subtracts 24 hours, not 1 day."""
         result = _parse_time_expression("today")
         assert result is not None
-        elapsed = (datetime.now() - result).total_seconds()
+        elapsed = (datetime.now(UTC) - result).total_seconds()
         assert 86395 <= elapsed <= 86405
 
     def test_yesterday_bucket(self):
         """'yesterday' subtracts exactly 1 day."""
         result = _parse_time_expression("yesterday")
-        assert (datetime.now() - result).days == 1
+        assert (datetime.now(UTC) - result).days == 1
 
     def test_unknown_expression_returns_none(self):
         """An unrecognized expression returns None."""

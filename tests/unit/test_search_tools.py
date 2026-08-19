@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import operator
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -789,26 +789,26 @@ class TestParseTimeExpression:
         """Test parsing 'yesterday'."""
         result = _parse_time_expression("yesterday")
         assert result is not None
-        assert (datetime.now() - result).days == 1
+        assert (datetime.now(UTC) - result).days == 1
 
     def test_parse_time_expression_last_week(self):
         """Test parsing 'last week'."""
         result = _parse_time_expression("last week")
         assert result is not None
-        assert (datetime.now() - result).days == 7
+        assert (datetime.now(UTC) - result).days == 7
 
     def test_parse_time_expression_last_month(self):
         """Test parsing 'last month'."""
         result = _parse_time_expression("last month")
         assert result is not None
-        assert (datetime.now() - result).days == 30
+        assert (datetime.now(UTC) - result).days == 30
 
     def test_parse_time_expression_today(self):
         """Test parsing 'today'."""
         result = _parse_time_expression("today")
         assert result is not None
         # Should be within last 24 hours (with some tolerance for test execution time)
-        elapsed = (datetime.now() - result).total_seconds()
+        elapsed = (datetime.now(UTC) - result).total_seconds()
         assert elapsed <= 86400 + 5, f"Expected <= 86400s, got {elapsed}s"
 
     def test_parse_time_expression_unknown(self):
