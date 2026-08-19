@@ -442,6 +442,19 @@ storage:
 
 **Total: 42 MCP tools** across 8 categories (verified via live introspection 2026-08-12). See [README.md](README.md#available-mcp-tools) for complete list.
 
+### Tool Profile System
+
+Tools are gated by the `SESSION_BUDDY_TOOL_PROFILE` environment variable:
+
+- `full` (default): All ~35 register fns from `REGISTRATION_MAP`
+- `standard`: Session lifecycle + search + hooks + conversation + extraction + knowledge_graph + cache + intent + crackerjack + monitoring + access_log + channel_session_state + channel_tracking + cross_repo_work (~15 tools)
+- `minimal`: Session lifecycle + search + hooks (~3 tools)
+
+Health tools are always-on at every profile via `SESSION_BUDDY_MANDATORY_GROUPS`.
+For detailed rationale (group choices, Dhara publisher build pattern, subagent
+recovery history): see
+[docs/architecture/tool-profile-rationale.md](docs/architecture/tool-profile-rationale.md).
+
 ### Core Session Management (8 tools)
 
 `start`, `checkpoint`, `end`, `status`, `permissions`, `auto_compact`, `quality_monitor`, `session_welcome`
