@@ -115,6 +115,11 @@ class KnowledgeGraphDatabase:
                 logger.debug(
                     "ignored error during DB connection cleanup", exc_info=True
                 )
+            finally:
+                # Reset the connection reference so subsequent __aexit__
+                # / context-manager-exit assertions (``conn is None``)
+                # observe a closed state, not a stale cursor.
+                self.conn = None
 
     def __del__(self) -> None:
         """Destructor to ensure cleanup."""

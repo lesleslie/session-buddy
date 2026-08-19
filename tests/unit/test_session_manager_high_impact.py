@@ -450,7 +450,13 @@ async def test_checkpoint_session_success(
 
     assert result["success"] is True
     assert result["quality_score"] == 82
-    assert result["git_output"] == ["git-output"]
+    # The orchestrator wraps legacy ``perform_git_checkpoint`` and appends
+    # a summary line ``checkpoint_orchestrator_decision: ...``; we only
+    # own the leading mock value, the summary belongs to the orchestrator.
+    assert result["git_output"][0] == "git-output"
+    assert any(
+        line.startswith("checkpoint_orchestrator_decision:") for line in result["git_output"]
+    )
     assert result["auto_store_summary"] == "auto-store summary"
     assert result["insights_extracted"] == 2
     assert result["conversation_stored"] == {"success": True, "conversation_id": "conv-1"}

@@ -123,8 +123,9 @@ class SessionLifecycleManager:
 
             try:
                 self.quality_scorer = get_sync_typed(QualityScorer)
-            except (ImportError, KeyError, AttributeError):
+            except (ImportError, KeyError, AttributeError, RuntimeError):
                 # Fallback to DefaultQualityScorer if DI not configured
+                # or raises a non-fatal resolver error
                 from session_buddy.core.quality_scoring import DefaultQualityScorer
 
                 self.quality_scorer = DefaultQualityScorer()
@@ -167,7 +168,7 @@ class SessionLifecycleManager:
                 "Templates environment initialized, templates_dir=%s",
                 str(templates_dir),
             )
-        except (ImportError, OSError) as e:
+        except (ImportError, OSError, RuntimeError) as e:
             self.logger.warning(
                 "Templates environment initialization failed, using fallback, error=%s",
                 str(e),
@@ -459,7 +460,7 @@ class SessionLifecycleManager:
                 # Schedule automatic git gc after successful checkpoint
                 await self._schedule_git_maintenance(current_dir, output)
 
-        except (subprocess.SubprocessError, OSError, ValueError) as e:
+        except (subprocess.SubprocessError, OSError, RuntimeError, ValueError) as e:
             output.append(f"\n⚠️ Git operations error: {e}")
             self.logger.exception(
                 "Git checkpoint error occurred, project=%s",
@@ -689,7 +690,7 @@ class SessionLifecycleManager:
                     message,
                 )
 
-        except (OSError, subprocess.SubprocessError) as e:
+        except (OSError, subprocess.SubprocessError, RuntimeError) as e:
             # Don't fail checkpoint if gc scheduling fails
             self.logger.warning(
                 "Git maintenance scheduling failed (continuing), project=%s, error=%s",
@@ -1290,7 +1291,7 @@ class SessionLifecycleManager:
             hooks_manager: HooksManager | None = None
             try:
                 hooks_manager = get_sync_typed(HooksManager)
-            except (ImportError, KeyError, AttributeError) as e:
+            except (ImportError, KeyError, AttributeError, RuntimeError) as e:
                 self.logger.warning("Failed to get hooks manager from DI: %s", str(e))
 
             # Execute PRE_CHECKPOINT hooks (quality validation, etc.)
@@ -1802,6 +1803,7 @@ class SessionLifecycleManager:
 
             # Execute PRE_SESSION_END hooks (cleanup preparation, etc.)
             pre_hooks_results = []
+            hooks_manager: HooksManager | None = None
             try:
                 hooks_manager = get_sync_typed(HooksManager)
                 pre_context = HookContext(
@@ -1877,7 +1879,7 @@ class SessionLifecycleManager:
                 )
                 post_hooks_results = await hooks_manager.execute_hooks(
                     HookType.SESSION_END, post_context
-                )
+                ) if hooks_manager is not None else []
             except (AttributeError, RuntimeError) as e:
                 self.logger.warning("SESSION_END hooks failed: %s", str(e))
 
@@ -1903,7 +1905,7 @@ class SessionLifecycleManager:
                 "post_hooks_results": post_hooks_results,
             }
 
-        except Exception:
+        except Exception as e:  # noqa: BLE001 - G6 sentinel: outer failures must be reported
             self.logger.exception("Session end failed")
             return {"success": False, "error": str(e)}
 
