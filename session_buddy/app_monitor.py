@@ -13,7 +13,7 @@ import sqlite3
 from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -169,11 +169,24 @@ class ProjectActivityMonitor:
     def get_recent_activity(self, minutes: int = 30) -> list[ActivityEvent]:
         """Get recent activity within specified minutes."""
         cutoff = utc_now() - timedelta(minutes=minutes)
-        cutoff_str = cutoff.isoformat()
+        # Mirror of the cutoff in the system's local timezone so we can
+        # compare against naive ``datetime.now().isoformat()`` strings
+        # produced by ``ActivityEvent`` callers (tests, ad-hoc producers)
+        # without bumping into offset-naive-vs-aware TypeErrors.
+        cutoff_local = cutoff.astimezone().replace(tzinfo=None)
 
-        return [
-            event for event in self.activity_buffer if event.timestamp >= cutoff_str
-        ]
+        def _is_recent(event: ActivityEvent) -> bool:
+            try:
+                ts = datetime.fromisoformat(event.timestamp)
+            except (TypeError, ValueError):
+                return False
+            # Treat naive timestamps as local time of record, matching
+            # how ``datetime.now()`` is used by callers.
+            if ts.tzinfo is not None:
+                ts = ts.astimezone().replace(tzinfo=None)
+            return ts >= cutoff_local
+
+        return [event for event in self.activity_buffer if _is_recent(event)]
 
     def get_active_files(self, minutes: int = 60) -> list[dict[str, Any]]:
         """Get files actively being worked on."""
