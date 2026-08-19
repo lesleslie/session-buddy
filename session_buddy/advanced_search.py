@@ -10,6 +10,8 @@ import hashlib
 import json
 import sqlite3
 import time
+
+import duckdb
 from datetime import UTC, datetime
 from typing import Any
 
@@ -387,7 +389,13 @@ class AdvancedSearchEngine:
                     dt = dt.replace(tzinfo=UTC)
                 return dt if isinstance(dt, datetime) else None
             return None
-        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
+        except (
+            sqlite3.DatabaseError,
+            sqlite3.IntegrityError,
+            duckdb.CatalogException,
+            TypeError,
+            ValueError,
+        ):
             # Table doesn't exist yet, will be created during index rebuild
             return None
 
@@ -524,6 +532,11 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return
 
+        # Idempotent schema guard: tests / cold indexes may not have the
+        # advanced-search tables created yet. _ensure_advanced_search_tables
+        # is a no-op when the tables already exist.
+        self._ensure_advanced_search_tables()
+
         try:
             self.reflection_db.conn.execute(
                 """
@@ -653,6 +666,10 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return
 
+        # Idempotent schema guard: tests / cold indexes may not have the
+        # advanced-search tables created yet.
+        self._ensure_advanced_search_tables()
+
         facet_id = hashlib.md5(
             f"{facet_name}_{facet_value}".encode(),
             usedforsecurity=False,
@@ -680,7 +697,13 @@ class AdvancedSearchEngine:
                     datetime.now(UTC).isoformat(),
                 ],
             )
-        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
+        except (
+            sqlite3.DatabaseError,
+            sqlite3.IntegrityError,
+            duckdb.CatalogException,
+            TypeError,
+            ValueError,
+        ):
             # Table doesn't exist yet, will be created during index rebuild
             return
 
