@@ -406,6 +406,12 @@ class RelevanceScorer:
 
         with suppress(ValueError, TypeError):
             conv_time = datetime.fromisoformat(conversation.get("timestamp", ""))
+            # Normalize naive datetimes to UTC for comparison. A naive value
+            # is interpreted as local time and converted via its Unix
+            # timestamp so subtracting from the tz-aware utc_now() works
+            # without raising TypeError and yields the correct duration.
+            if conv_time.tzinfo is None:
+                conv_time = datetime.fromtimestamp(conv_time.timestamp(), tz=UTC)
             time_diff = utc_now() - conv_time
             if time_diff.days == 0:
                 return self.scoring_weights["recency"]
@@ -491,6 +497,15 @@ class AutoContextLoader:
         # Check cache
         if context_hash in self.cache:
             cached_time, cached_result = self.cache[context_hash]
+            # Normalize naive datetimes to UTC for the subtraction below.
+            # A naive value is interpreted as local time and converted via
+            # its Unix timestamp so the difference is computed against the
+            # same moment utc_now() represents.
+            if cached_time.tzinfo is None:
+                cached_time = datetime.fromtimestamp(
+                    cached_time.timestamp(),
+                    tz=UTC,
+                )
             if utc_now() - cached_time < timedelta(seconds=self.cache_timeout):
                 return cached_result  # type: ignore[no-any-return]
 
