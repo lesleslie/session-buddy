@@ -53,7 +53,7 @@ async def health_check(request: Any = None) -> dict[str, Any]:
         if isinstance(body, (bytes, bytearray, memoryview)):
             return json.loads(bytes(body))
         if isinstance(body, str):
-            return json.loads(body)
+            return body
         if isinstance(body, dict):
             return body
         return {"raw": body}
