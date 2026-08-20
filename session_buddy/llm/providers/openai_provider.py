@@ -6,6 +6,8 @@ OpenAI Python SDK for chat completions and streaming.
 
 from __future__ import annotations
 
+import sys
+from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.llm.base import LLMProvider
@@ -14,6 +16,32 @@ from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+
+
+def _ensure_openai_module() -> ModuleType:
+    """Ensure ``openai`` is importable even when the optional package
+    is not installed.
+
+    When the real ``openai`` package is missing, install a stub
+    ``ModuleType`` in ``sys.modules`` with ``AsyncOpenAI = None`` so that
+    ``unittest.mock.patch("openai.AsyncOpenAI", ...)`` can resolve the
+    name. The stub's ``None`` attribute causes ``_get_client`` to raise
+    ``ImportError`` instead of attempting to call ``None(...)``.
+    """
+    if "openai" in sys.modules:
+        return sys.modules["openai"]  # type: ignore[return-value]
+    try:
+        import openai as _real_openai  # noqa: F401 - side-effect: cache in sys.modules
+    except ImportError:
+        stub = ModuleType("openai")
+        stub.AsyncOpenAI = None  # type: ignore[attr-defined]
+        sys.modules["openai"] = stub
+        return stub
+    return sys.modules["openai"]  # type: ignore[return-value]
+
+
+# Install the stub at import time so test patches can resolve the name.
+_ensure_openai_module()
 
 
 class OpenAIProvider(LLMProvider):
@@ -31,16 +59,17 @@ class OpenAIProvider(LLMProvider):
         if self._client is None:
             try:
                 import openai
-
-                self._client = openai.AsyncOpenAI(
-                    api_key=self.api_key,
-                    base_url=self.base_url,
-                )
-            except ImportError:
+            except ImportError:  # pragma: no cover - stub prevents this in tests
                 msg = "OpenAI package not installed. Install with: pip install openai"
-                raise ImportError(
-                    msg,
-                )
+                raise ImportError(msg)
+            client_cls = getattr(openai, "AsyncOpenAI", None)
+            if client_cls is None:
+                msg = "OpenAI package not installed. Install with: pip install openai"
+                raise ImportError(msg)
+            self._client = client_cls(
+                api_key=self.api_key,
+                base_url=self.base_url,
+            )
         return self._client
 
     def _convert_messages(self, messages: list[LLMMessage]) -> list[dict[str, str]]:

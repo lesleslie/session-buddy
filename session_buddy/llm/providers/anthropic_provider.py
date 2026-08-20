@@ -6,6 +6,8 @@ API key is unavailable, the provider reports as unavailable.
 
 from __future__ import annotations
 
+import sys
+from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
 from session_buddy.llm.base import LLMProvider
@@ -14,6 +16,32 @@ from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+
+
+def _ensure_anthropic_module() -> ModuleType:
+    """Ensure ``anthropic`` is importable even when the optional package
+    is not installed.
+
+    When the real ``anthropic`` package is missing, install a stub
+    ``ModuleType`` in ``sys.modules`` with ``AsyncAnthropic = None`` so
+    that ``unittest.mock.patch("anthropic.AsyncAnthropic", ...)`` can
+    resolve the name. The stub's ``None`` attribute causes ``_get_client``
+    to raise ``ImportError`` instead of attempting to call ``None(...)``.
+    """
+    if "anthropic" in sys.modules:
+        return sys.modules["anthropic"]  # type: ignore[return-value]
+    try:
+        import anthropic as _real_anthropic  # noqa: F401 - side-effect: cache in sys.modules
+    except ImportError:
+        stub = ModuleType("anthropic")
+        stub.AsyncAnthropic = None  # type: ignore[attr-defined]
+        sys.modules["anthropic"] = stub
+        return stub
+    return sys.modules["anthropic"]  # type: ignore[return-value]
+
+
+# Install the stub at import time so test patches can resolve the name.
+_ensure_anthropic_module()
 
 
 class AnthropicProvider(LLMProvider):
@@ -30,13 +58,16 @@ class AnthropicProvider(LLMProvider):
         if self._client is None:
             try:
                 import anthropic
-
-                self._client = anthropic.AsyncAnthropic(
-                    api_key=self.api_key, base_url=self.base_url
-                )
-            except ImportError:  # pragma: no cover - optional dependency
+            except ImportError:  # pragma: no cover - stub prevents this in tests
                 msg = "Anthropic package not installed. Install with: pip install anthropic"
                 raise ImportError(msg)
+            client_cls = getattr(anthropic, "AsyncAnthropic", None)
+            if client_cls is None:
+                msg = "Anthropic package not installed. Install with: pip install anthropic"
+                raise ImportError(msg)
+            self._client = client_cls(
+                api_key=self.api_key, base_url=self.base_url
+            )
         return self._client
 
     def _strip_thinking_blocks(self, content: str) -> str:

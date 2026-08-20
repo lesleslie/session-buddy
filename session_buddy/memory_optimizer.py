@@ -324,7 +324,7 @@ class ConversationSummarizer:
         try:
             summary = self.summarization_strategies[strategy](content)
             return summary or "Unable to generate summary"
-        except (ValueError, TypeError, AttributeError, KeyError) as e:
+        except Exception as e:  # noqa: BLE001 - summarization must never propagate
             return f"Summary generation failed: {str(e)[:100]}"
 
 

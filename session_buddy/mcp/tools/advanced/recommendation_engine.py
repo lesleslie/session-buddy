@@ -57,6 +57,12 @@ class RecommendationEngine:
         start_date: datetime,
     ) -> list[dict[str, Any]]:
         """Filter results by date range."""
+        # ``start_date`` may arrive naive (e.g. from callers using
+        # ``datetime.now()``); normalise it up front so it can be compared
+        # against the UTC-normalised result timestamps below.
+        if start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=UTC)
+
         filtered_results = []
         for result in results:
             timestamp_str = result.get("timestamp")

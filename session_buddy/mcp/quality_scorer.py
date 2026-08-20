@@ -10,12 +10,22 @@ breaking the circular dependency between core and MCP layers.
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
 from session_buddy.core.quality_scoring import QualityScorer
 
 logger = logging.getLogger(__name__)
+
+# Modules that may expose a live ``permissions_manager``. The MCP layer's own
+# server module wins; ``session_buddy.server`` is kept as a legacy fallback.
+_PERMISSIONS_MODULES = ("session_buddy.mcp.server", "session_buddy.server")
+
+# Points awarded per trusted operation and the ceiling for the resulting score.
+_POINTS_PER_TRUSTED_OPERATION = 4
+_MAX_PERMISSIONS_SCORE = 20
+_FALLBACK_PERMISSIONS_SCORE = 10
 
 
 class MCPQualityScorer(QualityScorer):
@@ -88,21 +98,37 @@ class MCPQualityScorer(QualityScorer):
         if self._permissions_score_cache is not None:
             return self._permissions_score_cache
 
-        try:
-            from session_buddy.server import (
-                permissions_manager,
-            )
-
-            if hasattr(permissions_manager, "trusted_operations"):
-                trusted_count = len(permissions_manager.trusted_operations)
-                score = min(
-                    trusted_count * 4, 20
-                )  # 4 points per trusted operation, max 20
-                self._permissions_score_cache = score
-                return score
-            return 10  # Basic score if we can't access trusted operations
-        except ImportError:
+        trusted_operations = self._resolve_trusted_operations()
+        if trusted_operations is None:
             logger.warning(
                 "MCP server permissions_manager not available, using fallback"
             )
-            return 10  # Fallback score
+            return _FALLBACK_PERMISSIONS_SCORE
+
+        score = min(
+            len(trusted_operations) * _POINTS_PER_TRUSTED_OPERATION,
+            _MAX_PERMISSIONS_SCORE,
+        )
+        self._permissions_score_cache = score
+        return score
+
+    @staticmethod
+    def _resolve_trusted_operations() -> Any | None:
+        """Locate the trusted operations of a live permissions manager.
+
+        The permissions manager is owned by the running MCP server, so it is
+        resolved from already-imported modules rather than by importing the
+        server (which would re-run tool registration). ``None`` is returned
+        when no server module exposes a usable manager.
+        """
+        for module_name in _PERMISSIONS_MODULES:
+            module = sys.modules.get(module_name)
+            if module is None:
+                continue
+
+            manager = getattr(module, "permissions_manager", None)
+            trusted_operations = getattr(manager, "trusted_operations", None)
+            if trusted_operations is not None:
+                return trusted_operations
+
+        return None

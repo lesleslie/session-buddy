@@ -138,12 +138,15 @@ async def check_database_health() -> ComponentHealth:
             },
         )
 
-    except Exception:  # noqa: BLE001 - database health-check contract: must return an UNHEALTHY ComponentHealth for any internal error rather than propagate
+    except Exception as e:  # noqa: BLE001 - database health-check contract: must return an UNHEALTHY ComponentHealth for any internal error rather than propagate
         latency_ms = (time.perf_counter() - start_time) * 1000
+        # Include exception detail (truncated to 100 chars) so operators can
+        # see *what* went wrong. Tests assert the exception text is present.
+        error_detail = str(e)[:100]
         return ComponentHealth(
             name="database",
             status=HealthStatus.UNHEALTHY,
-            message="Database error: unexpected failure",
+            message=f"Database error: {error_detail}",
             latency_ms=latency_ms,
         )
 
