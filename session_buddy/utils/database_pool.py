@@ -121,7 +121,7 @@ class DatabaseConnectionPool:
                     try:
                         conn.close()
                     except Exception as e:  # noqa: BLE001 - best-effort connection close during pool management: must log and continue rather than propagate
-                        _get_logger().exception(f"Error closing excess connection: {e}")
+                        _get_logger().warning(f"Error closing excess connection: {e}")
 
     @asynccontextmanager
     async def get_async_connection(self) -> AsyncIterator[Any]:
@@ -215,14 +215,14 @@ class DatabaseConnectionPool:
                 try:
                     conn.close()
                 except Exception as e:  # noqa: BLE001 - best-effort pool shutdown: log and continue so all remaining connections are still closed
-                    _get_logger().exception(f"Error closing pooled connection: {e}")
+                    _get_logger().warning(f"Error closing pooled connection: {e}")
 
             # Close active connections
             for conn in self._active_connections.values():
                 try:
                     conn.close()
                 except Exception as e:  # noqa: BLE001 - best-effort pool shutdown: log and continue so all remaining connections are still closed
-                    _get_logger().exception(f"Error closing active connection: {e}")
+                    _get_logger().warning(f"Error closing active connection: {e}")
 
             self._pool.clear()
             self._active_connections.clear()
