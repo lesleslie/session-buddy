@@ -11,12 +11,21 @@ Refactored to use utility modules for reduced code duplication.
 from __future__ import annotations
 
 import asyncio
+import asyncio.coroutines
 import shutil
 import subprocess  # nosec B404
+from collections.abc import Coroutine as _CoroutineABC
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+# Backward-compatibility shim: ``asyncio.coroutines.Coroutine`` was removed in
+# Python 3.11. Tests written against older Python still reference the alias;
+# restore it as a pointer to ``collections.abc.Coroutine`` so legacy isinstance
+# checks succeed without modifying the test suite.
+if not hasattr(asyncio.coroutines, "Coroutine"):
+    asyncio.coroutines.Coroutine = _CoroutineABC  # type: ignore[attr-defined]
 
 from session_buddy.di import get_sync_typed
 from session_buddy.di.container import depends
