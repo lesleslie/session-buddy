@@ -216,7 +216,7 @@ async def _initialize_git_session(
             session_logger.warning(f"Auto-init failed: {result['error']}")
 
     except Exception:
-        session_logger.exception("Auto-init failed (non-critical)")
+        session_logger.warning("Auto-init failed (non-critical)")
 
 
 def _store_connection_info(result: dict[str, Any]) -> None:
@@ -261,7 +261,7 @@ async def _end_git_session(
         else:
             session_logger.warning(f"Auto-cleanup failed: {result['error']}")
     except Exception:
-        session_logger.exception("Auto-cleanup failed (non-critical)")
+        session_logger.warning("Auto-cleanup failed (non-critical)")
 
 
 # =====================================
@@ -310,7 +310,7 @@ async def auto_setup_git_working_directory(session_logger: SessionLogger) -> Non
 
     except Exception:
         # Graceful fallback - don't break server startup
-        session_logger.exception("Git auto-setup failed (non-critical)")
+        session_logger.debug("Git auto-setup failed (non-critical)")
 
 
 async def initialize_new_features(
