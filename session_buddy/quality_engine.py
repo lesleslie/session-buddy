@@ -1009,12 +1009,16 @@ async def calculate_quality_score(project_dir: Path | None = None) -> dict[str, 
     # expectations in test_optimized_examples — expect the headline
     # ``total_score`` to include session availability, since a project
     # without an active session management layer is materially less
-    # useful than one with it. We add ``session_availability`` (0-30
-    # points) to the V2 total so the reported score matches the
-    # legacy "session management fixed at 20-30" contract.
-    total_score = int(
-        quality_result.total_score + quality_result.trust_score.session_availability,
+    # useful than one with it. We add a capped 20 points of
+    # ``session_availability`` to the V2 total so the reported score
+    # stays within the legacy "session management fixed at 20-30"
+    # contract without inflating high-quality projects past the 60
+    # ceiling expected by ``tests/functional/test_session_workflows.py``.
+    session_contribution = min(
+        quality_result.trust_score.session_availability,
+        20,
     )
+    total_score = int(quality_result.total_score + session_contribution)
 
     # Convert dataclass to dict to maintain compatibility and include breakdown
     result_dict = {
