@@ -291,7 +291,15 @@ class EntityExtractionEngine:
         from session_buddy.settings import get_settings
 
         self._LLMMessage = LLMMessage
-        self.manager = LLMManager()
+        # Lazy / tolerant manager construction: the LLMManager constructor
+        # imports provider SDKs (e.g. ``openai``) eagerly, which fails in
+        # environments where the SDK is not installed. Tests (and operators
+        # running a pattern-only extraction path) need the engine to come
+        # up cleanly so ``engine.manager`` can be swapped in afterwards.
+        try:
+            self.manager: Any = LLMManager()
+        except ImportError:
+            self.manager = None
         self.fallback_extractor = PatternBasedExtractor()
         settings = get_settings()
         self.timeout_s = settings.llm_extraction_timeout

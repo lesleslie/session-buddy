@@ -6,6 +6,7 @@ import typing as t
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from mcp_common import MCPServerSettings
 from mcp_common.cli.health import (
     RuntimeHealthSnapshot,
     load_runtime_health,
@@ -61,19 +62,13 @@ class RuntimeSnapshotManager:
 
     @classmethod
     def for_server(cls, server_name: str) -> RuntimeSnapshotManager:
-        # Migrated from MCPServerSettings.load(server_name) to oneiric's
-        # layered loader with project_name=server_name.
-        from oneiric.core.config import load_settings as _oneiric_load
-
-        loaded = _oneiric_load(project_name=server_name)
-        relevant_data = {
-            k: v
-            for k, v in loaded.model_dump().items()
-            if k in OneiricMCPConfig.model_fields and v is not None
-        }
-        return cls(
-            settings=t.cast("_SnapshotSettings", OneiricMCPConfig(**relevant_data))
-        )
+        # Delegate to MCPServerSettings.load so tests can monkeypatch the
+        # classmethod at ``session_buddy.utils.runtime_snapshots.MCPServerSettings.load``
+        # to inject custom settings. ``MCPServerSettings`` satisfies the
+        # ``_SnapshotSettings`` Protocol via the path helpers it ships
+        # (``pid_path``, ``health_snapshot_path``, ``telemetry_snapshot_path``).
+        loaded = MCPServerSettings.load(server_name)
+        return cls(settings=t.cast("_SnapshotSettings", loaded))
 
     def record(self, name: str, amount: int = 1) -> None:
         self.counters[name] = self.counters.get(name, 0) + amount
