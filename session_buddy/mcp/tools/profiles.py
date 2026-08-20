@@ -122,6 +122,7 @@ from . import (  # noqa: E402 -- import after PROFILE_REGISTRATIONS to keep file
     register_export_tools,
     register_extraction_tools,
     register_feature_flags_tools,
+    register_baseline_tools,
     register_health_tools_sb,
     register_hooks_tools,
     register_intent_tools,
