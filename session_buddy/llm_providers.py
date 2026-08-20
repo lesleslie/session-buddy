@@ -570,7 +570,25 @@ class LLMManager:
             },
             fallback_chain=["minimax", "llama_server", "ollama"],
         )
-        return FallbackChain.from_settings(settings)
+        try:
+            return FallbackChain.from_settings(settings)
+        except (ImportError, TypeError) as exc:
+            # ``openai`` (or one of its provider dependencies) is not
+            # available in this environment — either the optional
+            # package is missing or the in-process stub registered by
+            # ``session_buddy.llm.providers.openai_provider`` replaced
+            # it. ``OpenAICompatibleProvider.__init__`` raises
+            # ``TypeError`` (NoneType is not callable) in the stub
+            # case. Build an empty chain so the manager remains
+            # instantiable for DI registration and singleton access;
+            # calls to ``generate`` will surface
+            # AllProvidersExhaustedError at execution time, which is
+            # the correct semantic for a missing-deps runtime.
+            self.logger.warning(
+                "LLM provider chain unavailable (%s); returning empty chain",
+                exc,
+            )
+            return FallbackChain([])
 
     @property
     def _provider_list(self):  # type: ignore[no-untyped-def]
