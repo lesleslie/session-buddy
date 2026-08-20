@@ -18,9 +18,35 @@ from typing import Any
 from mcp_common.fastmcp import Context
 
 from session_buddy.cache.query_cache import QueryCacheManager
-from session_buddy.utils.instance_managers import get_reflection_database
+from session_buddy.di import depends
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_db() -> Any:
+    """Return the registered reflection database adapter, or None if missing.
+
+    Tries the Oneiric-backed adapter first, then the legacy adapter. Returns
+    whichever instance is currently registered in the DI container without
+    attempting to initialise one, so callers can surface a clear "not
+    initialised" error.
+    """
+    try:
+        from session_buddy.adapters.reflection_adapter_oneiric import (
+            ReflectionDatabaseAdapterOneiric as ReflectionDatabaseAdapter,
+        )
+    except ImportError:
+        try:
+            from session_buddy.adapters.reflection_adapter import (
+                ReflectionDatabaseAdapter,
+            )
+        except ImportError:
+            return None
+
+    try:
+        return depends.get_sync(ReflectionDatabaseAdapter)
+    except Exception:
+        return None
 
 
 def register_cache_tools(mcp: Any) -> None:
@@ -54,7 +80,7 @@ async def query_cache_stats(
     # Get cache manager from database adapter
 
     try:
-        db = await get_reflection_database()
+        db = _resolve_db()
         if not db or not db._query_cache:
             return json.dumps(
                 {
@@ -126,7 +152,7 @@ async def clear_query_cache(
     """
 
     try:
-        db = await get_reflection_database()
+        db = _resolve_db()
         if not db or not db._query_cache:
             return json.dumps(
                 {
@@ -211,7 +237,7 @@ async def warm_cache(
         )
 
     try:
-        db = await get_reflection_database()
+        db = _resolve_db()
         if not db or not db._query_cache:
             return json.dumps(
                 {
@@ -293,7 +319,7 @@ async def invalidate_cache(
     """
 
     try:
-        db = await get_reflection_database()
+        db = _resolve_db()
         if not db or not db._query_cache:
             return json.dumps(
                 {
@@ -357,7 +383,7 @@ async def optimize_cache(
     """
 
     try:
-        db = await get_reflection_database()
+        db = _resolve_db()
         if not db or not db._query_cache:
             return json.dumps(
                 {
