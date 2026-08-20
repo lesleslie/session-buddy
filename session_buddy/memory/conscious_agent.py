@@ -547,6 +547,7 @@ class ConsciousAgent:
             ).fetchall()
 
             now = utc_now()
+            now_naive = datetime.now()
             for r in rows:
                 memory_id = str(r[0])
                 access_count = int(r[1])
@@ -556,8 +557,15 @@ class ConsciousAgent:
                 importance = float(r[5])
 
                 try:
-                    # Compute accesses per hour since first access
-                    hours = max((now - first_access).total_seconds() / 3600.0, 1e-6)
+                    # DuckDB TIMESTAMP columns store ``CURRENT_TIMESTAMP``
+                    # values as naive local wall-clock time. Strip any
+                    # tzinfo the driver might surface and compare against
+                    # ``datetime.now()`` (also naive local) so the velocity
+                    # reflects real elapsed time rather than the
+                    # local-vs-UTC offset (typically 7-8 hours).
+                    if hasattr(first_access, "tzinfo") and first_access.tzinfo is not None:
+                        first_access = first_access.replace(tzinfo=None)
+                    hours = max((now_naive - first_access).total_seconds() / 3600.0, 1e-6)
                     velocity = access_count / hours
                 except Exception:
                     logger.exception(
@@ -653,12 +661,14 @@ class ConsciousAgent:
             float: Recency score (1.0 = accessed now, 0.0 = very old)
 
         """
-        # Normalise to UTC-aware so subtracting ``utc_now()`` never trips
-        # the offset-naive vs offset-aware TypeError when callers hand
-        # us a naive value (DuckDB TIMESTAMP, ad-hoc inserts, tests).
-        if last_accessed.tzinfo is None:
-            last_accessed = last_accessed.replace(tzinfo=UTC)
-        time_delta = utc_now() - last_accessed
+        # DuckDB TIMESTAMP columns return naive datetimes representing
+        # local wall-clock time (CURRENT_TIMESTAMP stores the local
+        # clock value with the tzinfo stripped). Compare against
+        # ``datetime.now()`` (also naive local) so the delta is real
+        # elapsed time, not a UTC-vs-local offset of 7-8 hours.
+        if last_accessed.tzinfo is not None:
+            last_accessed = last_accessed.replace(tzinfo=None)
+        time_delta = datetime.now() - last_accessed
         hours_ago = time_delta.total_seconds() / 3600
 
         # Exponential decay: score = e^(-hours/24)
@@ -699,9 +709,9 @@ class ConsciousAgent:
             reasons.append(f"high access frequency ({pattern.access_count}x)")
 
         last_accessed = pattern.last_accessed
-        if last_accessed.tzinfo is None:
-            last_accessed = last_accessed.replace(tzinfo=UTC)
-        recency_hours = (utc_now() - last_accessed).total_seconds() / 3600
+        if last_accessed.tzinfo is not None:
+            last_accessed = last_accessed.replace(tzinfo=None)
+        recency_hours = (datetime.now() - last_accessed).total_seconds() / 3600
         if recency_hours < 6:
             reasons.append("recently accessed")
 
