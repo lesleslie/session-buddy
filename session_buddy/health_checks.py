@@ -412,28 +412,41 @@ async def _check_provider(
 async def _check_embedding_providers(
     client: httpx.AsyncClient,
 ) -> tuple[list[str], list[str]]:
-    """Check llama-server and Ollama, return (available, unavailable) lists."""
-    available = []
-    unavailable = []
+    """Check llama-server and Ollama, return (available, unavailable) lists.
 
-    result = await _check_provider(
-        client, _llama_server_health_url(), "llama-server", {"input": ["health-check"]}
-    )
-    if result == "llama-server":
-        available.append(result)
-    else:
-        unavailable.append(result)
+    Both providers are probed concurrently so a slow or unreachable endpoint
+    cannot double the wall-clock cost of the dependency health check. With the
+    default 5 s ``httpx.AsyncClient`` timeout, sequential probing could push
+    ``get_all_health_checks()`` past the 1 s budget asserted by the
+    concurrent-execution integration test when both providers are down.
+    """
+    available: list[str] = []
+    unavailable: list[str] = []
 
-    result = await _check_provider(
-        client,
-        _ollama_health_url(),
-        "ollama",
-        {"model": "nomic-embed-text", "input": ["health-check"]},
+    llama_result, ollama_result = await asyncio.gather(
+        _check_provider(
+            client,
+            _llama_server_health_url(),
+            "llama-server",
+            {"input": ["health-check"]},
+        ),
+        _check_provider(
+            client,
+            _ollama_health_url(),
+            "ollama",
+            {"model": "nomic-embed-text", "input": ["health-check"]},
+        ),
     )
-    if result == "ollama":
-        available.append(result)
+
+    if llama_result == "llama-server":
+        available.append(llama_result)
     else:
-        unavailable.append(result)
+        unavailable.append(llama_result)
+
+    if ollama_result == "ollama":
+        available.append(ollama_result)
+    else:
+        unavailable.append(ollama_result)
 
     return available, unavailable
 

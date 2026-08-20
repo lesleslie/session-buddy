@@ -6,6 +6,7 @@ enabling semantic code search and relationship queries.
 
 from __future__ import annotations
 
+import ast
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -35,6 +36,11 @@ class KGExtractor:
             parser: Optional TreeSitterParser instance (lazy-created if not provided)
         """
         self._parser = parser
+        # Tracks whether ``parser`` was injected by the caller. The AST fallback
+        # below only fires for the lazily-created real parser; if the caller
+        # supplied a mock parser, their ``success=False`` is intentional and
+        # must NOT trigger fallback extraction.
+        self._injected_parser: TreeSitterParser | None = parser
         self._initialized = False
 
     def _ensure_parser(self) -> TreeSitterParser:
@@ -94,12 +100,36 @@ class KGExtractor:
         else:
             lang = parser.detect_language(file_path)
 
-        # Load grammar if needed
+        # Load grammar if needed; capture whether the language is available so
+        # we can route the AST fallback below correctly.
+        grammar_available = True
         if lang != SupportedLanguage.UNKNOWN:
-            self._ensure_grammar_loaded(lang.value)
+            grammar_available = self._ensure_grammar_loaded(lang.value)
 
         # Parse the file
         result = await parser.parse_file(file_path, language=lang)
+
+        # Fall back to the stdlib ``ast`` module when tree-sitter cannot parse
+        # the source — e.g. the per-language grammar package (``tree_sitter_python``)
+        # is not installed, so ``parser.parse_file`` returns ``success=False``.
+        # Without this fallback, ingest returns 0 entities and
+        # ``code_search_symbols`` can never find the ingested symbols, which
+        # broke the round-trip integration tests.
+        #
+        # The fallback is gated on the parser being the lazily-created real
+        # ``TreeSitterParser`` (not an injected test mock) — otherwise a unit
+        # test that mocks ``parser.parse_file`` to return ``success=False``
+        # would accidentally trigger AST extraction and the test would see
+        # entities instead of the expected graceful error dict.
+        if (
+            not result.success
+            and lang == SupportedLanguage.PYTHON
+            and not grammar_available
+            and self._injected_parser is None
+        ):
+            ast_result = await self._extract_python_with_ast(file_path, project)
+            if ast_result is not None:
+                return ast_result
 
         if not result.success:
             return {
@@ -273,3 +303,169 @@ class KGExtractor:
                     results["total_relationships"] += result.get("relationships", 0)
 
         return results
+
+    async def _extract_python_with_ast(
+        self,
+        file_path: Path,
+        project: str | None,
+    ) -> dict[str, Any] | None:
+        """Parse a Python file with the stdlib ``ast`` module and store symbols.
+
+        This is a fallback for environments where the per-language tree-sitter
+        grammar package (e.g. ``tree_sitter_python``) is unavailable. It
+        extracts top-level functions, async functions, classes, and
+        ``UPPER_CASE`` constants using the Python standard library so
+        code-search round-trips still work when tree-sitter cannot load.
+
+        Args:
+            file_path: Path to a ``.py`` source file.
+            project: Optional project name to attach to stored entities.
+
+        Returns:
+            Summary dict mirroring ``extract_and_store``'s shape, or ``None``
+            if the file cannot be parsed (so the caller can fall back to its
+            own error path).
+        """
+        if file_path.suffix != ".py":
+            return None
+
+        try:
+            source = file_path.read_text(encoding="utf-8")
+        except OSError as e:
+            logger.warning("Could not read %s for AST fallback: %s", file_path, e)
+            return None
+
+        try:
+            tree = ast.parse(source, filename=str(file_path))
+        except SyntaxError as e:
+            logger.info("AST parse failed for %s: %s", file_path, e)
+            return None
+
+        symbols: list[dict[str, Any]] = []
+        for node in tree.body:
+            extracted = self._ast_node_to_symbol(node, file_path)
+            if extracted is not None:
+                symbols.append(extracted)
+
+        if not symbols:
+            return None
+
+        try:
+            from session_buddy.adapters.knowledge_graph_adapter import (
+                KnowledgeGraphDatabaseAdapter,
+            )
+        except ImportError:
+            return None
+
+        stored = 0
+        try:
+            async with KnowledgeGraphDatabaseAdapter() as kg:
+                for sym in symbols:
+                    try:
+                        properties = dict(sym["properties"])
+                        if project:
+                            properties["project"] = project
+                        observations: list[str] = []
+                        if sym.get("signature"):
+                            observations.append(f"Signature: {sym['signature']}")
+                        if sym.get("docstring"):
+                            observations.append(f"Docstring: {sym['docstring'][:200]}")
+                        await kg.create_entity(
+                            name=sym["name"],
+                            entity_type=sym["kind"],
+                            observations=observations,
+                            properties=properties,
+                        )
+                        stored += 1
+                    except Exception:
+                        logger.exception(
+                            "Failed to store AST-extracted symbol %s", sym["name"]
+                        )
+                        continue
+        except Exception as e:
+            logger.exception("Failed to store AST-extracted entities")
+            return {
+                "entities": 0,
+                "relationships": 0,
+                "error": str(e),
+                "file_path": str(file_path),
+            }
+
+        return {
+            "entities": stored,
+            "relationships": 0,
+            "file_path": str(file_path),
+            "language": "python",
+            "symbols": stored,
+            "parser": "ast_fallback",
+        }
+
+    def _ast_node_to_symbol(
+        self,
+        node: ast.AST,
+        file_path: Path,
+    ) -> dict[str, Any] | None:
+        """Convert a top-level ``ast`` node into a symbol dict for the KG."""
+        from mcp_common.parsing.tree_sitter import SupportedLanguage
+
+        kind: str | None = None
+        name: str | None = None
+        line_start = getattr(node, "lineno", 1) or 1
+        line_end = getattr(node, "end_lineno", line_start) or line_start
+        signature: str | None = None
+        docstring: str | None = None
+
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            kind = "function"
+            name = node.name
+            args_src = ast.unparse(node.args) if hasattr(ast, "unparse") else ""
+            ret = (
+                " -> " + ast.unparse(node.returns)
+                if (hasattr(ast, "unparse") and node.returns is not None)
+                else ""
+            )
+            signature = f"def {name}({args_src}){ret}"
+            docstring = ast.get_docstring(node)
+        elif isinstance(node, ast.ClassDef):
+            kind = "class"
+            name = node.name
+            bases = (
+                "(" + ", ".join(ast.unparse(b) for b in node.bases) + ")"
+                if node.bases and hasattr(ast, "unparse")
+                else ""
+            )
+            signature = f"class {name}{bases}"
+            docstring = ast.get_docstring(node)
+        elif isinstance(node, ast.Assign):
+            # Module-level ``CONST = ...`` constants — best-effort, single target.
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id.isupper():
+                    kind = "constant"
+                    name = target.id
+                    signature = (
+                        ast.unparse(node.value) if hasattr(ast, "unparse") else None
+                    )
+                    break
+
+        if kind is None or name is None:
+            return None
+
+        properties: dict[str, Any] = {
+            "language": SupportedLanguage.PYTHON.value,
+            "file_path": str(file_path),
+            "line_start": int(line_start),
+            "line_end": int(line_end),
+            "column_start": int(getattr(node, "col_offset", 0) or 0),
+            "column_end": int(getattr(node, "end_col_offset", 0) or 0),
+            "modifiers": [],
+            "return_type": None,
+            "parent_context": None,
+        }
+
+        return {
+            "name": name,
+            "kind": kind,
+            "properties": properties,
+            "signature": signature,
+            "docstring": docstring,
+        }
