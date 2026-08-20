@@ -21,10 +21,30 @@ from __future__ import annotations
 
 import logging
 import typing as t
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from session_buddy.backends.base import SessionState, SessionStorage
 from session_buddy.utils.time import parse_utc_timestamp, utc_now
+
+
+def _parse_session_expires_at(value: str | datetime | None) -> datetime:
+    """Parse an ``expires_at`` value into an aware UTC datetime.
+
+    Differs from :func:`session_buddy.utils.time.parse_utc_timestamp` only
+    in how naive values are interpreted: serverless session metadata may be
+    populated by callers using ``datetime.now()`` (naive local) and we
+    must compare that against the current instant in the same time zone.
+    Naive values are therefore interpreted as *local* time, then converted
+    to UTC. Aware values (including those explicitly tagged with ``Z`` /
+    ``+00:00``) are normalized to UTC unchanged.
+    """
+    if value is None:
+        raise ValueError("expires_at is None")
+    parsed = datetime.fromisoformat(value) if isinstance(value, str) else value
+    if parsed.tzinfo is None:
+        # Interpret naive values as the local wall-clock, then project to UTC.
+        return parsed.astimezone().astimezone(UTC)
+    return parsed.astimezone(UTC)
 
 if t.TYPE_CHECKING:
     from session_buddy.adapters.session_storage_adapter import (
@@ -229,7 +249,7 @@ class ServerlessStorageAdapter(SessionStorage):
             # Check if expired
             expires_at_str = metadata.get("expires_at")
             if expires_at_str:
-                expires_at = parse_utc_timestamp(expires_at_str)
+                expires_at = _parse_session_expires_at(expires_at_str)
                 if utc_now() > expires_at:
                     continue
 
@@ -257,7 +277,7 @@ class ServerlessStorageAdapter(SessionStorage):
                 continue
 
             try:
-                expires_at = parse_utc_timestamp(expires_at_str)
+                expires_at = _parse_session_expires_at(expires_at_str)
                 if utc_now() > expires_at:
                     expired_sessions.append(session_id)
             except ValueError:

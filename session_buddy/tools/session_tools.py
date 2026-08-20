@@ -14,6 +14,8 @@ package layout.
 
 from __future__ import annotations
 
+import typing as t
+
 from session_buddy.mcp.tools.session.session_tools import (  # noqa: F401
     SessionOutputBuilder,
     SessionSetupResults,
@@ -36,7 +38,9 @@ from session_buddy.mcp.tools.session.session_tools import (  # noqa: F401
     _setup_uv_dependencies,
     _start_impl,
     _status_impl,
-    register_session_tools,
+)
+from session_buddy.mcp.tools.session.session_tools import (  # noqa: F401
+    register_session_tools as _canonical_register_session_tools,
 )
 
 
@@ -67,6 +71,48 @@ async def end_session_tool(
 ) -> str:
     """End the current session, persisting context and final reflection."""
     return await _end_impl(working_directory)
+
+
+def register_session_tools(mcp_server: t.Any) -> None:
+    """Register all session management tools with the MCP server.
+
+    This wrapper exists so that the ``start`` and ``checkpoint`` tool
+    closures resolve ``_start_impl`` and ``_checkpoint_impl`` against this
+    module's namespace (and therefore honor mocks patched on
+    ``session_buddy.tools.session_tools``) rather than the canonical
+    module's globals.
+
+    Registration order matters: the canonical registration is invoked
+    first so its ``end``/``status``/``health_check``/``server_info``/
+    ``ping``/``pre_compact_sync`` tools land in the registry. ``start``
+    and ``checkpoint`` are then registered *again* with closures from
+    this module so a server that stores functions keyed by name (the
+    ``FakeServer`` style fixture in :mod:`tests.unit.test_server_tools`)
+    observes the shim-bound versions last.
+    """
+
+    _canonical_register_session_tools(mcp_server)
+
+    @mcp_server.tool()
+    async def start(working_directory: str | None = None) -> str:
+        """Initialize Claude session with comprehensive setup including UV dependencies and automation tools.
+
+        Unpacks the typed envelope from ``_start_impl`` and discards the
+        ``conversation_id`` so callers downstream of FastMCP stay on the
+        historical single-string contract. A bare string return is also
+        accepted so tests can patch ``_start_impl`` with a prose-only
+        mock without changing the contract.
+        """
+        result = await _start_impl(working_directory)
+        if isinstance(result, tuple):
+            prose, _conversation_id = result
+            return prose
+        return result
+
+    @mcp_server.tool()
+    async def checkpoint(working_directory: str | None = None) -> str:
+        """Perform mid-session quality checkpoint with workflow analysis and optimization recommendations."""
+        return await _checkpoint_impl(working_directory)
 
 
 __all__ = [

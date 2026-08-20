@@ -460,7 +460,7 @@ class SessionLifecycleManager:
                 # Schedule automatic git gc after successful checkpoint
                 await self._schedule_git_maintenance(current_dir, output)
 
-        except (subprocess.SubprocessError, OSError, RuntimeError, ValueError) as e:
+        except Exception as e:
             output.append(f"\n⚠️ Git operations error: {e}")
             self.logger.exception(
                 "Git checkpoint error occurred, project=%s",
@@ -1124,7 +1124,7 @@ class SessionLifecycleManager:
             handoff_file = handoff_dir / f"session_handoff_{timestamp}.md"
             handoff_file.write_text(content)
             return handoff_file
-        except (OSError, TypeError, ValueError):
+        except Exception:
             # Return None on any failure to save
             return None
 
