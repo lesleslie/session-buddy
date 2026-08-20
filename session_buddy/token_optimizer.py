@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from session_buddy.utils.time import utc_now
+from session_buddy.utils.time import parse_utc_timestamp, utc_now
 
 try:
     import tiktoken
@@ -107,8 +107,10 @@ class TokenOptimizer:
             return None
         try:
             return tiktoken.get_encoding("cl100k_base")  # GPT-4 encoding
-        except (ValueError, KeyError):
-            # Fallback to approximate counting
+        except (ValueError, KeyError, Exception):
+            # Fallback to approximate counting. Catch generic Exception
+            # too so a misconfigured tiktoken install (or a mocked
+            # side_effect in tests) does not crash TokenOptimizer init.
             return None
 
     def count_tokens(self, text: str) -> int:
@@ -550,7 +552,7 @@ class TokenOptimizer:
         recent_usage = [
             m
             for m in self.usage_history
-            if datetime.fromisoformat(m.timestamp) > cutoff
+            if parse_utc_timestamp(m.timestamp) > cutoff
         ]
 
         if not recent_usage:

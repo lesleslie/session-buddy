@@ -50,6 +50,13 @@ class SessionBuddySettings(OneiricMCPConfig):
     shutdown_timeout: int = 10
     force_kill_timeout: int = 5
 
+    # Snapshot freshness threshold (seconds). mcp-common's
+    # ``MCPServerCLIFactory._emit_status_output`` reads
+    # ``self.settings.health_ttl_seconds``; mirror the upstream default
+    # (60.0) here so status/CLI commands work without forcing callers to
+    # pass a fully-populated MCPServerSettings.
+    health_ttl_seconds: float = 60.0
+
     # Snapshot path helpers (migrated from MCPServerSettings via
     # SessionMgmtSettings in settings.py; replicated here so the
     # CLI-side settings class still satisfies the structural protocol
