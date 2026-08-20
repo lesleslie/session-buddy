@@ -468,7 +468,12 @@ class TestHealthCheckTools:
 
     @pytest.mark.asyncio
     async def test_ping_returns_pong(self) -> None:
-        """Should return pong response."""
+        """Ping is a deprecated alias for ``get_liveness``.
+
+        Asserts the canonical envelope shape; the legacy "Pong"
+        string contract was removed when ``ping`` was repurposed as a
+        deprecation alias delegating to ``get_liveness``.
+        """
         from unittest.mock import MagicMock
 
         mock_mcp = MagicMock()
@@ -493,8 +498,12 @@ class TestHealthCheckTools:
 
         result = await ping()
 
-        assert isinstance(result, str)
-        assert "Pong" in result or "🏓" in result
+        # Deprecated alias returns the canonical liveness envelope.
+        assert isinstance(result, dict)
+        assert result["status"] == "ok"
+        assert result["service"] == "session-buddy"
+        assert "version" in result
+        assert "uptime_seconds" in result
 
 
 # ==============================================================================

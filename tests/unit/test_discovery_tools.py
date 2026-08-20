@@ -39,7 +39,7 @@ class TestAllToolsRegistry:
     def test_registry_has_expected_categories(self):
         """Registry should contain tools from expected categories."""
         expected_prefixes = [
-            "ping",  # Health
+            "health_check",  # Health (ping removed — deprecated alias)
             "start",  # Session lifecycle
             "search",  # Search
             "list_hooks",  # Hooks
@@ -102,15 +102,14 @@ class TestDiscoverTools:
     @pytest.mark.asyncio
     async def test_exact_tool_name_match(self):
         """Exact tool name match should return that tool."""
-        result = await discover_tools("ping")
+        result = await discover_tools("status")
 
-        # "ping" matches by tool name; "progressive_search" also matches
-        # via description-substring ("...early stop*ping*"). Verify the
-        # exact tool is present alongside any other description matches.
+        # "status" matches by tool name; verify the exact tool is present
+        # alongside any other description matches.
         names = [t["name"] for t in result["tools"]]
-        assert "ping" in names
-        ping_tool = next(t for t in result["tools"] if t["name"] == "ping")
-        assert "Liveness probe" in ping_tool["description"]
+        assert "status" in names
+        status_tool = next(t for t in result["tools"] if t["name"] == "status")
+        assert "session" in status_tool["description"].lower()
 
     @pytest.mark.asyncio
     async def test_partial_tool_name_match(self):
@@ -171,7 +170,7 @@ class TestDiscoverTools:
     @pytest.mark.asyncio
     async def test_matches_return_enablement_hint(self):
         """Matches should return profile enablement hint."""
-        result = await discover_tools("ping")
+        result = await discover_tools("status")
 
         assert result["found"] > 0
         assert "hint" in result
@@ -201,9 +200,14 @@ class TestDiscoverTools:
 
     @pytest.mark.asyncio
     async def test_registry_contains_expected_tools(self):
-        """Verify specific important tools are in the registry."""
+        """Verify specific important tools are in the registry.
+
+        Note: The Bodai baseline tools (discover_tools, get_liveness,
+        get_readiness, health_check_all) are registered via FastMCP
+        directly (not via ALL_TOOLS_REGISTRY) and are not asserted here.
+        """
         important_tools = [
-            "ping",
+            # Session lifecycle
             "health_check",
             "start",
             "end",
@@ -219,6 +223,17 @@ class TestDiscoverTools:
         ]
         for tool_name in important_tools:
             assert tool_name in ALL_TOOLS_REGISTRY, f"Tool '{tool_name}' not in registry"
+
+    @pytest.mark.asyncio
+    async def test_ping_removed_from_registry(self):
+        """``ping`` is a deprecated alias removed from the discover_tools registry.
+
+        The tool itself is still registered (as a deprecation alias
+        for ``get_liveness``) but is intentionally absent from
+        ``ALL_TOOLS_REGISTRY`` so the search surface reflects current
+        tooling.
+        """
+        assert "ping" not in ALL_TOOLS_REGISTRY
 
 
 # ---------------------------------------------------------------------------

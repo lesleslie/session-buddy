@@ -388,6 +388,17 @@ Uses global `~/.claude/.mcp.json` (recommended). Project-level `.mcp.json` remov
 }
 ```
 
+### Bodai Baseline MCP Surface
+
+Session-Buddy conforms to the Bodai core MCP baseline (`docs/plans/2026-08-20-bodai-mcp-surface-standardization.md`):
+
+- `discover_tools(query)` — list registered tools, optionally filtered by name substring
+- `get_liveness()` — `{status, service, version, uptime_seconds}` envelope
+- `get_readiness()` — readiness probe over configured dependencies
+- `health_check_all()` — dependency health summary
+
+`ping` is preserved as a deprecated alias delegating to `get_liveness` (logs a WARN on every call). Removed in the next release — callers (Akosha, Mahavishnu, Crackerjack) should migrate to `get_liveness`.
+
 ### Directory Structure
 
 - **~/.claude/logs/**: Session management logging

@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 ALL_TOOLS_REGISTRY: dict[str, str] = {
     # -- Health (MANDATORY) --
-    "ping": "Liveness probe for infrastructure health checks.",
     "health_check": "Deep health check of all subsystems.",
     "get_health_status": "Detailed health status with per-component breakdown.",
     "server_info": "Server version and configuration info.",

@@ -882,11 +882,16 @@ class TestServerInfo:
 
 
 class TestPing:
-    """Tests for ping tool - tested via register_session_tools."""
+    """Tests for ping tool — deprecated alias for ``get_liveness``.
+
+    The legacy ``"Pong"`` string contract was retired when ``ping``
+    was repurposed as a one-release deprecation alias delegating to
+    ``get_liveness``. Tests verify the canonical liveness envelope.
+    """
 
     @pytest.mark.asyncio
-    async def test_ping_returns_pong(self):
-        """Test ping returns pong."""
+    async def test_ping_returns_liveness_envelope(self):
+        """Test ping returns the canonical ``get_liveness`` envelope."""
         mock_server = Mock()
         registered_tools = {}
 
@@ -901,7 +906,11 @@ class TestPing:
 
         assert "ping" in registered_tools
         result = await registered_tools["ping"]()
-        assert "Pong" in result or "pong" in result.lower()
+        assert isinstance(result, dict)
+        assert result["status"] == "ok"
+        assert result["service"] == "session-buddy"
+        assert "version" in result
+        assert "uptime_seconds" in result
 
 
 # ==============================================================================

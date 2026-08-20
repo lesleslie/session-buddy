@@ -331,6 +331,19 @@ This server provides **199 MCP tools** across 31 tool groups (verified 2026-08-1
 The actual count is gated by `SESSION_BUDDY_TOOL_PROFILE` (minimal/standard/full).
 For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_REFERENCE.md).
 
+### Bodai Baseline Tools
+
+Session-Buddy conforms to the Bodai core MCP baseline (shared with mahavishnu, akosha, dhara, crackerjack). The following tools are registered on every profile:
+
+| Tool | Purpose |
+|------|---------|
+| `discover_tools(query)` | List registered tools, optionally filtered by name substring |
+| `get_liveness()` | Returns `{status, service, version, uptime_seconds}` envelope |
+| `get_readiness()` | Readiness probe over configured dependencies |
+| `health_check_all()` | Dependency health summary |
+
+`ping` is preserved as a deprecated alias delegating to `get_liveness` and logs a WARN-level `DeprecationWarning` on every invocation. It will be removed in the next release; existing callers (Akosha's `run_fitness_analysis`, Mahavishnu's `session_buddy_tools.py`, Crackerjack's `otel_ingester.py`) should migrate to `get_liveness`.
+
 > **Removed in 2026-08-12 audit:** The following tools were documented but not
 > wired into the default `server_optimized.py` entrypoint (which loads
 > `register_session_tools`, `register_memory_tools`, `register_fingerprint_tools`,

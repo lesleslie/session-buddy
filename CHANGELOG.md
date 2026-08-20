@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [Unreleased]
+
+### Changed
+
+- session-buddy: Conform to Bodai core MCP baseline (`discover_tools`, `get_liveness`, `get_readiness`, `health_check_all`). All four tools are registered on every `SESSION_BUDDY_TOOL_PROFILE`; `get_liveness`/`get_readiness`/`health_check_all` come from `mcp_common.health.register_health_tools`, `discover_tools` from the in-house `register_discovery_tools` meta-tool.
+
+### Deprecated
+
+- session-buddy: Deprecated the `ping` MCP tool. It now returns the canonical `{status, service, version, uptime_seconds}` envelope (same as `get_liveness`) and logs a WARN-level `DeprecationWarning` on every invocation. **Removed in 0.24.0** — consumers (Akosha's `run_fitness_analysis`, Mahavishnu's `session_buddy_tools.py`, Crackerjack's `otel_ingester.py`) should migrate to `get_liveness`.
+
 ## [0.22.1] - 2026-08-17
 
 ### Added

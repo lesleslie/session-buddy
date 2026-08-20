@@ -14,6 +14,7 @@ import asyncio
 import asyncio.coroutines
 import shutil
 import subprocess  # nosec B404
+import time
 from collections.abc import Coroutine as _CoroutineABC
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -33,9 +34,12 @@ from session_buddy.di.container import depends
 if TYPE_CHECKING:
     from mcp_common.fastmcp import FastMCP
 
+from session_buddy import __version__ as _session_buddy_version
 from session_buddy.core import SessionLifecycleManager
 from session_buddy.storage.akosha_config import AkoshaSyncConfig
 from session_buddy.utils.error_management import _get_logger
+
+_PING_START_TIME: float = time.monotonic()
 
 
 def should_suggest_compact() -> tuple[bool, str]:
@@ -1225,9 +1229,28 @@ Timestamp: {health_info["timestamp"]}
             return f"⚠️ Server info error: {e!s}"
 
     @mcp_server.tool()
-    async def ping() -> str:
-        """Simple ping endpoint to test MCP connectivity."""
-        return "🏓 Pong! MCP server is responding"
+    async def ping() -> dict[str, Any]:
+        """Deprecated alias for ``get_liveness``.
+
+        Kept for one release so existing callers (Akosha, Mahavishnu,
+        Crackerjack) have a migration window. Logs a WARN-level
+        ``DeprecationWarning`` on every invocation and returns the
+        same canonical envelope as ``get_liveness``::
+
+            {"status": "ok", "service": "session-buddy",
+             "version": "...", "uptime_seconds": ...}
+
+        Removed in the next release.
+        """
+        _get_logger().warning(
+            "ping is deprecated; use get_liveness instead (will be removed next release)",
+        )
+        return {
+            "status": "ok",
+            "service": "session-buddy",
+            "version": _session_buddy_version,
+            "uptime_seconds": round(time.monotonic() - _PING_START_TIME, 2),
+        }
 
     @mcp_server.tool()
     async def pre_compact_sync() -> str:
