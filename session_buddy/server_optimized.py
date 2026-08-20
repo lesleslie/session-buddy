@@ -316,9 +316,18 @@ from session_buddy.tools import (
     register_session_tools,
 )
 
+# Baseline tools (Bodai MCP surface standardization — always-on across profiles)
+from mcp_common.baseline_tools import register_baseline_tools
+from session_buddy.mcp.tools import register_health_tools_sb
+
 # Core session management tools
 # Type ignore: mcp is MockFastMCP|FastMCP union in tests, both have compatible interface
 register_session_tools(mcp)
+
+# Bodai baseline tools (4 canonical: discover_tools, get_liveness,
+# get_readiness, health_check_all) + session-buddy health helpers.
+register_baseline_tools(mcp)
+register_health_tools_sb(mcp)
 
 # Memory and reflection tools
 register_memory_tools(mcp)
