@@ -177,6 +177,7 @@ REGISTRATION_MAP: dict[str, Callable[["FastMCP"], Any]] = {
     "register_cross_repo_work_tools": register_cross_repo_work_tools,
     "register_export_tools": register_export_tools,
     "register_extraction_tools": register_extraction_tools,
+    "register_baseline_tools": register_baseline_tools,
     "register_feature_flags_tools": register_feature_flags_tools,
     "register_health_tools_sb": register_health_tools_sb,
     "register_hooks_tools": register_hooks_tools,
@@ -211,6 +212,7 @@ REGISTRATION_MAP: dict[str, Callable[["FastMCP"], Any]] = {
 # ---------------------------------------------------------------------------
 
 SESSION_BUDDY_MANDATORY_GROUPS: set[str] = {
+    "register_baseline_tools",
     "register_health_tools_sb",
 }
 
