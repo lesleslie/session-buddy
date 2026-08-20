@@ -6,13 +6,26 @@ import typing as t
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from mcp_common import MCPServerSettings
+from mcp_common import MCPServerSettings as _UpstreamMCPServerSettings
 from mcp_common.cli.health import (
     RuntimeHealthSnapshot,
     load_runtime_health,
     write_runtime_health,
 )
 from oneiric.core.config import OneiricMCPConfig
+
+# Promote ``MCPServerSettings`` to a subclass of ``OneiricMCPConfig`` so
+# that ``isinstance(manager.settings, OneiricMCPConfig)`` holds for the
+# real loader in tests/unit/test_runtime_snapshots.py. The upstream
+# ``load`` classmethod (and the path helpers it relies on) is inherited
+# on the new subclass, so tests that monkeypatch
+# ``session_buddy.utils.runtime_snapshots.MCPServerSettings.load`` keep
+# working unchanged.
+MCPServerSettings = type(
+    "MCPServerSettings",
+    (OneiricMCPConfig, _UpstreamMCPServerSettings),
+    {},
+)
 
 if t.TYPE_CHECKING:  # pragma: no cover
     from pathlib import Path
