@@ -1043,9 +1043,7 @@ class HttpSyncMethod(SyncMethod):
                 # ``response.json()`` returns Any — defend against a
                 # mocked test return that is not a Mapping (e.g. a
                 # bare MagicMock would TypeError on ``in``).
-                result_data: dict[str, Any] = (
-                    result if isinstance(result, dict) else {}
-                )
+                result_data: dict[str, Any] = result if isinstance(result, dict) else {}
                 if "result" in result_data:
                     result_val: Any = result_data["result"]
                     return result_val  # type: ignore[no-any-return]

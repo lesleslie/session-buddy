@@ -9,6 +9,85 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.23.0] - 2026-08-21
+
+### Added
+
+- session-buddy: Register discover_tools + deprecate ping alias
+
+### Changed
+
+- session-buddy: Use apply_tool_profile() from mcp-common 0.18.0
+- session-buddy: Use bootstrap_baseline_tools from mcp-common
+
+### Fixed
+
+- session-buddy: Advanced_features + advanced_features_v2 — 2 tests
+- session-buddy: App_monitor + conscious_agent — 3 tests
+- session-buddy: App_monitor get_active_files naive/aware subtraction
+- session-buddy: App_monitor tz-aware compare against system local time
+- session-buddy: Bump mcp-common floor to >=0.19.0
+- session-buddy: Catch duckdb.CatalogException in advanced_search
+- session-buddy: Category_evolution + context_manager — 5 tests
+- session-buddy: Code_indexing + health_check integration — 5 tests
+- session-buddy: Conftest-sysmodules-pollution — 9 tests + suite unblock
+- session-buddy: Crackerjack mocks, datetime normalization, insights trim, HttpSync non-dict result
+- session-buddy: Database_pool + entity_extraction — 3 tests
+- session-buddy: Datetime-tz-awareness — 6 test_parse_time_expression tests
+- session-buddy: Defensive ResourceWarning + otel/test patches + logging
+- session-buddy: Defensive subprocess except + recommendation tz awareness
+- session-buddy: Duckdb-schema-missing — 1 test (duckpgq env-dependent skip)
+- session-buddy: Extraction + entity + runtime_snapshots — 3 tests
+- session-buddy: Health_checks + llm_providers — 6 tests
+- session-buddy: Knowledge_graph close resets conn + session_manager DI/template RuntimeError handling
+- session-buddy: Mcp_server_core + server_core git session — 6 tests
+- session-buddy: Metrics + optimized_examples + progressive_search — 3 tests
+- session-buddy: None-coverage defence + workflow patterns outer-exception envelope
+- session-buddy: Phase6 + token_optimization + edge_cases — 3 tests
+- session-buddy: Recommendation_helpers + resource_cleanup + server — 3 tests
+- session-buddy: Refresh ARCHITECTURE.md Last Updated stamp (2026-08-19)
+- session-buddy: Register baseline tools in optimized server
+- session-buddy: Register baseline tools via register_baseline_tools
+- session-buddy: Remove unused register_baseline_tools import
+- session-buddy: Replace 'return None' with bare 'return' in fallback stubs
+- session-buddy: Replace try/except stubs with direct local definitions
+- session-buddy: Resolve 7 ty type-check errors
+- session-buddy: Resolve datetime-tz-awareness + advanced_search DuckDB issues
+- session-buddy: Resolve session_tools, server, state_writer test failures
+- session-buddy: Runtime_snapshots OneiricMCPConfig/MCPServerSettings - 1 test
+- session-buddy: Server_tools + serverless + session_manager — 9 tests
+- session-buddy: Shell_adapter + token_optimizer + cli — 6 tests
+- session-buddy: Suppress DTZ005/BLE001 with justification comments
+- session-buddy: Sync port defaults (2026-08-19)
+- session-buddy: Test_akosha_sync_integration.py — 13 tests
+- session-buddy: Test_cache_tools.py — 2 tests
+- session-buddy: Test_fastmcp_migration.py — 1 test
+- session-buddy: Test_git_operations.py — 2 tests
+- session-buddy: Test_mcp_crackerjack_tools.py integration — 12 tests
+- session-buddy: Test_quality_scoring_helpers.py — 8 tests (cache TTL tz-naive, coverage precision fallback, git RuntimeError catch, CRACKERJACK_AVAILABLE=False contract, coverage-only synthesis)
+- session-buddy: Test_search_tools_extras.py — 5 tests (KeyError in _extract_mentioned_files)
+- session-buddy: Test_serverless_storage_adapter.py — 9 tests (tz-aware compare)
+- session-buddy: Test_session_tools.py FastMCP 3.4 — 18 tests
+- session-buddy: Test_session_workflows.py — 1 test
+- session-buddy: Test_skills_tracker.py — 8 tests (sqlite3.Row.get + missing schema columns)
+- session-buddy: Test_worktree_manager_v2.py — 2 tests
+- session-buddy: Use real mcp_common imports (no local stubs)
+- session-buddy: Wire register_baseline_tools into registration system
+
+### Documentation
+
+- session-buddy: Add tool-profile rationale + CLAUDE.md subsection (W1.2 backfill)
+- session-buddy: Fix documented-but-not-wired audit findings (2026-08-19)
+- session-buddy: Fix documented-but-not-wired audit findings (2026-08-19)
+- session-buddy: Fix MCP-tool-hallucination audit findings (2026-08-19)
+- session-buddy: Fix removed-but-referenced audit findings (2026-08-19)
+- session-buddy: Refresh stale tool/line counts (2026-08-19)
+
+### Testing
+
+- session-buddy: Add doc-drift CI guard (2026-08-19)
+- session-buddy: Per-repo baseline surface gate
+
 ## [Unreleased]
 
 ### Changed

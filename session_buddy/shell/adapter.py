@@ -109,7 +109,6 @@ class SessionBuddyShell(AdminShell):
 
             return importlib_metadata.version("session-buddy")
         except Exception:  # noqa: BLE001 - sentinel: any metadata lookup failure -> "unknown"
-
             # Catch any lookup failure (PackageNotFoundError, malformed
             # metadata, mocked exceptions in tests) and fall back to a
             # sentinel rather than crashing session tracking.

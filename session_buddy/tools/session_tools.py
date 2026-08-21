@@ -39,7 +39,7 @@ from session_buddy.mcp.tools.session.session_tools import (  # noqa: F401
     _start_impl,
     _status_impl,
 )
-from session_buddy.mcp.tools.session.session_tools import (  # noqa: F401
+from session_buddy.mcp.tools.session.session_tools import (
     register_session_tools as _canonical_register_session_tools,
 )
 

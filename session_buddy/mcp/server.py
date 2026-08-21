@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path

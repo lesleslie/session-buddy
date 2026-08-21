@@ -68,7 +68,8 @@ Env-only. session-buddy does not expose `tool_profile` in its YAML; the
 
 `session_buddy/tests/unit/test_wiring.py` plus `test_mcp_registration_standard_profile.py`
 plus `mcp/test_tool_profile_drift.py`. 75 tests pass; the legacy `test_profiles.py`
-+ `test_profiles_coverage.py` (54 tests) confirm behavior parity at FULL.
+
+- `test_profiles_coverage.py` (54 tests) confirm behavior parity at FULL.
 
 ## References
 

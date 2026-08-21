@@ -108,7 +108,6 @@ class TokenOptimizer:
         try:
             return tiktoken.get_encoding("cl100k_base")  # GPT-4 encoding
         except (ValueError, KeyError, Exception):  # noqa: BLE001 - sentinel: misconfigured tiktoken falls back to approximate counting
-
             # Fallback to approximate counting. Catch generic Exception
             # too so a misconfigured tiktoken install (or a mocked
             # side_effect in tests) does not crash TokenOptimizer init.
@@ -551,9 +550,7 @@ class TokenOptimizer:
         cutoff = utc_now() - timedelta(hours=hours)
 
         recent_usage = [
-            m
-            for m in self.usage_history
-            if parse_utc_timestamp(m.timestamp) > cutoff
+            m for m in self.usage_history if parse_utc_timestamp(m.timestamp) > cutoff
         ]
 
         if not recent_usage:

@@ -10,10 +10,10 @@ import hashlib
 import json
 import sqlite3
 import time
-
-import duckdb
 from datetime import UTC, datetime
 from typing import Any
+
+import duckdb
 
 from .reflection_tools import ReflectionDatabase
 from .search_enhanced import EnhancedSearchEngine

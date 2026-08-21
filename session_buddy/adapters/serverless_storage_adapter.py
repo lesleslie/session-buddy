@@ -46,6 +46,7 @@ def _parse_session_expires_at(value: str | datetime | None) -> datetime:
         return parsed.astimezone().astimezone(UTC)
     return parsed.astimezone(UTC)
 
+
 if t.TYPE_CHECKING:
     from session_buddy.adapters.session_storage_adapter import (
         SessionStorageAdapter,

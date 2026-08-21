@@ -158,7 +158,7 @@ def _get_file_handler(
             try:
                 if Path(handler.baseFilename) == log_file:
                     return handler
-            except (OSError, ValueError, AttributeError, RuntimeError):  # noqa: BLE001 - tolerated: per-handler defensive read
+            except (OSError, ValueError, AttributeError, RuntimeError):
                 continue
     return None
 
