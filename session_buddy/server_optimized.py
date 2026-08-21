@@ -313,13 +313,15 @@ async def metrics_check(request: Any) -> Any:
 # commit 652883d5; wrap in try/except so older mcp_common releases still
 # import cleanly. The local stub preserves the call site so it remains a
 # no-op when the helper is unavailable.
-try:
-    from mcp_common import bootstrap_baseline_tools
-except ImportError:
+def bootstrap_baseline_tools(server: Any) -> None:
+    """Local fallback; mcp_common doesn't ship bootstrap_baseline_tools.
 
-    def bootstrap_baseline_tools(server: Any) -> None:
-        """Fallback when mcp_common.bootstrap_baseline_tools is unavailable."""
-        return
+    The 4 canonical baseline tools are registered by
+    mcp_common's _apply_tool_profile mandatory-tools pass. This stub
+    keeps the call site resolvable; replace with
+    ``from mcp_common import bootstrap_baseline_tools`` once shipped.
+    """
+    return
 
 
 from session_buddy.mcp.tools import register_health_tools_sb
