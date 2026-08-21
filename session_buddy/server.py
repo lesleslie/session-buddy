@@ -109,7 +109,7 @@ async def reflect_on_past(
                     query=query,
                     max_tokens=max_tokens,
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001 - token optimization is best-effort
                 session_logger.warning("Token optimization failed")
                 optimization_info = {}
 

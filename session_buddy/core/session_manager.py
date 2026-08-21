@@ -1124,7 +1124,7 @@ class SessionLifecycleManager:
             handoff_file = handoff_dir / f"session_handoff_{timestamp}.md"
             handoff_file.write_text(content)
             return handoff_file
-        except Exception:
+        except Exception:  # noqa: BLE001 - sentinel: any save failure returns None
             # Return None on any failure to save
             return None
 
@@ -1877,9 +1877,13 @@ class SessionLifecycleManager:
                         "handoff_content": handoff_content,
                     },
                 )
-                post_hooks_results = await hooks_manager.execute_hooks(
-                    HookType.SESSION_END, post_context
-                ) if hooks_manager is not None else []
+                post_hooks_results = (
+                    await hooks_manager.execute_hooks(
+                        HookType.SESSION_END, post_context
+                    )
+                    if hooks_manager is not None
+                    else []
+                )
             except (AttributeError, RuntimeError) as e:
                 self.logger.warning("SESSION_END hooks failed: %s", str(e))
 
@@ -1905,7 +1909,7 @@ class SessionLifecycleManager:
                 "post_hooks_results": post_hooks_results,
             }
 
-        except Exception as e:  # noqa: BLE001 - G6 sentinel: outer failures must be reported
+        except Exception as e:
             self.logger.exception("Session end failed")
             return {"success": False, "error": str(e)}
 

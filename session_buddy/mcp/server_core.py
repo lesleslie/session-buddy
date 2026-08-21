@@ -215,7 +215,7 @@ async def _initialize_git_session(
         else:
             session_logger.warning(f"Auto-init failed: {result['error']}")
 
-    except Exception:
+    except Exception:  # noqa: BLE001 - non-critical auto-init must not block startup
         session_logger.warning("Auto-init failed (non-critical)")
 
 
@@ -260,7 +260,7 @@ async def _end_git_session(
             session_logger.info("Auto-ended session for git repository")
         else:
             session_logger.warning(f"Auto-cleanup failed: {result['error']}")
-    except Exception:
+    except Exception:  # noqa: BLE001 - non-critical auto-cleanup must not block shutdown
         session_logger.warning("Auto-cleanup failed (non-critical)")
 
 
@@ -308,7 +308,7 @@ async def auto_setup_git_working_directory(session_logger: SessionLogger) -> Non
                 "No git repository detected in current directory - skipping auto-setup",
             )
 
-    except Exception:
+    except Exception:  # noqa: BLE001 - git auto-setup is non-critical
         # Graceful fallback - don't break server startup
         session_logger.debug("Git auto-setup failed (non-critical)")
 

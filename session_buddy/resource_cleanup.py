@@ -25,7 +25,7 @@ def _get_logger() -> t.Any:
         from session_buddy.utils.logging import get_session_logger
 
         return get_session_logger()
-    except Exception:
+    except Exception:  # noqa: BLE001 - sentinel: fall back to stdlib logging if session logger unavailable
         import logging
 
         return logging.getLogger(__name__)

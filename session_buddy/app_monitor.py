@@ -13,7 +13,7 @@ import sqlite3
 from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -213,7 +213,7 @@ class ProjectActivityMonitor:
             ts = datetime.fromisoformat(latest_event.timestamp)
             if ts.tzinfo is not None:
                 ts = ts.replace(tzinfo=None)
-            now = datetime.now()
+            now = datetime.now()  # noqa: DTZ005 - naive local matches naive stored events
             time_diff = now - ts
             if time_diff.total_seconds() < 300:  # 5 minutes
                 score *= 2
@@ -896,7 +896,7 @@ class ApplicationMonitor:
         # typically produced via ``datetime.now().isoformat()`` (naive local)
         # by callers/tests, while ``utc_now()`` adds a tz suffix that breaks
         # the lexicographic comparison SQLite performs on TEXT columns.
-        start_time = (datetime.now() - timedelta(hours=hours)).isoformat()
+        start_time = (datetime.now() - timedelta(hours=hours)).isoformat()  # noqa: DTZ005 - naive local preserves lexicographic SQLite TEXT sort
         events = self.db.get_events(start_time=start_time, limit=500)
 
         summary = self._create_activity_summary_template(hours, events)

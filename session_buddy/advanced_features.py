@@ -195,6 +195,7 @@ def _calculate_overdue_time(scheduled_for: str) -> str:
     """Calculate and format overdue time."""
     try:
         from datetime import datetime as _dt
+
         from session_buddy.utils.time import parse_utc_timestamp, utc_now
 
         # Preserve naive-vs-aware distinction so local-time inputs compare
@@ -207,7 +208,7 @@ def _calculate_overdue_time(scheduled_for: str) -> str:
         )
         if original.tzinfo is None:
             scheduled = original
-            now = _dt.now()
+            now = _dt.now()  # noqa: DTZ005 - naive-vs-aware branch above needs local time
         else:
             scheduled = parse_utc_timestamp(scheduled_for)
             now = utc_now()
@@ -669,7 +670,7 @@ def _get_advanced_search_engine_sync() -> t.Any:
     """Synchronous helper to get advanced search engine."""
     try:
         return asyncio.run(_get_advanced_search_engine())
-    except Exception:
+    except Exception:  # noqa: BLE001 - sentinel: any init failure returns None
         return None
 
 

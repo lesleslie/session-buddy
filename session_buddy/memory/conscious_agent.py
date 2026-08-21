@@ -15,7 +15,7 @@ import os
 import tempfile
 import typing as t
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -547,7 +547,7 @@ class ConsciousAgent:
             ).fetchall()
 
             now = utc_now()
-            now_naive = datetime.now()
+            now_naive = datetime.now()  # noqa: DTZ005 - DuckDB TIMESTAMP is naive local
             for r in rows:
                 memory_id = str(r[0])
                 access_count = int(r[1])
@@ -563,9 +563,14 @@ class ConsciousAgent:
                     # ``datetime.now()`` (also naive local) so the velocity
                     # reflects real elapsed time rather than the
                     # local-vs-UTC offset (typically 7-8 hours).
-                    if hasattr(first_access, "tzinfo") and first_access.tzinfo is not None:
+                    if (
+                        hasattr(first_access, "tzinfo")
+                        and first_access.tzinfo is not None
+                    ):
                         first_access = first_access.replace(tzinfo=None)
-                    hours = max((now_naive - first_access).total_seconds() / 3600.0, 1e-6)
+                    hours = max(
+                        (now_naive - first_access).total_seconds() / 3600.0, 1e-6
+                    )
                     velocity = access_count / hours
                 except Exception:
                     logger.exception(
@@ -668,7 +673,7 @@ class ConsciousAgent:
         # elapsed time, not a UTC-vs-local offset of 7-8 hours.
         if last_accessed.tzinfo is not None:
             last_accessed = last_accessed.replace(tzinfo=None)
-        time_delta = datetime.now() - last_accessed
+        time_delta = datetime.now() - last_accessed  # noqa: DTZ005 - DuckDB TIMESTAMP is naive local
         hours_ago = time_delta.total_seconds() / 3600
 
         # Exponential decay: score = e^(-hours/24)
@@ -711,7 +716,7 @@ class ConsciousAgent:
         last_accessed = pattern.last_accessed
         if last_accessed.tzinfo is not None:
             last_accessed = last_accessed.replace(tzinfo=None)
-        recency_hours = (datetime.now() - last_accessed).total_seconds() / 3600
+        recency_hours = (datetime.now() - last_accessed).total_seconds() / 3600  # noqa: DTZ005 - DuckDB TIMESTAMP is naive local
         if recency_hours < 6:
             reasons.append("recently accessed")
 

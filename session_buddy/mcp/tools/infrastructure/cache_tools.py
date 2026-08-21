@@ -45,7 +45,7 @@ def _resolve_db() -> Any:
 
     try:
         return depends.get_sync(ReflectionDatabaseAdapter)
-    except Exception:
+    except Exception:  # noqa: BLE001 - sentinel: missing adapter means no caching, not a crash
         return None
 
 
