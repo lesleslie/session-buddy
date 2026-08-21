@@ -6,7 +6,6 @@ This module exports all tool registration functions from subdirectories.
 # Advanced tools
 # Subscribers (cross-system integration)
 # Health check tools
-from mcp_common.baseline_tools import register_baseline_tools
 from mcp_common.health import register_health_tools as register_health_tools_sb
 
 from ...subscribers.code_graph_subscriber import register_code_graph_tools
