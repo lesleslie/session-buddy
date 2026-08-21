@@ -7,10 +7,10 @@ It's organized into focused modules for better maintainability and performance.
 """
 
 import asyncio
+import inspect
 import itertools
 import os
 import subprocess  # nosec B404
-import inspect
 import sys
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
@@ -319,7 +319,8 @@ except ImportError:
 
     def bootstrap_baseline_tools(server: Any) -> None:
         """Fallback when mcp_common.bootstrap_baseline_tools is unavailable."""
-        return None
+        return
+
 
 from session_buddy.mcp.tools import register_health_tools_sb
 from session_buddy.subscribers.code_graph_subscriber import register_code_graph_tools

@@ -87,7 +87,7 @@ except ImportError:
 
     def register_baseline_tools(server: Any) -> None:
         """Fallback when mcp_common.baseline_tools is unavailable."""
-        return None
+        return
 
 
 # ``register_all_fn`` (defined in server.py) iterates ``REGISTRATION_MAP``
