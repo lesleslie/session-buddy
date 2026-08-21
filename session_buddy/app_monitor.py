@@ -13,7 +13,7 @@ import sqlite3
 from collections import defaultdict
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -204,14 +204,16 @@ class ProjectActivityMonitor:
             score = len(events)
             latest_event = max(events, key=lambda e: e.timestamp)
 
-            # Boost score for recent activity. Strip the offset before
-            # subtracting from the UTC-stamped ``utc_now()`` so naive
-            # timestamps (the common case for hand-inserted events) do
-            # not trip the offset-naive vs offset-aware TypeError.
+            # Boost score for recent activity. Compare against
+            # ``datetime.now()`` (naive local) rather than ``utc_now()``
+            # (naive UTC) so naive local timestamps — the common case
+            # for hand-inserted events via ``datetime.now().isoformat()``
+            # — don't accumulate a timezone-offset skew that pushes the
+            # delta past the 300-second boost threshold.
             ts = datetime.fromisoformat(latest_event.timestamp)
             if ts.tzinfo is not None:
                 ts = ts.replace(tzinfo=None)
-            now = utc_now().replace(tzinfo=None)
+            now = datetime.now()  # noqa: DTZ005 - naive local matches naive stored events
             time_diff = now - ts
             if time_diff.total_seconds() < 300:  # 5 minutes
                 score *= 2
@@ -890,7 +892,11 @@ class ApplicationMonitor:
 
     def get_activity_summary(self, hours: int = 2) -> dict[str, Any]:
         """Get activity summary for specified hours."""
-        start_time = (utc_now() - timedelta(hours=hours)).isoformat()
+        # Use naive local time for the cutoff: stored event timestamps are
+        # typically produced via ``datetime.now().isoformat()`` (naive local)
+        # by callers/tests, while ``utc_now()`` adds a tz suffix that breaks
+        # the lexicographic comparison SQLite performs on TEXT columns.
+        start_time = (datetime.now() - timedelta(hours=hours)).isoformat()  # noqa: DTZ005 - naive local preserves lexicographic SQLite TEXT sort
         events = self.db.get_events(start_time=start_time, limit=500)
 
         summary = self._create_activity_summary_template(hours, events)

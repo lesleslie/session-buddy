@@ -16,12 +16,16 @@ from pathlib import Path
 
 
 def _get_logger() -> t.Any:
-    """Get logger with lazy initialization."""
+    """Get logger with lazy initialization.
+
+    Falls back to ``logging.getLogger(__name__)`` when the session logger
+    cannot be obtained for any reason (missing module, init error, etc.).
+    """
     try:
         from session_buddy.utils.logging import get_session_logger
 
         return get_session_logger()
-    except ImportError:
+    except Exception:  # noqa: BLE001 - sentinel: fall back to stdlib logging if session logger unavailable
         import logging
 
         return logging.getLogger(__name__)

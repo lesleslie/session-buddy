@@ -194,10 +194,24 @@ async def cancel_user_reminder(reminder_id: str) -> str:
 def _calculate_overdue_time(scheduled_for: str) -> str:
     """Calculate and format overdue time."""
     try:
+        from datetime import datetime as _dt
+
         from session_buddy.utils.time import parse_utc_timestamp, utc_now
 
-        scheduled = parse_utc_timestamp(scheduled_for)
-        now = utc_now()
+        # Preserve naive-vs-aware distinction so local-time inputs compare
+        # against ``datetime.now()`` (not UTC), while aware inputs still
+        # compare against ``utc_now()``.
+        original = (
+            _dt.fromisoformat(scheduled_for)
+            if isinstance(scheduled_for, str)
+            else scheduled_for
+        )
+        if original.tzinfo is None:
+            scheduled = original
+            now = _dt.now()  # noqa: DTZ005 - naive-vs-aware branch above needs local time
+        else:
+            scheduled = parse_utc_timestamp(scheduled_for)
+            now = utc_now()
         overdue = now - scheduled
 
         if overdue.total_seconds() > 0:
@@ -656,7 +670,7 @@ def _get_advanced_search_engine_sync() -> t.Any:
     """Synchronous helper to get advanced search engine."""
     try:
         return asyncio.run(_get_advanced_search_engine())
-    except RuntimeError:
+    except Exception:  # noqa: BLE001 - sentinel: any init failure returns None
         return None
 
 

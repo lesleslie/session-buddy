@@ -53,7 +53,7 @@ async def health_check(request: Any = None) -> dict[str, Any]:
         if isinstance(body, (bytes, bytearray, memoryview)):
             return json.loads(bytes(body))
         if isinstance(body, str):
-            return json.loads(body)
+            return body
         if isinstance(body, dict):
             return body
         return {"raw": body}
@@ -109,8 +109,8 @@ async def reflect_on_past(
                     query=query,
                     max_tokens=max_tokens,
                 )
-            except Exception:
-                session_logger.exception("Token optimization failed")
+            except Exception:  # noqa: BLE001 - token optimization is best-effort
+                session_logger.warning("Token optimization failed")
                 optimization_info = {}
 
         lines = _format_reflection_results(query, results, optimization_info)
