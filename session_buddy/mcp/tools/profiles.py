@@ -81,17 +81,7 @@ STANDARD_REGISTRATIONS: list[str | Callable] = MINIMAL_REGISTRATIONS + [
 
 # FULL uses the ALL_TOOLS sentinel so the W0 helper invokes
 # ``register_all_fn`` once instead of iterating the per-profile list.
-def register_baseline_tools(server: Any) -> None:
-    """Local fallback; mcp_common.baseline_tools not shipped in 0.19.0.
-
-    The 4 canonical baseline tools (discover_tools, get_liveness,
-    get_readiness, health_check_all) are registered directly via
-    mcp_common's mandatory tools in _apply_tool_profile. This stub
-    exists to keep ``REGISTRATION_MAP["register_baseline_tools"]``
-    resolvable; replace with ``from mcp_common import
-    bootstrap_baseline_tools`` once the helper is shipped.
-    """
-    return
+from mcp_common.baseline_tools import register_baseline_tools
 
 
 # ``register_all_fn`` (defined in server.py) iterates ``REGISTRATION_MAP``
