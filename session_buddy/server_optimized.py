@@ -10,6 +10,7 @@ import asyncio
 import itertools
 import os
 import subprocess  # nosec B404
+import inspect
 import sys
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
@@ -307,6 +308,20 @@ async def metrics_check(request: Any) -> Any:
 
 
 # Register modularized tools
+# Baseline tools (Bodai MCP surface standardization — always-on across profiles).
+# ``bootstrap_baseline_tools`` was added to mcp-common after the refactor in
+# commit 652883d5; wrap in try/except so older mcp_common releases still
+# import cleanly. The local stub preserves the call site so it remains a
+# no-op when the helper is unavailable.
+try:
+    from mcp_common import bootstrap_baseline_tools
+except ImportError:
+
+    def bootstrap_baseline_tools(server: Any) -> None:
+        """Fallback when mcp_common.bootstrap_baseline_tools is unavailable."""
+        return None
+
+from session_buddy.mcp.tools import register_health_tools_sb
 from session_buddy.subscribers.code_graph_subscriber import register_code_graph_tools
 from session_buddy.tools import (
     register_category_tools,
@@ -315,10 +330,6 @@ from session_buddy.tools import (
     register_prompt_tools,
     register_session_tools,
 )
-
-# Baseline tools (Bodai MCP surface standardization — always-on across profiles)
-from mcp_common import bootstrap_baseline_tools
-from session_buddy.mcp.tools import register_health_tools_sb
 
 # Core session management tools
 # Type ignore: mcp is MockFastMCP|FastMCP union in tests, both have compatible interface

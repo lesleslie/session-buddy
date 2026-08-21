@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 # restore it as a pointer to ``collections.abc.Coroutine`` so legacy isinstance
 # checks succeed without modifying the test suite.
 if not hasattr(asyncio.coroutines, "Coroutine"):
-    asyncio.coroutines.Coroutine = _CoroutineABC  # type: ignore[attr-defined]
+    asyncio.coroutines.Coroutine = _CoroutineABC  # ty: ignore[unresolved-attribute]
 
 from session_buddy.di import get_sync_typed
 from session_buddy.di.container import depends

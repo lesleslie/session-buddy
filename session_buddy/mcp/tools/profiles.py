@@ -55,7 +55,7 @@ if TYPE_CHECKING:
 # always registers them at every profile without duplication.
 # ---------------------------------------------------------------------------
 
-MINIMAL_REGISTRATIONS: list[str] = [
+MINIMAL_REGISTRATIONS: list[str | Callable] = [
     # Session lifecycle -- start / end / status / checkpoint
     "register_session_tools",
     # Basic search
@@ -64,7 +64,7 @@ MINIMAL_REGISTRATIONS: list[str] = [
     "register_hooks_tools",
 ]
 
-STANDARD_REGISTRATIONS: list[str] = MINIMAL_REGISTRATIONS + [
+STANDARD_REGISTRATIONS: list[str | Callable] = MINIMAL_REGISTRATIONS + [
     "register_conversation_tools",
     "register_extraction_tools",
     "register_knowledge_graph_tools",
@@ -81,6 +81,15 @@ STANDARD_REGISTRATIONS: list[str] = MINIMAL_REGISTRATIONS + [
 
 # FULL uses the ALL_TOOLS sentinel so the W0 helper invokes
 # ``register_all_fn`` once instead of iterating the per-profile list.
+try:
+    from mcp_common.baseline_tools import register_baseline_tools
+except ImportError:
+
+    def register_baseline_tools(server: Any) -> None:
+        """Fallback when mcp_common.baseline_tools is unavailable."""
+        return None
+
+
 # ``register_all_fn`` (defined in server.py) iterates ``REGISTRATION_MAP``
 # minus the mandatory groups (which the helper re-registers in its
 # mandatory_groups pass).
@@ -89,7 +98,7 @@ STANDARD_REGISTRATIONS: list[str] = MINIMAL_REGISTRATIONS + [
 # Mapping
 # ---------------------------------------------------------------------------
 
-PROFILE_REGISTRATIONS: dict[ToolProfile, list[str] | type[ALL_TOOLS]] = {
+PROFILE_REGISTRATIONS: dict[ToolProfile, list[str | Callable] | type[ALL_TOOLS]] = {
     ToolProfile.MINIMAL: MINIMAL_REGISTRATIONS,
     ToolProfile.STANDARD: STANDARD_REGISTRATIONS,
     ToolProfile.FULL: ALL_TOOLS,
@@ -106,7 +115,7 @@ PROFILE_REGISTRATIONS: dict[ToolProfile, list[str] | type[ALL_TOOLS]] = {
 # can call this wrapper with just the server.
 # ---------------------------------------------------------------------------
 
-from . import (  # noqa: E402 -- import after PROFILE_REGISTRATIONS to keep file ordering clear
+from . import (
     register_access_log_tools,
     register_admin_shell_tracking_tools,
     register_akosha_tools,
@@ -122,7 +131,6 @@ from . import (  # noqa: E402 -- import after PROFILE_REGISTRATIONS to keep file
     register_export_tools,
     register_extraction_tools,
     register_feature_flags_tools,
-    register_baseline_tools,
     register_health_tools_sb,
     register_hooks_tools,
     register_intent_tools,
@@ -156,12 +164,12 @@ from .session.channel_tracking_tools import (
 _dhara_publisher = _make_dhara_publisher()
 
 
-def _register_channel_tracking(server: "FastMCP") -> None:
+def _register_channel_tracking(server: FastMCP) -> None:
     """Wrap register_channel_tracking_tools with the pre-built publisher."""
     register_channel_tracking_tools(server, dhara_publisher=_dhara_publisher)
 
 
-REGISTRATION_MAP: dict[str, Callable[["FastMCP"], Any]] = {
+REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
     "register_access_log_tools": register_access_log_tools,
     "register_admin_shell_tracking_tools": register_admin_shell_tracking_tools,
     "register_akosha_tools": register_akosha_tools,

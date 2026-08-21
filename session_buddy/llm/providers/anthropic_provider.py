@@ -34,7 +34,7 @@ def _ensure_anthropic_module() -> ModuleType:
         import anthropic as _real_anthropic  # noqa: F401 - side-effect: cache in sys.modules
     except ImportError:
         stub = ModuleType("anthropic")
-        stub.AsyncAnthropic = None  # type: ignore[attr-defined]
+        stub.AsyncAnthropic = None  # ty: ignore[unresolved-attribute]
         sys.modules["anthropic"] = stub
         return stub
     return sys.modules["anthropic"]  # type: ignore[return-value]
@@ -65,9 +65,7 @@ class AnthropicProvider(LLMProvider):
             if client_cls is None:
                 msg = "Anthropic package not installed. Install with: pip install anthropic"
                 raise ImportError(msg)
-            self._client = client_cls(
-                api_key=self.api_key, base_url=self.base_url
-            )
+            self._client = client_cls(api_key=self.api_key, base_url=self.base_url)
         return self._client
 
     def _strip_thinking_blocks(self, content: str) -> str:

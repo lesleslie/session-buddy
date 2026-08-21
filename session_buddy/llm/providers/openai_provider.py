@@ -34,7 +34,7 @@ def _ensure_openai_module() -> ModuleType:
         import openai as _real_openai  # noqa: F401 - side-effect: cache in sys.modules
     except ImportError:
         stub = ModuleType("openai")
-        stub.AsyncOpenAI = None  # type: ignore[attr-defined]
+        stub.AsyncOpenAI = None  # ty: ignore[unresolved-attribute]
         sys.modules["openai"] = stub
         return stub
     return sys.modules["openai"]  # type: ignore[return-value]
