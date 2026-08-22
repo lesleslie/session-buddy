@@ -5,7 +5,7 @@ import hmac
 import json
 import logging
 from collections.abc import Callable
-from functools import wraps
+from functools import lru_cache, wraps
 from typing import Any
 
 from mcp_common.auth.config import AuthConfig as _CoreAuthConfig
@@ -13,8 +13,30 @@ from mcp_common.auth.core import create_service_token
 from mcp_common.auth.core import verify_token as _verify_token
 from mcp_common.auth.exceptions import AuthError
 from mcp_common.auth.permissions import Permission
+from oneiric.actions.security import (
+    SecuritySignatureAction,
+    SecuritySignatureSettings,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def _signature_action() -> SecuritySignatureAction:
+    """Return the process-wide SecuritySignatureAction used for cross-project signing.
+
+    Uses SHA-256 hex output to match the historical HMAC envelope that
+    cross-project consumers already verify against.
+    """
+
+    return SecuritySignatureAction(
+        settings=SecuritySignatureSettings(
+            algorithm="sha256",
+            encoding="hex",
+            header_name="X-SessionBuddy-Signature",
+            include_timestamp=False,
+        )
+    )
 
 _core_config: _CoreAuthConfig | None = None
 
@@ -90,17 +112,33 @@ def require_auth(
 
 
 class CrossProjectAuth:
+    """Cross-project HMAC envelope produced by Oneiric ``SecuritySignatureAction``.
+
+    The on-the-wire signature is identical to the previous in-tree HMAC code
+    (SHA-256 hex digest of the sorted-keys JSON payload), so existing
+    consumers that already verify against this shape keep working unchanged.
+    """
+
     def __init__(self, shared_secret: str) -> None:
         self.shared_secret = shared_secret
 
-    def sign_message(self, message: dict[str, Any]) -> str:
+    async def sign_message(self, message: dict[str, Any]) -> str:
         message_str = json.dumps(message, sort_keys=True)
-        return hmac.new(
-            self.shared_secret.encode(), message_str.encode(), hashlib.sha256
-        ).hexdigest()
+        result = await _signature_action().execute(
+            {
+                "secret": self.shared_secret,
+                "message": message_str,
+                "algorithm": "sha256",
+                "encoding": "hex",
+            }
+        )
+        return result["signature"]
 
-    def verify_message(self, message: dict[str, Any], signature: str) -> bool:
-        return hmac.compare_digest(self.sign_message(message), signature)
+    async def verify_message(
+        self, message: dict[str, Any], signature: str
+    ) -> bool:
+        expected = await self.sign_message(message)
+        return hmac.compare_digest(expected, signature)
 
 
 def generate_test_token(user_id: str = "test_user") -> str:

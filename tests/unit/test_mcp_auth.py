@@ -147,7 +147,7 @@ def test_cross_project_auth_sign_and_verify() -> None:
 
     auth = CrossProjectAuth("shared-secret")
     message = {"b": 2, "a": 1}
-    signature = auth.sign_message(message)
+    signature = asyncio.run(auth.sign_message(message))
 
-    assert auth.verify_message(message, signature) is True
-    assert auth.verify_message(message, "bad-signature") is False
+    assert asyncio.run(auth.verify_message(message, signature)) is True
+    assert asyncio.run(auth.verify_message(message, "bad-signature")) is False
