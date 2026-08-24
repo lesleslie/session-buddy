@@ -90,7 +90,7 @@ One table per store. Entries are sorted by `date` DESC, with ties broken by path
 
 | Path | Date | Status | Role | Topic | Title |
 |---|---|---|---|---|---|
-| [`docs/plans/2026-07-16-checkpoint-async-refactor.md`](docs/plans/2026-07-16-checkpoint-async-refactor.md) | 2026-07-16 | `shipped` | `implementation` | `persistence` | Checkpoint Async Refactor (Multi-Session MCP Contention Fix) |
+| [`docs/plans/2026-07-16-checkpoint-async-refactor.md`](2026-07-16-checkpoint-async-refactor.md) | 2026-07-16 | `shipped` | `implementation` | `persistence` | Checkpoint Async Refactor (Multi-Session MCP Contention Fix) |
 
 ### Superpowers Specs (`docs/superpowers/specs/`)
 
