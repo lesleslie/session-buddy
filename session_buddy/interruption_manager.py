@@ -215,7 +215,7 @@ class FocusTracker:
                         for gui_hint in ("code", "browser", "terminal", "editor", "ide")
                     ):
                         return name
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                except psutil.NoSuchProcess, psutil.AccessDenied:
                     continue
 
             return None
@@ -493,7 +493,7 @@ class InterruptionManager:
                 try:
                     serialized = json.dumps(snapshot_data).encode()
                     compressed_data = gzip.compress(serialized)
-                except (OSError, MemoryError):
+                except OSError, MemoryError:
                     logger.exception("Compression failed")
                     compressed_data = json.dumps(snapshot_data).encode()
             else:
@@ -818,7 +818,7 @@ class InterruptionManager:
                             state["processes"].append(
                                 {"pid": proc.info["pid"], "name": name},
                             )
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    except psutil.NoSuchProcess, psutil.AccessDenied:
                         continue
             except Exception:
                 logger.exception("Process capture failed")

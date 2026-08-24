@@ -186,7 +186,7 @@ def _parse_event_timestamp(timestamp: str) -> datetime:
     """
     try:
         return datetime.fromisoformat(timestamp)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return datetime.now(UTC)
 
 

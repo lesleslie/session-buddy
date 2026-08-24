@@ -83,7 +83,6 @@ STANDARD_REGISTRATIONS: list[str | Callable] = MINIMAL_REGISTRATIONS + [
 # ``register_all_fn`` once instead of iterating the per-profile list.
 from mcp_common.baseline_tools import register_baseline_tools
 
-
 # ``register_all_fn`` (defined in server.py) iterates ``REGISTRATION_MAP``
 # minus the mandatory groups (which the helper re-registers in its
 # mandatory_groups pass).

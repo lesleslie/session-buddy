@@ -439,7 +439,7 @@ def _get_logger() -> t.Any:
     """Lazy logger resolution using the session logger."""
     try:
         return get_session_logger()
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         return logger
 
 
@@ -1089,7 +1089,7 @@ def _parse_result_timestamp(result: dict[str, Any]) -> Any | None:
         if isinstance(timestamp_str, str):
             return datetime.fromisoformat(timestamp_str)
         return timestamp_str
-    except (ValueError, AttributeError):
+    except ValueError, AttributeError:
         return None
 
 
@@ -1304,7 +1304,7 @@ async def _latest_crackerjack_result_unavailable(
                     import json as _json
 
                     quality_metrics = _json.loads(quality_metrics)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     logger.debug("crackerjack_metrics_json_parse_failed", exc_info=True)
                     continue
             if not isinstance(quality_metrics, dict):
@@ -1709,7 +1709,7 @@ async def _crackerjack_health_check_impl() -> str:
             importlib.util.find_spec("session_buddy.crackerjack_integration")
             is not None
         )
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         crackerjack_integration_available = False
 
     if crackerjack_integration_available:

@@ -69,7 +69,7 @@ async def get_health_status(
         from session_buddy import __version__
 
         version: str = __version__
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         version = "unknown"
 
     result: dict[str, Any] = {

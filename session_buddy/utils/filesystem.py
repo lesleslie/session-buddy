@@ -40,7 +40,7 @@ def _cleanup_session_logs() -> str:
                 if log_date < cutoff_date:
                     log_file.unlink()
                     cleaned_count += 1
-        except (ValueError, OSError):
+        except ValueError, OSError:
             # Skip files with invalid names or permission issues
             continue
 
@@ -237,7 +237,7 @@ def _calculate_directory_size(claude_dir: Path, results: dict[str, Any]) -> None
         if item.is_file():
             try:
                 total_size += item.stat().st_size
-            except (OSError, PermissionError):
+            except OSError, PermissionError:
                 continue
 
     results["size_mb"] = total_size / (1024 * 1024)

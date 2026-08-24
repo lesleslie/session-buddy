@@ -42,12 +42,12 @@ class WorktreeValidationResult:
     errors: list[str] = field(default_factory=list)
 
     @classmethod
-    def success(cls) -> "WorktreeValidationResult":
+    def success(cls) -> WorktreeValidationResult:
         """Create successful validation result."""
         return cls(is_valid=True)
 
     @classmethod
-    def error(cls, error: str) -> "WorktreeValidationResult":
+    def error(cls, error: str) -> WorktreeValidationResult:
         """Create error validation result."""
         return cls(is_valid=False, errors=[error])
 
@@ -61,12 +61,12 @@ class GitOperationResult:
     error: str = field(default="")
 
     @classmethod
-    def success_result(cls, output: str = "") -> "GitOperationResult":
+    def success_result(cls, output: str = "") -> GitOperationResult:
         """Create successful operation result."""
         return cls(success=True, output=output)
 
     @classmethod
-    def error_result(cls, error: str) -> "GitOperationResult":
+    def error_result(cls, error: str) -> GitOperationResult:
         """Create error operation result."""
         return cls(success=False, error=error)
 
@@ -147,7 +147,7 @@ class WorktreeManager:
 
             # Check path length is reasonable
             return not len(path_str) > 500
-        except (OSError, ValueError):
+        except OSError, ValueError:
             return False
 
     async def list_worktrees(self, directory: Path) -> dict[str, Any]:
@@ -638,11 +638,11 @@ class WorktreeManager:
                             recent_files.append(
                                 str(file_path.relative_to(worktree_path)),
                             )
-                    except (OSError, PermissionError):
+                    except OSError, PermissionError:
                         continue
 
             return recent_files[:20]  # Limit to 20 most recent files
-        except (OSError, ValueError):
+        except OSError, ValueError:
             return []
 
     def _get_git_status(self, worktree_path: Path) -> dict[str, Any]:
@@ -656,7 +656,7 @@ class WorktreeManager:
                 "untracked_files": untracked,
                 "has_changes": len(modified) > 0 or len(untracked) > 0,
             }
-        except (ImportError, subprocess.SubprocessError):
+        except ImportError, subprocess.SubprocessError:
             return {"modified_files": [], "untracked_files": [], "has_changes": False}
 
     async def switch_worktree_context(

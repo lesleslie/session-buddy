@@ -146,7 +146,7 @@ def _read_running_pid(settings: _HasPidPath) -> int | None:
         return None
     try:
         return int(pid_path.read_text().strip())
-    except (ValueError, OSError):
+    except ValueError, OSError:
         return None
 
 

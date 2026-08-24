@@ -352,7 +352,7 @@ async def check_auto_capture_recent(db_path: Path | None = None) -> ComponentHea
                 if isinstance(metadata_json, str)
                 else metadata_json
             )
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
         # ``is_manual`` may live at the top level of metadata or nested
         # under ``checkpoint_info``. Both are tolerated.

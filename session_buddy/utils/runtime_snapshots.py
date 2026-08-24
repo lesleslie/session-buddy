@@ -118,7 +118,7 @@ def load_runtime_telemetry(path: Path) -> RuntimeTelemetrySnapshot:
 
     try:
         data = json.loads(path.read_text())
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError, OSError:
         return RuntimeTelemetrySnapshot()
 
     if not isinstance(data, dict):
@@ -191,7 +191,7 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
         return None
     try:
         return datetime.fromisoformat(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 

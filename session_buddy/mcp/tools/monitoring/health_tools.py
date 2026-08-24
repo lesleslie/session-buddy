@@ -146,7 +146,7 @@ async def get_health_status(ready: bool = False) -> dict[str, t.Any]:
         from session_buddy import __version__
 
         version = __version__
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         version = "unknown"
 
     # Run all health checks and normalize

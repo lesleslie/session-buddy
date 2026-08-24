@@ -23,7 +23,7 @@ def _get_logger() -> Any:
     if _logger is None:
         try:
             _logger = get_session_logger()
-        except (ImportError, AttributeError, RuntimeError):
+        except ImportError, AttributeError, RuntimeError:
             # Fallback to basic logging if DI not initialized
             import logging
 

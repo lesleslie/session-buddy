@@ -366,7 +366,7 @@ def _safe_get_mtime(repo_path: Path) -> float | None:
     """Safely get modification time of a repository."""
     try:
         return repo_path.stat().st_mtime
-    except (OSError, Exception):  # noqa: BLE001 - defensive read for fs races / permission errors
+    except OSError, Exception:  # noqa: BLE001 - defensive read for fs races / permission errors
         return None
 
 

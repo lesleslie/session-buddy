@@ -165,7 +165,7 @@ class ServerlessConfigManager:
                 with open(config_path, encoding="utf-8") as f:
                     file_config = json.load(f)
                     default_config.update(file_config)
-            except (OSError, json.JSONDecodeError):
+            except OSError, json.JSONDecodeError:
                 pass
 
         return default_config

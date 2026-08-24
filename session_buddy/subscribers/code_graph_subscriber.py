@@ -102,7 +102,7 @@ def _is_graph_stale(indexed_at: str | None) -> tuple[bool, str | None]:
         age_hours = (datetime.now(UTC) - indexed_dt).total_seconds() / 3600
         stale = age_hours > 24
         return stale, indexed_at if stale else None
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return False, None
 
 

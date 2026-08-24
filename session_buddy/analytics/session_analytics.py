@@ -875,7 +875,7 @@ class SessionAnalytics:
                     bucket = dt.strftime("%Y-%m-%d")
 
                 buckets[bucket] += 1
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 continue
 
         if not buckets:

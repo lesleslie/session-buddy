@@ -1074,7 +1074,7 @@ class HttpSyncMethod(SyncMethod):
             response = httpx.get(f"{url}/status", timeout=1.0)
             return response.status_code < 500
 
-        except (httpx.HTTPError, OSError):
+        except httpx.HTTPError, OSError:
             return False
 
 

@@ -79,7 +79,7 @@ class RecommendationEngine:
                         result_date = result_date.replace(tzinfo=UTC)
                     if result_date >= start_date:
                         filtered_results.append(result)
-                except (ValueError, AttributeError):
+                except ValueError, AttributeError:
                     filtered_results.append(result)
 
         return filtered_results

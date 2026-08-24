@@ -37,6 +37,7 @@ def _signature_action() -> SecuritySignatureAction:
         )
     )
 
+
 _core_config: _CoreAuthConfig | None = None
 
 
@@ -133,9 +134,7 @@ class CrossProjectAuth:
         )
         return result["signature"]
 
-    async def verify_message(
-        self, message: dict[str, Any], signature: str
-    ) -> bool:
+    async def verify_message(self, message: dict[str, Any], signature: str) -> bool:
         expected = await self.sign_message(message)
         return hmac.compare_digest(expected, signature)
 

@@ -9,6 +9,23 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.24.0] - 2026-08-24
+
+### Added
+
+- w3: Adopt security.signature action kit + add direct oneiric dep
+
+### Fixed
+
+- docs: Resolve two broken local links in PLAN_INDEX + decisions index
+
+### Internal
+
+- auth: Drop unused hashlib import
+- Bump requires-python to >=3.14
+- session-buddy: Bump tool-config pins from 3.13 to 3.14
+- session-buddy: Uv python pin 3.14
+
 ## [0.23.0] - 2026-08-21
 
 ### Added

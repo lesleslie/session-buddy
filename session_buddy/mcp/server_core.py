@@ -76,7 +76,7 @@ def _detect_other_mcp_servers() -> dict[str, bool]:
             timeout=5,
         )
         detected["crackerjack"] = result.returncode == 0
-    except (subprocess.SubprocessError, FileNotFoundError, subprocess.TimeoutExpired):
+    except subprocess.SubprocessError, FileNotFoundError, subprocess.TimeoutExpired:
         detected["crackerjack"] = False
 
     return detected

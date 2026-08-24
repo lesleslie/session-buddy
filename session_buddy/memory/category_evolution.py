@@ -1059,7 +1059,7 @@ class CategoryEvolutionEngine:
             X_array = np.array(X)
             score = silhouette_score(X_array, labels)
             return float(score)
-        except (ValueError, RuntimeError, np.linalg.LinAlgError):
+        except ValueError, RuntimeError, np.linalg.LinAlgError:
             logger.exception("Failed to calculate silhouette score")
             return 0.0  # Return neutral score on error
 

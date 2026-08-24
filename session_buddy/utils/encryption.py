@@ -339,7 +339,7 @@ def is_encrypted(data: bytes) -> bool:
         decoded = base64.urlsafe_b64decode(data + b"=" * (-len(data) % 4))
         # Fernet tokens decode to at least 1 byte (version) + 8 bytes (timestamp)
         return len(decoded) >= 9
-    except (ValueError, TypeError, binascii.Error):
+    except ValueError, TypeError, binascii.Error:
         return False
 
 

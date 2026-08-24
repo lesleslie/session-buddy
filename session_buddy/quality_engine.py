@@ -339,7 +339,7 @@ def _generate_session_tags(quality_score: float) -> list[str]:
     """Generate contextual tags for session reflection storage."""
     try:
         current_project = Path.cwd().name
-    except (FileNotFoundError, OSError):
+    except FileNotFoundError, OSError:
         current_project = "unknown-project"
     tags = ["checkpoint", "session-summary", current_project or "unknown-project"]
     if quality_score >= 80:

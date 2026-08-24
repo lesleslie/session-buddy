@@ -178,7 +178,7 @@ class ProjectActivityMonitor:
         def _is_recent(event: ActivityEvent) -> bool:
             try:
                 ts = datetime.fromisoformat(event.timestamp)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return False
             # Treat naive timestamps as local time of record, matching
             # how ``datetime.now()`` is used by callers.
@@ -484,7 +484,7 @@ class BrowserDocumentationMonitor:
                             "create_time": proc.info["create_time"],
                         },
                     )
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+        except psutil.NoSuchProcess, psutil.AccessDenied:
             pass
 
         return browsers
@@ -640,7 +640,7 @@ class ApplicationFocusMonitor:
                         "category": category,
                         "pid": proc.info["pid"],
                     }
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+        except psutil.NoSuchProcess, psutil.AccessDenied:
             pass
 
         return None

@@ -214,7 +214,7 @@ async def _get_relationship_confidence_stats_impl() -> str:
                 # Use json.loads for safe parsing
                 props_dict = json.loads(props_json) if props_json else {}
                 confidence = props_dict.get("confidence", "none")
-            except (json.JSONDecodeError, TypeError, ValueError):
+            except json.JSONDecodeError, TypeError, ValueError:
                 confidence = "none"
 
             confidence_counts[confidence] += 1

@@ -179,7 +179,7 @@ class AdvancedSearchEngine:
             ).fetchall()
 
             return [{"text": row[0], "frequency": row[1]} for row in results]
-        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
+        except sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError:
             # Table doesn't exist yet, will be created during index rebuild
             return []
 
@@ -211,7 +211,7 @@ class AdvancedSearchEngine:
 
             if not result:
                 return []
-        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
+        except sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError:
             # Table doesn't exist yet, will be created during index rebuild
             return []
 
@@ -368,7 +368,7 @@ class AdvancedSearchEngine:
                 if results
                 else [],
             }
-        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
+        except sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError:
             # Table doesn't exist yet, will be created during index rebuild
             return {
                 "metric_type": metric_type,
@@ -503,7 +503,7 @@ class AdvancedSearchEngine:
             return {}
         try:
             return json.loads(metadata_json)
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             return {}
 
     def _build_indexed_content(self, content: str, project: str | None) -> str:
@@ -572,7 +572,7 @@ class AdvancedSearchEngine:
                     datetime.now(UTC),
                 ],
             )
-        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
+        except sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError:
             # Table doesn't exist yet, will be created during index rebuild
             return
 
@@ -731,7 +731,7 @@ class AdvancedSearchEngine:
             for facet_value, _count in results:
                 if self._should_process_facet_value(facet_value):
                     self._insert_facet_value(facet_name, facet_value)
-        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
+        except sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError:
             # Table doesn't exist yet, will be created during index rebuild
             return
 
@@ -756,7 +756,7 @@ class AdvancedSearchEngine:
             # Commit all changes
             if self.reflection_db.conn:
                 self.reflection_db.conn.commit()
-        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
+        except sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError:
             # Table doesn't exist yet, will be created during index rebuild
             return
 
@@ -885,7 +885,7 @@ class AdvancedSearchEngine:
                 return []
             results = cursor.fetchall()
             return self._convert_sql_results_to_search_results(results)
-        except (sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError):
+        except sqlite3.DatabaseError, sqlite3.IntegrityError, TypeError, ValueError:
             # Table doesn't exist yet, will be created during index rebuild
             return []
 

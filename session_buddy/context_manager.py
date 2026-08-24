@@ -156,7 +156,7 @@ class ContextDetector:
             recent_files.sort(key=lambda x: str(x["modified"]), reverse=True)
             return recent_files[:10]
 
-        except (OSError, PermissionError):
+        except OSError, PermissionError:
             return []
 
     def detect_current_context(self, working_dir: str | None = None) -> dict[str, Any]:

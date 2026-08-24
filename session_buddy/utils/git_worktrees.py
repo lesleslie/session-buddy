@@ -422,7 +422,7 @@ def remove_worktree(
                     "force_required": True,
                     "safety_check": "uncommitted_changes",
                 }
-        except (OSError, subprocess.TimeoutExpired):
+        except OSError, subprocess.TimeoutExpired:
             # Path may not exist / git hangs — let git worktree remove report
             pass
 

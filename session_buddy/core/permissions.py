@@ -91,7 +91,7 @@ class SessionPermissionsManager:
                 self.trusted_operations.update(data.get("trusted_operations", []))
                 if "last_updated" in data:
                     self._last_updated = data["last_updated"]
-            except (json.JSONDecodeError, KeyError):
+            except json.JSONDecodeError, KeyError:
                 pass
 
     def _save_permissions(self) -> None:

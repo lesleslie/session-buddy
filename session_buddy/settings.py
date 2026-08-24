@@ -913,7 +913,7 @@ class SessionMgmtSettings(OneiricMCPConfig):
             try:
                 with flat_path.open() as f:
                     flat_data = yaml.safe_load(f)
-            except (OSError, yaml.YAMLError):
+            except OSError, yaml.YAMLError:
                 continue
             if not isinstance(flat_data, dict):
                 continue

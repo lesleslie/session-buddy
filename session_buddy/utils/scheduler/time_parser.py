@@ -150,7 +150,7 @@ class NaturalLanguageParser:
                         parsed_date.second,
                         tzinfo=UTC,
                     )
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 with contextlib.suppress(ValueError, TypeError):
                     pass
         return None

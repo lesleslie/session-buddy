@@ -87,7 +87,7 @@ class CheckpointCrossRepoAccountant:
                 ecosystem = (
                     loaded.get("ecosystem", {}) if isinstance(loaded, dict) else {}
                 )
-            except (yaml.YAMLError, OSError):
+            except yaml.YAMLError, OSError:
                 # YAMLError: parse failure. OSError: TOCTOU race,
                 # PermissionError, IsADirectoryError, etc. G6 — never raise.
                 ecosystem = {}

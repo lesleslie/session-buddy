@@ -36,7 +36,7 @@ def _check_knowledge_graph_available() -> bool:
         import importlib.util
 
         return importlib.util.find_spec("duckdb") is not None
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         return False
 
 

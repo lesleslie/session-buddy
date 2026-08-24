@@ -268,7 +268,7 @@ def _find_base64_issues(content: str) -> list[dict[str, Any]]:
         candidate = m.group(0)
         try:
             decoded = base64.b64decode(candidate, validate=True)
-        except (binascii.Error, ValueError):  # narrow catch for invalid base64
+        except binascii.Error, ValueError:  # narrow catch for invalid base64
             _logger.debug("Skipping invalid base64 candidate", exc_info=True)
             continue
         if not decoded:

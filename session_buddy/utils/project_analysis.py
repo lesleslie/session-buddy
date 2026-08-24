@@ -53,7 +53,7 @@ async def analyze_project_context(project_dir: Path) -> dict[str, bool]:
             "has_uv_lock": (project_dir / "uv.lock").exists(),
             "has_mcp_config": (project_dir / ".mcp.json").exists(),
         }
-    except (OSError, PermissionError):
+    except OSError, PermissionError:
         # Return safe defaults on error
         return {
             "python_project": False,

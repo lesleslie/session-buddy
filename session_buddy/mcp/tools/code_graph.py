@@ -101,7 +101,7 @@ async def _resolve_default_db() -> ReflectionDatabaseAdapter | None:
         return None
     try:
         return await require_reflection_database()
-    except (RuntimeError, ConnectionError, OSError):
+    except RuntimeError, ConnectionError, OSError:
         return None
 
 
@@ -148,7 +148,7 @@ async def _search_via_sql(
             return list(result)
 
         rows = await asyncio.get_running_loop().run_in_executor(None, _query)
-    except (RuntimeError, ConnectionError, OSError):
+    except RuntimeError, ConnectionError, OSError:
         return []
 
     hits: list[dict[str, Any]] = []
@@ -159,7 +159,7 @@ async def _search_via_sql(
             nodes = graph_data.get("nodes", []) if isinstance(graph_data, dict) else []
             if nodes and isinstance(nodes[0], dict):
                 symbol = str(nodes[0].get("name", "") or "")
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             # Malformed graph_data JSON; fall through to commit_hash.
             symbol = ""
         if not symbol:

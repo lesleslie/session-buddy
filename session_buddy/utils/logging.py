@@ -52,7 +52,7 @@ class SessionLogger:
                 if file_handler is None:
                     file_handler = logging.FileHandler(self.log_file)
                     self.logger.addHandler(file_handler)
-        except (OSError, PermissionError):
+        except OSError, PermissionError:
             fallback_dir = Path(tempfile.gettempdir()) / "session-buddy" / "logs"
             fallback_dir.mkdir(parents=True, exist_ok=True)
             self.log_dir = fallback_dir
@@ -131,7 +131,7 @@ def _resolve_logs_dir() -> Path:
     try:
         logs_dir.mkdir(parents=True, exist_ok=True)
         return logs_dir
-    except (OSError, PermissionError):
+    except OSError, PermissionError:
         fallback_dir = Path(tempfile.gettempdir()) / "session-buddy" / "logs"
         fallback_dir.mkdir(parents=True, exist_ok=True)
         return fallback_dir
@@ -158,7 +158,7 @@ def _get_file_handler(
             try:
                 if Path(handler.baseFilename) == log_file:
                     return handler
-            except (OSError, ValueError, AttributeError, RuntimeError):
+            except OSError, ValueError, AttributeError, RuntimeError:
                 continue
     return None
 
@@ -181,7 +181,7 @@ def _safe_json_serialize(obj: t.Any) -> str:
     """Safely serialize objects to JSON, converting non-serializable objects to strings."""
     try:
         return json.dumps(obj)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         # Convert non-serializable objects to string representation
         if isinstance(obj, dict):
             return json.dumps(

@@ -148,7 +148,7 @@ class SkillSuccessPredictor:
         try:
             session_start = datetime.fromisoformat(session_context.session_start_time)
             session_length_minutes = (now - session_start).total_seconds() / 60
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             session_length_minutes = 0.0
 
         # Feature 7: user_skill_familiarity

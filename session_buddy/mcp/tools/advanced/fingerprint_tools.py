@@ -446,7 +446,7 @@ async def _count_duplicates_in_table(
                 duplicate_count += 1
             else:
                 seen_fingerprints.add(fingerprint_bytes)
-        except (TypeError, ValueError, AttributeError):
+        except TypeError, ValueError, AttributeError:
             continue
 
     return duplicate_count
@@ -675,7 +675,7 @@ async def _find_duplicates_in_table(
             else:
                 seen_fingerprints.add(fingerprint_bytes)
 
-        except (TypeError, ValueError, AttributeError):
+        except TypeError, ValueError, AttributeError:
             continue
 
     return duplicates

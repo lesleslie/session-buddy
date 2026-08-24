@@ -606,7 +606,7 @@ class LLMManager:
             try:
                 if await provider.health_check():
                     available.append(provider.name)
-            except (ConnectionError, TimeoutError, OSError, RuntimeError, ValueError):
+            except ConnectionError, TimeoutError, OSError, RuntimeError, ValueError:
                 continue
         return available
 

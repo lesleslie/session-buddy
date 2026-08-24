@@ -83,7 +83,7 @@ def detect_python_frameworks(
             with py_file.open("r", encoding="utf-8") as f:
                 content = f.read(1000)  # Read first 1000 chars
                 check_framework_imports(content, indicators)
-        except (UnicodeDecodeError, PermissionError):
+        except UnicodeDecodeError, PermissionError:
             continue
 
 

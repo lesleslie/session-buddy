@@ -123,7 +123,7 @@ class SessionLifecycleManager:
 
             try:
                 self.quality_scorer = get_sync_typed(QualityScorer)
-            except (ImportError, KeyError, AttributeError, RuntimeError):
+            except ImportError, KeyError, AttributeError, RuntimeError:
                 # Fallback to DefaultQualityScorer if DI not configured
                 # or raises a non-fatal resolver error
                 from session_buddy.core.quality_scoring import DefaultQualityScorer
@@ -472,7 +472,7 @@ class SessionLifecycleManager:
     async def _checkpoint_with_safety_capture(
         self,
         *,
-        phase: "t.Any",
+        phase: t.Any,
         current_dir: Path,
         quality_score: int,
     ) -> list[str]:
@@ -951,7 +951,7 @@ class SessionLifecycleManager:
         def _safe_any_glob(pattern: str) -> bool:
             try:
                 return any(current_dir.glob(pattern))
-            except (OSError, PermissionError):
+            except OSError, PermissionError:
                 return False
 
         # This is a basic implementation; could be expanded based on requirements
@@ -985,13 +985,13 @@ class SessionLifecycleManager:
         # Scan Python files for framework imports (first 10 files as suggested by test)
         try:
             python_files = list(current_dir.glob("**/*.py"))[:10]
-        except (OSError, PermissionError):
+        except OSError, PermissionError:
             python_files = []
         for py_file in python_files:
             try:
                 content = py_file.read_text()
                 requirements_content += content  # Add file content to check for imports
-            except (OSError, UnicodeDecodeError):
+            except OSError, UnicodeDecodeError:
                 # Skip files that can't be read
                 continue
 

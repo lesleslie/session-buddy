@@ -120,7 +120,7 @@ async def _register_to_dhara_once(dhara_url: str, key: str, mcp_url: str) -> boo
             )
             response.raise_for_status()
             return True
-    except (httpx.HTTPError, httpx.RequestError, OSError):
+    except httpx.HTTPError, httpx.RequestError, OSError:
         return False
 
 
@@ -314,7 +314,6 @@ async def metrics_check(request: Any) -> Any:
 # import cleanly. The local stub preserves the call site so it remains a
 # no-op when the helper is unavailable.
 from mcp_common import bootstrap_baseline_tools
-
 
 from session_buddy.mcp.tools import register_health_tools_sb
 from session_buddy.subscribers.code_graph_subscriber import register_code_graph_tools
@@ -609,7 +608,7 @@ def _check_git_activity(current_dir: Path) -> tuple[int, int] | None:
 
         return recent_commits, modified_files
 
-    except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError):
+    except subprocess.TimeoutExpired, subprocess.SubprocessError, OSError:
         return None
 
 

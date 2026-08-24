@@ -49,7 +49,7 @@ def _check_reflection_tools_available() -> bool:
         import importlib.util
 
         current_result = importlib.util.find_spec("duckdb") is not None
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         current_result = False
 
     if _reflection_tools_available is None:

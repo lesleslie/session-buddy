@@ -477,7 +477,7 @@ class ReflectionDatabaseAdapterOneiric:
                     cached.conn.execute("SELECT 1")
                     cached.ref_count += 1
                     return cached.conn
-                except (duckdb.Error, OSError):
+                except duckdb.Error, OSError:
                     # Stale connection; remove and create a fresh one
                     cached.release()
                     _typed_connection_cache.pop(cache_key, None)
@@ -2942,7 +2942,7 @@ class ReflectionDatabaseAdapterOneiric:
                 (datetime.now(tz=UTC), datetime.now(tz=UTC), insight_id),
             )
             return True
-        except (duckdb.Error, OSError):
+        except duckdb.Error, OSError:
             return False
 
     async def get_insights_statistics(self) -> dict[str, t.Any]:

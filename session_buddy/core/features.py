@@ -41,7 +41,7 @@ class FeatureDetector:
                 session_buddy.core.session_manager
             )  # Reference to avoid unused import warning during static analysis
             return True
-        except (ImportError, AttributeError):
+        except ImportError, AttributeError:
             # `import session_buddy.core` can raise AttributeError when
             # `session_buddy`'s `__getattr__` doesn't know the sub-attribute
             # (e.g. when the feature detector is being scanned in isolation
@@ -56,7 +56,7 @@ class FeatureDetector:
             return (
                 importlib.util.find_spec("session_buddy.reflection_tools") is not None
             )
-        except (ImportError, ValueError):
+        except ImportError, ValueError:
             # `ImportError` is the documented failure for missing
             # modules. `ValueError` can be raised when a module is
             # present in `sys.modules` but lacks a valid `__spec__`

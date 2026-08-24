@@ -137,7 +137,7 @@ def _port_holder(port: int) -> tuple[int, str] | None:
             timeout=3.0,
             check=False,
         )
-    except (subprocess.TimeoutExpired, OSError):
+    except subprocess.TimeoutExpired, OSError:
         return None
     if result.returncode != 0 or not result.stdout:
         return None
@@ -161,7 +161,7 @@ def _read_running_pid(settings: _HasPidPath) -> int | None:
         return None
     try:
         return int(pid_path.read_text().strip())
-    except (ValueError, OSError):
+    except ValueError, OSError:
         return None
 
 

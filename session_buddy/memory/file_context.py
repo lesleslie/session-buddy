@@ -27,7 +27,7 @@ def build_file_context(file_path: str, max_lines: int = 50) -> dict[str, Any]:
                         break
                     lines.append(line.rstrip("\n"))
             snippet = "\n".join(lines)
-    except (OSError, UnicodeDecodeError, ValueError):
+    except OSError, UnicodeDecodeError, ValueError:
         snippet = ""
 
     return {"metadata": meta, "snippet": snippet}

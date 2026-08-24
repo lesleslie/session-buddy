@@ -57,7 +57,7 @@ def _safe_http_error_info(exc: httpx.HTTPStatusError) -> dict[str, object]:
     if request is not None:
         try:
             host = request.url.host  # may raise or be empty for some schemes
-        except (AttributeError, ValueError, TypeError):
+        except AttributeError, ValueError, TypeError:
             host = None
         if host:
             info["host"] = host

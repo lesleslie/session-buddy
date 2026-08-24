@@ -85,7 +85,7 @@ def _get_tracer():
         from opentelemetry import trace
 
         _TRACER = trace.get_tracer(__name__)
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         _TRACER = None
     return _TRACER
 

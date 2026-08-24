@@ -109,7 +109,7 @@ def _parse_metadata(metadata_str: str | None) -> dict[str, Any]:
 
     try:
         return cast(dict[str, Any], json.loads(metadata_str))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         logger.warning(f"Failed to parse metadata: {metadata_str[:100]}...")
         return {}
 

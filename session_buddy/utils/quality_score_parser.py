@@ -70,7 +70,7 @@ def _extract_quality_scores(reflections: list[dict[str, Any]]) -> list[float]:
             if score is not None:
                 scores.append(score)
 
-        except (ValueError, TypeError, AttributeError):
+        except ValueError, TypeError, AttributeError:
             # Skip malformed scores
             continue
 

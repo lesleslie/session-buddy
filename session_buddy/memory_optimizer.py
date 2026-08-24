@@ -504,7 +504,7 @@ class RetentionPolicyManager:
             try:
                 conv_time = datetime.fromisoformat(conv.get("timestamp", ""))
                 is_old = conv_time < cutoff_date
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 is_old = True  # If we can't parse timestamp, consider it old
 
             if importance >= importance_threshold:

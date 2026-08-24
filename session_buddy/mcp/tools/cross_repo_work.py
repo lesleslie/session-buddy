@@ -97,7 +97,7 @@ def _load_ecosystem(ecosystem_path) -> _EcosystemDict:
         return {}
     try:
         data = yaml.safe_load(ecosystem_path.read_text())
-    except (yaml.YAMLError, OSError):
+    except yaml.YAMLError, OSError:
         return {}
     if not isinstance(data, dict):
         return {}

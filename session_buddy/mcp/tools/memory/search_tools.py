@@ -377,7 +377,7 @@ def _extract_mentioned_files(results: list[dict[str, Any]]) -> list[str]:
             files.extend(matches)
 
         return list(set(files))[:10] if files else []
-    except (re.error, AttributeError, TypeError, KeyError):
+    except re.error, AttributeError, TypeError, KeyError:
         return []
 
 
@@ -822,7 +822,7 @@ def _classify_skill_status(
     if last_reinforced is not None:
         try:
             reinforced_dt = _parse_reinforced_ts(last_reinforced)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             reinforced_dt = None
         if reinforced_dt is not None:
             now = utc_now()
@@ -1002,7 +1002,7 @@ def _extract_code_blocks_from_content(content: str) -> list[str]:
         code_pattern = SAFE_PATTERNS["generic_code_block"]
         matches = code_pattern.findall(content)
         return matches if matches is not None else []
-    except (ImportError, re.error, KeyError, AttributeError, TypeError):
+    except ImportError, re.error, KeyError, AttributeError, TypeError:
         return []
 
 

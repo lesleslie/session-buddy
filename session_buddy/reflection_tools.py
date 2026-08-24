@@ -23,7 +23,7 @@ DEPRECATION NOTICE (Phase 2 - February 2025):
 """
 
 # Module-level singleton cache for the reflection database
-_reflection_db: "ReflectionDatabaseAdapter | None" = None
+_reflection_db: ReflectionDatabaseAdapter | None = None
 
 # Import the adapter class so tests and callers can patch it at the module level.
 # Use conditional import to handle the case where the adapter might not be available

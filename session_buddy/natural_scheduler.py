@@ -589,7 +589,7 @@ class ReminderScheduler:
 _reminder_scheduler = None
 
 
-def get_reminder_scheduler() -> "ReminderScheduler":
+def get_reminder_scheduler() -> ReminderScheduler:
     """Get global reminder scheduler instance."""
     global _reminder_scheduler
     if _reminder_scheduler is None:

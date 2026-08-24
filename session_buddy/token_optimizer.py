@@ -107,7 +107,7 @@ class TokenOptimizer:
             return None
         try:
             return tiktoken.get_encoding("cl100k_base")  # GPT-4 encoding
-        except (ValueError, KeyError, Exception):  # noqa: BLE001 - sentinel: misconfigured tiktoken falls back to approximate counting
+        except ValueError, KeyError, Exception:  # noqa: BLE001 - sentinel: misconfigured tiktoken falls back to approximate counting
             # Fallback to approximate counting. Catch generic Exception
             # too so a misconfigured tiktoken install (or a mocked
             # side_effect in tests) does not crash TokenOptimizer init.
@@ -343,7 +343,7 @@ class TokenOptimizer:
                 days_old = (now - timestamp).days
                 recency_score = max(0, 0.5 - (days_old / 365) * 0.5)
                 score += recency_score
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 score += 0.1  # Default low recency score
 
             # Relevance score if available (0-0.3)

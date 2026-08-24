@@ -298,7 +298,7 @@ class EntityExtractionEngine:
         # up cleanly so ``engine.manager`` can be swapped in afterwards.
         try:
             self.manager: Any = LLMManager()
-        except (ImportError, TypeError):
+        except ImportError, TypeError:
             # TypeError covers the case where the missing ``openai`` SDK
             # is replaced by a stub module whose ``AsyncOpenAI`` attribute is
             # ``None`` (see ``session_buddy.llm.providers.openai_provider``).

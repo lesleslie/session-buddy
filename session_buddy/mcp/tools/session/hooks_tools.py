@@ -38,7 +38,7 @@ def _get_hooks_manager():  # type: ignore[no-untyped-def]
         code_formatter = get_sync_typed(CodeFormatter)  # type: ignore[no-any-return]
         if not isinstance(code_formatter, CodeFormatter):
             code_formatter = None
-    except (ImportError, AttributeError, RuntimeError, KeyError):
+    except ImportError, AttributeError, RuntimeError, KeyError:
         code_formatter = None
 
     manager = HooksManager(formatter=code_formatter)
