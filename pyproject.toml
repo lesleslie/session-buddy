@@ -13,7 +13,7 @@ classifiers = [
     "Operating System :: POSIX",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
@@ -63,7 +63,7 @@ homepage = "https://github.com/lesleslie/session-buddy"
 repository = "https://github.com/lesleslie/session-buddy"
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 line-length = 88
 exclude = [
     "tests/",
@@ -186,7 +186,7 @@ exclude = [
     "dist",
 ]
 typeCheckingMode = "strict"
-pythonVersion = "3.13"
+pythonVersion = "3.14"
 
 [tool.bandit]
 target = [
@@ -231,7 +231,7 @@ exclude-deps = [
 [tool.refurb]
 enable_all = false
 quiet = true
-python_version = "3.13"
+python_version = "3.14"
 ignore = [
     "FURB184",
     "FURB120",
