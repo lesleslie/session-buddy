@@ -141,6 +141,8 @@ class CausalChainTracker:
         from session_buddy.di import depends
 
         self.db = depends.get_sync(ReflectionDatabaseAdapterOneiric)
+        if self.db is not None:
+            await self.db.initialize()
         await self._ensure_tables()
 
         self.logger.info("CausalChainTracker initialized")

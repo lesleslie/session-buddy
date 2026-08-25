@@ -75,6 +75,7 @@ def configure(*, force: bool = False) -> None:
     _register_workflow_metrics_engine(force)  # Register workflow metrics engine
     _register_lifecycle_manager(force)
     _register_hooks_manager(force)  # Register HooksManager for automation
+    _register_reflection_database_adapter(force)  # Register reflection DB adapter
 
     _configured = True
 
@@ -307,6 +308,45 @@ def _register_hooks_manager(force: bool) -> None:
     # Create and register hooks manager instance with injected formatter
     hooks_manager = HooksManager(formatter=code_formatter)
     depends.set(HooksManager, hooks_manager)
+
+
+def _register_reflection_database_adapter(force: bool) -> None:
+    """Register ReflectionDatabaseAdapterOneiric with the DI container.
+
+    Args:
+        force: If True, re-registers even if already registered
+
+    Note:
+        The adapter's ``__init__`` only resolves Oneiric settings — DuckDB
+        connection setup happens lazily in ``await adapter.initialize()``,
+        which consumers must invoke after fetching the singleton. The
+        adapter's own ``initialize()`` is idempotent (checks ``_initialized``),
+        so the first consumer to fetch it pays the cost and subsequent
+        lookups get a ready-to-use connection.
+
+        Fix for: ``session-buddy MCP crashes on every tool call`` (audit 2026-08-24).
+        The crash surfaced as ``ToolError: 'Service not registered:
+        session_buddy.adapters.reflection_adapter_oneiric.ReflectionDatabaseAdapterOneiric'``
+        from any tool whose engine (IntelligenceEngine, CausalChainTracker)
+        depended on the adapter via DI lookup.
+
+    """
+    from session_buddy.adapters.reflection_adapter_oneiric import (
+        ReflectionDatabaseAdapterOneiric,
+    )
+
+    if not force:
+        with suppress(Exception):  # Catch all DI resolution errors
+            existing = depends.get_sync(ReflectionDatabaseAdapterOneiric)
+            if isinstance(existing, ReflectionDatabaseAdapterOneiric):
+                return
+
+    # Construct with default args — uses Oneiric settings via
+    # ``ReflectionAdapterSettings.from_settings()``. DuckDB connection is
+    # not opened here; that happens in ``await adapter.initialize()``
+    # which each consumer must call after fetching the singleton.
+    adapter = ReflectionDatabaseAdapterOneiric()
+    depends.set(ReflectionDatabaseAdapterOneiric, adapter)
 
 
 __all__ = [

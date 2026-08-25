@@ -189,6 +189,13 @@ class IntelligenceEngine:
         # Get reflection database from DI container
         self.db = depends.get_sync(ReflectionDatabaseAdapterOneiric)
 
+        # Ensure the adapter has its DuckDB connection open before we try
+        # to use ``self.db.conn`` in ``_ensure_tables``. The adapter's
+        # ``initialize()`` is idempotent, so this is safe even when the
+        # adapter was previously initialized by another consumer.
+        if self.db is not None:
+            await self.db.initialize()
+
         # Create intelligence tables
         await self._ensure_tables()
 
