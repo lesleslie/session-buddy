@@ -54,6 +54,9 @@ dependencies = [
 [project.scripts]
 session-buddy = "session_buddy.__main__:main"
 
+[project.entry-points."bodai.apps"]
+session-buddy = "session_buddy.cli:app"
+
 [project.license]
 text = "BSD-3-CLAUSE"
 

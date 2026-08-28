@@ -73,5 +73,9 @@ __all__ = [
 ]
 
 
+# Bodai umbrella entry-point (Phase 5.1)
+app = SessionBuddyCLI()
+
+
 if __name__ == "__main__":
     main()
