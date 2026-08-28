@@ -18,7 +18,7 @@ def cleanup_snapshots(
     older_than: int = typer.Option(
         7, "--older-than", help="Remove snapshots older than N days"
     ),
-    snapshot_dir: Path | None = typer.Option(  # noqa: B008 - typer idiom
+    snapshot_dir: Path | None = typer.Option(
         None, "--snapshot-dir", help="Override snapshot directory"
     ),
 ) -> None:

@@ -1,250 +1,76 @@
 #!/usr/bin/env python3
 # ruff: noqa: EXE001
-"""MCP Common CLI Factory for Session Management MCP Server.
+"""Session-Buddy CLI — BodaiCLIBase adoption (oneiric 0.19.0).
 
-Replaces the custom Typer-based CLI with mcp-common's MCPServerCLIFactory
-to provide standard lifecycle commands (start, stop, restart, status, health).
+The main entrypoint now subclasses :class:`oneiric.cli.base.BodaiCLIBase`
+so session-buddy exposes the standard Bodai Core 7 ``version`` / ``doctor``
+/ ``health`` / ``--json`` / ``--version`` surface.
+
+Lifecycle verbs (``start``, ``stop``, ``restart``, ``status``) are kept
+but mounted under the ``server`` sub-Typer (see
+:mod:`session_buddy.cli.base`) to avoid colliding with BodaiCLIBase's
+own ``health`` command.
+
+Backward compatibility: ``create_session_buddy_cli()`` still returns
+an object whose ``create_app()`` returns a Typer app, so the legacy
+``tests/unit/test_cli.py`` invocation pattern keeps working — though
+some tests now need ``["server", "start"]`` instead of ``["start"]``.
 """
 
 from __future__ import annotations
 
-import asyncio
-import os
-import typing as t
-import warnings
-from pathlib import Path
-
-import typer
-
-# Suppress transformers warnings about PyTorch/TensorFlow
-os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-warnings.filterwarnings("ignore", message=".*PyTorch.*TensorFlow.*Flax.*")
-
-
-from mcp_common import MCPServerCLIFactory, MCPServerSettings, RuntimeHealthSnapshot
-from oneiric.core.config import OneiricMCPConfig
+# Re-export the canonical BodaiCLIBase subclass first so callers that
+# already do ``from session_buddy.cli import SessionBuddyCLI`` keep
+# working. ``cli.base`` is the implementation; ``cli.__init__`` is
+# just the backward-compat shim layer.
+from session_buddy.cli.base import (  # noqa: F401
+    SessionBuddyCLI,
+    SessionBuddySettings,
+    _port_holder,
+    _read_running_pid,
+    _run_health_probe,
+    start_server_handler,
+)
 
 
-class _HasPidPath(t.Protocol):
-    """Structural type: anything with a callable ``pid_path()`` returning Path."""
-
-    def pid_path(self) -> Path: ...
-
-
-from session_buddy.mcp.tools.monitoring.health_tools import get_health_status
-from session_buddy.utils.runtime_snapshots import update_telemetry_counter
-
-
-class SessionBuddySettings(OneiricMCPConfig):
-    """Session Buddy specific MCP server settings extending OneiricMCPConfig."""
-
-    # Session Buddy specific settings
-    server_name: str = "session-buddy"
-
-    # HTTP server configuration
-    http_port: int = 8678
-    websocket_port: int = 8677
-
-    # Process management
-    startup_timeout: int = 10
-    shutdown_timeout: int = 10
-    force_kill_timeout: int = 5
-
-    # Snapshot freshness threshold (seconds). mcp-common's
-    # ``MCPServerCLIFactory._emit_status_output`` reads
-    # ``self.settings.health_ttl_seconds``; mirror the upstream default
-    # (60.0) here so status/CLI commands work without forcing callers to
-    # pass a fully-populated MCPServerSettings.
-    health_ttl_seconds: float = 60.0
-
-    # Snapshot path helpers (migrated from MCPServerSettings via
-    # SessionMgmtSettings in settings.py; replicated here so the
-    # CLI-side settings class still satisfies the structural protocol
-    # in utils.runtime_snapshots).
-    def pid_path(self) -> Path:
-        return Path(self.cache_dir) / "mcp_server.pid"
-
-    def health_snapshot_path(self) -> Path:
-        return Path(self.cache_dir) / "runtime_health.json"
-
-    def telemetry_snapshot_path(self) -> Path:
-        return Path(self.cache_dir) / "runtime_telemetry.json"
-
-    # Shim for mcp-common compatibility: factory.py:387 calls
-    # ``self.settings.cache_root`` (Path), but OneiricMCPConfig only
-    # exposes ``cache_dir`` (str). Mirror the value into cache_root so
-    # mcp-common's ``validate_cache_ownership`` can read it.
-    @property
-    def cache_root(self) -> Path:
-        return Path(self.cache_dir)
-
-
-def start_server_handler() -> None:
-    """Start handler that launches the Session Buddy MCP server.
-
-    This function is called by the CLI factory when 'start' command is executed.
-
-    Pre-bind check: verify the target port is free BEFORE attempting to
-    bind. Uvicorn's bind failure mode logs ``EADDRINUSE`` then shuts the
-    server down with no actionable signal. Failing fast here gives the
-    operator a clear message ("port 8678 is held by PID N") and avoids
-    the bind-then-die cycle that previously required manual
-    ``/mcp`` reconnects.
-    """
-    from session_buddy.server_optimized import run_server
-
-    # Start server in HTTP mode with configured ports
-    settings = SessionBuddySettings()
-
-    print("🚀 Starting Session Management MCP Server...")
-    print(f"HTTP Port: {settings.http_port}")
-    print(f"WebSocket Port: {settings.websocket_port}")
-
-    # Pre-bind port check — fail fast with a clear message instead of
-    # letting uvicorn log EADDRINUSE and exit silently.
-    holder = _port_holder(settings.http_port)
-    if holder is not None:
-        pid, command = holder
-        msg = (
-            f"Port {settings.http_port} is already in use by PID {pid} "
-            f"({command[:60]!r}).\n"
-            f"Either stop the existing process or use a different port via "
-            f"the MAHAVISHNU__HTTP_PORT / SESSION_BUDDY__HTTP_PORT env var.\n"
-            f"Refusing to start to avoid the bind-fail-exit death loop."
-        )
-        raise SystemExit(msg)
-
-    # Launch the server with HTTP transport
-    run_server(host="127.0.0.1", port=settings.http_port)
-
-
-def _port_holder(port: int) -> tuple[int, str] | None:
-    """Return (pid, command) of the process listening on ``port``, or None.
-
-    Uses ``lsof`` which is present on macOS and Linux. Returns None if
-    no process is listening or ``lsof`` is unavailable.
-    """
-    import shutil
-    import subprocess
-
-    if shutil.which("lsof") is None:
-        return None
-    try:
-        result = subprocess.run(
-            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-Fpc"],
-            capture_output=True,
-            text=True,
-            timeout=3.0,
-            check=False,
-        )
-    except subprocess.TimeoutExpired, OSError:
-        return None
-    if result.returncode != 0 or not result.stdout:
-        return None
-
-    # lsof -F output: lines starting with 'p' are PIDs, 'c' are commands.
-    pid: int | None = None
-    command = ""
-    for line in result.stdout.splitlines():
-        if line.startswith("p"):
-            pid = int(line[1:])
-        elif line.startswith("c") and pid is not None and not command:
-            command = line[1:].strip()
-    if pid is None:
-        return None
-    return (pid, command)
-
-
-def _read_running_pid(settings: _HasPidPath) -> int | None:
-    pid_path = settings.pid_path()
-    if not pid_path.exists():
-        return None
-    try:
-        return int(pid_path.read_text().strip())
-    except ValueError, OSError:
-        return None
-
-
-def _run_health_probe(settings: SessionBuddySettings) -> RuntimeHealthSnapshot:
-    pid = _read_running_pid(settings)
-    health_state = asyncio.run(get_health_status(ready=False))
-    snapshot = RuntimeHealthSnapshot(
-        orchestrator_pid=pid,
-        watchers_running=pid is not None,
-        activity_state={"health": health_state},
-    )
-    update_telemetry_counter(settings, name="health_probes", pid=pid)
-    return snapshot
-
-
-def create_session_buddy_cli() -> MCPServerCLIFactory:
-    """Create the Session Buddy CLI using MCPServerCLIFactory.
+def create_session_buddy_cli() -> SessionBuddyCLI:
+    """Create the Session Buddy CLI.
 
     Returns:
-        Configured MCPServerCLIFactory instance ready for execution
+        A :class:`SessionBuddyCLI` (a :class:`oneiric.cli.base.BodaiCLIBase`
+        subclass) with the standard Bodai Core 7 ``version`` / ``doctor``
+        / ``health`` surface plus session-buddy-specific ``server``,
+        ``checkpoint``, and ``analytics`` subcommands.
 
+    The return value is also the Typer app itself (via the
+    :meth:`SessionBuddyCLI.create_app` shim), so callers may write
+    ``app = create_session_buddy_cli(); app()`` without going through
+    ``create_app()`` first.
     """
-    # Initialize settings
-    settings = SessionBuddySettings()
-
-    # Create the CLI factory with start handler
-    # ``MCPServerCLIFactory`` annotates ``settings`` as
-    # ``MCPServerSettings | None``. We pass ``SessionBuddySettings``
-    # (an ``OneiricMCPConfig`` subclass); the factory only reads
-    # ``.server_name``, never type-discriminates, so we cast through
-    # ``MCPServerSettings`` to satisfy ty without widening the
-    # upstream factory annotation.
-    cli_factory = MCPServerCLIFactory(
-        server_name=settings.server_name,
-        settings=t.cast("MCPServerSettings", settings),
-        start_handler=start_server_handler,
-        health_probe_handler=lambda: _run_health_probe(settings),
-    )
-
-    app = cli_factory.create_app()
-
-    # Register session-buddy-specific subcommands. The factory only owns
-    # the lifecycle verbs (start/stop/restart/status/health); session-buddy
-    # adds ``doctor`` here.
-    from session_buddy.doctor import register_doctor_command
-
-    register_doctor_command(app)
-
-    # Register checkpoint subcommands (e.g. ``checkpoint cleanup-snapshots``).
-    from session_buddy.cli.checkpoint_cli import register_checkpoint_command
-
-    register_checkpoint_command(app)
-
-    @app.callback(invoke_without_command=True)
-    def _root(
-        version: bool = typer.Option(
-            False,
-            "--version",
-            help="Show the Session Buddy version and exit.",
-        ),
-    ) -> None:
-        if version:
-            from session_buddy import __version__
-
-            typer.echo(f"session-buddy version {__version__}")
-            raise typer.Exit()
-
-    # Preserve the factory interface expected by callers while returning an
-    # object whose create_app() yields the augmented app.
-    cli_factory.create_app = lambda: app  # ty: ignore[invalid-assignment]
-    return cli_factory
+    return SessionBuddyCLI()
 
 
 def main() -> None:
-    """Main entry point for the Session Buddy MCP CLI."""
-    # Create and configure the CLI
-    cli_factory = create_session_buddy_cli()
+    """Main entry point for the Session Buddy MCP CLI.
 
-    # Create and run the CLI application
-    app = cli_factory.create_app()
-
-    # Execute the CLI
+    Wires the entrypoint app via :meth:`BodaiCLIBase.run` semantics —
+    Typer apps are invoked by calling the instance (``app()``), so
+    ``BodaiCLIBase.run`` here just means "drive the Typer app to its
+    callback dispatch". ``create_session_buddy_cli()`` is the
+    authoritative factory; ``main()`` only orchestrates the run.
+    """
+    # Create the CLI app (BodaiCLIBase subclass) and run it.
+    app = create_session_buddy_cli()
     app()
+
+
+__all__ = [
+    "SessionBuddyCLI",
+    "SessionBuddySettings",
+    "create_session_buddy_cli",
+    "main",
+    "start_server_handler",
+]
 
 
 if __name__ == "__main__":

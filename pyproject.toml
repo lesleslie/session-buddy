@@ -48,7 +48,7 @@ dependencies = [
     # mcp-common transitively pulls it in. Action kits (``SecuritySignatureAction``,
     # ``DataSanitizeAction``, etc.) are part of oneiric's public API surface,
     # not mcp-common's, so consumers should import from oneiric directly.
-    "oneiric>=0.16.0",
+    "oneiric>=0.19.0",
 ]
 
 [project.scripts]
@@ -89,6 +89,13 @@ fixable = [
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15
+
+# B008 allowed in typer default args (e.g. `x: int = typer.Option(...)`).
+# Mirrors the pattern used across the Bodai ecosystem so we can pass
+# typer.Option defaults idiomatically without per-call noqa comments.
+[tool.ruff.lint.per-file-ignores]
+"session_buddy/**/*cli*.py" = ["B008"]
+"session_buddy/cli/**/*.py" = ["B008"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
