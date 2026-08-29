@@ -887,10 +887,19 @@ class SessionMgmtSettings(OneiricMCPConfig):
         import yaml
         from oneiric.core.config import load_settings as _oneiric_load
 
+        # Anchor at package install location for CWD-independent load.
+        # oneiric's load_settings() signature varies across revisions —
+        # `project_root=` works on some installs but raises TypeError on
+        # others. Using `path=` works in both signatures and gives us
+        # the same anchor behavior. When caller passes an explicit
+        # `config_path`, that takes precedence (higher priority as
+        # explicit-config layer).
+        project_root = Path(__file__).resolve().parent.parent
         loaded = _oneiric_load(
-            path=str(config_path) if config_path else None,
+            path=str(config_path)
+            if config_path
+            else str(project_root / "settings" / "session-buddy.yaml"),
             project_name=server_name,
-            project_root=Path(__file__).resolve().parent.parent,
         )
         relevant_data: dict[str, t.Any] = {
             k: v
