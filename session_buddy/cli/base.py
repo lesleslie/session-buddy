@@ -236,7 +236,7 @@ def _doctor_checks_dict() -> dict[str, dict[str, t.Any]]:
             "status": str(r.status),
             "detail": detail,
             "latency_ms": r.latency_ms,
-            "metadata": dict(r.metadata),
+            "metadata": r.metadata.copy(),
         }
     return out
 
