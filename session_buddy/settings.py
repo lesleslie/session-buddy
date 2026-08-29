@@ -890,6 +890,7 @@ class SessionMgmtSettings(OneiricMCPConfig):
         loaded = _oneiric_load(
             path=str(config_path) if config_path else None,
             project_name=server_name,
+            project_root=Path(__file__).resolve().parent.parent,
         )
         relevant_data: dict[str, t.Any] = {
             k: v
