@@ -9,6 +9,28 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.24.1] - 2026-08-28
+
+### Added
+
+- session-buddy: Adopt BodaiCLIBase + real doctor/health (Phase 3 Task 4.3)
+- session-buddy: Bodai.apps entry-point (Phase 5.1)
+
+### Fixed
+
+- session-buddy: Anchor load_settings() project_root at package install location
+- session-buddy: FURB123 use r.metadata.copy() instead of dict()
+- session-buddy: Register ReflectionDatabaseAdapterOneiric in DI container
+- session-buddy: Silence ty pre-existing errors + refurb FURB143
+
+### Documentation
+
+- readme: Bump Python badge from 3.13+ to 3.14+
+
+### Internal
+
+- deps: Bump oneiric floor to >=0.19.1
+
 ## [0.24.0] - 2026-08-24
 
 ### Added
