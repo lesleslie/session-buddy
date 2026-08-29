@@ -641,7 +641,7 @@ async def _handle_auto_store_reflection(
 
         try:
             db = await get_reflection_database()
-            await db.initialize()  # Must initialize before use
+            await db.initialize()  # ty: ignore[unresolved-attribute]  # Must initialize before use
 
             # Create meaningful checkpoint summary
             checkpoint_content = f"Quality score: {result['quality_score']}/100. "
@@ -667,7 +667,7 @@ async def _handle_auto_store_reflection(
             )
 
             # Store the reflection
-            await db.store_reflection(checkpoint_content, tags)
+            await db.store_reflection(checkpoint_content, tags)  # ty: ignore[unresolved-attribute]
             output.append(f"\n{result['auto_store_summary']}")
         except Exception as e:  # noqa: BLE001 - best-effort auto-store reflection: a failure must be logged and surfaced, not abort the checkpoint
             _get_logger().exception("Failed to store checkpoint reflection")
@@ -1104,7 +1104,7 @@ async def _pre_compact_sync_impl() -> dict[str, Any]:
         # Store the reflection with pre-compact tags
         try:
             db = await get_reflection_database()
-            await db.initialize()
+            await db.initialize()  # ty: ignore[unresolved-attribute]
 
             tags = generate_auto_store_tags(
                 reason=CheckpointReason.PRE_COMPACT,
@@ -1112,7 +1112,7 @@ async def _pre_compact_sync_impl() -> dict[str, Any]:
                 quality_score=quality_score,
             )
 
-            reflection_id = await db.store_reflection(context_content, tags)
+            reflection_id = await db.store_reflection(context_content, tags)  # ty: ignore[unresolved-attribute]
             result["reflection_stored"] = True
             result["reflection_id"] = reflection_id
             result["tags"] = tags

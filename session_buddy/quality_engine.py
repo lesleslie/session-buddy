@@ -138,14 +138,14 @@ async def _optimize_reflection_database() -> str:
         from session_buddy.reflection_tools import get_reflection_database
 
         db = await get_reflection_database()
-        await db.get_stats()
+        await db.get_stats()  # ty: ignore[unresolved-attribute]
         db_size_before = (
-            Path(db.db_path).stat().st_size if Path(db.db_path).exists() else 0
+            Path(db.db_path).stat().st_size if Path(db.db_path).exists() else 0  # ty: ignore[unresolved-attribute]
         )
 
-        if db.conn:
+        if db.conn:  # ty: ignore[unresolved-attribute]
             conn = (
-                db.conn
+                db.conn  # ty: ignore[unresolved-attribute]
             )  # Capture the connection to help mypy understand it's not None
             await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -157,7 +157,7 @@ async def _optimize_reflection_database() -> str:
             )
 
         db_size_after = (
-            Path(db.db_path).stat().st_size if Path(db.db_path).exists() else 0
+            Path(db.db_path).stat().st_size if Path(db.db_path).exists() else 0  # ty: ignore[unresolved-attribute]
         )
         space_saved = db_size_before - db_size_after
 
@@ -213,7 +213,7 @@ async def _store_context_summary(conversation_summary: dict[str, Any]) -> None:
                 f". Key decisions: {conversation_summary['decisions_made'][0]}"
             )
 
-        await db.store_reflection(summary_text, ["context-summary", "compaction"])
+        await db.store_reflection(summary_text, ["context-summary", "compaction"])  # ty: ignore[unresolved-attribute]
 
 
 async def perform_strategic_compaction() -> list[str]:
@@ -410,7 +410,7 @@ async def _get_conversation_statistics() -> dict[str, int]:
         from session_buddy.reflection_tools import get_reflection_database
 
         db = await get_reflection_database()
-        stats = await db.get_stats()
+        stats = await db.get_stats()  # ty: ignore[unresolved-attribute]
         conv_stats["total_conversations"] = stats.get("conversations_count", 0)
 
     return conv_stats
@@ -476,7 +476,7 @@ async def analyze_conversation_flow() -> dict[str, Any]:
             db = await get_reflection_database()
 
             # Search recent reflections for patterns
-            recent_reflections = await db.search_reflections(
+            recent_reflections = await db.search_reflections(  # ty: ignore[unresolved-attribute]
                 "session checkpoint",
                 limit=5,
             )
@@ -710,7 +710,7 @@ async def _analyze_reflection_based_intelligence() -> list[str]:
         from session_buddy.reflection_tools import get_reflection_database
 
         db = await get_reflection_database()
-        recent_reflections = await db.search_reflections("checkpoint", limit=3)
+        recent_reflections = await db.search_reflections("checkpoint", limit=3)  # ty: ignore[unresolved-attribute]
 
         if recent_reflections:
             recent_scores = _extract_quality_scores(recent_reflections)
@@ -769,7 +769,7 @@ async def _perform_quality_analysis() -> tuple[str, list[str], bool]:
         from session_buddy.reflection_tools import get_reflection_database
 
         db = await get_reflection_database()
-        recent_reflections = await db.search_reflections("quality score", limit=5)
+        recent_reflections = await db.search_reflections("quality score", limit=5)  # ty: ignore[unresolved-attribute]
         quality_scores = _extract_quality_scores(recent_reflections)
 
         if quality_scores:
@@ -848,7 +848,7 @@ async def _analyze_memory_recommendations(results: list[str]) -> None:
         from session_buddy.reflection_tools import get_reflection_database
 
         db = await get_reflection_database()
-        stats = await db.get_stats()
+        stats = await db.get_stats()  # ty: ignore[unresolved-attribute]
         conv_count = stats.get("conversations_count", 0)
 
         # Advanced memory analysis

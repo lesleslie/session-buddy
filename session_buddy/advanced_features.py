@@ -506,7 +506,7 @@ async def _get_multi_project_coordinator() -> t.Any:
         # Type ignore: get_reflection_database returns ReflectionDatabaseAdapter
         # which is compatible with ReflectionDatabaseProtocol
         db = await get_reflection_database()
-        return MultiProjectCoordinator(db)
+        return MultiProjectCoordinator(db)  # ty: ignore[invalid-argument-type]
     except Exception:
         logger.exception("Failed to initialize multi-project coordinator")
         return None

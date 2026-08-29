@@ -314,7 +314,7 @@ class AkoshaSyncConfig:
         # same thing (some ty versions do not narrow str from set
         # membership). The annotation keeps the dataclass field
         # signature honest even if the runtime value drifts.
-        force_method: Literal["auto", "cloud", "http"] = cast(
+        force_method: Literal["auto", "cloud", "http"] = cast(  # ty: ignore[redundant-cast]
             "Literal['auto', 'cloud', 'http']", force_method_raw
         )
 

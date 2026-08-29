@@ -69,7 +69,7 @@ async def _fetch_category_memories(
         # Search for reflections with the category tag
         # Use a broad search to get memories, then filter by category tag
         query = category.value  # Use category name as search term
-        reflections = await db.search_reflections(
+        reflections = await db.search_reflections(  # ty: ignore[unresolved-attribute]
             query=query,
             limit=limit,
             use_embeddings=True,
@@ -299,7 +299,7 @@ async def assign_memory_subcategory(
         from session_buddy.reflection_tools import get_reflection_database
 
         db = await get_reflection_database()
-        embedding = await db._generate_embedding(content)
+        embedding = await db._generate_embedding(content)  # ty: ignore[unresolved-attribute]
     except Exception:
         logger.exception("Failed to generate embedding")
 

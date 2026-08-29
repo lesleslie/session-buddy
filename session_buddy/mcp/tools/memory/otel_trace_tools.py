@@ -105,7 +105,7 @@ async def query_local_traces(
 
         db = await get_reflection_database()
 
-        results = await db.search_conversations(
+        results = await db.search_conversations(  # ty: ignore[unresolved-attribute]
             query=system_id,
             limit=limit,
             threshold=0.0,

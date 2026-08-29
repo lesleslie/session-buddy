@@ -374,7 +374,7 @@ async def initialize_new_features(
                     MultiProjectCoordinator,
                 )
 
-                multi_project_coordinator = MultiProjectCoordinator(db)
+                multi_project_coordinator = MultiProjectCoordinator(db)  # ty: ignore[invalid-argument-type]
 
             # Initialize advanced search engine
             if advanced_search_available:
