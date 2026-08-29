@@ -9,6 +9,23 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.25.0] - 2026-08-29
+
+### Added
+
+- **BREAKING:** session-buddy: Rename BodaiCLIBase to OneiricCLIBase
+- session-buddy: Wire shell CLI command (Plan Task 3.1.1)
+
+### Changed
+
+- session-buddy: Bump oneiric floor to >=0.20 for OneiricCLIBase
+- session-buddy: Use path= instead of project_root= in load_settings()
+- session-buddy: Use project_root= instead of path= in load_settings()
+
+### Fixed
+
+- session-buddy: Resolve ty comprehensive-hook failures
+
 ## [0.24.1] - 2026-08-28
 
 ### Added

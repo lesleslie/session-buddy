@@ -77,21 +77,5 @@ __all__ = [
 app = SessionBuddyCLI()
 
 
-@app.command("shell")
-def shell_command() -> None:
-    """Start the Session-Buddy admin shell (IPython-based)."""
-    import asyncio
-
-    async def _run() -> None:
-        from session_buddy.shell import SessionBuddyShell
-        from session_buddy.core.session_manager import SessionLifecycleManager
-
-        manager = SessionLifecycleManager()
-        shell = SessionBuddyShell(manager)
-        shell.start()
-
-    asyncio.run(_run())
-
-
 if __name__ == "__main__":
     main()
