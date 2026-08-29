@@ -33,7 +33,7 @@ try:
         ReflectionDatabaseAdapter,
     )
 except ImportError:
-    ReflectionDatabaseAdapter = None  # type: ignore[invalid-assignment]
+    ReflectionDatabaseAdapter = None  # ty: ignore[invalid-assignment]
 
 # Import the new modular implementation
 from pathlib import Path

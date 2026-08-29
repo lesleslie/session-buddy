@@ -214,6 +214,15 @@ exclude_dirs = [
     "tests/",
 ]
 
+[tool.ty]
+src = { include = ["session_buddy/**/*.py"] }
+
+[tool.ty.rules]
+# Same `# ty: ignore` directive can report UNUSED in interactive shell but
+# suppress a real error under crackerjack (stricter ty config). Treat
+# unused-ignore as informational only so directives work in both contexts.
+unused-ignore-comment = "ignore"
+
 [tool.codespell]
 quiet-level = 3
 ignore-words-list = "crate,uptodate,nd,nin"
