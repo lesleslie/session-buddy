@@ -36,6 +36,9 @@ from .conversation.conversation_tools import (
 # Cross-repo work tools (Task 9 wiring)
 from .cross_repo_work_register import register_cross_repo_work_tools
 
+# Ecosystem run history (Phase 1 cross-repo search & run history)
+from .ecosystem_run_history import register_ecosystem_run_history_tools
+
 # Infrastructure tools
 from .infrastructure.access_log_tools import (
     register_access_log_tools,
@@ -120,6 +123,7 @@ __all__ = [
     "register_export_tools",
     "register_extraction_tools",
     "register_feature_flags_tools",
+    "register_ecosystem_run_history_tools",
     "register_fingerprint_tools",
     "register_health_tools_sb",
     "register_hooks_tools",
