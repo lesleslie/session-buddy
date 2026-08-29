@@ -131,6 +131,7 @@ and this project adheres to Semantic Versioning.
 
 ### Changed
 
+- **feat!: rename `BodaiCLIBase` → `OneiricCLIBase`** in `session_buddy.cli.base`. Update local subclass to match the foundation rename.
 - session-buddy: Conform to Bodai core MCP baseline (`discover_tools`, `get_liveness`, `get_readiness`, `health_check_all`). All four tools are registered on every `SESSION_BUDDY_TOOL_PROFILE`; `get_liveness`/`get_readiness`/`health_check_all` come from `mcp_common.health.register_health_tools`, `discover_tools` from the in-house `register_discovery_tools` meta-tool.
 
 ### Deprecated

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Tests for :class:`session_buddy.cli.base.SessionBuddyCLI`.
 
-Adoption gate for oneiric 0.19.0 ``BodaiCLIBase`` — the subclass must:
+Adoption gate for oneiric 0.19.0 ``OneiricCLIBase`` — the subclass must:
 
 - Instantiate with the right ``component_name``.
 - Wire the standard Bodai Core 7 surface (``version`` / ``doctor`` /
-  ``health`` / ``--json`` / ``--version``) via ``BodaiCLIBase.run``
+  ``health`` / ``--json`` / ``--version``) via ``OneiricCLIBase.run``
   semantics (Typer app invocation by calling it).
 - Override ``_doctor_checks()`` with a REAL implementation that calls
   into the existing diagnostic surface (``session_buddy.doctor``), not
-  the NotImplementedError stub from :class:`oneiric.cli.base.BodaiCLIBase`.
+  the NotImplementedError stub from :class:`oneiric.cli.base.OneiricCLIBase`.
 - Override ``_health_probe()`` with a REAL implementation that calls
   into the existing health surface
   (``session_buddy.mcp.tools.monitoring.health_tools.get_health_status``),
@@ -25,7 +25,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from oneiric.cli.base import BodaiCLIBase, ExitCode
+from oneiric.cli.base import OneiricCLIBase, ExitCode
 
 from session_buddy.cli.base import (
     SessionBuddyCLI,
@@ -71,8 +71,8 @@ def cli() -> SessionBuddyCLI:
 
 
 def test_subclass_is_a_bodai_cli_base(cli: SessionBuddyCLI) -> None:
-    """SessionBuddyCLI must be a BodaiCLIBase subclass (and a Typer app)."""
-    assert isinstance(cli, BodaiCLIBase)
+    """SessionBuddyCLI must be a OneiricCLIBase subclass (and a Typer app)."""
+    assert isinstance(cli, OneiricCLIBase)
     assert isinstance(cli, typer.Typer)
 
 
@@ -126,12 +126,12 @@ def test_settings_cache_root_shim() -> None:
 
 
 # ---------------------------------------------------------------------------
-# BodaiCLIBase.run() wiring — version / --version / --json global flags
+# OneiricCLIBase.run() wiring — version / --version / --json global flags
 # ---------------------------------------------------------------------------
 
 
 def test_version_command_works(runner: CliRunner, cli: SessionBuddyCLI) -> None:
-    """BodaiCLIBase-provided ``version`` command must emit the version
+    """OneiricCLIBase-provided ``version`` command must emit the version
     string and exit with ``ExitCode.SUCCESS``."""
     result = runner.invoke(cli, ["version"])
     assert result.exit_code == ExitCode.SUCCESS
@@ -142,7 +142,7 @@ def test_version_command_works(runner: CliRunner, cli: SessionBuddyCLI) -> None:
 def test_global_version_flag_emits_deprecation(
     runner: CliRunner, cli: SessionBuddyCLI
 ) -> None:
-    """``--version`` Typer option emits a DeprecationWarning (BodaiCLIBase
+    """``--version`` Typer option emits a DeprecationWarning (OneiricCLIBase
     cascade-fix round-1 F-α marker)."""
     import warnings
 
@@ -188,14 +188,14 @@ def test_global_json_flag_accepted(runner: CliRunner, cli: SessionBuddyCLI) -> N
 def test_doctor_command_runs_and_exits_success(
     runner: CliRunner, cli: SessionBuddyCLI
 ) -> None:
-    """``doctor`` is provided by BodaiCLIBase; it must NOT exit
+    """``doctor`` is provided by OneiricCLIBase; it must NOT exit
     ``ExitCode.UNAVAILABLE`` (which is what the NotImplementedError stub
     returns). The real implementation must surface the check list."""
     result = runner.invoke(cli, ["doctor"])
     assert result.exit_code != ExitCode.UNAVAILABLE, (
         "doctor returned UNAVAILABLE — the subclass must override "
         "_doctor_checks() with a real implementation, not the "
-        "NotImplementedError stub from BodaiCLIBase."
+        "NotImplementedError stub from OneiricCLIBase."
     )
 
 
@@ -212,7 +212,7 @@ def test_doctor_checks_helper_returns_real_dict() -> None:
     """The :func:`_doctor_checks_dict` helper must return a non-empty
     dict with real check entries — NOT an empty dict, NOT a stub
     returning ``{}``. Each entry must have at least a ``status`` and
-    ``detail`` so BodaiCLIBase can render it."""
+    ``detail`` so OneiricCLIBase can render it."""
     checks = _doctor_checks_dict()
     assert isinstance(checks, dict)
     assert len(checks) > 0, (
@@ -229,7 +229,7 @@ def test_doctor_checks_helper_returns_real_dict() -> None:
 def test_doctor_does_not_raise_not_implemented_error(
     runner: CliRunner, cli: SessionBuddyCLI
 ) -> None:
-    """Regression pin: BodaiCLIBase's stub raises ``NotImplementedError``
+    """Regression pin: OneiricCLIBase's stub raises ``NotImplementedError``
     and the base class catches it to emit UNAVAILABLE. If the subclass
     override is missing or accidentally calls super(), this test would
     catch it via the UNAVAILABLE exit code (covered above) AND via the
@@ -254,7 +254,7 @@ def test_health_command_runs_and_exits_success(
     assert result.exit_code != ExitCode.UNAVAILABLE, (
         "health returned UNAVAILABLE — the subclass must override "
         "_health_probe() with a real implementation, not the "
-        "NotImplementedError stub from BodaiCLIBase."
+        "NotImplementedError stub from OneiricCLIBase."
     )
     assert result.output.strip() != ""
 
@@ -364,12 +364,12 @@ def test_create_app_returns_self(cli: SessionBuddyCLI) -> None:
 
 def test_create_session_buddy_cli_returns_bodai_cli_base() -> None:
     """The factory function used by the legacy ``__main__`` flow must
-    return a ``SessionBuddyCLI`` (which is a ``BodaiCLIBase``)."""
+    return a ``SessionBuddyCLI`` (which is a ``OneiricCLIBase``)."""
     from session_buddy.cli import create_session_buddy_cli
 
     cli = create_session_buddy_cli()
     assert isinstance(cli, SessionBuddyCLI)
-    assert isinstance(cli, BodaiCLIBase)
+    assert isinstance(cli, OneiricCLIBase)
     assert cli.component_name == "session-buddy"
 
 
@@ -382,7 +382,7 @@ def test_unified_callback_has_invoke_without_command(
     cli: SessionBuddyCLI,
 ) -> None:
     """Exactly ONE callback is registered: the unified root callback
-    (BodaiCLIBase cascade-fix round-1 F-α marker)."""
+    (OneiricCLIBase cascade-fix round-1 F-α marker)."""
     callback = getattr(cli, "registered_callback", None)
     assert callback is not None, "Unified callback should be registered"
     assert callback.invoke_without_command is True

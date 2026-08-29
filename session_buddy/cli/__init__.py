@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # ruff: noqa: EXE001
-"""Session-Buddy CLI — BodaiCLIBase adoption (oneiric 0.19.0).
+"""Session-Buddy CLI — OneiricCLIBase adoption (oneiric 0.19.0).
 
-The main entrypoint now subclasses :class:`oneiric.cli.base.BodaiCLIBase`
+The main entrypoint now subclasses :class:`oneiric.cli.base.OneiricCLIBase`
 so session-buddy exposes the standard Bodai Core 7 ``version`` / ``doctor``
 / ``health`` / ``--json`` / ``--version`` surface.
 
 Lifecycle verbs (``start``, ``stop``, ``restart``, ``status``) are kept
 but mounted under the ``server`` sub-Typer (see
-:mod:`session_buddy.cli.base`) to avoid colliding with BodaiCLIBase's
+:mod:`session_buddy.cli.base`) to avoid colliding with OneiricCLIBase's
 own ``health`` command.
 
 Backward compatibility: ``create_session_buddy_cli()`` still returns
@@ -19,7 +19,7 @@ some tests now need ``["server", "start"]`` instead of ``["start"]``.
 
 from __future__ import annotations
 
-# Re-export the canonical BodaiCLIBase subclass first so callers that
+# Re-export the canonical OneiricCLIBase subclass first so callers that
 # already do ``from session_buddy.cli import SessionBuddyCLI`` keep
 # working. ``cli.base`` is the implementation; ``cli.__init__`` is
 # just the backward-compat shim layer.
@@ -37,7 +37,7 @@ def create_session_buddy_cli() -> SessionBuddyCLI:
     """Create the Session Buddy CLI.
 
     Returns:
-        A :class:`SessionBuddyCLI` (a :class:`oneiric.cli.base.BodaiCLIBase`
+        A :class:`SessionBuddyCLI` (a :class:`oneiric.cli.base.OneiricCLIBase`
         subclass) with the standard Bodai Core 7 ``version`` / ``doctor``
         / ``health`` surface plus session-buddy-specific ``server``,
         ``checkpoint``, and ``analytics`` subcommands.
@@ -53,13 +53,13 @@ def create_session_buddy_cli() -> SessionBuddyCLI:
 def main() -> None:
     """Main entry point for the Session Buddy MCP CLI.
 
-    Wires the entrypoint app via :meth:`BodaiCLIBase.run` semantics —
+    Wires the entrypoint app via :meth:`OneiricCLIBase.run` semantics —
     Typer apps are invoked by calling the instance (``app()``), so
-    ``BodaiCLIBase.run`` here just means "drive the Typer app to its
+    ``OneiricCLIBase.run`` here just means "drive the Typer app to its
     callback dispatch". ``create_session_buddy_cli()`` is the
     authoritative factory; ``main()`` only orchestrates the run.
     """
-    # Create the CLI app (BodaiCLIBase subclass) and run it.
+    # Create the CLI app (OneiricCLIBase subclass) and run it.
     app = create_session_buddy_cli()
     app()
 

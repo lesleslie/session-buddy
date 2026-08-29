@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: EXE001
-"""BodaiCLIBase subclass for Session-Buddy's main entrypoint.
+"""OneiricCLIBase subclass for Session-Buddy's main entrypoint.
 
 Adopts the shared Bodai CLI surface from oneiric 0.19.0 so session-buddy
 exposes the same ``version`` / ``doctor`` / ``health`` / ``--json`` /
@@ -15,13 +15,13 @@ that import from either location keep working.
 Surface changes vs the legacy MCPServerCLIFactory-based CLI:
 
 - ``session-buddy version`` (was implicit ``--version``).
-- ``session-buddy doctor`` — BodaiCLIBase-provided; ``_doctor_checks``
+- ``session-buddy doctor`` — OneiricCLIBase-provided; ``_doctor_checks``
   delegates to ``session_buddy.doctor.run_all_doctor_checks``.
-- ``session-buddy health`` — BodaiCLIBase-provided; ``_health_probe``
+- ``session-buddy health`` — OneiricCLIBase-provided; ``_health_probe``
   delegates to ``session_buddy.mcp.tools.monitoring.health_tools.get_health_status``.
 - ``session-buddy server {start,stop,restart,status}`` — mcp-common
   lifecycle verbs mounted under ``server`` to avoid colliding with
-  BodaiCLIBase's own ``health`` command.
+  OneiricCLIBase's own ``health`` command.
 - ``session-buddy checkpoint cleanup-snapshots`` (unchanged).
 - ``session-buddy analytics {sessions,duration,components,errors,
   active,report,sql}`` (unchanged).
@@ -39,7 +39,7 @@ import warnings
 from pathlib import Path
 
 import typer
-from oneiric.cli.base import BodaiCLIBase
+from oneiric.cli.base import OneiricCLIBase
 from oneiric.core.config import OneiricMCPConfig
 
 logger = logging.getLogger(__name__)
@@ -197,7 +197,7 @@ def _run_health_probe(settings: SessionBuddySettings) -> RuntimeHealthSnapshot:
     Returned snapshot mirrors the pre-adoption shape so the mcp-common
     ``server status`` / ``server health`` commands keep rendering the
     same JSON they always did (``snapshot.as_dict()``). The
-    BodaiCLIBase-provided ``session-buddy health`` command delegates
+    OneiricCLIBase-provided ``session-buddy health`` command delegates
     to ``_health_probe`` instead of this helper, so the two surfaces
     stay deliberately separate.
     """
@@ -220,7 +220,7 @@ def _doctor_checks_dict() -> dict[str, dict[str, t.Any]]:
     """Run :func:`session_buddy.doctor.run_all_doctor_checks` and convert.
 
     Returns a dict of ``check_name -> {status, detail, latency_ms,
-    metadata}`` matching the shape BodaiCLIBase expects. Latency is
+    metadata}`` matching the shape OneiricCLIBase expects. Latency is
     folded into ``detail`` for the text rendering path; full JSON mode
     preserves the raw structure.
     """
@@ -241,14 +241,14 @@ def _doctor_checks_dict() -> dict[str, dict[str, t.Any]]:
     return out
 
 
-class SessionBuddyCLI(BodaiCLIBase):
-    """Session-Buddy's main Typer app, subclass of oneiric ``BodaiCLIBase``.
+class SessionBuddyCLI(OneiricCLIBase):
+    """Session-Buddy's main Typer app, subclass of oneiric ``OneiricCLIBase``.
 
-    - ``version`` / ``doctor`` / ``health`` come from BodaiCLIBase and
+    - ``version`` / ``doctor`` / ``health`` come from OneiricCLIBase and
       dispatch into session-buddy's existing diagnostic surfaces.
     - The mcp-common lifecycle verbs (``start``, ``stop``, ``restart``,
       ``status``) are mounted under the ``server`` sub-Typer to avoid
-      colliding with BodaiCLIBase's own ``health`` command.
+      colliding with OneiricCLIBase's own ``health`` command.
     - The session-buddy-specific subcommand groups ``checkpoint`` and
       ``analytics`` are mounted at the top level to preserve the
       pre-adoption CLI surface.
@@ -265,7 +265,7 @@ class SessionBuddyCLI(BodaiCLIBase):
         super().__init__(
             component_name="session-buddy",
             help=help
-            or "Session-Buddy MCP Server CLI (Bodai Core 7 — oneiric 0.19 BodaiCLIBase).",
+            or "Session-Buddy MCP Server CLI (Bodai Core 7 — oneiric 0.19 OneiricCLIBase).",
             **kwargs,
         )
         self._settings = settings
@@ -274,24 +274,24 @@ class SessionBuddyCLI(BodaiCLIBase):
         self._mount_session_buddy_subcommands()
 
     # ------------------------------------------------------------------
-    # BodaiCLIBase subclass hooks — REAL implementations.
+    # OneiricCLIBase subclass hooks — REAL implementations.
     # ------------------------------------------------------------------
     def _doctor_checks(self) -> dict[str, t.Any]:
-        """Override BodaiCLIBase's stub with a real doctor run.
+        """Override OneiricCLIBase's stub with a real doctor run.
 
         Calls ``session_buddy.doctor.run_all_doctor_checks`` (the same
         surface the legacy ``doctor`` Typer command used). Returns the
-        list as a dict keyed by check name so BodaiCLIBase can render it
+        list as a dict keyed by check name so OneiricCLIBase can render it
         consistently across components.
         """
         return _doctor_checks_dict()
 
     def _health_probe(self) -> dict[str, t.Any]:
-        """Override BodaiCLIBase's stub with a real health probe.
+        """Override OneiricCLIBase's stub with a real health probe.
 
         Calls ``session_buddy.mcp.tools.monitoring.health_tools.get_health_status``
         (the same surface the legacy ``health`` lifecycle command used)
-        and returns the raw dict so BodaiCLIBase can render it as JSON
+        and returns the raw dict so OneiricCLIBase can render it as JSON
         or text. The wrapped lifecycle ``server health`` command keeps
         using ``mcp_common.RuntimeHealthSnapshot`` semantics — the two
         surfaces are deliberately separate.
@@ -309,7 +309,7 @@ class SessionBuddyCLI(BodaiCLIBase):
         The lifecycle verbs (``start``, ``stop``, ``restart``, ``status``,
         ``health``) come from :class:`mcp_common.MCPServerCLIFactory`.
         We mount the factory's Typer sub-app under the name ``server``
-        so the BodaiCLIBase-provided ``health`` command is not shadowed
+        so the OneiricCLIBase-provided ``health`` command is not shadowed
         by the mcp-common variant. ``server health`` is still available
         for operators who want the RuntimeHealthSnapshot shape.
         """
