@@ -48,7 +48,7 @@ dependencies = [
     # mcp-common transitively pulls it in. Action kits (``SecuritySignatureAction``,
     # ``DataSanitizeAction``, etc.) are part of oneiric's public API surface,
     # not mcp-common's, so consumers should import from oneiric directly.
-    "oneiric>=0.19.1",
+    "oneiric>=0.20",
 ]
 
 [project.scripts]
