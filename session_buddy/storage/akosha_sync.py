@@ -28,7 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-import httpx
+import httpx2 as httpx
 
 from session_buddy.storage.akosha_config import AkoshaSyncConfig
 from session_buddy.storage.cloud_sync import CloudSyncMethod

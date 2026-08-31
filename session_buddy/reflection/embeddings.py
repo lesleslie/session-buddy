@@ -34,7 +34,7 @@ EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 / nomic-embed-text dimension
 
 async def _try_llama_server(text: str) -> list[float] | None:
     """Try llama-server embedding, return embedding or None."""
-    import httpx
+    import httpx2 as httpx
 
     try:
         async with httpx.AsyncClient(
@@ -67,7 +67,7 @@ async def _try_llama_server(text: str) -> list[float] | None:
 
 async def _try_ollama(text: str) -> list[float] | None:
     """Try Ollama embedding, return embedding or None."""
-    import httpx
+    import httpx2 as httpx
 
     try:
         async with httpx.AsyncClient(

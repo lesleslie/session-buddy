@@ -17,7 +17,7 @@ class TestSystemResilience:
         mock_client = await ChaosTestHelper.simulate_network_failure()
 
         # Verify the mock has the correct behavior
-        import httpx
+        import httpx2 as httpx
 
         with pytest.raises(httpx.ConnectError):
             await mock_client.get("http://example.com")

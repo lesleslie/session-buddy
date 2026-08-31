@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import httpx
+import httpx2 as httpx
 
 from session_buddy.sync import RemoteSessionBuddy, AkoshaSync
 
@@ -182,7 +182,7 @@ class TestAkoshaStorageIntegration:
         mock_client = AsyncMock()
         mock_client.post.return_value = mock_response
 
-        with patch("httpx.AsyncClient", return_value=mock_client):
+        with patch("httpx2.AsyncClient", return_value=mock_client):
             result = await akosha_sync.store_memory(memory, text, embedding, "test_source")
 
         assert result["status"] == "stored"
@@ -201,7 +201,7 @@ class TestAkoshaStorageIntegration:
             "Storage failed", request=None, response=None
         )
 
-        with patch("httpx.AsyncClient", return_value=mock_client):
+        with patch("httpx2.AsyncClient", return_value=mock_client):
             result = await akosha_sync.store_memory(memory, text, embedding, "test")
 
         assert result["status"] == "failed"
@@ -224,7 +224,7 @@ class TestAkoshaStorageIntegration:
             status_code=200
         )
 
-        with patch("httpx.AsyncClient", return_value=mock_client) as mock_httpx:
+        with patch("httpx2.AsyncClient", return_value=mock_client) as mock_httpx:
             await akosha_sync.store_memory(memory, text, embedding, "source")
 
             # Verify the data sent to AkOSHA

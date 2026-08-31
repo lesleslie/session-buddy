@@ -55,7 +55,7 @@ class DharaChannelPublisher:
     """
 
     def __init__(self, dhara_url: str) -> None:
-        import httpx
+        import httpx2 as httpx
 
         self.dhara_url = dhara_url.rstrip("/")
         self._client = httpx.AsyncClient(timeout=5.0)

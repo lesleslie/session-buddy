@@ -10,7 +10,7 @@ from __future__ import annotations
 from contextlib import suppress
 from typing import Any
 
-import httpx
+import httpx2 as httpx
 
 
 def safe_transient_info(exc: BaseException) -> dict[str, Any]:

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "session-buddy"
-version = "0.25.1"
+version = "0.25.2"
 description = "A Session Management MCP Server for Claude Code"
 readme = "README.md"
 authors = [{name = "Les Leslie", email = "les@wedgwoodwebworks.com"}]
@@ -28,7 +28,7 @@ dependencies = [
     "pydantic>=2.13.4",
     "python-ulid>=2.0.0",
     "duckdb>=1.5.3",
-    "httpx>=0.28.1",
+    "httpx2>=0.28.1",
     # DuckDB's Python client requires pytz to read TIMESTAMP WITH TIME ZONE
     # columns. session-buddy's schema (conversations_v2, session_windows,
     # cross_repo_work_v2, etc.) uses TIMESTAMP WITH TIME ZONE extensively,

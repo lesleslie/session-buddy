@@ -249,7 +249,7 @@ class TestDharaChannelPublisher:
 
     @pytest.mark.asyncio
     async def test_publish_swallows_http_errors(self) -> None:
-        import httpx
+        import httpx2 as httpx
 
         from session_buddy.mcp.tools.session.channel_tracking_tools import (
             DharaChannelPublisher,

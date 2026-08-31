@@ -110,7 +110,7 @@ async def _register_to_dhara_once(dhara_url: str, key: str, mcp_url: str) -> boo
 
     Returns True on success, False on failure.
     """
-    import httpx
+    import httpx2 as httpx
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:

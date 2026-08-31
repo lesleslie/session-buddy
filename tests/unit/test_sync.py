@@ -17,7 +17,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import httpx
+import httpx2 as httpx
 
 # Import the module under test
 from session_buddy.sync import (

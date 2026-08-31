@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 from session_buddy.checkpoint.orchestrator import (

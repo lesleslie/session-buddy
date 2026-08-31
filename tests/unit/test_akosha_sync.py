@@ -284,7 +284,7 @@ class TestHttpSyncMethod:
         """Test successful HTTP sync."""
         http_sync = HttpSyncMethod(sample_config)
 
-        with patch("httpx.AsyncClient") as mock_client_class:
+        with patch("httpx2.AsyncClient") as mock_client_class:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.raise_for_status = Mock()

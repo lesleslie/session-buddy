@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 from session_buddy.health_checks import (

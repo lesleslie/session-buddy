@@ -29,7 +29,7 @@ from __future__ import annotations
 import asyncio
 import time
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 pytestmark = [

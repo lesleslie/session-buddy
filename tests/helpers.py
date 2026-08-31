@@ -730,7 +730,7 @@ class ChaosTestHelper:
         """Simulate network failure for testing resilience."""
         from unittest.mock import Mock
 
-        import httpx
+        import httpx2 as httpx
 
         mock_client = Mock()
         mock_client.get = AsyncMock(side_effect=httpx.ConnectError("Connection failed"))

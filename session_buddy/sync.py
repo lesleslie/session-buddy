@@ -21,7 +21,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from typing import Any, Self, cast
 
-import httpx
+import httpx2 as httpx
 
 from session_buddy.utils.error_management import _get_logger
 

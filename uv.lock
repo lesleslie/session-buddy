@@ -631,6 +631,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cloudpickle"
+version = "3.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/fb/576f067976d320f5f0114a8d9fa1215425441bb35627b1993e5afd8111e5/cloudpickle-3.1.2.tar.gz", hash = "sha256:7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414", size = 22330, upload-time = "2025-11-03T09:25:26.604Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl", hash = "sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a", size = 22228, upload-time = "2025-11-03T09:25:25.534Z" },
+]
+
+[[package]]
 name = "codespell"
 version = "2.4.3"
 source = { registry = "https://pypi.org/simple" }
@@ -952,7 +961,7 @@ wheels = [
 
 [[package]]
 name = "dhara"
-version = "0.19.0"
+version = "0.19.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiosqlite" },
@@ -967,9 +976,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3e/14/f4eebbcedd1f458251b53ee0ece549a5e15aa3d797607c0d10be68aaf98f/dhara-0.19.0.tar.gz", hash = "sha256:6be08aa15564dd7df3abd205a32010ce3ca9b06e15d67e569f5810359939e242", size = 889173, upload-time = "2026-08-30T08:32:55.185Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c1/7a/b29e7f60c1b03561f7236179c897baa230d3c0f2bc1bba56364b068292db/dhara-0.19.2.tar.gz", hash = "sha256:61af43f223791959a3f6ef52c067748a9527fea027cd142850d18b9a07b21f1b", size = 889409, upload-time = "2026-08-31T11:35:27.881Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/d5/bd7f0b2b4348c8c7c542c0f6c020c6d092b315f5bedee773b3a42dad1fb9/dhara-0.19.0-py3-none-any.whl", hash = "sha256:e0b51757342338895f9da9e9878859fdd7a03c4777dbfd044657ac43555de717", size = 297424, upload-time = "2026-08-30T08:32:53.822Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/76/2e8868b7b0239c5ab1aa572ba497d83493ef161bef14db9ee8bac8be48bc/dhara-0.19.2-py3-none-any.whl", hash = "sha256:dcfe48d2377b7f34d522d5bf4ee5d7d94930d49a17e4dcfbe90d71e80fa3b15a", size = 297532, upload-time = "2026-08-31T11:35:26.297Z" },
 ]
 
 [[package]]
@@ -1876,11 +1885,14 @@ wheels = [
 
 [[package]]
 name = "joblib"
-version = "1.5.3"
+version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/41/f2/d34e8b3a08a9cc79a50b2208a93dce981fe615b64d5a4d4abee421d898df/joblib-1.5.3.tar.gz", hash = "sha256:8561a3269e6801106863fd0d6d84bb737be9e7631e33aaed3fb9ce5953688da3", size = 331603, upload-time = "2025-12-15T08:41:46.427Z" }
+dependencies = [
+    { name = "cloudpickle" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d5/1d/537ab090f302b838943a1b56497dd53059b9a9b46a074936470173a2e207/joblib-1.6.0.tar.gz", hash = "sha256:2ccc96785b12046c08fd6d55839c12857831b54a3c1673ffadd2f04bfc4eda03", size = 327903, upload-time = "2026-08-31T09:39:04.122Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7b/91/984aca2ec129e2757d1e4e3c81c3fcda9d0f85b74670a094cc443d9ee949/joblib-1.5.3-py3-none-any.whl", hash = "sha256:5fc3c5039fc5ca8c0276333a188bbd59d6b7ab37fe6632daa76bc7f9ec18e713", size = 309071, upload-time = "2025-12-15T08:41:44.973Z" },
+    { url = "https://files.pythonhosted.org/packages/18/53/84099323c2ec4be98d935f63c033ac4151ee83836ca1050ede3b3aadf155/joblib-1.6.0-py3-none-any.whl", hash = "sha256:3dbbf9f6e4b592a2357b854608e980fe6390d131d7a82f011a377ef2ebef7aba", size = 306115, upload-time = "2026-08-31T09:39:02.298Z" },
 ]
 
 [[package]]
@@ -2240,7 +2252,7 @@ wheels = [
 
 [[package]]
 name = "mcp-common"
-version = "0.24.1"
+version = "0.24.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -2255,9 +2267,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/19/a0/ed745d82c3166ec6eb7bfa21cfc5a106e02b8aa2ebffb198cb621ea2aee1/mcp_common-0.24.1.tar.gz", hash = "sha256:20e6068dc45338b0d9887e48a426b50639933c4f71afa91b9a163fea913d9be6", size = 966404, upload-time = "2026-08-31T05:27:01.274Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/22/efc9f9f3edcec92d9e9311534b9ea9aa59e4056771aded425c4bdfdbf56e/mcp_common-0.24.2.tar.gz", hash = "sha256:30e152d1f1735da9a5926837335df1e63137128338bb394c78e9061d5fc3ae8f", size = 966684, upload-time = "2026-08-31T11:19:42.712Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a2/06/8417ea65a64202e10545a730ff165acec53a6a4733efc492b863192c4272/mcp_common-0.24.1-py3-none-any.whl", hash = "sha256:12a98d1257baf8d0f2a328c4a8d993dd8159fb8195cd6023da58e9f9595f75c5", size = 405392, upload-time = "2026-08-31T05:26:59.94Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/23/c6e05bcca26e5b0d3ad17cab9056f0415bc41f8074cc2dd2682a9e5ae3c8/mcp_common-0.24.2-py3-none-any.whl", hash = "sha256:0927250f7cac7d829f09bf5752682247b2e4a0b0e2d4fbc228637226f09f14d3", size = 405406, upload-time = "2026-08-31T11:19:41.169Z" },
 ]
 
 [[package]]
@@ -2633,7 +2645,7 @@ wheels = [
 
 [[package]]
 name = "oneiric"
-version = "0.20.3"
+version = "0.21.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobreaker" },
@@ -2655,9 +2667,9 @@ dependencies = [
     { name = "typer" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fb/f4/5cd0969b79ac66ce133c05c36aef07496d39aecf4af56a886f0ddfa3796b/oneiric-0.20.3.tar.gz", hash = "sha256:cba45af658ca28e6e2f476ae1866d90eef94ac9c796ceb828f08b7ef59635edc", size = 1592000, upload-time = "2026-08-31T02:16:33.518Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/67/8b/9ac16d589040482285e0e2d17155bd5eb214804502cc6248a0fcb8dc369c/oneiric-0.21.0.tar.gz", hash = "sha256:898589275350f745db86c935310fa770fd7399892b0c397873e8abee98bb759b", size = 1591790, upload-time = "2026-08-31T09:29:16.564Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4e/16/756c6507fbf90cd7e7080ed47042ca58ae099b492557eec6683c26cf34ee/oneiric-0.20.3-py3-none-any.whl", hash = "sha256:4eb678ef11acd5bdbc4bcdc67b9ca85ec38b49761d8d7fa3f0f70932b4382366", size = 395133, upload-time = "2026-08-31T02:16:31.117Z" },
+    { url = "https://files.pythonhosted.org/packages/23/39/db259725d95321283f2c85d5435c92f91047e52ac4f2bdf65b83d3843961/oneiric-0.21.0-py3-none-any.whl", hash = "sha256:07106d7e406ef639b096947673d56d4dba558c1087b662422ea9a69392101f30", size = 395009, upload-time = "2026-08-31T09:29:14.79Z" },
 ]
 
 [[package]]
@@ -3980,7 +3992,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.25.0"
+version = "0.25.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -3989,7 +4001,7 @@ dependencies = [
     { name = "duckdb" },
     { name = "fastmcp" },
     { name = "hatchling" },
-    { name = "httpx" },
+    { name = "httpx2" },
     { name = "mcp-common" },
     { name = "numpy" },
     { name = "oneiric" },
@@ -4044,7 +4056,7 @@ requires-dist = [
     { name = "duckdb", specifier = ">=1.5.3" },
     { name = "fastmcp", specifier = ">=3.4.0,<4" },
     { name = "hatchling", specifier = ">=1.30.1" },
-    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "httpx2", specifier = ">=0.28.1" },
     { name = "mcp-common", specifier = ">=0.19.0" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "oneiric", specifier = ">=0.20" },

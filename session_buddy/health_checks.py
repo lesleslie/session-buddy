@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-import httpx
+import httpx2 as httpx
 
 from session_buddy.utils import logger
 
@@ -456,7 +456,7 @@ async def _check_crackerjack_and_embedding_providers() -> tuple[list[str], list[
     available, unavailable = _check_crackerjack()
 
     try:
-        import httpx
+        import httpx2 as httpx
 
         async with httpx.AsyncClient(timeout=5.0) as client:
             ep_available, ep_unavailable = await _check_embedding_providers(client)

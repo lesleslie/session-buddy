@@ -16,7 +16,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-import httpx
+import httpx2 as httpx
 from oneiric.core.logging import get_logger
 
 from session_buddy.checkpoint.metrics import CheckpointMetrics
