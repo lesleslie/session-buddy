@@ -1698,95 +1698,115 @@ class SessionLifecycleManager:
             )
             return {"success": False, "error": str(e)}
 
+    async def drain_pending_markers(self) -> None:
+        """Drain pending checkpoint markers accumulated from prior sessions.
+
+        Called by ``session_lifecycle`` BEFORE ``yield`` as a fire-and-forget
+        background task. Each marker triggers ``git diff`` + ``git commit`` via
+        ``asyncio.to_thread``; with dozens of markers accumulated across test
+        runs this work regularly exceeds FastMCP's hardcoded
+        ``timeout_graceful_shutdown=2``, which would otherwise cancel the
+        lifespan teardown mid-drain. Running at startup (background) keeps the
+        drain off the shutdown critical path; markers left over from a hard
+        exit are simply picked up on the next startup.
+
+        Markers are advisory — failure to consume a single file must not abort
+        the rest of the drain.
+        """
+        from session_buddy.checkpoint import (
+            consume_pending_marker,
+        )
+        from session_buddy.checkpoint.pending import PENDING_DIR
+
+        if not PENDING_DIR.exists():
+            return
+
+        for marker in PENDING_DIR.glob("*.json"):
+
+            async def _build(wd: Path) -> t.Any:
+                # Lazy import: avoid eager-load cycles in lite mode.
+                from session_buddy.checkpoint import (
+                    CheckpointOrchestrator,
+                    CheckpointPolicy,
+                    LockfileSignalSource,
+                    MidpointCriteria,
+                    SnapshotMechanism,
+                    SubagentDetector,
+                    WorkingTreeInspector,
+                )
+
+                lockfile = wd / ".session-buddy" / "subagent.lock"
+                detector = SubagentDetector(wd, LockfileSignalSource(lockfile))
+                snapshot = SnapshotMechanism(wd)
+                inspector = WorkingTreeInspector(wd)
+                policy = CheckpointPolicy(
+                    midpoint_enabled=False,
+                    midpoint_criteria=MidpointCriteria(signals=[]),
+                    subagent_detector=detector,
+                    working_tree=inspector,
+                )
+
+                async def _commit_forward(_result: t.Any) -> None:
+                    # Mirror the lifespan-loop forward: commit via the legacy
+                    # git-commit path so the deferred checkpoint is honored,
+                    # not silently dropped (Finding I-2).
+                    import asyncio
+
+                    from session_buddy.utils.git_worktrees import (
+                        create_checkpoint_commit,
+                    )
+
+                    await asyncio.to_thread(
+                        create_checkpoint_commit,
+                        wd,
+                        wd.name,
+                        0,
+                    )
+
+                return CheckpointOrchestrator(
+                    working_dir=wd,
+                    policy=policy,
+                    snapshot=snapshot,
+                    subagent_detector=detector,
+                    forward_to=_commit_forward,
+                )
+
+            try:
+                await consume_pending_marker(
+                    marker,
+                    build_orchestrator=_build,
+                )
+                self.logger.info(
+                    "pending_checkpoint_drained",
+                    extra={"marker": str(marker)},
+                )
+            except Exception as exc:  # noqa: BLE001
+                # Single-marker failure must not abort the rest of the drain.
+                self.logger.warning(
+                    "pending_checkpoint_drain_failed",
+                    extra={"marker": str(marker), "error": str(exc)},
+                )
+
     async def end_session(
         self,
         working_directory: str | None = None,
     ) -> dict[str, t.Any]:
-        """End the current session with cleanup and summary."""
+        """End the current session with cleanup and summary.
+
+        Note: Pending checkpoint marker drain moved to ``drain_pending_markers``
+        which the MCP server lifespan loop schedules as a fire-and-forget task
+        at startup. End-of-session cleanup must stay under FastMCP's hardcoded
+        ``timeout_graceful_shutdown=2``; the marker drain (each marker triggers
+        ``git diff`` + ``git commit`` via ``asyncio.to_thread``) does not fit
+        that window when many markers accumulate across test runs.
+        """
         try:
-            # Task 8 (auto-checkpoint safety+trigger): drain any pending
-            # checkpoint markers from prior sessions (e.g. subagent idle
-            # timeouts, subagent-active-during-capture) before tearing
-            # down state. Markers are advisory — failure to load a single
-            # file must not block the rest of session end. We use the
-            # shared ``consume_pending_marker`` helper so this drain path
-            # fires the orchestrator identically to the MCP server
-            # lifespan loop — both call sites must NOT silently drop the
-            # deferred commit.
-            from session_buddy.checkpoint import (
-                consume_pending_marker,
-            )
-            from session_buddy.checkpoint.pending import PENDING_DIR
-
-            if PENDING_DIR.exists():
-                for marker in PENDING_DIR.glob("*.json"):
-
-                    async def _build(wd: Path) -> t.Any:
-                        # Lazy import: avoid eager-load cycles in lite mode.
-                        from session_buddy.checkpoint import (
-                            CheckpointOrchestrator,
-                            CheckpointPolicy,
-                            LockfileSignalSource,
-                            MidpointCriteria,
-                            SnapshotMechanism,
-                            SubagentDetector,
-                            WorkingTreeInspector,
-                        )
-
-                        lockfile = wd / ".session-buddy" / "subagent.lock"
-                        detector = SubagentDetector(wd, LockfileSignalSource(lockfile))
-                        snapshot = SnapshotMechanism(wd)
-                        inspector = WorkingTreeInspector(wd)
-                        policy = CheckpointPolicy(
-                            midpoint_enabled=False,
-                            midpoint_criteria=MidpointCriteria(signals=[]),
-                            subagent_detector=detector,
-                            working_tree=inspector,
-                        )
-
-                        async def _commit_forward(_result: t.Any) -> None:
-                            # Mirror the lifespan-loop forward: commit
-                            # via the legacy git-commit path so the
-                            # deferred checkpoint is honored, not
-                            # silently dropped (Finding I-2).
-                            import asyncio
-
-                            from session_buddy.utils.git_worktrees import (
-                                create_checkpoint_commit,
-                            )
-
-                            await asyncio.to_thread(
-                                create_checkpoint_commit,
-                                wd,
-                                wd.name,
-                                0,
-                            )
-
-                        return CheckpointOrchestrator(
-                            working_dir=wd,
-                            policy=policy,
-                            snapshot=snapshot,
-                            subagent_detector=detector,
-                            forward_to=_commit_forward,
-                        )
-
-                    try:
-                        await consume_pending_marker(
-                            marker,
-                            build_orchestrator=_build,
-                        )
-                        self.logger.info(
-                            "pending_checkpoint_drained",
-                            extra={
-                                "marker": str(marker),
-                            },
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        # Single-marker failure must not abort session end.
-                        self.logger.warning(
-                            "pending_checkpoint_drain_failed",
-                            extra={"marker": str(marker), "error": str(exc)},
-                        )
+            # Pending checkpoint markers are now drained at startup via
+            # ``drain_pending_markers`` (called by session_lifecycle BEFORE
+            # yield). Running it here would re-enter that work after markers
+            # were already consumed, AND would inflate the lifespan teardown
+            # past the 2-second FastMCP timeout. See commit history for the
+            # move + rationale.
 
             from session_buddy.core.hooks import HookContext, HookType
             from session_buddy.di import get_sync_typed

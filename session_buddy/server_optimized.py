@@ -221,6 +221,13 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     """
     current_dir = Path.cwd()
 
+    # Drain pending checkpoint markers at startup, in background. Each marker
+    # triggers git diff + git commit via asyncio.to_thread; running this on
+    # the shutdown path would exceed FastMCP's timeout_graceful_shutdown=2
+    # when many markers have accumulated across prior sessions/tests. Markers
+    # left over from a hard exit are simply picked up on the next startup.
+    asyncio.create_task(lifecycle_manager.drain_pending_markers())
+
     yield  # Server starts - MCP handshakes can complete immediately
 
     # Register to Dhara AFTER yield as fire-and-forget task
@@ -234,7 +241,9 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     # This prevents MCP handshake blocking when multiple clients connect
     asyncio.create_task(_delayed_session_init(current_dir))
 
-    # On disconnect - cleanup for git repos only
+    # On disconnect - cleanup for git repos only. Note: pending marker drain
+    # moved to drain_pending_markers() at startup; end_session no longer does
+    # that work, so its remaining cleanup fits within FastMCP's 2s timeout.
     if is_git_repository(current_dir):
         try:
             result = await lifecycle_manager.end_session()
@@ -781,8 +790,23 @@ def run_server(host: str = "127.0.0.1", port: int = 8678) -> None:
         )
 
         if MCP_AVAILABLE:
-            # Use streamable-http transport for HTTP endpoint
-            mcp.run(transport="streamable-http", host=host, port=port, path="/mcp")
+            # Use streamable-http transport for HTTP endpoint.
+            #
+            # ``uvicorn_config={"timeout_graceful_shutdown": 30}`` overrides
+            # FastMCP's hardcoded 2-second default (see
+            # ``fastmcp/server/mixins/transport.py:345``). 30s gives
+            # ``session_lifecycle``'s ``end_session`` cleanup room to
+            # complete PRE/SESSION hooks, ``perform_quality_assessment``
+            # and handoff-doc generation without being cut off mid-shutdown.
+            # Pending-checkpoint marker drain was moved to startup, so
+            # the remaining in-shutdown work fits inside 30s.
+            mcp.run(
+                transport="streamable-http",
+                host=host,
+                port=port,
+                path="/mcp",
+                uvicorn_config={"timeout_graceful_shutdown": 30},
+            )
         else:
             logger.warning("Running in mock mode - FastMCP not available")
 

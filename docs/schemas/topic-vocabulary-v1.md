@@ -50,6 +50,7 @@ contribution workflow below.
 | `ruff-016-source-remediation` | Ruff 0.16 source-remediation plan: non-negotiable rules, the new rule policy, and the B-series manual fixes swept across the codebase. |
 | `s-channel-durable` | S-CHANNEL-DURABLE plan family: durable structured `channel_session_state` records persisted via Dhara, with producer-side validate-on-write and consumer-side read-back-and-validate. |
 | `cross-repo-work-vs-eventbridge` | Comparison of cross-repo work accounting (ambient puller + DuckDB merge) vs EventBridge cross-system messaging. Decision rationale for when each substrate applies. |
+| `decisions-index` | `.claude/decisions/README.md` index file. The decisions directory itself (per-topic decision files with `## Context` / `## Decision rule` / `## Status` shape); covers the index's role as canonical entry point and the contribution workflow that keeps the index table in sync with the directory. |
 
 ## Contribution Workflow
 

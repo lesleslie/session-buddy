@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.25.1] - 2026-08-30
+
+### Added
+
+- session-buddy: Add ecosystem_run_history MCP tool (Phase 1)
+
 ## [0.25.0] - 2026-08-29
 
 ### Added

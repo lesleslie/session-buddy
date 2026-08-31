@@ -178,7 +178,7 @@ def aggregate_run_history(
                     workflow_id,
                     include_steps=include_steps,
                 )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - per-component boundary: any fetcher/stub failure degrades to an "error" entry instead of crashing the whole aggregation
             logger.warning(
                 "ecosystem_run_history: fetcher failed for repo=%s wid=%s: %s",
                 repo,
@@ -203,7 +203,7 @@ def aggregate_run_history(
 # ---------------------------------------------------------------------------
 
 
-def register_ecosystem_run_history_tools(mcp: "FastMCP") -> None:
+def register_ecosystem_run_history_tools(mcp: FastMCP) -> None:
     """Register ``ecosystem_run_history`` on the supplied FastMCP app."""
 
     @mcp.tool()
@@ -236,7 +236,7 @@ def register_ecosystem_run_history_tools(mcp: "FastMCP") -> None:
                 scope=scope,
                 include_steps=include_steps,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - public MCP tool boundary: input validation must return a JSON error envelope, never propagate to the caller
             logger.warning(
                 "ecosystem_run_history validation failed: %s (workflow_id=%r scope=%r)",
                 exc,
@@ -276,8 +276,8 @@ def register_ecosystem_run_history_tools(mcp: "FastMCP") -> None:
 
 __all__ = [
     "BODAI_COMPONENT_KEYS",
-    "SUBSTRATE_RUN_KEY_FMT",
     "SUBSTRATE_CAP_KEY_FMT",
+    "SUBSTRATE_RUN_KEY_FMT",
     "EcosystemRunHistoryRequest",
     "aggregate_run_history",
     "register_ecosystem_run_history_tools",
