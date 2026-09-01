@@ -8,10 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from session_buddy.crackerjack_integration import CrackerjackIntegration
 from session_buddy.utils import quality_scoring
-
-if t.TYPE_CHECKING:
-    from session_buddy.crackerjack_integration import CrackerjackIntegration
 
 
 def _load_crackerjack_integration():
