@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+import dhara
 import pytest
 
 # Skip the whole module when the installed dhara distribution does not
@@ -91,8 +92,8 @@ class TestChannelSessionGetStateTool:
         def get(key: str) -> dict[str, Any] | None:
             return store.get(key)
 
-        monkeypatch.setattr(state_writer.dhara, "put", put, raising=False)
-        monkeypatch.setattr(state_writer.dhara, "get", get, raising=False)
+        monkeypatch.setattr(dhara, "put", put, raising=False)
+        monkeypatch.setattr(dhara, "get", get, raising=False)
 
         written = state_writer.record_channel_session_state(
             channel_type="slack",
@@ -134,7 +135,7 @@ class TestChannelSessionGetStateTool:
         """
         from session_buddy.channel import state_writer
 
-        monkeypatch.setattr(state_writer.dhara, "get", None, raising=False)
+        monkeypatch.setattr(dhara, "get", None, raising=False)
 
         _server, tools = _make_server_and_tools()
         tool = tools["channel_session_get_state_tool"]
@@ -161,7 +162,7 @@ class TestChannelSessionGetStateTool:
         def get(key: str) -> dict[str, Any] | None:
             return None
 
-        monkeypatch.setattr(state_writer.dhara, "get", get, raising=False)
+        monkeypatch.setattr(dhara, "get", get, raising=False)
 
         _server, tools = _make_server_and_tools()
         tool = tools["channel_session_get_state_tool"]
@@ -190,7 +191,7 @@ class TestChannelSessionGetStateTool:
             msg = "synthetic substrate outage"
             raise RuntimeError(msg)
 
-        monkeypatch.setattr(state_writer.dhara, "get", get, raising=False)
+        monkeypatch.setattr(dhara, "get", get, raising=False)
 
         _server, tools = _make_server_and_tools()
         tool = tools["channel_session_get_state_tool"]

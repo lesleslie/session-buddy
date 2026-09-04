@@ -683,7 +683,11 @@ class TestRunServer:
             so.run_server(host="0.0.0.0", port=9000)
 
             mock_run.assert_called_once_with(
-                transport="streamable-http", host="0.0.0.0", port=9000, path="/mcp"
+                transport="streamable-http",
+                host="0.0.0.0",
+                port=9000,
+                path="/mcp",
+                uvicorn_config={"timeout_graceful_shutdown": 30},
             )
 
     def test_run_server_handles_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -895,6 +899,9 @@ class TestSessionLifecycleContextManager:
         mock_manager.end_session = AsyncMock(
             return_value={"success": True, "message": "ended"}
         )
+        # ``session_lifecycle`` also calls ``drain_pending_markers`` via
+        # ``asyncio.create_task`` at startup; that requires an awaitable.
+        mock_manager.drain_pending_markers = AsyncMock(return_value=None)
         monkeypatch.setattr(so, "lifecycle_manager", mock_manager)
 
         async with so.session_lifecycle(mock_app):
@@ -924,6 +931,9 @@ class TestSessionLifecycleContextManager:
         mock_manager.initialize_session = AsyncMock(
             return_value={"success": False, "error": "Init failed"}
         )
+        # ``drain_pending_markers`` is called via ``asyncio.create_task``
+        # at startup; the helper must be awaitable.
+        mock_manager.drain_pending_markers = AsyncMock(return_value=None)
         monkeypatch.setattr(so, "lifecycle_manager", mock_manager)
 
         # Should handle exception gracefully without raising

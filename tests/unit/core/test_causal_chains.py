@@ -90,7 +90,7 @@ def test_dataclasses_expose_defaults_and_values() -> None:
 @pytest.mark.asyncio
 async def test_initialize_loads_database_and_creates_all_tables() -> None:
     connection = AsyncMock()
-    db = SimpleNamespace(conn=connection)
+    db = SimpleNamespace(conn=connection, initialize=AsyncMock())
     with patch("session_buddy.di.depends.get_sync", return_value=db):
         tracker = CausalChainTracker()
         await tracker.initialize()

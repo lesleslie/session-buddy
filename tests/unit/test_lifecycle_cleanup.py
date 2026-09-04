@@ -27,8 +27,17 @@ async def test_cleanup_storage_adapters_prefers_oneiric(
         "get_storage_settings",
         lambda: SimpleNamespace(default_backend="file"),
     )
+    # Import the storage_oneiric module directly and patch its attribute
+    # rather than using the dotted-string form. The dotted-string form
+    # triggers ``session_buddy.__getattr__("adapters")`` which raises
+    # ``AttributeError`` when the ``session_buddy.adapters`` package is
+    # absent from ``sys.modules`` (a state that occurs when prior tests
+    # install synthetic stubs).
+    from session_buddy.adapters import storage_oneiric
+
     monkeypatch.setattr(
-        "session_buddy.adapters.storage_oneiric.get_storage_adapter",
+        storage_oneiric,
+        "get_storage_adapter",
         _fake_get_storage_adapter,
     )
 

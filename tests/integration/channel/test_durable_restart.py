@@ -54,17 +54,25 @@ def _wire_substrate(
     """Patch the substrate-compat handles the producer and consumer read.
 
     Task 148 moved from the import-time ``_dhara_put`` snapshot to a
-    call-time ``getattr(dhara, "put", None)`` gate. We stamp a ``put``
-    binding onto the live ``dhara`` module so the producer's gate finds
-    it. The consumer (``channel_session_get_state_tool``) reads via the
-    same call-time gate, so when ``get`` is provided we stamp it the
-    same way.
-    """
-    from session_buddy.channel import state_writer
+    call-time ``getattr(dhara, "put", None)`` gate implemented via the
+    ``session_buddy._dhara_substrate_compat`` helpers. We stamp a
+    ``put`` binding onto the live ``dhara`` module so the producer's
+    gate finds it. The consumer (``channel_session_get_state_tool``)
+    reads via the same call-time gate, so when ``get`` is provided we
+    stamp it the same way.
 
-    monkeypatch.setattr(state_writer.dhara, "put", put, raising=False)
+    The earlier shape of this helper did
+    ``monkeypatch.setattr(state_writer.dhara, ...)``, but ``state_writer``
+    no longer carries a ``dhara`` attribute — the producer resolves
+    substrate attrs via ``dhara_calltime`` against the live ``dhara``
+    module. We patch the module directly, mirroring the unit-test pattern
+    in ``tests/unit/channel/test_state_writer.py``.
+    """
+    import dhara
+
+    monkeypatch.setattr(dhara, "put", put, raising=False)
     if get is not None:
-        monkeypatch.setattr(state_writer.dhara, "get", get, raising=False)
+        monkeypatch.setattr(dhara, "get", get, raising=False)
 
 
 def test_channel_session_state_producer_emits_correct_key(
@@ -210,5 +218,10 @@ def test_channel_session_state_round_trip(
     assert result["metadata"] == {"branch_reason": "integration round-trip"}
     # The producer-returned struct's to_dict form is the source of
     # truth for the round-trip contract; if both halves agree on the
-    # canonical dict, the round-trip is demonstrable.
-    assert result == written.to_dict()
+    # canonical dict, the round-trip is demonstrable. ``to_dict`` is a
+    # free function from ``dhara.schema`` (not a method on the struct),
+    # mirroring how the consumer in ``channel_session_state_tools.py``
+    # reconstructs the canonical shape.
+    from dhara.schema import to_dict
+
+    assert result == to_dict(written)

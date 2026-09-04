@@ -140,24 +140,34 @@ class TestPhase2SuccessCriteria:
         )
 
         with patch.object(rewriter, "_llm_expand_query", side_effect=mock_llm_expand):
-            # Mock detector to ensure query is detected as ambiguous
-            with patch.object(rewriter.detector, "detect_ambiguity") as mock_detect:
-                from session_buddy.rewriting.query_rewriter import AmbiguityDetection
-                mock_detect.return_value = AmbiguityDetection(
-                    is_ambiguous=True,
-                    ambiguity_types=[AmbiguityType.PRONOUN_I],
-                    confidence=0.9,
-                    matched_patterns=[],
-                    suggestions=[],
-                )
+            # Mock _get_llm_provider too: rewrite_query() also calls it
+            # after _llm_expand_query returns (see query_rewriter.py:425-426).
+            # Without this patch the test hits the real LLM provider discovery
+            # path (~3s of network/process init), which dwarfs the 100ms mocked
+            # LLM call we are actually trying to measure.
+            with patch.object(
+                rewriter,
+                "_get_llm_provider",
+                new=AsyncMock(return_value="mock-provider"),
+            ):
+                # Mock detector to ensure query is detected as ambiguous
+                with patch.object(rewriter.detector, "detect_ambiguity") as mock_detect:
+                    from session_buddy.rewriting.query_rewriter import AmbiguityDetection
+                    mock_detect.return_value = AmbiguityDetection(
+                        is_ambiguous=True,
+                        ambiguity_types=[AmbiguityType.PRONOUN_I],
+                        confidence=0.9,
+                        matched_patterns=[],
+                        suggestions=[],
+                    )
 
-                start = time.perf_counter()
-                ambiguous_result = await rewriter.rewrite_query(
-                    query=ambiguous_context.query,
-                    context=ambiguous_context,
-                    force_rewrite=False,
-                )
-                ambiguous_latency = (time.perf_counter() - start) * 1000  # Convert to ms
+                    start = time.perf_counter()
+                    ambiguous_result = await rewriter.rewrite_query(
+                        query=ambiguous_context.query,
+                        context=ambiguous_context,
+                        force_rewrite=False,
+                    )
+                    ambiguous_latency = (time.perf_counter() - start) * 1000  # Convert to ms
 
         print(f"\nQuery Rewriting Latency Results:")
         print(f"  Clear query latency: {clear_latency:.2f}ms")
@@ -190,13 +200,33 @@ class TestPhase2SuccessCriteria:
         )
 
         # Test with no LLM provider configured (default state)
-        start = time.perf_counter()
-        result = await rewriter.rewrite_query(
-            query=context.query,
-            context=context,
-            force_rewrite=False,
-        )
-        fallback_latency = (time.perf_counter() - start) * 1000  # Convert to ms
+        # Mock the detector so the query is treated as ambiguous (otherwise the
+        # rewrite path is skipped entirely) and mock _llm_expand_query to raise,
+        # simulating LLM failure. We can't rely on "no provider in the test
+        # environment" anymore — the dev env has minimax wired up, so an
+        # unmocked call would actually succeed (was_rewritten=True), defeating
+        # the test's intent of exercising the fallback branch.
+        with patch.object(rewriter.detector, "detect_ambiguity") as mock_detect:
+            from session_buddy.rewriting.query_rewriter import AmbiguityDetection
+            mock_detect.return_value = AmbiguityDetection(
+                is_ambiguous=True,
+                ambiguity_types=[AmbiguityType.PRONOUN_I],
+                confidence=0.9,
+                matched_patterns=[],
+                suggestions=[],
+            )
+            with patch.object(
+                rewriter,
+                "_llm_expand_query",
+                side_effect=RuntimeError("LLM unavailable"),
+            ):
+                start = time.perf_counter()
+                result = await rewriter.rewrite_query(
+                    query=context.query,
+                    context=context,
+                    force_rewrite=False,
+                )
+                fallback_latency = (time.perf_counter() - start) * 1000  # Convert to ms
 
         # Should fall back gracefully
         assert result is not None, "Should return a result even when LLM fails"

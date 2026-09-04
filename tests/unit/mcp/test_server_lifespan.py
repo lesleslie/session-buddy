@@ -121,8 +121,12 @@ async def test_lifespan_skips_orchestrator_for_invalid_cwd(
     from session_buddy.mcp import server as mcp_server
 
     # Force os.getcwd to return a path that does not exist.
+    # Patch the call site where validation actually reads cwd:
+    # ``validate_orchestrator_working_dir`` lives in
+    # ``session_buddy.core.session_manager`` and calls ``os.getcwd``
+    # via the module-level import there.
     monkeypatch.setattr(
-        "session_buddy.mcp.server.os.getcwd",
+        "session_buddy.core.session_manager.os.getcwd",
         lambda: "/nonexistent/xyz/lifespan-bogus-cwd-12345",
     )
 
@@ -201,7 +205,7 @@ async def test_lifespan_starts_orchestrator_for_valid_cwd(
     from session_buddy.mcp import server as mcp_server
 
     monkeypatch.setattr(
-        "session_buddy.mcp.server.os.getcwd", lambda: str(tmp_path),
+        "session_buddy.core.session_manager.os.getcwd", lambda: str(tmp_path),
     )
 
     fake_mode_cfg = MagicMock()

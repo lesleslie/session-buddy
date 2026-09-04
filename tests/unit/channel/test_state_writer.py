@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import dhara
 import session_buddy.channel.state_writer as state_writer
 from session_buddy.channel.state_writer import (
     _channel_session_state_v1_enabled,
@@ -68,7 +69,7 @@ def test_record_persists_validated_struct(
 ) -> None:
     """Happy path: validate, persist via call-time getattr, return typed struct."""
     put_sentinel = MagicMock()
-    monkeypatch.setattr(state_writer.dhara, "put", put_sentinel, raising=True)
+    monkeypatch.setattr(dhara, "put", put_sentinel, raising=True)
 
     record = record_channel_session_state(
         channel_type="slack",
@@ -89,7 +90,7 @@ def test_record_persists_metadata_when_provided(
 ) -> None:
     """``metadata`` argument is forwarded into the persisted struct."""
     put_sentinel = MagicMock()
-    monkeypatch.setattr(state_writer.dhara, "put", put_sentinel, raising=True)
+    monkeypatch.setattr(dhara, "put", put_sentinel, raising=True)
 
     record = record_channel_session_state(
         channel_type="signal",
@@ -107,7 +108,7 @@ def test_record_skips_put_when_dhara_put_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Substrate-compat: dhara backend not wired → skip put, still validate."""
-    monkeypatch.setattr(state_writer.dhara, "put", None, raising=True)
+    monkeypatch.setattr(dhara, "put", None, raising=True)
 
     record = record_channel_session_state(
         channel_type="terminal",
@@ -125,7 +126,7 @@ def test_record_swallows_dhara_put_errors(
 ) -> None:
     """G6 contract: substrate failures must NOT crash the channel tracking path."""
     failing_put = MagicMock(side_effect=RuntimeError("backend offline"))
-    monkeypatch.setattr(state_writer.dhara, "put", failing_put, raising=True)
+    monkeypatch.setattr(dhara, "put", failing_put, raising=True)
 
     # Must not raise.
     record = record_channel_session_state(

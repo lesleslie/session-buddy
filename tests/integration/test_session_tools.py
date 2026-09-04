@@ -472,13 +472,20 @@ class TestUtilityTools:
 
     @pytest.mark.asyncio
     async def test_ping_tool(self, mcp_server):
-        """Test ping tool execution."""
+        """Test ping tool execution.
+
+        ``ping`` is a deprecated alias for ``get_liveness`` and returns the
+        canonical liveness envelope, not the legacy ``"🏓 Pong!"`` string.
+        See ``session_tools.py:ping`` for the deprecation note.
+        """
         result = await mcp_server.call_tool("ping", {})
 
-        # Verify result format
+        # Verify the liveness envelope shape (ping is a get_liveness alias).
         assert isinstance(result, str)
-        assert "🏓 Pong!" in result
-        assert "MCP server is responding" in result
+        assert '"status":"ok"' in result
+        assert '"service":"session-buddy"' in result
+        assert '"version"' in result
+        assert '"uptime_seconds"' in result
 
 
 class TestSessionShortcuts:

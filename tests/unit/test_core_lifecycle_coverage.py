@@ -227,7 +227,7 @@ def test_handoff_build_and_save_paths(
 
     class FixedDatetime:
         @classmethod
-        def now(cls):
+        def now(cls, tz=None):
             return datetime(2026, 5, 25, 9, 15, 0)
 
     monkeypatch.setattr(handoff, "datetime", FixedDatetime)

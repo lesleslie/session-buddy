@@ -25,7 +25,9 @@ class TestCLICommands:
 
         assert cli_factory is not None
         assert hasattr(cli_factory, "create_app")
-        assert hasattr(cli_factory, "server_name")
+        # ``server_name`` was the mcp-common attribute name; the
+        # OneiricCLIBase adoption renamed it to ``component_name``.
+        assert getattr(cli_factory, "component_name", None) == "session-buddy"
 
     def test_cli_has_app(self):
         """Test that CLI can create an app."""
@@ -103,7 +105,10 @@ class TestCLIServerCommands:
         cli_factory = create_session_buddy_cli()
         app = cli_factory.create_app()
 
-        result = runner.invoke(app, ["status"])
+        # ``status`` moved under the ``server`` sub-Typer when session-buddy
+        # adopted OneiricCLIBase (``session_buddy.cli.base``); the top-level
+        # ``status`` no longer exists.
+        result = runner.invoke(app, ["server", "status"])
 
         # Status command should run
         assert result.exit_code == 0 or any(
@@ -191,9 +196,9 @@ class TestCLIHelpers:
 
         assert result is None
 
-    @patch("session_buddy.cli._read_running_pid")
-    @patch("session_buddy.cli.get_health_status")
-    @patch("session_buddy.cli.update_telemetry_counter")
+    @patch("session_buddy.cli.base._read_running_pid")
+    @patch("session_buddy.mcp.tools.monitoring.health_tools.get_health_status")
+    @patch("session_buddy.utils.runtime_snapshots.update_telemetry_counter")
     def test_run_health_probe(
         self, mock_telemetry, mock_health, mock_read_pid
     ):
@@ -238,9 +243,9 @@ class TestCLIIntegration:
         # Create factory
         cli_factory = create_session_buddy_cli()
 
-        # Verify factory attributes
-        assert hasattr(cli_factory, "server_name")
-        assert cli_factory.server_name == "session-buddy"
+        # Verify factory attributes — ``server_name`` was renamed to
+        # ``component_name`` when session-buddy adopted OneiricCLIBase.
+        assert getattr(cli_factory, "component_name", None) == "session-buddy"
 
         # Create app
         app = cli_factory.create_app()
@@ -345,9 +350,11 @@ class TestCLIOutput:
 
         result = runner.invoke(app, ["--help"])
 
-        # Should show commands
+        # Lifecycle verbs live under the ``server`` sub-Typer after the
+        # OneiricCLIBase adoption (see ``session_buddy.cli.base``); the
+        # top-level ``--help`` lists parent commands only.
         output = result.stdout.lower()
-        assert "start" in output or "stop" in output or "status" in output
+        assert "server" in output
 
 
 class TestCLIMain:

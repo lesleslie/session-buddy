@@ -85,12 +85,11 @@ class TestCliCommands:
 
         result = cli_runner.invoke(app, ["--help"])
         assert result.exit_code == 0
-        # Check that help output contains expected elements
-        assert (
-            "start" in result.output
-            or "status" in result.output
-            or "stop" in result.output
-        )
+        # Lifecycle verbs (``start``, ``stop``, ``restart``, ``status``) are
+        # now mounted under the ``server`` sub-Typer (see
+        # ``session_buddy.cli.base``); the top-level ``--help`` only lists
+        # the parent commands. Verify the ``server`` group is exposed.
+        assert "server" in result.output
 
 
 class TestServerManagement:
@@ -162,21 +161,28 @@ class TestCliInternals:
         mock_print: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from session_buddy import cli as cli_module
+        # Patch the implementation module (``cli.base``) directly because
+        # that's where ``start_server_handler`` resolves ``SessionBuddySettings``
+        # via the module-local name. Patching ``cli.SessionBuddySettings``
+        # only mutates the re-exported attribute, not the local binding.
+        from session_buddy.cli import base as cli_base
 
         class FakeSettings:
             http_port = 1234
             websocket_port = 4321
 
         mock_run_server = MagicMock()
-        monkeypatch.setattr(cli_module, "SessionBuddySettings", FakeSettings)
+        monkeypatch.setattr(cli_base, "SessionBuddySettings", FakeSettings)
+        # ``_port_holder`` checks if the port is held (lsof); stub it so
+        # the test does not depend on whether 1234 is actually free.
+        monkeypatch.setattr(cli_base, "_port_holder", lambda _port: None)
         monkeypatch.setitem(
             __import__("sys").modules,
             "session_buddy.server_optimized",
             SimpleNamespace(run_server=mock_run_server),
         )
 
-        cli_module.start_server_handler()
+        cli_base.start_server_handler()
 
         mock_print.assert_any_call("🚀 Starting Session Management MCP Server...")
         mock_print.assert_any_call("HTTP Port: 1234")
@@ -208,8 +214,8 @@ class TestCliInternals:
         pid_path.write_text("not-a-pid")
         assert _read_running_pid(settings) is None
 
-    @patch("session_buddy.cli.update_telemetry_counter")
-    @patch("session_buddy.cli.get_health_status")
+    @patch("session_buddy.utils.runtime_snapshots.update_telemetry_counter")
+    @patch("session_buddy.mcp.tools.monitoring.health_tools.get_health_status")
     def test_run_health_probe_updates_telemetry_and_snapshot(
         self,
         mock_get_health_status: MagicMock,
@@ -246,20 +252,24 @@ class TestCliInternals:
 
         result = cli_runner.invoke(app, ["--version"])
         assert result.exit_code == 0
-        assert "session-buddy version" in result.output
+        # OneiricCLIBase formats ``--version`` output as
+        # ``"<name>: <version>"`` (see oneiric.cli.base); the legacy
+        # ``"<name> version <version>"`` form is rejected by Typer as
+        # deprecated and removed in the next minor release.
+        assert "session-buddy:" in result.output
 
     def test_main_invokes_created_cli_app(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from session_buddy import cli as cli_module
 
+        # ``main()`` expects ``create_session_buddy_cli()`` to return the
+        # CLI instance itself (which is callable — Typer apps are invoked
+        # by calling the instance), not a factory with ``create_app``.
         app = MagicMock()
-        factory = SimpleNamespace(create_app=MagicMock(return_value=app))
-        create_cli = MagicMock(return_value=factory)
+        create_cli = MagicMock(return_value=app)
         monkeypatch.setattr(cli_module, "create_session_buddy_cli", create_cli)
 
         cli_module.main()
-
         create_cli.assert_called_once_with()
-        factory.create_app.assert_called_once_with()
         app.assert_called_once_with()
 
     def test_port_holder_returns_pid_command_tuple(self) -> None:
@@ -355,19 +365,20 @@ class TestCliInternals:
         message must name the holder PID so operators can decide whether
         to stop the existing process.
         """
-        from session_buddy import cli as cli_module
+        # Patch ``cli.base`` directly — the implementation lives there.
+        from session_buddy.cli import base as cli_base
 
         class FakeSettings:
             http_port = 8678
             websocket_port = 8677
 
-        monkeypatch.setattr(cli_module, "SessionBuddySettings", FakeSettings)
+        monkeypatch.setattr(cli_base, "SessionBuddySettings", FakeSettings)
         monkeypatch.setattr(
-            cli_module, "_port_holder", lambda port: (1234, "another-server")
+            cli_base, "_port_holder", lambda port: (1234, "another-server")
         )
 
         with pytest.raises(SystemExit) as exc_info:
-            cli_module.start_server_handler()
+            cli_base.start_server_handler()
 
         msg = str(exc_info.value)
         assert "Port 8678" in msg

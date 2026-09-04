@@ -357,14 +357,21 @@ async def test_symlinked_dir_passes_resolved_path_to_orchestrator_components(
 def test_end_session_uses_consume_pending_marker_helper(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """End-session source imports & awaits ``consume_pending_marker`` (not
-    the legacy ``load_pending`` + ``consume_pending`` pair) for the drain.
+    """The pending-drain code path imports & awaits ``consume_pending_marker``
+    (not the legacy ``load_pending`` + ``consume_pending`` pair).
 
     Static check is the right shape here: the drain block is inside a
     try/except with multiple import statements and a nested ``async def``
     builder, so a behavioural test would require either running the
     full post-drain code path or re-implementing the loop locally.
     AST/grep-driven regression guards the wiring instead.
+
+    NOTE: The drain logic was moved from ``end_session`` to
+    ``drain_pending_markers`` (which the MCP server lifespan schedules
+    as a fire-and-forget task at startup so the deferred checkpoints
+    fit within FastMCP's hardcoded ``timeout_graceful_shutdown=2``).
+    Both call sites share ``consume_pending_marker`` so they cannot
+    drift; this test pins the wiring shape at the new home.
     """
     import ast
     from pathlib import Path
@@ -375,17 +382,17 @@ def test_end_session_uses_consume_pending_marker_helper(
     assert src_path is not None
     tree = ast.parse(Path(src_path).read_text())
 
-    # Find end_session definition.
-    end_session: ast.AsyncFunctionDef | None = None
+    # Find drain_pending_markers definition (the new home of the drain loop).
+    drain_method: ast.AsyncFunctionDef | None = None
     for node in ast.walk(tree):
-        if isinstance(node, ast.AsyncFunctionDef) and node.name == "end_session":
-            end_session = node
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "drain_pending_markers":
+            drain_method = node
             break
-    assert end_session is not None, "end_session not found"
+    assert drain_method is not None, "drain_pending_markers not found"
 
-    # Collect names of all imported symbols inside end_session.
+    # Collect names of all imported symbols inside drain_pending_markers.
     imported_names: set[str] = set()
-    for node in ast.walk(end_session):
+    for node in ast.walk(drain_method):
         if isinstance(node, ast.ImportFrom):
             for alias in node.names:
                 imported_names.add(alias.asname or alias.name)
@@ -395,29 +402,31 @@ def test_end_session_uses_consume_pending_marker_helper(
 
     # MUST import the shared helper.
     assert "consume_pending_marker" in imported_names, (
-        "end_session must import the shared ``consume_pending_marker`` "
-        "helper for the pending-drain path (Finding I-2)"
+        "drain_pending_markers must import the shared "
+        "``consume_pending_marker`` helper for the pending-drain path "
+        "(Finding I-2)"
     )
     # MUST NOT import the legacy delete-only pair.
     assert "load_pending" not in imported_names, (
-        "end_session must NOT import ``load_pending`` directly — the "
-        "shared helper handles loading. Re-importing it here would be "
-        "the regression we are guarding against."
+        "drain_pending_markers must NOT import ``load_pending`` directly "
+        "— the shared helper handles loading. Re-importing it here would "
+        "be the regression we are guarding against."
     )
     assert "consume_pending" not in imported_names, (
-        "end_session must NOT import ``consume_pending`` directly — "
-        "the shared helper handles marker deletion AFTER the orchestrator."
+        "drain_pending_markers must NOT import ``consume_pending`` "
+        "directly — the shared helper handles marker deletion AFTER the "
+        "orchestrator."
     )
 
-    # end_session MUST await consume_pending_marker (it's async).
+    # drain_pending_markers MUST await consume_pending_marker (it's async).
     awaited = [
-        node for node in ast.walk(end_session)
+        node for node in ast.walk(drain_method)
         if isinstance(node, ast.Await)
         and isinstance(node.value, ast.Call)
         and isinstance(node.value.func, ast.Name)
         and node.value.func.id == "consume_pending_marker"
     ]
     assert awaited, (
-        "end_session must ``await consume_pending_marker(...)`` for "
-        "every pending marker (not just record-and-delete)"
+        "drain_pending_markers must ``await consume_pending_marker(...)`` "
+        "for every pending marker (not just record-and-delete)"
     )

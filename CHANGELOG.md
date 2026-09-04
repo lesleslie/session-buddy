@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.25.3] - 2026-09-04
+
+### Fixed
+
+- Move TYPE_CHECKING-only imports to runtime scope
+
 ## [0.25.1] - 2026-08-30
 
 ### Added

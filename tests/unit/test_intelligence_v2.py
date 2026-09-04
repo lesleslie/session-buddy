@@ -270,6 +270,8 @@ class TestIntelligenceEngineInit:
         mock_db = MagicMock()
         mock_conn = MagicMock()
         mock_db.conn = mock_conn
+        # ``initialize`` is awaited by the production code; must be an AsyncMock.
+        mock_db.initialize = AsyncMock()
 
         with patch("session_buddy.core.intelligence.depends") as mock_depends:
             mock_depends.get_sync.return_value = mock_db
@@ -294,6 +296,7 @@ class TestIntelligenceEngineInit:
         mock_db = MagicMock()
         mock_conn = MagicMock()
         mock_db.conn = mock_conn
+        mock_db.initialize = AsyncMock()
 
         with patch("session_buddy.core.intelligence.depends") as mock_depends:
             mock_depends.get_sync.return_value = mock_db
@@ -311,6 +314,7 @@ class TestIntelligenceEngineInit:
         engine = IntelligenceEngine()
         mock_db = MagicMock()
         mock_conn = MagicMock()
+        mock_db.initialize = AsyncMock()
 
         now = datetime.now(UTC)
         mock_rows = [
@@ -1000,6 +1004,7 @@ class TestSearchSimilarPatterns:
             mock_db = MagicMock()
             mock_conn = MagicMock()
             mock_db.conn = mock_conn
+            mock_db.initialize = AsyncMock()
             mock_conn.execute.return_value.fetchall.return_value = []
             mock_depends.get_sync.return_value = mock_db
 

@@ -35,21 +35,28 @@ ALLOWED_METADATA_KEYS: frozenset[str] = frozenset(
     }
 )
 
-# Each pattern is compiled once at import time for reuse across calls.
-_SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"AKIA[0-9A-Z]{16}"),
-    re.compile(r"ghp_[A-Za-z0-9]{36}"),
-    re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),
-    re.compile(r"password=\S+", re.IGNORECASE),
-    re.compile(r"Authorization:\s*\S+", re.IGNORECASE),
-    re.compile(r"\b10\.\d+\.\d+\.\d+\b"),
-    re.compile(r"\b192\.168\.\d+\.\d+\b"),
-    re.compile(r"\b172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+\b"),
-    re.compile(r"/Users/[^/\s]+/\.ssh/"),
-    re.compile(r"~/\.ssh/"),
-    re.compile(r"\S+@\S+\.\S+"),
-    re.compile(r"\+?\d{1,3}[-.\s]??\(?\d{1,4}\)?[-.\s]??\d{1,4}[-.\s]??\d{1,9}"),
-    re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+# Each entry is ``(compiled_pattern, required_substring)``. The substring
+# is a cheap O(n) ``in``-check used to short-circuit ``re.sub`` when the
+# pattern cannot match the input. Without this guard, patterns such as
+# ``\S+@\S+\.\S+`` exhibit catastrophic backtracking (ReDoS) on large
+# non-matching inputs — e.g. a 64KB block of unrelated characters makes
+# ``_redact_iter`` blow past the test-timeout. Needles for
+# ``re.IGNORECASE`` patterns are lowercase and matched against the
+# lowercased text in :func:`_redact_iter`.
+_SECRET_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"AKIA[0-9A-Z]{16}"), "AKIA"),
+    (re.compile(r"ghp_[A-Za-z0-9]{36}"), "ghp_"),
+    (re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"), "eyJ"),
+    (re.compile(r"password=\S+", re.IGNORECASE), "password"),
+    (re.compile(r"Authorization:\s*\S+", re.IGNORECASE), "authorization"),
+    (re.compile(r"\b10\.\d+\.\d+\.\d+\b"), "10."),
+    (re.compile(r"\b192\.168\.\d+\.\d+\b"), "192"),
+    (re.compile(r"\b172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+\b"), "172"),
+    (re.compile(r"/Users/[^/\s]+/\.ssh/"), "/.ssh/"),
+    (re.compile(r"~/\.ssh/"), "~/.ssh/"),
+    (re.compile(r"\S+@\S+\.\S+"), "@"),
+    (re.compile(r"\+?\d{1,3}[-.\s]??\(?\d{1,4}\)?[-.\s]??\d{1,4}[-.\s]??\d{1,9}"), "0"),
+    (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "0"),
 )
 
 
@@ -61,9 +68,17 @@ def _redact_iter(text: str) -> str:
     """Apply every secret pattern to ``text`` in order.
 
     Used by both :func:`redact` and the truncation path so redaction logic
-    is defined in one place.
+    is defined in one place. Each pattern has a required-substring guard
+    so we can skip ``re.sub`` cheaply when the needle is absent — see
+    :data:`_SECRET_PATTERNS` for the ReDoS motivation.
     """
-    for pattern in _SECRET_PATTERNS:
+    text_lower = text.lower()
+    for pattern, needle in _SECRET_PATTERNS:
+        # ``needle in text`` covers case-sensitive patterns; the
+        # ``needle in text_lower`` fallthrough covers ``re.IGNORECASE``
+        # patterns whose needles are stored lowercase.
+        if needle not in text and needle not in text_lower:
+            continue
         text = pattern.sub(REDACTED_MARKER, text)
     return text
 

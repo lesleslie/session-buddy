@@ -489,25 +489,30 @@ class TestReadCoverageDotfile:
         mock_cov.load.assert_called_once()
 
     def test_preferred_over_missing_json(self, tmp_path: Path):
-        """_get_crackerjack_metrics uses .coverage when coverage.json is absent."""
-        import asyncio
+        """``_read_coverage_dotfile`` is the unit under test (NOT the full
+        ``_get_crackerjack_metrics`` orchestrator).
+
+        The previous version of this test called ``_get_crackerjack_metrics``
+        and asserted ``code_coverage == 55.0`` flowed through. The production
+        orchestrator now applies a synthesis pass
+        (``_finalize_crackerjack_metrics_async``) that drops coverage-only
+        data and emits the unavailable sentinel when no non-coverage
+        source populated any key — see the N2 contract docstring there.
+        This test now exercises ``_read_coverage_dotfile`` directly so the
+        unit under test (the dotfile reader) is observable independently
+        of the synthesis pass.
+        """
         from unittest.mock import MagicMock, patch
 
-        from session_buddy.utils.quality_utils_v2 import _get_crackerjack_metrics
+        from session_buddy.utils.quality_utils_v2 import _read_coverage_dotfile
 
         (tmp_path / ".coverage").write_bytes(b"")
 
         mock_cov = MagicMock()
         mock_cov.report.return_value = 55.0
 
-        with (
-            patch("session_buddy.utils.quality_scoring.CRACKERJACK_AVAILABLE", False),
-            patch("coverage.Coverage", return_value=mock_cov),
-        ):
-            # Use asyncio.run() rather than get_event_loop() to get a
-            # fresh event loop. The previous pattern (get_event_loop) was
-            # deprecated and returned a closed loop when this test ran
-            # after pytest-asyncio tests, causing intermittent failures.
-            metrics = asyncio.run(_get_crackerjack_metrics(tmp_path))
+        with patch("coverage.Coverage", return_value=mock_cov):
+            result = _read_coverage_dotfile(tmp_path)
 
-        assert metrics.get("code_coverage") == 55.0
+        assert result == 55.0
+        mock_cov.load.assert_called_once()

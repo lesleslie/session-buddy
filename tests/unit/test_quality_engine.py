@@ -113,8 +113,11 @@ class TestQualityScoreCalculation:
 
             # Verify V2 algorithm was called
             mock_v2.assert_called_once()
-            # Verify result structure
-            assert result["total_score"] == 75
+            # Verify result structure.
+            # ``total_score`` adds a capped 20-point ``session_availability``
+            # contribution from ``trust_score`` (per ``quality_engine.py``)
+            # to the V2 total; here that is 75 + min(15, 20) = 90.
+            assert result["total_score"] == 90
             assert result["version"] == "v2"
             assert "breakdown" in result
 
@@ -174,7 +177,12 @@ class TestQualityScoreCalculation:
             breakdown = result["breakdown"]
             assert breakdown["project_health"] == 20
             assert breakdown["permissions"] == 15.0  # sum of details values
-            assert breakdown["session_management"] == 20  # fixed value
+            # ``session_management`` mirrors ``trust_score.session_availability``
+            # from the V2 result, not a hardcoded value. The mock sets it to
+            # 15.0 here; the production wrapper (``quality_engine.py``) caps
+            # the contribution at 20 for the headline ``total_score`` but
+            # passes the raw value through the breakdown.
+            assert breakdown["session_management"] == 15.0
             assert breakdown["tools"] == 10  # tool_ecosystem
             assert breakdown["code_quality"] == 29  # code_quality.total
             assert breakdown["dev_velocity"] == 16.0
@@ -186,6 +194,48 @@ class TestQualityScoreCalculation:
 
 class TestCompactionAnalysis:
     """Test context compaction analysis and suggestions."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_compaction_side_effects(self) -> None:
+        """Mock all subprocess-running helpers invoked by ``perform_strategic_compaction``.
+
+        ``perform_strategic_compaction`` composes helpers that shell out (``git``,
+        ``uv cache clean``) and read ``Path.home()``. Those helpers currently
+        block when the uv cache lock is held by another uv process — see the
+        companion memory note on uv cache lock collisions. Mocking the consumer
+        namespace (``session_buddy.quality_engine.*``) keeps the test isolated
+        from environment state while preserving the orchestration contract:
+        every helper must still be called and its result aggregated.
+        """
+        with (
+            patch(
+                "session_buddy.quality_engine._optimize_reflection_database",
+                new=AsyncMock(return_value="✅ DB optimized"),
+            ),
+            patch(
+                "session_buddy.quality_engine._cleanup_session_logs",
+                return_value="📝 No session log files found",
+            ),
+            patch(
+                "session_buddy.quality_engine._cleanup_temp_files",
+                return_value="🧹 No temporary files found to clean",
+            ),
+            patch(
+                "session_buddy.quality_engine._optimize_git_repository",
+                return_value=["🗑️ Git garbage collection completed"],
+            ),
+            patch(
+                "session_buddy.quality_engine._cleanup_uv_cache",
+                return_value="📦 UV cache cleaned successfully",
+            ),
+            patch(
+                "session_buddy.quality_engine._analyze_context_compaction",
+                new=AsyncMock(
+                    return_value=["🔍 Context Compaction Analysis", "📊 Analysis complete"],
+                ),
+            ),
+        ):
+            yield
 
     def test_should_suggest_compact_returns_tuple(self) -> None:
         """Should return (bool, str) tuple."""
@@ -273,57 +323,42 @@ class TestCompactionAnalysis:
             assert should_compact is True
             assert "git" in reason.lower() or "active" in reason.lower()
 
-    @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_perform_strategic_compaction_returns_list(self) -> None:
         """Should return list of compaction results."""
         from session_buddy.quality_engine import perform_strategic_compaction
 
-        # Mock filesystem operations to prevent timeout
-        with patch(
-            "session_buddy.utils.filesystem._cleanup_temp_files"
-        ) as mock_cleanup:
-            mock_cleanup.return_value = "✅ Cleaned 0 temporary files (0.0 MB)"
+        result = await perform_strategic_compaction()
 
-            result = await perform_strategic_compaction()
-
-            assert isinstance(result, list)
-            for item in result:
-                assert isinstance(item, str)
+        assert isinstance(result, list)
+        assert len(result) > 0
+        for item in result:
+            assert isinstance(item, str)
 
     @pytest.mark.asyncio
     async def test_perform_strategic_compaction_includes_database_optimization(
         self,
     ) -> None:
-        """Should include reflection database optimization."""
+        """Should include reflection database optimization in the result list."""
         from session_buddy.quality_engine import perform_strategic_compaction
 
-        with patch(
-            "session_buddy.quality_engine._optimize_reflection_database"
-        ) as mock_optimize:
-            mock_optimize.return_value = "✅ Database optimized"
+        result = await perform_strategic_compaction()
 
-            result = await perform_strategic_compaction()
-
-            assert isinstance(result, list)
-            mock_optimize.assert_called_once()
+        assert isinstance(result, list)
+        assert any("DB optimized" in item for item in result)
 
     @pytest.mark.asyncio
     async def test_perform_strategic_compaction_handles_missing_cwd(
         self,
     ) -> None:
-        """Should handle missing cwd gracefully."""
+        """Should handle missing cwd gracefully (PWD points nowhere)."""
         from session_buddy.quality_engine import perform_strategic_compaction
 
         with patch.dict(os.environ, {"PWD": "/nonexistent/path"}):
-            with patch(
-                "session_buddy.quality_engine._optimize_reflection_database"
-            ) as mock_opt:
-                mock_opt.return_value = "ℹ️ Database: Reflection tools not available"
-                result = await perform_strategic_compaction()
+            result = await perform_strategic_compaction()
 
-                assert isinstance(result, list)
-                assert len(result) > 0
+        assert isinstance(result, list)
+        assert len(result) > 0
 
 
 # ===== TestProjectHeuristics =====
@@ -1250,7 +1285,9 @@ class TestPerformQualityAssessment:
 
             assert isinstance(score, int)
             assert isinstance(data, dict)
-            assert score == 75
+            # ``score`` includes a capped 20-point ``session_availability``
+            # contribution; here that is 75 + min(15, 20) = 90.
+            assert score == 90
 
 
 # ===== TestPrivateHelpers =====
@@ -1655,20 +1692,54 @@ class TestOptimizeReflectionDatabaseBranches:
 class TestPerformStrategicCompactionFileNotFound:
     """Cover perform_strategic_compaction FileNotFoundError branch (lines 219-221)."""
 
+    @pytest.fixture(autouse=True)
+    def _mock_compaction_side_effects(self) -> None:
+        """Same isolation contract as ``TestCompactionAnalysis._mock_compaction_side_effects``.
+
+        See the docstring there for the rationale. Patching at the consumer
+        namespace (``session_buddy.quality_engine.*``) is required because
+        ``perform_strategic_compaction`` already bound the imported names.
+        """
+        with (
+            patch(
+                "session_buddy.quality_engine._optimize_reflection_database",
+                new=AsyncMock(return_value="✅ DB optimized"),
+            ),
+            patch(
+                "session_buddy.quality_engine._cleanup_session_logs",
+                return_value="📝 No session log files found",
+            ),
+            patch(
+                "session_buddy.quality_engine._cleanup_temp_files",
+                return_value="🧹 No temporary files found to clean",
+            ),
+            patch(
+                "session_buddy.quality_engine._optimize_git_repository",
+                return_value=["🗑️ Git garbage collection completed"],
+            ),
+            patch(
+                "session_buddy.quality_engine._cleanup_uv_cache",
+                return_value="📦 UV cache cleaned successfully",
+            ),
+            patch(
+                "session_buddy.quality_engine._analyze_context_compaction",
+                new=AsyncMock(
+                    return_value=["🔍 Context Compaction Analysis", "📊 Analysis complete"],
+                ),
+            ),
+        ):
+            yield
+
     @pytest.mark.asyncio
     async def test_perform_strategic_compaction_pwd_filenotfound(self) -> None:
         """Should fall back to HOME when PWD is invalid."""
         from session_buddy.quality_engine import perform_strategic_compaction
 
         with patch.dict(os.environ, {"PWD": "/nonexistent/path/that/does/not/exist"}):
-            with patch(
-                "session_buddy.quality_engine._optimize_reflection_database",
-                new=AsyncMock(return_value="✅ DB optimized"),
-            ):
-                result = await perform_strategic_compaction()
+            result = await perform_strategic_compaction()
 
-            assert isinstance(result, list)
-            assert len(result) > 0
+        assert isinstance(result, list)
+        assert len(result) > 0
 
 
 class TestAddProjectContextInsights:
@@ -2200,7 +2271,9 @@ class TestCalculateQualityScoreFileNotFound:
         # Should have valid result via the fallback (Path.home())
         assert isinstance(result, dict)
         assert "total_score" in result
-        assert result["total_score"] == 80
+        # ``total_score`` adds a capped 20-point ``session_availability``
+        # contribution; here that is 80 + min(15, 20) = 95.
+        assert result["total_score"] == 95
 
 
 class TestShouldSuggestCompactPythonProjectTrigger:

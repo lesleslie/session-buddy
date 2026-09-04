@@ -60,7 +60,7 @@ SESSION_BUDDY_REFLECTION_DB_PRECONDITION = "ONEIRIC_MCP_DATABASE_PATH"
 
 
 @pytest.fixture
-def session_windows_setup(tmp_path):
+async def session_windows_setup(tmp_path):
     """Create the ``session_windows`` table in the test's reflection DB.
 
     Tests rely on the autouse ``isolated_test_db_path`` fixture from
@@ -71,6 +71,11 @@ def session_windows_setup(tmp_path):
 
     The table DDL matches what Task 2 will emit; we add it eagerly here so
     the test runs before Task 2 lands.
+
+    Also initializes the reflection adapter so the production code's
+    ``require_reflection_database()`` returns a connected adapter whose
+    INSERT can succeed. Without this, the adapter singleton is created
+    lazily and not ``initialize()``-ed by the time ``_start_impl`` runs.
     """
     from session_buddy.settings import get_settings
 
@@ -84,6 +89,24 @@ def session_windows_setup(tmp_path):
         "ended_at TIMESTAMP WITH TIME ZONE, session_metadata JSON NOT NULL DEFAULT '{}')"
     )
     conn.close()
+
+    # Ensure the reflection adapter is initialized against the redirected
+    # DB path so the production code can INSERT into ``session_windows``.
+    # ``init_reflection_adapter`` short-circuits when the adapter is
+    # already registered with DI, so fetch the singleton and explicitly
+    # call ``initialize`` (idempotent) to guarantee the DuckDB connection
+    # is open before ``_start_impl`` runs.
+    from session_buddy.adapters.lifecycle import init_reflection_adapter
+    from session_buddy.adapters.reflection_adapter_oneiric import (
+        ReflectionDatabaseAdapterOneiric,
+    )
+    from session_buddy.di.container import depends
+
+    await init_reflection_adapter()
+    adapter = depends.get_sync(ReflectionDatabaseAdapterOneiric)
+    if adapter is not None and not getattr(adapter, "_initialized", False):
+        await adapter.initialize()
+
     return db_path
 
 
