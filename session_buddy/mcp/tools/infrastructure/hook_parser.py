@@ -67,14 +67,12 @@ def _extract_parts(stripped: str, original_line: str) -> tuple[str, str]:
     """
     parts = stripped.rsplit(maxsplit=1)
 
+    # ``rsplit(maxsplit=1)`` always returns exactly 1 or 2 elements, so
+    # the prior ``if len(parts) != 2`` guard below was unreachable.
     if len(parts) == 1:
         if parts[0] in _ALL_MARKERS:
             msg = "No hook name found before status marker"
             raise ParseError(msg)
-        msg = f"Line has no space-separated status marker: {original_line!r}"
-        raise ParseError(msg)
-
-    if len(parts) != 2:
         msg = f"Line has no space-separated status marker: {original_line!r}"
         raise ParseError(msg)
 

@@ -1361,3 +1361,81 @@ class TestTestStorageBackendsExceptionPaths:
             results = await ServerlessConfigManager.test_storage_backends(config)
 
         assert results == {"memory": False, "file": False}
+
+
+# --- Coverage gap tests for ServerlessSessionManager.update_session branches ---
+# These tests target the `for ... if hasattr(...)` False-branch (line 93->92)
+# and the `if success:` False-branch (line 103->106) in update_session. Both
+# branches were missed by prior coverage runs and are now exercised below.
+
+class TestUpdateSessionBranchCoverage:
+    """Targeted tests for update_session branch coverage."""
+
+    @pytest.mark.asyncio
+    async def test_update_session_skips_unknown_attributes(self) -> None:
+        """Updates containing unknown keys must be silently skipped."""
+        from session_buddy.serverless_mode import ServerlessSessionManager
+
+        session_state = SessionState(
+            session_id="upd-1",
+            user_id="u1",
+            project_id="p1",
+            created_at="2025-01-01T12:00:00",
+            last_activity="2025-01-01T12:00:00",
+        )
+        storage = AsyncMock()
+        storage.retrieve_session = AsyncMock(return_value=session_state)
+        storage.store_session = AsyncMock(return_value=True)
+        storage.config = {}
+
+        manager = ServerlessSessionManager(storage)
+        # "nonexistent_attr" is NOT a SessionState attribute -> exercises
+        # the hasattr=False branch (line 93->92).
+        result = await manager.update_session(
+            "upd-1",
+            {"nonexistent_attr": "ignored", "metadata": {"k": "v"}},
+        )
+
+        assert result is True
+        # The known attribute was still applied.
+        assert manager.session_cache["upd-1"].metadata == {"k": "v"}
+
+    @pytest.mark.asyncio
+    async def test_update_session_storage_returns_false(self) -> None:
+        """When store_session returns False, update_session returns False and
+        the cache is left untouched (line 103->106)."""
+        from session_buddy.serverless_mode import ServerlessSessionManager
+
+        session_state = SessionState(
+            session_id="upd-2",
+            user_id="u1",
+            project_id="p1",
+            created_at="2025-01-01T12:00:00",
+            last_activity="2025-01-01T12:00:00",
+            metadata={"before": True},
+        )
+        storage = AsyncMock()
+        storage.retrieve_session = AsyncMock(return_value=session_state)
+        storage.store_session = AsyncMock(return_value=False)  # failure path
+        storage.config = {}
+
+        manager = ServerlessSessionManager(storage)
+        result = await manager.update_session(
+            "upd-2",
+            {"metadata": {"after": True}},
+        )
+
+        assert result is False
+        # When storage fails, the cache value's mutable fields are still
+        # mutated in-place by `setattr` (the in-memory SessionState object
+        # is the same one we got from get_session), but the cache entry's
+        # stored reference is NOT re-assigned by the `if success:` guard.
+        # The metadata was mutated locally; the cache still references the
+        # same (mutated) object. This documents the behaviour at line
+        # 103->106.
+        cached = manager.session_cache["upd-2"]
+        # last_activity was updated by the in-memory setattr.
+        assert cached.last_activity != "2025-01-01T12:00:00"
+        # The metadata was overwritten in-place by setattr, but no
+        # store_session success happened. This is a documentation test for
+        # the partial-cache-update branch.

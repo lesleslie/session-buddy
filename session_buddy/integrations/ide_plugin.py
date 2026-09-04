@@ -322,11 +322,10 @@ class IDEPluginProtocol:
             if keywords:
                 parts.append(" ".join(keywords))
 
-        # Build query
-        if parts:
-            return " ".join(parts)
-
-        return "code quality and testing"
+        # Build query. The else branch above always appends (either
+        # "testing" or "production code"), so ``parts`` is never empty
+        # by the time we reach this point — no defensive fallback needed.
+        return " ".join(parts)
 
     def _infer_workflow_phase(self, context: IDEContext) -> str:
         """Infer Oneiric workflow phase from context.

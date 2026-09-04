@@ -1218,3 +1218,208 @@ class TestGetCodeContextRecommendations:
         # Fallback to pattern-based; pytest-run triggers from "def test_"
         skill_names = {r.skill_name for r in recs}
         assert "pytest-run" in skill_names
+
+
+def _make_plugin(storage_mock):
+    """Build an IDEPluginProtocol with its storage replaced by a mock."""
+    from session_buddy.integrations.ide_plugin import IDEPluginProtocol
+
+    plugin = IDEPluginProtocol(db_path="/tmp/ide_plugin_branch_tests.db")
+    plugin.storage = storage_mock
+    return plugin
+
+
+def _make_invocation(skill_name: str, *, completed: bool = True):
+    """Build a stand-in skill invocation row for semantic search results."""
+    invocation = MagicMock()
+    invocation.skill_name = skill_name
+    invocation.completed = completed
+    return invocation
+
+
+# ``pack_embedding`` rejects anything that is not a 384-dim float32 vector.
+_VALID_EMBEDDING = [0.01] * 384
+
+
+def _embedding_service(embedding):
+    """Build a stub embedding service returning ``embedding``."""
+    service = MagicMock()
+    service.initialize.return_value = True
+    service.generate_embedding.return_value = embedding
+    return service
+
+
+class TestSemanticSearchBranches:
+    """Cover the semantic-search branch of get_code_context_recommendations.
+
+    These tests exercise the ``with suppress(Exception)`` block that is
+    skipped whenever the embedding service is unavailable, plus the
+    ``if not recommendations`` fallback guard that follows it.
+    """
+
+    @staticmethod
+    def _context():
+        from session_buddy.integrations.ide_plugin import IDEContext
+
+        return IDEContext(
+            file_path="/src/main.py",
+            line_number=10,
+            selected_code="value = compute()",
+            language="python",
+            cursor_position=(10, 0),
+        )
+
+    def test_semantic_results_used_and_fallback_skipped(self):
+        """Semantic hits populate recommendations, skipping pattern fallback."""
+        storage = MagicMock()
+        storage.get_metrics.return_value = None
+        storage.search_by_query_workflow_aware.return_value = [
+            (_make_invocation("ruff-check"), 0.95),
+        ]
+        plugin = _make_plugin(storage)
+
+        with patch(
+            "session_buddy.storage.skills_embeddings.get_embedding_service",
+            return_value=_embedding_service(_VALID_EMBEDDING),
+        ):
+            recs = plugin.get_code_context_recommendations(self._context(), limit=5)
+
+        assert [r.skill_name for r in recs] == ["ruff-check"]
+        assert recs[0].confidence == 0.95
+        storage.search_by_query_workflow_aware.assert_called_once()
+        # limit * 2 is requested so results can be filtered afterwards
+        assert storage.search_by_query_workflow_aware.call_args.kwargs["limit"] == 10
+
+    def test_semantic_duplicates_are_deduplicated(self):
+        """Repeated skill names from semantic search collapse to one entry."""
+        storage = MagicMock()
+        storage.get_metrics.return_value = None
+        storage.search_by_query_workflow_aware.return_value = [
+            (_make_invocation("ruff-check"), 0.95),
+            (_make_invocation("ruff-check"), 0.80),
+            (_make_invocation("mypy-check"), 0.75),
+        ]
+        plugin = _make_plugin(storage)
+
+        with patch(
+            "session_buddy.storage.skills_embeddings.get_embedding_service",
+            return_value=_embedding_service(_VALID_EMBEDDING),
+        ):
+            recs = plugin.get_code_context_recommendations(self._context(), limit=5)
+
+        assert [r.skill_name for r in recs] == ["ruff-check", "mypy-check"]
+        assert recs[0].confidence == 0.95
+
+    @pytest.mark.parametrize(
+        ("completed", "score"),
+        [
+            (False, 0.95),  # abandoned invocation is filtered out
+            (True, 0.50),  # score below min_completion_rate / 100
+            (False, 0.50),  # both filters fail
+        ],
+    )
+    def test_semantic_results_filtered_fall_back_to_patterns(self, completed, score):
+        """Filtered-out semantic hits still fall through to pattern matching."""
+        storage = MagicMock()
+        storage.get_metrics.return_value = None
+        storage.search_by_query_workflow_aware.return_value = [
+            (_make_invocation("ruff-check", completed=completed), score),
+        ]
+        plugin = _make_plugin(storage)
+
+        with patch(
+            "session_buddy.storage.skills_embeddings.get_embedding_service",
+            return_value=_embedding_service(_VALID_EMBEDDING),
+        ):
+            recs = plugin.get_code_context_recommendations(self._context(), limit=5)
+
+        # Pattern fallback produced the results, so confidences are the
+        # canned pattern/language scores rather than the semantic score.
+        assert recs
+        assert all(r.confidence in (0.8, 0.6) for r in recs)
+
+    @pytest.mark.parametrize("embedding", [None, [], 0])
+    def test_falsy_embedding_skips_search(self, embedding):
+        """A falsy embedding short-circuits before the storage query."""
+        storage = MagicMock()
+        storage.get_metrics.return_value = None
+        plugin = _make_plugin(storage)
+
+        with patch(
+            "session_buddy.storage.skills_embeddings.get_embedding_service",
+            return_value=_embedding_service(embedding),
+        ):
+            recs = plugin.get_code_context_recommendations(self._context(), limit=3)
+
+        storage.search_by_query_workflow_aware.assert_not_called()
+        assert recs  # pattern fallback still returns language-based skills
+
+    def test_storage_failure_is_suppressed(self):
+        """A raising storage backend falls back to pattern recommendations."""
+        storage = MagicMock()
+        storage.get_metrics.return_value = None
+        storage.search_by_query_workflow_aware.side_effect = RuntimeError("db down")
+        plugin = _make_plugin(storage)
+
+        with patch(
+            "session_buddy.storage.skills_embeddings.get_embedding_service",
+            return_value=_embedding_service(_VALID_EMBEDDING),
+        ):
+            recs = plugin.get_code_context_recommendations(self._context(), limit=3)
+
+        assert recs
+        assert all(r.confidence in (0.8, 0.6) for r in recs)
+
+    def test_semantic_results_respect_limit(self):
+        """More semantic hits than ``limit`` are truncated after sorting."""
+        storage = MagicMock()
+        storage.get_metrics.return_value = None
+        storage.search_by_query_workflow_aware.return_value = [
+            (_make_invocation("skill-a"), 0.75),
+            (_make_invocation("skill-b"), 0.99),
+            (_make_invocation("skill-c"), 0.85),
+        ]
+        plugin = _make_plugin(storage)
+
+        with patch(
+            "session_buddy.storage.skills_embeddings.get_embedding_service",
+            return_value=_embedding_service(_VALID_EMBEDDING),
+        ):
+            recs = plugin.get_code_context_recommendations(self._context(), limit=2)
+
+        assert [r.skill_name for r in recs] == ["skill-b", "skill-c"]
+
+
+class TestBuildQueryKeywordBranch:
+    """Cover the ``if keywords:`` guard in _build_query_from_context."""
+
+    @staticmethod
+    def _context(selected_code: str, file_path: str = "/src/main.py"):
+        from session_buddy.integrations.ide_plugin import IDEContext
+
+        return IDEContext(
+            file_path=file_path,
+            line_number=1,
+            selected_code=selected_code,
+            language="python",
+            cursor_position=(1, 0),
+        )
+
+    @pytest.mark.parametrize("selection", ["a + b", "x = y", "1 + 2", "()"])
+    def test_selection_without_long_keywords_appends_nothing(self, selection):
+        """A selection with no >=3-char words leaves the query unchanged."""
+        plugin = _make_plugin(MagicMock())
+
+        query = plugin._build_query_from_context(self._context(selection))
+
+        assert query == "python code production code"
+
+    def test_selection_with_keywords_appends_them(self):
+        """Keywords of >=3 chars are appended (capped at three)."""
+        plugin = _make_plugin(MagicMock())
+
+        query = plugin._build_query_from_context(
+            self._context("import pathlib collections itertools functools")
+        )
+
+        assert query == "python code production code import pathlib collections"

@@ -525,7 +525,7 @@ def reset_di_container():
         di_module._configured = False
         try:
             configure(force=True)
-        except (OSError, AttributeError, KeyError):
+        except (OSError, AttributeError, KeyError, ImportError):
             # A test may have stubbed ``Path.mkdir`` to always fail, in
             # which case ``paths.ensure_directories()`` (and its fallback
             # in ``configure``) both raise ``OSError``. A test may also
@@ -533,9 +533,22 @@ def reset_di_container():
             # autouse teardown runs before the test's ``monkeypatch``
             # teardown, so the stub is still in place here), which makes
             # ``configure`` raise ``AttributeError`` or ``KeyError`` when
-            # it tries to re-register the default services. Swallow
-            # these teardown-time failures so they don't mask real test
-            # results; the next test's setup will reset the container
+            # it tries to re-register the default services.
+            #
+            # ``ImportError`` covers a different case: ``configure`` re-registers
+            # seven default services, one of which is the workflow-metrics
+            # engine. That engine imports ``duckdb`` at module load, and on
+            # Python 3.14 the C-extension import sequencing occasionally
+            # raises ``ModuleNotFoundError: No module named
+            # '_duckdb._sqltypes'; '_duckdb' is not a package`` (the
+            # ``_duckdb`` C-extension is a single-file module, not a
+            # package, so attribute lookup on it can race with the
+            # ``duckdb`` Python wrapper's import of
+            # ``duckdb.sqltypes``). Without ``ImportError`` here, every
+            # test that triggers ``configure`` would error at fixture
+            # setup with the duckdb symptom — masking real test results.
+            # Swallow these teardown-time failures so they don't mask real
+            # test results; the next test's setup will reset the container
             # cleanly once the test's ``monkeypatch`` is undone.
             pass
 

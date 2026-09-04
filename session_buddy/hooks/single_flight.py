@@ -56,7 +56,21 @@ class HookSingleFlight:
             last = self._last_seen.get(key)
             if last is not None and (now - last) < self._ttl:
                 return False
-            self._last_seen[key] = now
 
-        await coro_factory()
+        try:
+            await coro_factory()
+        except BaseException:
+            # Release the gate slot on body failure so the next call
+            # within TTL can re-run instead of being coalesced for the
+            # full TTL with no way to recover. Without this, an
+            # operator checkpointing during a transient error would
+            # have to wait ttl_seconds before the gate releases.
+            async with lock:
+                self._last_seen.pop(key, None)
+            raise
+        else:
+            # Body succeeded — claim the slot so the next call within
+            # TTL is coalesced.
+            async with lock:
+                self._last_seen[key] = now
         return True
