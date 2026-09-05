@@ -1297,7 +1297,12 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_format_quality_results_empty_breakdown(self) -> None:
-        """Should handle empty breakdown gracefully."""
+        """After fix: empty breakdown renders with 0.0 placeholders, no raise.
+
+        ``_format_quality_results`` now uses ``.get(..., 0.0)`` for each
+        breakdown key, so an empty breakdown (or missing keys) renders
+        ``0.0`` placeholders instead of raising ``KeyError``.
+        """
         quality_data = {
             "version": "1.0",
             "breakdown": {},
@@ -1306,14 +1311,29 @@ class TestEdgeCases:
 
         from session_buddy.mcp.server_core import _format_quality_results
 
-        # Empty breakdown will cause KeyError when accessing breakdown keys
-        # The function should handle this gracefully
-        try:
-            result = await _format_quality_results(70, quality_data)
-            assert isinstance(result, list)
-        except KeyError:
-            # This is a known limitation - the function doesn't handle empty breakdown
-            pass
+        result = await _format_quality_results(70, quality_data)
+        assert isinstance(result, list)
+        rendered = "\n".join(result)
+        # Each metric line should render with 0.0 placeholder.
+        assert "Code quality: 0.0/40" in rendered
+        assert "Project health: 0.0/30" in rendered
+        assert "Dev velocity: 0.0/20" in rendered
+        assert "Security: 0.0/10" in rendered
+
+    @pytest.mark.asyncio
+    async def test_format_quality_results_missing_breakdown_key(self) -> None:
+        """Partial breakdown renders present keys, missing keys get 0.0."""
+        quality_data = {
+            "version": "1.0",
+            "breakdown": {"code_quality": 30.0},  # only one key
+        }
+
+        from session_buddy.mcp.server_core import _format_quality_results
+
+        result = await _format_quality_results(85, quality_data)
+        rendered = "\n".join(result)
+        assert "Code quality: 30.0/40" in rendered
+        assert "Project health: 0.0/30" in rendered
 
     @pytest.mark.asyncio
     async def test_format_quality_results_missing_trust_score(self) -> None:

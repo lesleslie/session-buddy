@@ -66,6 +66,8 @@ def ensure_timezone(timestamp: datetime) -> datetime:
 
 def parse_timeframe_single(timeframe: str) -> datetime | None:
     """Parse timeframe string into datetime."""
+    if not timeframe:
+        return None
     with suppress(ValueError):
         if timeframe.endswith("d"):
             days = int(timeframe[:-1])
@@ -98,8 +100,8 @@ def parse_timeframe(timeframe: str) -> TimeRange:
         end = datetime.fromisoformat(parts[1]).replace(tzinfo=UTC)
         return TimeRange(start=start, end=end)
 
-    # Relative timeframe: '7d', '2w', etc.
-    if timeframe[-1] in "dhwm":
+    # Relative timeframe: '7d', '2w', etc. Empty string falls through to default.
+    if timeframe and timeframe[-1] in "dhwm":
         end = datetime.now(UTC)
         relative_start: datetime | None = parse_timeframe_single(timeframe)
         if relative_start:

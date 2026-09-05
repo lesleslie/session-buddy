@@ -1,47 +1,16 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
-import types
-from pathlib import Path
-
 import pytest
 
-
-def _load_error_management_module():
-    repo_root = Path(__file__).resolve().parents[2]
-
-    if "session_buddy" not in sys.modules:
-        package = types.ModuleType("session_buddy")
-        package.__path__ = [str(repo_root / "session_buddy")]  # type: ignore[attr-defined]
-        sys.modules["session_buddy"] = package
-
-    utils_package_name = "session_buddy.utils"
-    if utils_package_name not in sys.modules:
-        utils_package = types.ModuleType(utils_package_name)
-        utils_package.__path__ = [str(repo_root / "session_buddy" / "utils")]  # type: ignore[attr-defined]
-        sys.modules[utils_package_name] = utils_package
-
-    module_path = repo_root / "session_buddy" / "utils" / "error_management.py"
-    spec = importlib.util.spec_from_file_location(
-        "session_buddy.utils.error_management",
-        module_path,
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-em = _load_error_management_module()
-DatabaseUnavailableError = em.DatabaseUnavailableError
-ValidationError = em.ValidationError
-handle_tool_errors = em.handle_tool_errors
-handle_tool_errors_with_result = em.handle_tool_errors_with_result
-validate_range = em.validate_range
-validate_required = em.validate_required
-validate_type = em.validate_type
+from session_buddy.utils.error_management import (
+    DatabaseUnavailableError,
+    ValidationError,
+    handle_tool_errors,
+    handle_tool_errors_with_result,
+    validate_range,
+    validate_required,
+    validate_type,
+)
 
 
 @pytest.mark.asyncio

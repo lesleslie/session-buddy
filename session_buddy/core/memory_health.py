@@ -245,25 +245,35 @@ class MemoryHealthAnalyzer:
             float(avg_age_result[0]) if avg_age_result and avg_age_result[0] else 0.0
         )
 
-        # Tag distribution
-        tags_result = conn.execute(
-            """
-            SELECT unnest(tags) as tag, COUNT(*) as count
-            FROM reflections
-            GROUP BY tag
-            ORDER BY count DESC
-        """
-        ).fetchall()
+        # Tag distribution — DuckDB does not allow `unnest()` directly in
+        # the SELECT list of a grouped query, so we wrap it in a subquery.
+        # `tag` is a reserved word in DuckDB, hence the quoted alias.
+        try:
+            tags_result = conn.execute(
+                """
+                SELECT "tag", COUNT(*) AS count
+                FROM (
+                    SELECT unnest(tags) AS "tag"
+                    FROM reflections
+                    WHERE tags IS NOT NULL
+                )
+                GROUP BY "tag"
+                ORDER BY count DESC
+                """
+            ).fetchall()
+            tags_distribution = {row[0]: row[1] for row in tags_result}
+        except duckdb.Error:
+            logger.exception("Failed to compute tag distribution")
+            tags_distribution = {}
 
-        tags_distribution = {row[0]: row[1] for row in tags_result}
-
-        # Storage size (estimated)
-        size_result = conn.execute(
-            """
-            SELECT pg_size FROM pg_database_size('reflections.db')
-        """
-        ).fetchone()
-        storage_size = size_result[0] if size_result else 0
+        # Storage size — DuckDB has no `pg_database_size` (that's Postgres).
+        # Use `pragma_database_size()` which returns bytes for the connected DB.
+        try:
+            size_result = conn.execute("SELECT pragma_database_size()").fetchone()
+            storage_size = int(size_result[0]) if size_result and size_result[0] else 0
+        except duckdb.Error:
+            logger.exception("Failed to read database size")
+            storage_size = 0
 
         return ReflectionHealthMetrics(
             total_reflections=total_reflections,

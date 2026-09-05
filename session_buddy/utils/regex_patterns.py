@@ -652,6 +652,30 @@ SAFE_PATTERNS: dict[str, ValidatedPattern] = {
             ("no markdown", "no markdown"),
         ],
     ),
+    "config_files": ValidatedPattern(
+        name="config_files",
+        pattern=r"(\w+\.(?:json|ya?ml|toml|cfg|ini))",
+        replacement=r"[\1]",
+        description="Match config file references (JSON/YAML/TOML/INI/CFG)",
+        test_cases=[
+            ("config.json settings", "[config.json] settings"),
+            ("pyproject.toml deps", "[pyproject.toml] deps"),
+            ("setup.cfg data", "[setup.cfg] data"),
+            ("no config", "no config"),
+        ],
+    ),
+    "documentation_files": ValidatedPattern(
+        name="documentation_files",
+        pattern=r"(\w+\.(?:md|rst|txt))",
+        replacement=r"[\1]",
+        description="Match documentation file references (MD/RST/TXT)",
+        test_cases=[
+            ("README.md docs", "[README.md] docs"),
+            ("CHANGELOG.rst history", "[CHANGELOG.rst] history"),
+            ("NOTES.txt file", "[NOTES.txt] file"),
+            ("no docs", "no docs"),
+        ],
+    ),
     # Advanced search patterns
     "function_definition": ValidatedPattern(
         name="function_definition",

@@ -85,9 +85,9 @@ def category_overlap(cat_a: str | None, cat_b: str | None) -> float:
 
 
 def time_decay(delta_seconds: float) -> float:
-    """Exponential decay with ~1 hour half-life.
+    """Exponential decay with half-life ≈ 5197s (3600·ln(2), ~86.6 min).
 
-    Returns 1.0 at delta=0, 0.5 at delta=3600s, ~0 at delta > 4h.
+    Returns 1.0 at delta=0, exp(-1) ≈ 0.368 at delta=3600s, ~0 at delta > 4h.
     Always in (0.0, 1.0].
     """
     if delta_seconds <= 0:

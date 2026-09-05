@@ -208,3 +208,97 @@ class TestChannelSessionGetStateTool:
             "channel_session_state_read_failed" in record.message
             for record in caplog.records
         ), "G6 contract requires WARNING log on substrate failure"
+
+    def test_schema_registry_unavailable_returns_none(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """When ``dhara.schema`` cannot be imported the tool returns ``None``.
+
+        Exercises the second G6 short-circuit: even if the substrate read
+        succeeded, the schema registry lazy-load can fail on session-buddy's
+        pinned dhara version. The tool MUST NOT crash — it logs WARNING
+        and returns ``None``.
+        """
+        from session_buddy.mcp.tools.session import channel_session_state_tools as mod
+
+        # Substrate succeeds with a valid payload.
+        def get(key: str) -> dict[str, Any] | None:
+            return {"channel_id": "C-NOSCHEMA", "sender_id": "U-NOSCHEMA"}
+
+        monkeypatch.setattr(dhara, "get", get, raising=False)
+
+        # Force the schema-registry helper to return None (simulating
+        # ``from dhara.schema import from_dict, to_dict`` raising ImportError).
+        monkeypatch.setattr(mod, "_load_schema_registry", lambda: None)
+
+        _server, tools = _make_server_and_tools()
+        tool = tools["channel_session_get_state_tool"]
+
+        import asyncio
+
+        with caplog.at_level("WARNING"):
+            result = asyncio.run(
+                tool(channel_id="C-NOSCHEMA", sender_id="U-NOSCHEMA")
+            )
+
+        assert result is None
+        # Check that the skip warning was emitted with the schema-unavailable
+        # reason — the structured ``extra`` payload is JSON-encoded by the
+        # oneiric logger so we look for the reason token in the formatted
+        # message OR in the structured ``__dict__``.
+        skip_logs = [
+            r for r in caplog.records
+            if "channel_session_state_read_skipped" in r.message
+        ]
+        assert skip_logs, "G6 contract requires a skip WARNING when schema is unavailable"
+        skip_record = skip_logs[-1]
+        extras_blob = (
+            (skip_record.message or "")
+            + " " + str(getattr(skip_record, "reason", "") or "")
+        )
+        # If the logger formatter exposes ``extra`` as a dict, check that too.
+        for attr in ("__dict__",):
+            extras_blob += " " + str(getattr(skip_record, attr, {}) or "")
+        assert "dhara.schema_unavailable" in extras_blob, (
+            f"G6 contract requires reason=dhara.schema_unavailable; got {extras_blob!r}"
+        )
+
+    def test_load_schema_registry_returns_none_on_import_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``_load_schema_registry`` returns ``None`` when ``dhara.schema`` is missing."""
+        from session_buddy.mcp.tools.session import channel_session_state_tools as mod
+
+        # Simulate ImportError on the ``dhara.schema`` import.
+        import builtins
+
+        real_import = builtins.__import__
+
+        def _guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "dhara.schema" or name.startswith("dhara.schema"):
+                msg = "no dhara.schema"
+                raise ImportError(msg)
+            return real_import(name, globals, locals, fromlist, level)
+
+        monkeypatch.setattr(builtins, "__import__", _guarded_import)
+
+        assert mod._load_schema_registry() is None  # noqa: SLF001
+
+    def test_load_schema_registry_returns_helpers_on_success(self) -> None:
+        """``_load_schema_registry`` returns the ``(from_dict, to_dict)`` tuple."""
+        from session_buddy.mcp.tools.session import channel_session_state_tools as mod
+
+        # When dhara.schema IS importable, the helper returns the registry tuple.
+        # Skip if the installed dhara distribution lacks ``dhara.schema``.
+        try:
+            from dhara.schema import from_dict, to_dict  # noqa: F401
+        except ImportError:
+            import pytest
+
+            pytest.skip("dhara.schema not available in this environment")
+
+        result = mod._load_schema_registry()  # noqa: SLF001
+        assert result is not None
+        from_dict, to_dict = result
+        assert callable(from_dict)
+        assert callable(to_dict)

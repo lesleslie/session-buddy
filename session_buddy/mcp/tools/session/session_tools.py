@@ -583,9 +583,8 @@ def _add_quality_section_to_output(
 
         _get_logger().exception("Failed to format quality breakdown: %s", str(e))
         traceback.print_exc()
-        output_builder.add_section(
-            "Quality Metrics", ["⚠️  Error formatting quality metrics"]
-        )
+        quality_items = ["⚠️  Error formatting quality metrics"]
+        output_builder.add_section("Quality Metrics", quality_items)
     output_builder.add_section("📈 Quality breakdown", quality_items)
 
 

@@ -298,11 +298,15 @@ class ToolMessages:
         else:
             lines.append(f"✅ {operation} complete")
 
-        # Show summary of first few results if they're simple types
+        # Show summary of first few results if they're simple types.
+        # Use a manual counter so non-primitive entries (e.g. dicts) don't
+        # leave gaps in the displayed numbering.
         if max_display > 0 and results:
             sample = results[:max_display]
-            for i, result in enumerate(sample, 1):
+            i = 0
+            for result in sample:
                 if isinstance(result, (str, int, float, bool)):
+                    i += 1
                     lines.append(f"  {i}. {result}")
 
         if count > max_display:

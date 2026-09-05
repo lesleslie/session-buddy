@@ -53,7 +53,16 @@ def _safe_http_error_info(exc: httpx.HTTPStatusError) -> dict[str, object]:
     the request-target host (no path).
     """
     info: dict[str, object] = {"status": exc.response.status_code}
-    request = getattr(exc, "request", None)
+    # ``httpx2.HTTPStatusError.request`` is a property descriptor that raises
+    # ``RuntimeError`` when the underlying slot is unset, NOT
+    # ``AttributeError``. ``getattr(exc, "request", None)`` only suppresses
+    # ``AttributeError``, so the RuntimeError would propagate out of this
+    # helper. Catch both: ``AttributeError`` for the legacy/uninitialized
+    # attribute path and ``RuntimeError`` for the property-descriptor path.
+    try:
+        request = exc.request
+    except AttributeError, RuntimeError:
+        request = None
     if request is not None:
         try:
             host = request.url.host  # may raise or be empty for some schemes

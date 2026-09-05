@@ -76,9 +76,12 @@ def _format_search_result(result: dict[str, Any], index: int) -> str:
     if result.get("timestamp"):
         output += f"({result['timestamp']}) "
 
-    # Add content preview
+    # Add content preview (with ellipsis only when actually truncated)
     content = result.get("content", "")
-    output += f"\n{content[:200]}...\n"
+    if len(content) > 200:
+        output += f"\n{content[:200]}...\n"
+    else:
+        output += f"\n{content}\n"
 
     # Add tags if available
     if result.get("tags"):

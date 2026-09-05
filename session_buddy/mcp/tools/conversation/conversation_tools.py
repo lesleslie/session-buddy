@@ -240,11 +240,13 @@ def _register_search_conversations_tool(mcp_server: FastMCP) -> None:
                 score_pct = result.get("score", 0) * 100
                 lines.append(f"{i}. Score: {score_pct:.1f}%")
 
-                if project := result.get("project"):
-                    lines.append(f"   📁 Project: {project}")
+                # `result_project` (not `project`) so the function parameter
+                # is not shadowed inside the loop.
+                if result_project := result.get("project"):
+                    lines.append(f"   📁 Project: {result_project}")
 
-                if timestamp := result.get("timestamp"):
-                    lines.append(f"   🕐 {timestamp}")
+                if result_timestamp := result.get("timestamp"):
+                    lines.append(f"   🕐 {result_timestamp}")
 
                 # Truncate content for display
                 content = result.get("content", "")

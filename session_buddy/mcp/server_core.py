@@ -580,14 +580,17 @@ async def _format_quality_results(
         )
 
     # Quality breakdown - V2 format (actual code quality metrics)
+    # Use ``.get`` with 0.0 defaults so missing keys render as "missing"
+    # rather than raising KeyError. ``breakdown`` itself defaults to
+    # ``{}`` for the same reason.
     output.append("\n📈 Quality breakdown (code health metrics):")
-    breakdown = quality_data["breakdown"]
+    breakdown = quality_data.get("breakdown") or {}
     output.extend(
         (
-            f"   • Code quality: {breakdown['code_quality']:.1f}/40",
-            f"   • Project health: {breakdown['project_health']:.1f}/30",
-            f"   • Dev velocity: {breakdown['dev_velocity']:.1f}/20",
-            f"   • Security: {breakdown['security']:.1f}/10",
+            f"   • Code quality: {breakdown.get('code_quality', 0.0):.1f}/40",
+            f"   • Project health: {breakdown.get('project_health', 0.0):.1f}/30",
+            f"   • Dev velocity: {breakdown.get('dev_velocity', 0.0):.1f}/20",
+            f"   • Security: {breakdown.get('security', 0.0):.1f}/10",
         )
     )
 
@@ -603,8 +606,9 @@ async def _format_quality_results(
             )
         )
 
-    # Recommendations
-    recommendations = quality_data["recommendations"]
+    # Recommendations (use ``.get`` with empty list default — same defensive
+    # pattern as the breakdown handling above).
+    recommendations = quality_data.get("recommendations") or []
     if recommendations:
         output.append("\n💡 Recommendations:")
         for rec in recommendations[:3]:

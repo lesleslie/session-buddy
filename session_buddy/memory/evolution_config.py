@@ -190,8 +190,13 @@ class EvolutionSnapshot:
         else:
             count_change = "Maintained subcategory count"
 
-        # Storage freed
-        freed = self.decay_results.get("bytes_freed", 0)
+        # Storage freed. ``self.decay_results`` is the dict produced by
+        # ``DecayResult.to_dict()``, which writes the canonical key
+        # ``freed_space``. Do NOT read the DB-rename key
+        # ``bytes_freed`` here — ``EvolutionSnapshot.to_dict()`` performs
+        # that rename when serialising for storage, but the runtime dict
+        # this summary consumes has not been renamed yet.
+        freed = self.decay_results.get("freed_space", 0)
         storage = f" freed {_format_bytes(freed)}" if freed > 0 else ""
 
         return (

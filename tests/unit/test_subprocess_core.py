@@ -1,44 +1,13 @@
 from __future__ import annotations
 
-import importlib.util
 import subprocess
 import sys
-import types
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-
-def _load_subprocess_executor_module():
-    repo_root = Path(__file__).resolve().parents[2]
-
-    if "session_buddy" not in sys.modules:
-        package = types.ModuleType("session_buddy")
-        package.__path__ = [str(repo_root / "session_buddy")]  # type: ignore[attr-defined]
-        sys.modules["session_buddy"] = package
-
-    utils_package_name = "session_buddy.utils"
-    if utils_package_name not in sys.modules:
-        utils_package = types.ModuleType(utils_package_name)
-        utils_package.__path__ = [str(repo_root / "session_buddy" / "utils")]  # type: ignore[attr-defined]
-        sys.modules[utils_package_name] = utils_package
-
-    module_path = repo_root / "session_buddy" / "utils" / "subprocess_executor.py"
-    spec = importlib.util.spec_from_file_location(
-        "session_buddy.utils.subprocess_executor",
-        module_path,
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-subprocess_executor = _load_subprocess_executor_module()
-SafeSubprocess = subprocess_executor.SafeSubprocess
-_get_safe_environment = subprocess_executor._get_safe_environment
+from session_buddy.utils import subprocess_executor
+from session_buddy.utils.subprocess_executor import SafeSubprocess, _get_safe_environment
 
 
 def test_get_safe_environment_filters_sensitive_keys(monkeypatch: pytest.MonkeyPatch) -> None:

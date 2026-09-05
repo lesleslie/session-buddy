@@ -45,7 +45,7 @@ async def pool_create(pool_id: str | None = None) -> dict[str, Any]:
     return {
         "success": True,
         "pool_id": pool.pool_id,
-        "status": status["status"],
+        "status": "running" if status["running"] else "stopped",
         "workers_count": status["workers_count"],
         "queue_size": status["queue_size"],
         "created_at": status["created_at"],

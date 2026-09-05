@@ -249,33 +249,27 @@ class TestFormatTemporalResultsExtras:
 class TestExtractMentionedFilesExtras:
     """Branch coverage for the regex-driven file extractor.
 
-    NOTE: the source function lists ``config_files`` and
-    ``documentation_files`` as patterns to iterate, but those keys do
-    not exist in ``session_buddy.utils.regex_patterns.SAFE_PATTERNS``.
-    The ``try/except Exception`` in the source swallows the resulting
-    ``KeyError`` and the function always returns ``[]``. These tests
-    pin that current behavior so the regression is visible. If the
-    bug is fixed, update the assertions to expect the actual matches.
+    After the SAFE_PATTERNS fix added ``config_files`` and
+    ``documentation_files`` patterns (alongside the existing
+    ``python_files`` and ``javascript_files``), the extractor now
+    actually matches file paths instead of always returning ``[]``.
+    These tests pin both happy-path and no-match branches.
     """
 
-    def test_returns_empty_list_for_python_paths(self):
-        r"""Pin current (buggy) behavior: returns [] even with .py content.
-
-        The source iterates four pattern names; ``config_files`` and
-        ``documentation_files`` are missing, so the ``try/except`` in
-        the source returns ``[]`` before any pattern is consulted.
-        """
+    def test_extracts_python_paths(self):
+        """Content with .py references returns deduplicated matches."""
         results = [
             {"content": "Edited foo.py and bar.py yesterday."}
         ]
         files = _extract_mentioned_files(results)
-        assert files == []
+        assert "foo.py" in files
+        assert "bar.py" in files
 
-    def test_returns_empty_for_repeated_paths(self):
-        """Pin: dedupe branch is never reached; result is always []."""
+    def test_dedupes_repeated_paths(self):
+        """Repeated paths collapse to a single entry (set + sort)."""
         results = [{"content": "x.py x.py x.py"}]
         files = _extract_mentioned_files(results)
-        assert files == []
+        assert files == ["x.py"]
 
     def test_handles_no_files_gracefully(self):
         """Content with no file paths returns an empty list (not raise)."""
@@ -426,19 +420,20 @@ class TestClassifySkillStatusExtras:
 class TestFormatConceptResultsExtras:
     """Branch coverage for the include_files=True / False branches.
 
-    NOTE: ``_extract_mentioned_files`` always returns ``[]`` due to a
-    missing-key bug in the source (see the
-    ``TestExtractMentionedFilesExtras`` docstring), so the
-    ``include_files=True`` path is effectively a no-op. These tests
-    pin the current observable behavior.
+    After the SAFE_PATTERNS fix in ``session_buddy/utils/regex_patterns.py``
+    added ``config_files`` and ``documentation_files``, the file
+    extractor now returns matches for ``.py``, ``.md``, ``.json``, etc.
+    These tests pin both the with-files and no-files branches of
+    ``_format_concept_results``.
     """
 
     @pytest.mark.asyncio
-    async def test_with_files_branch_currently_noop(self):
-        """include_files=True never emits Related Files (extractor is empty)."""
+    async def test_with_files_branch_extracts_paths(self):
+        """include_files=True with .py content emits a Related Files section."""
         results = [{"content": "Worked on lib.py today.", "similarity": 0.9}]
         result = await _format_concept_results("refactor", results, include_files=True)
-        assert "Related Files" not in result
+        assert "Related Files" in result
+        assert "lib.py" in result
         assert "refactor" in result
 
     @pytest.mark.asyncio

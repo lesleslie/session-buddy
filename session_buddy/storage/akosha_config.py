@@ -109,8 +109,14 @@ class AkoshaSyncConfig:
     enable_fallback: bool = True
     """Allow graceful fallback from cloud → HTTP sync.
 
-    If True (recommended), HTTP sync is used when cloud is unavailable.
-    If False, sync fails completely if cloud is unavailable.
+    If True (recommended), when cloud sync is selected but fails (e.g.
+    network error during upload), HTTP sync is used as the fallback.
+    If False, cloud-sync failures propagate rather than falling back.
+
+    Note: this flag does NOT control the no-cloud → HTTP path. When
+    ``cloud_bucket`` and ``cloud_endpoint`` are both unset, HTTP sync
+    is used regardless of ``enable_fallback`` (it is the only path
+    available). See ``should_use_http`` for the full decision tree.
     """
 
     force_method: Literal["auto", "cloud", "http"] = "auto"
@@ -238,8 +244,19 @@ class AkoshaSyncConfig:
     def should_use_http(self) -> bool:
         """Check if HTTP sync should be used.
 
+        Resolution order:
+        1. ``force_method == "cloud"`` → False (never use HTTP)
+        2. ``force_method == "http"`` → True (always use HTTP)
+        3. ``enable_fallback`` is True → True (HTTP as fallback when cloud fails)
+        4. ``cloud_configured`` is False → True (HTTP is the only available path)
+        5. otherwise → False (use cloud)
+
+        Note: ``enable_fallback=False`` does NOT block HTTP when
+        ``cloud_bucket``/``cloud_endpoint`` are unset — HTTP is the only
+        available path in that case regardless of the flag.
+
         Returns:
-            True if forced to HTTP or fallback enabled
+            True if HTTP should be used for sync
 
         Example:
             >>> config.should_use_http
