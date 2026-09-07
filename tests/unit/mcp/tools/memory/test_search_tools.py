@@ -53,7 +53,7 @@ Targets (every public tool + every formatter + every helper):
 - ``_find_best_error_excerpt``: with keyword, no keyword
 - ``_format_error_search_results`` + ``_search_errors_*``
 - ``_parse_time_expression``: yesterday, last week, last month, today,
-  unparseable → None
+  unparsable → None
 - ``_format_temporal_results`` + ``_search_temporal_*``: with/without
   start_time, with/without query
 - ``_parse_tags_parameter``: list, JSON list, JSON null, single string,

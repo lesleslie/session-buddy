@@ -9,6 +9,7 @@ Idempotent. Re-running overwrites the gitignored dest file.
 If the source is missing, emits an empty manifest with a WARNING so
 session-buddy's first checkpoint fails gracefully rather than crashing.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,7 +23,9 @@ from oneiric.core.logging import get_logger
 _log = get_logger(__name__)
 
 
-DEFAULT_SOURCE = Path(__file__).resolve().parents[1] / "mahavishnu" / "settings" / "repos.yaml"
+DEFAULT_SOURCE = (
+    Path(__file__).resolve().parents[1] / "mahavishnu" / "settings" / "repos.yaml"
+)
 DEFAULT_DEST = Path(__file__).resolve().parents[1] / "settings" / "ecosystem.yaml"
 ENV_SOURCE = "MAHAVISHNU_REPOS_YAML"
 
@@ -64,8 +67,12 @@ def bootstrap(*, source_yaml: Path, dest_yaml: Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     source_default = Path(os.environ.get(ENV_SOURCE, DEFAULT_SOURCE))
-    p.add_argument("--source", type=Path, default=source_default, help="source repos.yaml")
-    p.add_argument("--dest", type=Path, default=DEFAULT_DEST, help="dest ecosystem.yaml")
+    p.add_argument(
+        "--source", type=Path, default=source_default, help="source repos.yaml"
+    )
+    p.add_argument(
+        "--dest", type=Path, default=DEFAULT_DEST, help="dest ecosystem.yaml"
+    )
     args = p.parse_args(argv)
     bootstrap(source_yaml=args.source, dest_yaml=args.dest)
     return 0

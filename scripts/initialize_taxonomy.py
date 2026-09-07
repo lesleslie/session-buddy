@@ -18,11 +18,6 @@ import logging
 import sqlite3
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
-
 
 # ============================================================================
 # Logging Configuration

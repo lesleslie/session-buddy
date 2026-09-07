@@ -70,28 +70,34 @@ Edit `/Users/les/Projects/session-buddy/scripts/initialize_taxonomy.py`:
 
 ```python
 # Add category
-CATEGORIES.append({
-    "category_name": "Security",
-    "description": "Security scanning tools",
-    "domain": "security",
-    "examples": ["security-scan"],
-})
+CATEGORIES.append(
+    {
+        "category_name": "Security",
+        "description": "Security scanning tools",
+        "domain": "security",
+        "examples": ["security-scan"],
+    }
+)
 
 # Add modality
-MODALITIES.append({
-    "skill_name": "security-scan",
-    "modality_type": "security",
-    "input_format": "codebase",
-    "output_format": "vulnerability_report",
-    "requires_human_review": True,
-})
+MODALITIES.append(
+    {
+        "skill_name": "security-scan",
+        "modality_type": "security",
+        "input_format": "codebase",
+        "output_format": "vulnerability_report",
+        "requires_human_review": True,
+    }
+)
 
 # Add dependency
-DEPENDENCIES.append({
-    "skill_a": "security-scan",
-    "skill_b": "dependency-audit",
-    "expected_lift": 2.5,
-})
+DEPENDENCIES.append(
+    {
+        "skill_a": "security-scan",
+        "skill_b": "dependency-audit",
+        "expected_lift": 2.5,
+    }
+)
 ```
 
 Then re-run: `python scripts/initialize_taxonomy.py`

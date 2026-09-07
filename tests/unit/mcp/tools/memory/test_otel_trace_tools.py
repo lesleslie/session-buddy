@@ -96,7 +96,7 @@ class TestFilterByTimeRange:
         assert _filter_result_by_time_range(result, start, end) is False
 
     def test_invalid_timestamp_string(self) -> None:
-        # Unparseable timestamp → not filtered (the function returns False).
+        # Unparsable timestamp → not filtered (the function returns False).
         result = {"timestamp": "not-a-date"}
         assert _filter_result_by_time_range(result, "2026-01-01T00:00:00+00:00", None) is False
 

@@ -456,7 +456,9 @@ class JSONToDhruvaMigrator:
         # Use the migration manager to apply all pending migrations
         from session_buddy.storage.migrations import get_migration_manager
 
-        manager = get_migration_manager(db_path=self.db_path, migration_dir=migration_dir)
+        manager = get_migration_manager(
+            db_path=self.db_path, migration_dir=migration_dir
+        )
         manager.migrate()
 
     # -----------------------------------------------------------------------#
@@ -471,7 +473,7 @@ class JSONToDhruvaMigrator:
         """
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
         backup_path = self.backup_dir / f"skills_backup_{timestamp}.db"
 
         if self.db_path.exists():

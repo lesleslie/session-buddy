@@ -30,7 +30,7 @@ THRESHOLDS = {
 class QualityGate:
     """Enforce quality gate thresholds."""
 
-    def __init__(self, project_dir: Path = None, thresholds: dict = None):
+    def __init__(self, project_dir: Path | None = None, thresholds: dict | None = None):
         """Initialize quality gate.
 
         Args:
@@ -150,7 +150,7 @@ class QualityGate:
     def save_results(self):
         """Save quality gate results to file."""
         results = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(tz=datetime.UTC).isoformat(),
             "passed": len(self.failures) == 0,
             "score": self.metrics,
             "thresholds": self.thresholds,

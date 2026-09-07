@@ -471,7 +471,7 @@ class JSONToDharaMigrator:
         """
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
         backup_path = self.backup_dir / f"skills_backup_{timestamp}.db"
 
         if self.db_path.exists():

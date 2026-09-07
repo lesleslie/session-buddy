@@ -80,8 +80,8 @@ def download_onnx_model() -> None:
         logger.info("  3. Use semantic search: reflect_on_past('your query')")
         logger.info("")
 
-    except Exception as e:
-        logger.exception(f"❌ Failed to download model: {e}")
+    except Exception:
+        logger.exception("❌ Failed to download model")
         logger.info("\nTroubleshooting:")
         logger.info("  • Check internet connection")
         logger.info("  • Verify HuggingFace Hub is accessible")

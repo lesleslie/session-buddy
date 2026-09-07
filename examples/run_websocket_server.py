@@ -75,8 +75,8 @@ async def main() -> None:
 
     except KeyboardInterrupt:
         logger.info("\nReceived interrupt signal, shutting down...")
-    except Exception as e:
-        logger.error(f"Server error: {e}", exc_info=True)
+    except Exception:
+        logger.exception("Server error")
     finally:
         await server.stop()
         logger.info("Server stopped")

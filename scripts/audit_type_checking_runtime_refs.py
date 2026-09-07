@@ -26,6 +26,7 @@ Usage:
     python scripts/audit_type_checking_runtime_refs.py [ROOT...] [--json]
     python scripts/audit_type_checking_runtime_refs.py --root /Users/les/Projects/mahavishnu
 """
+
 from __future__ import annotations
 
 import argparse
@@ -271,7 +272,9 @@ def _collect_tc_body_node_ids(
 
     # First, find every TYPE_CHECKING If node.
     tc_ifs: list[ast.If] = [
-        n for n in ast.walk(tree) if isinstance(n, ast.If) and _is_type_checking_test(n.test)
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.If) and _is_type_checking_test(n.test)
     ]
 
     # For every node in the tree, determine if it's inside a TC If body by

@@ -65,7 +65,6 @@ async def backfill_conversations(db):
 
     # This would use the database connection to UPDATE records
     # Implementation depends on migration SQL being applied first
-    pass
 
 
 async def backfill_reflections(db):
@@ -73,7 +72,6 @@ async def backfill_reflections(db):
 
     # This would use the database connection to UPDATE records
     # Implementation depends on migration SQL being applied first
-    pass
 
 
 async def backfill_code_graphs(db):
@@ -81,7 +79,6 @@ async def backfill_code_graphs(db):
 
     # This would use the database connection to UPDATE records
     # Implementation depends on migration SQL being applied first
-    pass
 
 
 if __name__ == "__main__":

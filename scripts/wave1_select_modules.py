@@ -119,12 +119,9 @@ def main(argv: list[str]) -> int:
 
     picks = select(files, anti_targets)
     counts = {
-        layer: sum(1 for pick in picks if pick["layer"] == layer)
-        for layer in SLOTS
+        layer: sum(1 for pick in picks if pick["layer"] == layer) for layer in SLOTS
     }
-    missing_slots = [
-        layer for layer, count in counts.items() if count < SLOTS[layer]
-    ]
+    missing_slots = [layer for layer, count in counts.items() if count < SLOTS[layer]]
 
     output = {
         "selected": picks,

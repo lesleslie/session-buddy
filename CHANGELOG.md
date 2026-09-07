@@ -9,6 +9,20 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.25.7] - 2026-09-06
+
+### Fixed
+
+- tests: Rename shim test files to resolve pytest import collision
+
+### Documentation
+
+- CLAUDE.md: Cross-reference MCP backend wiring discipline (Bodai-wide)
+
+### Internal
+
+- session-buddy: Raise fastmcp ceiling to <5 (Bodai Phase 3)
+
 ## [0.25.3] - 2026-09-04
 
 ### Fixed

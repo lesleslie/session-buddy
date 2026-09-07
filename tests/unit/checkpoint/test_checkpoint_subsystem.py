@@ -17,7 +17,7 @@ at 94-97% line coverage) by pinning:
   5. ``orchestrator._safe_http_error_info`` — defensive paths when
      ``exc.request`` is None or raises on ``.url.host``.
   6. ``scrubbing.safe_transient_info`` — httpx.HTTPStatusError branch
-     with an unparseable ``request.url`` returning no host.
+     with an unparsable ``request.url`` returning no host.
   7. ``snapshot.SnapshotMechanism.restore`` — line-count mismatch
      conflict path, missing-line-count-match-but-file-exists path,
      and bare git-apply failure (no hunks in output).

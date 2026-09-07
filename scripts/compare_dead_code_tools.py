@@ -89,7 +89,7 @@ def run_vulture(package_path: Path, min_confidence: int = 80) -> ToolResult:
                                 "confidence": confidence,
                             }
                         )
-                    except (ValueError, IndexError):
+                    except ValueError, IndexError:
                         pass
 
         return ToolResult(

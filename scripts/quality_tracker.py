@@ -21,7 +21,7 @@ from pathlib import Path
 class QualityTracker:
     """Track and analyze project quality metrics."""
 
-    def __init__(self, project_dir: Path = None):
+    def __init__(self, project_dir: Path | None = None):
         """Initialize quality tracker.
 
         Args:
@@ -278,7 +278,10 @@ class QualityTracker:
             else:
                 history = []
 
-            entry = {"timestamp": datetime.now().isoformat(), "score": score}
+            entry = {
+                "timestamp": datetime.now(tz=datetime.UTC).isoformat(),
+                "score": score,
+            }
             history.append(entry)
 
             # Keep last 100 entries

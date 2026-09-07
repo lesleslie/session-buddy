@@ -138,7 +138,7 @@ class CrackerjackMetricsMonitor:
             )
 
         return MonitoringReport(
-            report_generated=datetime.now().isoformat(),
+            report_generated=datetime.now(tz=datetime.UTC).isoformat(),
             analysis_period_days=days,
             total_records=summary.get("total_records", 0),
             database_path=self.db_path,
@@ -158,7 +158,7 @@ class CrackerjackMetricsMonitor:
         project_filter: str | None = None,
     ) -> dict[str, Any]:
         """Analyze overall summary statistics."""
-        since = (datetime.now() - timedelta(days=days)).isoformat()
+        since = (datetime.now(tz=datetime.UTC) - timedelta(days=days)).isoformat()
 
         where_clause = "WHERE timestamp >= ?"
         params = [since]
@@ -219,8 +219,10 @@ class CrackerjackMetricsMonitor:
         project_filter: str | None = None,
     ) -> dict[str, MetricTrend]:
         """Analyze quality metric trends over time."""
-        since = (datetime.now() - timedelta(days=days)).isoformat()
-        mid_point = (datetime.now() - timedelta(days=days // 2)).isoformat()
+        since = (datetime.now(tz=datetime.UTC) - timedelta(days=days)).isoformat()
+        mid_point = (
+            datetime.now(tz=datetime.UTC) - timedelta(days=days // 2)
+        ).isoformat()
 
         where_clause = "WHERE timestamp >= ?"
         params = [since]
@@ -301,7 +303,7 @@ class CrackerjackMetricsMonitor:
         project_filter: str | None = None,
     ) -> list[CommandStats]:
         """Analyze command execution statistics."""
-        since = (datetime.now() - timedelta(days=days)).isoformat()
+        since = (datetime.now(tz=datetime.UTC) - timedelta(days=days)).isoformat()
 
         where_clause = "WHERE timestamp >= ?"
         params = [since]
@@ -351,7 +353,7 @@ class CrackerjackMetricsMonitor:
     ) -> list[QualityAlert]:
         """Generate quality alerts based on trends."""
         alerts = []
-        now = datetime.now().isoformat()
+        now = datetime.now(tz=datetime.UTC).isoformat()
 
         for metric_type, trend in trends.items():
             # Skip stable trends
@@ -406,7 +408,7 @@ class CrackerjackMetricsMonitor:
         days: int,
     ) -> dict[str, dict[str, Any]]:
         """Analyze insights per project."""
-        since = (datetime.now() - timedelta(days=days)).isoformat()
+        since = (datetime.now(tz=datetime.UTC) - timedelta(days=days)).isoformat()
 
         query = """
             SELECT
@@ -456,7 +458,7 @@ class CrackerjackMetricsMonitor:
         project_filter: str | None = None,
     ) -> dict[str, Any]:
         """Analyze performance metrics."""
-        since = (datetime.now() - timedelta(days=days)).isoformat()
+        since = (datetime.now(tz=datetime.UTC) - timedelta(days=days)).isoformat()
 
         where_clause = "WHERE timestamp >= ? AND execution_time IS NOT NULL"
         params = [since]

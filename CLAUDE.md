@@ -592,6 +592,7 @@ Canonical rule: `.claude/decisions/mcp-backend-wiring-discipline.md`
 (lives in the mahavishnu repo and is cross-referenced for the ecosystem).
 
 When adding any new MCP tool to this repo:
+
 - [ ] Tool registration includes `tests/integration/test_<tool>_e2e.py`.
 - [ ] Data feed exposes the four mandatory metrics.
 - [ ] `/health` aggregator includes this feed's state.

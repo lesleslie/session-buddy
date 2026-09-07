@@ -21,7 +21,6 @@ import re
 import sys
 from pathlib import Path
 
-
 TIER_RANGES = (
     ("untested", lambda pct: pct == 0),
     ("low", lambda pct: 0 < pct <= 49),
@@ -100,7 +99,10 @@ def _suffix_match_key(rel_path: str, by_path: dict[str, list]) -> str | None:
 
 def main(argv: list[str]) -> int:
     if len(argv) != 3:
-        print("usage: verify_backlog.py coverage.json docs/coverage-backlog.md", file=sys.stderr)
+        print(
+            "usage: verify_backlog.py coverage.json docs/coverage-backlog.md",
+            file=sys.stderr,
+        )
         return 2
     cov_path = Path(argv[1])
     backlog_path = Path(argv[2])
@@ -129,14 +131,20 @@ def main(argv: list[str]) -> int:
         pct = float(s.get("percent_covered", 0.0))
         expected_tier = tier_for(pct)
 
-        matched_key = rel_path if rel_path in by_path else _suffix_match_key(rel_path, by_path)
+        matched_key = (
+            rel_path if rel_path in by_path else _suffix_match_key(rel_path, by_path)
+        )
         if matched_key is None:
-            failures.append(f"MISSING: {rel_path} ({pct:.1f}%, tier={expected_tier}) not in backlog")
+            failures.append(
+                f"MISSING: {rel_path} ({pct:.1f}%, tier={expected_tier}) not in backlog"
+            )
             continue
         entries = by_path[matched_key]
         for entry_pct, entry_tier in entries:
             if entry_pct is not None and abs(entry_pct - pct) > 0.5:
-                failures.append(f"STALE pct: {rel_path} backlog={entry_pct} coverage={pct:.1f}")
+                failures.append(
+                    f"STALE pct: {rel_path} backlog={entry_pct} coverage={pct:.1f}"
+                )
             if entry_tier and entry_tier != expected_tier:
                 failures.append(
                     f"WRONG tier: {rel_path} backlog={entry_tier} expected={expected_tier}"
