@@ -14,56 +14,43 @@ topic: feature-tracking
 
 ## Summary
 
-Six MCP tool categories were documented in CLAUDE.md as available in the
-default profile, but their `register_*` functions are not called by
-`server_optimized.py:301-318`. They are reachable only via the
-alternative profile-driven entrypoint.
+The 2026-08-12 audit documented six MCP tool categories whose `register_*`
+functions were not called by `server_optimized.py`. Investigation on
+2026-09-09 corrected that picture:
 
-This file tracks the gap and the implementation status of each
-`register_*` function. It was extracted from CLAUDE.md on 2026-09-09
-during the docs audit so the gap has a single canonical home and the
-CLAUDE.md content stays focused on what ships in the default profile.
+- **Serverless** and **Team**: functions exist and ARE registered via
+  the profile-driven entrypoint (`REGISTRATION_MAP` in `profiles.py`).
+  Reachable at `SESSION_BUDDY_TOOL_PROFILE=full`. NOT a gap.
+- **App Monitoring** and **Interruption Management**: these were never
+  separate functions. Their tools are bundled inside
+  `register_monitoring_tools` and ship at STANDARD profile. NOT a gap.
+- **Multi-Project** and **Natural Scheduling**: backing modules
+  exist (`multi_project_coordinator.py` 24.8 KB;
+  `natural_scheduler.py` 22.4 KB) but no MCP wrappers. Genuine gap.
 
-## Affected Categories
+This file tracks the genuine gaps (Multi-Project, Natural Scheduling).
 
-| Category | register_* function | Status |
-|----------|---------------------|--------|
-| Serverless | `register_serverless_tools` | implemented; not wired into `server_optimized.py` |
-| Team | `register_team_tools` | implemented; not wired into `server_optimized.py` |
-| Multi-Project | `register_multi_project_tools` | **does not exist** |
-| App Monitoring | `register_app_monitoring_tools` | **does not exist** |
-| Interruption Management | `register_interruption_tools` | **does not exist** |
-| Natural Scheduling | `register_natural_scheduling_tools` | **does not exist** |
+## Affected Categories (corrected 2026-09-09)
 
-## Reachable Via
+| Category | register_* function | Status (corrected) |
+|---|---|---|
+| Serverless | `register_serverless_tools` | implemented; in REGISTRATION_MAP; ships at FULL profile |
+| Team | `register_team_tools` | implemented; in REGISTRATION_MAP; ships at FULL profile |
+| App Monitoring | (no separate function) | tools bundled in `register_monitoring_tools`; ships at STANDARD profile |
+| Interruption Management | (no separate function) | tools bundled in `register_monitoring_tools`; ships at STANDARD profile |
+| Multi-Project | `register_multi_project_tools` | **NEWLY IMPLEMENTED 2026-09-09** |
+| Natural Scheduling | `register_natural_scheduling_tools` | **NEWLY IMPLEMENTED 2026-09-09** |
 
-The alternative profile-driven entrypoint registers all six categories
-when `SESSION_BUDDY_TOOL_PROFILE` is set appropriately. See
-`session_buddy.mcp.server` for the profile wiring.
+## 2026-09-09 Resolution
 
-## Original Audit Note
+Both genuine gaps were closed by adding:
 
-The gap was first documented in the 2026-08-12 audit. The original
-blockquote from CLAUDE.md:
+- `session_buddy/mcp/tools/collaboration/multi_project_tools.py` — 6 MCP tools
+  over `MultiProjectCoordinator`
+- `session_buddy/mcp/tools/infrastructure/natural_scheduling_tools.py` — 6 MCP
+  tools over `ReminderScheduler`
+- REGISTRATION_MAP entries in `session_buddy/mcp/tools/profiles.py`
+- e2e tests at `tests/integration/test_*_tools_e2e.py`
 
-> **Removed in 2026-08-12 audit:** Serverless, Team, Multi-Project, App
-> Monitoring, Interruption Management, and Natural Scheduling categories
-> were documented but their `register_*` functions
-> (`register_serverless_tools`, `register_team_tools`,
-> `register_multi_project_tools` (does not exist),
-> `register_app_monitoring_tools` (does not exist),
-> `register_interruption_tools` (does not exist),
-> `register_natural_scheduling_tools` (does not exist)) are not called
-> by `server_optimized.py:301-318`. They are reachable only via the
-> alternative profile-driven entrypoint.
-
-## Recommended Follow-up
-
-Either:
-1. **Implement the four missing `register_*` functions** to close the
-   documentation/implementation gap. Until then, the categories should
-   not appear in CLAUDE.md as if they ship by default.
-2. **Remove the categories from CLAUDE.md** until the functions exist,
-   so the doc only lists what actually ships.
-
-This doc serves as a placeholder until either action is taken.
+After this change, all 6 categories originally documented as gaps are
+shipped via the profile-driven entrypoint at FULL profile.
