@@ -1,7 +1,14 @@
 ______________________________________________________________________
 
-## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: observability
-
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: observability
+---
 # Session Analytics - Quick Reference
 
 Quick reference guide for Session-Buddy analytics commands.

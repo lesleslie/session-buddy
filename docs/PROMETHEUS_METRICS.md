@@ -1,7 +1,14 @@
 ______________________________________________________________________
 
-## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: observability
-
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: observability
+---
 # Prometheus Metrics for Session-Buddy
 
 Session-Buddy provides comprehensive Prometheus metrics for monitoring session lifecycle, MCP event emission, and system performance. Metrics are exported in Prometheus text format for scraping by Prometheus server.
