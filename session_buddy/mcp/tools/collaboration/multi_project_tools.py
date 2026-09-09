@@ -11,6 +11,7 @@ Closes the gap identified in
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import TYPE_CHECKING, Any
 
@@ -39,24 +40,38 @@ if TYPE_CHECKING:
 
 
 _coordinator: MultiProjectCoordinator | None = None
+_coordinator_lock = asyncio.Lock()
 
 
 def _set_coordinator_for_testing(coordinator: MultiProjectCoordinator | None) -> None:
-    """Inject a coordinator for tests. ``None`` resets the cache."""
-    global _coordinator
+    """Inject a coordinator for tests. ``None`` resets the cache and lock."""
+    global _coordinator, _coordinator_lock
     _coordinator = coordinator
+    if coordinator is None:
+        # Reset the lock so a stale acquired-lock from an interrupted
+        # concurrent get cannot deadlock the next call.
+        _coordinator_lock = asyncio.Lock()
 
 
 async def _get_coordinator() -> MultiProjectCoordinator:
-    """Return the cached coordinator, building one on first use."""
+    """Return the cached coordinator, building one on first use.
+
+    Uses asyncio.Lock with double-checked locking so two concurrent
+    MCP tool calls landing before either has warmed the singleton both
+    observe the same MultiProjectCoordinator (and therefore the same
+    in-memory cache), avoiding two coordinator instances with disjoint
+    state.
+    """
     global _coordinator
     if _coordinator is not None:
         return _coordinator
-    from session_buddy.reflection_tools import get_reflection_database
+    async with _coordinator_lock:
+        if _coordinator is None:
+            from session_buddy.reflection_tools import get_reflection_database
 
-    db = await get_reflection_database()
-    # ty: ignore[invalid-argument-type] -- DB adapter conforms to the protocol at runtime
-    _coordinator = _build_coordinator(db)
+            db = await get_reflection_database()
+            # ty: ignore[invalid-argument-type] -- DB adapter conforms to the protocol at runtime
+            _coordinator = _build_coordinator(db)
     return _coordinator
 
 
@@ -159,6 +174,15 @@ async def _with_coordinator(
         return await operation(coordinator)
     except RuntimeError as exc:
         return f"❌ {exc!s}"
+    except (ImportError, OSError, ConnectionError) as exc:
+        # Backing service unavailable (reflection DB missing, network
+        # down, etc.). Return a sanitized envelope rather than leaking
+        # the exception type/message to the consumer.
+        _get_logger().exception(f"{operation_name} unavailable: {exc}")
+        return (
+            f"❌ {operation_name} failed: backing service unavailable. "
+            "Check that the reflection database dependency is installed and reachable."
+        )
     except Exception as exc:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any backend/runtime failure (network, redis, etc.)
         _get_logger().exception(f"Error in {operation_name}: {exc}")
         return ToolMessages.operation_failed(operation_name, exc)

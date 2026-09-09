@@ -10,6 +10,7 @@ Closes the gap identified in
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from datetime import datetime
@@ -59,13 +60,18 @@ def _build_parser() -> NaturalLanguageParser:
 
 
 _scheduler: ReminderScheduler | None = None
+_scheduler_lock = asyncio.Lock()
 _parser: NaturalLanguageParser | None = None
 
 
 def _set_scheduler_for_testing(scheduler: ReminderScheduler | None) -> None:
-    """Inject a scheduler for tests. ``None`` resets the cache."""
-    global _scheduler
+    """Inject a scheduler for tests. ``None`` resets the cache and lock."""
+    global _scheduler, _scheduler_lock
     _scheduler = scheduler
+    if scheduler is None:
+        # Reset the lock so a stale acquired-lock from an interrupted
+        # concurrent get cannot deadlock the next call.
+        _scheduler_lock = asyncio.Lock()
 
 
 def _set_parser_for_testing(parser: NaturalLanguageParser | None) -> None:
@@ -74,10 +80,24 @@ def _set_parser_for_testing(parser: NaturalLanguageParser | None) -> None:
     _parser = parser
 
 
-def _get_scheduler() -> ReminderScheduler:
+async def _get_scheduler() -> ReminderScheduler:
+    """Return the cached scheduler, building one on first use.
+
+    Uses asyncio.Lock with double-checked locking so two concurrent
+    MCP tool calls landing before either has warmed the singleton both
+    see the same ReminderScheduler (and thus the same SQLite
+    connection), avoiding two-client WAL contention. ``_build_scheduler``
+    is sync I/O, but it is fast in practice (<10ms for the schema
+    CREATE TABLE/INDEX pair on a warm filesystem); we keep it inside
+    the critical section rather than punting to ``run_in_executor`` to
+    avoid scheduling overhead for what is effectively a one-shot init.
+    """
     global _scheduler
-    if _scheduler is None:
-        _scheduler = _build_scheduler()
+    if _scheduler is not None:
+        return _scheduler
+    async with _scheduler_lock:
+        if _scheduler is None:
+            _scheduler = _build_scheduler()
     return _scheduler
 
 
@@ -242,7 +262,7 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
                 return err
 
         async def operation() -> str:
-            scheduler = _get_scheduler()
+            scheduler = await _get_scheduler()
             reminder_id = await scheduler.create_reminder(
                 title=title,
                 time_expression=time_expression,
@@ -291,7 +311,7 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
                 return err
 
         async def operation() -> str:
-            scheduler = _get_scheduler()
+            scheduler = await _get_scheduler()
             reminders = await scheduler.get_pending_reminders(
                 user_id=user_id,
                 project_id=project_id,
@@ -309,7 +329,7 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
         """
 
         async def operation() -> str:
-            scheduler = _get_scheduler()
+            scheduler = await _get_scheduler()
             reminders = await scheduler.get_due_reminders()
             return json.dumps(reminders, default=str)
 
@@ -350,7 +370,7 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
             return err
 
         async def operation() -> str:
-            scheduler = _get_scheduler()
+            scheduler = await _get_scheduler()
             success = await scheduler.cancel_reminder(reminder_id=reminder_id)
             return json.dumps(
                 {
@@ -397,7 +417,7 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
             return err
 
         async def operation() -> str:
-            scheduler = _get_scheduler()
+            scheduler = await _get_scheduler()
             success = await scheduler.execute_reminder(reminder_id=reminder_id)
             return json.dumps(
                 {
