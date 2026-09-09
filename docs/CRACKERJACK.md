@@ -1,7 +1,14 @@
 ______________________________________________________________________
 
-## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: adapter-architecture
-
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: adapter-architecture
+---
 # Crackerjack Integration
 
 This document provides comprehensive guidance on session-buddy's deep integration with [Crackerjack](https://github.com/lesleslie/crackerjack), the AI-driven Python development platform.
