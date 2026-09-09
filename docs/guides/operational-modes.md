@@ -20,7 +20,7 @@ Session-Buddy supports two operational modes to accommodate different use cases:
 session-buddy --mode=lite start
 
 # Using environment variable
-SESSION_BUDDY_MODE=lite session-buddy start
+SESSION_BUDDY_MODE=lite uv run session-buddy server start
 
 # Using startup script
 ./scripts/dev-start.sh lite
@@ -37,13 +37,13 @@ SESSION_BUDDY_MODE=lite session-buddy start
 
 ```bash
 # Default mode
-session-buddy start
+uv run session-buddy server start
 
 # Explicit standard mode
 session-buddy --mode=standard start
 
 # Using environment variable
-SESSION_BUDDY_MODE=standard session-buddy start
+SESSION_BUDDY_MODE=standard uv run session-buddy server start
 
 # Using startup script
 ./scripts/dev-start.sh standard
@@ -159,7 +159,7 @@ switch to standard mode at any time:
 
 ```bash
 # Switch to standard mode
-SESSION_BUDDY_MODE=standard session-buddy start
+SESSION_BUDDY_MODE=standard uv run session-buddy server start
 
 # Or using CLI
 session-buddy --mode=standard start
@@ -174,7 +174,7 @@ Standard mode data will not be available in lite mode.
 
 ```bash
 # Switch to lite mode (ephemeral)
-SESSION_BUDDY_MODE=lite session-buddy start
+SESSION_BUDDY_MODE=lite uv run session-buddy server start
 
 # Or using CLI
 session-buddy --mode=lite start
@@ -262,7 +262,7 @@ class CustomMode(OperationMode):
 mode for persistent storage:
 
 ```bash
-SESSION_BUDDY_MODE=standard session-buddy start
+SESSION_BUDDY_MODE=standard uv run session-buddy server start
 ```
 
 **Problem:** Semantic search not working
@@ -271,7 +271,7 @@ SESSION_BUDDY_MODE=standard session-buddy start
 standard mode for semantic search:
 
 ```bash
-SESSION_BUDDY_MODE=standard session-buddy start
+SESSION_BUDDY_MODE=standard uv run session-buddy server start
 ```
 
 ### Standard Mode Issues
@@ -283,7 +283,7 @@ This adds ~2-3 seconds to startup. Use lite mode if you don't need
 semantic search:
 
 ```bash
-SESSION_BUDDY_MODE=lite session-buddy start
+SESSION_BUDDY_MODE=lite uv run session-buddy server start
 ```
 
 **Problem:** Database connection errors
@@ -312,7 +312,7 @@ chmod 755 ~/.claude/data
 
 ```bash
 export SESSION_BUDDY_MODE=lite
-session-buddy start
+uv run session-buddy server start
 ```
 
 Or use the CLI parameter:
@@ -359,12 +359,12 @@ ls -la settings/standard.yaml
 
 ```bash
 # 1. Use lite mode for quick testing
-SESSION_BUDDY_MODE=lite session-buddy start
+SESSION_BUDDY_MODE=lite uv run session-buddy server start
 
 # 2. Test your feature
 
 # 3. Switch to standard mode for full integration testing
-SESSION_BUDDY_MODE=standard session-buddy start
+SESSION_BUDDY_MODE=standard uv run session-buddy server start
 
 # 4. Verify with persistent data
 ```
@@ -377,14 +377,14 @@ steps:
   - name: Start Session-Buddy (Lite Mode)
     run: |
       export SESSION_BUDDY_MODE=lite
-      session-buddy start &
+      uv run session-buddy server start &
       sleep 5
 
   - name: Run Tests
     run: pytest
 
   - name: Stop Session-Buddy
-    run: session-buddy stop
+    run: uv run session-buddy server stop
 ```
 
 ### Production Deployment
@@ -406,8 +406,8 @@ pm2 start session-buddy --name session-buddy
 A: Yes, but you'll need to use different ports and data directories:
 
 ```bash
-SESSION_BUDDY_MODE=lite session-buddy start --port=8678
-SESSION_BUDDY_MODE=standard session-buddy start --port=8679
+SESSION_BUDDY_MODE=lite uv run session-buddy server start --port 8678
+SESSION_BUDDY_MODE=standard uv run session-buddy server start --port 8679
 ```
 
 ### Q: How do I backup standard mode data?
