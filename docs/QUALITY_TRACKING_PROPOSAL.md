@@ -296,7 +296,7 @@ ______________________________________________________________________
 ## Next Steps
 
 1. **Create `scripts/quality_gate.py`** with configurable thresholds
-1. **Add to Session Buddy CLI**: `python -m session_buddy quality-check`
+1. **Add to Session Buddy CLI**: `uv run session-buddy quality-check`
 1. **Test in development workflow** before committing
 1. **Document in CONTRIBUTING.md** for contributors
 
