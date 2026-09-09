@@ -162,6 +162,7 @@ def create_session_links_table(conn: duckdb.DuckDBPyConnection) -> None:
         - source_session_id: Source session identifier
         - target_session_id: Target session identifier
         - link_type: Type of link (continuation, reference, related)
+        - context: Free-text context/reason for the link
         - created_at: Link creation timestamp
         - metadata: JSON metadata
     """
@@ -172,10 +173,20 @@ def create_session_links_table(conn: duckdb.DuckDBPyConnection) -> None:
             source_session_id VARCHAR NOT NULL,
             target_session_id VARCHAR NOT NULL,
             link_type VARCHAR NOT NULL,
+            context TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT NOW(),
             metadata JSON
         )
         """
+    )
+    # Column patch: ``context`` was added after the initial deployment, so
+    # databases that predate this column need an idempotent ADD COLUMN.
+    # DuckDB's CREATE TABLE IF NOT EXISTS does NOT retrofit new columns
+    # onto existing tables, so we guard with IF NOT EXISTS to keep
+    # initialize_schema safe to re-run. Matches the column-patch pattern
+    # in ``session_buddy/memory/schema_v2.py``.
+    conn.execute(
+        "ALTER TABLE session_links ADD COLUMN IF NOT EXISTS context TEXT DEFAULT ''"
     )
 
 

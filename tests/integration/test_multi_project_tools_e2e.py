@@ -174,14 +174,6 @@ class TestMultiProjectToolsRoundTrip:
         because we attach it as a stable attribute on the shim reflection
         DB; this bypasses the ``ReflectionDatabase.conn`` thread-local
         property bug.
-
-        Also applies a minimal column-patch to the schema: the production
-        ``link_sessions`` SQL INSERT references a ``context`` column that
-        is missing from ``session_links`` in
-        ``session_buddy/reflection/schema.py``. The fixture adds the
-        column so the coordinator's happy-path logic can be exercised;
-        the schema mismatch itself is a separate production bug that
-        needs to be fixed in a follow-up.
         """
         from session_buddy.mcp.tools.collaboration import (
             multi_project_tools as mpt,
@@ -200,10 +192,6 @@ class TestMultiProjectToolsRoundTrip:
             db_path, config={"allow_unsigned_extensions": True}
         )
         initialize_schema(conn)
-        # Schema patch: see docstring above.
-        conn.execute(
-            "ALTER TABLE session_links ADD COLUMN context TEXT DEFAULT ''"
-        )
 
         class _ReflectionDBShim:
             """Real DuckDB connection dressed up as ReflectionDatabaseProtocol.
