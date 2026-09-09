@@ -481,14 +481,12 @@ recovery history): see
 - **LLM Management** (6): `list_llm_providers`, `test_llm_providers`, `generate_with_llm`, `chat_with_llm`, `configure_llm_provider`, `sync_claude_qwen_config`
 - **Git Worktree** (3): Available via `session_buddy.mcp.server` when `SESSION_BUDDY_TOOL_PROFILE=full`; not in the default profile.
 
-> **Removed in 2026-08-12 audit:** Serverless, Team, Multi-Project, App Monitoring,
-> Interruption Management, and Natural Scheduling categories were documented
-> but their `register_*` functions (`register_serverless_tools`,
-> `register_team_tools`, `register_multi_project_tools` (does not exist),
-> `register_app_monitoring_tools` (does not exist), `register_interruption_tools`
-> (does not exist), `register_natural_scheduling_tools` (does not exist)) are
-> not called by `server_optimized.py:301-318`. They are reachable only via
-> the alternative profile-driven entrypoint.
+> **Note:** Six additional tool categories (Serverless, Team, Multi-Project,
+> App Monitoring, Interruption Management, Natural Scheduling) are documented
+> as available but their `register_*` functions are not wired into
+> `server_optimized.py:301-318`. See
+> [docs/feature-tracking/TOOL_REGISTRATION_GAPS.md](./docs/feature-tracking/TOOL_REGISTRATION_GAPS.md)
+> for the gap analysis and follow-up plan.
 
 ## Operational Notes
 
