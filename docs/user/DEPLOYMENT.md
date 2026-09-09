@@ -1,6 +1,14 @@
 ______________________________________________________________________
 
-## status: active role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: lifecycle
+---
+status: active
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: lifecycle
+---
 
 # Session Buddy - Deployment Guide
 
@@ -91,7 +99,7 @@ Environment=SESSION_BUDDY_DATA_DIR=/opt/session-buddy/data
 Environment=SESSION_BUDDY_LOG_DIR=/opt/session-buddy/logs
 Environment=SESSION_BUDDY_LOG_LEVEL=INFO
 Environment=PYTHONPATH=/opt/session-buddy/app
-ExecStart=/opt/session-buddy/app/.venv/bin/python -m session_buddy.server
+ExecStart=/opt/session-buddy/app/.venv/bin/session-buddy server start
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
 Restart=on-failure
