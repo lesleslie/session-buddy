@@ -91,7 +91,7 @@ linear sequencing (P0 → P1 → … → P7) with two cross-cuts: P0 → P4 and 
 
 ### Test Status (last verified 2024-12-28)
 
-- ✅ CLI commands work: `python -m session_buddy status` returns "Server not running"
+- ✅ CLI commands work: `uv run session-buddy server status` returns "Server not running"
 - ✅ Health commands work: `health` and `health --probe` both functional
 - ✅ Snapshot functionality verified: `.oneiric_cache/` created with proper files
 - ✅ Oneiric reflection adapter tested: Native DuckDB implementation with full API compatibility
@@ -153,7 +153,7 @@ Replace custom Typer boolean flags with mcp-common CLI factory and standard life
   - **Status**: Using default MCPServerCLIFactory stop handler (inherits proper PID management)
 - [x] Update `session_buddy/__main__.py` entrypoint to invoke factory app.
   - **Status**: ✅ Updated to use new CLI main function
-  - **Usage**: `python -m session_buddy start/stop/restart/status/health`
+  - **Usage**: `uv run session-buddy server start|stop|restart|status|health`
 - [x] Remove legacy `--start-mcp-server/--stop-mcp-server/--status` flags.
   - **Status**: ✅ Replaced with standard MCP commands
   - **Old flags removed**: --start-mcp-server, --stop-mcp-server, --status
