@@ -1,6 +1,6 @@
 ______________________________________________________________________
 
-## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: learning-pipeline
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-09-09 superseded_by: null blocks_on: [] topic: learning-pipeline
 
 # Cross-Project Skill Metrics Aggregation Design
 
@@ -8,6 +8,14 @@ ______________________________________________________________________
 **Author:** Multi-Agent Coordinator
 **Created:** 2025-02-10
 **Related:** Mahavishnu workflow orchestration, Crackerjack skill metrics
+
+> **Historical design — not implemented.** This document describes a proposed
+> `session_buddy/mahavishnu/` subpackage layout (`metrics_collector.py`,
+> `aggregation_engine.py`, `mcp_tools.py`) that was never adopted. The
+> current codebase has no `session_buddy/mahavishnu/` directory. The
+> cross-project skill-metrics feature described here was not built.
+> The path references below describe the aspirational architecture only
+> and should not be taken as the location of any real module.
 
 ## Executive Summary
 
