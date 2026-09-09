@@ -1,7 +1,14 @@
 ______________________________________________________________________
 
-## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: mcp-design
-
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: mcp-design
+---
 # JSON Schema Reference Guide
 
 This guide provides comprehensive reference documentation for JSON Schema export and validation in the Session-Buddy event models.
