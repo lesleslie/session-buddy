@@ -187,7 +187,7 @@ class MiddlewareContext(Generic[T]):
 ```bash
 # Test server startup
 cd /Users/les/Projects/fastblocks
-python -m session_buddy.server
+uv run session-buddy server start
 
 # Should see:
 # ✅ Session Management MCP started successfully!

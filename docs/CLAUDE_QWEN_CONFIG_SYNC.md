@@ -37,7 +37,7 @@ ______________________________________________________________________
 1. **Session-Buddy MCP server running**
 
    ```bash
-   python -m session_buddy.mcp.server
+   uv run session-buddy server start
    ```
 
 1. **MCP client configured** - Connect to Session-Buddy MCP server
