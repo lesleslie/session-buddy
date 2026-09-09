@@ -15,6 +15,11 @@ topic: oneiric-config
 **Migrated**: 2026-02-06 from Mahavishnu
 **Feature**: Bidirectional configuration synchronization between Claude Code and Qwen Code
 
+> **2026-09-09 refresh**: Body content reviewed and CLI forms re-confirmed against the
+> current codebase (session-buddy v0.25.7). No changes to the feature itself; this doc
+> remains in `docs/archive/` as historical reference. The live stub lives at
+> `docs/CLAUDE_QWEN_CONFIG_SYNC.md`.
+
 ______________________________________________________________________
 
 ## Overview
@@ -456,6 +461,6 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-**Last Updated**: 2026-02-06
-**Status**: ✅ Production Ready
+**Last Updated**: 2026-09-09 (content refresh; original 2026-02-06)
+**Status**: ✅ Production Ready (verified 2026-09-09 against session-buddy v0.25.7)
 **Maintainer**: Session-Buddy Team
