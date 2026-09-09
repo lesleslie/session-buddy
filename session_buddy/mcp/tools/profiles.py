@@ -145,6 +145,10 @@ from . import (
     register_workflow_metrics_tools,
     register_worktree_tools,
 )
+from .collaboration.multi_project_tools import register_multi_project_tools
+from .infrastructure.natural_scheduling_tools import (
+    register_natural_scheduling_tools,
+)
 from .monitoring.prometheus_metrics_tools import register_prometheus_metrics_tools
 from .session.channel_tracking_tools import (
     _make_dhara_publisher,
@@ -190,6 +194,8 @@ REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
     "register_memory_health_tools": register_memory_health_tools,
     "register_migration_tools": register_migration_tools,
     "register_monitoring_tools": register_monitoring_tools,
+    "register_multi_project_tools": register_multi_project_tools,
+    "register_natural_scheduling_tools": register_natural_scheduling_tools,
     "register_phase3_knowledge_graph_tools": register_phase3_knowledge_graph_tools,
     "register_phase4_tools": register_phase4_tools,
     "register_pool_tools": register_pool_tools,
