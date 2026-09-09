@@ -1,7 +1,14 @@
 ______________________________________________________________________
 
-## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: auth
-
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: auth
+---
 # API Key Setup
 
 Memori-inspired features support multiple LLM providers. All keys are optional; the system gracefully degrades to pattern-based extraction when no providers are available.
