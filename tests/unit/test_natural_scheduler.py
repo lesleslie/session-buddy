@@ -346,7 +346,6 @@ class TestGetPendingReminders:
                 "executed_at": None,
                 "recurrence_pattern": None,
                 "metadata": '{"title": "Test"}',
-                "context_triggers": "[]",
             }
         ]
 
@@ -461,14 +460,13 @@ class TestGetDueReminders:
                 "reminder_id": "rem_1",
                 "reminder_type": "task",
                 "expression": "in 30 minutes",
-                "scheduled_for": datetime.now().isoformat(),
+                "scheduled_time": datetime.now().isoformat(),
                 "action": "Test",
                 "status": "pending",
                 "created_at": datetime.now().isoformat(),
                 "executed_at": None,
                 "recurrence_pattern": None,
                 "metadata": '{"title": "Test"}',
-                "context_triggers": "[]",
             }
         ]
 
@@ -798,8 +796,8 @@ class TestCheckAndExecuteReminders:
     async def test_check_and_execute_reminders_with_due(self, scheduler):
         """Test _check_and_execute_reminders with due reminders."""
         due_reminders = [
-            {"id": "rem_1", "title": "Reminder 1"},
-            {"id": "rem_2", "title": "Reminder 2"},
+            {"reminder_id": "rem_1", "title": "Reminder 1"},
+            {"reminder_id": "rem_2", "title": "Reminder 2"},
         ]
 
         with patch.object(scheduler, "get_due_reminders", new_callable=AsyncMock, return_value=due_reminders):

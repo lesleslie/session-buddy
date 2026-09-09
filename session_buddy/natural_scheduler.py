@@ -209,10 +209,12 @@ class ReminderScheduler:
 
             for row in cursor.fetchall():
                 result = dict(row)
-                result["context_triggers"] = json.loads(
-                    result["context_triggers"] or "[]",
+                metadata = json.loads(result.get("metadata") or "{}")
+                result["metadata"] = metadata
+                result["context_triggers"] = metadata.get("context_triggers", [])
+                result["notification_method"] = metadata.get(
+                    "notification_method", "session",
                 )
-                result["metadata"] = json.loads(result["metadata"] or "{}")
                 results.append(result)
 
             return results
@@ -239,10 +241,12 @@ class ReminderScheduler:
             results = []
             for row in cursor.fetchall():
                 result = dict(row)
-                result["context_triggers"] = json.loads(
-                    result["context_triggers"] or "[]",
+                metadata = json.loads(result.get("metadata") or "{}")
+                result["metadata"] = metadata
+                result["context_triggers"] = metadata.get("context_triggers", [])
+                result["notification_method"] = metadata.get(
+                    "notification_method", "session",
                 )
-                result["metadata"] = json.loads(result["metadata"] or "{}")
                 results.append(result)
 
             return results
@@ -293,11 +297,13 @@ class ReminderScheduler:
                 return None
 
             reminder_data = dict(row)
-            reminder_data["context_triggers"] = json.loads(
-                reminder_data.get("context_triggers") or "[]",
+            metadata = json.loads(reminder_data.get("metadata") or "{}")
+            reminder_data["metadata"] = metadata
+            reminder_data["context_triggers"] = metadata.get(
+                "context_triggers", [],
             )
-            reminder_data["metadata"] = json.loads(
-                reminder_data.get("metadata") or "{}",
+            reminder_data["notification_method"] = metadata.get(
+                "notification_method", "session",
             )
             return reminder_data
 
