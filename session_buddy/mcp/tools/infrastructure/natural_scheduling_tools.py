@@ -140,15 +140,11 @@ def _check_list_len(
 ) -> str | None:
     """Return an error envelope if a list exceeds size or any item exceeds chars."""
     if len(values) > max_items:
-        return (
-            f"❌ {field_name} exceeds maximum {max_items} items "
-            f"(got {len(values)})"
-        )
+        return f"❌ {field_name} exceeds maximum {max_items} items (got {len(values)})"
     for i, v in enumerate(values):
         if len(v) > max_chars:
             return (
-                f"❌ {field_name}[{i}] exceeds maximum {max_chars} chars "
-                f"(got {len(v)})"
+                f"❌ {field_name}[{i}] exceeds maximum {max_chars} chars (got {len(v)})"
             )
     return None
 
@@ -272,9 +268,7 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
                 context_triggers=context_triggers,
             )
             if reminder_id is None:
-                return (
-                    f"❌ Could not parse time expression: {time_expression!r}"
-                )
+                return f"❌ Could not parse time expression: {time_expression!r}"
             return json.dumps({"reminder_id": reminder_id, "title": title})
 
         return await _run("Create reminder", operation)
@@ -345,14 +339,20 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
         Args:
             reminder_id: Identifier returned by :func:`create_reminder`.
             user_id: Owning user id (default ``"default"``). Recorded
-                alongside the cancel operation for audit. Ownership
+                as ``requested_user_id`` in the response envelope for
+                forensic correlation; the system does **not** verify that
+                this caller actually owns the reminder. Ownership
                 verification (rejecting cancels from a non-owning user)
                 is deferred until ``ReminderScheduler`` exposes a public
                 ``get_reminder`` method that returns the owning
                 ``user_id``.
 
         Returns:
-            JSON string with ``{"reminder_id": ..., "cancelled": bool}``.
+            JSON string with
+            ``{"reminder_id": ..., "requested_user_id": ...,
+            "ownership_verified": false, "cancelled": bool}``.
+            ``ownership_verified`` is always ``false`` until the deferred
+            ownership check lands — see the deferred caveat above.
         """
         err = _check_len(
             reminder_id,
@@ -375,7 +375,8 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
             return json.dumps(
                 {
                     "reminder_id": reminder_id,
-                    "user_id": user_id,
+                    "requested_user_id": user_id,
+                    "ownership_verified": False,
                     "cancelled": success,
                 }
             )
@@ -392,14 +393,20 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
         Args:
             reminder_id: Identifier returned by :func:`create_reminder`.
             user_id: Owning user id (default ``"default"``). Recorded
-                alongside the execute operation for audit. Ownership
+                as ``requested_user_id`` in the response envelope for
+                forensic correlation; the system does **not** verify that
+                this caller actually owns the reminder. Ownership
                 verification (rejecting executes from a non-owning user)
                 is deferred until ``ReminderScheduler`` exposes a public
                 ``get_reminder`` method that returns the owning
                 ``user_id``.
 
         Returns:
-            JSON string with ``{"reminder_id": ..., "executed": bool}``.
+            JSON string with
+            ``{"reminder_id": ..., "requested_user_id": ...,
+            "ownership_verified": false, "executed": bool}``.
+            ``ownership_verified`` is always ``false`` until the deferred
+            ownership check lands — see the deferred caveat above.
         """
         err = _check_len(
             reminder_id,
@@ -422,7 +429,8 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
             return json.dumps(
                 {
                     "reminder_id": reminder_id,
-                    "user_id": user_id,
+                    "requested_user_id": user_id,
+                    "ownership_verified": False,
                     "executed": success,
                 }
             )
@@ -452,9 +460,7 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
 
         def operation() -> str:
             parser = _get_parser()
-            parsed: datetime | None = parser.parse_time_expression(
-                time_expression
-            )
+            parsed: datetime | None = parser.parse_time_expression(time_expression)
             recurrence: str | None = parser.parse_recurrence(time_expression)
             payload: dict[str, Any] = {
                 "expression": time_expression,
