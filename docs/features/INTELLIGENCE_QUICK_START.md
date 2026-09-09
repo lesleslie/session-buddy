@@ -746,6 +746,6 @@ Continue → /end → /search_insights "new feature"
 
 ______________________________________________________________________
 
-**Last Updated**: January 10, 2026
+**Last Updated**: 2026-09-09
 **Status**: Production Ready ✅ <!-- legacy status — see YAML frontmatter -->
 **Test Coverage**: 62/62 tests passing (100%)

@@ -4,7 +4,7 @@ ______________________________________________________________________
 
 # Session-Buddy Service Dependencies
 
-**Last Updated**: 2026-02-09
+**Last Updated**: 2026-09-09
 **Status**: Production Ready <!-- legacy status — see YAML frontmatter -->
 
 ______________________________________________________________________
@@ -80,7 +80,7 @@ In Mahavishnu's `.mcp.json`:
 
 **Startup Order**:
 
-1. Start Session-Buddy: `session-buddy start --mode=standard --mcp`
+1. Start Session-Buddy: `uv run session-buddy server start`
 1. Start Mahavishnu: `mahavishnu start`
 1. Mahavishnu auto-connects to Session-Buddy
 
@@ -107,7 +107,7 @@ session-buddy health | grep "MCP Server"
 lsof -i :8678
 
 # Restart Session-Buddy with MCP enabled
-session-buddy start --mode=standard --mcp --port 8678
+uv run session-buddy server start --port 8678
 ```
 
 **Problem**: "Authentication failed"
@@ -119,7 +119,7 @@ export SESSION_BUDDY_AUTH_ENABLED=true
 export SESSION_BUDDY_AUTH_SECRET="same-secret-on-both-sides"
 
 # Restart both services
-session-buddy start --mode=standard --mcp
+uv run session-buddy server start
 mahavishnu start
 ```
 
@@ -173,7 +173,7 @@ export SESSION_BUDDY_AKOSHA_URL="http://localhost:8682/mcp"
 **Startup Order**:
 
 1. Start Akosha: `akosha start --mcp`
-1. Start Session-Buddy: `session-buddy start --mode=standard`
+1. Start Session-Buddy: `uv run session-buddy server start`
 1. Session-Buddy syncs to Akosha automatically
 
 **Health Check**:
@@ -203,7 +203,7 @@ echo $SESSION_BUDDY_AKOSHA_URL
 curl http://localhost:8682/mcp
 
 # Restart Session-Buddy with debug logging
-SESSION_BUDDY_LOG_LEVEL=DEBUG session-buddy start --mode=standard
+SESSION_BUDDY_LOG_LEVEL=DEBUG uv run session-buddy server start
 ```
 
 **Problem**: "Sync is not working"
@@ -284,7 +284,7 @@ crackerjack health
 session-buddy health | grep crackerjack
 
 # Use manual testing if Crackerjack unavailable
-session-buddy add-message --session "my-project" "Manual test passed"
+# (session messages are added via the mcp__session-buddy__add_message MCP tool, not a CLI command)
 ```
 
 ______________________________________________________________________
@@ -366,7 +366,7 @@ ollama pull nomic-embed-text
 curl http://localhost:11434/api/tags
 
 # Disable intelligence features if Ollama unavailable
-session-buddy start --mode=lite --no-intelligence
+uv run session-buddy server start
 ```
 
 ______________________________________________________________________
@@ -447,7 +447,7 @@ psql -h localhost -U session_buddy -d session_buddy
 psql "postgres://session_buddy:password@localhost:5432/session_buddy?sslmode=verify-full"
 
 # Fall back to SQLite if PostgreSQL unavailable
-session-buddy start --mode=standard --database sqlite
+uv run session-buddy server start
 ```
 
 **Problem**: "SSL connection failed"
@@ -908,5 +908,5 @@ Session-Buddy is designed to be **fully standalone** with no required dependenci
 
 ______________________________________________________________________
 
-**Last Updated**: 2026-02-09
+**Last Updated**: 2026-09-09
 **Status**: Production Ready

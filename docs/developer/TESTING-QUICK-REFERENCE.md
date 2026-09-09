@@ -243,6 +243,6 @@ ptw  # Auto-re-run on file changes
 
 ______________________________________________________________________
 
-**Last Updated:** October 26, 2025
+**Last Updated:** 2026-09-09
 **Status:** Ready for use <!-- legacy status — see YAML frontmatter -->
 **Coverage:** 68 tests, 100% passing
