@@ -33,7 +33,7 @@ Before running the taxonomy initialization:
    ```bash
    cd /Users/les/Projects/session-buddy
 
-   # Run migrations (includes V4)
+   # Run migrations directly via Python (storage migrations is not a CLI command)
    python -m session_buddy.storage.migrations migrate
    ```
 
@@ -386,7 +386,7 @@ with sqlite3.connect(db_path) as conn:
 
 **Cause**: The database schema doesn't include Phase 4 tables.
 
-**Solution**: Run migrations first:
+**Solution**: Run migrations first (storage migrations is not a CLI command):
 
 ```bash
 python -m session_buddy.storage.migrations migrate
