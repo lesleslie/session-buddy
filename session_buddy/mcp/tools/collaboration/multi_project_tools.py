@@ -82,6 +82,52 @@ VALID_SESSION_LINK_TYPES = {"related", "continuation", "reference", "dependency"
 
 
 # ---------------------------------------------------------------------------
+# Input length bounds — enforce at the MCP boundary so we never store
+# unbounded text. These are deliberately tight; callers needing more
+# can split their payload.
+# ---------------------------------------------------------------------------
+
+
+MAX_NAME_CHARS = 200
+MAX_DESCRIPTION_CHARS = 1000
+MAX_PROJECT_ID_CHARS = 100
+MAX_QUERY_CHARS = 500
+MAX_DEPENDENCY_DESC_CHARS = 500
+MAX_SESSION_ID_CHARS = 100
+MAX_PROJECTS_PER_GROUP = 50
+MAX_LIMIT = 100
+MIN_LIMIT = 1
+
+
+def _check_len(value: str, *, max_len: int, field_name: str) -> str | None:
+    """Return an error envelope if ``value`` exceeds ``max_len``."""
+    if len(value) > max_len:
+        return (
+            f"❌ {field_name} exceeds maximum length of {max_len} chars "
+            f"(got {len(value)})"
+        )
+    return None
+
+
+def _check_list_len(
+    values: list[str], *, max_items: int, max_chars: int, field_name: str
+) -> str | None:
+    """Return an error envelope if a list exceeds size or any item exceeds chars."""
+    if len(values) > max_items:
+        return (
+            f"❌ {field_name} exceeds maximum {max_items} items "
+            f"(got {len(values)})"
+        )
+    for i, v in enumerate(values):
+        if len(v) > max_chars:
+            return (
+                f"❌ {field_name}[{i}] exceeds maximum {max_chars} chars "
+                f"(got {len(v)})"
+            )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -252,6 +298,25 @@ def register_multi_project_tools(mcp: FastMCP) -> None:
         Returns:
             JSON string with the created ``ProjectGroup`` record.
         """
+        err = _check_len(name, max_len=MAX_NAME_CHARS, field_name="name")
+        if err:
+            return err
+        err = _check_len(
+            description,
+            max_len=MAX_DESCRIPTION_CHARS,
+            field_name="description",
+        )
+        if err:
+            return err
+        err = _check_list_len(
+            projects,
+            max_items=MAX_PROJECTS_PER_GROUP,
+            max_chars=MAX_PROJECT_ID_CHARS,
+            field_name="projects",
+        )
+        if err:
+            return err
+
         async def op(coordinator: MultiProjectCoordinator) -> str:
             return await _create_project_group_op(
                 coordinator, name, projects, description
@@ -283,6 +348,27 @@ def register_multi_project_tools(mcp: FastMCP) -> None:
                 f"❌ Invalid dependency_type: {dependency_type!r}. "
                 f"Must be one of {sorted(VALID_DEPENDENCY_TYPES)}."
             )
+        err = _check_len(
+            source_project,
+            max_len=MAX_PROJECT_ID_CHARS,
+            field_name="source_project",
+        )
+        if err:
+            return err
+        err = _check_len(
+            target_project,
+            max_len=MAX_PROJECT_ID_CHARS,
+            field_name="target_project",
+        )
+        if err:
+            return err
+        err = _check_len(
+            description,
+            max_len=MAX_DEPENDENCY_DESC_CHARS,
+            field_name="description",
+        )
+        if err:
+            return err
 
         async def op(coordinator: MultiProjectCoordinator) -> str:
             return await _add_project_dependency_op(
@@ -319,6 +405,27 @@ def register_multi_project_tools(mcp: FastMCP) -> None:
                 f"❌ Invalid link_type: {link_type!r}. "
                 f"Must be one of {sorted(VALID_SESSION_LINK_TYPES)}."
             )
+        err = _check_len(
+            source_session_id,
+            max_len=MAX_SESSION_ID_CHARS,
+            field_name="source_session_id",
+        )
+        if err:
+            return err
+        err = _check_len(
+            target_session_id,
+            max_len=MAX_SESSION_ID_CHARS,
+            field_name="target_session_id",
+        )
+        if err:
+            return err
+        err = _check_len(
+            context,
+            max_len=MAX_DESCRIPTION_CHARS,
+            field_name="context",
+        )
+        if err:
+            return err
 
         async def op(coordinator: MultiProjectCoordinator) -> str:
             return await _link_sessions_op(
@@ -343,6 +450,14 @@ def register_multi_project_tools(mcp: FastMCP) -> None:
         Returns:
             JSON string with an array of ``ProjectGroup`` records.
         """
+        if project is not None:
+            err = _check_len(
+                project,
+                max_len=MAX_PROJECT_ID_CHARS,
+                field_name="project",
+            )
+            if err:
+                return err
 
         async def op(coordinator: MultiProjectCoordinator) -> str:
             return await _list_project_groups_op(coordinator, project)
@@ -368,6 +483,13 @@ def register_multi_project_tools(mcp: FastMCP) -> None:
                 f"❌ Invalid direction: {direction!r}. "
                 "Must be one of 'outbound', 'inbound', 'both'."
             )
+        err = _check_len(
+            project,
+            max_len=MAX_PROJECT_ID_CHARS,
+            field_name="project",
+        )
+        if err:
+            return err
 
         async def op(coordinator: MultiProjectCoordinator) -> str:
             return await _get_project_dependencies_op(
@@ -393,6 +515,17 @@ def register_multi_project_tools(mcp: FastMCP) -> None:
             JSON string with ranked conversation hits (each annotated
             with ``source_project`` and ``is_current_project``).
         """
+        err = _check_len(
+            current_project,
+            max_len=MAX_PROJECT_ID_CHARS,
+            field_name="current_project",
+        )
+        if err:
+            return err
+        err = _check_len(query, max_len=MAX_QUERY_CHARS, field_name="query")
+        if err:
+            return err
+        limit = max(MIN_LIMIT, min(limit, MAX_LIMIT))
 
         async def op(coordinator: MultiProjectCoordinator) -> str:
             return await _find_related_conversations_op(
