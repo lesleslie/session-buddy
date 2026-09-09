@@ -1,7 +1,14 @@
 ______________________________________________________________________
 
-## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: storage-consolidation
-
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: storage-consolidation
+---
 # Session-Buddy to AkOSHA Memory Synchronization
 
 **Status**: ✅ COMPLETED <!-- legacy status — see YAML frontmatter -->
