@@ -9,7 +9,7 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
-__version__ = "0.7.4"
+__version__ = "0.25.7"
 
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "AdvancedFeaturesHub": ("session_buddy.advanced_features", "AdvancedFeaturesHub"),
