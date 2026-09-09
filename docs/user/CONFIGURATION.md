@@ -1,6 +1,14 @@
 ______________________________________________________________________
 
-## status: active role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: oneiric-config
+---
+status: active
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: oneiric-config
+---
 
 # Session Buddy - Configuration Reference
 
@@ -231,7 +239,7 @@ SESSION_BUDDY_MAX_REQUESTS_PER_MINUTE=50
 # Enable comprehensive debugging
 export SESSION_BUDDY_LOG_LEVEL=DEBUG
 export SESSION_BUDDY_ENABLE_DEBUG_MODE=true
-python -m session_buddy.server --debug
+uv run session-buddy server start --debug
 ```
 
 ### Data Import/Export
