@@ -88,16 +88,7 @@ class ReminderScheduler:
 
             # Create indices
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_reminders_scheduled ON reminders(scheduled_for)",
-            )
-            conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_reminders_status ON reminders(status)",
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(user_id)",
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_reminders_project ON reminders(project_id)",
             )
 
     async def create_reminder(
@@ -199,18 +190,18 @@ class ReminderScheduler:
             params = []
 
             if user_id:
-                where_conditions.append("user_id = ?")
+                where_conditions.append("json_extract(metadata, '$.user_id') = ?")
                 params.append(user_id)
 
             if project_id:
-                where_conditions.append("project_id = ?")
+                where_conditions.append("json_extract(metadata, '$.project_id') = ?")
                 params.append(project_id)
 
             # Build SQL safely - all user input is parameterized via params list
             query = (
                 "SELECT * FROM reminders WHERE "
                 + " AND ".join(where_conditions)
-                + " ORDER BY scheduled_for"
+                + " ORDER BY scheduled_time"
             )
 
             cursor = conn.execute(query, params)
@@ -239,8 +230,8 @@ class ReminderScheduler:
             cursor = conn.execute(
                 """
                 SELECT * FROM reminders
-                WHERE status = 'pending' AND scheduled_for <= ?
-                ORDER BY scheduled_for
+                WHERE status = 'pending' AND scheduled_time <= ?
+                ORDER BY scheduled_time
             """,
                 (check_time,),
             )
@@ -294,7 +285,7 @@ class ReminderScheduler:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
-                "SELECT * FROM reminders WHERE id = ?",
+                "SELECT * FROM reminders WHERE reminder_id = ?",
                 (reminder_id,),
             ).fetchone()
 
@@ -347,8 +338,8 @@ class ReminderScheduler:
                 conn.execute(
                     """
                     UPDATE reminders
-                    SET scheduled_for = ?, status = 'pending', executed_at = NULL
-                    WHERE id = ?
+                    SET scheduled_time = ?, status = 'pending', executed_at = NULL
+                    WHERE reminder_id = ?
                 """,
                     (next_time, reminder_id),
                 )
@@ -372,7 +363,7 @@ class ReminderScheduler:
                 """
                 UPDATE reminders
                 SET status = ?, executed_at = ?
-                WHERE id = ?
+                WHERE reminder_id = ?
             """,
                 (ReminderStatus.EXECUTED.value, now, reminder_id),
             )
@@ -393,7 +384,7 @@ class ReminderScheduler:
                     """
                     UPDATE reminders
                     SET status = ?
-                    WHERE id = ? AND status IN ('pending', 'active')
+                    WHERE reminder_id = ? AND status IN ('pending', 'active')
                 """,
                     (ReminderStatus.CANCELLED.value, reminder_id),
                 )
@@ -463,7 +454,7 @@ class ReminderScheduler:
         due_reminders = await self.get_due_reminders()
 
         for reminder in due_reminders:
-            await self.execute_reminder(reminder["id"])
+            await self.execute_reminder(reminder["reminder_id"])
 
     def _parse_recurrence_interval(self, recurrence_rule: str) -> RecurrenceInterval:
         """Parse frequency and interval from recurrence rule."""
