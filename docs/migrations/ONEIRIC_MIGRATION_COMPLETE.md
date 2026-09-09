@@ -65,7 +65,7 @@ If you have an existing Session Buddy installation:
 
 1. **Check current version**:
    ```bash
-   python -m session_buddy --version
+   uv run session-buddy version
    ```
 
 2. **Backup your data**:
@@ -81,12 +81,11 @@ If you have an existing Session Buddy installation:
    - See [CONFIGURATION.md](../user/CONFIGURATION.md) for details
 
 2. **Update CLI commands**:
-   - Old: `python -m session_buddy --start-mcp-server`
-   - New: `python -m session_buddy start`
+   - Use: `uv run session-buddy server start`
 
 3. **Verify installation**:
    ```bash
-   python -m session_buddy health
+   uv run session-buddy health
    ```
 
 ## Breaking Changes
@@ -133,9 +132,9 @@ If you encounter issues:
 
 After migration, verify:
 
-- [ ] Server starts without errors: `python -m session_buddy start`
-- [ ] Status command works: `python -m session_buddy status`
-- [ ] Health check passes: `python -m session_buddy health`
+- [ ] Server starts without errors: `uv run session-buddy server start`
+- [ ] Status command works: `uv run session-buddy server status`
+- [ ] Health check passes: `uv run session-buddy health`
 - [ ] MCP tools are registered: Check Claude Code tool list
 - [ ] Memory system works: `/session-buddy:reflect_on_past`
 - [ ] Reflections persist: Check `~/.claude/data/`
