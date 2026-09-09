@@ -390,7 +390,7 @@ Uses global `~/.claude/.mcp.json` (recommended). Project-level `.mcp.json` remov
 
 ### Bodai Baseline MCP Surface
 
-Session-Buddy conforms to the Bodai core MCP baseline (`docs/plans/2026-08-20-bodai-mcp-surface-standardization.md`):
+Session-Buddy conforms to the Bodai core MCP baseline — see `mahavishnu/.claude/decisions/mcp-backend-wiring-discipline.md` (lives in the mahavishnu repo, applies Bodai-wide):
 
 - `discover_tools(query)` — list registered tools, optionally filtered by name substring
 - `get_liveness()` — `{status, service, version, uptime_seconds}` envelope
@@ -503,7 +503,7 @@ Session-Buddy uses MiniMax as the primary cloud LLM provider:
 
 `http://localhost:11434`)
 
-- **Default model (ecosystem-wide)**: `MiniMax-M3` (general), `MiniMax-M3-highspeed` (quick/background tasks) — see Mahavishnu `settings/models.yaml:5`.
+- **Default model (ecosystem-wide)**: `MiniMax-M3` (general), `MiniMax-M3-highspeed` (quick/background tasks) — see `settings/session-buddy.yaml:5`.
 - **Local override (this repo)**: `MiniMax-M2.7` — `settings/session-buddy.yaml:16` pins the older model for backward compatibility. Align with the ecosystem default by changing `minimax_default_model` in `settings/session-buddy.yaml`.
 - **Provider chain**: `minimax -> ollama`
 
