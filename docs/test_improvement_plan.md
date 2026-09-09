@@ -1,7 +1,14 @@
 ______________________________________________________________________
 
-## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: architecture
-
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: architecture
+---
 # Test Improvement Plan for Session-Mgmt-MCP
 
 **Status:** 🟡 PARTIAL — 11/14 items done; Coverage Gap remains (see below) <!-- legacy status — see YAML frontmatter -->
