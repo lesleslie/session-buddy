@@ -238,7 +238,7 @@ await server.start()
 **Command Line**:
 
 ```bash
-python -m session_buddy.websocket-server --port 8765
+uv run session-buddy server start --port 8765
 ```
 
 **Configuration Options**:
@@ -411,7 +411,7 @@ ______________________________________________________________________
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| `Connection refused` | WebSocket server not running | Start server with `python -m session_buddy.websocket-server` |
+| `Connection refused` | WebSocket server not running | Start server with `uv run session-buddy server start` |
 | `Invalid JSON` | Malformed message | Validate JSON before sending |
 | `Unknown skill` | Skill doesn't exist in database | Check `skill_metrics` table |
 
