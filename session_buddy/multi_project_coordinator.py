@@ -10,9 +10,12 @@ import hashlib
 import json
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal, Protocol
+from typing import Any, Callable, Literal, Protocol, TypeVar
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
+
+
+_DB_RESULT = TypeVar("_DB_RESULT")
 
 
 class ReflectionDatabaseProtocol(Protocol):
@@ -193,6 +196,32 @@ class MultiProjectCoordinator:
             raise RuntimeError(msg)
         return self.reflection_db.conn
 
+    async def _run_db_op(self, op: Callable[[Any], _DB_RESULT]) -> _DB_RESULT:
+        """Run a synchronous DB operation on a worker thread.
+
+        Resolves ``self.reflection_db.conn`` on the calling (event loop)
+        thread, then captures it in a closure passed to
+        ``run_in_executor``. Without this, every multi-project tool
+        call would raise ``"Database connection not initialized"``
+        in production because ``ReflectionDatabase.conn`` is a
+        thread-local property; the executor's worker thread has no
+        entry in ``self.local.conn`` and the property returns ``None``.
+        Capturing the connection on the calling thread and passing it
+        via closure sidesteps the thread-local entirely.
+
+        Args:
+            op: A callable that takes the resolved DuckDB connection
+                and returns the operation result.
+
+        Returns:
+            Whatever ``op(conn)`` returns.
+        """
+        conn = self._get_conn()
+        return await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: op(conn),
+        )
+
     async def create_project_group(
         self,
         name: str,
@@ -215,9 +244,8 @@ class MultiProjectCoordinator:
         )
 
         # Store in database
-        await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._get_conn().execute(
+        await self._run_db_op(
+            lambda conn: conn.execute(
                 """
                 INSERT INTO project_groups (id, name, description, projects, created_at, metadata)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -262,9 +290,8 @@ class MultiProjectCoordinator:
         )
 
         # Store in database
-        await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._get_conn().execute(
+        await self._run_db_op(
+            lambda conn: conn.execute(
                 """
                 INSERT INTO project_dependencies
                 (id, source_project, target_project, dependency_type, description, created_at, metadata)
@@ -321,9 +348,8 @@ class MultiProjectCoordinator:
         )
 
         # Store in database
-        await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._get_conn().execute(
+        await self._run_db_op(
+            lambda conn: conn.execute(
                 """
                 INSERT INTO session_links
                 (id, source_session_id, target_session_id, link_type, context, created_at, metadata)
@@ -370,10 +396,7 @@ class MultiProjectCoordinator:
 
         sql += " ORDER BY created_at DESC"
 
-        results = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._get_conn().execute(sql, params).fetchall(),
-        )
+        results = await self._run_db_op(lambda conn: conn.execute(sql, params).fetchall())
 
         groups = []
         for row in results:
@@ -422,10 +445,7 @@ class MultiProjectCoordinator:
             + " ORDER BY created_at DESC"
         )
 
-        results = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._get_conn().execute(sql, params).fetchall(),
-        )
+        results = await self._run_db_op(lambda conn: conn.execute(sql, params).fetchall())
 
         dependencies = []
         for row in results:
@@ -456,16 +476,8 @@ class MultiProjectCoordinator:
             ORDER BY created_at DESC
         """
 
-        results = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: (
-                self._get_conn()
-                .execute(
-                    sql,
-                    [session_id, session_id],
-                )
-                .fetchall()
-            ),
+        results = await self._run_db_op(
+            lambda conn: conn.execute(sql, [session_id, session_id]).fetchall(),
         )
 
         links = []
@@ -578,9 +590,8 @@ class MultiProjectCoordinator:
             WHERE project = ? AND timestamp >= ?
         """
 
-        result = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._get_conn().execute(sql, [project, since_date]).fetchone(),
+        result = await self._run_db_op(
+            lambda conn: conn.execute(sql, [project, since_date]).fetchone(),
         )
 
         if result:
@@ -613,9 +624,8 @@ class MultiProjectCoordinator:
             WHERE project = ANY(?) AND timestamp >= ?
         """
 
-        return await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._get_conn().execute(sql, [projects, since_date]).fetchall(),
+        return await self._run_db_op(
+            lambda conn: conn.execute(sql, [projects, since_date]).fetchall(),
         )
 
     def _extract_project_keywords(
@@ -699,22 +709,16 @@ class MultiProjectCoordinator:
         cutoff_date = datetime.now(UTC) - timedelta(days=max_age_days)
 
         # Count old links before deletion
-        count_before = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: (
-                self._get_conn()
-                .execute(
-                    "SELECT COUNT(*) FROM session_links WHERE created_at < ?",
-                    [cutoff_date],
-                )
-                .fetchone()[0]
-            ),
+        count_before = await self._run_db_op(
+            lambda conn: conn.execute(
+                "SELECT COUNT(*) FROM session_links WHERE created_at < ?",
+                [cutoff_date],
+            ).fetchone()[0],
         )
 
         # Clean up old session links
-        await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._get_conn().execute(
+        await self._run_db_op(
+            lambda conn: conn.execute(
                 "DELETE FROM session_links WHERE created_at < ?",
                 [cutoff_date],
             ),

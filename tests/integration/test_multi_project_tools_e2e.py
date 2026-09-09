@@ -140,40 +140,27 @@ class TestMultiProjectToolsRoundTrip:
 
     QA review (2026-09-09) H1: 9 of 12 tools had no round-trip coverage; the
     3 that did used MagicMock stubs. Tests in this class inject a real
-    coordinator backed by a real DuckDB connection so the tool
+    coordinator backed by a real ``ReflectionDatabase`` so the tool
     round-trips against the actual SQL schema and the multi-project
     dependency graph.
 
-    **Partial-real note:** ``ReflectionDatabase`` (the real backing DB
-    type) exposes its connection via a *thread-local* ``conn`` property;
-    ``MultiProjectCoordinator._get_conn()`` reads that property from
-    inside ``run_in_executor``'s worker thread, where the thread-local is
-    ``None`` and the coordinator raises ``"Database connection not
-    initialized"``. This is a real production bug uncovered by this test
-    suite, but the brief forbids non-test file changes — fixing
-    ``MultiProjectCoordinator._get_conn`` would require touching
-    ``session_buddy/multi_project_coordinator.py``.
-
-    The fixture therefore uses a thin duck-typed reflection DB that wraps
-    a real DuckDB connection with a thread-stable ``conn`` attribute.
-    Every ``await coordinator.create_project_group(...)`` / etc. call is
-    real; only the reflection DB layer is shimmed. SQL round-trips still
-    hit the real DuckDB schema (project_groups / project_dependencies /
-    session_links), so the test still exercises the column names and
-    constraint surface that would catch bugs analogous to the
-    ``natural_scheduler`` column-name regressions.
+    Earlier versions of this fixture wrapped a raw DuckDB connection in
+    a thin duck-typed reflection DB shim that bypassed a thread-local
+    bug in ``MultiProjectCoordinator._get_conn``. That bug is now fixed
+    in production (the coordinator resolves the connection on the
+    calling thread before entering ``run_in_executor``), so this
+    fixture exercises the real end-to-end stack with the production
+    ``ReflectionDatabase`` type.
     """
 
     @pytest.fixture
     async def real_coordinator(self, tmp_path: Path) -> Any:
-        """Inject a real MultiProjectCoordinator with a real DuckDB shim.
+        """Inject a real MultiProjectCoordinator with a real ``ReflectionDatabase``.
 
         Returns the coordinator; tests that need to inspect the DB can
-        capture the connection via the inner ``conn`` closure (not
-        exposed). The DuckDB connection is shared by every thread
-        because we attach it as a stable attribute on the shim reflection
-        DB; this bypasses the ``ReflectionDatabase.conn`` thread-local
-        property bug.
+        capture the connection via ``reflection_db.conn`` (still
+        available after fixture teardown so long as ``aclose`` hasn't
+        been awaited).
         """
         from session_buddy.mcp.tools.collaboration import (
             multi_project_tools as mpt,
@@ -181,52 +168,19 @@ class TestMultiProjectToolsRoundTrip:
         from session_buddy.multi_project_coordinator import (
             MultiProjectCoordinator,
         )
-        from session_buddy.reflection.schema import initialize_schema
+        from session_buddy.reflection import ReflectionDatabase
 
         db_path = str(tmp_path / "reflection.duckdb")
-        # Open DuckDB directly (NOT via ReflectionDatabase) so the
-        # connection is owned by this fixture and survives across threads.
-        import duckdb
+        reflection_db = ReflectionDatabase(db_path)
+        await reflection_db.initialize()
 
-        conn = duckdb.connect(
-            db_path, config={"allow_unsigned_extensions": True}
-        )
-        initialize_schema(conn)
-
-        class _ReflectionDBShim:
-            """Real DuckDB connection dressed up as ReflectionDatabaseProtocol.
-
-            Satisfies the protocol's two members: ``conn`` (sync property
-            returning the live DuckDB connection) and
-            ``search_conversations`` (async, returning ``[]`` so the
-            search-backed tools have something to call).
-            """
-
-            def __init__(self, c: Any) -> None:
-                self._conn = c
-
-            @property
-            def conn(self) -> Any:
-                return self._conn
-
-            async def search_conversations(
-                self,
-                query: str,
-                limit: int = 10,
-                threshold: float = 0.7,
-                project: str | None = None,
-                min_score: float | None = None,
-            ) -> list[dict[str, Any]]:
-                return []
-
-        shim = _ReflectionDBShim(conn)
-        coordinator = MultiProjectCoordinator(shim)
+        coordinator = MultiProjectCoordinator(reflection_db)
         mpt._set_coordinator_for_testing(coordinator)
         try:
             yield coordinator
         finally:
             mpt._set_coordinator_for_testing(None)
-            conn.close()
+            await reflection_db.aclose()
 
     async def test_create_project_group_round_trip(
         self, real_coordinator: Any
