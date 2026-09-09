@@ -1,7 +1,14 @@
 ______________________________________________________________________
 
-## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: learning-pipeline
-
+---
+status: complete
+role: canonical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: learning-pipeline
+---
 # Natural Language Intent Detection
 
 **Status:** ✅ **COMPLETE** - All tests passing (17/17) <!-- legacy status — see YAML frontmatter -->
