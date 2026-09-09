@@ -89,6 +89,51 @@ def _get_parser() -> NaturalLanguageParser:
 
 
 # ---------------------------------------------------------------------------
+# Input length bounds — enforce at the MCP boundary so we never store
+# unbounded text. These are deliberately tight; callers needing more
+# can split their payload.
+# ---------------------------------------------------------------------------
+
+
+MAX_TITLE_CHARS = 200
+MAX_TIME_EXPR_CHARS = 200
+MAX_DESCRIPTION_CHARS = 1000
+MAX_USER_ID_CHARS = 100
+MAX_PROJECT_ID_CHARS = 100
+MAX_REMINDER_ID_CHARS = 100
+MAX_TRIGGER_ITEMS = 50
+MAX_TRIGGER_ITEM_CHARS = 100
+
+
+def _check_len(value: str, *, max_len: int, field_name: str) -> str | None:
+    """Return an error envelope if ``value`` exceeds ``max_len``."""
+    if len(value) > max_len:
+        return (
+            f"❌ {field_name} exceeds maximum length of {max_len} chars "
+            f"(got {len(value)})"
+        )
+    return None
+
+
+def _check_list_len(
+    values: list[str], *, max_items: int, max_chars: int, field_name: str
+) -> str | None:
+    """Return an error envelope if a list exceeds size or any item exceeds chars."""
+    if len(values) > max_items:
+        return (
+            f"❌ {field_name} exceeds maximum {max_items} items "
+            f"(got {len(values)})"
+        )
+    for i, v in enumerate(values):
+        if len(v) > max_chars:
+            return (
+                f"❌ {field_name}[{i}] exceeds maximum {max_chars} chars "
+                f"(got {len(v)})"
+            )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -154,6 +199,47 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
             an error envelope if ``time_expression`` could not be
             parsed.
         """
+        err = _check_len(title, max_len=MAX_TITLE_CHARS, field_name="title")
+        if err:
+            return err
+        err = _check_len(
+            time_expression,
+            max_len=MAX_TIME_EXPR_CHARS,
+            field_name="time_expression",
+        )
+        if err:
+            return err
+        err = _check_len(
+            description,
+            max_len=MAX_DESCRIPTION_CHARS,
+            field_name="description",
+        )
+        if err:
+            return err
+        err = _check_len(
+            user_id,
+            max_len=MAX_USER_ID_CHARS,
+            field_name="user_id",
+        )
+        if err:
+            return err
+        if project_id is not None:
+            err = _check_len(
+                project_id,
+                max_len=MAX_PROJECT_ID_CHARS,
+                field_name="project_id",
+            )
+            if err:
+                return err
+        if context_triggers is not None:
+            err = _check_list_len(
+                context_triggers,
+                max_items=MAX_TRIGGER_ITEMS,
+                max_chars=MAX_TRIGGER_ITEM_CHARS,
+                field_name="context_triggers",
+            )
+            if err:
+                return err
 
         async def operation() -> str:
             scheduler = _get_scheduler()
@@ -187,6 +273,22 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
         Returns:
             JSON string with an array of reminder records.
         """
+        if user_id is not None:
+            err = _check_len(
+                user_id,
+                max_len=MAX_USER_ID_CHARS,
+                field_name="user_id",
+            )
+            if err:
+                return err
+        if project_id is not None:
+            err = _check_len(
+                project_id,
+                max_len=MAX_PROJECT_ID_CHARS,
+                field_name="project_id",
+            )
+            if err:
+                return err
 
         async def operation() -> str:
             scheduler = _get_scheduler()
@@ -214,41 +316,95 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
         return await _run("List due reminders", operation)
 
     @mcp.tool()
-    async def cancel_reminder(reminder_id: str) -> str:
+    async def cancel_reminder(
+        reminder_id: str,
+        user_id: str = "default",
+    ) -> str:
         """Cancel a pending reminder.
 
         Args:
             reminder_id: Identifier returned by :func:`create_reminder`.
+            user_id: Owning user id (default ``"default"``). Recorded
+                alongside the cancel operation for audit. Ownership
+                verification (rejecting cancels from a non-owning user)
+                is deferred until ``ReminderScheduler`` exposes a public
+                ``get_reminder`` method that returns the owning
+                ``user_id``.
 
         Returns:
             JSON string with ``{"reminder_id": ..., "cancelled": bool}``.
         """
+        err = _check_len(
+            reminder_id,
+            max_len=MAX_REMINDER_ID_CHARS,
+            field_name="reminder_id",
+        )
+        if err:
+            return err
+        err = _check_len(
+            user_id,
+            max_len=MAX_USER_ID_CHARS,
+            field_name="user_id",
+        )
+        if err:
+            return err
 
         async def operation() -> str:
             scheduler = _get_scheduler()
             success = await scheduler.cancel_reminder(reminder_id=reminder_id)
             return json.dumps(
-                {"reminder_id": reminder_id, "cancelled": success}
+                {
+                    "reminder_id": reminder_id,
+                    "user_id": user_id,
+                    "cancelled": success,
+                }
             )
 
         return await _run("Cancel reminder", operation)
 
     @mcp.tool()
-    async def execute_reminder(reminder_id: str) -> str:
+    async def execute_reminder(
+        reminder_id: str,
+        user_id: str = "default",
+    ) -> str:
         """Force-execute a reminder now (independent of scheduled time).
 
         Args:
             reminder_id: Identifier returned by :func:`create_reminder`.
+            user_id: Owning user id (default ``"default"``). Recorded
+                alongside the execute operation for audit. Ownership
+                verification (rejecting executes from a non-owning user)
+                is deferred until ``ReminderScheduler`` exposes a public
+                ``get_reminder`` method that returns the owning
+                ``user_id``.
 
         Returns:
             JSON string with ``{"reminder_id": ..., "executed": bool}``.
         """
+        err = _check_len(
+            reminder_id,
+            max_len=MAX_REMINDER_ID_CHARS,
+            field_name="reminder_id",
+        )
+        if err:
+            return err
+        err = _check_len(
+            user_id,
+            max_len=MAX_USER_ID_CHARS,
+            field_name="user_id",
+        )
+        if err:
+            return err
 
         async def operation() -> str:
             scheduler = _get_scheduler()
             success = await scheduler.execute_reminder(reminder_id=reminder_id)
             return json.dumps(
-                {"reminder_id": reminder_id, "executed": success}
+                {
+                    "reminder_id": reminder_id,
+                    "user_id": user_id,
+                    "executed": success,
+                }
             )
 
         return await _run("Execute reminder", operation)
@@ -266,6 +422,13 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
             "recurrence": str|None}``. ``parsed`` is ``None`` if the
             expression could not be parsed.
         """
+        err = _check_len(
+            time_expression,
+            max_len=MAX_TIME_EXPR_CHARS,
+            field_name="time_expression",
+        )
+        if err:
+            return err
 
         def operation() -> str:
             parser = _get_parser()
