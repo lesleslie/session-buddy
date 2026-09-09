@@ -1,6 +1,14 @@
 ______________________________________________________________________
 
-## status: active role: implementation date: 2026-07-16 last_reviewed: 2026-07-17 superseded_by: null blocks_on: [] topic: lifecycle
+---
+status: active
+role: implementation
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: lifecycle
+---
 
 # P7 Cross-Repo Plan-Lifecycle-Unification Playbook
 

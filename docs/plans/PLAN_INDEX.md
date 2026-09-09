@@ -1,14 +1,15 @@
 ______________________________________________________________________
 
+---
 status: active
 role: canonical
-date: 2026-07-16
-last_reviewed: 2026-07-16
+date: 2026-09-09
+last_reviewed: 2026-09-09
 superseded_by: null
 blocks_on:
-
-- docs/schemas/document-frontmatter-v1.md
-  topic: convergence-control-plane
+  - docs/schemas/document-frontmatter-v1.md
+topic: convergence-control-plane
+---
 
 ______________________________________________________________________
 
