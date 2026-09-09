@@ -16,14 +16,19 @@ ______________________________________________________________________
 # Install (30 seconds)
 pip install session-buddy
 
-# Start in lite mode (10 seconds)
-session-buddy start --mode=lite
+# Start the MCP server (10 seconds)
+uv run session-buddy server start
 
 # Create your first session (20 seconds)
-session-buddy create-session "My Project"
+# Note: `session-buddy` itself doesn't create sessions — that's an MCP tool.
+# Use the MCP interface (mcp__session-buddy__start, mcp__session-buddy__checkpoint,
+# mcp__session-buddy__end) or the programmatic API
+# (session_buddy.reflection.ReflectionDatabase).
 
-# List all sessions
-session-buddy list-sessions
+# List all sessions (analytics subcommand)
+uv run session-buddy analytics sessions --days 30
+
+**What you learned**: `session-buddy` is a CLI for server lifecycle and analytics. Session management, reflections, and search are exposed as MCP tools (the `mcp__session-buddy__*` namespace), not as CLI subcommands. Use the MCP tools directly, or call the underlying Python API (`session_buddy.reflection.ReflectionDatabase`).
 ```
 
 **What you learned**:
@@ -40,23 +45,27 @@ ______________________________________________________________________
 
 ```bash
 # Add a message to your session (30 seconds)
-session-buddy add-message \
-  --session "My Project" \
-  "Analyzed API structure for user authentication"
+# Note: `session-buddy` doesn't have a `add-message` CLI subcommand.
+# Use the MCP tool `mcp__session-buddy__add_message` (or call
+# `session_buddy.reflection.ReflectionDatabase.store(...)` programmatically).
 
 # Store a reflection (30 seconds)
-session-buddy store-reflection \
-  --content "Use JWT tokens for stateless auth" \
-  --tags "authentication,best-practices"
+# Note: `session-buddy` doesn't have a `store-reflection` CLI subcommand.
+# Use the MCP tool `mcp__session-buddy__store_reflection` (or call
+# `session_buddy.reflection.ReflectionDatabase.store(...)` programmatically).
 
 # Search across sessions (1 minute)
-session-buddy search "authentication"
+# Note: `session-buddy` doesn't have a `search` CLI subcommand.
+# Use the MCP tools `mcp__session-buddy__quick_search`,
+# `mcp__session-buddy__search_summary`, or
+# `mcp__session-buddy__search_by_concept`.
 
 # View reflection statistics
-session-buddy reflection-stats
+# Note: `session-buddy` doesn't have a `reflection-stats` CLI subcommand.
+# Use the MCP tool `mcp__session-buddy__reflection_stats`.
 ```
 
-**What you learned**:
+**What you learned**: `session-buddy` is a CLI for server lifecycle and analytics. Session management, reflections, and search are exposed as MCP tools (the `mcp__session-buddy__*` namespace), not as CLI subcommands. Use the MCP tools directly, or call the underlying Python API (`session_buddy.reflection.ReflectionDatabase`).
 
 - ✅ Message tracking
 - ✅ Reflection storage
@@ -71,23 +80,23 @@ ______________________________________________________________________
 
 ```bash
 # Start with MCP server enabled (10 seconds)
-session-buddy start --mode=standard --mcp
+uv run session-buddy server start
 
 # Verify MCP server is running (10 seconds)
 session-buddy health
 
 # Create a project group (30 seconds)
-session-buddy create-project-group \
-  --name "microservices" \
-  --projects "auth,user,api"
+# Note: `session-buddy` doesn't have a `create-project-group` CLI subcommand.
+# Project groups are managed via MCP tools (`mcp__session-buddy__*`), not the CLI.
 
 # Search across all projects in group (1 minute)
-session-buddy search-across-projects \
-  --group "microservices" \
-  --query "database schema"
+# Note: `session-buddy` doesn't have a `search-across-projects` CLI subcommand.
+# Use the MCP tool `mcp__session-buddy__search_by_concept` (or call the
+# programmatic API).
 
 # Export session data (30 seconds)
-session-buddy export "my-project.json"
+# Note: `session-buddy` doesn't have an `export` CLI subcommand.
+# Use the MCP tool `mcp__session-buddy__export_data` or the programmatic API.
 ```
 
 **What you learned**:
@@ -105,25 +114,24 @@ ______________________________________________________________________
 
 ```bash
 # Start with full analytics (10 seconds)
-session-buddy start --mode=standard --analytics
+uv run session-buddy server start
 
 # Generate session summary (1 minute)
-session-buddy summarize-session \
-  --session "My Project" \
-  --format markdown
+# Note: `session-buddy` doesn't have a `summarize-session` CLI subcommand.
+# Use the MCP tool `mcp__session-buddy__summarize_session` or the
+# programmatic API (session_buddy.reflection.ReflectionDatabase).
 
 # Find patterns across sessions (2 minutes)
-session-buddy find-patterns \
-  --query "API design patterns" \
-  --min-occurrences 3
+# Note: `session-buddy` doesn't have a `find-patterns` CLI subcommand.
+# Use the MCP tool `mcp__session-buddy__search_by_concept` or
+# `mcp__session-buddy__quick_search` instead.
 
 # Get insights dashboard (1 minute)
-session-buddy insights-dashboard
+# Note: `session-buddy` doesn't have an `insights-dashboard` CLI subcommand.
+# Use the MCP tool `mcp__session-buddy__insights_dashboard` instead.
 
 # Export analytics data (30 seconds)
-session-buddy export-analytics \
-  --format csv \
-  --output "analytics.csv"
+uv run session-buddy analytics report --days 30 --output report.csv
 ```
 
 **What you learned**:
@@ -161,7 +169,7 @@ ______________________________________________________________________
 lsof -i :8678
 
 # Use a different port
-session-buddy start --port 8679
+uv run session-buddy server start --port 8679
 
 # Or override the default port via settings YAML at settings/session-buddy.yaml
 # (server_port: 8678) — Oneiric's layered loader merges YAML + env vars
@@ -179,7 +187,7 @@ mahavishnu health
 session-buddy health
 
 # Use lite mode for standalone operation
-session-buddy start --mode=lite
+uv run session-buddy server start
 ```
 
 **Problem**: "Search returns no results"
@@ -187,13 +195,16 @@ session-buddy start --mode=lite
 
 ```bash
 # Check if sessions have data
-session-buddy list-sessions
+uv run session-buddy analytics sessions --days 30
 
 # Add some test data
-session-buddy add-message --session "My Project" "Test message"
+# Note: `session-buddy` doesn't have a `add-message` CLI subcommand.
+# Use the MCP tool `mcp__session-buddy__add_message` or the programmatic API
+# (session_buddy.reflection.ReflectionDatabase).
 
 # Verify reflection storage
-session-buddy reflection-stats
+# Note: `session-buddy` doesn't have a `reflection-stats` CLI subcommand.
+# Use the MCP tool `mcp__session-buddy__reflection_stats` instead.
 ```
 
 **Problem**: "Analytics not working"
@@ -204,10 +215,10 @@ session-buddy reflection-stats
 pip install duckdb
 
 # Check analytics mode is enabled
-session-buddy health | grep analytics
+session-buddy health
 
 # Restart with analytics enabled
-session-buddy start --mode=standard --analytics
+uv run session-buddy server start
 ```
 
 ______________________________________________________________________
