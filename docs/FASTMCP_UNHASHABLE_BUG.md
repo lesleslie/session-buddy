@@ -192,8 +192,10 @@ class MiddlewareContext(Generic[T]):
 ### Verify the Fix
 
 ```bash
-# Test server startup
-cd /Users/les/Projects/fastblocks
+# Test server startup from session-buddy's own project (uv run resolves
+# the `session-buddy` binary against the cwd's project, so it must be
+# session-buddy itself — running from fastblocks would fail to find it).
+cd /Users/les/Projects/session-buddy
 uv run session-buddy server start
 
 # Should see:
