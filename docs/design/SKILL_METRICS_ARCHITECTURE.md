@@ -1,8 +1,15 @@
 ______________________________________________________________________
 
-## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: learning-pipeline
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-09-09 superseded_by: null blocks_on: [] topic: learning-pipeline
 
 # Skill Metrics Aggregation - Architecture Reference
+
+> **Historical design — not implemented.** This document is part of the
+> SKILL_METRICS family (AGGREGATION / ARCHITECTURE / IMPLEMENTATION)
+> describing a proposed `session_buddy/mahavishnu/` subpackage layout
+> that was never adopted. The current `session_buddy/` package has no
+> `mahavishnu/` subdirectory, and the cross-project skill-metrics
+> feature described here was not built.
 
 ## System Overview
 
