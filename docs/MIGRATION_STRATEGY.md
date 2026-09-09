@@ -1,7 +1,14 @@
 ______________________________________________________________________
 
-## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: oneiric-config
-
+---
+status: complete
+role: historical
+date: 2026-07-16
+last_reviewed: 2026-09-09
+superseded_by: null
+blocks_on: []
+topic: oneiric-config
+---
 # Migration Strategy: Schema v1 → v2
 
 This guide explains how session-buddy migrates legacy `conversations` and `reflections` tables to the enhanced Memori-inspired schema v2.
