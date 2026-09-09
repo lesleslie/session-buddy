@@ -461,7 +461,7 @@ session-buddy config | grep sslmode
 # For production, MUST use sslmode=verify-full
 
 export SESSION_BUDDY_DB_SSLMODE=verify-full
-session-buddy start --mode=standard
+uv run session-buddy server start
 ```
 
 ______________________________________________________________________
@@ -477,7 +477,7 @@ ______________________________________________________________________
 **Startup**:
 
 ```bash
-session-buddy start --mode=lite
+uv run session-buddy server start
 ```
 
 **Dependencies**: None
@@ -497,7 +497,7 @@ ______________________________________________________________________
 
 ```bash
 # Terminal 1: Session-Buddy
-session-buddy start --mode=standard --mcp
+uv run session-buddy server start
 
 # Terminal 2: Mahavishnu (optional)
 mahavishnu start
@@ -550,7 +550,7 @@ ______________________________________________________________________
 **Startup**:
 
 ```bash
-session-buddy start --mode=lite --no-auth
+uv run session-buddy server start
 pytest tests/
 ```
 
@@ -651,7 +651,7 @@ ______________________________________________________________________
 Session-Buddy:
 
 ```bash
-session-buddy start --mode=standard --mcp --port 8679
+uv run session-buddy server start --port 8679
 ```
 
 Mahavishnu (in `.mcp.json`):
@@ -750,7 +750,7 @@ ______________________________________________________________________
 lsof -i :8678
 
 # Use a different port
-session-buddy start --port 8679
+uv run session-buddy server start --port 8679
 
 # Check logs
 session-buddy logs --tail 50
@@ -841,16 +841,16 @@ ______________________________________________________________________
 
 ```bash
 # Lite mode (standalone)
-session-buddy start --mode=lite
+uv run session-buddy server start
 
 # Standard mode with PostgreSQL
-session-buddy start --mode=standard --database postgresql
+uv run session-buddy server start
 
 # Standard mode with MCP (for Mahavishnu)
-session-buddy start --mode=standard --mcp
+uv run session-buddy server start
 
 # Full production setup
-session-buddy start --mode=standard --mcp --analytics --database postgresql
+uv run session-buddy server start
 ```
 
 ### Health Checks
