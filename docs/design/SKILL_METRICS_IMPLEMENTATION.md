@@ -1,12 +1,22 @@
 ______________________________________________________________________
 
-## status: complete role: canonical date: 2026-07-16 last_reviewed: 2026-07-16 superseded_by: null blocks_on: [] topic: learning-pipeline
+## status: complete role: historical date: 2026-07-16 last_reviewed: 2026-09-09 superseded_by: null blocks_on: [] topic: learning-pipeline
 
 # Skill Metrics Aggregation - Implementation Plan
 
 **Status:** Ready for Implementation <!-- legacy status — see YAML frontmatter -->
 **Priority:** High (Workflow Intelligence Enhancement)
 **Estimated Effort:** 3-4 weeks
+
+> **Historical design — not implemented.** This document describes a
+> proposed `session_buddy/mahavishnu/` subpackage layout (`db.py`,
+> `collector.py`, `aggregator.py`, `tools.py`, `__init__.py`) and
+> `from session_buddy.mahavishnu...` import paths that were never
+> adopted. The current `session_buddy/` package has no `mahavishnu/`
+> subdirectory, and the cross-project skill-metrics feature described
+> here was not built. The path references and import statements below
+> describe the aspirational architecture only and do not correspond to
+> any real module.
 
 ## Quick Start Guide
 
