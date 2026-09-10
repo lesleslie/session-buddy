@@ -341,9 +341,20 @@ async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
         # read it via get_signer_feed_state().
         # ------------------------------------------------------------------
         try:
-            from session_buddy.mcp.signer_feed import init_signer_feed_state
+            from session_buddy.mcp.signer_feed import (
+                get_signer_feed_state,
+                init_signer_feed_state,
+            )
 
-            init_signer_feed_state()
+            # Defense-in-depth guard (consistency review 2026-09-10):
+            # ``_original_lifespan`` (session_lifecycle) already initialized
+            # the state at server_optimized.py:236-238, so this wrapper's
+            # init would be a no-op re-init that bumps ``generation``
+            # twice per startup. Skip when state is already populated;
+            # fall through to init only if the original lifespan dropped
+            # the call (future maintenance guard).
+            if get_signer_feed_state() is None:
+                init_signer_feed_state()
         except Exception as exc:  # noqa: BLE001 - signer init failure must not break lifespan
             logger.warning(
                 "Phase 1.5: signer feed state init failed; "
