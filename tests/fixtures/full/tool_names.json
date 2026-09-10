@@ -129,7 +129,7 @@
   "list_pools",
   "list_serverless_sessions",
   "list_session_metrics",
-  "list_skills",
+  "session_buddy_list_workflow_patterns",
   "list_supported_intents",
   "list_worktrees",
   "memory_lineage",

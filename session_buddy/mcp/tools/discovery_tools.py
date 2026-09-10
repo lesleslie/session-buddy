@@ -173,7 +173,7 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "deduplication_stats": "Statistics on duplicate content.",
     "find_duplicates": "Find duplicate entries in the database.",
     # -- Phase 4 skills analytics --
-    "list_skills": "List all registered development skills.",
+    "session_buddy_list_workflow_patterns": "List LEARNED workflow patterns (renamed from list_skills per H-6).",
     "get_skill_details": "Detailed information about a specific skill.",
     "get_skill_dependencies": "Skill dependency graph.",
     "get_skill_trend": "Usage trend for a skill over time.",

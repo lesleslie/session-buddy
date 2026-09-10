@@ -72,7 +72,7 @@
   "invoke_skill",
   "list_code_graphs",
   "list_hooks",
-  "list_skills",
+  "session_buddy_list_workflow_patterns",
   "list_supported_intents",
   "memory_lineage",
   "optimize_cache",

@@ -35,7 +35,7 @@
   "invoke_skill",
   "list_code_graphs",
   "list_hooks",
-  "list_skills",
+  "session_buddy_list_workflow_patterns",
   "memory_lineage",
   "peer_context",
   "permissions",

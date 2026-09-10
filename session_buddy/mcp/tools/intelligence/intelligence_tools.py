@@ -1,10 +1,19 @@
 """MCP tools for Intelligence Engine - skill management and workflow suggestions.
 
 This module provides MCP tools for:
-- Listing learned skills
+- Listing LEARNED workflow patterns (H-6: previously named ``list_skills``)
 - Invoking skills for workflow guidance
 - Getting proactive improvement suggestions
 - Managing skill lifecycle
+
+H-6 rename (plan sec 11 H-6): the MCP tool previously named ``list_skills``
+returned LEARNED workflow patterns with shape ``{name, success_rate,
+invocations, ...}``. Phase 1 of bodai-skill-agent-distribution reclaims
+the bare ``list_skills`` name for the new packaging-metadata shape
+(``SkillMetadata`` per ``session_buddy/mcp/skill_schema.py``), so this
+function is renamed to ``list_workflow_patterns``. The name= override
+preserves the new naming-hygiene convention (per Phase 0 commit
+``26fc27c``).
 """
 
 from __future__ import annotations
@@ -63,11 +72,18 @@ def get_intelligence_engine() -> IntelligenceEngine:
     return _intelligence_engine
 
 
-@_get_mcp().tool()
-async def list_skills(
+@_get_mcp().tool(name="session_buddy_list_workflow_patterns")
+async def list_workflow_patterns(
     min_success_rate: float = 0.0, limit: int = 20
 ) -> dict[str, t.Any]:
-    """List learned skills available for workflow guidance."""
+    """List LEARNED workflow patterns available for workflow guidance.
+
+    H-6 (plan sec 11): previously named ``list_skills``; renamed to
+    ``list_workflow_patterns`` so the bare ``list_skills`` name can be
+    reclaimed by Phase 1's packaging-metadata ``SkillMetadata`` shape.
+    The name= override ``session_buddy_list_workflow_patterns``
+    follows the Phase 0 naming-hygiene convention (commit 26fc27c).
+    """
     engine = get_intelligence_engine()
     await engine.initialize()
 

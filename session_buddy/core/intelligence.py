@@ -172,7 +172,7 @@ class IntelligenceEngine:
 
     Integration Points:
     - Hooks: POST_CHECKPOINT hook triggers learn_from_checkpoint()
-    - MCP Tools: suggest_improvements, invoke_skill, list_skills
+    - MCP Tools: suggest_improvements, invoke_skill, list_workflow_patterns (renamed from list_skills per H-6)
     - Reflection DB: Semantic search for similar patterns
     """
 

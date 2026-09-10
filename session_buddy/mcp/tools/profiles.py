@@ -183,7 +183,7 @@ def _register_skills_signer_tools(server: FastMCP) -> None:
 
     The function exists so the W0 helper can register the group at
     every profile tier per plan §10.3.6; Phase 1 will add the
-    list_skills / get_skill MCP tools here.
+    session_buddy_list_skills / session_buddy_get_skill MCP tools here.
     """
     logger.debug("skills_signer tools group registered (init in lifespan)")
 
