@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from session_buddy.skills_signer import PubkeyManifest
+    from session_buddy.skills_signer import PubkeyManifest, SkillsSigner
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,13 @@ def get_signer_feed_state() -> SignerFeedState | None:
 
 def init_signer_feed_state() -> SignerFeedState:
     """Load or create the persisted signing keypair, build the manifest,
-    and install a fresh :class:`SignerFeedState` as the module singleton.
+    install a fresh :class:`SignerFeedState` as the module singleton.
+
+    The :class:`SkillsSigner` wraps the same keypair so Phase 1
+    ``get_skill`` / ``get_agent`` MCP tools can produce signatures
+    without re-reading the PEM from disk. Without the signer field on
+    ``SignerFeedState``, the tool handlers cannot produce the
+    signatures that Phase 2/6 installers verify (B-1 / plan §11).
 
     Idempotent within a single lifespan call (subsequent calls
     overwrite the singleton, bumping the generation token). Tests
@@ -77,6 +83,7 @@ def init_signer_feed_state() -> SignerFeedState:
             PEM private key.
     """
     from session_buddy.skills_signer import (
+        SkillsSigner,
         build_pubkey_manifest,
         load_or_create_keypair,
     )
@@ -86,16 +93,18 @@ def init_signer_feed_state() -> SignerFeedState:
     key_path = _resolve_session_buddy_signer_key_path()
     keypair = load_or_create_keypair(key_path)
     manifest = build_pubkey_manifest(keypair)
+    signer = SkillsSigner.from_keypair(keypair)
 
     if _signer_feed_state is not None:
         # Re-init: bump the generation token so any old reference
         # captured during a previous lifespan entry is invalidated.
         new_state = SignerFeedState(
             manifest=manifest,
+            signer=signer,
             generation=_signer_feed_state.generation + 1,
         )
     else:
-        new_state = SignerFeedState(manifest=manifest)
+        new_state = SignerFeedState(manifest=manifest, signer=signer)
 
     _signer_feed_state = new_state
     logger.info(
@@ -142,6 +151,8 @@ class SignerFeedState:
 
     Attributes:
         manifest: the :class:`PubkeyManifest` published in ``/health``.
+        signer: the :class:`SkillsSigner` for producing Phase 1
+            ``get_skill`` / ``get_agent`` response signatures.
         last_updated_timestamp: unix timestamp of the most recent update
             (initial creation or last :meth:`record_cycle`).
         cycles_total: count of successful feed update cycles since startup.
@@ -152,6 +163,7 @@ class SignerFeedState:
     """
 
     manifest: PubkeyManifest
+    signer: SkillsSigner
     last_updated_timestamp: float = field(default_factory=time.time)
     cycles_total: int = 0
     errors_total: int = 0

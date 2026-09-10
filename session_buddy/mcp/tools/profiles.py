@@ -80,6 +80,10 @@ STANDARD_REGISTRATIONS: list[str | Callable] = MINIMAL_REGISTRATIONS + [
     "register_channel_session_state_tools",
     "register_channel_tracking_tools",
     "register_cross_repo_work_tools",
+    # Phase 1 — server-published skills tools (plan §5 Phase 1 task #2-3).
+    # STANDARD tier exposes the skills metadata to the daily-development
+    # audience; FULL inherits via the ALL_TOOLS sentinel.
+    "register_skill_tools",
 ]
 
 # FULL uses the ALL_TOOLS sentinel so the W0 helper invokes
@@ -144,6 +148,7 @@ from . import (
     register_serverless_tools,
     register_session_analytics_tools,
     register_session_tools,
+    register_skill_tools,
     register_team_tools,
     register_workflow_metrics_tools,
     register_worktree_tools,
@@ -182,10 +187,28 @@ def _register_skills_signer_tools(server: FastMCP) -> None:
     "not initialized; awaiting lifespan".
 
     The function exists so the W0 helper can register the group at
-    every profile tier per plan §10.3.6; Phase 1 will add the
-    session_buddy_list_skills / session_buddy_get_skill MCP tools here.
+    every profile tier per plan §10.3.6.
     """
     logger.debug("skills_signer tools group registered (init in lifespan)")
+
+
+def _register_skill_tools(server: FastMCP) -> None:
+    """Phase 1 — register the server-published skills tools group.
+
+    Wires ``session_buddy_list_skills`` and ``session_buddy_get_skill``
+    MCP tools (plan §5 Phase 1 task #2-3). Reads the static catalog
+    from ``session_buddy/mcp/skills_catalog/<name>.md`` and signs
+    every ``get_skill`` response via the lifespan-owned
+    :class:`SkillsSigner` accessed through
+    :func:`session_buddy.mcp.signer_feed.get_signer_feed_state`.
+
+    No service dependencies — registration is safe at any profile
+    tier including lite mode. Pre-lifespan / pre-signer-init calls
+    return an informative error envelope rather than raising past the
+    MCP boundary (per plan §10.3.2 and B-1/B-4 gates).
+    """
+    register_skill_tools(server)
+    logger.info("Registered skill_tools (session_buddy_list_skills + session_buddy_get_skill)")
 
 
 REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
@@ -226,6 +249,13 @@ REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
     "register_serverless_tools": register_serverless_tools,
     "register_session_analytics_tools": register_session_analytics_tools,
     "register_session_tools": register_session_tools,
+    # Phase 1 — server-published skills tools (plan §5 Phase 1 task #2-3).
+    # Reads the static catalog and signs ``get_skill`` responses via
+    # the lifespan-owned :class:`SkillsSigner` (init runs in the
+    # session-buddy/server_optimized.py:session_lifecycle closure).
+    # Per §10.3.6, the new tool group MUST go through REGISTRATION_MAP
+    # so MANDATORY_GROUPS gating remains meaningful.
+    "register_skill_tools": _register_skill_tools,
     # Phase 1.5 — skills_signer (per plan §10.3.6). The actual signer
     # init runs in the lifespan (session_buddy/mcp/server.py). The
     # registration is a no-op so the W0 helper can wire the always-on

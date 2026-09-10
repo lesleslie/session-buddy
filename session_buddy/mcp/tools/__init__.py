@@ -99,6 +99,14 @@ from .session.migration_tools import register_migration_tools
 from .session.prompt_tools import register_prompt_tools
 from .session.session_tools import register_session_tools
 
+# Phase 1 server-published skills tools (plan §5 Phase 1).
+# Reclaims the bare ``list_skills`` MCP-tool name (H-6) for the new
+# packaging-metadata shape (``SkillMetadata``); the previously-named
+# ``list_skills`` MCP tool was renamed to ``list_workflow_patterns``
+# in commit H-6. Registers ``session_buddy_list_skills`` and
+# ``session_buddy_get_skill`` MCP tools.
+from .skill_tools import register_skill_tools
+
 # Skills tools (Phase 4 Analytics)
 from .skills.phase4_tools import register_phase4_tools
 
@@ -143,6 +151,7 @@ __all__ = [
     "register_serverless_tools",
     "register_session_analytics_tools",
     "register_session_tools",
+    "register_skill_tools",
     "register_team_tools",
     "register_validated_memory_tools",
     "register_workflow_metrics_tools",
