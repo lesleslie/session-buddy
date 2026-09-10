@@ -330,6 +330,27 @@ async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
 
     auto_loop: AutoCheckpointLoop | None = None
     async with _original_lifespan(app):
+        # ------------------------------------------------------------------
+        # Phase 1.5 (plan §10.3.2): initialize the skills_signer feed state
+        # BEFORE the lifespan yields so /health always sees a fully-populated
+        # state once the wrapper has confirmed the app is ready. Without
+        # this, every restart produces a fresh key_id and breaks all
+        # previously installed Skills (review R2-H1). The state lives in the
+        # module-level singleton (session_buddy.mcp.signer_feed) so the
+        # /health closure registered earlier in server_optimized.py can
+        # read it via get_signer_feed_state().
+        # ------------------------------------------------------------------
+        try:
+            from session_buddy.mcp.signer_feed import init_signer_feed_state
+
+            init_signer_feed_state()
+        except Exception as exc:  # noqa: BLE001 - signer init failure must not break lifespan
+            logger.warning(
+                "Phase 1.5: signer feed state init failed; "
+                "/health will report skills_signer error=%s",
+                exc,
+            )
+
         if loop_enabled and effective_interval > 0:
             # Finding C-7: validate cwd before it reaches the orchestrator.
             # Without this, a ``cd /`` would let ``LockfileSignalSource``

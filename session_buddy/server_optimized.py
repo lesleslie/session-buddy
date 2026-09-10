@@ -218,8 +218,30 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     IMPORTANT: Server must be able to accept MCP connections immediately after
     yield. Expensive operations (initialize_session, Dhara registration) run
     as background tasks to prevent blocking the MCP handshake.
+
+    Phase 1.5 (plan §10.3.2): the skills_signer feed state is initialized
+    BEFORE the yield so /health always sees a populated state once the
+    FastMCP server starts accepting requests. The init runs synchronously
+    here (keypair load is sub-second on warm cache); on failure, /health
+    will report ``skills_signer.error`` until the next restart.
     """
     current_dir = Path.cwd()
+
+    # Phase 1.5: initialize the skills_signer feed state before yielding.
+    # The state lives in the session_buddy.mcp.signer_feed module-level
+    # singleton so /health (registered above this lifespan) can read it.
+    # Failures here must NOT break startup — /health will surface the error
+    # via the existing per-feed checks contract.
+    try:
+        from session_buddy.mcp.signer_feed import init_signer_feed_state
+
+        init_signer_feed_state()
+    except Exception as exc:  # noqa: BLE001 - signer init failure must not block startup
+        logger.warning(
+            "Phase 1.5: signer feed state init failed; "
+            "/health will report skills_signer.error=%s",
+            exc,
+        )
 
     # Drain pending checkpoint markers at startup, in background. Each marker
     # triggers git diff + git commit via asyncio.to_thread; running this on
@@ -287,12 +309,36 @@ attach_otel_middleware(
 # HTTP health endpoint for Claude Code compatibility
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(request: Any) -> Any:
-    """HTTP health check endpoint for Claude Code `mcp list` compatibility."""
+    """HTTP health check endpoint for Claude Code `mcp list` compatibility.
+
+    Phase 1.5 (plan §10.3.3): extended with the skills_signer feed state
+    so clients can verify SkillMetadata.signature / AgentMetadata.signature
+    against the persisted public key. During the brief warm-up window
+    before the lifespan runs init_signer_feed_state(), /health returns
+    503 with checks.skills_signer.error = "not initialized".
+    """
     from starlette.responses import JSONResponse
 
-    return JSONResponse(
-        {"status": "ok", "service": "session-buddy", "version": __version__}
-    )
+    from session_buddy.mcp.signer_feed import get_signer_feed_state
+
+    checks: dict[str, dict[str, object]] = {}
+    state = get_signer_feed_state()
+    if state is None:
+        checks["skills_signer"] = {
+            "ok": False,
+            "error": "not initialized; awaiting lifespan",
+        }
+    else:
+        checks["skills_signer"] = state.as_dict()
+
+    all_ok = all(bool(c.get("ok")) for c in checks.values())
+    body = {
+        "status": "ok" if all_ok else "degraded",
+        "service": "session-buddy",
+        "version": __version__,
+        "checks": checks,
+    }
+    return JSONResponse(body, status_code=200 if all_ok else 503)
 
 
 @mcp.custom_route("/healthz", methods=["GET"])

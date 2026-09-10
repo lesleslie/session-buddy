@@ -188,8 +188,13 @@ class TestMandatoryRegistrations:
     """Mandatory registrations use the W0 helper's mandatory_groups parameter."""
 
     def test_mandatory_groups_count(self):
-        """MANDATORY_GROUPS contains health and baseline registrations."""
-        assert len(SESSION_BUDDY_MANDATORY_GROUPS) == 2
+        """MANDATORY_GROUPS contains health, baseline, and skills_signer registrations.
+
+        Phase 1.5 (plan §10.3.1): skills_signer is infrastructure-critical
+        and must be present at every profile tier (signing verification
+        is on every Phase 2/6 install).
+        """
+        assert len(SESSION_BUDDY_MANDATORY_GROUPS) == 3
 
     def test_mandatory_contains_health_tools(self):
         assert "register_health_tools_sb" in SESSION_BUDDY_MANDATORY_GROUPS

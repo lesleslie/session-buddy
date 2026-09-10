@@ -23,9 +23,12 @@ def test_profile_constants_and_active_profile() -> None:
     # ALL_TOOLS sentinel, and the actual FULL group set is the
     # REGISTRATION_MAP keys (minus the mandatory groups).
     assert "register_prometheus_metrics_tools" in REGISTRATION_MAP
+    # Phase 1.5: skills_signer added per plan §10.3.1 (always-on
+    # because signing verification is on every Phase 2/6 install).
     assert SESSION_BUDDY_MANDATORY_GROUPS == {
         "register_health_tools_sb",
         "register_baseline_tools",
+        "_register_skills_signer_tools",
     }
     assert PROFILE_REGISTRATIONS[ToolProfile.MINIMAL] == MINIMAL_REGISTRATIONS
     assert PROFILE_REGISTRATIONS[ToolProfile.STANDARD] == STANDARD_REGISTRATIONS

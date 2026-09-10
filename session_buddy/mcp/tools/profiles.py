@@ -37,11 +37,14 @@ session-buddy is env-only (no YAML ``tool_profile`` override), so
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from mcp_common.tools import ToolProfile
 from mcp_common.tools.dispatch import ALL_TOOLS
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from mcp_common.fastmcp import FastMCP
@@ -167,6 +170,24 @@ def _register_channel_tracking(server: FastMCP) -> None:
     register_channel_tracking_tools(server, dhara_publisher=_dhara_publisher)
 
 
+def _register_skills_signer_tools(server: FastMCP) -> None:
+    """Phase 1.5 — register the skills_signer tools group.
+
+    No-op at registration time. The SignerFeedState singleton is
+    initialized by init_signer_feed_state() inside the lifespan
+    closure at session_buddy/server_optimized.py:session_lifecycle
+    (plan §10.3.2 option "async lifespan" — session-buddy replicates
+    akosha's pattern). During the brief warm-up window before that
+    runs, /health returns 503 with checks.skills_signer.error =
+    "not initialized; awaiting lifespan".
+
+    The function exists so the W0 helper can register the group at
+    every profile tier per plan §10.3.6; Phase 1 will add the
+    list_skills / get_skill MCP tools here.
+    """
+    logger.debug("skills_signer tools group registered (init in lifespan)")
+
+
 REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
     "register_access_log_tools": register_access_log_tools,
     "register_admin_shell_tracking_tools": register_admin_shell_tracking_tools,
@@ -205,6 +226,11 @@ REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
     "register_serverless_tools": register_serverless_tools,
     "register_session_analytics_tools": register_session_analytics_tools,
     "register_session_tools": register_session_tools,
+    # Phase 1.5 — skills_signer (per plan §10.3.6). The actual signer
+    # init runs in the lifespan (session_buddy/mcp/server.py). The
+    # registration is a no-op so the W0 helper can wire the always-on
+    # group via SESSION_BUDDY_MANDATORY_GROUPS at every profile tier.
+    "_register_skills_signer_tools": _register_skills_signer_tools,
     "register_team_tools": register_team_tools,
     "register_workflow_metrics_tools": register_workflow_metrics_tools,
     "register_worktree_tools": register_worktree_tools,
@@ -223,7 +249,17 @@ REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
 SESSION_BUDDY_MANDATORY_GROUPS: set[str] = {
     "register_baseline_tools",
     "register_health_tools_sb",
+    # Phase 1.5 — skills_signer (per plan §10.3.1). Signing
+    # verification is on every Phase 2/6 install; a MINIMAL-profile
+    # deployment that loses the signer feed fails B-7's partial-
+    # closure test. The actual signer init runs in the lifespan in
+    # session_buddy/mcp/server.py (async-lifespan pattern, mirrors
+    # akosha per plan §10.3.2). Registration is a no-op; the
+    # mandatory-group entry exists to satisfy the W0 helper contract.
+    "_register_skills_signer_tools",
 }
+
+
 
 
 def get_active_profile(env_var: str = "SESSION_BUDDY_TOOL_PROFILE") -> ToolProfile:
