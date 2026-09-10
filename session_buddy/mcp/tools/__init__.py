@@ -99,6 +99,14 @@ from .session.migration_tools import register_migration_tools
 from .session.prompt_tools import register_prompt_tools
 from .session.session_tools import register_session_tools
 
+# Phase 3 server-published agents tools (plan §5 Phase 3 task #1-2).
+# Mirrors Phase 1's ``skill_tools`` shape: ``list_agents`` returns
+# the static catalog (≥3 entries, system_prompt per entry), and
+# ``get_agent`` returns the signed metadata + the markdown body for
+# one agent. Signs ``get_agent`` responses via the same lifespan-
+# owned :class:`SkillsSigner` used by Phase 1's ``get_skill``.
+from .agents_tools import register_agents_tools
+
 # Phase 1 server-published skills tools (plan §5 Phase 1).
 # Reclaims the bare ``list_skills`` MCP-tool name (H-6) for the new
 # packaging-metadata shape (``SkillMetadata``); the previously-named
@@ -116,6 +124,7 @@ from .worktree_tools import register_worktree_tools
 __all__ = [
     "register_access_log_tools",
     "register_admin_shell_tracking_tools",
+    "register_agents_tools",
     "register_akosha_tools",
     "register_bottleneck_tools",
     "register_cache_tools",

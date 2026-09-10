@@ -84,6 +84,10 @@ STANDARD_REGISTRATIONS: list[str | Callable] = MINIMAL_REGISTRATIONS + [
     # STANDARD tier exposes the skills metadata to the daily-development
     # audience; FULL inherits via the ALL_TOOLS sentinel.
     "register_skill_tools",
+    # Phase 3 — server-published agents tools (plan §5 Phase 3 task #1-2).
+    # Mirror Phase 1's STANDARD exposure; agents are reachable from the
+    # picker at STANDARD tier so daily-development can list/get them.
+    "register_agents_tools",
 ]
 
 # FULL uses the ALL_TOOLS sentinel so the W0 helper invokes
@@ -118,6 +122,7 @@ PROFILE_REGISTRATIONS: dict[ToolProfile, list[str | Callable] | type[ALL_TOOLS]]
 from . import (
     register_access_log_tools,
     register_admin_shell_tracking_tools,
+    register_agents_tools,
     register_akosha_tools,
     register_bottleneck_tools,
     register_cache_tools,
@@ -211,9 +216,38 @@ def _register_skill_tools(server: FastMCP) -> None:
     logger.info("Registered skill_tools (session_buddy_list_skills + session_buddy_get_skill)")
 
 
+def _register_agents_tools(server: FastMCP) -> None:
+    """Phase 3 — register the server-published agents tools group.
+
+    Wires ``session_buddy_list_agents`` and ``session_buddy_get_agent``
+    MCP tools (plan §5 Phase 3 task #1-2). Reads the static catalog
+    from ``session_buddy/mcp/agents/<name>.md`` and signs every
+    ``get_agent`` response via the same lifespan-owned
+    :class:`SkillsSigner` used by the Phase 1 skills tools.
+
+    Same registration-time guarantees as ``_register_skill_tools``:
+    no service dependencies — registration is safe at any profile
+    tier including lite mode. Pre-lifespan / pre-signer-init calls
+    return an informative error envelope rather than raising past
+    the MCP boundary (per plan §10.3.2 and B-1/B-4 gates).
+    """
+    register_agents_tools(server)
+    logger.info(
+        "Registered agents_tools "
+        "(session_buddy_list_agents + session_buddy_get_agent)"
+    )
+
+
 REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
     "register_access_log_tools": register_access_log_tools,
     "register_admin_shell_tracking_tools": register_admin_shell_tracking_tools,
+    # Phase 3 — server-published agents tools (plan §5 Phase 3 task #1-2).
+    # Mirror Phase 1's REGISTRATION_MAP contract: the new tool group
+    # MUST go through REGISTRATION_MAP so MANDATORY_GROUPS gating
+    # (see SESSION_BUDDY_MANDATORY_GROUPS below) remains meaningful.
+    # Per §10.3.6, agents are reachable at every tier via the mandatory-
+    # groups pass, not via per-profile lists.
+    "register_agents_tools": _register_agents_tools,
     "register_akosha_tools": register_akosha_tools,
     "register_bottleneck_tools": register_bottleneck_tools,
     "register_cache_tools": register_cache_tools,
@@ -287,6 +321,17 @@ SESSION_BUDDY_MANDATORY_GROUPS: set[str] = {
     # akosha per plan §10.3.2). Registration is a no-op; the
     # mandatory-group entry exists to satisfy the W0 helper contract.
     "_register_skills_signer_tools",
+    # Phase 3 — register_agents_tools MUST be reachable at every tier
+    # (plan §5 Phase 3 task #1-2). The picker projection
+    # (``/<server>:<tool> (MCP)``) auto-exposes whatever tools
+    # ``list_tools()`` returns at server start; if a MINIMAL-profile
+    # deployment omitted ``register_agents_tools``, the picker would
+    # not auto-project ``session_buddy_list_agents`` /
+    # ``session_buddy_get_agent`` and the federation fan-out
+    # (Phase 4) would silently drop session-buddy from the
+    # ecosystem roster. Marking it mandatory per §10.3.6 wires the
+    # W0 helper to invoke it at MINIMAL/STANDARD/FULL uniformly.
+    "register_agents_tools",
 }
 
 
