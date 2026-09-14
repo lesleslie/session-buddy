@@ -9,6 +9,20 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.26.1] - 2026-09-14
+
+### Added
+
+- session-buddy: Migrate to mcp-common CommonMCPClient (Phase 3 REQ-004)
+
+### Fixed
+
+- session-buddy: Append /mcp to DHARA_DEFAULT_URL (Phase 2 REQ-005)
+
+### Internal
+
+- deps: Bump mcp-common floor to >=0.26.0,<0.27.0 (Phase 2.5)
+
 ## [0.26.0] - 2026-09-13
 
 ### Added

@@ -982,13 +982,13 @@ ______________________________________________________________________
 
 ## Documentation
 
-- **[README.md](README.md)**: Project overview and quick start
+- **[README.md](../../README.md)**: Project overview and quick start
 - **[QUICKSTART.md](../guides/QUICKSTART.md)**: 5-minute getting started guide
-- **[CLAUDE.md](CLAUDE.md)**: Development guidelines for Claude Code
-- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines
-- **[docs/user/MCP_TOOLS_REFERENCE.md](docs/user/MCP_TOOLS_REFERENCE.md)**: MCP tool documentation
-- **[docs/features/INTELLIGENCE_QUICK_START.md](docs/features/INTELLIGENCE_QUICK_START.md)**: Intelligence features guide
-- **[docs/guides/operational-modes.md](docs/guides/operational-modes.md)**: Operational modes guide
+- **[CLAUDE.md](../../CLAUDE.md)**: Development guidelines for Claude Code
+- **[CONTRIBUTING.md](../../CONTRIBUTING.md)**: Contribution guidelines
+- **[docs/user/MCP_TOOLS_REFERENCE.md](../user/MCP_TOOLS_REFERENCE.md)**: MCP tool documentation
+- **[docs/features/INTELLIGENCE_QUICK_START.md](../features/INTELLIGENCE_QUICK_START.md)**: Intelligence features guide
+- **[docs/guides/operational-modes.md](../guides/operational-modes.md)**: Operational modes guide
 
 ______________________________________________________________________
 

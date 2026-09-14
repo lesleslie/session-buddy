@@ -102,7 +102,9 @@ _connection_info: dict[str, Any] | None = None
 # Module-level task reference so shutdown can cancel the heartbeat loop
 _heartbeat_task: asyncio.Task[None] | None = None
 
-DHARA_DEFAULT_URL = "http://localhost:8683/mcp"  # Implements: REQ-005 (Bodai MCP transport unification)
+DHARA_DEFAULT_URL = (
+    "http://localhost:8683/mcp"  # Implements: REQ-005 (Bodai MCP transport unification)
+)
 
 
 async def _register_to_dhara_once(dhara_url: str, key: str, mcp_url: str) -> bool:
@@ -120,11 +122,9 @@ async def _register_to_dhara_once(dhara_url: str, key: str, mcp_url: str) -> boo
     client: CommonMCPClient | None = None
     try:
         client = CommonMCPClient(base_url=dhara_url, timeout=10.0)
-        await client.call_tool(
-            "put", {"key": key, "value": mcp_url}, timeout=10.0
-        )
+        await client.call_tool("put", {"key": key, "value": mcp_url}, timeout=10.0)
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort Dhara registration; caller retries with exponential backoff, so any failure (transport, timeout, 5xx, JSON-RPC) returns False to trigger the next attempt
         return False
     finally:
         if client is not None:
