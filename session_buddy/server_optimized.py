@@ -102,7 +102,7 @@ _connection_info: dict[str, Any] | None = None
 # Module-level task reference so shutdown can cancel the heartbeat loop
 _heartbeat_task: asyncio.Task[None] | None = None
 
-DHARA_DEFAULT_URL = "http://localhost:8683"
+DHARA_DEFAULT_URL = "http://localhost:8683/mcp"  # Implements: REQ-005 (Bodai MCP transport unification)
 
 
 async def _register_to_dhara_once(dhara_url: str, key: str, mcp_url: str) -> bool:
