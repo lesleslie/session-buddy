@@ -46,19 +46,20 @@ logger = logging.getLogger(__name__)
 class DharaChannelPublisher:
     """Fire-and-forget publisher for channel session events to Dhara time-series.
 
-    Uses Dhara's MCP HTTP transport (``POST /tools/call``) with the
-    ``record_time_series`` tool. All errors are swallowed so a Dhara outage
-    never blocks channel tracking.
+    Uses :class:`mcp_common.clients.CommonMCPClient` (the Bodai MCP
+    transport SDK) to invoke Dhara's ``record_time_series`` tool over
+    streamable-HTTP. All errors are swallowed so a Dhara outage never
+    blocks channel tracking.
 
     Args:
         dhara_url: Base URL of the Dhara MCP server (e.g. ``http://localhost:8683``).
     """
 
     def __init__(self, dhara_url: str) -> None:
-        import httpx2 as httpx
+        from mcp_common.clients import CommonMCPClient
 
         self.dhara_url = dhara_url.rstrip("/")
-        self._client = httpx.AsyncClient(timeout=5.0)
+        self._client = CommonMCPClient(base_url=dhara_url, timeout=5.0)
 
     async def publish(
         self,
@@ -68,16 +69,14 @@ class DharaChannelPublisher:
     ) -> None:
         """Record a time-series entry in Dhara. Errors are silently dropped."""
         try:
-            await self._client.post(
-                f"{self.dhara_url}/tools/call",
-                json={
-                    "name": "record_time_series",
-                    "arguments": {
-                        "metric_type": metric_type,
-                        "entity_id": entity_id,
-                        "record": record,
-                    },
+            await self._client.call_tool(
+                "record_time_series",
+                {
+                    "metric_type": metric_type,
+                    "entity_id": entity_id,
+                    "record": record,
                 },
+                timeout=5.0,
             )
         except Exception:
             logger.exception("Dhara channel publish failed (non-fatal)")

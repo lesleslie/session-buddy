@@ -109,19 +109,26 @@ async def _register_to_dhara_once(dhara_url: str, key: str, mcp_url: str) -> boo
     """Single attempt to write component_endpoint/{name} -> mcp_url to Dhara.
 
     Returns True on success, False on failure.
-    """
-    import httpx2 as httpx
 
+    Uses :class:`mcp_common.clients.CommonMCPClient` (the Bodai MCP
+    transport SDK) instead of a hand-rolled ``/tools/call`` POST. See
+    REQ-004 in
+    ``docs/plans/2026-09-14-common-mcp-client-transport-unification.md``.
+    """
+    from mcp_common.clients import CommonMCPClient
+
+    client: CommonMCPClient | None = None
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                f"{dhara_url}/tools/call",
-                json={"name": "put", "arguments": {"key": key, "value": mcp_url}},
-            )
-            response.raise_for_status()
-            return True
-    except httpx.HTTPError, httpx.RequestError, OSError:
+        client = CommonMCPClient(base_url=dhara_url, timeout=10.0)
+        await client.call_tool(
+            "put", {"key": key, "value": mcp_url}, timeout=10.0
+        )
+        return True
+    except Exception:
         return False
+    finally:
+        if client is not None:
+            await client.aclose()
 
 
 async def _register_component_to_dhara(mcp_url: str) -> None:

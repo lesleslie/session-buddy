@@ -233,30 +233,34 @@ class TestDharaChannelPublisher:
             DharaChannelPublisher,
         )
         pub = DharaChannelPublisher(dhara_url="http://localhost:8683")
-        mock_response = MagicMock()
-        mock_response.raise_for_status = MagicMock()
         mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.call_tool = AsyncMock(
+            return_value={
+                "isError": False,
+                "content": [{"type": "text", "text": "{}"}],
+            }
+        )
         pub._client = mock_client
         await pub.publish("session_buddy.channel_event", "chan_abc", {"event_type": "channel_session_start"})
-        mock_client.post.assert_awaited_once()
-        call_args = mock_client.post.call_args
-        body = call_args.kwargs.get("json") or (call_args.args[1] if len(call_args.args) > 1 else None)
-        assert body is not None
-        assert body["name"] == "record_time_series"
-        assert body["arguments"]["metric_type"] == "session_buddy.channel_event"
-        assert body["arguments"]["entity_id"] == "chan_abc"
+        mock_client.call_tool.assert_awaited_once()
+        call_args = mock_client.call_tool.call_args
+        # call_tool signature: (name, arguments, *, timeout)
+        assert call_args.args[0] == "record_time_series"
+        assert call_args.args[1]["metric_type"] == "session_buddy.channel_event"
+        assert call_args.args[1]["entity_id"] == "chan_abc"
 
     @pytest.mark.asyncio
     async def test_publish_swallows_http_errors(self) -> None:
-        import httpx2 as httpx
+        from mcp_common.clients import MCPClientHTTPError
 
         from session_buddy.mcp.tools.session.channel_tracking_tools import (
             DharaChannelPublisher,
         )
         pub = DharaChannelPublisher(dhara_url="http://localhost:8683")
         mock_client = AsyncMock()
-        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("refused"))
+        mock_client.call_tool = AsyncMock(
+            side_effect=MCPClientHTTPError("HTTP 503", status_code=503)
+        )
         pub._client = mock_client
         # Should not raise
         await pub.publish("session_buddy.channel_event", "chan_abc", {"event_type": "channel_session_start"})

@@ -508,22 +508,34 @@ class TestMakeDharaPublisher:
 class TestDharaChannelPublisherPublishEdgeCases:
     @pytest.mark.asyncio
     async def test_publish_handles_request_exception(self) -> None:
-        """Publish swallows httpx.RequestError so a Dhara outage is non-fatal."""
-        import httpx2 as httpx
+        """Publish swallows MCPClientTimeoutError so a Dhara outage is non-fatal."""
+        from mcp_common.clients import MCPClientTimeoutError
 
         pub = DharaChannelPublisher(dhara_url="http://example.invalid:8683")
         pub._client = AsyncMock()
-        pub._client.post = AsyncMock(side_effect=httpx.ConnectError("refused"))
+        pub._client.call_tool = AsyncMock(
+            side_effect=MCPClientTimeoutError("call_tool timed out")
+        )
         # MUST NOT raise
         await pub.publish("metric", "entity-1", {"k": "v"})
 
     @pytest.mark.asyncio
     async def test_publish_uses_correct_endpoint(self) -> None:
+        """Publish routes through CommonMCPClient.call_tool with the right name+args.
+
+        Pre-migration this asserted the URL was suffixed with ``/tools/call``;
+        after the migration to ``mcp_common.clients.CommonMCPClient`` (Phase 3
+        REQ-004) the SDK owns the URL routing — the caller's contract is the
+        tool ``name`` and ``arguments`` it forwards.
+        """
         pub = DharaChannelPublisher(dhara_url="http://example.invalid:8683")
         mock_client = AsyncMock()
-        mock_response = MagicMock()
-        mock_response.raise_for_status = MagicMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
+        mock_client.call_tool = AsyncMock(
+            return_value={
+                "isError": False,
+                "content": [{"type": "text", "text": "{}"}],
+            }
+        )
         pub._client = mock_client
 
         await pub.publish(
@@ -531,11 +543,10 @@ class TestDharaChannelPublisherPublishEdgeCases:
             "chan_xyz",
             {"event_type": "channel_session_start"},
         )
-        mock_client.post.assert_awaited_once()
-        args, kwargs = mock_client.post.call_args
-        assert args[0] == "http://example.invalid:8683/tools/call"
-        body = kwargs.get("json") or args[1]
-        assert body["name"] == "record_time_series"
-        assert body["arguments"]["metric_type"] == "session_buddy.channel_event"
-        assert body["arguments"]["entity_id"] == "chan_xyz"
-        assert body["arguments"]["record"]["event_type"] == "channel_session_start"
+        mock_client.call_tool.assert_awaited_once()
+        call_args = mock_client.call_tool.call_args
+        # Signature: (name, arguments, *, timeout)
+        assert call_args.args[0] == "record_time_series"
+        assert call_args.args[1]["metric_type"] == "session_buddy.channel_event"
+        assert call_args.args[1]["entity_id"] == "chan_xyz"
+        assert call_args.args[1]["record"]["event_type"] == "channel_session_start"

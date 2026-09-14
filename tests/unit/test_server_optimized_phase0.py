@@ -20,15 +20,19 @@ class TestRegisterToDharaOnce:
         """Should return True when Dhara responds successfully."""
         from session_buddy.server_optimized import _register_to_dhara_once
 
-        mock_response = MagicMock()
-        mock_response.raise_for_status = MagicMock()
-
-        with patch("httpx2.AsyncClient") as mock_client_cls:
-            mock_instance = MagicMock()
-            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_instance.__aexit__ = AsyncMock(return_value=None)
-            mock_instance.post = AsyncMock(return_value=mock_response)
-            mock_client_cls.return_value = mock_instance
+        # Production does ``from mcp_common.clients import CommonMCPClient``
+        # inside the function body — patch the resolved import path so the
+        # inline ``import`` picks up our mock. (See monkeypatch-inline-import-target.)
+        with patch("mcp_common.clients.CommonMCPClient") as mock_client_cls:
+            mock_client = MagicMock()
+            mock_client.call_tool = AsyncMock(
+                return_value={
+                    "isError": False,
+                    "content": [{"type": "text", "text": "{}"}],
+                }
+            )
+            mock_client.aclose = AsyncMock()
+            mock_client_cls.return_value = mock_client
 
             result = await _register_to_dhara_once(
                 "http://localhost:8683",
@@ -37,30 +41,33 @@ class TestRegisterToDharaOnce:
             )
 
             assert result is True
-            mock_instance.post.assert_called_once()
-            call_args = mock_instance.post.call_args
-            assert call_args[0][0] == "http://localhost:8683/tools/call"
-            assert call_args[1]["json"] == {
-                "name": "put",
-                "arguments": {
+            mock_client_cls.assert_called_once_with(
+                base_url="http://localhost:8683", timeout=10.0
+            )
+            mock_client.call_tool.assert_awaited_once_with(
+                "put",
+                {
                     "key": "component_endpoint/session-buddy",
                     "value": "http://127.0.0.1:8678/mcp",
                 },
-            }
+                timeout=10.0,
+            )
+            mock_client.aclose.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_returns_false_on_http_error(self) -> None:
-        """Should return False when Dhara returns an HTTP error."""
-        import httpx2 as httpx
+    async def test_returns_false_on_call_tool_error(self) -> None:
+        """Should return False when Dhara's MCP call_tool raises."""
+        from mcp_common.clients import MCPClientHTTPError
 
         from session_buddy.server_optimized import _register_to_dhara_once
 
-        with patch("httpx2.AsyncClient") as mock_client_cls:
-            mock_instance = MagicMock()
-            mock_instance.__aenter__ = AsyncMock(
-                side_effect=httpx.HTTPError("connection refused")
+        with patch("mcp_common.clients.CommonMCPClient") as mock_client_cls:
+            mock_client = MagicMock()
+            mock_client.call_tool = AsyncMock(
+                side_effect=MCPClientHTTPError("HTTP 503", status_code=503)
             )
-            mock_client_cls.return_value = mock_instance
+            mock_client.aclose = AsyncMock()
+            mock_client_cls.return_value = mock_client
 
             result = await _register_to_dhara_once(
                 "http://localhost:8683",
@@ -69,17 +76,16 @@ class TestRegisterToDharaOnce:
             )
 
             assert result is False
+            # aclose must still run via finally even when call_tool raises.
+            mock_client.aclose.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_returns_false_on_exception(self) -> None:
-        """Should return False on any other exception."""
+        """Should return False on any other exception (e.g. transport teardown)."""
         from session_buddy.server_optimized import _register_to_dhara_once
 
-        with patch("httpx2.AsyncClient") as mock_client_cls:
-            mock_instance = MagicMock()
-            mock_instance.__aenter__ = AsyncMock(side_effect=OSError("unexpected"))
-            mock_client_cls.return_value = mock_instance
-
+        with patch("mcp_common.clients.CommonMCPClient") as mock_client_cls:
+            mock_client_cls.side_effect = OSError("unexpected")
             result = await _register_to_dhara_once(
                 "http://localhost:8683",
                 "component_endpoint/session-buddy",
