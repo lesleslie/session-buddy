@@ -39,18 +39,16 @@ imported from the ``ecosystem-skill-loader`` Skill body via the
 from __future__ import annotations
 
 import fcntl
-import hashlib
 import json
 import os
 import sys
 import tempfile
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Public paths and constants
@@ -114,14 +112,14 @@ class InstallerCache:
                     "server": run.server,
                     "version": run.version,
                     "fetched_at": run.fetched_at,
-                    "skills": list(run.skills),
+                    "skills": run.skills.copy(),
                 }
                 for run in self.server_runs
             ],
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "InstallerCache":
+    def from_dict(cls, payload: dict[str, Any]) -> InstallerCache:
         schema_version = int(payload.get("schema_version", SCHEMA_VERSION))
         last_modified = float(payload.get("last_modified", 0.0))
         server_runs = [
@@ -177,30 +175,30 @@ def install_cache_lock(
         OSError: when the parent directory cannot be created.
     """
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = cache_path.with_name(cache_path.name.replace(
-        DEFAULT_CACHE_FILENAME, DEFAULT_LOCK_FILENAME
-    )) if DEFAULT_CACHE_FILENAME in cache_path.name else cache_path.parent / DEFAULT_LOCK_FILENAME
-    lock_handle = open(lock_path, "w", encoding="utf-8")
-    try:
-        deadline = time.monotonic() + timeout_seconds
-        while True:
-            try:
-                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except OSError:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError(
-                        f"could not acquire {lock_path} within "
-                        f"{timeout_seconds:.1f}s"
-                    ) from None
-            time.sleep(poll_seconds)
-        yield
-    finally:
+    lock_path = (
+        cache_path.with_name(
+            cache_path.name.replace(DEFAULT_CACHE_FILENAME, DEFAULT_LOCK_FILENAME)
+        )
+        if DEFAULT_CACHE_FILENAME in cache_path.name
+        else cache_path.parent / DEFAULT_LOCK_FILENAME
+    )
+    with lock_path.open("w", encoding="utf-8") as lock_handle:
         try:
-            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
-        lock_handle.close()
+            deadline = time.monotonic() + timeout_seconds
+            while True:
+                try:
+                    fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(
+                            f"could not acquire {lock_path} within {timeout_seconds:.1f}s"
+                        ) from None
+                time.sleep(poll_seconds)
+            yield
+        finally:
+            with suppress(OSError):
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
 
 
 # ---------------------------------------------------------------------------
@@ -252,7 +250,7 @@ def load_cache(cache_path: Path) -> InstallerCache:
         )
     try:
         raw = json.loads(cache_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError):
+    except json.JSONDecodeError, UnicodeDecodeError:
         return InstallerCache(
             schema_version=SCHEMA_VERSION,
             last_modified=0.0,
@@ -308,11 +306,9 @@ def upsert_server_run(
         server=server,
         version=version,
         fetched_at=fetched_at,
-        skills=list(skills),
+        skills=skills.copy(),
     )
-    new_runs = [
-        r for r in cache.server_runs if r.server != server
-    ] + [new_run]
+    new_runs = [r for r in cache.server_runs if r.server != server] + [new_run]
     return InstallerCache(
         schema_version=SCHEMA_VERSION,
         last_modified=clock(),

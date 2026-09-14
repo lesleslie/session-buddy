@@ -336,7 +336,7 @@ def register_agents_tools(app: FastMCP) -> None:
         for entry in _STATIC_AGENTS:
             try:
                 metadata = _build_unsigned_metadata(entry["name"])
-            except (FileNotFoundError, ValidationError, KeyError):
+            except FileNotFoundError, ValidationError, KeyError:
                 logger.exception(
                     "list_agents: failed to build metadata for %s",
                     entry["name"],
@@ -385,7 +385,10 @@ def register_agents_tools(app: FastMCP) -> None:
         try:
             unsigned = _build_unsigned_metadata(name)
         except KeyError:
-            return {"success": False, "error": f"agent {name!r} not found on this server"}
+            return {
+                "success": False,
+                "error": f"agent {name!r} not found on this server",
+            }
         except FileNotFoundError as exc:
             return {"success": False, "error": str(exc)}
         except ValidationError as exc:

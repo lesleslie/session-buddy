@@ -9,6 +9,94 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.26.0] - 2026-09-13
+
+### Added
+
+- mcp: Phase 1 server-published skills (session_buddy_list_skills + session_buddy_get_skill)
+- mcp: Phase 3 server-published agents (list_agents + get_agent + AgentMetadata schema)
+- mcp: Phase 5 installer_cache substrate (atomic + locked marketplace cache)
+- profiles: Wire new register_*_tools into REGISTRATION_MAP
+- Register_multi_project_tools over MultiProjectCoordinator
+- Register_natural_scheduling_tools over ReminderScheduler
+- skills-signer: Phase 1.5 ed25519 signing infrastructure
+
+### Changed
+
+- mcp: H-6 rename list_skills → list_workflow_patterns
+
+### Fixed
+
+- Add input length validation to multi_project_tools
+- Add input validation + ownership check to natural_scheduling_tools
+- mcp: Guard redundant signer init in lifespan wrapper
+- multi-project: Add context column to session_links table
+- multi-project: Resolve reflection_db.conn on calling thread before executor dispatch
+- natural-scheduler: Align SQL queries with schema column names
+- natural-scheduler: Resolve context_triggers KeyError + update stale unit test mocks
+- scheduling: Make ownership deferral explicit in cancel/execute envelope
+- Sync session_buddy.__version__ to installed release (0.7.4 → 0.25.7)
+- tools: Add asyncio.Lock to lazy singletons + structured ImportError envelope
+
+### Documentation
+
+- Add docs/assets/images/ + .scratch/ convention
+- architectural: Fix cross-component stale path references in CLAUDE.md
+- architectural: Replace phantom CLI commands in QUICKSTART.md
+- archive: Add redirect stub at docs/CLAUDE_QWEN_CONFIG_SYNC.md
+- design: Mark SKILL_METRICS_AGGREGATION as historical; record proposed layout was not built
+- design: Mark SKILL_METRICS_IMPLEMENTATION as historical; record proposed layout was not built
+- feature-tracking: Correct TOOL_REGISTRATION_GAPS (2026-09-09)
+- fix: Correct cwd for uv run session-buddy server start
+- frontmatter: Migrate adapter-architecture/* docs
+- frontmatter: Migrate architecture/* docs
+- frontmatter: Migrate auth/* docs
+- frontmatter: Migrate convergence-control-plane/UNIFIED_ROADMAP
+- frontmatter: Migrate docs/api/ + docs/initialization/ (2 files)
+- frontmatter: Migrate docs/design/ (3 files)
+- frontmatter: Migrate docs/developer/ (6 files)
+- frontmatter: Migrate docs/features/ (6 files)
+- frontmatter: Migrate docs/integration/ (1 file)
+- frontmatter: Migrate docs/migrations/ (4 files)
+- frontmatter: Migrate docs/performance/ (3 files)
+- frontmatter: Migrate docs/plans/ (3 files)
+- frontmatter: Migrate docs/realtime/ (2 files)
+- frontmatter: Migrate docs/reference/ (4 files)
+- frontmatter: Migrate docs/schemas/ (2 files)
+- frontmatter: Migrate docs/security/SECURITY_ARCHITECTURE.md
+- frontmatter: Migrate docs/user/ (4 files)
+- frontmatter: Migrate learning-pipeline/* docs
+- frontmatter: Migrate lifecycle/* docs (incl. README)
+- frontmatter: Migrate mcp-design/* docs
+- frontmatter: Migrate observability/* docs
+- frontmatter: Migrate oneiric-config/* docs
+- frontmatter: Migrate storage-consolidation/SYNC_IMPLEMENTATION
+- Mark SKILL_METRICS_ARCHITECTURE as historical; sibling of unimplemented design
+- mechanical: Normalize CLI form in docs/api/WEBSOCKET_API.md
+- mechanical: Normalize CLI form in docs/guides/operational-modes.md
+- mechanical: Normalize CLI form in docs/initialization/TAXONOMY_INITIALIZATION.md
+- mechanical: Normalize CLI form in docs/migrations/ONEIRIC_MIGRATION_COMPLETE.md
+- mechanical: Normalize CLI form in docs/migrations/ONEIRIC_MIGRATION_PLAN.md
+- mechanical: Normalize CLI form in docs/reference/service-dependencies.md
+- mechanical: Normalize CLI form in docs/user/CONFIGURATION.md
+- mechanical: Normalize CLI form in docs/user/DEPLOYMENT.md
+- mechanical: Normalize CLI form in QUALITY_TRACKING_PROPOSAL
+- mechanical: Normalize CLI form to `uv run session-buddy`
+- Move CLAUDE_QWEN_CONFIG_SYNC to docs/archive (rename detection)
+- refactor: Extract tool-registration gap acknowledgment to feature-tracking
+- Refresh content of archived CLAUDE_QWEN_CONFIG_SYNC
+- refresh: Bump stale Last Updated dates to 2026-09-09
+
+### Testing
+
+- integration: E2e tests for multi_project and natural_scheduling tools
+- multi-project: Round-trip e2e for 5 tools with real MultiProjectCoordinator
+- scheduling: Round-trip e2e for create/list/list_due/execute with real ReminderScheduler
+
+### Internal
+
+- gitignore: Apply Bodai canonical snippet
+
 ## [0.25.7] - 2026-09-06
 
 ### Fixed

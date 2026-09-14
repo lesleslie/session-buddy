@@ -1,4 +1,4 @@
-# Session Buddy
+# Session-Buddy
 
 [![Code style: crackerjack](https://img.shields.io/badge/code%20style-crackerjack-000042)](https://github.com/lesleslie/crackerjack)
 [![Runtime: oneiric](https://img.shields.io/badge/runtime-oneiric-6e5494)](https://github.com/lesleslie/oneiric)
@@ -6,275 +6,101 @@
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Python: 3.14+](https://img.shields.io/badge/python-3.14%2B-green)](https://www.python.org/downloads/)
 
-A session management MCP server for Claude Code.
-
-A dedicated MCP server that manages session lifecycle, searchable memory, and cross-project intelligence for Claude Code sessions.
+Session-Buddy is a session-lifecycle and memory MCP server for Claude Code and
+other MCP clients. It manages session startup, checkpoints, cleanup, searchable
+reflections, cross-project context, and quality signals through a local
+DuckDB-backed service.
 
 ## Bodai Ecosystem Role
 
-Session Buddy is the **builder** of the [Bodai ecosystem](https://github.com/lesleslie/bodai) — it persists, indexes, and recovers the conversation context that flows through Mahavishnu, Crackerjack, and the other components. Its knowledge graph captures cross-session decisions, agent recommendations, and session archaeology.
-
-Standalone, Session Buddy is a session management MCP server for Claude Code — useful for any developer who wants searchable memory across multiple coding sessions. See [bodai/docs](https://github.com/lesleslie/bodai) for the full integration picture.
+Within the [Bodai ecosystem](https://github.com/lesleslie/bodai), Session-Buddy
+provides session context and knowledge capture. It can operate standalone and
+can integrate with Mahavishnu for orchestration, Akosha for cross-system
+analytics, Dhara for durable ecosystem state, and Crackerjack for quality
+signals. Oneiric supplies the shared configuration, lifecycle, and adapter
+patterns.
 
 ## Quick Links
 
-- [What Makes Session Buddy Unique?](#what-makes-session-buddy-unique)
-- [Features](#features)
+- [Capabilities](#capabilities)
+- [MCP Surface](#mcp-surface)
+- [Configuration](#configuration)
 - [Automatic Session Management](#automatic-session-management)
 - [Integration with Crackerjack](#integration-with-crackerjack)
-- [Development](#development)
+- [Quality Checks](#quality-checks)
+- [Documentation](#documentation)
 
-## Quality & CI
+## Quality Checks
 
-Crackerjack is the standard quality-control and CI/CD gate for Session Buddy. Use the same Crackerjack workflow locally that the project expects in CI.
+Crackerjack is the canonical quality gate for repository changes. Use the
+focused checks while iterating and the full gate before handoff:
 
-## What Makes Session Buddy Unique?
-
-Session Buddy focuses on three things that set it apart from a simple session log:
-
-### Automatic Knowledge Capture
-
-Session Buddy can extract structured insights from conversation patterns and make them searchable in later sessions. That reduces manual note-taking and turns normal development work into reusable project memory.
-
-### Cross-Project Intelligence
-
-Session Buddy can surface relevant knowledge across related repos, services, or packages, which is especially useful for monorepos, microservices, and tightly coupled project families.
-
-### Privacy-First Architecture
-
-- Local processing by default
-- Local embedding support
-- No required external API dependency for core workflows
-- Fast search and retrieval oriented toward interactive use
-
-______________________________________________________________________
-
-## Features
-
-### Advanced Analytics & Integration
-
-Session Buddy extends core session management with real-time monitoring, analytics, and cross-session learning.
-
-#### Real-Time Monitoring
-
-- **WebSocket Server** - Live dashboard streaming at 1-second intervals
-
-  - Top 10 most active skills displayed in real-time
-  - Performance anomaly detection with Z-score analysis
-  - Client subscriptions (all skills or specific skill monitoring)
-
-- **Prometheus Metrics** - Monitoring export
-
-  - 5 metric types: Counters, Histograms, Gauges
-  - HTTP endpoint on port 9090 for scraping
-  - Thread-safe updates for concurrent access
-
-#### Advanced Analytics
-
-- **Predictive Models** - ML-based skill success prediction
-
-  - RandomForest classifier with 7 features
-  - 30-day historical training window
-  - Feature importance analysis
-
-- **A/B Testing Framework** - Experiment with recommendation strategies
-
-  - Deterministic user assignment (SHA-256 hashing)
-  - Statistical significance testing (t-test, p < 0.05)
-  - Automated winner determination
-
-- **Time-Series Analysis** - Trend detection and forecasting
-
-  - Linear regression trend detection
-  - Hourly aggregation for dashboards
-  - Anomaly detection using Z-scores
-
-#### Cross-Session Learning
-
-- **Collaborative Filtering** - Learn from similar users
-
-  - Jaccard similarity for user matching
-  - Personalized recommendations
-  - SHA-256 privacy hashing for user IDs
-
-- **Community Baselines** - Global skill effectiveness
-
-  - Cross-user aggregation
-  - Percentile rankings
-  - User vs global comparisons
-
-#### Tool Integration
-
-- **Crackerjack Integration** - Quality gate tracking
-
-  - Phase mapping to workflow stages
-  - Automatic failure recommendations
-  - ASCII workflow visualizations
-
-- **IDE Plugin Protocol** - Context-aware recommendations
-
-  - Code pattern detection (tests, imports, async)
-  - Language-specific skill patterns
-  - Keyboard shortcut management
-
-- **CI/CD Tracking** - Pipeline analytics
-
-  - Stage-by-stage monitoring
-  - Bottleneck identification (< 80% success)
-  - JSON export for dashboards
-
-#### Skills Taxonomy
-
-- **Categories** - Organized skill domains
-
-  - Code Quality, Testing, Documentation, Deployment, etc.
-  - 6 predefined categories
-  - Multi-modal skill types (code → diagnostics, testing → test_results)
-
-- **Dependencies** - Co-occurrence patterns
-
-  - Lift score calculation
-  - Relationship mapping
-  - Workflow-aware recommendations
-
-**Performance:**
-
-- Real-time metrics: < 100ms
-- Anomaly detection: < 200ms
-- Collaborative filtering: < 200ms
-- MCP tools: < 50ms
-
-### Core Session Management
-
-- **Session Initialization**: Setup with UV dependency management, project analysis, and automation tools
-- **Quality Checkpoints**: Mid-session quality monitoring with workflow analysis and optimization recommendations
-- **Session Cleanup**: Cleanup with learning capture and handoff file creation
-- **Status Monitoring**: Real-time session status and project context analysis
-- **Auto-Generated Shortcuts**: Automatically creates `/start`, `/checkpoint`, and `/end` Claude Code slash commands
-
-### Intelligence Features
-
-Session Buddy includes local knowledge-capture and sharing features that help work carry across sessions and repos:
-
-#### Automatic Insights Capture & Injection
-
-**What It Does:**
-
-- Automatically extracts educational insights from your conversations using deterministic pattern matching
-- Stores insights with semantic embeddings for later retrieval
-- Prevents duplicate capture through SHA-256 content hashing
-- Makes insights available across sessions via semantic search
-
-**How It Works:**
-
-When you use explanatory mode (like this session!), Session Buddy automatically captures insights marked with the `★ Insight ─────` delimiter:
-
-```markdown
-Some explanation text.
-
-`★ Insight ─────────────────────────────────────`
-Always use async/await for database operations to prevent blocking the event loop
-`─────────────────────────────────────────────────`
-
-More text here.
+```bash
+crackerjack lint
+crackerjack typecheck
+crackerjack security
+crackerjack run --run-tests
 ```
 
-**Multi-Point Capture Strategy:**
+## Capabilities
 
-- **Checkpoint Capture**: Extracts insights during mid-session quality checkpoints
-- **Session End Capture**: Additional extraction when session ends
-- **Deduplication**: SHA-256 hashing prevents storing duplicate insights
-- **Session-Level Tracking**: Maintains hash set across entire session
+### Session lifecycle
 
-**Benefits:**
+- Initialize, checkpoint, inspect, and end sessions through MCP tools.
+- Detect Git repositories and perform lifecycle setup and cleanup automatically.
+- Create handoff context and capture learnings during checkpoints and session end.
+- Keep pre-compaction hooks and session state available to Claude Code.
 
-- ✅ **Automatic Capture**: Works automatically with explanatory mode
-- ✅ **No Hallucination**: Rule-based extraction (not AI-generated)
-- ✅ **Conservative Capture**: Better to miss an insight than invent one
-- ✅ **Measured Performance**: \<50ms extraction, \<20ms semantic search
-- ✅ **Privacy-First**: All processing done locally, no external APIs
+For non-Git projects, the same lifecycle can be invoked explicitly through the
+MCP tools.
 
-**Documentation:** See [`docs/features/INSIGHTS_CAPTURE.md`](docs/features/INSIGHTS_CAPTURE.md) for complete details
+### Memory and search
 
-______________________________________________________________________
+- Store reflections and conversation context in DuckDB.
+- Search by text, concept, file, project, or time-oriented queries.
+- Reuse context across sessions and related repositories.
+- Use local text search without an embedding service; semantic search can use a
+  configured HTTP provider such as llama-server or Ollama and degrades
+  gracefully when no provider is available.
 
-#### Global Intelligence & Pattern Sharing
+### Cross-project intelligence
 
-**What It Does:**
+Project groups and dependency relationships let searches include related
+repositories and rank results using project context. This is useful for
+multi-repository services, monorepos, and coordinated development work.
 
-- Share knowledge across related projects automatically
-- Track project dependencies (uses, extends, references, shares_code)
-- Search across all projects with dependency-aware ranking
-- Coordinate microservices, monorepo modules, or related repositories
+### Quality and operational signals
 
-**How It Works:**
+Session-Buddy integrates with Crackerjack to record quality results, test
+patterns, failure resolutions, and workflow context. It also exposes health,
+Prometheus metrics, WebSocket monitoring, analytics commands, and signed
+skill/agent metadata for MCP clients.
 
-Create groups of related projects and define their relationships:
+### Learning and skills
 
-```python
-# Create project group
-group = ProjectGroup(
-    name="microservices-app",
-    projects=["auth-service", "user-service", "api-gateway"],
-    description="Authentication and user management microservices",
-)
+Session-Buddy captures reflections during checkpoints and session cleanup using
+deterministic extraction and content-hash deduplication. Captured knowledge can
+then be retrieved through the memory and search tools.
 
-# Define dependencies
-deps = [
-    ProjectDependency(
-        source_project="user-service",
-        target_project="auth-service",
-        dependency_type="uses",
-        description="User service depends on auth service for validation",
-    ),
-    ProjectDependency(
-        source_project="api-gateway",
-        target_project="user-service",
-        dependency_type="extends",
-        description="Gateway extends user service with rate limiting",
-    ),
-]
-```
+The server also publishes signed capability metadata for MCP clients:
 
-**Cross-Project Search:**
+- Skills: `session_buddy_list_skills`, `session_buddy_get_skill`
+- Agents: `session_buddy_list_agents`, `session_buddy_get_agent`
 
-- Search across related projects automatically
-- Results ranked by dependency relationships
-- Understand how solutions propagate across your codebase
-
-**Benefits:**
-
-- ✅ **Knowledge Reuse**: Solutions found in one project help with related projects
-- ✅ **Dependency Awareness**: Understand how changes ripple across projects
-- ✅ **Coordinated Development**: Work effectively across multiple codebases
-- ✅ **Semantic Understanding**: Find patterns even when projects use different terminology
-
-**Use Cases:**
-
-- **Microservices**: Coordinate related services with shared patterns
-- **Monorepos**: Manage multiple packages/modules in one repository
-- **Multi-Repo**: Track patterns across separate but related repositories
+These catalogs describe available capabilities; they do not perform autonomous
+self-modification. See [Insights Capture](docs/features/INSIGHTS_CAPTURE.md)
+for the capture and retrieval details.
 
 ______________________________________________________________________
 
 ## Automatic Session Management
 
-**For Git Repositories:**
+When the MCP server is connected from a Git repository, Session-Buddy can
+initialize the session on connection and perform cleanup on disconnect. The
+`start`, `checkpoint`, `status`, and `end` tools remain available for explicit
+control, and non-Git projects use that explicit workflow by default.
 
-- ✅ **Automatic initialization** when Claude Code connects
-- ✅ **Automatic cleanup** when session ends (quit, crash, or network failure)
-- ✅ **Automatic compaction** during checkpoints
-- ✅ **Automatic in supported workflows**
-
-**For Non-Git Projects:**
-
-- 📝 Use `/start` for manual initialization
-- 📝 Use `/end` for manual cleanup
-- 📝 Full session management features available on-demand
-
-The server automatically detects git repositories and manages the session lifecycle with crash resilience and network failure recovery. Non-git projects retain manual control for flexible workflow management.
-
-### Session Lifecycle Visualization
+### Lifecycle at a glance
 
 ```mermaid
 stateDiagram-v2
@@ -306,325 +132,217 @@ stateDiagram-v2
     ManualEnd: Manual Cleanup
     ManualEnd --> [*]: Session Handoff
 
-    note right of AutoStart
-        Automatic Features:
-        - UV sync
-        - Project analysis
-        - Setup .claude/
-        - Create shortcuts
-    end note
-
-    note right of AutoEnd
-        Crash Resilient:
-        - Any disconnect
-        - Network failure
-        - System crash
-        All handled gracefully
-    end note
 ```
 
-### Git Repository Auto-Management Flow
+## MCP Surface
 
-## Available MCP Tools
+The MCP server exposes a profile-gated tool surface through
+`SESSION_BUDDY_TOOL_PROFILE`:
 
-This server provides **199 MCP tools** across 31 tool groups (verified 2026-08-19 via `SESSION_BUDDY_TOOL_PROFILE=full`).
-The actual count is gated by `SESSION_BUDDY_TOOL_PROFILE` (minimal/standard/full).
-For a complete list of tools, see the [MCP Tools Reference](docs/user/MCP_TOOLS_REFERENCE.md).
+- `minimal` — session lifecycle, basic search, hooks, health, baseline probes,
+  and published agent metadata.
+- `standard` — the daily-development surface, including conversation,
+  extraction, knowledge graph, Crackerjack, monitoring, cross-repository,
+  skills, and agent tools.
+- `full` — all registered tool groups; this is the default when the variable is
+  unset or invalid.
 
-### Bodai Baseline Tools
+The active profile is defined in
+[`session_buddy/mcp/tools/profiles.py`](session_buddy/mcp/tools/profiles.py).
+The complete reference is in
+[`docs/user/MCP_TOOLS_REFERENCE.md`](docs/user/MCP_TOOLS_REFERENCE.md).
 
-Session-Buddy conforms to the Bodai core MCP baseline (shared with mahavishnu, akosha, dhara, crackerjack). The following tools are registered on every profile:
+Always-available baseline tools include:
 
 | Tool | Purpose |
 |------|---------|
 | `discover_tools(query)` | List registered tools, optionally filtered by name substring |
-| `get_liveness()` | Returns `{status, service, version, uptime_seconds}` envelope |
-| `get_readiness()` | Readiness probe over configured dependencies |
-| `health_check_all()` | Dependency health summary |
+| `get_liveness()` | Return service, version, and uptime information |
+| `get_readiness()` | Probe configured dependencies |
+| `health_check_all()` | Return a dependency health summary |
 
-`ping` is preserved as a deprecated alias delegating to `get_liveness` and logs a WARN-level `DeprecationWarning` on every invocation. It will be removed in the next release; existing callers (Akosha's `run_fitness_analysis`, Mahavishnu's `session_buddy_tools.py`, Crackerjack's `otel_ingester.py`) should migrate to `get_liveness`.
+Core session and memory tools include `start`, `checkpoint`, `status`, `end`,
+`store_reflection`, `quick_search`, `search_summary`, `search_by_file`, and
+`search_by_concept`.
 
-> **Removed in 2026-08-12 audit:** The following tools were documented but not
-> wired into the default `server_optimized.py` entrypoint (which loads
-> `register_session_tools`, `register_memory_tools`, `register_fingerprint_tools`,
-> `register_category_tools`, `register_code_graph_tools`, `register_prompt_tools`).
-> They remain available through the alternative `session_buddy.mcp.server`
-> profile-driven entrypoint when `SESSION_BUDDY_TOOL_PROFILE=full` is set,
-> but the canonical Phase 4 / Intelligence sections below were misleading
-> because the default startup does not register them.
+The signed catalogs expose server-published capabilities through:
 
-______________________________________________________________________
+- `session_buddy_list_skills` and `session_buddy_get_skill`
+- `session_buddy_list_agents` and `session_buddy_get_agent`
 
-### Core Session Management
-
-- `start` - Session initialization with project analysis and memory setup
-- `checkpoint` - Mid-session quality assessment with workflow analysis
-- `end` - Complete session cleanup with learning capture
-- `status` - Current session overview with health checks
-
-### Memory & Conversation Search
-
-- `store_reflection` - Store insights with tagging and embeddings
-- `quick_search` - Fast overview search with count and top results
-- `search_summary` - Aggregated insights without individual result details
-- `get_more_results` - Pagination support for large result sets
-- `search_by_file` - Find conversations tied to a specific file
-- `search_by_concept` - Semantic search by concept with optional file context
-
-### Knowledge Graph (DuckPGQ)
-
-- Entity and relationship management for project knowledge
-- SQL/PGQ graph queries for complex relationship analysis
-- See [Oneiric Migration Guide](docs/migrations/ONEIRIC_MIGRATION_PLAN.md)
-
-All tools use **local processing** for privacy, with **DuckDB vector storage** (FLOAT[384] embeddings) and HTTP embedding via llama-server (preferred) or Ollama with graceful degradation; 384-dim vectors from all-MiniLM-L6-v2 or nomic-embed-text.
+The HTTP service also provides `/health`, `/healthz`, and `/metrics` on the
+main service port.
 
 ## Integration with Crackerjack
 
-Session Buddy includes deep integration with Crackerjack, the AI-driven Python development platform:
+Crackerjack is Session-Buddy's quality and CI/CD integration point. Session-
+Buddy can retain quality results, test outcomes, failure patterns, and useful
+resolutions as session context so later checkpoints and sessions can retrieve
+them.
 
-**Key Features:**
-
-- **Quality Metrics Tracking**: Automatically captures and tracks quality scores over time
-- **Test Result Monitoring**: Learns from test patterns, failures, and successful fixes
-- **Error Pattern Recognition**: Remembers how specific errors were resolved and suggests solutions
-
-**Example Workflow:**
-
-1. 🚀 **Session Buddy `start`** - Sets up your session with accumulated context from previous work
-1. 🔧 **Crackerjack runs** quality checks and applies AI agent fixes to resolve issues
-1. 💾 **Session Buddy captures** successful patterns and error resolutions
-1. 🧠 **Next session starts** with all accumulated knowledge
-
-For detailed information on Crackerjack integration, see [Crackerjack Integration Guide](docs/CRACKERJACK.md).
-
-## Installation
-
-### From Source
+Typical local validation is:
 
 ```bash
-# Clone the repository
+crackerjack run --run-tests
+```
+
+See [Crackerjack Integration](docs/CRACKERJACK.md) for the MCP tools and
+integration details.
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.14+
+- [uv](https://docs.astral.sh/uv/) or pip
+- An MCP client that supports streamable HTTP
+
+### Install and start
+
+```bash
 git clone https://github.com/lesleslie/session-buddy.git
 cd session-buddy
-
-# Install with all dependencies (development + testing)
-uv sync --group dev
-
-# Or install minimal production dependencies only
 uv sync
 
-# Or use pip (for production only)
-pip install session-buddy
+# Start the streamable HTTP MCP service on 127.0.0.1:8678
+uv run session-buddy server start
 ```
 
-### MCP Configuration
+Useful lifecycle and diagnostics commands:
 
-Add to your project's `.mcp.json` file:
+```bash
+uv run session-buddy server status
+uv run session-buddy server health
+uv run session-buddy health
+uv run session-buddy doctor
+```
+
+### Connect an MCP client
+
+The service endpoint is `http://127.0.0.1:8678/mcp`. Add an HTTP entry to the
+client configuration:
 
 ```json
 {
   "mcpServers": {
     "session-buddy": {
-      "command": "python",
-      "args": ["-m", "session_buddy.server"],
-      "cwd": "/path/to/session-buddy",
-      "env": {
-        "PYTHONPATH": "/path/to/session-buddy"
-      }
+      "type": "http",
+      "url": "http://127.0.0.1:8678/mcp"
     }
   }
 }
 ```
 
-### Alternative: Use Script Entry Point
-
-If installed with pip/uv, you can use the script entry point:
-
-```json
-{
-  "mcpServers": {
-    "session-buddy": {
-      "command": "session-buddy",
-      "args": [],
-      "env": {}
-    }
-  }
-}
-```
-
-**Dependencies:** Requires Python 3.13+. For a complete list of dependencies, see [pyproject.toml](pyproject.toml).
-
-This downloads the **Xenova/all-MiniLM-L6-v2** model (~100MB) which includes:
-
-- Pre-converted ONNX model (no PyTorch needed!)
-- 384-dimensional embeddings for semantic similarity
-- Fast CPU inference with ONNX Runtime
-
-**Note**: Text search is highly effective and recommended for most use cases. Semantic search provides enhanced conceptual matching by understanding meaning beyond keywords.
+Core text search works without an embedding service. Semantic search uses a
+configured HTTP embedding provider such as llama-server or Ollama when one is
+available.
 
 ## Usage
 
-Once configured, the following slash commands become available in Claude Code:
+After the MCP client connects, use the session prompts and tools directly:
 
-**Primary Session Commands:**
+```text
+/session-buddy:start
+/session-buddy:checkpoint
+/session-buddy:quick_search
+/session-buddy:store_reflection
+/session-buddy:end
+```
 
-- `/session-buddy:start` - Full session initialization
-- `/session-buddy:checkpoint` - Quality monitoring checkpoint with scoring
-- `/session-buddy:end` - Complete session cleanup with learning capture
-- `/session-buddy:status` - Current status overview with health checks
+The primary MCP tools are `start`, `checkpoint`, `status`, `end`,
+`quick_search`, `search_summary`, `search_by_file`, `search_by_concept`, and
+`store_reflection`. Claude Code shortcuts such as `/start`, `/checkpoint`, and
+`/end` may be generated under `~/.claude/commands/` after initialization.
 
-**Auto-Generated Shortcuts:**
-After running `/session-buddy:start` once, these shortcuts are automatically created:
+## Configuration
 
-- `/start` → `/session-buddy:start`
-- `/checkpoint [name]` → `/session-buddy:checkpoint`
-- `/end` → `/session-buddy:end`
+Session-Buddy uses Oneiric's layered settings model together with the
+repository's flat YAML compatibility layer. The project files are:
 
-> These shortcuts are created in `~/.claude/commands/` and work across all projects
+- `settings/session-buddy.yaml` — committed defaults
+- `settings/local.yaml` — gitignored checkout-local overrides
+- `settings/lite.yaml` and `settings/standard.yaml` — mode-specific defaults
 
-**Memory & Search Commands:**
+Oneiric also checks user-level files:
 
-- `/session-buddy:quick_search` - Fast search with overview results
-- `/session-buddy:search_summary` - Aggregated insights without full result lists
-- `/session-buddy:get_more_results` - Paginate search results
-- `/session-buddy:search_by_file` - Find results tied to a specific file
-- `/session-buddy:search_by_concept` - Semantic search by concept
-- `/session-buddy:search_code` - Search code-related conversations
-- `/session-buddy:search_errors` - Search error and failure discussions
-- `/session-buddy:search_temporal` - Search using time expressions
-- `/session-buddy:store_reflection` - Store important insights with tagging
-- `/session-buddy:reflection_stats` - Stats about the reflection database
+- `${XDG_CONFIG_HOME:-~/.config}/session-buddy/config.yaml`
+- `${XDG_CONFIG_HOME:-~/.config}/session-buddy/local.yaml`
 
-For running the server directly in development mode:
+Environment variables use the `SESSION_BUDDY_` prefix. Nested settings use
+double underscores, for example:
 
 ```bash
-python -m session_buddy.server
-# or
-session-buddy
+SESSION_BUDDY_LOG_LEVEL=DEBUG
+SESSION_BUDDY__DATABASE_PATH=/tmp/session-buddy.duckdb
+SESSION_BUDDY_TOOL_PROFILE=standard
 ```
+
+Runtime data defaults to `~/.claude/data/reflection.duckdb`, logs to
+`~/.claude/logs/`, and Oneiric snapshots to `.oneiric_cache/` in the configured
+cache location.
+
+Core session and text-search workflows do not require an external service.
+Embedding providers, LLM providers, and ecosystem integrations are optional
+and configured through the same settings and environment layers.
 
 ## Memory System
 
-**Built-in Conversation Memory:**
+Session-Buddy stores conversation context and reflections in a local DuckDB
+database by default. Text search, project filtering, time-aware retrieval, and
+reflection statistics are available locally. Semantic search is optional and
+uses a configured HTTP embedding provider when enabled. See
+[Configuration](#configuration) for the default paths and overrides.
 
-- **Local Storage**: DuckDB database at `~/.claude/data/reflection.duckdb`
-- **Embeddings**: Local ONNX models for semantic search (no external API needed)
-- **Privacy**: Everything runs locally with no external dependencies
-- **Cross-Project**: Conversations tagged by project context for organized retrieval
+## Session Workflow
 
-**Search Capabilities:**
-
-- **Semantic Search**: Vector similarity matching with customizable thresholds
-- **Time Decay**: Recent conversations prioritized in results
-- **Filtering**: Search by project context or across all projects
-
-## Data Storage
-
-This server manages its data locally in the user's home directory:
-
-- **Memory Storage**: `~/.claude/data/reflection.duckdb`
-- **Session Logs**: `~/.claude/logs/`
-- **Configuration**: Uses pyproject.toml and environment variables
-
-## Recommended Session Workflow
-
-1. **Initialize Session**: `/session-buddy:start` - Sets up project context, dependencies, and memory system
-1. **Monitor Progress**: `/session-buddy:checkpoint` (every 30-45 minutes) - Quality scoring and optimization
-1. **Search Past Work**: `/session-buddy:quick_search` or `/session-buddy:search_summary` - Find relevant past conversations and solutions
-1. **Store Important Insights**: `/session-buddy:store_reflection` - Capture key learnings for future sessions
-1. **End Session**: `/session-buddy:end` - Final assessment, learning capture, and cleanup
-
-## Why Teams Use It
-
-### Intelligence & Knowledge Sharing
-
-- **Automatic Insights Capture**: Extracts educational insights from conversations without manual effort
-- **Semantic Pattern Discovery**: Find related insights across sessions using vector embeddings
-- **Cross-Project Learning**: Share knowledge between related projects automatically
-- **Dependency Awareness**: Understand how solutions propagate across your codebase
-- **Team Knowledge Base**: Collaborative filtering and voting for best practices
-- **No Hallucination**: Rule-based extraction ensures only high-quality insights are captured
-
-### Coverage
-
-- **Session Quality**: Real-time monitoring and optimization
-- **Memory Persistence**: Cross-session conversation retention
-- **Project Structure**: Context-aware development workflows
-
-### Reduced Friction
-
-- **Single Command Setup**: One `/session-buddy:start` sets up everything
-- **Local Dependencies**: No external API calls or services required
-- **Permission Memory**: Reduces repeated permission prompts
-- **Automated Workflows**: Structured processes for common tasks
-
-### Enhanced Productivity
-
-- **Quality Scoring**: Guides session effectiveness
-- **Built-in Memory**: Enables building on past work automatically
-- **Project Templates**: Accelerates development setup
-- **Knowledge Persistence**: Maintains context across sessions
+1. Start or connect the MCP server.
+1. Run `/session-buddy:start` when explicit initialization is needed.
+1. Use `/session-buddy:checkpoint` during longer work sessions.
+1. Search prior work with `/session-buddy:quick_search` or
+   `/session-buddy:search_summary`.
+1. Store important conclusions with `/session-buddy:store_reflection`.
+1. Run `/session-buddy:end` when the session is complete.
 
 ## Documentation
 
-Complete documentation is available in the `docs/` directory:
-
-### Intelligence Features
-
-- **[Intelligence Features Quick Start](docs/features/INTELLIGENCE_QUICK_START.md)** ⭐ **Start Here** - 5-minute practical guide
-
-  - Automatic insights capture (how to use `★ Insight ─────` delimiters)
-  - Cross-project intelligence (group related projects)
-  - Team collaboration (shared knowledge with voting)
-  - Advanced search techniques (semantic, faceted, temporal)
-  - Configuration and troubleshooting
-
-- **[Insights Capture & Deduplication](docs/features/INSIGHTS_CAPTURE.md)** ⭐ **Deep Dive**
-
-  - Automatic extraction of educational insights from conversations
-  - Multi-point capture strategy (checkpoint + session end)
-  - SHA-256 deduplication to prevent duplicate insights
-  - Semantic search with wildcard support
-  - Complete test coverage (62/62 tests passing)
-  - Architecture and implementation details
-
-### User Documentation
-
-- **User Documentation** - Quick start, configuration, and deployment guides
-  - [Quick Start Guide](docs/user/QUICK_START.md) - Get started in 5 minutes
-  - [Configuration Guide](docs/user/CONFIGURATION.md) - Advanced configuration options
-  - [MCP Tools Reference](docs/user/MCP_TOOLS_REFERENCE.md) - Complete tool documentation
-
-### Developer Documentation
-
-- **Developer Documentation** - Architecture, testing, and integration guides
-  - [Oneiric Migration Guide](docs/migrations/ONEIRIC_MIGRATION_PLAN.md) - Database migration
-  - [Architecture Overview](docs/developer/ARCHITECTURE.md) - System design and patterns
-
-### Feature Guides
-
-- **Feature Guides** - In-depth documentation of specific features
-  - [Token Optimization](docs/features/TOKEN_OPTIMIZATION.md) - Context window management
-  - [Selective Auto-Store](docs/features/SELECTIVE_AUTO_STORE.md) - Reflection storage policy
-  - [Auto Lifecycle](docs/features/AUTO_LIFECYCLE.md) - Automatic session management
-
-### Reference
-
-- **Reference** - MCP schemas and command references
+- [Quick Start Guide](docs/user/QUICK_START.md)
+- [Configuration Guide](docs/user/CONFIGURATION.md)
+- [MCP Tools Reference](docs/user/MCP_TOOLS_REFERENCE.md)
+- [Architecture Overview](docs/developer/ARCHITECTURE.md)
+- [Intelligence Features](docs/features/INTELLIGENCE_QUICK_START.md)
+- [Insights Capture](docs/features/INSIGHTS_CAPTURE.md)
+- [Automatic Lifecycle](docs/features/AUTO_LIFECYCLE.md)
+- [Service Dependencies](docs/reference/service-dependencies.md)
 
 ## Troubleshooting
 
-**Common Issues:**
-
-- **Memory/embedding issues**: Ensure all dependencies are installed with `uv sync`
-- **Path errors**: Verify `cwd` and `PYTHONPATH` are set correctly in `.mcp.json`
-- **Permission issues**: Remove `~/.claude/sessions/trusted_permissions.json` to reset trusted operations
-
-**Debug Mode:**
+Check the service and dependency probes first:
 
 ```bash
-# Run with verbose logging
-PYTHONPATH=/path/to/session-buddy python -m session_buddy.server --debug
+uv run session-buddy server status
+uv run session-buddy health --json
+uv run session-buddy doctor --json
 ```
 
-For more detailed troubleshooting guidance, see [Configuration Guide](docs/user/CONFIGURATION.md) or [Quick Start Guide](docs/user/QUICK_START.md).
+If the MCP client cannot connect, confirm that the service is listening on
+`127.0.0.1:8678` and that the client URL ends in `/mcp`. Use
+`SESSION_BUDDY_LOG_LEVEL=DEBUG` for more detailed logging.
+
+For memory or embedding issues, start with text search and then verify the
+configured embedding provider and its endpoint. For configuration problems,
+check the project YAML files, the Oneiric XDG files, and the effective
+`SESSION_BUDDY_*` environment variables.
+
+## License
+
+BSD 3-Clause License. See [`LICENSE`](LICENSE).
+
+## Acknowledgements
+
+Session-Buddy is built on open-source foundations including
+[FastMCP](https://github.com/jlowin/fastmcp),
+[Oneiric](https://github.com/lesleslie/oneiric),
+[mcp-common](https://github.com/lesleslie/mcp-common),
+[DuckDB](https://duckdb.org/),
+[Typer](https://typer.tiangolo.com/), and
+[Prometheus client](https://github.com/prometheus/client_python).

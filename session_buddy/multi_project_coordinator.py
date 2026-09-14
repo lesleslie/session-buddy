@@ -9,11 +9,11 @@ import asyncio
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import Any, Callable, Literal, Protocol, TypeVar
+from typing import Any, Literal, Protocol, TypeVar
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
-
 
 _DB_RESULT = TypeVar("_DB_RESULT")
 
@@ -396,7 +396,9 @@ class MultiProjectCoordinator:
 
         sql += " ORDER BY created_at DESC"
 
-        results = await self._run_db_op(lambda conn: conn.execute(sql, params).fetchall())
+        results = await self._run_db_op(
+            lambda conn: conn.execute(sql, params).fetchall()
+        )
 
         groups = []
         for row in results:
@@ -445,7 +447,9 @@ class MultiProjectCoordinator:
             + " ORDER BY created_at DESC"
         )
 
-        results = await self._run_db_op(lambda conn: conn.execute(sql, params).fetchall())
+        results = await self._run_db_op(
+            lambda conn: conn.execute(sql, params).fetchall()
+        )
 
         dependencies = []
         for row in results:

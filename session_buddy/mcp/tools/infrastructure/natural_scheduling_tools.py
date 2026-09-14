@@ -186,291 +186,310 @@ def register_natural_scheduling_tools(mcp: FastMCP) -> None:
     The scheduler is built lazily on first tool invocation so that
     registration at startup never touches the SQLite database. Tests
     can inject a scheduler via :func:`_set_scheduler_for_testing`.
+
+    Each tool body lives at module scope above; this function only
+    wires the tools onto the FastMCP server. Keeping the register
+    function this small avoids the C901 complexity cap (the inline
+    form pushed past 30 branches).
+    """
+    mcp.tool()(create_reminder)
+    mcp.tool()(list_reminders)
+    mcp.tool()(list_due_reminders)
+    mcp.tool()(cancel_reminder)
+    mcp.tool()(execute_reminder)
+    mcp.tool()(parse_natural_time)
+
+
+# ---------------------------------------------------------------------------
+# MCP tool implementations (module-level so register_natural_scheduling_tools
+# stays small). Each tool validates inputs then delegates to ``_run`` with an
+# ``operation`` closure. Bodies are defined at module scope so the register
+# function does not exceed the C901 complexity limit.
+# ---------------------------------------------------------------------------
+
+
+async def create_reminder(
+    title: str,
+    time_expression: str,
+    description: str = "",
+    user_id: str = "default",
+    project_id: str | None = None,
+    context_triggers: list[str] | None = None,
+) -> str:
+    """Create a new reminder from a natural-language description.
+
+    Args:
+        title: Short reminder title (used as the action payload).
+        time_expression: Natural-language time expression, e.g.
+            ``"in 30 minutes"``, ``"tomorrow at 9am"``,
+            ``"every day at noon"``.
+        description: Optional longer description.
+        user_id: Owning user id (default ``"default"``).
+        project_id: Optional project to scope the reminder.
+        context_triggers: Optional list of trigger tokens to fire
+            the reminder when context matches.
+
+    Returns:
+        JSON string with the created ``NaturalReminder`` record, or
+        an error envelope if ``time_expression`` could not be
+        parsed.
+    """
+    err = _check_len(title, max_len=MAX_TITLE_CHARS, field_name="title")
+    if err:
+        return err
+    err = _check_len(
+        time_expression,
+        max_len=MAX_TIME_EXPR_CHARS,
+        field_name="time_expression",
+    )
+    if err:
+        return err
+    err = _check_len(
+        description,
+        max_len=MAX_DESCRIPTION_CHARS,
+        field_name="description",
+    )
+    if err:
+        return err
+    err = _check_len(
+        user_id,
+        max_len=MAX_USER_ID_CHARS,
+        field_name="user_id",
+    )
+    if err:
+        return err
+    if project_id is not None:
+        err = _check_len(
+            project_id,
+            max_len=MAX_PROJECT_ID_CHARS,
+            field_name="project_id",
+        )
+        if err:
+            return err
+    if context_triggers is not None:
+        err = _check_list_len(
+            context_triggers,
+            max_items=MAX_TRIGGER_ITEMS,
+            max_chars=MAX_TRIGGER_ITEM_CHARS,
+            field_name="context_triggers",
+        )
+        if err:
+            return err
+
+    async def operation() -> str:
+        scheduler = await _get_scheduler()
+        reminder_id = await scheduler.create_reminder(
+            title=title,
+            time_expression=time_expression,
+            description=description,
+            user_id=user_id,
+            project_id=project_id,
+            context_triggers=context_triggers,
+        )
+        if reminder_id is None:
+            return f"❌ Could not parse time expression: {time_expression!r}"
+        return json.dumps({"reminder_id": reminder_id, "title": title})
+
+    return await _run("Create reminder", operation)
+
+
+async def list_reminders(
+    user_id: str | None = None,
+    project_id: str | None = None,
+) -> str:
+    """List pending reminders.
+
+    Args:
+        user_id: Optional user filter (AND-matched).
+        project_id: Optional project filter (AND-matched).
+
+    Returns:
+        JSON string with an array of reminder records.
+    """
+    if user_id is not None:
+        err = _check_len(
+            user_id,
+            max_len=MAX_USER_ID_CHARS,
+            field_name="user_id",
+        )
+        if err:
+            return err
+    if project_id is not None:
+        err = _check_len(
+            project_id,
+            max_len=MAX_PROJECT_ID_CHARS,
+            field_name="project_id",
+        )
+        if err:
+            return err
+
+    async def operation() -> str:
+        scheduler = await _get_scheduler()
+        reminders = await scheduler.get_pending_reminders(
+            user_id=user_id,
+            project_id=project_id,
+        )
+        return json.dumps(reminders, default=str)
+
+    return await _run("List reminders", operation)
+
+
+async def list_due_reminders() -> str:
+    """List reminders whose scheduled time has elapsed.
+
+    Returns:
+        JSON string with an array of due reminder records.
     """
 
-    @mcp.tool()
-    async def create_reminder(
-        title: str,
-        time_expression: str,
-        description: str = "",
-        user_id: str = "default",
-        project_id: str | None = None,
-        context_triggers: list[str] | None = None,
-    ) -> str:
-        """Create a new reminder from a natural-language description.
+    async def operation() -> str:
+        scheduler = await _get_scheduler()
+        reminders = await scheduler.get_due_reminders()
+        return json.dumps(reminders, default=str)
 
-        Args:
-            title: Short reminder title (used as the action payload).
-            time_expression: Natural-language time expression, e.g.
-                ``"in 30 minutes"``, ``"tomorrow at 9am"``,
-                ``"every day at noon"``.
-            description: Optional longer description.
-            user_id: Owning user id (default ``"default"``).
-            project_id: Optional project to scope the reminder.
-            context_triggers: Optional list of trigger tokens to fire
-                the reminder when context matches.
+    return await _run("List due reminders", operation)
 
-        Returns:
-            JSON string with the created ``NaturalReminder`` record, or
-            an error envelope if ``time_expression`` could not be
-            parsed.
-        """
-        err = _check_len(title, max_len=MAX_TITLE_CHARS, field_name="title")
-        if err:
-            return err
-        err = _check_len(
-            time_expression,
-            max_len=MAX_TIME_EXPR_CHARS,
-            field_name="time_expression",
-        )
-        if err:
-            return err
-        err = _check_len(
-            description,
-            max_len=MAX_DESCRIPTION_CHARS,
-            field_name="description",
-        )
-        if err:
-            return err
-        err = _check_len(
-            user_id,
-            max_len=MAX_USER_ID_CHARS,
-            field_name="user_id",
-        )
-        if err:
-            return err
-        if project_id is not None:
-            err = _check_len(
-                project_id,
-                max_len=MAX_PROJECT_ID_CHARS,
-                field_name="project_id",
-            )
-            if err:
-                return err
-        if context_triggers is not None:
-            err = _check_list_len(
-                context_triggers,
-                max_items=MAX_TRIGGER_ITEMS,
-                max_chars=MAX_TRIGGER_ITEM_CHARS,
-                field_name="context_triggers",
-            )
-            if err:
-                return err
 
-        async def operation() -> str:
-            scheduler = await _get_scheduler()
-            reminder_id = await scheduler.create_reminder(
-                title=title,
-                time_expression=time_expression,
-                description=description,
-                user_id=user_id,
-                project_id=project_id,
-                context_triggers=context_triggers,
-            )
-            if reminder_id is None:
-                return f"❌ Could not parse time expression: {time_expression!r}"
-            return json.dumps({"reminder_id": reminder_id, "title": title})
+async def cancel_reminder(
+    reminder_id: str,
+    user_id: str = "default",
+) -> str:
+    """Cancel a pending reminder.
 
-        return await _run("Create reminder", operation)
+    Args:
+        reminder_id: Identifier returned by :func:`create_reminder`.
+        user_id: Owning user id (default ``"default"``). Recorded
+            as ``requested_user_id`` in the response envelope for
+            forensic correlation; the system does **not** verify that
+            this caller actually owns the reminder. Ownership
+            verification (rejecting cancels from a non-owning user)
+            is deferred until ``ReminderScheduler`` exposes a public
+            ``get_reminder`` method that returns the owning
+            ``user_id``.
 
-    @mcp.tool()
-    async def list_reminders(
-        user_id: str | None = None,
-        project_id: str | None = None,
-    ) -> str:
-        """List pending reminders.
+    Returns:
+        JSON string with
+        ``{"reminder_id": ..., "requested_user_id": ...,
+        "ownership_verified": false, "cancelled": bool}``.
+        ``ownership_verified`` is always ``false`` until the deferred
+        ownership check lands — see the deferred caveat above.
+    """
+    err = _check_len(
+        reminder_id,
+        max_len=MAX_REMINDER_ID_CHARS,
+        field_name="reminder_id",
+    )
+    if err:
+        return err
+    err = _check_len(
+        user_id,
+        max_len=MAX_USER_ID_CHARS,
+        field_name="user_id",
+    )
+    if err:
+        return err
 
-        Args:
-            user_id: Optional user filter (AND-matched).
-            project_id: Optional project filter (AND-matched).
-
-        Returns:
-            JSON string with an array of reminder records.
-        """
-        if user_id is not None:
-            err = _check_len(
-                user_id,
-                max_len=MAX_USER_ID_CHARS,
-                field_name="user_id",
-            )
-            if err:
-                return err
-        if project_id is not None:
-            err = _check_len(
-                project_id,
-                max_len=MAX_PROJECT_ID_CHARS,
-                field_name="project_id",
-            )
-            if err:
-                return err
-
-        async def operation() -> str:
-            scheduler = await _get_scheduler()
-            reminders = await scheduler.get_pending_reminders(
-                user_id=user_id,
-                project_id=project_id,
-            )
-            return json.dumps(reminders, default=str)
-
-        return await _run("List reminders", operation)
-
-    @mcp.tool()
-    async def list_due_reminders() -> str:
-        """List reminders whose scheduled time has elapsed.
-
-        Returns:
-            JSON string with an array of due reminder records.
-        """
-
-        async def operation() -> str:
-            scheduler = await _get_scheduler()
-            reminders = await scheduler.get_due_reminders()
-            return json.dumps(reminders, default=str)
-
-        return await _run("List due reminders", operation)
-
-    @mcp.tool()
-    async def cancel_reminder(
-        reminder_id: str,
-        user_id: str = "default",
-    ) -> str:
-        """Cancel a pending reminder.
-
-        Args:
-            reminder_id: Identifier returned by :func:`create_reminder`.
-            user_id: Owning user id (default ``"default"``). Recorded
-                as ``requested_user_id`` in the response envelope for
-                forensic correlation; the system does **not** verify that
-                this caller actually owns the reminder. Ownership
-                verification (rejecting cancels from a non-owning user)
-                is deferred until ``ReminderScheduler`` exposes a public
-                ``get_reminder`` method that returns the owning
-                ``user_id``.
-
-        Returns:
-            JSON string with
-            ``{"reminder_id": ..., "requested_user_id": ...,
-            "ownership_verified": false, "cancelled": bool}``.
-            ``ownership_verified`` is always ``false`` until the deferred
-            ownership check lands — see the deferred caveat above.
-        """
-        err = _check_len(
-            reminder_id,
-            max_len=MAX_REMINDER_ID_CHARS,
-            field_name="reminder_id",
-        )
-        if err:
-            return err
-        err = _check_len(
-            user_id,
-            max_len=MAX_USER_ID_CHARS,
-            field_name="user_id",
-        )
-        if err:
-            return err
-
-        async def operation() -> str:
-            scheduler = await _get_scheduler()
-            success = await scheduler.cancel_reminder(reminder_id=reminder_id)
-            return json.dumps(
-                {
-                    "reminder_id": reminder_id,
-                    "requested_user_id": user_id,
-                    "ownership_verified": False,
-                    "cancelled": success,
-                }
-            )
-
-        return await _run("Cancel reminder", operation)
-
-    @mcp.tool()
-    async def execute_reminder(
-        reminder_id: str,
-        user_id: str = "default",
-    ) -> str:
-        """Force-execute a reminder now (independent of scheduled time).
-
-        Args:
-            reminder_id: Identifier returned by :func:`create_reminder`.
-            user_id: Owning user id (default ``"default"``). Recorded
-                as ``requested_user_id`` in the response envelope for
-                forensic correlation; the system does **not** verify that
-                this caller actually owns the reminder. Ownership
-                verification (rejecting executes from a non-owning user)
-                is deferred until ``ReminderScheduler`` exposes a public
-                ``get_reminder`` method that returns the owning
-                ``user_id``.
-
-        Returns:
-            JSON string with
-            ``{"reminder_id": ..., "requested_user_id": ...,
-            "ownership_verified": false, "executed": bool}``.
-            ``ownership_verified`` is always ``false`` until the deferred
-            ownership check lands — see the deferred caveat above.
-        """
-        err = _check_len(
-            reminder_id,
-            max_len=MAX_REMINDER_ID_CHARS,
-            field_name="reminder_id",
-        )
-        if err:
-            return err
-        err = _check_len(
-            user_id,
-            max_len=MAX_USER_ID_CHARS,
-            field_name="user_id",
-        )
-        if err:
-            return err
-
-        async def operation() -> str:
-            scheduler = await _get_scheduler()
-            success = await scheduler.execute_reminder(reminder_id=reminder_id)
-            return json.dumps(
-                {
-                    "reminder_id": reminder_id,
-                    "requested_user_id": user_id,
-                    "ownership_verified": False,
-                    "executed": success,
-                }
-            )
-
-        return await _run("Execute reminder", operation)
-
-    @mcp.tool()
-    async def parse_natural_time(time_expression: str) -> str:
-        """Parse a natural-language time expression to ISO-8601.
-
-        Args:
-            time_expression: Natural-language time such as
-                ``"in 2 hours"`` or ``"tomorrow at 3pm"``.
-
-        Returns:
-            JSON string with ``{"expression": str, "parsed": str|None,
-            "recurrence": str|None}``. ``parsed`` is ``None`` if the
-            expression could not be parsed.
-        """
-        err = _check_len(
-            time_expression,
-            max_len=MAX_TIME_EXPR_CHARS,
-            field_name="time_expression",
-        )
-        if err:
-            return err
-
-        def operation() -> str:
-            parser = _get_parser()
-            parsed: datetime | None = parser.parse_time_expression(time_expression)
-            recurrence: str | None = parser.parse_recurrence(time_expression)
-            payload: dict[str, Any] = {
-                "expression": time_expression,
-                "parsed": parsed.isoformat() if parsed is not None else None,
-                "recurrence": recurrence,
+    async def operation() -> str:
+        scheduler = await _get_scheduler()
+        success = await scheduler.cancel_reminder(reminder_id=reminder_id)
+        return json.dumps(
+            {
+                "reminder_id": reminder_id,
+                "requested_user_id": user_id,
+                "ownership_verified": False,
+                "cancelled": success,
             }
-            return json.dumps(payload)
+        )
 
-        try:
-            return operation()
-        except Exception as exc:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any backend/runtime failure (sqlite, etc.)
-            _get_logger().exception(f"Error in parse_natural_time: {exc}")
-            return ToolMessages.operation_failed("Parse natural time", exc)
+    return await _run("Cancel reminder", operation)
+
+
+async def execute_reminder(
+    reminder_id: str,
+    user_id: str = "default",
+) -> str:
+    """Force-execute a reminder now (independent of scheduled time).
+
+    Args:
+        reminder_id: Identifier returned by :func:`create_reminder`.
+        user_id: Owning user id (default ``"default"``). Recorded
+            as ``requested_user_id`` in the response envelope for
+            forensic correlation; the system does **not** verify that
+            this caller actually owns the reminder. Ownership
+            verification (rejecting executes from a non-owning user)
+            is deferred until ``ReminderScheduler`` exposes a public
+            ``get_reminder`` method that returns the owning
+            ``user_id``.
+
+    Returns:
+        JSON string with
+        ``{"reminder_id": ..., "requested_user_id": ...,
+        "ownership_verified": false, "executed": bool}``.
+        ``ownership_verified`` is always ``false`` until the deferred
+        ownership check lands — see the deferred caveat above.
+    """
+    err = _check_len(
+        reminder_id,
+        max_len=MAX_REMINDER_ID_CHARS,
+        field_name="reminder_id",
+    )
+    if err:
+        return err
+    err = _check_len(
+        user_id,
+        max_len=MAX_USER_ID_CHARS,
+        field_name="user_id",
+    )
+    if err:
+        return err
+
+    async def operation() -> str:
+        scheduler = await _get_scheduler()
+        success = await scheduler.execute_reminder(reminder_id=reminder_id)
+        return json.dumps(
+            {
+                "reminder_id": reminder_id,
+                "requested_user_id": user_id,
+                "ownership_verified": False,
+                "executed": success,
+            }
+        )
+
+    return await _run("Execute reminder", operation)
+
+
+async def parse_natural_time(time_expression: str) -> str:
+    """Parse a natural-language time expression to ISO-8601.
+
+    Args:
+        time_expression: Natural-language time such as
+            ``"in 2 hours"`` or ``"tomorrow at 3pm"``.
+
+    Returns:
+        JSON string with ``{"expression": str, "parsed": str|None,
+        "recurrence": str|None}``. ``parsed`` is ``None`` if the
+        expression could not be parsed.
+    """
+    err = _check_len(
+        time_expression,
+        max_len=MAX_TIME_EXPR_CHARS,
+        field_name="time_expression",
+    )
+    if err:
+        return err
+
+    def operation() -> str:
+        parser = _get_parser()
+        parsed: datetime | None = parser.parse_time_expression(time_expression)
+        recurrence: str | None = parser.parse_recurrence(time_expression)
+        payload: dict[str, Any] = {
+            "expression": time_expression,
+            "parsed": parsed.isoformat() if parsed is not None else None,
+            "recurrence": recurrence,
+        }
+        return json.dumps(payload)
+
+    try:
+        return operation()
+    except Exception as exc:  # noqa: BLE001 - MCP tool envelope must return a structured error string on any backend/runtime failure (sqlite, etc.)
+        _get_logger().exception(f"Error in parse_natural_time: {exc}")
+        return ToolMessages.operation_failed("Parse natural time", exc)

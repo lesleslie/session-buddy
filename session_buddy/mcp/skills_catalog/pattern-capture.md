@@ -141,12 +141,10 @@ result = await mcp__session_buddy__capture_successful_pattern(
             "already populated the state"
         ),
         "code_shape": (
-            "if get_signer_feed_state() is None:\n"
-            "    init_signer_feed_state()"
+            "if get_signer_feed_state() is None:\n    init_signer_feed_state()"
         ),
         "verification": (
-            "restart produces generation=0; without the guard it "
-            "would be 1"
+            "restart produces generation=0; without the guard it would be 1"
         ),
     },
     outcome_score=0.92,  # well above the 0.75 cross-project threshold

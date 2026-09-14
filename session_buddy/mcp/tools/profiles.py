@@ -213,7 +213,9 @@ def _register_skill_tools(server: FastMCP) -> None:
     MCP boundary (per plan §10.3.2 and B-1/B-4 gates).
     """
     register_skill_tools(server)
-    logger.info("Registered skill_tools (session_buddy_list_skills + session_buddy_get_skill)")
+    logger.info(
+        "Registered skill_tools (session_buddy_list_skills + session_buddy_get_skill)"
+    )
 
 
 def _register_agents_tools(server: FastMCP) -> None:
@@ -233,8 +235,7 @@ def _register_agents_tools(server: FastMCP) -> None:
     """
     register_agents_tools(server)
     logger.info(
-        "Registered agents_tools "
-        "(session_buddy_list_agents + session_buddy_get_agent)"
+        "Registered agents_tools (session_buddy_list_agents + session_buddy_get_agent)"
     )
 
 
@@ -333,8 +334,6 @@ SESSION_BUDDY_MANDATORY_GROUPS: set[str] = {
     # W0 helper to invoke it at MINIMAL/STANDARD/FULL uniformly.
     "register_agents_tools",
 }
-
-
 
 
 def get_active_profile(env_var: str = "SESSION_BUDDY_TOOL_PROFILE") -> ToolProfile:

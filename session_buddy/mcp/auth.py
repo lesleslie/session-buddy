@@ -59,7 +59,7 @@ def _get_core_config() -> _CoreAuthConfig:
 class AuthConfig:
     @property
     def enabled(self) -> bool:
-        return _get_core_config().enabled
+        return bool(_get_core_config().enabled)
 
     @property
     def secret(self) -> str:
@@ -71,7 +71,7 @@ def get_auth_config() -> AuthConfig:
 
 
 def is_authentication_enabled() -> bool:
-    return _get_core_config().enabled
+    return bool(_get_core_config().enabled)
 
 
 def validate_token(token: str) -> dict[str, Any] | None:
@@ -82,7 +82,7 @@ def validate_token(token: str) -> dict[str, Any] | None:
         payload = _verify_token(
             token, secret=cfg.secret, expected_audience="session-buddy"
         )
-        return payload.raw
+        return payload.raw_claims
     except AuthError as exc:
         logger.warning("token validation failed: %s", exc)
         return None

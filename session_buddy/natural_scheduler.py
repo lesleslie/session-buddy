@@ -213,7 +213,8 @@ class ReminderScheduler:
                 result["metadata"] = metadata
                 result["context_triggers"] = metadata.get("context_triggers", [])
                 result["notification_method"] = metadata.get(
-                    "notification_method", "session",
+                    "notification_method",
+                    "session",
                 )
                 results.append(result)
 
@@ -245,7 +246,8 @@ class ReminderScheduler:
                 result["metadata"] = metadata
                 result["context_triggers"] = metadata.get("context_triggers", [])
                 result["notification_method"] = metadata.get(
-                    "notification_method", "session",
+                    "notification_method",
+                    "session",
                 )
                 results.append(result)
 
@@ -300,10 +302,12 @@ class ReminderScheduler:
             metadata = json.loads(reminder_data.get("metadata") or "{}")
             reminder_data["metadata"] = metadata
             reminder_data["context_triggers"] = metadata.get(
-                "context_triggers", [],
+                "context_triggers",
+                [],
             )
             reminder_data["notification_method"] = metadata.get(
-                "notification_method", "session",
+                "notification_method",
+                "session",
             )
             return reminder_data
 

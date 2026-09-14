@@ -16,6 +16,14 @@ from .advanced.fingerprint_tools import (
 )
 from .advanced.intent_detection_tools import register_intent_tools
 
+# Phase 3 server-published agents tools (plan §5 Phase 3 task #1-2).
+# Mirrors Phase 1's ``skill_tools`` shape: ``list_agents`` returns
+# the static catalog (≥3 entries, system_prompt per entry), and
+# ``get_agent`` returns the signed metadata + the markdown body for
+# one agent. Signs ``get_agent`` responses via the same lifespan-
+# owned :class:`SkillsSigner` used by Phase 1's ``get_skill``.
+from .agents_tools import register_agents_tools
+
 # Code analysis tools (tree-sitter integration)
 from .code_analysis.tools import register_code_analysis_tools
 
@@ -98,14 +106,6 @@ from .session.hooks_tools import register_hooks_tools
 from .session.migration_tools import register_migration_tools
 from .session.prompt_tools import register_prompt_tools
 from .session.session_tools import register_session_tools
-
-# Phase 3 server-published agents tools (plan §5 Phase 3 task #1-2).
-# Mirrors Phase 1's ``skill_tools`` shape: ``list_agents`` returns
-# the static catalog (≥3 entries, system_prompt per entry), and
-# ``get_agent`` returns the signed metadata + the markdown body for
-# one agent. Signs ``get_agent`` responses via the same lifespan-
-# owned :class:`SkillsSigner` used by Phase 1's ``get_skill``.
-from .agents_tools import register_agents_tools
 
 # Phase 1 server-published skills tools (plan §5 Phase 1).
 # Reclaims the bare ``list_skills`` MCP-tool name (H-6) for the new

@@ -238,9 +238,8 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
         init_signer_feed_state()
     except Exception as exc:  # noqa: BLE001 - signer init failure must not block startup
         logger.warning(
-            "Phase 1.5: signer feed state init failed; "
-            "/health will report skills_signer.error=%s",
-            exc,
+            f"Phase 1.5: signer feed state init failed; "
+            f"/health will report skills_signer.error={exc!s}",
         )
 
     # Drain pending checkpoint markers at startup, in background. Each marker
