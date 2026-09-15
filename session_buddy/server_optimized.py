@@ -372,7 +372,7 @@ async def health_check(request: Any) -> Any:
             last_updated_timestamp=state.last_updated_timestamp,
             cycles_total=state.cycles_total,
             errors_total=state.errors_total,
-            last_error_at=None,
+            last_error_at=state.last_error_at,
             ingester_running=True,
         )
     else:
@@ -392,7 +392,11 @@ async def health_check(request: Any) -> Any:
         _HealthSnapshot,
         aggregate_feed_states(
             {"skills_signer": signer_state_snapshot},
-            halflife_seconds=300,
+            # Operator-tunable via HEALTH_FEED_HALFLIFE_SECONDS env var
+            # (set by ``--health-disable-decay`` on the MCPServerCLIFactory
+            # start command). ``0`` disables the time-bounded decay
+            # predicate entirely — see plan §5 task 7.
+            halflife_seconds=int(os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")),
         ),
     )
 
@@ -436,7 +440,7 @@ async def health_check(request: Any) -> Any:
         "status": worst_status,
         "reason_codes": [c.value for c in snap["reason_codes"]],
         "data_feeds_ok": verdict["healthy"],
-        "halflife_seconds": 300,
+        "halflife_seconds": int(os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")),
     }
 
     body = {

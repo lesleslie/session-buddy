@@ -682,6 +682,38 @@ class TestSignerFeedState:
         state.record_error()
         assert state.errors_total == 2
 
+    def test_record_error_sets_last_error_at_for_aggregator_decay(self) -> None:
+        """``record_error`` records the most recent error timestamp.
+
+        Phase 4 task 3 followup: the ``/health`` aggregator's
+        ``is_healthy`` predicate uses ``last_error_at`` to escalate
+        DEGRADED for fresh errors within ``halflife_seconds``. The
+        signer feed's ``record_error`` must populate this so the
+        aggregator surfaces ``error_within_halflife`` for signer
+        failures (e.g., disk-permission errors during manifest reload).
+        """
+        import time
+
+        from session_buddy.skills_signer import SkillsSigner
+
+        manifest = build_pubkey_manifest(generate_keypair())
+        signer = SkillsSigner.from_keypair(generate_keypair())
+        state = SignerFeedState(manifest=manifest, signer=signer)
+        assert state.last_error_at is None
+
+        before = time.time()
+        state.record_error()
+        after = time.time()
+
+        assert state.last_error_at is not None
+        assert before <= state.last_error_at <= after
+
+        # A second error updates last_error_at to the new timestamp
+        # (each error anchors its own time-bounded window).
+        time.sleep(0.01)
+        state.record_error()
+        assert state.last_error_at > before
+
     def test_503_payload_shape(self) -> None:
         """The /health endpoint expects ``bool(c.get("ok"))`` — verify shape."""
         manifest = build_pubkey_manifest(generate_keypair())

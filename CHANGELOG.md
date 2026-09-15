@@ -21,6 +21,10 @@ and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- session-buddy: Wire `last_error_at` tracking in `SignerFeedState.record_error()` (plan §5 Phase 4 task 3 followup). Previously the signer feed never recorded per-error timestamps, so the aggregator's `is_healthy` predicate couldn't escalate DEGRADED via the time-bounded decay branch for signer-side failures (e.g., disk-permission errors during manifest reload). The probe body now passes `last_error_at=state.last_error_at` so fresh errors surface as `error_within_halflife` in `/health` JSON.
+
 ### Changed
 
 - session-buddy: Replace `/health` handler's hand-rolled probe body with `mcp_common.health.aggregator.aggregate_feed_states` (plan §5 Phase 4 task 2). The body now mirrors the aggregator's verdict enum (`healthy` / `warming_up` / `degraded` / `failed`) instead of the legacy binary `ok` / `degraded`. HTTP code stays 200 for healthy + warming_up; 503 for degraded + failed. Per-feed dict carries `status` + `reason_codes` + the four mandatory wire fields; legacy `key_count` / `pubkeys` / `generation` preserved for the Phase 2/6 installer tooling.

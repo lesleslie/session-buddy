@@ -157,6 +157,10 @@ class SignerFeedState:
             (initial creation or last :meth:`record_cycle`).
         cycles_total: count of successful feed update cycles since startup.
         errors_total: count of failed feed update cycles since startup.
+        last_error_at: unix timestamp of the most recent
+            :meth:`record_error` call, or ``None`` if no error has
+            been recorded. Drives the aggregator's time-bounded decay
+            predicate (Phase 4 / plan §5 task 3 followup).
         generation: monotonic token so teardown can detect
             cross-app state contamination. Incremented whenever the
             state is rebuilt (e.g., after a key load failure).
@@ -167,6 +171,7 @@ class SignerFeedState:
     last_updated_timestamp: float = field(default_factory=time.time)
     cycles_total: int = 0
     errors_total: int = 0
+    last_error_at: float | None = None
     generation: int = 0
 
     def record_cycle(self) -> None:
@@ -177,11 +182,13 @@ class SignerFeedState:
         self.last_updated_timestamp = time.time()
 
     def record_error(self) -> None:
-        """Mark a failed feed update. Bumps ``errors_total`` and
+        """Mark a failed feed update. Bumps ``errors_total``,
+        ``last_error_at`` (most recent error timestamp), and
         ``last_updated_timestamp`` (the timestamp is updated even on
         errors so operators can see the feed is still being polled).
         """
         self.errors_total += 1
+        self.last_error_at = time.time()
         self.last_updated_timestamp = time.time()
 
     def is_ok(self) -> bool:
