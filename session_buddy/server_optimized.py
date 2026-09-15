@@ -388,6 +388,12 @@ async def health_check(request: Any) -> Any:
             ingester_running=False,
         )
 
+    # Phase 4 observability: time the aggregator call so the
+    # ``mcp_common_health_aggregate_duration_ms`` histogram surfaces
+    # per-/health p50/p95/p99 latency to operators.
+    import time as _time
+
+    aggregator_start = _time.perf_counter()
     snap = cast(
         _HealthSnapshot,
         aggregate_feed_states(
@@ -399,6 +405,33 @@ async def health_check(request: Any) -> Any:
             halflife_seconds=int(os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")),
         ),
     )
+    # Phase 4 observability: emit the canonical health metrics (plan
+    # §4 Observability + §11.4 PromQL alerts) into the shared
+    # CollectorRegistry that the existing ``/metrics`` endpoint
+    # already exposes. Older mcp-common releases without the metrics
+    # module are a forward-compat miss — the body still works
+    # without emitting metrics.
+    try:
+        import time as _time
+
+        from mcp_common.health.metrics import update_health_metrics
+
+        from session_buddy.mcp.metrics import get_metrics
+
+        aggregator_duration_ms: float = (
+            _time.perf_counter() - aggregator_start
+        ) * 1000.0
+        update_health_metrics(
+            registry=get_metrics().registry,
+            snap=snap,
+            repo="session-buddy",
+            halflife_seconds=int(
+                os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")
+            ),
+            duration_ms=aggregator_duration_ms,
+        )
+    except ImportError:
+        pass
 
     verdict = snap["checks"]["skills_signer"]
     checks: dict[str, dict[str, object]] = {

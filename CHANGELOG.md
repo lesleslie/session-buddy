@@ -21,6 +21,10 @@ and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- session-buddy: Wire `mcp_common.health.metrics.update_health_metrics` into the `/health` probe body. The aggregator's `HealthSnapshot` is now published to the existing prometheus_client CollectorRegistry (the one the `/metrics` endpoint already exposes) so the four canonical health metrics fire live: `health_feed_status{repo, feed, status}`, `health_feed_errors_within_window{repo, feed}`, `mcp_common_health_halflife_seconds{repo}`, `mcp_common_health_aggregate_duration_ms{repo}` (histogram). These are exactly the names referenced by the PromQL alert rules at `mahavishnu/config/prometheus/health_aggregator_alerts.yml`. Phase 4 Observability + §11.4. Forward-compat: missing mcp_common.metrics module is silently no-op'd via `ImportError` catch.
+
 ### Fixed
 
 - session-buddy: Wire `last_error_at` tracking in `SignerFeedState.record_error()` (plan §5 Phase 4 task 3 followup). Previously the signer feed never recorded per-error timestamps, so the aggregator's `is_healthy` predicate couldn't escalate DEGRADED via the time-bounded decay branch for signer-side failures (e.g., disk-permission errors during manifest reload). The probe body now passes `last_error_at=state.last_error_at` so fresh errors surface as `error_within_halflife` in `/health` JSON.
