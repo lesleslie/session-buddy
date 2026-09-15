@@ -16,9 +16,7 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
 from importlib.metadata import version as pkg_version
 from pathlib import Path
-from typing import Any, TypedDict, cast
-
-from mcp_common.health.feed import ReasonCode, StatusValue
+from typing import Any
 
 # Get version from package metadata
 try:
@@ -314,27 +312,6 @@ attach_otel_middleware(
 )
 
 
-# Local TypedDicts mirroring ``mcp_common.health.aggregator.HealthSnapshot``
-# so ty can resolve the cross-module return type from the installed
-# ``mcp_common`` wheel (which still annotates as ``dict[str, object]``).
-# Once session-buddy's pin advances past 0.26.1, prefer importing
-# ``HealthSnapshot`` directly from ``mcp_common.health.aggregator``.
-class _FeedSnapshot(TypedDict):
-    """Per-feed verdict inside :data:`_HealthSnapshot.checks`."""
-
-    status: StatusValue
-    healthy: bool
-    reason_codes: list[ReasonCode]
-
-
-class _HealthSnapshot(TypedDict):
-    """Top-level roll-up returned by ``aggregate_feed_states``."""
-
-    status: StatusValue
-    checks: dict[str, _FeedSnapshot]
-    reason_codes: list[ReasonCode]
-
-
 # HTTP health endpoint for Claude Code compatibility
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(request: Any) -> Any:
@@ -394,16 +371,13 @@ async def health_check(request: Any) -> Any:
     import time as _time
 
     aggregator_start = _time.perf_counter()
-    snap = cast(
-        _HealthSnapshot,
-        aggregate_feed_states(
-            {"skills_signer": signer_state_snapshot},
-            # Operator-tunable via HEALTH_FEED_HALFLIFE_SECONDS env var
-            # (set by ``--health-disable-decay`` on the MCPServerCLIFactory
-            # start command). ``0`` disables the time-bounded decay
-            # predicate entirely — see plan §5 task 7.
-            halflife_seconds=int(os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")),
-        ),
+    snap = aggregate_feed_states(
+        {"skills_signer": signer_state_snapshot},
+        # Operator-tunable via HEALTH_FEED_HALFLIFE_SECONDS env var
+        # (set by ``--health-disable-decay`` on the MCPServerCLIFactory
+        # start command). ``0`` disables the time-bounded decay
+        # predicate entirely — see plan §5 task 7.
+        halflife_seconds=int(os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")),
     )
     # Phase 4 observability: emit the canonical health metrics (plan
     # §4 Observability + §11.4 PromQL alerts) into the shared
@@ -425,9 +399,7 @@ async def health_check(request: Any) -> Any:
             registry=get_metrics().registry,
             snap=snap,
             repo="session-buddy",
-            halflife_seconds=int(
-                os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")
-            ),
+            halflife_seconds=int(os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")),
             duration_ms=aggregator_duration_ms,
         )
     except ImportError:

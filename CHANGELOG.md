@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.26.4] - 2026-09-15
+
+### Added
+
+- session-buddy: Emit health-aggregator metrics from /health probe
+
+### Fixed
+
+- session-buddy: Wire last_error_at tracking in SignerFeedState
+
 ## [0.26.3] - 2026-09-15
 
 ### Added
@@ -23,7 +33,7 @@ and this project adheres to Semantic Versioning.
 
 ### Added
 
-- session-buddy: Wire `mcp_common.health.metrics.update_health_metrics` into the `/health` probe body. The aggregator's `HealthSnapshot` is now published to the existing prometheus_client CollectorRegistry (the one the `/metrics` endpoint already exposes) so the four canonical health metrics fire live: `health_feed_status{repo, feed, status}`, `health_feed_errors_within_window{repo, feed}`, `mcp_common_health_halflife_seconds{repo}`, `mcp_common_health_aggregate_duration_ms{repo}` (histogram). These are exactly the names referenced by the PromQL alert rules at `mahavishnu/config/prometheus/health_aggregator_alerts.yml`. Phase 4 Observability + §11.4. Forward-compat: missing mcp_common.metrics module is silently no-op'd via `ImportError` catch.
+- session-buddy: Wire update_health_metrics (from mcp_common.health.metrics) into the `/health` probe body. The aggregator's `HealthSnapshot` is now published to the existing prometheus_client CollectorRegistry (the one the `/metrics` endpoint already exposes) so the four canonical health metrics fire live: `health_feed_status{repo, feed, status}`, `health_feed_errors_within_window{repo, feed}`, `mcp_common_health_halflife_seconds{repo}`, `mcp_common_health_aggregate_duration_ms{repo}` (histogram). These are exactly the names referenced by the PromQL alert rules at `mahavishnu/config/prometheus/health_aggregator_alerts.yml`. Phase 4 Observability + §11.4. Forward-compat: missing mcp_common.metrics module is silently no-op'd via `ImportError` catch.
 
 ### Fixed
 

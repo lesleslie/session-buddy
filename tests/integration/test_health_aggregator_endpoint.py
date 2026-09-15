@@ -162,10 +162,12 @@ class TestHealthAggregatorWarmingUp:
 
     def setup_method(self) -> None:
         # Install a signer with an EMPTY manifest — ingester_running=True
-        # but entities_count == 0. This is the warming_up surface: the
-        # signer is loaded, the ingester is alive, but no manifest
-        # entries exist yet.
+        # but entities_count == 0. Bump cycles_total so the aggregator
+        # sees an "alive + cycled + empty" surface (= WARMING_UP), not
+        # the "alive + never-cycled" surface (= DEGRADED via HNSW
+        # hardening with FEED_NEVER_POPULATED).
         self.state = _install_signer(PubkeyManifest())  # empty
+        self.state.record_cycle()  # cycles_total: 0 → 1
 
     def teardown_method(self) -> None:
         reset_signer_feed_state()
