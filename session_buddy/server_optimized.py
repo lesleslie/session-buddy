@@ -16,7 +16,9 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
 from importlib.metadata import version as pkg_version
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict, cast
+
+from mcp_common.health.feed import ReasonCode, StatusValue
 
 # Get version from package metadata
 try:
@@ -312,6 +314,27 @@ attach_otel_middleware(
 )
 
 
+# Local TypedDicts mirroring ``mcp_common.health.aggregator.HealthSnapshot``
+# so ty can resolve the cross-module return type from the installed
+# ``mcp_common`` wheel (which still annotates as ``dict[str, object]``).
+# Once session-buddy's pin advances past 0.26.1, prefer importing
+# ``HealthSnapshot`` directly from ``mcp_common.health.aggregator``.
+class _FeedSnapshot(TypedDict):
+    """Per-feed verdict inside :data:`_HealthSnapshot.checks`."""
+
+    status: StatusValue
+    healthy: bool
+    reason_codes: list[ReasonCode]
+
+
+class _HealthSnapshot(TypedDict):
+    """Top-level roll-up returned by ``aggregate_feed_states``."""
+
+    status: StatusValue
+    checks: dict[str, _FeedSnapshot]
+    reason_codes: list[ReasonCode]
+
+
 # HTTP health endpoint for Claude Code compatibility
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(request: Any) -> Any:
@@ -335,10 +358,9 @@ async def health_check(request: Any) -> Any:
     ``checks.skills_signer.error = "not initialized"`` and
     ``status = "failed"``.
     """
-    from starlette.responses import JSONResponse
-
     from mcp_common.health.aggregator import aggregate_feed_states
     from mcp_common.health.feed import HealthFeedState
+    from starlette.responses import JSONResponse
 
     from session_buddy.mcp.signer_feed import get_signer_feed_state
 
@@ -366,9 +388,12 @@ async def health_check(request: Any) -> Any:
             ingester_running=False,
         )
 
-    snap = aggregate_feed_states(
-        {"skills_signer": signer_state_snapshot},
-        halflife_seconds=300,
+    snap = cast(
+        _HealthSnapshot,
+        aggregate_feed_states(
+            {"skills_signer": signer_state_snapshot},
+            halflife_seconds=300,
+        ),
     )
 
     verdict = snap["checks"]["skills_signer"]
@@ -395,9 +420,7 @@ async def health_check(request: Any) -> Any:
         checks["skills_signer"]["key_count"] = manifest_dict["key_count"]
         checks["skills_signer"]["pubkeys"] = manifest_dict["pubkeys"]
     else:
-        checks["skills_signer"]["error"] = (
-            "not initialized; awaiting lifespan"
-        )
+        checks["skills_signer"]["error"] = "not initialized; awaiting lifespan"
 
     # Top-level aggregate verdict. Session-Buddy has one data feed so
     # the worst status is just that feed's status.

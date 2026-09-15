@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.26.3] - 2026-09-15
+
+### Added
+
+- session-buddy: Unify /health aggregator to mcp-common contract
+
+### Internal
+
+- session-buddy: Remove stale editor backups and analysis artifacts
+
 ## [Unreleased]
 
 ### Changed
