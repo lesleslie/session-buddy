@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [Unreleased]
+
+### Changed
+
+- session-buddy: Replace `/health` handler's hand-rolled probe body with `mcp_common.health.aggregator.aggregate_feed_states` (plan §5 Phase 4 task 2). The body now mirrors the aggregator's verdict enum (`healthy` / `warming_up` / `degraded` / `failed`) instead of the legacy binary `ok` / `degraded`. HTTP code stays 200 for healthy + warming_up; 503 for degraded + failed. Per-feed dict carries `status` + `reason_codes` + the four mandatory wire fields; legacy `key_count` / `pubkeys` / `generation` preserved for the Phase 2/6 installer tooling.
+
+### Added
+
+- session-buddy: tests/integration/test_health_aggregator_endpoint.py — end-to-end pin of the aggregator contract via the `/health` route (plan §5 Phase 4 task 1). Covers the healthy / warming_up / failed surfaces, the four mandatory wire fields, and reason_codes population for each non-healthy verdict.
+
 ## [0.26.1] - 2026-09-14
 
 ### Added

@@ -319,32 +319,110 @@ async def health_check(request: Any) -> Any:
 
     Phase 1.5 (plan §10.3.3): extended with the skills_signer feed state
     so clients can verify SkillMetadata.signature / AgentMetadata.signature
-    against the persisted public key. During the brief warm-up window
-    before the lifespan runs init_signer_feed_state(), /health returns
-    503 with checks.skills_signer.error = "not initialized".
+    against the persisted public key.
+
+    Phase 4: body delegates per-feed evaluation to
+    ``mcp_common.health.aggregator.aggregate_feed_states``. Session-Buddy
+    has exactly one data feed (skills_signer), so the aggregator's worst
+    status is just that feed's status. The body now mirrors the
+    aggregator's verdict enum (``healthy`` / ``warming_up`` / ``degraded``
+    / ``failed``) instead of the legacy binary ``ok`` / ``degraded``.
+    HTTP code stays 200 for healthy + warming_up; 503 for degraded +
+    failed.
+
+    During the brief warm-up window before the lifespan runs
+    ``init_signer_feed_state()``, ``/health`` returns 503 with
+    ``checks.skills_signer.error = "not initialized"`` and
+    ``status = "failed"``.
     """
     from starlette.responses import JSONResponse
 
+    from mcp_common.health.aggregator import aggregate_feed_states
+    from mcp_common.health.feed import HealthFeedState
+
     from session_buddy.mcp.signer_feed import get_signer_feed_state
 
-    checks: dict[str, dict[str, object]] = {}
     state = get_signer_feed_state()
-    if state is None:
-        checks["skills_signer"] = {
-            "ok": False,
-            "error": "not initialized; awaiting lifespan",
-        }
+    if state is not None:
+        manifest_dict = state.manifest.as_dict()
+        signer_state_snapshot = HealthFeedState(
+            entities_count=manifest_dict["key_count"],
+            last_updated_timestamp=state.last_updated_timestamp,
+            cycles_total=state.cycles_total,
+            errors_total=state.errors_total,
+            last_error_at=None,
+            ingester_running=True,
+        )
     else:
-        checks["skills_signer"] = state.as_dict()
+        # Lifespan hasn't installed the signer singleton yet — surface
+        # this as a broken producer (FAILED) rather than masking it as
+        # "warming up" (which would be incorrect: no ingester is alive).
+        signer_state_snapshot = HealthFeedState(
+            entities_count=0,
+            last_updated_timestamp=None,
+            cycles_total=0,
+            errors_total=0,
+            last_error_at=None,
+            ingester_running=False,
+        )
 
-    all_ok = all(bool(c.get("ok")) for c in checks.values())
+    snap = aggregate_feed_states(
+        {"skills_signer": signer_state_snapshot},
+        halflife_seconds=300,
+    )
+
+    verdict = snap["checks"]["skills_signer"]
+    checks: dict[str, dict[str, object]] = {
+        "skills_signer": {
+            "ok": verdict["healthy"],
+            "status": verdict["status"].value,
+            "reason_codes": [c.value for c in verdict["reason_codes"]],
+            "feed_entities_count": signer_state_snapshot.entities_count,
+            "feed_last_updated_timestamp": signer_state_snapshot.last_updated_timestamp,
+            "cycles_total": signer_state_snapshot.cycles_total,
+            "errors_total": signer_state_snapshot.errors_total,
+        }
+    }
+
+    # Phase 1.5: keep the legacy manifest fields on the wire so the
+    # Phase 2/6 installer tooling that parses ``key_count`` / ``pubkeys``
+    # continues to work. The aggregator verdict above is the canonical
+    # signal for the new contract.
+    if state is not None:
+        manifest_dict = state.manifest.as_dict()
+        checks["skills_signer"]["feed"] = "skills_signer"
+        checks["skills_signer"]["generation"] = state.generation
+        checks["skills_signer"]["key_count"] = manifest_dict["key_count"]
+        checks["skills_signer"]["pubkeys"] = manifest_dict["pubkeys"]
+    else:
+        checks["skills_signer"]["error"] = (
+            "not initialized; awaiting lifespan"
+        )
+
+    # Top-level aggregate verdict. Session-Buddy has one data feed so
+    # the worst status is just that feed's status.
+    worst_status = snap["status"].value
+    status_severity = {
+        "healthy": 0,
+        "warming_up": 1,
+        "degraded": 2,
+        "failed": 3,
+    }
+    http_ok = status_severity.get(worst_status, 0) < 2
+    checks["_aggregate"] = {
+        "status": worst_status,
+        "reason_codes": [c.value for c in snap["reason_codes"]],
+        "data_feeds_ok": verdict["healthy"],
+        "halflife_seconds": 300,
+    }
+
     body = {
-        "status": "ok" if all_ok else "degraded",
+        "status": worst_status,
         "service": "session-buddy",
         "version": __version__,
         "checks": checks,
     }
-    return JSONResponse(body, status_code=200 if all_ok else 503)
+    return JSONResponse(body, status_code=200 if http_ok else 503)
 
 
 @mcp.custom_route("/healthz", methods=["GET"])
