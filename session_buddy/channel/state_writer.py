@@ -3,24 +3,20 @@
 Producer for the S-CHANNEL-DURABLE plan. Channel event handlers
 (Slack/Signal/terminal) call :func:`record_channel_session_state`
 with the actor/context observed from a channel event; this module
-validates the payload against the Bodai dhara schema registry
-(``channel_session_state``) and persists the typed struct via
-``dhara.put``.
+validates the payload against the locally-owned
+:class:`session_buddy.channel._models.ChannelSessionState` schema
+and persists the typed struct via ``dhara.put``.
+
+Per Phase 8 Task 7: the entity type moved from ``dhara.schema``
+to a session-buddy-local msgspec.Struct (mirrors the architectural
+decision made for mahavishnu's WorkflowOutcome/ApprovalLog/
+WebhookIngress — see plan Task 2 for the rationale).
 
 Substrate failures are swallowed (G6 contract): a persistence
 backend outage MUST NOT crash the channel tracking path, which
 would drop the event handler's heartbeat and (worse) cascade into
 the calling nanobot. Validation failures DO propagate — those
 indicate a programming error in the caller.
-
-Substrate-compat handling mirrors the consumer at
-``session_buddy/mcp_tools/channel_tools.py``: stamp the substrate
-attribute at import time if missing, then resolve it dynamically
-on every call via ``getattr(dhara, "put", None)``. This keeps the
-producer decoupled from which persistence backend (if any) is
-wired at runtime, while still permitting tests to inject a
-synthetic backend via ``monkeypatch.setattr(state_writer.dhara,
-"put", mock)``.
 
 The feature flag (``CHANNEL_SESSION_STATE_V1_ENABLED``) is
 consulted at the *call site* — see
@@ -33,16 +29,14 @@ effect is the substrate write.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
 
-from dhara.schema import ChannelSessionState, validate
+import msgspec
 from oneiric.core.logging import get_logger
 
-from session_buddy._dhara_substrate_compat import (
-    dhara_calltime,
-    stamp_dhara_attr,
-)
+from session_buddy._dhara_substrate_compat import dhara_calltime
 from session_buddy._producer_metrics import COUNTERS
+from session_buddy.channel._models import ChannelSessionState
 
 logger = get_logger(__name__)
 
@@ -68,16 +62,6 @@ def _channel_session_state_v1_enabled() -> bool:
     return os.environ.get("CHANNEL_SESSION_STATE_V1_ENABLED", "true").lower() != "false"
 
 
-# Substrate-compat stamp (mirrors consumer at
-# ``session_buddy/mcp_tools/channel_tools.py``:36-37). The installed
-# Bodai dhara 0.14.0 ships without a persistence backend wired, so
-# ``dhara.put`` is typically absent. We stamp it as ``None`` at
-# import time so the call-time getattr gate can short-circuit
-# without raising. Tests inject a synthetic ``put`` by stamping the
-# live ``dhara`` module attribute.
-stamp_dhara_attr("put")  # pragma: no cover - substrate introspection
-
-
 def record_channel_session_state(
     channel_type: str,
     channel_id: str,
@@ -93,7 +77,7 @@ def record_channel_session_state(
     validates and (best-effort) persists.
 
     Persistence errors are logged and swallowed (G6 contract);
-    validation errors propagate as :class:`SchemaValidationError`.
+    validation errors propagate as :class:`msgspec.ValidationError`.
     When ``dhara.put`` is unbound (no persistence backend wired),
     a structured warning is emitted so operators can observe the
     no-op in Dhara/Akosha traces without the call crashing.
@@ -105,7 +89,7 @@ def record_channel_session_state(
         "last_event_at": last_event_at,
         "metadata": metadata or {},
     }
-    validated = validate("channel_session_state", payload)
+    validated: ChannelSessionState = msgspec.convert(payload, ChannelSessionState)  # ty: ignore[invalid-assignment]
 
     # Substrate-compat gate: only persist when dhara.put is exposed.
     put: Any = dhara_calltime("put")
@@ -141,7 +125,4 @@ def record_channel_session_state(
             },
         )
 
-    # ``validate`` returns a generic ``Struct``; we know the schema name
-    # resolves to ``ChannelSessionState`` so cast to keep the public
-    # return signature honest without losing the runtime guarantee.
-    return cast(ChannelSessionState, validated)
+    return validated

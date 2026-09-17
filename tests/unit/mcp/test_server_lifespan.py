@@ -9,64 +9,24 @@ The fix extracted ``_validate_orchestrator_path`` to a module-level
 ``validate_orchestrator_working_dir`` and wired it into the lifespan
 startup. This module exercises that wiring.
 
-Test-environment note (NOT a defect of this fix):
-``session_buddy.channel.state_writer`` imports ``from dhara.schema
-import ChannelSessionState, validate`` (commit ``109b1d98``,
-S-CHANNEL-DURABLE v1.1). The installed Bodai dhara in this venv
-(0.13.2) does not yet ship the ``schema`` submodule — that release is
-tracked as a dependency-bump follow-up, not in scope for Task 4. To
-let this test exercise the lifespan wiring without touching
-production code, we inject a stub ``dhara.schema`` into
-``sys.modules`` BEFORE ``session_buddy.mcp.server`` is imported.
-The stub's attributes are never called by anything we exercise here
-(``record_channel_session_state`` is not invoked); only the
-``import`` must succeed.
+Phase 8 Task 7 update: the previous version of this module installed
+a stub ``dhara.schema`` module into ``sys.modules`` at import time so
+that ``session_buddy.channel.state_writer`` could `from dhara.schema
+import ChannelSessionState, validate`. After the migration,
+``state_writer`` imports its types from the local
+``session_buddy.channel._models`` module — no ``dhara.schema``
+dependency, no stub needed. The stub machinery is deleted here.
 """
+
 from __future__ import annotations
 
 import asyncio
-import sys
-import types
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
-
-def _ensure_dhara_schema_stub() -> None:
-    """Inject a stub ``dhara.schema`` module if it isn't importable.
-
-    See module docstring for context. This is test-only — it does
-    NOT alter any production code path.
-    """
-    if "dhara.schema" in sys.modules:
-        return
-    try:
-        import dhara.schema  # noqa: F401  (probe only)
-        return
-    except ModuleNotFoundError:
-        pass
-
-    stub = types.ModuleType("dhara.schema")
-
-    class _StubChannelSessionState:
-        """No-op stand-in for the real ``ChannelSessionState`` class."""
-
-        def __init__(self, *_a: object, **_kw: object) -> None:
-            pass
-
-    def _stub_validate(*_a: object, **_kw: object) -> None:
-        """No-op stand-in for the real ``validate`` function."""
-        return None
-
-    stub.ChannelSessionState = _StubChannelSessionState  # type: ignore[attr-defined]
-    stub.validate = _stub_validate  # type: ignore[attr-defined]
-    sys.modules["dhara.schema"] = stub
-
-
-_ensure_dhara_schema_stub()
 
 
 @pytest.fixture

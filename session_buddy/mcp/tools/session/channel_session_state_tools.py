@@ -5,9 +5,15 @@ Read-back consumer for the channel session state plan lineage v1.2
 Mirrors the producer-side pattern in
 ``session_buddy/channel/state_writer.py`` and uses the same
 ``_dhara_substrate_compat`` helpers so the call-time
-``getattr(dhara, "get", None)`` gate short-circuits cleanly when
-the substrate is unbound (G6 contract — read failures must not
-crash the MCP layer).
+``dhara_calltime("get")`` gate short-circuits cleanly when the
+substrate is unbound (G6 contract — read failures must not crash
+the MCP layer).
+
+Per Phase 8 Task 7: the entity type moved from ``dhara.schema`` to
+a session-buddy-local msgspec.Struct (see
+``session_buddy/channel/_models.py``). The producer/consumer pair
+now shares the local class; round-trip wire compatibility is pinned
+in ``tests/unit/channel/test_models.py``.
 
 Substrate failures are swallowed (G6 contract): a persistence
 backend outage MUST NOT crash the MCP consumer path, which would
@@ -26,42 +32,13 @@ from __future__ import annotations
 
 from typing import Any
 
+import msgspec
 from oneiric.core.logging import get_logger
 
-from session_buddy._dhara_substrate_compat import (
-    dhara_calltime,
-    stamp_dhara_attr,
-)
+from session_buddy._dhara_substrate_compat import dhara_calltime
+from session_buddy.channel._models import ChannelSessionState
 
 logger = get_logger(__name__)
-
-
-# Substrate-compat stamp (mirrors producer at
-# ``session_buddy/channel/state_writer.py:79``). The installed
-# Bodai dhara distribution ships without a persistence backend
-# wired, so ``dhara.get`` is typically absent. We stamp it as
-# ``None`` at import time so the call-time getattr gate can
-# short-circuit without raising. Tests inject a synthetic ``get``
-# by stamping the live ``dhara`` module attribute via
-# ``monkeypatch.setattr``.
-stamp_dhara_attr("get")  # pragma: no cover - substrate introspection
-
-
-def _load_schema_registry() -> tuple[Any, Any] | None:
-    """Lazy-load the dhara schema registry (``from_dict``/``to_dict``).
-
-    Imports ``dhara.schema`` at call time so this module loads
-    cleanly on session-buddy's pinned dhara version (which does not
-    yet ship ``dhara.schema``). When the schema package is absent
-    we return ``None`` and the tool short-circuits to a WARNING
-    log + ``None`` result — mirroring the G6 contract that read
-    failures must not crash the MCP consumer path.
-    """
-    try:
-        from dhara.schema import from_dict, to_dict
-    except ImportError:
-        return None
-    return from_dict, to_dict
 
 
 def register_channel_session_state_tools(mcp_server: Any) -> None:
@@ -92,9 +69,9 @@ def register_channel_session_state_tools(mcp_server: Any) -> None:
         """Read back the persisted state for a (channel, sender) pair.
 
         Returns the validated ``ChannelSessionState`` struct as a
-        dict (the same form produced by ``to_dict``), or ``None``
-        when the record is missing, the substrate is unbound, or
-        the substrate raises (G6 contract).
+        dict (the same form ``msgspec.to_builtins`` would produce),
+        or ``None`` when the record is missing or the substrate is
+        unavailable (G6 contract).
 
         Args:
             channel_id: Channel identifier (Slack channel ID,
@@ -137,29 +114,6 @@ def register_channel_session_state_tools(mcp_server: Any) -> None:
         if payload is None:
             return None
 
-        # Lazy-load the schema registry. On session-buddy's pinned
-        # dhara version the ``dhara.schema`` subpackage is absent —
-        # the consumer must not crash in that environment, so we
-        # log + return None (G6 contract: read failures must not
-        # propagate into the calling MCP client).
-        registry = _load_schema_registry()
-        if registry is None:
-            logger.warning(
-                "channel_session_state_read_skipped",
-                extra={
-                    "channel_id": channel_id,
-                    "sender_id": sender_id,
-                    "reason": "dhara.schema_unavailable",
-                },
-            )
-            return None
-
-        from_dict, to_dict = registry
-
-        # Reconstruct via the schema registry so the returned dict
-        # carries the validated shape (and any default normalization
-        # the registry applies). Mirrors the producer's
-        # ``validate("channel_session_state", payload)`` symmetry:
-        # write-validate / read-reconstruct.
-        struct = from_dict("channel_session_state", payload)
-        return to_dict(struct)
+        # Convert back to the local msgspec.Struct, then serialize to a JSON-compatible dict.
+        struct = msgspec.convert(payload, ChannelSessionState)
+        return msgspec.to_builtins(struct)
