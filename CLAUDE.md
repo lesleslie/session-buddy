@@ -462,7 +462,7 @@ Tools are gated by the `SESSION_BUDDY_TOOL_PROFILE` environment variable:
 - `minimal`: Session lifecycle + search + hooks (~3 tools)
 
 Health tools are always-on at every profile via `SESSION_BUDDY_MANDATORY_GROUPS`.
-For detailed rationale (group choices, Dhara publisher build pattern, subagent
+For detailed rationale (group choices, publisher build pattern, subagent
 recovery history): see
 [docs/architecture/tool-profile-rationale.md](docs/architecture/tool-profile-rationale.md).
 
