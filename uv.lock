@@ -3961,13 +3961,12 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.26.3"
+version = "0.26.4"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "crackerjack" },
     { name = "cryptography" },
-    { name = "dhara" },
     { name = "duckdb" },
     { name = "fastmcp" },
     { name = "hatchling" },
@@ -4023,7 +4022,6 @@ requires-dist = [
     { name = "aiofiles", specifier = ">=25.1.0" },
     { name = "crackerjack", specifier = ">=0.70.0" },
     { name = "cryptography", specifier = ">=50.0.0" },
-    { name = "dhara", specifier = ">=0.9.7" },
     { name = "duckdb", specifier = ">=1.5.3" },
     { name = "fastmcp", specifier = ">=3.4.0,<5" },
     { name = "hatchling", specifier = ">=1.30.1" },

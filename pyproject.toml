@@ -44,7 +44,6 @@ dependencies = [
     "scipy>=1.17.1",
     "websockets>=16.0",
     "mcp-common>=0.26.0,<0.27.0",
-    "dhara>=0.9.7",
     # Wave 3 (W3): oneiric listed as a *direct* dependency even though
     # mcp-common transitively pulls it in. Action kits (``SecuritySignatureAction``,
     # ``DataSanitizeAction``, etc.) are part of oneiric's public API surface,
