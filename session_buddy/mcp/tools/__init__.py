@@ -118,6 +118,11 @@ from .skill_tools import register_skill_tools
 # Skills tools (Phase 4 Analytics)
 from .skills.phase4_tools import register_phase4_tools
 
+# Subagent lockfile marker (used by Mahavishnu SessionBuddyPool worker hooks
+# and any other runtime that needs to create/clear
+# <working_dir>/.session-buddy/subagent.lock).
+from .subagent_marker import register_subagent_marker_tools
+
 # Git worktree tools (used by Mahavishnu SessionBuddyWorktreeProvider)
 from .worktree_tools import register_worktree_tools
 
@@ -161,6 +166,7 @@ __all__ = [
     "register_session_analytics_tools",
     "register_session_tools",
     "register_skill_tools",
+    "register_subagent_marker_tools",
     "register_team_tools",
     "register_validated_memory_tools",
     "register_workflow_metrics_tools",

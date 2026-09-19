@@ -80,6 +80,9 @@ STANDARD_REGISTRATIONS: list[str | Callable] = MINIMAL_REGISTRATIONS + [
     "register_channel_session_state_tools",
     "register_channel_tracking_tools",
     "register_cross_repo_work_tools",
+    # Subagent lockfile marker — runtime hook surface for Mahavishnu
+    # PoolManager.worker_execute and Claude Code Task wrappers.
+    "register_subagent_marker_tools",
     # Phase 1 — server-published skills tools (plan §5 Phase 1 task #2-3).
     # STANDARD tier exposes the skills metadata to the daily-development
     # audience; FULL inherits via the ALL_TOOLS sentinel.
@@ -154,6 +157,7 @@ from . import (
     register_session_analytics_tools,
     register_session_tools,
     register_skill_tools,
+    register_subagent_marker_tools,
     register_team_tools,
     register_workflow_metrics_tools,
     register_worktree_tools,
@@ -284,6 +288,12 @@ REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
     "register_serverless_tools": register_serverless_tools,
     "register_session_analytics_tools": register_session_analytics_tools,
     "register_session_tools": register_session_tools,
+    # Subagent lockfile marker — wraps SubagentDetector.write for runtime
+    # hooks that can't import the Python API directly (Mahavishnu
+    # PoolManager.worker_execute, Claude Code Task-tool wrappers, shell
+    # init scripts). STANDARD tier is sufficient: marker creation is
+    # cheap, fail-open, and required by the checkpoint subsystem.
+    "register_subagent_marker_tools": register_subagent_marker_tools,
     # Phase 1 — server-published skills tools (plan §5 Phase 1 task #2-3).
     # Reads the static catalog and signs ``get_skill`` responses via
     # the lifespan-owned :class:`SkillsSigner` (init runs in the

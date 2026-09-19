@@ -31,9 +31,12 @@ from session_buddy.checkpoint.snapshot import (
     SnapshotMechanism,
 )
 from session_buddy.checkpoint.subagent_detector import (
+    DefaultSubagentLifecycleHook,
     LockfileSignalSource,
     SignalSource,
     SubagentDetector,
+    SubagentLifecycleHook,
+    SubagentMetadata,
 )
 
 __all__ = [
@@ -42,6 +45,7 @@ __all__ = [
     "CheckpointPhase",
     "CheckpointPolicy",
     "CheckpointResult",
+    "DefaultSubagentLifecycleHook",
     "DirtyFilesSignal",
     "LockfileSignalSource",
     "MidpointCriteria",
@@ -53,6 +57,8 @@ __all__ = [
     "SnapshotCleanupTask",
     "SnapshotMechanism",
     "SubagentDetector",
+    "SubagentLifecycleHook",
+    "SubagentMetadata",
     "TimeElapsedSignal",
     "ValueAddSignal",
     "WorkingTreeInspector",
