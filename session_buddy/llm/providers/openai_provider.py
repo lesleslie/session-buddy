@@ -31,7 +31,7 @@ def _ensure_openai_module() -> ModuleType:
     if "openai" in sys.modules:
         return sys.modules["openai"]  # type: ignore[return-value]
     try:
-        import openai as _real_openai  # noqa: F401 - side-effect: cache in sys.modules
+        import openai as _real_openai  # ty: ignore[unresolved-import]  # noqa: F401 - side-effect: cache in sys.modules
     except ImportError:
         stub = ModuleType("openai")
         stub.AsyncOpenAI = None  # ty: ignore[unresolved-attribute]
@@ -58,7 +58,7 @@ class OpenAIProvider(LLMProvider):
         """Get or create OpenAI client."""
         if self._client is None:
             try:
-                import openai
+                import openai  # ty: ignore[unresolved-import] - optional dep; guarded ImportError
             except ImportError:  # pragma: no cover - stub prevents this in tests
                 msg = "OpenAI package not installed. Install with: pip install openai"
                 raise ImportError(msg)

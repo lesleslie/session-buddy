@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import inspect
 import signal
 import typing as t
 from contextlib import suppress
@@ -240,7 +241,7 @@ class ShutdownManager:
         )
 
         # Execute with timeout
-        if asyncio.iscoroutinefunction(task.callback):
+        if inspect.iscoroutinefunction(task.callback):
             await asyncio.wait_for(task.callback(), timeout=task.timeout_seconds)
         else:
             # Sync function - run in executor

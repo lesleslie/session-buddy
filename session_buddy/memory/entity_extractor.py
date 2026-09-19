@@ -155,7 +155,9 @@ class LLMEntityExtractor:
 
         try:
             if self.llm_provider == "openai":
-                from openai import AsyncOpenAI
+                from openai import (  # ty: ignore[unresolved-import] - optional dep; guarded ImportError
+                    AsyncOpenAI,
+                )
 
                 self._client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
                 logger.info(f"Initialized OpenAI client with model: {self.model}")

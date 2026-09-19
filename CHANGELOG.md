@@ -9,6 +9,25 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.27.0] - 2026-09-19
+
+### Added
+
+- checkpoint: Add SubagentDetector.write() + lifecycle hook + CLI + MCP tool
+
+### Changed
+
+- session-buddy: Re-export canonical AgentMetadata/SkillMetadata aliases (Phase 10 task 4)
+- session-buddy: Vendor ChannelSessionState locally, drop dhara fallback chain
+
+### Documentation
+
+- Drop 'Dhara publisher' qualifier from CLAUDE.md (Phase 8 T16)
+
+### Build
+
+- deps: Drop dhara dep from runtime dependencies (Phase 8 T11)
+
 ## [0.26.4] - 2026-09-15
 
 ### Added

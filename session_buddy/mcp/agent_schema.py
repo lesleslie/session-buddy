@@ -26,8 +26,8 @@ Refs:
 
 from __future__ import annotations
 
-from mcp_common.canonical_schemas.agent import AgentCanonicalSchema
 from mcp_common.canonical_schemas._validators import NAME_OR_SERVER_RE
+from mcp_common.canonical_schemas.agent import AgentCanonicalSchema
 
 # Backward-compat alias. ``isinstance(x, AgentMetadata)`` resolves to
 # ``isinstance(x, AgentCanonicalSchema)`` because Python treats the
@@ -35,4 +35,4 @@ from mcp_common.canonical_schemas._validators import NAME_OR_SERVER_RE
 AgentMetadata = AgentCanonicalSchema
 
 
-__all__ = ["AgentMetadata", "NAME_OR_SERVER_RE"]
+__all__ = ["NAME_OR_SERVER_RE", "AgentMetadata"]

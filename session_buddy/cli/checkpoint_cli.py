@@ -62,9 +62,7 @@ def subagent_marker(
     without needing the Python API or the MCP tool.
     """
     if action not in ("mark", "clear"):
-        raise typer.BadParameter(
-            f"action must be 'mark' or 'clear', got {action!r}"
-        )
+        raise typer.BadParameter(f"action must be 'mark' or 'clear', got {action!r}")
     lock = working_dir / ".session-buddy" / "subagent.lock"
     detector = SubagentDetector(working_dir, LockfileSignalSource(lock))
     detector.write(active=(action == "mark"))

@@ -32,7 +32,7 @@ def _try_load_dhara() -> Any | None:
     — only this lazy resolver touches it.
     """
     try:
-        import dhara
+        import dhara  # ty: ignore[unresolved-import] - optional dep; lazy resolver
     except ImportError:
         return None
     return dhara

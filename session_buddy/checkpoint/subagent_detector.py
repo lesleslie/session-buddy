@@ -23,6 +23,7 @@ import socket
 import tempfile
 import time
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -43,7 +44,7 @@ _PARENT_AGENT_ID_ENV = "SESSION_BUDDY_PARENT_AGENT_ID"
 
 class SignalSource(Protocol):
     def read(self) -> bool: ...
-    def write(self, active: bool) -> None: ...
+    def write(self, active: bool, payload: dict[str, Any] | None = None) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -112,10 +113,8 @@ class LockfileSignalSource:
         except Exception:
             # Best-effort cleanup of the orphan tmp file. Swallow errors
             # here — the outer write already handles the failure mode.
-            try:
+            with suppress(OSError):
                 Path(tmp_str).unlink()
-            except OSError:
-                pass
             raise
 
 
@@ -227,9 +226,7 @@ class DefaultSubagentLifecycleHook:
         lock = working_dir / ".session-buddy" / "subagent.lock"
         return SubagentDetector(working_dir, LockfileSignalSource(lock))
 
-    def on_subagent_start(
-        self, working_dir: Path, metadata: SubagentMetadata
-    ) -> None:
+    def on_subagent_start(self, working_dir: Path, metadata: SubagentMetadata) -> None:
         self._factory(working_dir).write(active=True, metadata=metadata)
 
     def on_subagent_end(self, working_dir: Path) -> None:

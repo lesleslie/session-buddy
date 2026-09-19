@@ -11,15 +11,6 @@ other MCP clients. It manages session startup, checkpoints, cleanup, searchable
 reflections, cross-project context, and quality signals through a local
 DuckDB-backed service.
 
-## Bodai Ecosystem Role
-
-Within the [Bodai ecosystem](https://github.com/lesleslie/bodai), Session-Buddy
-provides session context and knowledge capture. It can operate standalone and
-can integrate with Mahavishnu for orchestration, Akosha for cross-system
-analytics, Dhara for durable ecosystem state, and Crackerjack for quality
-signals. Oneiric supplies the shared configuration, lifecycle, and adapter
-patterns.
-
 ## Quick Links
 
 - [Capabilities](#capabilities)
@@ -302,6 +293,17 @@ uses a configured HTTP embedding provider when enabled. See
    `/session-buddy:search_summary`.
 1. Store important conclusions with `/session-buddy:store_reflection`.
 1. Run `/session-buddy:end` when the session is complete.
+
+## Bodai Integration
+
+When deployed inside the [Bodai ecosystem](https://github.com/lesleslie/bodai),
+Session-Buddy works as the session-lifecycle and knowledge-capture layer for
+the Bodai components: Mahavishnu orchestration, Akosha cross-system
+analytics, Crackerjack quality signals, and the oneiric configuration and
+adapter patterns shared across components. The standalone install is
+unaffected — Bodai adds no special-case overrides; consumers connect through
+the same MCP tools and DuckDB-backed store they would in any other Claude
+Code environment.
 
 ## Documentation
 

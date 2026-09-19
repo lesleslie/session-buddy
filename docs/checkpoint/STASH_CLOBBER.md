@@ -112,9 +112,9 @@ tracks the closure of this work. That followup closes when:
 
 1. `SubagentDetector.write()` is implemented in session-buddy and covered by
    tests (≥ 90% coverage on the new code).
-2. The lockfile is created/removed by at least one runtime path.
-3. The "functionally dormant" caveat is removed from `subagent_detector.py`.
-4. The two blocking plans (`docs/superpowers/plans/2026-07-15-sb-checkpoint-stash-clobber-fix.md`
+1. The lockfile is created/removed by at least one runtime path.
+1. The "functionally dormant" caveat is removed from `subagent_detector.py`.
+1. The two blocking plans (`docs/superpowers/plans/2026-07-15-sb-checkpoint-stash-clobber-fix.md`
    and `docs/followups/2026-07-15-sb-checkpoint-stash-clobber.md`) promote
    from `partial` to `complete` via PLAN_INDEX regeneration.
 
