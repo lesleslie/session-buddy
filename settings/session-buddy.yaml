@@ -163,7 +163,6 @@ max_content_length: 1000000
 
 # === MCP Server Settings ===
 server_host: "localhost"
-server_port: 3000
 enable_websockets: true
 
 # === Development Settings ===
