@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.27.1] - 2026-09-21
+
+### Fixed
+
+- settings: Remove dead `server_port: 3000` override
+
 ## [0.27.0] - 2026-09-19
 
 ### Added
