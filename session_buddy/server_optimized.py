@@ -486,7 +486,11 @@ async def metrics_check(request: Any) -> Any:
 # no-op when the helper is unavailable.
 from mcp_common import bootstrap_baseline_tools
 
-from session_buddy.mcp.tools import register_health_tools_sb
+from session_buddy.mcp.tools import (
+    register_health_tools_sb,
+    register_pool_tools,
+    register_subagent_marker_tools,
+)
 from session_buddy.subscribers.code_graph_subscriber import register_code_graph_tools
 from session_buddy.tools import (
     register_category_tools,
@@ -521,6 +525,11 @@ register_code_graph_tools(mcp)
 
 # MCP prompts for slash command support
 register_prompt_tools(mcp)
+
+# Pool wrappers + subagent marker (operational patch — see
+# ``fix/session-buddy-pool-mcp-contract`` v2 plan Task 7).
+register_pool_tools(mcp)
+register_subagent_marker_tools(mcp)
 
 
 @mcp.tool()
