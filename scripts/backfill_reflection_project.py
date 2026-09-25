@@ -25,18 +25,18 @@ from pathlib import Path
 from session_buddy.adapters.reflection_adapter_oneiric import (
     ReflectionDatabaseAdapterOneiric,
 )
-from session_buddy.config.settings import SessionBuddySettings
+from session_buddy.adapters.settings import ReflectionAdapterSettings
 
 DEFAULT_PROJECT = "legacy"
 
 
 async def backfill_one_db(db_path: Path, default_project: str) -> int:
     """Backfill ``project=NULL`` rows in one DB file. Returns count updated."""
-    settings = SessionBuddySettings(database_path=db_path)
+    settings = ReflectionAdapterSettings(database_path=db_path)
     adapter = ReflectionDatabaseAdapterOneiric(settings=settings)
     async with adapter as db:
         # Count before
-        cursor = await db.conn.execute(
+        cursor = db.conn.execute(
             "SELECT COUNT(*) FROM reflections_v2 WHERE project IS NULL"
         )
         before_nulls = cursor.fetchone()[0]
@@ -45,7 +45,7 @@ async def backfill_one_db(db_path: Path, default_project: str) -> int:
             return 0
 
         # Update
-        await db.conn.execute(
+        db.conn.execute(
             "UPDATE reflections_v2 SET project = ? WHERE project IS NULL",
             [default_project],
         )
@@ -62,7 +62,7 @@ def discover_db_paths(data_dir: Path) -> list[Path]:
 async def main(dry_run: bool) -> int:
     from session_buddy.di.config import SessionPaths
 
-    paths = SessionPaths()
+    paths = SessionPaths.from_home()
     db_paths = discover_db_paths(paths.data_dir)
 
     if not db_paths:
