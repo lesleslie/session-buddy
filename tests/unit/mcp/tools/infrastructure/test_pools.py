@@ -190,7 +190,7 @@ async def test_pool_execute_passes_context_and_timeout(
 async def test_pool_execute_batch_success(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """Successful batch returns results_count and stringified results."""
+    """Successful batch returns results_count and normalized results."""
     _get_pm, _manager, pool = patched_get_pool_manager
     pool.execute_batch.return_value = ["alpha", "beta"]
     result = await pools_mod.pool_execute_batch(
@@ -202,7 +202,10 @@ async def test_pool_execute_batch_success(
     assert result["success"] is True
     assert result["pool_id"] == "p1"
     assert result["results_count"] == 2
-    assert result["results"] == ["alpha", "beta"]
+    assert result["results"] == [
+        {"status": "completed", "output": "alpha", "error": None},
+        {"status": "completed", "output": "beta", "error": None},
+    ]
 
 
 async def test_pool_execute_batch_pool_not_found(
@@ -514,12 +517,13 @@ def test_register_pool_tools_registers_all_nine() -> None:
 async def test_create_pool_tool_success(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """create_pool wrapper returns ✅ when pool_create succeeds."""
+    """create_pool wrapper returns success dict when pool_create succeeds."""
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["create_pool"](pool_id=None)
-    assert out.startswith("✅ Created pool")
-    assert "3 workers" in out
+    result = await mcp.tools["create_pool"](pool_id=None)
+    assert result["success"] is True
+    assert result["pool_id"] == "p1"
+    assert result["workers_count"] == 3
 
 
 async def test_create_pool_tool_failure(
@@ -537,13 +541,15 @@ async def test_create_pool_tool_failure(
 async def test_execute_on_pool_tool_success(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """execute_on_pool wrapper returns ✅ with worker_id."""
+    """execute_on_pool wrapper returns success dict with worker_id."""
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["execute_on_pool"](
+    result = await mcp.tools["execute_on_pool"](
         pool_id="p1", prompt="x", context=None, timeout=None
     )
-    assert out.startswith("✅ Task executed on pool p1 by worker w1")
+    assert result["success"] is True
+    assert result["pool_id"] == "p1"
+    assert result["worker_id"] == "w1"
 
 
 async def test_execute_on_pool_tool_success_no_worker_id(
@@ -559,78 +565,86 @@ async def test_execute_on_pool_tool_success_no_worker_id(
     manager.execute_on_pool.return_value = {"no_worker": True}
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["execute_on_pool"](pool_id="p1", prompt="x")
+    result = await mcp.tools["execute_on_pool"](pool_id="p1", prompt="x")
     # Key is present with None — .get('worker_id', 'unknown') still returns None
-    assert "by worker None" in out
+    assert result["success"] is True
+    assert result["worker_id"] is None
 
 
 async def test_execute_on_pool_tool_failure(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """execute_on_pool wrapper returns ❌ on failure."""
+    """execute_on_pool wrapper returns failure dict on exception."""
     _get_pm, manager, _ = patched_get_pool_manager
     manager.execute_on_pool.side_effect = RuntimeError("kaboom")
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["execute_on_pool"](pool_id="p1", prompt="x")
-    assert out.startswith("❌ Failed to execute task:")
-    assert "kaboom" in out
+    result = await mcp.tools["execute_on_pool"](pool_id="p1", prompt="x")
+    assert result["success"] is False
+    assert result["pool_id"] == "p1"
+    assert "kaboom" in result["error"]
 
 
 async def test_execute_batch_on_pool_tool_success(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """execute_batch_on_pool wrapper reports the result count."""
+    """execute_batch_on_pool wrapper reports the result count via dict."""
     _get_pm, _manager, pool = patched_get_pool_manager
     pool.execute_batch.return_value = ["r1", "r2", "r3"]
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["execute_batch_on_pool"](
+    result = await mcp.tools["execute_batch_on_pool"](
         pool_id="p1", prompts=["a", "b", "c"]
     )
-    assert out == "✅ Executed 3 tasks on pool p1"
+    assert result["success"] is True
+    assert result["pool_id"] == "p1"
+    assert result["results_count"] == 3
 
 
 async def test_execute_batch_on_pool_tool_failure(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """execute_batch_on_pool wrapper returns ❌ on failure."""
+    """execute_batch_on_pool wrapper returns failure dict when pool missing."""
     _get_pm, manager, _ = patched_get_pool_manager
     manager.get_pool.return_value = None
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["execute_batch_on_pool"](pool_id="p1", prompts=["a"])
-    assert out.startswith("❌ Failed to execute batch:")
+    result = await mcp.tools["execute_batch_on_pool"](pool_id="p1", prompts=["a"])
+    assert result["success"] is False
+    assert "not found" in result["error"]
 
 
 async def test_route_to_pool_tool_success(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """route_to_pool wrapper reports the chosen pool and strategy."""
+    """route_to_pool wrapper reports the chosen pool and strategy via dict."""
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["route_to_pool"](
+    result = await mcp.tools["route_to_pool"](
         prompt="x", context=None, selector="least_loaded", timeout=None
     )
-    assert out == "✅ Routed task to pool p1 using least_loaded strategy"
+    assert result["success"] is True
+    assert result["pool_id"] == "p1"
+    assert result["strategy"] == "least_loaded"
 
 
 async def test_route_to_pool_tool_failure(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """route_to_pool wrapper returns ❌ on failure."""
+    """route_to_pool wrapper returns failure dict on routing error."""
     _get_pm, manager, _ = patched_get_pool_manager
     manager.route_task.side_effect = ValueError("no pools")
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["route_to_pool"](prompt="x")
-    assert out.startswith("❌ Failed to route task:")
+    result = await mcp.tools["route_to_pool"](prompt="x")
+    assert result["success"] is False
+    assert "no pools" in result["error"]
 
 
 async def test_list_pools_tool_success(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """list_pools wrapper renders pool header + each pool summary line."""
+    """list_pools wrapper returns dict with pools_count and pools list."""
     _get_pm, manager, _ = patched_get_pool_manager
     manager.list_pools.return_value = [
         {"pool_id": "alpha", "running": True, "workers_count": 3},
@@ -638,44 +652,49 @@ async def test_list_pools_tool_success(
     ]
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["list_pools"]()
-    assert "📊 Pools (2 total):" in out
-    assert "- alpha: running=True, workers=3" in out
-    assert "- beta: running=False, workers=0" in out
+    result = await mcp.tools["list_pools"]()
+    assert result["success"] is True
+    assert result["pools_count"] == 2
+    assert result["pools"] == [
+        {"pool_id": "alpha", "running": True, "workers_count": 3},
+        {"pool_id": "beta", "running": False, "workers_count": 0},
+    ]
 
 
 async def test_get_pool_status_tool_success(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """get_pool_status renders Running/Workers/Queue/Tasks/rate lines."""
+    """get_pool_status returns dict with pool_id and full status block."""
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["get_pool_status"](pool_id="p1")
-    assert "📊 Pool p1:" in out
-    assert "Running: True" in out
-    assert "Workers: 3" in out
-    assert "Queue size: 0" in out
-    assert "Tasks submitted: 10" in out
-    assert "Tasks completed: 8" in out
-    assert "Success rate: 80.0%" in out
+    result = await mcp.tools["get_pool_status"](pool_id="p1")
+    assert result["success"] is True
+    assert result["pool_id"] == "p1"
+    assert result["status"]["running"] is True
+    assert result["status"]["workers_count"] == 3
+    assert result["status"]["queue_size"] == 0
+    assert result["status"]["tasks_submitted"] == 10
+    assert result["status"]["tasks_completed"] == 8
+    assert result["status"]["success_rate"] == 0.8
 
 
 async def test_get_pool_status_tool_failure(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """get_pool_status wrapper returns ❌ when pool_status fails."""
+    """get_pool_status wrapper returns failure dict when pool missing."""
     _get_pm, manager, _ = patched_get_pool_manager
     manager.get_pool.return_value = None
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["get_pool_status"](pool_id="missing")
-    assert out.startswith("❌ Failed to get pool status:")
+    result = await mcp.tools["get_pool_status"](pool_id="missing")
+    assert result["success"] is False
+    assert "not found" in result["error"]
 
 
 async def test_check_pool_health_specific_pool(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """check_pool_health(pool_id) renders Pool X health section."""
+    """check_pool_health(pool_id) returns dict with that pool's health."""
     _get_pm, _manager, pool = patched_get_pool_manager
     pool.health_check.return_value = {
         "pool_id": "p1",
@@ -685,71 +704,79 @@ async def test_check_pool_health_specific_pool(
     }
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["check_pool_health"](pool_id="p1")
-    assert "🏥 Pool p1 health:" in out
-    assert "Status: healthy" in out
-    assert "Healthy workers: 3/3" in out
+    result = await mcp.tools["check_pool_health"](pool_id="p1")
+    assert result["success"] is True
+    assert result["pool_id"] == "p1"
+    assert result["health"]["status"] == "healthy"
+    assert result["health"]["workers_healthy"] == 3
+    assert result["health"]["workers_total"] == 3
 
 
 async def test_check_pool_health_all_pools(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """check_pool_health() with no arg renders manager-level summary."""
+    """check_pool_health() with no arg returns dict with manager health."""
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["check_pool_health"](pool_id=None)
-    assert "🏥 Pool Manager Health:" in out
-    assert "Running: True" in out
-    assert "Total pools: 1" in out
-    assert "Healthy pools: 1" in out
+    result = await mcp.tools["check_pool_health"](pool_id=None)
+    assert result["success"] is True
+    assert result["health"]["pool_manager_running"] is True
+    assert result["health"]["pools_total"] == 1
+    assert result["health"]["pools_healthy"] == 1
 
 
 async def test_check_pool_health_failure(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """check_pool_health wrapper returns ❌ on failure."""
+    """check_pool_health wrapper returns failure dict when pool missing."""
     _get_pm, manager, _ = patched_get_pool_manager
     manager.get_pool.return_value = None
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["check_pool_health"](pool_id="missing")
-    assert out.startswith("❌ Failed to get health status:")
+    result = await mcp.tools["check_pool_health"](pool_id="missing")
+    assert result["success"] is False
+    assert "not found" in result["error"]
 
 
 async def test_delete_pool_tool_deleted(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """delete_pool wrapper returns ✅ when delete returned True."""
+    """delete_pool wrapper returns dict with deleted=True on success."""
     _get_pm, manager, _ = patched_get_pool_manager
     manager.delete_pool.return_value = True
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["delete_pool"](pool_id="p1")
-    assert out == "✅ Deleted pool p1"
+    result = await mcp.tools["delete_pool"](pool_id="p1")
+    assert result["success"] is True
+    assert result["pool_id"] == "p1"
+    assert result["deleted"] is True
 
 
 async def test_delete_pool_tool_not_found(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """delete_pool wrapper returns ⚠️ when delete returned False."""
+    """delete_pool wrapper returns dict with deleted=False when delete returned False."""
     _get_pm, manager, _ = patched_get_pool_manager
     manager.delete_pool.return_value = False
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["delete_pool"](pool_id="missing")
-    assert out == "⚠️ Pool missing not found"
+    result = await mcp.tools["delete_pool"](pool_id="missing")
+    assert result["success"] is True
+    assert result["pool_id"] == "missing"
+    assert result["deleted"] is False
 
 
 async def test_delete_pool_tool_failure(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """delete_pool wrapper returns ❌ on exception."""
+    """delete_pool wrapper returns failure dict on exception."""
     _get_pm, manager, _ = patched_get_pool_manager
     manager.delete_pool.side_effect = RuntimeError("err")
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["delete_pool"](pool_id="p1")
-    assert out.startswith("❌ Failed to delete pool:")
+    result = await mcp.tools["delete_pool"](pool_id="p1")
+    assert result["success"] is False
+    assert "err" in result["error"]
 
 
 async def test_delete_pool_tool_default_timeout(
@@ -767,11 +794,11 @@ async def test_delete_pool_tool_default_timeout(
 async def test_get_pool_manager_status_tool(
     patched_get_pool_manager: tuple[AsyncMock, MagicMock, MagicMock],
 ) -> None:
-    """get_pool_manager_status wrapper renders Running/Total/Healthy lines."""
+    """get_pool_manager_status wrapper returns dict with manager_running + health."""
     mcp = _FakeMCP()
     pools_mod.register_pool_tools(mcp)
-    out = await mcp.tools["get_pool_manager_status"]()
-    assert "🔧 Pool Manager Status:" in out
-    assert "Running: True" in out
-    assert "Total pools: 1" in out
-    assert "Healthy pools: 1" in out
+    result = await mcp.tools["get_pool_manager_status"]()
+    assert result["success"] is True
+    assert result["manager_running"] is True
+    assert result["health"]["pools_total"] == 1
+    assert result["health"]["pools_healthy"] == 1
