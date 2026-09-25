@@ -439,7 +439,6 @@ async def test_checkpoint_session_success(
     manager.perform_quality_assessment = AsyncMock(
         return_value=(82, {"breakdown": {"code_quality": 1}, "recommendations": ["ok"]})
     )
-    manager._extract_and_store_insights = AsyncMock(return_value=2)
     manager._store_conversation_checkpoint_if_enabled = AsyncMock(
         return_value={"success": True, "conversation_id": "conv-1"}
     )
@@ -458,7 +457,6 @@ async def test_checkpoint_session_success(
         line.startswith("checkpoint_orchestrator_decision:") for line in result["git_output"]
     )
     assert result["auto_store_summary"] == "auto-store summary"
-    assert result["insights_extracted"] == 2
     assert result["conversation_stored"] == {"success": True, "conversation_id": "conv-1"}
     assert result["quality_output"] == ["formatted"]
     assert fake_hooks_manager.execute_hooks.await_count == 2
@@ -478,7 +476,6 @@ async def test_checkpoint_session_continues_when_hooks_di_lookup_fails(
     manager.perform_quality_assessment = AsyncMock(
         return_value=(76, {"breakdown": {}, "recommendations": []})
     )
-    manager._extract_and_store_insights = AsyncMock(return_value=0)
     manager._store_conversation_checkpoint_if_enabled = AsyncMock(
         return_value={"success": True}
     )
@@ -512,7 +509,6 @@ async def test_checkpoint_session_handles_hook_and_di_failures(
     manager.perform_quality_assessment = AsyncMock(
         return_value=(76, {"breakdown": {}, "recommendations": []})
     )
-    manager._extract_and_store_insights = AsyncMock(return_value=0)
     manager._store_conversation_checkpoint_if_enabled = AsyncMock(
         return_value={"success": True}
     )
@@ -544,7 +540,6 @@ async def test_checkpoint_session_handles_post_hook_failure(
     manager.perform_quality_assessment = AsyncMock(
         return_value=(79, {"breakdown": {}, "recommendations": []})
     )
-    manager._extract_and_store_insights = AsyncMock(return_value=0)
     manager._store_conversation_checkpoint_if_enabled = AsyncMock(
         return_value={"success": True}
     )
@@ -906,108 +901,16 @@ def test_quality_helper_methods_and_format_result(
 
 
 @pytest.mark.asyncio
-async def test_extract_and_store_insights_covers_disabled_success_and_failure(
+async def test_analyze_project_context_handles_read_and_glob_failures(
     manager: SessionLifecycleManager,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    disabled_settings = SimpleNamespace(
-        enable_insight_extraction=False,
-        insight_extraction_confidence_threshold=0.4,
-        insight_extraction_max_per_checkpoint=5,
-        database_path=tmp_path / "db.duckdb",
-    )
-    enabled_settings = SimpleNamespace(
-        enable_insight_extraction=True,
-        insight_extraction_confidence_threshold=0.4,
-        insight_extraction_max_per_checkpoint=1,
-        database_path=tmp_path / "db.duckdb",
-    )
-
     fake_settings_module = types.ModuleType("session_buddy.settings")
     fake_settings_module.SessionMgmtSettings = lambda: disabled_settings  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "session_buddy.settings", fake_settings_module)
 
     manager.current_project = "demo"
-    assert await manager._extract_and_store_insights("checkpoint") == 0
-
-    fake_settings_module.SessionMgmtSettings = lambda: enabled_settings  # type: ignore[attr-defined]
-
-    fake_insight = SimpleNamespace(
-        content="insight",
-        insight_type="note",
-        topics=["topic"],
-        source_conversation_id="conv-1",
-        source_reflection_id="ref-1",
-        confidence=0.9,
-        quality_score=88,
-    )
-    fake_extractor_module = types.ModuleType("session_buddy.insights.extractor")
-    fake_extractor_module.extract_insights_from_context = lambda **kwargs: [fake_insight, fake_insight]  # type: ignore[attr-defined]
-    fake_extractor_module.filter_duplicate_insights = lambda insights, seen_hashes: ([insights[0]], {"seen"})  # type: ignore[attr-defined]
-    monkeypatch.setitem(
-        sys.modules, "session_buddy.insights.extractor", fake_extractor_module
-    )
-
-    stored_calls: list[dict[str, object]] = []
-
-    class FakeReflectionDatabase:
-        def __init__(self, *args, **kwargs) -> None:
-            self.args = args
-            self.kwargs = kwargs
-
-        async def __aenter__(self) -> FakeReflectionDatabase:
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb) -> None:
-            return None
-
-        async def store_insight(self, **kwargs) -> None:
-            stored_calls.append(kwargs)
-
-    fake_reflection_module = types.ModuleType(
-        "session_buddy.adapters.reflection_adapter_oneiric"
-    )
-    fake_reflection_module.ReflectionDatabase = FakeReflectionDatabase  # type: ignore[attr-defined]
-    monkeypatch.setitem(
-        sys.modules,
-        "session_buddy.adapters.reflection_adapter_oneiric",
-        fake_reflection_module,
-    )
-
-    fake_adapter_settings = types.ModuleType("session_buddy.adapters.settings")
-    fake_adapter_settings.ReflectionAdapterSettings = lambda **kwargs: SimpleNamespace(**kwargs)  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "session_buddy.adapters.settings", fake_adapter_settings)
-
-    assert await manager._extract_and_store_insights("checkpoint") == 1
-    assert stored_calls and stored_calls[0]["content"] == "insight"
-    assert manager._captured_insight_hashes == {"seen"}
-
-    manager.current_project = None
-    stored_calls.clear()
-    fake_extractor_module.extract_insights_from_context = lambda **kwargs: [fake_insight]  # type: ignore[attr-defined]
-    fake_extractor_module.filter_duplicate_insights = lambda insights, seen_hashes: ([insights[0]], {"seen-2"})  # type: ignore[attr-defined]
-
-    assert await manager._extract_and_store_insights("session_end") == 1
-    assert stored_calls and stored_calls[0]["projects"] is None
-
-    fake_extractor_module.extract_insights_from_context = lambda **kwargs: []  # type: ignore[attr-defined]
-    fake_extractor_module.filter_duplicate_insights = lambda insights, seen_hashes: ([], seen_hashes)  # type: ignore[attr-defined]
-
-    assert await manager._extract_and_store_insights("checkpoint") == 0
-
-    fake_extractor_module.extract_insights_from_context = Mock(side_effect=RuntimeError("boom"))  # type: ignore[attr-defined]
-    assert await manager._extract_and_store_insights("checkpoint") == 0
-    assert any(
-        call.args == (
-            "Insight extraction failed at %s (continuing), error=%s",
-            "checkpoint",
-            "boom",
-        )
-        for call in manager.logger.warning.call_args_list
-    )
-
-
 @pytest.mark.asyncio
 async def test_analyze_project_context_handles_read_and_glob_failures(
     manager: SessionLifecycleManager,
@@ -1090,7 +993,6 @@ async def test_end_session_success(
     manager.perform_quality_assessment = AsyncMock(
         return_value=(81, {"breakdown": {}, "recommendations": ["done"]})
     )
-    manager._extract_and_store_insights = AsyncMock(return_value=1)
     manager._store_conversation_checkpoint_if_enabled = AsyncMock(
         return_value={"success": True, "conversation_id": "conv-2"}
     )
@@ -1103,7 +1005,6 @@ async def test_end_session_success(
     assert result["summary"]["project"] == tmp_path.name
     assert result["summary"]["final_quality_score"] == 81
     assert result["summary"]["handoff_documentation"] == str(tmp_path / "handoff.md")
-    assert result["summary"]["insights_extracted"] == 1
     assert result["summary"]["conversation_stored"] == {"success": True, "conversation_id": "conv-2"}
     assert fake_hooks_manager.execute_hooks.await_count == 2
 
@@ -1120,7 +1021,6 @@ async def test_end_session_continues_when_hooks_di_lookup_fails(
     manager.perform_quality_assessment = AsyncMock(
         return_value=(81, {"breakdown": {}, "recommendations": ["done"]})
     )
-    manager._extract_and_store_insights = AsyncMock(return_value=1)
     manager._store_conversation_checkpoint_if_enabled = AsyncMock(
         return_value={"success": True, "conversation_id": "conv-2"}
     )
@@ -1150,7 +1050,6 @@ async def test_end_session_handles_hook_failures_and_outer_exception(
     manager.perform_quality_assessment = AsyncMock(
         return_value=(81, {"breakdown": {}, "recommendations": ["done"]})
     )
-    manager._extract_and_store_insights = AsyncMock(return_value=1)
     manager._store_conversation_checkpoint_if_enabled = AsyncMock(
         return_value={"success": True, "conversation_id": "conv-2"}
     )
@@ -1191,7 +1090,6 @@ async def test_end_session_returns_failure_on_outer_exception(
     manager.perform_quality_assessment = AsyncMock(
         return_value=(81, {"breakdown": {}, "recommendations": ["done"]})
     )
-    manager._extract_and_store_insights = AsyncMock(return_value=1)
     manager._store_conversation_checkpoint_if_enabled = AsyncMock(
         return_value={"success": True, "conversation_id": "conv-2"}
     )

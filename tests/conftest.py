@@ -1412,10 +1412,6 @@ def mock_settings(tmp_path):
             ".idea",
             ".vscode",
         ]
-        # Insight extraction settings
-        mock_settings_instance.enable_insight_extraction = True
-        mock_settings_instance.insight_extraction_confidence_threshold = 0.3
-        mock_settings_instance.insight_extraction_max_per_checkpoint = 10
         # Set up the mock to return the instance when load is called OR directly instantiated
         mock_settings_class.return_value = mock_settings_instance  # For SessionMgmtSettings()
         mock_settings_class.load.return_value = mock_settings_instance  # For SessionMgmtSettings.load()

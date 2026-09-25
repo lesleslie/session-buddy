@@ -661,7 +661,6 @@ class TestProgressiveSearchEdgeCases:
         fake_db = AsyncMock()
         fake_db.search_reflections = AsyncMock(return_value=[])
         fake_db.search_conversations = AsyncMock(return_value=[])
-        fake_db.search_insights = AsyncMock(return_value=[])
         fake_db.search_categories = AsyncMock(return_value=[])
 
         import session_buddy.di as di_pkg

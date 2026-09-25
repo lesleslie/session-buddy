@@ -765,59 +765,6 @@ class TestSessionMgmtSettingsConversationStorage:
         assert settings.auto_store_conversations_on_session_end is True
 
 
-class TestSessionMgmtSettingsInsights:
-    """Test SessionMgmtSettings insights capture settings."""
-
-    def test_enable_insight_extraction_default_true(self) -> None:
-        """Test that insight extraction is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_insight_extraction is True
-
-    def test_insight_extraction_confidence_threshold_default(self) -> None:
-        """Test default insight extraction confidence threshold."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.insight_extraction_confidence_threshold == 0.3
-
-    def test_insight_extraction_max_per_checkpoint_default(self) -> None:
-        """Test default max insights per checkpoint."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.insight_extraction_max_per_checkpoint == 10
-
-    def test_insight_auto_prune_enabled_default_true(self) -> None:
-        """Test that insight auto prune is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.insight_auto_prune_enabled is True
-
-    def test_insight_prune_age_days_default(self) -> None:
-        """Test default insight prune age days."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.insight_prune_age_days == 90
-
-    def test_insight_prune_min_quality_default(self) -> None:
-        """Test default insight prune min quality."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.insight_prune_min_quality == 0.4
-
-    def test_insight_prune_min_usage_default(self) -> None:
-        """Test default insight prune min usage."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.insight_prune_min_usage == 0
-
-
 class TestSessionMgmtSettingsIntegration:
     """Test SessionMgmtSettings integration settings."""
 

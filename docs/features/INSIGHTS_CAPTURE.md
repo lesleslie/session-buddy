@@ -2,15 +2,17 @@ ______________________________________________________________________
 
 ---
 status: complete
-role: canonical
+role: deprecated
 date: 2026-07-16
-last_reviewed: 2026-09-09
+last_reviewed: 2026-09-25
 superseded_by: null
 blocks_on: []
 topic: learning-pipeline
 ---
 
 # Insights Capture & Deduplication System
+
+**Status**: ❌ **REMOVED 2026-09-25** (zero callers; zero Akosha traces over 9+ months; Phase 4 read half was never started). The content below is preserved for historical reference only — the code, schema columns, and skill files have all been deleted. See git history for the removal commit.
 
 **Status**: ✅ **Phase 1-3 COMPLETE** (Multi-point capture with deduplication) <!-- legacy status — see YAML frontmatter -->
 **Implementation Date**: January 10, 2026

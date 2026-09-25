@@ -589,26 +589,6 @@ class TestReflectionSearch:
         )
         assert len(results) > 0
 
-    async def test_search_returns_reflections_not_insights(self, adapter):
-        """Test that search only returns reflections, not insights."""
-        # Store a reflection
-        await adapter.store_reflection(
-            "Regular reflection",
-            tags=["test"],
-        )
-        # Store an insight
-        await adapter.store_insight(
-            "This is an insight",
-            insight_type="pattern",
-        )
-
-        # Search should only find the reflection
-        results = await adapter.search_reflections("reflection")
-        assert len(results) >= 1
-        # Verify no insights in results
-        for result in results:
-            assert result.get("insight_type") is None
-
     async def test_search_uses_text_fallback(self, adapter):
         """Test text search fallback when no embeddings.
 
@@ -781,194 +761,17 @@ class TestResetDatabase:
 # =============================================================================
 
 
-@pytest.mark.asyncio
-class TestInsightStorage:
-    """Test insight storage operations."""
 
-    async def test_store_insight_basic(self, adapter):
-        """Test storing a basic insight."""
-        insight_id = await adapter.store_insight(
-            "Test insight content",
-            insight_type="pattern",
-        )
-        assert insight_id is not None
-
-    async def test_store_insight_with_topics(self, adapter):
-        """Test storing insight with topic tags."""
-        insight_id = await adapter.store_insight(
-            "Insight with topics",
-            topics=["python", "async"],
-        )
-        assert insight_id is not None
-
-    async def test_store_insight_with_projects(self, adapter):
-        """Test storing insight with project associations."""
-        insight_id = await adapter.store_insight(
-            "Insight with projects",
-            projects=["test-project", "another-project"],
-        )
-        assert insight_id is not None
-
-    async def test_store_insight_with_confidence_score(self, adapter):
-        """Test storing insight with confidence score."""
-        insight_id = await adapter.store_insight(
-            "High confidence insight",
-            confidence_score=0.95,
-        )
-        assert insight_id is not None
-
-    async def test_store_insight_default_type(self, adapter):
-        """Test storing insight uses default 'general' type."""
-        insight_id = await adapter.store_insight("General insight")
-        assert insight_id is not None
-
-    async def test_store_insight_invalid_type_defaults_to_general(self, adapter):
-        """Test storing insight with invalid type falls back to general."""
-        # Invalid type would fail validation, so it should default to general
-        insight_id = await adapter.store_insight(
-            "Insight with default type",
-            insight_type="invalid;type",
-        )
-        assert insight_id is not None
-
-
-# =============================================================================
-# INSIGHT SEARCH TESTS
-# =============================================================================
-
-
-@pytest.mark.asyncio
-class TestInsightSearch:
-    """Test insight search operations."""
-
-    async def test_search_insights_empty_database(self, adapter):
-        """Test searching insights in empty database."""
-        results = await adapter.search_insights("test")
-        assert results == []
-
-    async def test_search_insights_returns_results(self, adapter):
-        """Test searching insights returns matching insights."""
-        await adapter.store_insight(
-            "Python async patterns insight",
-            insight_type="pattern",
-        )
-        results = await adapter.search_insights("Python")
-        assert len(results) > 0
-
-    async def test_search_insights_respects_limit(self, adapter):
-        """Test search insights respects limit."""
-        for i in range(5):
-            await adapter.store_insight(f"Insight {i}")
-
-        results = await adapter.search_insights("*", limit=2)
-        assert len(results) <= 2
-
-    async def test_search_insights_with_quality_filter(self, adapter):
-        """Test searching insights filters by quality score."""
-        await adapter.store_insight("High quality insight", quality_score=0.9)
-        await adapter.store_insight("Low quality insight", quality_score=0.3)
-
-        results = await adapter.search_insights("*", min_quality_score=0.5)
-        assert len(results) >= 1
-        for result in results:
-            metadata = result.get("metadata", {})
-            quality = metadata.get("quality_score", 0)
-            assert quality >= 0.5
-
-    async def test_search_insights_wildcard_returns_all(self, adapter):
-        """Test that wildcard '*' query returns all insights."""
-        await adapter.store_insight("Insight A", insight_type="general")
-        await adapter.store_insight("Insight B", insight_type="pattern")
-
-        results = await adapter.search_insights("*")
-        assert len(results) >= 2
-
-    async def test_search_insights_only_returns_insights_not_reflections(self, adapter):
-        """Test that search_insights only returns insights, not reflections."""
-        # Store a reflection with unique content
+    async def test_search_reflections_returns_only_reflections(self, adapter):
+        """Search must return reflections, never insights (insights table removed 2026-09-25)."""
         await adapter.store_reflection(
-            "UNIQUE_REFLECTION_CONTENT_12345", tags=["unique"]
+            "Regular reflection",
+            tags=["test"],
         )
-        # Store an insight
-        await adapter.store_insight(
-            "UNIQUE_INSIGHT_CONTENT_67890",
-            insight_type="pattern",
-        )
-
-        # Search for the insight content specifically
-        results = await adapter.search_insights("UNIQUE_INSIGHT")
+        results = await adapter.search_reflections("reflection")
         assert len(results) >= 1
-        # Verify it's an insight, not a reflection
         for result in results:
-            assert result.get("insight_type") is not None
-
-
-# =============================================================================
-# INSIGHT USAGE TRACKING TESTS
-# =============================================================================
-
-
-@pytest.mark.asyncio
-class TestInsightUsage:
-    """Test insight usage tracking operations."""
-
-    async def test_update_insight_usage_success(self, adapter):
-        """Test updating usage count for existing insight."""
-        insight_id = await adapter.store_insight(
-            "Test insight for usage",
-            insight_type="pattern",
-        )
-
-        result = await adapter.update_insight_usage(insight_id)
-        assert result is True
-
-    async def test_update_insight_usage_not_found(self, adapter):
-        """Test updating usage for non-existent insight returns False."""
-        result = await adapter.update_insight_usage("nonexistent-id-12345")
-        assert result is False
-
-    async def test_update_insight_usage_increments_count(self, adapter):
-        """Test that update_insight_usage actually increments usage."""
-        insight_id = await adapter.store_insight("Usage test insight")
-
-        # Update multiple times
-        await adapter.update_insight_usage(insight_id)
-        await adapter.update_insight_usage(insight_id)
-        await adapter.update_insight_usage(insight_id)
-
-        # Search for insight and check usage_count
-        results = await adapter.search_insights("Usage test", limit=1)
-        assert len(results) >= 1
-        assert results[0]["usage_count"] == 3
-
-
-# =============================================================================
-# INSIGHT STATISTICS TESTS
-# =============================================================================
-
-
-@pytest.mark.asyncio
-class TestInsightStatistics:
-    """Test insight statistics operations."""
-
-    async def test_get_insights_statistics_empty(self, adapter):
-        """Test getting statistics on empty database."""
-        stats = await adapter.get_insights_statistics()
-        assert stats["total"] == 0
-        assert stats["avg_quality"] == 0.0
-        assert stats["avg_usage"] == 0.0
-        assert stats["by_type"] == {}
-
-    async def test_get_insights_statistics_with_data(self, adapter):
-        """Test getting statistics with insights."""
-        await adapter.store_insight("Pattern insight A", insight_type="pattern")
-        await adapter.store_insight("Pattern insight B", insight_type="pattern")
-        await adapter.store_insight("General insight", insight_type="general")
-
-        stats = await adapter.get_insights_statistics()
-        assert stats["total"] >= 3
-        assert stats["by_type"]["pattern"] >= 2
-        assert stats["by_type"]["general"] >= 1
+            assert result.get("insight_type") is None
 
 
 # =============================================================================
@@ -978,7 +781,6 @@ class TestInsightStatistics:
 
 @pytest.mark.asyncio
 class TestEdgeCases:
-    """Test edge cases and error handling."""
 
     async def test_store_conversation_very_long_content(self, adapter):
         """Test storing very long conversation content."""
@@ -1215,34 +1017,16 @@ class TestIntegrationScenarios:
         # Health check
         assert await adapter.health_check() is True
 
-    async def test_insight_lifecycle(self, adapter):
-        """Test complete insight lifecycle."""
-        # Store insights
-        insight1 = await adapter.store_insight(
-            "Pattern: Use context managers",
-            insight_type="pattern",
-            confidence_score=0.9,
-        )
-        insight2 = await adapter.store_insight(
-            "Architecture: Layered design",
-            insight_type="architecture",
-            confidence_score=0.8,
-        )
-
-        # Update usage
-        await adapter.update_insight_usage(insight1)
-        await adapter.update_insight_usage(insight1)
-        await adapter.update_insight_usage(insight2)
-
-        # Search insights
-        results = await adapter.search_insights("context managers")
-        assert len(results) >= 1
-
-        # Get statistics
-        stats = await adapter.get_insights_statistics()
-        assert stats["total"] >= 2
-        assert stats["by_type"]["pattern"] >= 1
-        assert stats["by_type"]["architecture"] >= 1
+    async def test_reflection_lifecycle(self, adapter):
+        """Test complete reflection lifecycle (insights removed 2026-09-25)."""
+        reflection1 = await adapter.store_reflection("First reflection")
+        reflection2 = await adapter.store_reflection("Second reflection")
+        assert reflection1 is not None
+        assert reflection2 is not None
+        results = await adapter.search_reflections("reflection")
+        assert len(results) >= 2
+        stats = await adapter.get_stats()
+        assert stats["total_reflections"] >= 2
 
 
 # =============================================================================

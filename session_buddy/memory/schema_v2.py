@@ -112,8 +112,6 @@ CREATE TABLE IF NOT EXISTS reflections_v2 (
     fingerprint BLOB,
     subcategory TEXT,
     -- v2 rewire missed this on initial rewire; legacy reflections has it.
-    -- json_extract(metadata, '$.quality_score') is used by store_insight
-    -- / get_insights_statistics / search_insights queries.
     metadata JSON
 );
 

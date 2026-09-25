@@ -496,7 +496,7 @@ class ProgressiveSearchEngine:
                 db, query, project, min_score, max_results
             )
         elif tier == SearchTier.INSIGHTS:
-            results = await self._search_insights(
+            results = await self._search_high_confidence_reflections(
                 db, query, project, min_score, max_results
             )
         elif tier == SearchTier.REFLECTIONS:
@@ -584,7 +584,7 @@ class ProgressiveSearchEngine:
 
         return results
 
-    async def _search_insights(
+    async def _search_high_confidence_reflections(
         self,
         db: ReflectionDatabaseAdapter,
         query: str,
@@ -592,7 +592,11 @@ class ProgressiveSearchEngine:
         min_score: float,
         max_results: int,
     ) -> list[dict[str, Any]]:
-        """Search learned skills and insights.
+        """Search high-confidence reflections (SearchTier.INSIGHTS bucket).
+
+        Renamed from ``_search_insights`` which was mislabeled — the
+        implementation queries ``db.search_reflections`` (not the deleted
+        ``db.search_insights``) and was the dead pipeline's last trace.
 
         Args:
             db: Database adapter
@@ -604,7 +608,7 @@ class ProgressiveSearchEngine:
         Returns:
             List of search results
         """
-        # Search reflections with medium score threshold (insights)
+        # Search reflections with medium score threshold
         tier_min_score = max(min_score, SearchTier.get_min_score(SearchTier.INSIGHTS))
         results = await db.search_reflections(
             query=query,

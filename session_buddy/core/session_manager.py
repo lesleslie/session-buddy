@@ -143,12 +143,6 @@ class SessionLifecycleManager:
         # missing ``session_windows`` row.
         self.conversation_id: str | None = None
         self._quality_history: dict[str, list[int]] = {}  # project -> [scores]
-        self._captured_insight_hashes: set[str] = (
-            set()
-        )  # Track captured insights for deduplication
-        self.session_context: dict[
-            str, t.Any
-        ] = {}  # Conversation context for insight extraction
 
         # Initialize templates renderer for handoff documentation
         self.templates: t.Any | None = None
@@ -1348,11 +1342,6 @@ class SessionLifecycleManager:
                 session_phase="checkpoint",
             )
 
-            # Extract and store insights from checkpoint (with deduplication)
-            insights_extracted = await self._extract_and_store_insights(
-                capture_point="checkpoint"
-            )
-
             # Store conversation checkpoint
             conversation_stored = await self._store_conversation_checkpoint_if_enabled(
                 checkpoint_type="checkpoint",
@@ -1475,7 +1464,6 @@ class SessionLifecycleManager:
                             "quality_score": quality_score,
                             "previous_score": previous_score,
                             "auto_store_decision": auto_store_decision.should_store,
-                            "insights_extracted": insights_extracted,
                         },
                         checkpoint_data={
                             "quality_score": quality_score,
@@ -1509,7 +1497,6 @@ class SessionLifecycleManager:
                 "timestamp": utc_now().isoformat(),
                 "auto_store_decision": auto_store_decision,
                 "auto_store_summary": format_auto_store_summary(auto_store_decision),
-                "insights_extracted": insights_extracted,
                 "conversation_stored": conversation_stored,
                 "pre_hooks_results": pre_hooks_results,
                 "post_hooks_results": post_hooks_results,
@@ -1522,101 +1509,6 @@ class SessionLifecycleManager:
             traceback.print_exc()  # Print full traceback for debugging
             return {"success": False, "error": f"{type(e).__name__}: {e}"}
 
-    async def _extract_and_store_insights(
-        self,
-        capture_point: str,
-    ) -> int:
-        """Extract and store insights with deduplication.
-
-        This is a reusable helper for multi-point capture strategy.
-        Extracts insights from session context, filters duplicates using
-        session-level hash tracking, and stores unique insights to database.
-
-        Args:
-            capture_point: Label for logging (e.g., "checkpoint", "session_end")
-
-        Returns:
-            Number of unique insights stored (excluding duplicates)
-
-        """
-        insights_extracted = 0
-
-        try:
-            # Import settings to check if insight extraction is enabled
-            from session_buddy.settings import SessionMgmtSettings
-
-            settings = SessionMgmtSettings()  # Load settings
-
-            if not settings.enable_insight_extraction:
-                return 0
-
-            from session_buddy.adapters.reflection_adapter_oneiric import (
-                ReflectionDatabase,
-            )
-            from session_buddy.adapters.settings import ReflectionAdapterSettings
-            from session_buddy.insights.extractor import (
-                extract_insights_from_context,
-                filter_duplicate_insights,
-            )
-
-            # Extract insights from session context
-            insights = extract_insights_from_context(
-                context=self.session_context,
-                project=self.current_project,
-                min_confidence=settings.insight_extraction_confidence_threshold,
-            )
-
-            # Limit to max_per_checkpoint
-            insights = insights[: settings.insight_extraction_max_per_checkpoint]
-
-            # Filter out duplicates using session-level tracking
-            unique_insights, self._captured_insight_hashes = filter_duplicate_insights(
-                insights,
-                seen_hashes=self._captured_insight_hashes,
-            )
-
-            # Store unique insights to database
-            if unique_insights:
-                async with ReflectionDatabase(
-                    collection_name="default",
-                    settings=ReflectionAdapterSettings(
-                        database_path=settings.database_path,
-                        collection_name="default",
-                    ),
-                ) as db:
-                    for insight in unique_insights:
-                        await db.store_insight(
-                            content=insight.content,
-                            insight_type=insight.insight_type,
-                            topics=insight.topics,
-                            projects=[self.current_project]
-                            if self.current_project
-                            else None,
-                            source_conversation_id=insight.source_conversation_id,
-                            source_reflection_id=insight.source_reflection_id,
-                            confidence_score=insight.confidence,
-                            quality_score=insight.quality_score,
-                        )
-                        insights_extracted += 1
-
-            if insights_extracted > 0:
-                self.logger.info(
-                    "Extracted and stored %d unique insights from %s, project=%s (filtered %d duplicates)",
-                    insights_extracted,
-                    capture_point,
-                    self.current_project,
-                    len(insights) - insights_extracted,
-                )
-
-        except (AttributeError, RuntimeError, ValueError) as e:
-            # Don't fail operation if insight extraction fails
-            self.logger.warning(
-                "Insight extraction failed at %s (continuing), error=%s",
-                capture_point,
-                str(e),
-            )
-
-        return insights_extracted
 
     async def _store_conversation_checkpoint_if_enabled(
         self,
@@ -1845,12 +1737,6 @@ class SessionLifecycleManager:
                 project_dir=current_dir,
             )
 
-            # Extract and store insights from session end (with deduplication)
-            # This final capture ensures no insights are missed before cleanup
-            insights_extracted = await self._extract_and_store_insights(
-                capture_point="session_end"
-            )
-
             # Store conversation checkpoint at session end
             conversation_stored = await self._store_conversation_checkpoint_if_enabled(
                 checkpoint_type="session_end",
@@ -1888,7 +1774,6 @@ class SessionLifecycleManager:
                     timestamp=utc_now(),
                     metadata={
                         "quality_score": quality_score,
-                        "insights_extracted": insights_extracted,
                         "handoff_path": handoff_path or None,
                     },
                     checkpoint_data={
@@ -1908,16 +1793,14 @@ class SessionLifecycleManager:
                 self.logger.warning("SESSION_END hooks failed: %s", str(e))
 
             self.logger.info(
-                "Session ended, project=%s, final_quality_score=%d, insights_extracted=%d",
+                "Session ended, project=%s, final_quality_score=%d",
                 self.current_project,
                 quality_score,
-                insights_extracted,
             )
 
             summary["handoff_documentation"] = (
                 str(handoff_path) if handoff_path else None
             )
-            summary["insights_extracted"] = insights_extracted
 
             # Add conversation storage result to summary
             summary["conversation_stored"] = conversation_stored

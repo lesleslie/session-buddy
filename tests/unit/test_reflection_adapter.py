@@ -122,29 +122,17 @@ class TestReflectionDatabaseAdapterAPI:
         assert hasattr(adapter, "aclose")
         assert callable(adapter.aclose)
 
-    def test_has_store_insight_method(self) -> None:
-        """Adapter should have store_insight method."""
+    def test_has_store_reflection_method(self) -> None:
+        """Adapter should have store_reflection method."""
         adapter = ReflectionDatabaseAdapter(collection_name="test_api")
-        assert hasattr(adapter, "store_insight")
-        assert callable(adapter.store_insight)
+        assert hasattr(adapter, "store_reflection")
+        assert callable(adapter.store_reflection)
 
-    def test_has_search_insights_method(self) -> None:
-        """Adapter should have search_insights method."""
+    def test_has_search_reflections_method(self) -> None:
+        """Adapter should have search_reflections method."""
         adapter = ReflectionDatabaseAdapter(collection_name="test_api")
-        assert hasattr(adapter, "search_insights")
-        assert callable(adapter.search_insights)
-
-    def test_has_get_insights_statistics_method(self) -> None:
-        """Adapter should have get_insights_statistics method."""
-        adapter = ReflectionDatabaseAdapter(collection_name="test_api")
-        assert hasattr(adapter, "get_insights_statistics")
-        assert callable(adapter.get_insights_statistics)
-
-    def test_has_update_insight_usage_method(self) -> None:
-        """Adapter should have update_insight_usage method."""
-        adapter = ReflectionDatabaseAdapter(collection_name="test_api")
-        assert hasattr(adapter, "update_insight_usage")
-        assert callable(adapter.update_insight_usage)
+        assert hasattr(adapter, "search_reflections")
+        assert callable(adapter.search_reflections)
 
 
 class TestReflectionDatabaseAdapterContextManagers:
@@ -520,96 +508,6 @@ class TestReflectionDatabaseAdapterResetDatabase:
             stats = await db.get_stats()
             assert stats["total_conversations"] == 0
             assert stats["total_reflections"] == 0
-
-
-class TestReflectionDatabaseAdapterInsights:
-    """Test insight-related functionality."""
-
-    @pytest.mark.asyncio
-    async def test_store_insight_returns_id(self, tmp_path: Path) -> None:
-        """Should store insight and return ID."""
-        adapter = ReflectionDatabaseAdapter(collection_name="test_store_insight")
-
-        async with adapter as db:
-            insight_id = await db.store_insight(
-                content="Test insight",
-                insight_type="pattern",
-                topics=["testing"],
-                confidence_score=0.8,
-                quality_score=0.9,
-            )
-
-            assert insight_id is not None
-            assert isinstance(insight_id, str)
-
-    @pytest.mark.asyncio
-    async def test_search_insights_returns_results(self, tmp_path: Path) -> None:
-        """Should find insights by query."""
-        adapter = ReflectionDatabaseAdapter(collection_name="test_search_insight")
-
-        async with adapter as db:
-            await db.store_insight(
-                content="Testing patterns in Python",
-                insight_type="pattern",
-            )
-
-            results = await db.search_insights("Python", limit=10)
-
-            assert len(results) >= 1
-            assert any("Python" in r["content"] for r in results)
-
-    @pytest.mark.asyncio
-    async def test_get_insights_statistics(self, tmp_path: Path) -> None:
-        """Should return insight statistics."""
-        import uuid
-
-        unique_collection = f"test_insight_stats_{uuid.uuid4().hex[:8]}"
-        adapter = ReflectionDatabaseAdapter(collection_name=unique_collection)
-
-        async with adapter as db:
-            await db.store_insight(
-                content="First insight",
-                insight_type="general",
-            )
-            await db.store_insight(
-                content="Second insight",
-                insight_type="pattern",
-            )
-
-            stats = await db.get_insights_statistics()
-
-            assert "total" in stats
-            assert "by_type" in stats
-            assert stats["total"] == 2
-
-    @pytest.mark.asyncio
-    async def test_update_insight_usage_returns_bool(self, tmp_path: Path) -> None:
-        """Should return True when updating existing insight."""
-        adapter = ReflectionDatabaseAdapter(collection_name="test_insight_usage")
-
-        async with adapter as db:
-            # Store an insight
-            insight_id = await db.store_insight(
-                content="Usage tracked insight",
-                insight_type="test",
-            )
-
-            # Update usage
-            result = await db.update_insight_usage(insight_id)
-
-            assert result is True
-
-    @pytest.mark.asyncio
-    async def test_update_insight_usage_nonexistent_returns_false(
-        self, tmp_path: Path
-    ) -> None:
-        """Should return False when updating non-existent insight."""
-        adapter = ReflectionDatabaseAdapter(collection_name="test_fake_usage")
-
-        async with adapter as db:
-            result = await db.update_insight_usage("nonexistent-id-12345")
-
-            assert result is False
 
 
 class TestReflectionDatabaseAdapterSimilaritySearch:
