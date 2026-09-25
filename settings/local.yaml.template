@@ -31,4 +31,13 @@
 # anthropic_api_key: "sk-ant-..."
 # gemini_api_key: "..."
 
+# Enable GCS-backed storage (uncomment to use fake-gcs-server or real GCS):
+# storage:
+#   default_backend: "gcs"
+#   gcs:
+#     bucket_name: "my-dev-bucket"
+#     endpoint_url: "http://127.0.0.1:4443"
+#     project: "my-gcp-project"
+#     credentials_path: "/path/to/service-account.json"
+
 # Add your custom settings below:

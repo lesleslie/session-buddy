@@ -78,12 +78,14 @@ session_retention_days: 365
 
 # === Storage Settings ===
 storage:
-  # Default backend: "file" | "s3" | "azure" | "gcs" | "memory"
-  default_backend: "file"
+  # Default backend: file (legacy default; backward compatible).
+  # Override via SESSION_STORAGE_BACKEND=gcs for fake-gcs-server or prod GCS.
+  # All backends supported: "file" | "gcs" | "s3" | "azure" | "memory"
+  default_backend: "${SESSION_STORAGE_BACKEND:file}"
 
   # File storage settings (local filesystem)
   file:
-    local_path: "~/.claude/data/sessions"
+    local_path: "${SESSION_STORAGE_PATH:~/.claude/data/sessions}"
     auto_mkdir: true
 
   # S3 storage settings (AWS S3 / MinIO compatible)
@@ -102,20 +104,21 @@ storage:
 
   # Google Cloud Storage settings
   gcs:
-    bucket_name: "${GCS_BUCKET:}"
-    credentials_path: "${GCS_CREDENTIALS:}"
-    project: "${GCS_PROJECT:}"
+    bucket_name: "${GCS_BUCKET:sessions-hot}"
+    endpoint_url: "${GCS_ENDPOINT:http://127.0.0.1:4443}"  # fake-gcs-server default
+    project: "${GCS_PROJECT:local-dev}"
+    credentials_path: "${GCS_CREDENTIALS:}"  # Empty for fake, path for real GCS
 
   # Memory storage settings (testing only)
   memory:
     max_size_mb: 100
 
-  # Bucket configuration (logical groupings)
+  # Bucket configuration (logical groupings; matches the 4-bucket tiering layout)
   buckets:
-    sessions: "sessions"
-    checkpoints: "checkpoints"
-    handoffs: "handoffs"
-    test: "test"
+    sessions: "sessions-hot"
+    checkpoints: "checkpoints-warm"
+    handoffs: "handoffs-cold"
+    archived: "archived"
 
 # Selective auto-store for reflections
 enable_auto_store_reflections: true
