@@ -14,7 +14,52 @@ from typing import Any
 
 from .worker import Task, Worker
 
+# Hybrid D: re-use the existing track_channel_session validator rather
+# than introducing a parallel event pipeline. The validator accepts
+# event_type ∈ {channel_session_start, channel_heartbeat, channel_session_end}.
+# The import is deferred to method bodies to avoid a circular import
+# (``session_buddy.mcp.tools`` eagerly imports ``session_buddy.pools``).
+
 logger = logging.getLogger(__name__)
+
+
+def _emit_channel_session_event(
+    pool_id: str,
+    event_type: str,
+    metadata: dict[str, Any],
+    message_count: int = 0,
+) -> None:
+    """Lazy helper: import the channel store + emit one lifecycle event.
+
+    Defers the import to dodge the pools ↔ mcp.tools circular import.
+    Best-effort: any import or store failure is logged and swallowed so
+    a malformed observer stack never blocks pool lifecycle.
+    """
+    try:
+        from .mcp.tools.session.channel_tracking_tools import (
+            ChannelSessionEvent,
+            _store as _channel_store,
+        )
+    except Exception:  # noqa: BLE001 — observability is best-effort
+        logger.exception("channel_tracking_tools import failed; skipping event")
+        return
+
+    event = ChannelSessionEvent(
+        event_id=str(uuid.uuid4()),
+        event_type=event_type,
+        channel_type="pool",
+        channel_id=f"pool:{pool_id}",
+        sender_id=pool_id,
+        timestamp=datetime.now(UTC).isoformat(),
+        component_name="session-buddy",
+        session_scope="conversation",
+        message_count=message_count,
+        metadata=metadata,
+    )
+    if event_type == "channel_session_start":
+        _channel_store.start(event)
+    elif event_type == "channel_session_end":
+        _channel_store.end(event)
 
 
 # Number of workers per pool (fixed at 3 per architecture)
@@ -100,6 +145,14 @@ class WorkerPool:
         self.running = True
         self.started_at = datetime.now(UTC)
 
+        # Hybrid D: emit channel_session_start so external observers
+        # (Akosha, Grafana, get_channel_sessions) can discover the pool.
+        _emit_channel_session_event(
+            pool_id=self.pool_id,
+            event_type="channel_session_start",
+            metadata=dict(self.pool_metadata),
+        )
+
         logger.info(f"Pool {self.pool_id} initialized with {len(self.workers)} workers")
 
     async def shutdown(self, timeout: float = 5.0) -> None:
@@ -119,6 +172,20 @@ class WorkerPool:
 
         self.workers.clear()
         self.running = False
+
+        # Hybrid D: emit channel_session_end so observers can release
+        # the pool session and any subscribers close out cleanly.
+        _emit_channel_session_event(
+            pool_id=self.pool_id,
+            event_type="channel_session_end",
+            metadata={
+                **self.pool_metadata,
+                "tasks_submitted": self.tasks_submitted,
+                "tasks_completed": self.tasks_completed,
+                "tasks_failed": self.tasks_failed,
+            },
+            message_count=self.tasks_completed,
+        )
 
         logger.info(f"Pool {self.pool_id} shut down")
 
