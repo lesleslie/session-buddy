@@ -143,6 +143,41 @@ from session_buddy.utils.fingerprint import MinHashSignature
 logger = logging.getLogger(__name__)
 
 
+def _extract_provenance_from_tags(
+    tags: list[str] | None,
+    *,
+    explicit_session_id: str | None,
+    explicit_artifact_uri: str | None,
+) -> tuple[str | None, str | None]:
+    """Return the effective (source_session_id, source_artifact_uri) for a tag list.
+
+    Track C (2026-09-25): provenance may arrive via ``provenance:<json>``
+    tag entries (Track A-ext2 encoding) or via explicit kwargs. Explicit
+    kwargs win; a tag value is only used when the corresponding kwarg is
+    None. Malformed tags, non-string entries, and non-dict payloads are
+    silently skipped — a write that carries a junk provenance tag should
+    not fail the entire reflection.
+    """
+    session_id = explicit_session_id
+    artifact_uri = explicit_artifact_uri
+    if not tags:
+        return session_id, artifact_uri
+    for tag in tags:
+        if not isinstance(tag, str) or not tag.startswith("provenance:"):
+            continue
+        try:
+            payload = json.loads(tag[len("provenance:") :])
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if session_id is None and payload.get("source_session_id"):
+            session_id = str(payload["source_session_id"])
+        if artifact_uri is None and payload.get("source_artifact_uri"):
+            artifact_uri = str(payload["source_artifact_uri"])
+    return session_id, artifact_uri
+
+
 class _CachedConnection:
     """Wrapper for cached connections with reference counting.
 
@@ -2003,6 +2038,9 @@ class ReflectionDatabaseAdapterOneiric:
         deduplicate: bool = False,
         dedup_threshold: float = 0.85,
         project: str | None = None,
+        *,
+        source_session_id: str | None = None,
+        source_artifact_uri: str | None = None,
     ) -> str:
         """Store a reflection with optional tags.
 
@@ -2012,11 +2050,24 @@ class ReflectionDatabaseAdapterOneiric:
             deduplicate: If True, check for duplicates before storing (Phase 4)
             dedup_threshold: Minimum Jaccard similarity to consider a duplicate (0.0 to 1.0)
             project: Optional project identifier to scope the reflection to.
+            source_session_id: Optional provenance pointer to the session
+                (or pool id) that produced this reflection. Persisted in
+                ``reflections.source_session_id`` so ``search_by_source_session``
+                can find it without scanning tags.
+            source_artifact_uri: Optional provenance pointer to the
+                specific artifact (task, log line, etc.) that produced
+                this reflection. Persisted alongside ``source_session_id``.
 
         Bug 3 fix: ``project`` is now accepted and threaded into the INSERT.
         The previous signature dropped the project field silently, which
         meant project-scoped recall (and the ``reflection_stats`` project
         aggregation) saw every reflection as belonging to no project.
+
+        Track C (2026-09-25): ``source_session_id`` and ``source_artifact_uri``
+        are extracted from any ``provenance:<json>`` tag entry written by
+        Track A-ext2 (``WorkerPool._store_task_reflection``). Explicit
+        kwargs take precedence over tag values. Malformed or non-string
+        tag entries are silently ignored.
 
         Returns:
             Unique reflection ID (existing ID if duplicate found and deduplicate=True)
@@ -2051,6 +2102,17 @@ class ReflectionDatabaseAdapterOneiric:
         reflection_id = str(ULID())
         now = datetime.now(tz=UTC)
 
+        # Track C (2026-09-25): extract source_session_id / source_artifact_uri
+        # from any ``provenance:<json>`` tag entry. Explicit kwargs win over
+        # tag-encoded values so callers can override stale tags.
+        extracted_sid, extracted_uri = _extract_provenance_from_tags(
+            tags,
+            explicit_session_id=source_session_id,
+            explicit_artifact_uri=source_artifact_uri,
+        )
+        source_session_id = extracted_sid
+        source_artifact_uri = extracted_uri
+
         # Generate embedding if available
         embedding: list[float] | None = None
         if self.settings.enable_embeddings:
@@ -2068,7 +2130,7 @@ class ReflectionDatabaseAdapterOneiric:
         # set so the table stores both v2 fields (category, importance_score,
         # memory_tier, tags, related_entities, project, namespace, timestamp)
         # and the legacy compatibility columns (created_at, updated_at,
-        # fingerprint).
+        # fingerprint). Track C adds source_session_id and source_artifact_uri.
         if embedding:
             self.conn.execute(
                 f"""
@@ -2076,9 +2138,10 @@ class ReflectionDatabaseAdapterOneiric:
                 (
                     id, content, embedding, category, importance_score,
                     memory_tier, tags, related_entities, project, namespace,
-                    timestamp, created_at, updated_at, fingerprint
+                    timestamp, created_at, updated_at, fingerprint,
+                    source_session_id, source_artifact_uri
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     reflection_id,
@@ -2095,6 +2158,8 @@ class ReflectionDatabaseAdapterOneiric:
                     now,  # created_at (legacy)
                     now,  # updated_at (legacy)
                     fingerprint_bytes,
+                    source_session_id,
+                    source_artifact_uri,
                 ),
             )
         else:
@@ -2104,9 +2169,10 @@ class ReflectionDatabaseAdapterOneiric:
                 (
                     id, content, embedding, category, importance_score,
                     memory_tier, tags, related_entities, project, namespace,
-                    timestamp, created_at, updated_at, fingerprint
+                    timestamp, created_at, updated_at, fingerprint,
+                    source_session_id, source_artifact_uri
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     reflection_id,
@@ -2123,6 +2189,8 @@ class ReflectionDatabaseAdapterOneiric:
                     now,  # created_at
                     now,  # updated_at
                     fingerprint_bytes,
+                    source_session_id,
+                    source_artifact_uri,
                 ),
             )
 

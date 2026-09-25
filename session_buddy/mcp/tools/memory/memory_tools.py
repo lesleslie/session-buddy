@@ -124,6 +124,9 @@ async def _store_reflection_operation(
     content: str,
     tags: list[str],
     project: str | None = None,
+    *,
+    source_session_id: str | None = None,
+    source_artifact_uri: str | None = None,
 ) -> dict[str, Any]:
     """Execute reflection storage operation.
 
@@ -131,8 +134,21 @@ async def _store_reflection_operation(
     accepts it) so project-scoped recall and the ``reflection_stats``
     project aggregation see the value. The MCP wrapper signature is the
     only layer that previously dropped it.
+
+    Track C (2026-09-25): thread ``source_session_id`` /
+    ``source_artifact_uri`` so callers (and the WorkerPool pool task
+    path) can attach provenance to the reflection row. The adapter
+    also auto-extracts from ``provenance:<json>`` tag entries, but
+    callers that already have the kwargs available can pass them
+    explicitly to bypass tag parsing.
     """
-    success = await db.store_reflection(content, tags=tags, project=project)
+    success = await db.store_reflection(
+        content,
+        tags=tags,
+        project=project,
+        source_session_id=source_session_id,
+        source_artifact_uri=source_artifact_uri,
+    )
     return {
         "success": success,
         "content": content,
@@ -157,6 +173,9 @@ async def _store_reflection_impl(
     content: str,
     tags: list[str] | None = None,
     project: str | None = None,
+    *,
+    source_session_id: str | None = None,
+    source_artifact_uri: str | None = None,
 ) -> str:
     """Implementation for store_reflection tool.
 
@@ -164,6 +183,13 @@ async def _store_reflection_impl(
     before threading into the adapter. Defense-in-depth: the MCP server has
     no auth, so an attacker could otherwise inject arbitrary strings into a
     column that downstream search queries interpret as a filter value.
+
+    Track C (2026-09-25): accept optional ``source_session_id`` /
+    ``source_artifact_uri`` kwargs and pass them through. Both are
+    unvalidated strings; the adapter treats them as opaque provenance
+    pointers (no SQL injection risk because they go through parameterized
+    inserts). Validation would require a per-deployment session-id scheme
+    we do not yet have.
     """
     if not _check_reflection_tools_available():
         return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
@@ -197,7 +223,14 @@ async def _store_reflection_impl(
         tags = decision.tags
 
         db = await _get_reflection_database()
-        result = await _store_reflection_operation(db, content, tags or [], project)
+        result = await _store_reflection_operation(
+            db,
+            content,
+            tags or [],
+            project,
+            source_session_id=source_session_id,
+            source_artifact_uri=source_artifact_uri,
+        )
         return _format_store_reflection_result(result)
     except MemoryGuardBlockedError:
         raise
@@ -770,14 +803,28 @@ def _register_core_memory_tools(mcp: Any) -> None:
         content: str,
         tags: list[str] | None = None,
         project: str | None = None,
+        source_session_id: str | None = None,
+        source_artifact_uri: str | None = None,
     ) -> str:
         """Store an important insight or reflection for future reference.
 
         ``project`` is an optional identifier scoped to the reflection;
         it must match ``^[a-zA-Z0-9._-]{1,128}$`` and is used by
         ``quick_search`` / ``reflection_stats`` to filter and aggregate.
+
+        ``source_session_id`` and ``source_artifact_uri`` are optional
+        provenance pointers (Track C, 2026-09-25). When set, the
+        reflection row is tagged with the producer session/artifact
+        so ``search_by_source_session`` can find it without scanning
+        the legacy ``provenance:<json>`` tag entries.
         """
-        return await _store_reflection_impl(content, tags, project)
+        return await _store_reflection_impl(
+            content,
+            tags,
+            project,
+            source_session_id=source_session_id,
+            source_artifact_uri=source_artifact_uri,
+        )
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def quick_search(
