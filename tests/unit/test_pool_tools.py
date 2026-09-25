@@ -79,19 +79,23 @@ async def test_pool_execution_wrappers_format_success_and_failure(
     mcp = DummyMCP()
     mod.register_pool_tools(mcp)
 
-    assert await mcp.tools["create_pool"]("pool-x") == "✅ Created pool pool-x with 3 workers"
-    assert (
-        await mcp.tools["execute_on_pool"]("pool-x", "do work")
-        == "✅ Task executed on pool pool-x by worker worker-1"
-    )
-    assert (
-        await mcp.tools["execute_batch_on_pool"]("pool-x", ["a", "b"])
-        == "✅ Executed 2 tasks on pool pool-x"
-    )
-    assert (
-        await mcp.tools["route_to_pool"]("do work", selector="random")
-        == "✅ Routed task to pool pool-9 using random strategy"
-    )
+    create_result = await mcp.tools["create_pool"]("pool-x")
+    assert create_result["success"] is True
+    assert create_result["pool_id"] == "pool-x"
+    assert create_result["workers_count"] == 3
+
+    execute_result = await mcp.tools["execute_on_pool"]("pool-x", "do work")
+    assert execute_result["success"] is True
+    assert execute_result["worker_id"] == "worker-1"
+
+    batch_result = await mcp.tools["execute_batch_on_pool"]("pool-x", ["a", "b"])
+    assert batch_result["success"] is True
+    assert batch_result["results_count"] == 2
+
+    route_result = await mcp.tools["route_to_pool"]("do work", selector="random")
+    assert route_result["success"] is True
+    assert route_result["pool_id"] == "pool-9"
+    assert route_result["strategy"] == "random"
 
     monkeypatch.setattr(
         mod,
@@ -120,10 +124,21 @@ async def test_pool_execution_wrappers_format_success_and_failure(
         ),
     )
 
-    assert await mcp.tools["create_pool"]() == "❌ Failed to create pool: nope"
-    assert await mcp.tools["execute_on_pool"]("pool-x", "do work") == "❌ Failed to execute task: failed"
-    assert await mcp.tools["execute_batch_on_pool"]("pool-x", ["a"]) == "❌ Failed to execute batch: batch-failed"
-    assert await mcp.tools["route_to_pool"]("do work") == "❌ Failed to route task: route-failed"
+    create_fail = await mcp.tools["create_pool"]()
+    assert create_fail["success"] is False
+    assert create_fail["error"] == "nope"
+
+    execute_fail = await mcp.tools["execute_on_pool"]("pool-x", "do work")
+    assert execute_fail["success"] is False
+    assert execute_fail["error"] == "failed"
+
+    batch_fail = await mcp.tools["execute_batch_on_pool"]("pool-x", ["a"])
+    assert batch_fail["success"] is False
+    assert batch_fail["error"] == "batch-failed"
+
+    route_fail = await mcp.tools["route_to_pool"]("do work")
+    assert route_fail["success"] is False
+    assert route_fail["error"] == "route-failed"
 
 
 @pytest.mark.asyncio
@@ -203,12 +218,37 @@ async def test_pool_monitoring_and_management_wrappers(
     mcp = DummyMCP()
     mod.register_pool_tools(mcp)
 
-    assert "Pools (2 total)" in await mcp.tools["list_pools"]()
-    assert "Pool p1" in await mcp.tools["get_pool_status"]("p1")
-    assert "Pool p1 health" in await mcp.tools["check_pool_health"]("p1")
-    assert "Pool Manager Health" in await mcp.tools["check_pool_health"]()
-    assert await mcp.tools["delete_pool"]("p1") == "✅ Deleted pool p1"
-    assert "Pool Manager Status" in await mcp.tools["get_pool_manager_status"]()
+    list_result = await mcp.tools["list_pools"]()
+    assert list_result["success"] is True
+    assert list_result["pools_count"] == 2
+    assert list_result["pools"] == [
+        {"pool_id": "p1", "running": True, "workers_count": 3},
+        {"pool_id": "p2", "running": False, "workers_count": 1},
+    ]
+
+    status_result = await mcp.tools["get_pool_status"]("p1")
+    assert status_result["success"] is True
+    assert status_result["status"]["running"] is True
+    assert status_result["status"]["workers_count"] == 3
+
+    pool_health_result = await mcp.tools["check_pool_health"]("p1")
+    assert pool_health_result["success"] is True
+    assert pool_health_result["health"]["status"] == "healthy"
+    assert pool_health_result["health"]["workers_healthy"] == 3
+
+    manager_health_result = await mcp.tools["check_pool_health"]()
+    assert manager_health_result["success"] is True
+    assert manager_health_result["health"]["pool_manager_running"] is True
+    assert manager_health_result["health"]["pools_total"] == 2
+
+    delete_result = await mcp.tools["delete_pool"]("p1")
+    assert delete_result["success"] is True
+    assert delete_result["deleted"] is True
+
+    manager_status_result = await mcp.tools["get_pool_manager_status"]()
+    assert manager_status_result["success"] is True
+    assert manager_status_result["manager_running"] is True
+    assert manager_status_result["health"]["pools_total"] == 2
 
 
 async def _async_return(value):

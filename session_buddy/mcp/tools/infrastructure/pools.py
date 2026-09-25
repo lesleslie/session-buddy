@@ -105,6 +105,26 @@ async def pool_execute(
         }
 
 
+def _normalize_batch_result(result: Any) -> dict[str, Any]:
+    """Convert a single batch item to ``{status, output, error}``.
+
+    ``WorkerPool.execute_batch`` returns either the task result (any type)
+    or an Exception (from ``asyncio.gather(return_exceptions=True)``).
+    For exceptions, status="failed"; for non-dict results, status="completed"
+    with output=str(result); for dict results, status="completed" with
+    output=result (passthrough) and error=result.get("error").
+    """
+    if isinstance(result, BaseException):
+        return {"status": "failed", "output": None, "error": str(result)}
+    if isinstance(result, dict):
+        return {
+            "status": "completed" if not result.get("error") else "failed",
+            "output": result,
+            "error": result.get("error"),
+        }
+    return {"status": "completed", "output": result, "error": None}
+
+
 async def pool_execute_batch(
     pool_id: str,
     prompts: list[str],
@@ -150,7 +170,7 @@ async def pool_execute_batch(
             "success": True,
             "pool_id": pool_id,
             "results_count": len(results),
-            "results": [str(r) for r in results],
+            "results": [_normalize_batch_result(r) for r in results],
         }
     except Exception as e:
         logger.exception(f"Failed to execute batch on pool {pool_id}")
@@ -401,17 +421,14 @@ async def pool_manager_status() -> dict[str, Any]:
 
 
 def _register_pool_execution_tools(mcp: FastMCP) -> None:
-    """Register pool task execution tools."""
+    """Register pool task execution tools (structured output)."""
 
     @mcp.tool()
     async def create_pool(
         pool_id: str | None = None,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Create a new worker pool with exactly 3 workers."""
-        result = await pool_create(pool_id=pool_id)
-        if result["success"]:
-            return f"✅ Created pool {result['pool_id']} with {result['workers_count']} workers"
-        return f"❌ Failed to create pool: {result.get('error', 'Unknown error')}"
+        return await pool_create(pool_id=pool_id)
 
     @mcp.tool()
     async def execute_on_pool(
@@ -419,17 +436,14 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
         prompt: str,
         context: dict[str, Any] | None = None,
         timeout: float | None = None,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Execute a task on a specific pool."""
-        result = await pool_execute(
+        return await pool_execute(
             pool_id=pool_id,
             prompt=prompt,
             context=context,
             timeout=timeout,
         )
-        if result["success"]:
-            return f"✅ Task executed on pool {pool_id} by worker {result.get('worker_id', 'unknown')}"
-        return f"❌ Failed to execute task: {result.get('error', 'Unknown error')}"
 
     @mcp.tool()
     async def execute_batch_on_pool(
@@ -437,17 +451,14 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
         prompts: list[str],
         context: dict[str, Any] | None = None,
         timeout: float | None = None,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Execute multiple tasks in parallel on a pool."""
-        result = await pool_execute_batch(
+        return await pool_execute_batch(
             pool_id=pool_id,
             prompts=prompts,
             context=context,
             timeout=timeout,
         )
-        if result["success"]:
-            return f"✅ Executed {result['results_count']} tasks on pool {pool_id}"
-        return f"❌ Failed to execute batch: {result.get('error', 'Unknown error')}"
 
     @mcp.tool()
     async def route_to_pool(
@@ -455,96 +466,47 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
         context: dict[str, Any] | None = None,
         selector: str = "least_loaded",
         timeout: float | None = None,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Route task to best available pool using specified strategy."""
-        result = await pool_route_task(
+        return await pool_route_task(
             prompt=prompt,
             context=context,
             selector=selector,
             timeout=timeout,
         )
-        if result["success"]:
-            return f"✅ Routed task to pool {result['pool_id']} using {result['strategy']} strategy"
-        return f"❌ Failed to route task: {result.get('error', 'Unknown error')}"
 
 
 def _register_pool_monitoring_tools(mcp: FastMCP) -> None:
-    """Register pool monitoring and status tools."""
+    """Register pool monitoring and status tools (structured output)."""
 
     @mcp.tool()
-    async def list_pools() -> str:
+    async def list_pools() -> dict[str, Any]:
         """List all worker pools."""
-        result = await pool_list()
-        pools_info = "\n".join(
-            f"  - {p['pool_id']}: running={p['running']}, workers={p['workers_count']}"
-            for p in result["pools"]
-        )
-        return f"📊 Pools ({result['pools_count']} total):\n{pools_info}"
+        return await pool_list()
 
     @mcp.tool()
-    async def get_pool_status(pool_id: str) -> str:
+    async def get_pool_status(pool_id: str) -> dict[str, Any]:
         """Get detailed status of a specific pool."""
-        result = await pool_status(pool_id)
-        if result["success"]:
-            status = result["status"]
-            return (
-                f"📊 Pool {pool_id}:\n"
-                f"  Running: {status['running']}\n"
-                f"  Workers: {status['workers_count']}\n"
-                f"  Queue size: {status['queue_size']}\n"
-                f"  Tasks submitted: {status['tasks_submitted']}\n"
-                f"  Tasks completed: {status['tasks_completed']}\n"
-                f"  Success rate: {status['success_rate']:.1%}"
-            )
-        return f"❌ Failed to get pool status: {result.get('error', 'Unknown error')}"
+        return await pool_status(pool_id)
 
     @mcp.tool()
-    async def check_pool_health(pool_id: str | None = None) -> str:
+    async def check_pool_health(pool_id: str | None = None) -> dict[str, Any]:
         """Get health status of pools."""
-        result = await pool_health(pool_id)
-        if result["success"]:
-            if pool_id:
-                health = result["health"]
-                return (
-                    f"🏥 Pool {pool_id} health:\n"
-                    f"  Status: {health['status']}\n"
-                    f"  Healthy workers: {health['workers_healthy']}/{health['workers_total']}"
-                )
-            else:
-                health = result["health"]
-                return (
-                    f"🏥 Pool Manager Health:\n"
-                    f"  Running: {health['pool_manager_running']}\n"
-                    f"  Total pools: {health['pools_total']}\n"
-                    f"  Healthy pools: {health['pools_healthy']}"
-                )
-        return f"❌ Failed to get health status: {result.get('error', 'Unknown error')}"
+        return await pool_health(pool_id)
 
 
 def _register_pool_management_tools(mcp: FastMCP) -> None:
-    """Register pool lifecycle management tools."""
+    """Register pool lifecycle management tools (structured output)."""
 
     @mcp.tool()
-    async def delete_pool(pool_id: str, timeout: float = 5.0) -> str:
+    async def delete_pool(pool_id: str, timeout: float = 5.0) -> dict[str, Any]:
         """Delete a worker pool."""
-        result = await pool_delete(pool_id, timeout)
-        if result["success"]:
-            if result["deleted"]:
-                return f"✅ Deleted pool {pool_id}"
-            return f"⚠️ Pool {pool_id} not found"
-        return f"❌ Failed to delete pool: {result.get('error', 'Unknown error')}"
+        return await pool_delete(pool_id, timeout)
 
     @mcp.tool()
-    async def get_pool_manager_status() -> str:
+    async def get_pool_manager_status() -> dict[str, Any]:
         """Get status of the pool manager."""
-        result = await pool_manager_status()
-        health = result["health"]
-        return (
-            f"🔧 Pool Manager Status:\n"
-            f"  Running: {result['manager_running']}\n"
-            f"  Total pools: {health['pools_total']}\n"
-            f"  Healthy pools: {health['pools_healthy']}"
-        )
+        return await pool_manager_status()
 
 
 def register_pool_tools(mcp: FastMCP) -> None:
