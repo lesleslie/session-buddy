@@ -28,11 +28,24 @@ class WorkerPool:
     to process tasks asynchronously with health monitoring.
     """
 
-    def __init__(self, pool_id: str | None = None) -> None:
+    def __init__(
+        self,
+        pool_id: str | None = None,
+        *,
+        backend: str = "placeholder",
+        model: str | None = None,
+        reflect_tasks: bool = False,
+    ) -> None:
         """Initialize a new worker pool.
 
         Args:
             pool_id: Optional pool identifier (auto-generated if not provided)
+            backend: Backend strategy name (``"placeholder"`` or ``"llm"``).
+            model: Optional default model name forwarded to LLM backend.
+            reflect_tasks: When True, every completed task writes a
+                session-buddy reflection tagged ``pool-task`` for
+                observability. Default ``False`` preserves byte-identical
+                behaviour for existing pools.
         """
         self.pool_id = pool_id or f"pool_{uuid.uuid4().hex[:8]}"
         self.task_queue: asyncio.Queue[Task] = asyncio.Queue()
@@ -47,6 +60,20 @@ class WorkerPool:
         self.tasks_submitted = 0
         self.tasks_completed = 0
         self.tasks_failed = 0
+
+        # Hybrid D: backend selection + observability opt-ins.
+        # Defaults preserve byte-identical envelopes for existing callers.
+        self.backend_name = backend
+        self.model = model
+        self.reflect_tasks = reflect_tasks
+        self.pool_metadata: dict[str, Any] = {
+            "backend": backend,
+            "model": model,
+            "reflect_tasks": reflect_tasks,
+        }
+        # Backend instance is set by ``initialize()`` so test code that
+        # bypasses ``initialize()`` can still inject a fake.
+        self._backend_instance: Any = None
 
         logger.info(f"Worker pool {self.pool_id} created")
 
