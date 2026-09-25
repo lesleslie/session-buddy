@@ -17,11 +17,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def pool_create(pool_id: str | None = None) -> dict[str, Any]:
+async def pool_create(
+    pool_id: str | None = None,
+    *,
+    backend: str = "placeholder",
+    model: str | None = None,
+    reflect_tasks: bool = False,
+) -> dict[str, Any]:
     """Create a new worker pool with exactly 3 workers.
 
     Args:
-        pool_id: Optional pool identifier (auto-generated if not provided)
+        pool_id: Optional pool identifier (auto-generated if not provided).
+        backend: Backend strategy name (``"placeholder"`` or ``"llm"``).
+        model: Optional default model name forwarded to the LLM backend.
+        reflect_tasks: When True, every completed task writes a
+            session-buddy reflection tagged ``pool-task``.
 
     Returns:
         Dictionary with pool status and information
@@ -37,10 +47,15 @@ async def pool_create(pool_id: str | None = None) -> dict[str, Any]:
     """
     manager = await get_pool_manager()
 
-    pool = await manager.create_pool(pool_id=pool_id)
+    pool = await manager.create_pool(
+        pool_id=pool_id,
+        backend=backend,
+        model=model,
+        reflect_tasks=reflect_tasks,
+    )
     status = pool.get_status()
 
-    logger.info(f"Created pool {pool.pool_id}")
+    logger.info(f"Created pool {pool.pool_id} backend={backend}")
 
     return {
         "success": True,
@@ -49,6 +64,7 @@ async def pool_create(pool_id: str | None = None) -> dict[str, Any]:
         "workers_count": status["workers_count"],
         "queue_size": status["queue_size"],
         "created_at": status["created_at"],
+        "metadata": pool.pool_metadata,
     }
 
 
@@ -426,9 +442,26 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     async def create_pool(
         pool_id: str | None = None,
+        *,
+        backend: str = "placeholder",
+        model: str | None = None,
+        reflect_tasks: bool = False,
     ) -> dict[str, Any]:
-        """Create a new worker pool with exactly 3 workers."""
-        return await pool_create(pool_id=pool_id)
+        """Create a new worker pool with exactly 3 workers.
+
+        Args:
+            pool_id: Optional pool identifier (auto-generated if not provided).
+            backend: Backend strategy name (``"placeholder"`` or ``"llm"``).
+            model: Optional default model name forwarded to the LLM backend.
+            reflect_tasks: When True, every completed task writes a
+                session-buddy reflection tagged ``pool-task``.
+        """
+        return await pool_create(
+            pool_id=pool_id,
+            backend=backend,
+            model=model,
+            reflect_tasks=reflect_tasks,
+        )
 
     @mcp.tool()
     async def execute_on_pool(

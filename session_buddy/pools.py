@@ -422,11 +422,22 @@ class PoolManager:
         self.running = False
         logger.info("Pool manager stopped")
 
-    async def create_pool(self, pool_id: str | None = None) -> WorkerPool:
+    async def create_pool(
+        self,
+        pool_id: str | None = None,
+        *,
+        backend: str = "placeholder",
+        model: str | None = None,
+        reflect_tasks: bool = False,
+    ) -> WorkerPool:
         """Create a new worker pool.
 
         Args:
             pool_id: Optional pool identifier (auto-generated if not provided)
+            backend: Backend strategy name (``"placeholder"`` or ``"llm"``).
+            model: Optional default model name forwarded to the LLM backend.
+            reflect_tasks: When True, every completed task writes a
+                session-buddy reflection tagged ``pool-task``.
 
         Returns:
             Created pool
@@ -435,7 +446,12 @@ class PoolManager:
             if pool_id and pool_id in self.pools:
                 raise ValueError(f"Pool {pool_id} already exists")
 
-            pool = WorkerPool(pool_id=pool_id)
+            pool = WorkerPool(
+                pool_id=pool_id,
+                backend=backend,
+                model=model,
+                reflect_tasks=reflect_tasks,
+            )
             await pool.initialize()
 
             self.pools[pool.pool_id] = pool

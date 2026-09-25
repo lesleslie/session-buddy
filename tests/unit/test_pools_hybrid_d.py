@@ -132,3 +132,30 @@ async def test_pool_default_no_reflection(monkeypatch):
         assert len(stored) == 0
     finally:
         await pool.shutdown()
+
+
+async def test_create_pool_wrapper_accepts_backend_and_reflect():
+    """MCP ``pool_create`` must thread ``backend``, ``model``,
+    ``reflect_tasks`` through to WorkerPool."""
+    # Reset global pool manager so test isolation is guaranteed.
+    from session_buddy import pools as sp_mod
+
+    sp_mod._global_pool_manager = None
+
+    from session_buddy.mcp.tools.infrastructure.pools import pool_create, pool_delete
+
+    pool_id = "t-mcp-create"
+    try:
+        result = await pool_create(
+            pool_id=pool_id,
+            backend="placeholder",
+            reflect_tasks=True,
+        )
+        assert result["success"] is True
+        assert result["pool_id"] == pool_id
+        assert result["metadata"]["backend"] == "placeholder"
+        assert result["metadata"]["reflect_tasks"] is True
+        assert result["metadata"]["model"] is None
+    finally:
+        await pool_delete(pool_id)
+        sp_mod._global_pool_manager = None
