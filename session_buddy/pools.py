@@ -12,7 +12,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from .worker import Task, Worker
+from .worker import Backend, LLMBackend, PlaceholderBackend, Task, Worker
 
 # Hybrid D: re-use the existing track_channel_session validator rather
 # than introducing a parallel event pipeline. The validator accepts
@@ -130,11 +130,20 @@ class WorkerPool:
 
         logger.info(f"Initializing {WORKERS_PER_POOL} workers for pool {self.pool_id}")
 
+        # Hybrid A: select the backend strategy for this pool. Each
+        # backend instance is shared across the 3 workers so a single
+        # Bifrost client serves the whole pool.
+        backend: Backend = self._make_backend()
+        self._backend_instance = backend
+
         # Create exactly 3 workers
         for i in range(WORKERS_PER_POOL):
             worker_id = f"{self.pool_id}-worker-{i}"
             worker = Worker(
-                worker_id=worker_id, queue=self.task_queue, pool_id=self.pool_id
+                worker_id=worker_id,
+                queue=self.task_queue,
+                pool_id=self.pool_id,
+                backend=backend,
             )
             self.workers.append(worker)
 
@@ -186,6 +195,18 @@ class WorkerPool:
             },
             message_count=self.tasks_completed,
         )
+
+        # Hybrid A: release the backend (Bifrost HTTP client, etc.) so
+        # pool delete closes the connection cleanly.
+        backend_instance = self._backend_instance
+        self._backend_instance = None
+        if backend_instance is not None and hasattr(backend_instance, "aclose"):
+            try:
+                await backend_instance.aclose()
+            except Exception:  # noqa: BLE001 — best-effort cleanup
+                logger.warning(
+                    "Backend aclose() failed for pool %s", self.pool_id
+                )
 
         logger.info(f"Pool {self.pool_id} shut down")
 
@@ -292,6 +313,20 @@ class WorkerPool:
                 await self._store_task_reflection(result, tid)
 
         return results
+
+    def _make_backend(self) -> Backend:
+        """Pick a Backend strategy from ``self.backend_name``.
+
+        ``"placeholder"`` is the default and returns a no-op backend that
+        mirrors the legacy "Processed task: X" envelope byte-for-byte.
+        ``"llm"`` returns an :class:`LLMBackend` configured with
+        ``self.model`` (or the default ``minimax/MiniMax-M3``).
+        Unknown names fall back to the placeholder so a misconfigured
+        pool never crashes worker startup.
+        """
+        if self.backend_name == "llm":
+            return LLMBackend(model=self.model) if self.model else LLMBackend()
+        return PlaceholderBackend()
 
     async def _store_task_reflection(self, result: dict[str, Any], task_id: str) -> None:
         """Persist a task envelope as a session-buddy reflection when enabled.
