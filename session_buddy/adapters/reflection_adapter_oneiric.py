@@ -631,6 +631,16 @@ class ReflectionDatabaseAdapterOneiric:
 
                 fingerprint BLOB,
 
+                -- Provenance columns (Track C of serverless-tiering plan,
+                -- 2026-09-25). Populated by store_reflection when callers pass
+                -- ``source_session_id`` / ``source_artifact_uri`` (or when the
+                -- caller has previously encoded provenance as a
+                -- ``provenance:<json>`` tag, which the impl auto-extracts).
+                -- Both columns are NULLABLE: legacy reflections predate the
+                -- encoding; the backfill script populates them in bulk.
+                source_session_id TEXT,
+                source_artifact_uri TEXT,
+
                 FOREIGN KEY (conversation_id) REFERENCES {self._table("conversations")}(id)
             )
             """
@@ -656,6 +666,18 @@ class ReflectionDatabaseAdapterOneiric:
             f"CREATE INDEX IF NOT EXISTS {self._index('refl_created')} ON {self._table('reflections')}({refl_idx_col})"
         )
 
+        # Track C (2026-09-25): index for the new search_by_source_session
+        # MCP tool. Wrapped in suppress so an older DB missing the column
+        # does not abort the whole migration. The companion ADD COLUMN
+        # statements above run first; by the time this fires the column is
+        # guaranteed to exist on every fresh DB, but existing pre-Track-C
+        # databases also see the column added by the ALTER above.
+        with suppress(Exception):
+            self.conn.execute(
+                f"CREATE INDEX IF NOT EXISTS {self._index('refl_source_session')}"
+                f" ON {self._table('reflections')}(source_session_id)"
+            )
+
         # ========================================================================
         # MIGRATION: Add insight columns to existing reflections tables
         # ========================================================================
@@ -678,6 +700,17 @@ class ReflectionDatabaseAdapterOneiric:
         )
         _safe_alter(
             f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP"
+        )
+
+        # Track C provenance columns (2026-09-25). Idempotent: existing
+        # databases get the new NULLABLE columns without breaking legacy
+        # rows. The companion backfill script
+        # (scripts/backfill_reflection_provenance.py) populates them.
+        _safe_alter(
+            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS source_session_id TEXT"
+        )
+        _safe_alter(
+            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS source_artifact_uri TEXT"
         )
 
         # ========================================================================
