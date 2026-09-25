@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Unit tests for the provenance columns on ``reflections_v2``.
 
 Track C (2026-09-25 serverless-tiering plan) adds:
@@ -22,7 +21,6 @@ These tests cover the four commits in this track:
 
 from __future__ import annotations
 
-import asyncio
 import json
 from pathlib import Path
 
@@ -71,7 +69,6 @@ class TestProvenanceSchema:
 
     async def test_idempotent_reinitialize(self, tmp_path: Path) -> None:
         """Re-opening the same DB does NOT raise — IF NOT EXISTS guard works."""
-        db_file = tmp_path / "test.duckdb"
         settings1 = _settings(tmp_path)
         adapter1 = ReflectionDatabaseAdapterOneiric(settings=settings1)
         async with adapter1:
@@ -130,7 +127,7 @@ class TestStoreReflectionProvenanceExtraction:
         async with adapter as db:
             rid = await db.store_reflection(
                 content="tag-extracted reflection",
-                tags=["pool-task", f"pool:sess-tag-2", encoded],
+                tags=["pool-task", "pool:sess-tag-2", encoded],
                 project="sess-tag-2",
             )
             row = db.conn.execute(
@@ -207,7 +204,42 @@ class TestStoreReflectionProvenanceExtraction:
 
 
 class TestBackfillProvenance:
-    """C3: the backfill script populates columns from legacy tag encodings."""
+    """C3: the backfill script populates columns from legacy tag encodings.
+
+    These tests simulate pre-Track-C legacy data by inserting rows
+    directly via the ``reflections_v2`` table (bypassing
+    ``store_reflection``, which would auto-extract provenance post-C2).
+    That mirrors the migration scenario: existing rows have
+    ``provenance:<json>`` tags and NULL provenance columns.
+    """
+
+    @staticmethod
+    def _insert_legacy_row(
+        db: reflection_module.ReflectionDatabaseAdapterOneiric,
+        *,
+        content: str,
+        tags: list[str],
+        project: str | None,
+    ) -> None:
+        """Insert a reflection row directly via duckdb, simulating pre-Track-C data.
+
+        Bypasses ``store_reflection`` so the provenance columns stay NULL.
+        This is exactly what the existing pool-encoded rows look like
+        before the backfill runs.
+        """
+        from ulid import ULID
+
+        rid = str(ULID())
+        db.conn.execute(
+            f"""
+            INSERT INTO {db._table("reflections")}
+                (id, content, tags, project, namespace, category,
+                 importance_score, memory_tier, timestamp, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'default', 'context', 0.5, 'long_term',
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            [rid, content, tags, project],
+        )
 
     async def test_backfill_finds_tag_encoded_rows(self, tmp_path: Path) -> None:
         """Insert rows with provenance: tags, run backfill, verify columns."""
@@ -221,12 +253,12 @@ class TestBackfillProvenance:
         }
         encoded = f"provenance:{json.dumps(payload, sort_keys=True)}"
         async with adapter as db:
-            await db.store_reflection(
+            self._insert_legacy_row(
+                db,
                 content="backfill target",
                 tags=["pool-task", encoded],
                 project="prefill-sess",
             )
-        # Re-open read-only to simulate the backfill path.
         updated, skipped = backfill(tmp_path / "test.duckdb", dry_run=False)
         assert updated == 1
         assert skipped == 0
@@ -251,12 +283,13 @@ class TestBackfillProvenance:
         }
         encoded = f"provenance:{json.dumps(payload, sort_keys=True)}"
         async with adapter as db:
-            await db.store_reflection(
+            self._insert_legacy_row(
+                db,
                 content="dry-run target",
                 tags=[encoded],
                 project="dryrun-sess",
             )
-        updated, skipped = backfill(tmp_path / "test.duckdb", dry_run=True)
+        updated, _skipped = backfill(tmp_path / "test.duckdb", dry_run=True)
         assert updated == 1
         async with adapter as db:
             row = db.conn.execute(
@@ -277,18 +310,27 @@ class TestBackfillProvenance:
         }
         encoded = f"provenance:{json.dumps(payload, sort_keys=True)}"
         async with adapter as db:
-            await db.store_reflection(
+            self._insert_legacy_row(
+                db,
                 content="idempotent target",
                 tags=[encoded],
                 project="idem-sess",
             )
         u1, s1 = backfill(tmp_path / "test.duckdb", dry_run=False)
         u2, s2 = backfill(tmp_path / "test.duckdb", dry_run=False)
-        # First run: 1 update, 0 skipped. Second run: 0 update, 1 skipped
-        # (because the WHERE clause filters out rows where both columns are
-        # non-NULL).
+        # First run: 1 update, 0 skipped. Second run: the WHERE clause
+        # already filtered out the populated row, so the loop sees
+        # nothing — both counters stay at 0. The columns are unchanged.
         assert u1 == 1 and s1 == 0
-        assert u2 == 0 and s2 == 1
+        assert u2 == 0 and s2 == 0
+        # Verify the columns are still populated from the first run.
+        async with adapter as db:
+            row = db.conn.execute(
+                f"SELECT source_session_id, source_artifact_uri FROM {db._table('reflections')} WHERE project = 'idem-sess'"
+            ).fetchone()
+        assert row is not None
+        assert row[0] == "idem-sess"
+        assert row[1] == "pool://idem/task/3"
 
     async def test_backfill_skips_rows_without_provenance(self, tmp_path: Path) -> None:
         """Rows without a provenance: tag are skipped."""
@@ -297,7 +339,8 @@ class TestBackfillProvenance:
         settings = _settings(tmp_path)
         adapter = ReflectionDatabaseAdapterOneiric(settings=settings)
         async with adapter as db:
-            await db.store_reflection(
+            self._insert_legacy_row(
+                db,
                 content="no-provenance row",
                 tags=["plain", "tags"],
                 project="no-provenance",
