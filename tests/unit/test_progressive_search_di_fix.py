@@ -97,8 +97,8 @@ class TestQuickSearchRoundTripFix:
     """Bug 2 — ``_quick_search_impl`` queries the conversations table
     instead of the reflections table.
 
-    The MCP ``store_reflection`` path writes to the ``reflections`` table
-    (with ``insight_type IS NULL``). The MCP ``quick_search`` path calls
+    The MCP ``store_reflection`` path writes to the ``reflections`` table.
+    The MCP ``quick_search`` path calls
     ``db.search_conversations`` which queries the ``conversations`` table.
     The two paths never meet, so a stored reflection is invisible to
     quick_search.

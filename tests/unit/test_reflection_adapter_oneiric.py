@@ -770,8 +770,6 @@ class TestResetDatabase:
         )
         results = await adapter.search_reflections("reflection")
         assert len(results) >= 1
-        for result in results:
-            assert result.get("insight_type") is None
 
 
 # =============================================================================

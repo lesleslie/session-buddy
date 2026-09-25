@@ -629,11 +629,6 @@ class ReflectionDatabaseAdapterOneiric:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 metadata JSON,
 
-                -- Insight-specific fields
-                insight_type VARCHAR DEFAULT 'general',
-                usage_count INTEGER DEFAULT 0,
-                last_used_at TIMESTAMP,
-                confidence_score REAL DEFAULT 0.5,
                 fingerprint BLOB,
 
                 FOREIGN KEY (conversation_id) REFERENCES {self._table("conversations")}(id)
@@ -683,31 +678,6 @@ class ReflectionDatabaseAdapterOneiric:
         )
         _safe_alter(
             f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP"
-        )
-        _safe_alter(
-            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS insight_type VARCHAR DEFAULT 'general'"
-        )
-        _safe_alter(
-            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0"
-        )
-        _safe_alter(
-            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP"
-        )
-        _safe_alter(
-            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS confidence_score REAL DEFAULT 0.5"
-        )
-
-        # Create insight-specific indexes for performance
-        # Note: DuckDB doesn't support partial indexes (WHERE clauses), so we create full indexes
-        # and filter at query time instead. Also can't index array types (VARCHAR[])
-        self.conn.execute(
-            f"CREATE INDEX IF NOT EXISTS {self._index('refl_insight_type')} ON {self._table('reflections')}(insight_type)"
-        )
-        self.conn.execute(
-            f"CREATE INDEX IF NOT EXISTS {self._index('refl_usage_count')} ON {self._table('reflections')}(usage_count)"
-        )
-        self.conn.execute(
-            f"CREATE INDEX IF NOT EXISTS {self._index('refl_last_used')} ON {self._table('reflections')}(last_used_at)"
         )
 
         # ========================================================================
@@ -2060,13 +2030,12 @@ class ReflectionDatabaseAdapterOneiric:
         # Convert MinHash fingerprint to bytes for storage
         fingerprint_bytes = fingerprint.to_bytes()
 
-        # Store reflection (explicitly set insight_type to NULL to distinguish from insights)
-        # v2 rewire (Phase 0): write to ``reflections_v2`` (the global
-        # Memori-style table). The INSERT now lists the v2 column set so the
-        # table stores both v2 fields (category, importance_score, memory_tier,
-        # tags, related_entities, project, namespace, timestamp) and the
-        # legacy compatibility columns (created_at, updated_at, insight_type,
-        # usage_count, last_used_at, confidence_score, fingerprint).
+        # Store reflection. v2 rewire (Phase 0): write to ``reflections_v2``
+        # (the global Memori-style table). The INSERT now lists the v2 column
+        # set so the table stores both v2 fields (category, importance_score,
+        # memory_tier, tags, related_entities, project, namespace, timestamp)
+        # and the legacy compatibility columns (created_at, updated_at,
+        # fingerprint).
         if embedding:
             self.conn.execute(
                 f"""
@@ -2074,10 +2043,9 @@ class ReflectionDatabaseAdapterOneiric:
                 (
                     id, content, embedding, category, importance_score,
                     memory_tier, tags, related_entities, project, namespace,
-                    timestamp, created_at, updated_at, insight_type,
-                    usage_count, last_used_at, confidence_score, fingerprint
+                    timestamp, created_at, updated_at, fingerprint
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     reflection_id,
@@ -2093,10 +2061,6 @@ class ReflectionDatabaseAdapterOneiric:
                     now,  # timestamp (v2)
                     now,  # created_at (legacy)
                     now,  # updated_at (legacy)
-                    None,  # insight_type (NULL to distinguish from insights)
-                    0,  # usage_count
-                    None,  # last_used_at
-                    0.5,  # confidence_score
                     fingerprint_bytes,
                 ),
             )
@@ -2107,10 +2071,9 @@ class ReflectionDatabaseAdapterOneiric:
                 (
                     id, content, embedding, category, importance_score,
                     memory_tier, tags, related_entities, project, namespace,
-                    timestamp, created_at, updated_at, insight_type,
-                    usage_count, last_used_at, confidence_score, fingerprint
+                    timestamp, created_at, updated_at, fingerprint
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     reflection_id,
@@ -2126,10 +2089,6 @@ class ReflectionDatabaseAdapterOneiric:
                     now,  # timestamp
                     now,  # created_at
                     now,  # updated_at
-                    None,  # insight_type
-                    0,  # usage_count
-                    None,  # last_used_at
-                    0.5,  # confidence_score
                     fingerprint_bytes,
                 ),
             )
@@ -2257,7 +2216,6 @@ class ReflectionDatabaseAdapterOneiric:
             SELECT id, content, tags, created_at, updated_at
             FROM {self._table("reflections")}
             WHERE id IN ('{id_list}')
-                AND insight_type IS NULL
             ORDER BY created_at DESC
             """
         ).fetchall()
@@ -2338,7 +2296,6 @@ class ReflectionDatabaseAdapterOneiric:
     ) -> list[dict[str, t.Any]]:
         """Perform semantic search on reflections using embeddings.
 
-        Filters for insight_type IS NULL to only return reflections, not insights.
         Bug 3 fix: accepts ``project`` and adds it to the ``WHERE`` clause.
         """
         if not self._initialized:
@@ -2361,7 +2318,6 @@ class ReflectionDatabaseAdapterOneiric:
                    array_cosine_similarity(embedding::FLOAT[384], ?::FLOAT[384]) as similarity
             FROM {self._table("reflections")}
             WHERE embedding IS NOT NULL
-                AND insight_type IS NULL
                 {project_clause}
             ORDER BY similarity DESC
             LIMIT ?
@@ -2390,7 +2346,6 @@ class ReflectionDatabaseAdapterOneiric:
     ) -> list[dict[str, t.Any]]:
         """Perform text search on reflections.
 
-        Filters for insight_type IS NULL to only return reflections, not insights.
         Bug 3 fix: accepts ``project`` and adds it to the ``WHERE`` clause.
         """
         if not self._initialized:
@@ -2406,8 +2361,7 @@ class ReflectionDatabaseAdapterOneiric:
             f"""
             SELECT id, content, tags, created_at, updated_at, project
             FROM {self._table("reflections")}
-            WHERE insight_type IS NULL
-                AND (content LIKE ? OR list_contains(tags, ?))
+            WHERE (content LIKE ? OR list_contains(tags, ?))
                 {project_clause}
             ORDER BY created_at DESC
             LIMIT ?

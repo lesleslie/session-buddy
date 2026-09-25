@@ -105,10 +105,6 @@ CREATE TABLE IF NOT EXISTS reflections_v2 (
     -- serve as a drop-in replacement for the legacy reflections table.
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
-    insight_type TEXT,
-    usage_count INTEGER DEFAULT 0,
-    last_used_at TIMESTAMP,
-    confidence_score REAL,
     fingerprint BLOB,
     subcategory TEXT,
     -- v2 rewire missed this on initial rewire; legacy reflections has it.
@@ -178,10 +174,6 @@ ALTER TABLE conversations_v2 ADD COLUMN IF NOT EXISTS causal_parent_id TEXT;
 -- reflections_v2: legacy compatibility columns (used by store_reflection)
 ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;
-ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS insight_type TEXT;
-ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0;
-ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP;
-ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS confidence_score REAL;
 ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS fingerprint BLOB;
 ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS subcategory TEXT;
 ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS metadata JSON;
