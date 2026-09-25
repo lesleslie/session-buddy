@@ -109,6 +109,47 @@ async def test_pool_with_reflect_tasks_stores_reflection(monkeypatch):
         await pool.shutdown()
 
 
+async def test_pool_reflection_carries_source_session_id(monkeypatch):
+    """``_store_task_reflection`` must carry provenance keys for Track C extraction.
+
+    Provenance (``source_session_id`` + ``source_artifact_uri``) is encoded
+    as a JSON tag prefixed ``provenance:`` so the existing
+    ``_store_reflection_impl(content, tags, project)`` signature stays
+    intact — Track C will scan tags for the prefix.
+    """
+    import json
+
+    from session_buddy.mcp.tools.memory import memory_tools
+
+    stored: list[dict[str, Any]] = []
+
+    async def fake_store_reflection_impl(content, tags=None, project=None):
+        stored.append({"content": content, "tags": list(tags or []), "project": project})
+        return f"ok-{len(stored)}"
+
+    monkeypatch.setattr(
+        memory_tools, "_store_reflection_impl", fake_store_reflection_impl
+    )
+
+    pool = sp.WorkerPool(pool_id="t-prov", reflect_tasks=True)
+    await pool.initialize()
+    try:
+        await pool.execute("hello provenance")
+        assert stored, "no reflection stored"
+        tags = stored[0]["tags"]
+        provenance_tags = [t for t in tags if t.startswith("provenance:")]
+        assert provenance_tags, (
+            f"no provenance tag found in {tags!r}; Track C will need it"
+        )
+        payload = json.loads(provenance_tags[0].removeprefix("provenance:"))
+        assert payload["source_session_id"] == "t-prov"
+        assert payload["source_artifact_uri"].startswith(
+            "pool://t-prov/task/"
+        )
+    finally:
+        await pool.shutdown()
+
+
 async def test_pool_default_no_reflection(monkeypatch):
     """Default ``reflect_tasks=False`` must NOT write any reflections."""
     from session_buddy.mcp.tools.memory import memory_tools

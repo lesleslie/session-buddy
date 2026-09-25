@@ -14,7 +14,7 @@ from typing import Any
 
 from .worker import Backend, LLMBackend, PlaceholderBackend, Task, Worker
 
-# Hybrid D: re-use the existing track_channel_session validator rather
+# Hybrid D: reuse the existing track_channel_session validator rather
 # than introducing a parallel event pipeline. The validator accepts
 # event_type ∈ {channel_session_start, channel_heartbeat, channel_session_end}.
 # The import is deferred to method bodies to avoid a circular import
@@ -38,9 +38,11 @@ def _emit_channel_session_event(
     try:
         from .mcp.tools.session.channel_tracking_tools import (
             ChannelSessionEvent,
+        )
+        from .mcp.tools.session.channel_tracking_tools import (
             _store as _channel_store,
         )
-    except Exception:  # noqa: BLE001 — observability is best-effort
+    except Exception:
         logger.exception("channel_tracking_tools import failed; skipping event")
         return
 
@@ -204,9 +206,7 @@ class WorkerPool:
             try:
                 await backend_instance.aclose()
             except Exception:  # noqa: BLE001 — best-effort cleanup
-                logger.warning(
-                    "Backend aclose() failed for pool %s", self.pool_id
-                )
+                logger.warning("Backend aclose() failed for pool %s", self.pool_id)
 
         logger.info(f"Pool {self.pool_id} shut down")
 
@@ -328,7 +328,9 @@ class WorkerPool:
             return LLMBackend(model=self.model) if self.model else LLMBackend()
         return PlaceholderBackend()
 
-    async def _store_task_reflection(self, result: dict[str, Any], task_id: str) -> None:
+    async def _store_task_reflection(
+        self, result: dict[str, Any], task_id: str
+    ) -> None:
         """Persist a task envelope as a session-buddy reflection when enabled.
 
         Reuses the existing ``_store_reflection_impl`` helper (see
@@ -339,19 +341,36 @@ class WorkerPool:
         circular-import issues with the MCP tools package.
         Failures are swallowed — reflection is observability, never a
         critical-path concern.
+
+        Provenance keys (Track A-ext2 of the serverless-tiering plan):
+        ``source_session_id`` and ``source_artifact_uri`` are encoded as a
+        JSON string in the ``tags`` list (under the ``"provenance:"`` prefix)
+        so that Track C's column migration can extract them into first-class
+        ``reflections.source_session_id`` / ``reflections.source_artifact_uri``
+        columns without changing this signature.
         """
         import json as _json
 
         try:
             from .mcp.tools.memory import memory_tools as _memory_tools
-        except Exception:  # noqa: BLE001 — best-effort observability
+        except Exception:
             logger.exception("memory_tools import failed; skipping reflection")
             return
 
         try:
+            provenance = {
+                "source_session_id": self.pool_id,
+                "source_artifact_uri": (
+                    f"pool://{self.pool_id}/task/{task_id}"
+                ),
+            }
             await _memory_tools._store_reflection_impl(
                 content=_json.dumps(result, default=str),
-                tags=["pool-task", f"pool:{self.pool_id}"],
+                tags=[
+                    "pool-task",
+                    f"pool:{self.pool_id}",
+                    f"provenance:{_json.dumps(provenance, sort_keys=True)}",
+                ],
                 project=self.pool_id,
             )
         except Exception:  # noqa: BLE001 — best-effort observability
