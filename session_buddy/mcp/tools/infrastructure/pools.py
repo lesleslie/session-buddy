@@ -79,11 +79,11 @@ async def pool_execute(
     Args:
         pool_id: Pool identifier
         prompt: Task prompt/instruction
-        context: Optional execution context
+        context: Optional execution context (model, system, ...)
         timeout: Maximum time to wait for result (seconds)
 
     Returns:
-        Dictionary with execution result
+        Dictionary with execution result, including the backend name.
 
     Example:
         >>> pool_execute("my_pool", "Write Python code", timeout=30.0)
@@ -91,17 +91,18 @@ async def pool_execute(
             "success": True,
             "pool_id": "my_pool",
             "worker_id": "my_pool-worker-1",
-            "result": {...}
+            "result": {...},
+            "backend": "placeholder"
         }
     """
     manager = await get_pool_manager()
 
     try:
-        result = await manager.execute_on_pool(
-            pool_id=pool_id,
-            prompt=prompt,
-            context=context,
-            timeout=timeout,
+        pool = await manager.get_pool(pool_id)
+        if pool is None:
+            return {"success": False, "error": f"Pool {pool_id} not found"}
+        result = await pool.execute(
+            prompt=prompt, context=context, timeout=timeout
         )
 
         logger.info(f"Executed task on pool {pool_id}")
@@ -111,6 +112,7 @@ async def pool_execute(
             "pool_id": pool_id,
             "worker_id": result.get("worker_id"),
             "result": result,
+            "backend": pool.backend_name,
         }
     except Exception as e:
         logger.exception(f"Failed to execute task on pool {pool_id}")

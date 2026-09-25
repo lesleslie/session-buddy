@@ -159,3 +159,68 @@ async def test_create_pool_wrapper_accepts_backend_and_reflect():
     finally:
         await pool_delete(pool_id)
         sp_mod._global_pool_manager = None
+
+
+async def test_execute_passes_context_to_backend():
+    """``pool_execute`` forwards task context (model, system) to the backend
+    and surfaces the backend name in the response envelope."""
+    import session_buddy.pools as sp
+
+    captured: dict = {}
+
+    class CapturingBackend:
+        async def execute(self, worker_id, pool_id, task):
+            captured["context"] = task.context
+            captured["prompt"] = task.prompt
+            return {
+                "worker_id": worker_id,
+                "pool_id": pool_id,
+                "task_id": task.task_id,
+                "prompt": task.prompt,
+                "response": "ok",
+                "context": task.context,
+            }
+
+    # Test 1: WorkerPool.execute forwards task.context to the backend.
+    # We don't go through full WorkerPool.initialize(); we patch the
+    # _execute_task_logic of the worker instead, which is invoked when
+    # the worker picks the task off the queue.
+    pool = sp.WorkerPool(pool_id="t-ctx")
+    await pool.initialize()
+    try:
+        # Replace every worker's backend with a CapturingBackend. Also
+        # replace _execute_task_logic so we can see the Task object.
+        for worker in pool.workers:
+            worker.backend = CapturingBackend()
+            original = worker._execute_task_logic
+
+            async def patched(task, _orig=original):
+                return await worker.backend.execute(worker.worker_id, worker.pool_id, task)
+
+            worker._execute_task_logic = patched  # type: ignore[method-assign]
+
+        await pool.execute(
+            "with context", context={"model": "ollama/qwen3.5", "system": "be terse"}
+        )
+        assert captured["context"]["model"] == "ollama/qwen3.5"
+        assert captured["context"]["system"] == "be terse"
+    finally:
+        await pool.shutdown()
+
+    # Test 2: MCP ``pool_execute`` wrapper surfaces the backend name.
+    from session_buddy.mcp.tools.infrastructure.pools import (
+        pool_create,
+        pool_delete,
+        pool_execute,
+    )
+
+    pool_id = "t-mcp-ctx"
+    try:
+        await pool_create(pool_id=pool_id, backend="placeholder")
+        result = await pool_execute(
+            pool_id=pool_id, prompt="hi", context={"model": "x"}
+        )
+        assert result["success"], result
+        assert result["backend"] == "placeholder"
+    finally:
+        await pool_delete(pool_id)
