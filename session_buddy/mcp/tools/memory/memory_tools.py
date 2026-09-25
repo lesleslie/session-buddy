@@ -716,6 +716,82 @@ async def _reflection_stats_impl() -> str:
 
 
 # ============================================================================
+# Search By Source Session Tool (Track C, 2026-09-25)
+# ============================================================================
+
+
+async def _search_by_source_session_operation(
+    db: ReflectionDatabaseAdapter,
+    session_id: str,
+    limit: int,
+) -> str:
+    """Execute the search-by-source-session operation.
+
+    Returns a formatted string suitable for the MCP wrapper. The
+    format mirrors ``reflection_stats`` so callers see the same envelope
+    shape across tools.
+    """
+    rows = await db.search_by_source_session(session_id=session_id, limit=limit)
+
+    lines = [f"📡 Reflections produced by session: '{session_id}'", "=" * 50]
+
+    if not rows:
+        lines.extend(
+            [
+                "🔍 No reflections found for this session",
+                "💡 Confirm the session_id — it must match the value",
+                "    passed to store_reflection(source_session_id=...)",
+            ]
+        )
+        return "\n".join(lines)
+
+    lines.append(f"📊 Found {len(rows)} reflection(s)")
+    for row in rows:
+        snippet = ToolMessages.truncate_text(row["content"], 150)
+        lines.append(f"  • id={row['id']}  📅 {row.get('created_at') or 'Unknown'}")
+        lines.append(f"    📝 {snippet}")
+        if row.get("project"):
+            lines.append(f"    📁 Project: {row['project']}")
+        if row.get("source_artifact_uri"):
+            lines.append(f"    🔗 Artifact: {row['source_artifact_uri']}")
+    return "\n".join(lines)
+
+
+async def _search_by_source_session_impl(
+    session_id: str,
+    limit: int = 20,
+) -> str:
+    """Implementation for search_by_source_session tool.
+
+    Track C (2026-09-25): cheap lookup against the
+    ``reflections_v2.source_session_id`` index. Returns the most recent
+    reflections written by a given session, with content snippets and
+    provenance pointers.
+
+    Args:
+        session_id: The session (or pool) id to filter on. Exact match.
+        limit: Maximum number of rows to return. Default 20.
+
+    Returns:
+        Formatted text envelope. Empty result still returns a valid
+        envelope (no exception raised).
+
+    """
+    if not _check_reflection_tools_available():
+        return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
+
+    try:
+        validate_required(session_id, "session_id")
+    except ValidationError as e:
+        return ToolMessages.validation_error("Search by source session", str(e))
+
+    async def operation(db: ReflectionDatabaseAdapter) -> str:
+        return await _search_by_source_session_operation(db, session_id, limit)
+
+    return await _execute_simple_database_tool(operation, "Search by source session")
+
+
+# ============================================================================
 # Reset Database Tool
 # ============================================================================
 
@@ -870,6 +946,24 @@ def _register_core_memory_tools(mcp: Any) -> None:
     async def reflection_stats(project: str | None = None) -> str:
         """Get statistics about the reflection database."""
         return await _reflection_stats_impl()
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def search_by_source_session(
+        session_id: str,
+        limit: int = 20,
+    ) -> str:
+        """Find reflections produced by a specific session (or pool).
+
+        Track C (2026-09-25): cheap index lookup against
+        ``reflections_v2.source_session_id``. ``session_id`` is the
+        value passed to ``store_reflection(source_session_id=...)`` or
+        extracted from a ``provenance:<json>`` tag by the backfill.
+
+        Use this to audit a session's contribution to memory or to
+        diagnose "what did session X remember?" questions without
+        scanning every reflection.
+        """
+        return await _search_by_source_session_impl(session_id, limit)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:

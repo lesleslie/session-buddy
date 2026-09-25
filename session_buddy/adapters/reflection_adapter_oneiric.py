@@ -1751,6 +1751,59 @@ class ReflectionDatabaseAdapterOneiric:
             for row in rows
         ]
 
+    async def search_by_source_session(
+        self,
+        session_id: str,
+        *,
+        limit: int = 20,
+    ) -> list[dict[str, t.Any]]:
+        """Return reflections written by ``session_id``, most recent first.
+
+        Track C (2026-09-25): cheap lookup against the new
+        ``reflections_v2.source_session_id`` index. ``session_id`` is
+        the value the caller wrote via ``store_reflection(
+        source_session_id=...)`` or that the pool path encoded as a
+        ``provenance:<json>`` tag and the backfill migrated.
+
+        Args:
+            session_id: The session (or pool) id to filter on. Exact match.
+            limit: Maximum number of rows to return. Default 20.
+
+        Returns:
+            List of dicts with ``id``, ``content``, ``tags``,
+            ``project``, ``source_session_id``, ``source_artifact_uri``,
+            ``created_at``. The list is empty when nothing matches;
+            an unknown ``session_id`` is not an error.
+
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        rows = self.conn.execute(
+            f"""
+            SELECT id, content, tags, project, source_session_id,
+                   source_artifact_uri, created_at
+            FROM {self._table("reflections")}
+            WHERE source_session_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            [session_id, limit],
+        ).fetchall()
+
+        return [
+            {
+                "id": row[0],
+                "content": row[1],
+                "tags": list(row[2]) if row[2] else [],
+                "project": row[3],
+                "source_session_id": row[4],
+                "source_artifact_uri": row[5],
+                "created_at": row[6].isoformat() if row[6] else None,
+            }
+            for row in rows
+        ]
+
     def _get_cached_conversations(
         self,
         query: str,
