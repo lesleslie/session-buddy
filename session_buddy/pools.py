@@ -230,6 +230,9 @@ class WorkerPool:
 
             self.tasks_completed += 1
 
+            if self.reflect_tasks and isinstance(result, dict):
+                await self._store_task_reflection(result, task_id)
+
             logger.info(f"Task {task_id} completed successfully")
             return result
 
@@ -280,10 +283,44 @@ class WorkerPool:
         for result in results:
             if isinstance(result, Exception):
                 self.tasks_failed += 1
-            else:
-                self.tasks_completed += 1
+                continue
+            self.tasks_completed += 1
+            if self.reflect_tasks and isinstance(result, dict):
+                # Tasks in a batch share the same per-batch counter — we
+                # didn't track individual task_ids, so derive from result.
+                tid = str(result.get("task_id", f"{self.pool_id}-batch-task"))
+                await self._store_task_reflection(result, tid)
 
         return results
+
+    async def _store_task_reflection(self, result: dict[str, Any], task_id: str) -> None:
+        """Persist a task envelope as a session-buddy reflection when enabled.
+
+        Reuses the existing ``_store_reflection_impl`` helper (see
+        ``session_buddy/mcp/tools/memory/memory_tools.py``). The module-level
+        ``store_reflection`` MCP wrapper is a closure created by the tool
+        registration, so it cannot be imported directly; the impl function
+        is module-level and stable. The import is lazy to avoid
+        circular-import issues with the MCP tools package.
+        Failures are swallowed — reflection is observability, never a
+        critical-path concern.
+        """
+        import json as _json
+
+        try:
+            from .mcp.tools.memory import memory_tools as _memory_tools
+        except Exception:  # noqa: BLE001 — best-effort observability
+            logger.exception("memory_tools import failed; skipping reflection")
+            return
+
+        try:
+            await _memory_tools._store_reflection_impl(
+                content=_json.dumps(result, default=str),
+                tags=["pool-task", f"pool:{self.pool_id}"],
+                project=self.pool_id,
+            )
+        except Exception:  # noqa: BLE001 — best-effort observability
+            logger.warning("Failed to store task reflection for %s", task_id)
 
     async def health_check(self) -> dict[str, Any]:
         """Perform health check on all workers.

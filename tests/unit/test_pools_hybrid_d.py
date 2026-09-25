@@ -8,6 +8,9 @@ into channel-session events (D2) and gated per-task reflection storage
 
 from __future__ import annotations
 
+import asyncio
+from typing import Any
+
 import session_buddy.pools as sp
 from session_buddy.mcp.tools.session.channel_tracking_tools import (
     _store as _channel_store,
@@ -74,3 +77,58 @@ async def test_pool_shutdown_emits_channel_session_end():
         channel_type="pool", channel_id=f"pool:t-chan-end"
     )
     assert len(active) == 0
+
+
+async def test_pool_with_reflect_tasks_stores_reflection(monkeypatch):
+    """``reflect_tasks=True`` writes one reflection per completed task."""
+    import json
+
+    from session_buddy.mcp.tools.memory import memory_tools
+
+    stored: list[dict[str, Any]] = []
+
+    async def fake_store_reflection_impl(content, tags=None, project=None):
+        stored.append({"content": content, "tags": tags, "project": project})
+        return f"ok-{len(stored)}"
+
+    monkeypatch.setattr(
+        memory_tools, "_store_reflection_impl", fake_store_reflection_impl
+    )
+
+    pool = sp.WorkerPool(pool_id="t-reflect", reflect_tasks=True)
+    await pool.initialize()
+    try:
+        await pool.execute("hello reflection")
+        # Allow reflection helper to run
+        assert len(stored) >= 1
+        # Content should be JSON of the envelope
+        envelope = json.loads(stored[-1]["content"])
+        assert "response" in envelope
+        assert envelope["worker_id"].startswith("t-reflect-worker-")
+    finally:
+        await pool.shutdown()
+
+
+async def test_pool_default_no_reflection(monkeypatch):
+    """Default ``reflect_tasks=False`` must NOT write any reflections."""
+    from session_buddy.mcp.tools.memory import memory_tools
+
+    stored: list[int] = []
+
+    async def fake_store_reflection_impl(*a, **kw):
+        stored.append(1)
+        return "ok"
+
+    monkeypatch.setattr(
+        memory_tools, "_store_reflection_impl", fake_store_reflection_impl
+    )
+
+    pool = sp.WorkerPool(pool_id="t-noreflect")  # default reflect_tasks=False
+    await pool.initialize()
+    try:
+        await pool.execute("no reflection please")
+        # Allow reflection helper time to (not) run
+        await asyncio.sleep(0.2)
+        assert len(stored) == 0
+    finally:
+        await pool.shutdown()
