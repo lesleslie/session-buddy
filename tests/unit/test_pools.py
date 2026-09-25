@@ -1092,7 +1092,12 @@ class TestPoolManagerCreatePool:
 
             pool = await manager.create_pool()
 
-            MockPool.assert_called_once_with(pool_id=None)
+            MockPool.assert_called_once_with(
+                pool_id=None,
+                backend="placeholder",
+                model=None,
+                reflect_tasks=False,
+            )
             assert pool.pool_id == "pool_abc12345"
 
     @pytest.mark.asyncio
@@ -1108,7 +1113,12 @@ class TestPoolManagerCreatePool:
 
             pool = await manager.create_pool(pool_id="custom-pool-id")
 
-            MockPool.assert_called_once_with(pool_id="custom-pool-id")
+            MockPool.assert_called_once_with(
+                pool_id="custom-pool-id",
+                backend="placeholder",
+                model=None,
+                reflect_tasks=False,
+            )
 
     @pytest.mark.asyncio
     async def test_create_pool_raises_on_duplicate_id(self):

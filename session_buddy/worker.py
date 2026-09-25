@@ -9,9 +9,99 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
+
+from .bifrost_client import BifrostClient
 
 logger = logging.getLogger(__name__)
+
+
+class Backend(Protocol):
+    """Strategy interface for worker task execution.
+
+    Implementations receive the worker_id and pool_id so they can stamp
+    envelopes without needing a reference back to the Worker itself.
+    """
+
+    async def execute(
+        self, worker_id: str, pool_id: str, task: "Task"
+    ) -> dict[str, Any]: ...
+
+
+class PlaceholderBackend:
+    """Default backend: 100ms sleep, returns 'Processed task: X'.
+
+    Preserves the legacy envelope shape (worker_id, pool_id, task_id,
+    prompt, response, context) so existing callers see byte-identical
+    output for placeholder pools.
+    """
+
+    async def execute(
+        self, worker_id: str, pool_id: str, task: "Task"
+    ) -> dict[str, Any]:
+        await asyncio.sleep(0.1)
+        return {
+            "worker_id": worker_id,
+            "pool_id": pool_id,
+            "task_id": task.task_id,
+            "prompt": task.prompt,
+            "response": f"Processed task: {task.prompt}",
+            "context": task.context,
+        }
+
+
+class LLMBackend:
+    """Bifrost-backed LLM completion backend.
+
+    Calls the Bifrost LLM gateway via ``BifrostClient``. Failures are
+    surfaced as envelope errors rather than raised, so the pool never
+    blocks on a single bad task.
+    """
+
+    def __init__(
+        self,
+        *,
+        model: str = "minimax/MiniMax-M3",
+        base_url: str | None = None,
+        timeout: float = 30.0,
+        system: str | None = None,
+    ) -> None:
+        self.model = model
+        self.system = system
+        self._client = BifrostClient(base_url=base_url, timeout=timeout)
+
+    async def execute(
+        self, worker_id: str, pool_id: str, task: "Task"
+    ) -> dict[str, Any]:
+        try:
+            completion = await self._client.chat(
+                task.prompt,
+                model=task.context.get("model", self.model),
+                system=self.system or task.context.get("system"),
+            )
+            return {
+                "worker_id": worker_id,
+                "pool_id": pool_id,
+                "task_id": task.task_id,
+                "prompt": task.prompt,
+                "response": completion["content"],
+                "context": task.context,
+                "usage": completion["usage"],
+                "model": completion["model"],
+            }
+        except Exception as e:  # noqa: BLE001 — surface as envelope, not raise
+            return {
+                "worker_id": worker_id,
+                "pool_id": pool_id,
+                "task_id": task.task_id,
+                "prompt": task.prompt,
+                "response": None,
+                "context": task.context,
+                "error": f"bifrost_error: {type(e).__name__}: {e}",
+            }
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
 
 class Task:
@@ -113,7 +203,12 @@ class Worker:
     """
 
     def __init__(
-        self, worker_id: str, queue: asyncio.Queue[Task], pool_id: str
+        self,
+        worker_id: str,
+        queue: asyncio.Queue[Task],
+        pool_id: str,
+        *,
+        backend: Backend | None = None,
     ) -> None:
         """Initialize a new worker.
 
@@ -121,10 +216,14 @@ class Worker:
             worker_id: Unique worker identifier
             queue: Task queue to pull from
             pool_id: ID of the parent pool
+            backend: Optional task execution backend. Defaults to
+                :class:`PlaceholderBackend` so existing callers see
+                byte-identical envelopes.
         """
         self.worker_id = worker_id
         self.queue = queue
         self.pool_id = pool_id
+        self.backend: Backend = backend or PlaceholderBackend()
         self.running = False
         self._task: asyncio.Task[None] | None = None
 
@@ -257,31 +356,20 @@ class Worker:
             self.tasks_failed += 1
 
     async def _execute_task_logic(self, task: Task) -> Any:
-        """Execute the actual task logic.
+        """Execute the actual task body via the configured backend.
 
-        This is a placeholder implementation. In a real system, this would
-        delegate to LLM execution, tool use, or other task processing.
+        Hybrid A: the Worker no longer owns task logic — it delegates to
+        ``self.backend.execute``. The default backend is
+        :class:`PlaceholderBackend`, which preserves the legacy
+        "Processed task: X" envelope.
 
         Args:
             task: Task to execute
 
         Returns:
-            Task result
+            Task result dict (shape is backend-defined).
         """
-        # Simulate processing
-        await asyncio.sleep(0.1)
-
-        # Placeholder result - in real system, this would execute actual task
-        result = {
-            "worker_id": self.worker_id,
-            "pool_id": self.pool_id,
-            "task_id": task.task_id,
-            "prompt": task.prompt,
-            "response": f"Processed task: {task.prompt}",
-            "context": task.context,
-        }
-
-        return result
+        return await self.backend.execute(self.worker_id, self.pool_id, task)
 
     async def health_check(self) -> bool:
         """Check if worker is healthy.

@@ -17,11 +17,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def pool_create(pool_id: str | None = None) -> dict[str, Any]:
+async def pool_create(
+    pool_id: str | None = None,
+    *,
+    backend: str = "placeholder",
+    model: str | None = None,
+    reflect_tasks: bool = False,
+) -> dict[str, Any]:
     """Create a new worker pool with exactly 3 workers.
 
     Args:
-        pool_id: Optional pool identifier (auto-generated if not provided)
+        pool_id: Optional pool identifier (auto-generated if not provided).
+        backend: Backend strategy name (``"placeholder"`` or ``"llm"``).
+        model: Optional default model name forwarded to the LLM backend.
+        reflect_tasks: When True, every completed task writes a
+            session-buddy reflection tagged ``pool-task``.
 
     Returns:
         Dictionary with pool status and information
@@ -37,10 +47,15 @@ async def pool_create(pool_id: str | None = None) -> dict[str, Any]:
     """
     manager = await get_pool_manager()
 
-    pool = await manager.create_pool(pool_id=pool_id)
+    pool = await manager.create_pool(
+        pool_id=pool_id,
+        backend=backend,
+        model=model,
+        reflect_tasks=reflect_tasks,
+    )
     status = pool.get_status()
 
-    logger.info(f"Created pool {pool.pool_id}")
+    logger.info(f"Created pool {pool.pool_id} backend={backend}")
 
     return {
         "success": True,
@@ -49,6 +64,7 @@ async def pool_create(pool_id: str | None = None) -> dict[str, Any]:
         "workers_count": status["workers_count"],
         "queue_size": status["queue_size"],
         "created_at": status["created_at"],
+        "metadata": pool.pool_metadata,
     }
 
 
@@ -63,11 +79,11 @@ async def pool_execute(
     Args:
         pool_id: Pool identifier
         prompt: Task prompt/instruction
-        context: Optional execution context
+        context: Optional execution context (model, system, ...)
         timeout: Maximum time to wait for result (seconds)
 
     Returns:
-        Dictionary with execution result
+        Dictionary with execution result, including the backend name.
 
     Example:
         >>> pool_execute("my_pool", "Write Python code", timeout=30.0)
@@ -75,17 +91,18 @@ async def pool_execute(
             "success": True,
             "pool_id": "my_pool",
             "worker_id": "my_pool-worker-1",
-            "result": {...}
+            "result": {...},
+            "backend": "placeholder"
         }
     """
     manager = await get_pool_manager()
 
     try:
-        result = await manager.execute_on_pool(
-            pool_id=pool_id,
-            prompt=prompt,
-            context=context,
-            timeout=timeout,
+        pool = await manager.get_pool(pool_id)
+        if pool is None:
+            return {"success": False, "error": f"Pool {pool_id} not found"}
+        result = await pool.execute(
+            prompt=prompt, context=context, timeout=timeout
         )
 
         logger.info(f"Executed task on pool {pool_id}")
@@ -95,6 +112,7 @@ async def pool_execute(
             "pool_id": pool_id,
             "worker_id": result.get("worker_id"),
             "result": result,
+            "backend": pool.backend_name,
         }
     except Exception as e:
         logger.exception(f"Failed to execute task on pool {pool_id}")
@@ -426,9 +444,26 @@ def _register_pool_execution_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     async def create_pool(
         pool_id: str | None = None,
+        *,
+        backend: str = "placeholder",
+        model: str | None = None,
+        reflect_tasks: bool = False,
     ) -> dict[str, Any]:
-        """Create a new worker pool with exactly 3 workers."""
-        return await pool_create(pool_id=pool_id)
+        """Create a new worker pool with exactly 3 workers.
+
+        Args:
+            pool_id: Optional pool identifier (auto-generated if not provided).
+            backend: Backend strategy name (``"placeholder"`` or ``"llm"``).
+            model: Optional default model name forwarded to the LLM backend.
+            reflect_tasks: When True, every completed task writes a
+                session-buddy reflection tagged ``pool-task``.
+        """
+        return await pool_create(
+            pool_id=pool_id,
+            backend=backend,
+            model=model,
+            reflect_tasks=reflect_tasks,
+        )
 
     @mcp.tool()
     async def execute_on_pool(

@@ -12,9 +12,54 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from .worker import Task, Worker
+from .worker import Backend, LLMBackend, PlaceholderBackend, Task, Worker
+
+# Hybrid D: re-use the existing track_channel_session validator rather
+# than introducing a parallel event pipeline. The validator accepts
+# event_type ∈ {channel_session_start, channel_heartbeat, channel_session_end}.
+# The import is deferred to method bodies to avoid a circular import
+# (``session_buddy.mcp.tools`` eagerly imports ``session_buddy.pools``).
 
 logger = logging.getLogger(__name__)
+
+
+def _emit_channel_session_event(
+    pool_id: str,
+    event_type: str,
+    metadata: dict[str, Any],
+    message_count: int = 0,
+) -> None:
+    """Lazy helper: import the channel store + emit one lifecycle event.
+
+    Defers the import to dodge the pools ↔ mcp.tools circular import.
+    Best-effort: any import or store failure is logged and swallowed so
+    a malformed observer stack never blocks pool lifecycle.
+    """
+    try:
+        from .mcp.tools.session.channel_tracking_tools import (
+            ChannelSessionEvent,
+            _store as _channel_store,
+        )
+    except Exception:  # noqa: BLE001 — observability is best-effort
+        logger.exception("channel_tracking_tools import failed; skipping event")
+        return
+
+    event = ChannelSessionEvent(
+        event_id=str(uuid.uuid4()),
+        event_type=event_type,
+        channel_type="pool",
+        channel_id=f"pool:{pool_id}",
+        sender_id=pool_id,
+        timestamp=datetime.now(UTC).isoformat(),
+        component_name="session-buddy",
+        session_scope="conversation",
+        message_count=message_count,
+        metadata=metadata,
+    )
+    if event_type == "channel_session_start":
+        _channel_store.start(event)
+    elif event_type == "channel_session_end":
+        _channel_store.end(event)
 
 
 # Number of workers per pool (fixed at 3 per architecture)
@@ -28,11 +73,24 @@ class WorkerPool:
     to process tasks asynchronously with health monitoring.
     """
 
-    def __init__(self, pool_id: str | None = None) -> None:
+    def __init__(
+        self,
+        pool_id: str | None = None,
+        *,
+        backend: str = "placeholder",
+        model: str | None = None,
+        reflect_tasks: bool = False,
+    ) -> None:
         """Initialize a new worker pool.
 
         Args:
             pool_id: Optional pool identifier (auto-generated if not provided)
+            backend: Backend strategy name (``"placeholder"`` or ``"llm"``).
+            model: Optional default model name forwarded to LLM backend.
+            reflect_tasks: When True, every completed task writes a
+                session-buddy reflection tagged ``pool-task`` for
+                observability. Default ``False`` preserves byte-identical
+                behaviour for existing pools.
         """
         self.pool_id = pool_id or f"pool_{uuid.uuid4().hex[:8]}"
         self.task_queue: asyncio.Queue[Task] = asyncio.Queue()
@@ -48,6 +106,20 @@ class WorkerPool:
         self.tasks_completed = 0
         self.tasks_failed = 0
 
+        # Hybrid D: backend selection + observability opt-ins.
+        # Defaults preserve byte-identical envelopes for existing callers.
+        self.backend_name = backend
+        self.model = model
+        self.reflect_tasks = reflect_tasks
+        self.pool_metadata: dict[str, Any] = {
+            "backend": backend,
+            "model": model,
+            "reflect_tasks": reflect_tasks,
+        }
+        # Backend instance is set by ``initialize()`` so test code that
+        # bypasses ``initialize()`` can still inject a fake.
+        self._backend_instance: Any = None
+
         logger.info(f"Worker pool {self.pool_id} created")
 
     async def initialize(self) -> None:
@@ -58,11 +130,20 @@ class WorkerPool:
 
         logger.info(f"Initializing {WORKERS_PER_POOL} workers for pool {self.pool_id}")
 
+        # Hybrid A: select the backend strategy for this pool. Each
+        # backend instance is shared across the 3 workers so a single
+        # Bifrost client serves the whole pool.
+        backend: Backend = self._make_backend()
+        self._backend_instance = backend
+
         # Create exactly 3 workers
         for i in range(WORKERS_PER_POOL):
             worker_id = f"{self.pool_id}-worker-{i}"
             worker = Worker(
-                worker_id=worker_id, queue=self.task_queue, pool_id=self.pool_id
+                worker_id=worker_id,
+                queue=self.task_queue,
+                pool_id=self.pool_id,
+                backend=backend,
             )
             self.workers.append(worker)
 
@@ -72,6 +153,14 @@ class WorkerPool:
 
         self.running = True
         self.started_at = datetime.now(UTC)
+
+        # Hybrid D: emit channel_session_start so external observers
+        # (Akosha, Grafana, get_channel_sessions) can discover the pool.
+        _emit_channel_session_event(
+            pool_id=self.pool_id,
+            event_type="channel_session_start",
+            metadata=dict(self.pool_metadata),
+        )
 
         logger.info(f"Pool {self.pool_id} initialized with {len(self.workers)} workers")
 
@@ -92,6 +181,32 @@ class WorkerPool:
 
         self.workers.clear()
         self.running = False
+
+        # Hybrid D: emit channel_session_end so observers can release
+        # the pool session and any subscribers close out cleanly.
+        _emit_channel_session_event(
+            pool_id=self.pool_id,
+            event_type="channel_session_end",
+            metadata={
+                **self.pool_metadata,
+                "tasks_submitted": self.tasks_submitted,
+                "tasks_completed": self.tasks_completed,
+                "tasks_failed": self.tasks_failed,
+            },
+            message_count=self.tasks_completed,
+        )
+
+        # Hybrid A: release the backend (Bifrost HTTP client, etc.) so
+        # pool delete closes the connection cleanly.
+        backend_instance = self._backend_instance
+        self._backend_instance = None
+        if backend_instance is not None and hasattr(backend_instance, "aclose"):
+            try:
+                await backend_instance.aclose()
+            except Exception:  # noqa: BLE001 — best-effort cleanup
+                logger.warning(
+                    "Backend aclose() failed for pool %s", self.pool_id
+                )
 
         logger.info(f"Pool {self.pool_id} shut down")
 
@@ -135,6 +250,9 @@ class WorkerPool:
             result = await task.wait_for_result(timeout=timeout)
 
             self.tasks_completed += 1
+
+            if self.reflect_tasks and isinstance(result, dict):
+                await self._store_task_reflection(result, task_id)
 
             logger.info(f"Task {task_id} completed successfully")
             return result
@@ -186,10 +304,58 @@ class WorkerPool:
         for result in results:
             if isinstance(result, Exception):
                 self.tasks_failed += 1
-            else:
-                self.tasks_completed += 1
+                continue
+            self.tasks_completed += 1
+            if self.reflect_tasks and isinstance(result, dict):
+                # Tasks in a batch share the same per-batch counter — we
+                # didn't track individual task_ids, so derive from result.
+                tid = str(result.get("task_id", f"{self.pool_id}-batch-task"))
+                await self._store_task_reflection(result, tid)
 
         return results
+
+    def _make_backend(self) -> Backend:
+        """Pick a Backend strategy from ``self.backend_name``.
+
+        ``"placeholder"`` is the default and returns a no-op backend that
+        mirrors the legacy "Processed task: X" envelope byte-for-byte.
+        ``"llm"`` returns an :class:`LLMBackend` configured with
+        ``self.model`` (or the default ``minimax/MiniMax-M3``).
+        Unknown names fall back to the placeholder so a misconfigured
+        pool never crashes worker startup.
+        """
+        if self.backend_name == "llm":
+            return LLMBackend(model=self.model) if self.model else LLMBackend()
+        return PlaceholderBackend()
+
+    async def _store_task_reflection(self, result: dict[str, Any], task_id: str) -> None:
+        """Persist a task envelope as a session-buddy reflection when enabled.
+
+        Reuses the existing ``_store_reflection_impl`` helper (see
+        ``session_buddy/mcp/tools/memory/memory_tools.py``). The module-level
+        ``store_reflection`` MCP wrapper is a closure created by the tool
+        registration, so it cannot be imported directly; the impl function
+        is module-level and stable. The import is lazy to avoid
+        circular-import issues with the MCP tools package.
+        Failures are swallowed — reflection is observability, never a
+        critical-path concern.
+        """
+        import json as _json
+
+        try:
+            from .mcp.tools.memory import memory_tools as _memory_tools
+        except Exception:  # noqa: BLE001 — best-effort observability
+            logger.exception("memory_tools import failed; skipping reflection")
+            return
+
+        try:
+            await _memory_tools._store_reflection_impl(
+                content=_json.dumps(result, default=str),
+                tags=["pool-task", f"pool:{self.pool_id}"],
+                project=self.pool_id,
+            )
+        except Exception:  # noqa: BLE001 — best-effort observability
+            logger.warning("Failed to store task reflection for %s", task_id)
 
     async def health_check(self) -> dict[str, Any]:
         """Perform health check on all workers.
@@ -291,11 +457,22 @@ class PoolManager:
         self.running = False
         logger.info("Pool manager stopped")
 
-    async def create_pool(self, pool_id: str | None = None) -> WorkerPool:
+    async def create_pool(
+        self,
+        pool_id: str | None = None,
+        *,
+        backend: str = "placeholder",
+        model: str | None = None,
+        reflect_tasks: bool = False,
+    ) -> WorkerPool:
         """Create a new worker pool.
 
         Args:
             pool_id: Optional pool identifier (auto-generated if not provided)
+            backend: Backend strategy name (``"placeholder"`` or ``"llm"``).
+            model: Optional default model name forwarded to the LLM backend.
+            reflect_tasks: When True, every completed task writes a
+                session-buddy reflection tagged ``pool-task``.
 
         Returns:
             Created pool
@@ -304,7 +481,12 @@ class PoolManager:
             if pool_id and pool_id in self.pools:
                 raise ValueError(f"Pool {pool_id} already exists")
 
-            pool = WorkerPool(pool_id=pool_id)
+            pool = WorkerPool(
+                pool_id=pool_id,
+                backend=backend,
+                model=model,
+                reflect_tasks=reflect_tasks,
+            )
             await pool.initialize()
 
             self.pools[pool.pool_id] = pool
