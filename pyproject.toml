@@ -53,6 +53,7 @@ dependencies = [
 
 [project.scripts]
 session-buddy = "session_buddy.__main__:main"
+session-buddy-fake-gcs = "session_buddy.scripts.fake_gcs:main"
 
 [project.entry-points."bodai.apps"]
 session-buddy = "session_buddy.cli:app"
