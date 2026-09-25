@@ -143,6 +143,41 @@ from session_buddy.utils.fingerprint import MinHashSignature
 logger = logging.getLogger(__name__)
 
 
+def _extract_provenance_from_tags(
+    tags: list[str] | None,
+    *,
+    explicit_session_id: str | None,
+    explicit_artifact_uri: str | None,
+) -> tuple[str | None, str | None]:
+    """Return the effective (source_session_id, source_artifact_uri) for a tag list.
+
+    Track C (2026-09-25): provenance may arrive via ``provenance:<json>``
+    tag entries (Track A-ext2 encoding) or via explicit kwargs. Explicit
+    kwargs win; a tag value is only used when the corresponding kwarg is
+    None. Malformed tags, non-string entries, and non-dict payloads are
+    silently skipped — a write that carries a junk provenance tag should
+    not fail the entire reflection.
+    """
+    session_id = explicit_session_id
+    artifact_uri = explicit_artifact_uri
+    if not tags:
+        return session_id, artifact_uri
+    for tag in tags:
+        if not isinstance(tag, str) or not tag.startswith("provenance:"):
+            continue
+        try:
+            payload = json.loads(tag[len("provenance:") :])
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if session_id is None and payload.get("source_session_id"):
+            session_id = str(payload["source_session_id"])
+        if artifact_uri is None and payload.get("source_artifact_uri"):
+            artifact_uri = str(payload["source_artifact_uri"])
+    return session_id, artifact_uri
+
+
 class _CachedConnection:
     """Wrapper for cached connections with reference counting.
 
@@ -631,6 +666,16 @@ class ReflectionDatabaseAdapterOneiric:
 
                 fingerprint BLOB,
 
+                -- Provenance columns (Track C of serverless-tiering plan,
+                -- 2026-09-25). Populated by store_reflection when callers pass
+                -- ``source_session_id`` / ``source_artifact_uri`` (or when the
+                -- caller has previously encoded provenance as a
+                -- ``provenance:<json>`` tag, which the impl auto-extracts).
+                -- Both columns are NULLABLE: legacy reflections predate the
+                -- encoding; the backfill script populates them in bulk.
+                source_session_id TEXT,
+                source_artifact_uri TEXT,
+
                 FOREIGN KEY (conversation_id) REFERENCES {self._table("conversations")}(id)
             )
             """
@@ -656,6 +701,18 @@ class ReflectionDatabaseAdapterOneiric:
             f"CREATE INDEX IF NOT EXISTS {self._index('refl_created')} ON {self._table('reflections')}({refl_idx_col})"
         )
 
+        # Track C (2026-09-25): index for the new search_by_source_session
+        # MCP tool. Wrapped in suppress so an older DB missing the column
+        # does not abort the whole migration. The companion ADD COLUMN
+        # statements above run first; by the time this fires the column is
+        # guaranteed to exist on every fresh DB, but existing pre-Track-C
+        # databases also see the column added by the ALTER above.
+        with suppress(Exception):
+            self.conn.execute(
+                f"CREATE INDEX IF NOT EXISTS {self._index('refl_source_session')}"
+                f" ON {self._table('reflections')}(source_session_id)"
+            )
+
         # ========================================================================
         # MIGRATION: Add insight columns to existing reflections tables
         # ========================================================================
@@ -678,6 +735,17 @@ class ReflectionDatabaseAdapterOneiric:
         )
         _safe_alter(
             f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP"
+        )
+
+        # Track C provenance columns (2026-09-25). Idempotent: existing
+        # databases get the new NULLABLE columns without breaking legacy
+        # rows. The companion backfill script
+        # (scripts/backfill_reflection_provenance.py) populates them.
+        _safe_alter(
+            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS source_session_id TEXT"
+        )
+        _safe_alter(
+            f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS source_artifact_uri TEXT"
         )
 
         # ========================================================================
@@ -1683,6 +1751,59 @@ class ReflectionDatabaseAdapterOneiric:
             for row in rows
         ]
 
+    async def search_by_source_session(
+        self,
+        session_id: str,
+        *,
+        limit: int = 20,
+    ) -> list[dict[str, t.Any]]:
+        """Return reflections written by ``session_id``, most recent first.
+
+        Track C (2026-09-25): cheap lookup against the new
+        ``reflections_v2.source_session_id`` index. ``session_id`` is
+        the value the caller wrote via ``store_reflection(
+        source_session_id=...)`` or that the pool path encoded as a
+        ``provenance:<json>`` tag and the backfill migrated.
+
+        Args:
+            session_id: The session (or pool) id to filter on. Exact match.
+            limit: Maximum number of rows to return. Default 20.
+
+        Returns:
+            List of dicts with ``id``, ``content``, ``tags``,
+            ``project``, ``source_session_id``, ``source_artifact_uri``,
+            ``created_at``. The list is empty when nothing matches;
+            an unknown ``session_id`` is not an error.
+
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        rows = self.conn.execute(
+            f"""
+            SELECT id, content, tags, project, source_session_id,
+                   source_artifact_uri, created_at
+            FROM {self._table("reflections")}
+            WHERE source_session_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            [session_id, limit],
+        ).fetchall()
+
+        return [
+            {
+                "id": row[0],
+                "content": row[1],
+                "tags": list(row[2]) if row[2] else [],
+                "project": row[3],
+                "source_session_id": row[4],
+                "source_artifact_uri": row[5],
+                "created_at": row[6].isoformat() if row[6] else None,
+            }
+            for row in rows
+        ]
+
     def _get_cached_conversations(
         self,
         query: str,
@@ -1970,6 +2091,9 @@ class ReflectionDatabaseAdapterOneiric:
         deduplicate: bool = False,
         dedup_threshold: float = 0.85,
         project: str | None = None,
+        *,
+        source_session_id: str | None = None,
+        source_artifact_uri: str | None = None,
     ) -> str:
         """Store a reflection with optional tags.
 
@@ -1979,11 +2103,24 @@ class ReflectionDatabaseAdapterOneiric:
             deduplicate: If True, check for duplicates before storing (Phase 4)
             dedup_threshold: Minimum Jaccard similarity to consider a duplicate (0.0 to 1.0)
             project: Optional project identifier to scope the reflection to.
+            source_session_id: Optional provenance pointer to the session
+                (or pool id) that produced this reflection. Persisted in
+                ``reflections.source_session_id`` so ``search_by_source_session``
+                can find it without scanning tags.
+            source_artifact_uri: Optional provenance pointer to the
+                specific artifact (task, log line, etc.) that produced
+                this reflection. Persisted alongside ``source_session_id``.
 
         Bug 3 fix: ``project`` is now accepted and threaded into the INSERT.
         The previous signature dropped the project field silently, which
         meant project-scoped recall (and the ``reflection_stats`` project
         aggregation) saw every reflection as belonging to no project.
+
+        Track C (2026-09-25): ``source_session_id`` and ``source_artifact_uri``
+        are extracted from any ``provenance:<json>`` tag entry written by
+        Track A-ext2 (``WorkerPool._store_task_reflection``). Explicit
+        kwargs take precedence over tag values. Malformed or non-string
+        tag entries are silently ignored.
 
         Returns:
             Unique reflection ID (existing ID if duplicate found and deduplicate=True)
@@ -2018,6 +2155,17 @@ class ReflectionDatabaseAdapterOneiric:
         reflection_id = str(ULID())
         now = datetime.now(tz=UTC)
 
+        # Track C (2026-09-25): extract source_session_id / source_artifact_uri
+        # from any ``provenance:<json>`` tag entry. Explicit kwargs win over
+        # tag-encoded values so callers can override stale tags.
+        extracted_sid, extracted_uri = _extract_provenance_from_tags(
+            tags,
+            explicit_session_id=source_session_id,
+            explicit_artifact_uri=source_artifact_uri,
+        )
+        source_session_id = extracted_sid
+        source_artifact_uri = extracted_uri
+
         # Generate embedding if available
         embedding: list[float] | None = None
         if self.settings.enable_embeddings:
@@ -2035,7 +2183,7 @@ class ReflectionDatabaseAdapterOneiric:
         # set so the table stores both v2 fields (category, importance_score,
         # memory_tier, tags, related_entities, project, namespace, timestamp)
         # and the legacy compatibility columns (created_at, updated_at,
-        # fingerprint).
+        # fingerprint). Track C adds source_session_id and source_artifact_uri.
         if embedding:
             self.conn.execute(
                 f"""
@@ -2043,9 +2191,10 @@ class ReflectionDatabaseAdapterOneiric:
                 (
                     id, content, embedding, category, importance_score,
                     memory_tier, tags, related_entities, project, namespace,
-                    timestamp, created_at, updated_at, fingerprint
+                    timestamp, created_at, updated_at, fingerprint,
+                    source_session_id, source_artifact_uri
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     reflection_id,
@@ -2062,6 +2211,8 @@ class ReflectionDatabaseAdapterOneiric:
                     now,  # created_at (legacy)
                     now,  # updated_at (legacy)
                     fingerprint_bytes,
+                    source_session_id,
+                    source_artifact_uri,
                 ),
             )
         else:
@@ -2071,9 +2222,10 @@ class ReflectionDatabaseAdapterOneiric:
                 (
                     id, content, embedding, category, importance_score,
                     memory_tier, tags, related_entities, project, namespace,
-                    timestamp, created_at, updated_at, fingerprint
+                    timestamp, created_at, updated_at, fingerprint,
+                    source_session_id, source_artifact_uri
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     reflection_id,
@@ -2090,6 +2242,8 @@ class ReflectionDatabaseAdapterOneiric:
                     now,  # created_at
                     now,  # updated_at
                     fingerprint_bytes,
+                    source_session_id,
+                    source_artifact_uri,
                 ),
             )
 

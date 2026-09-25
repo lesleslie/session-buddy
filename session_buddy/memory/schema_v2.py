@@ -108,7 +108,15 @@ CREATE TABLE IF NOT EXISTS reflections_v2 (
     fingerprint BLOB,
     subcategory TEXT,
     -- v2 rewire missed this on initial rewire; legacy reflections has it.
-    metadata JSON
+    metadata JSON,
+
+    -- Provenance columns (Track C of serverless-tiering plan, 2026-09-25).
+    -- Populated by store_reflection when callers pass ``source_session_id`` /
+    -- ``source_artifact_uri`` (or when the caller has previously encoded
+    -- provenance as a ``provenance:<json>`` tag, which the impl auto-extracts).
+    -- Both columns are NULLABLE: legacy reflections predate the encoding.
+    source_session_id TEXT,
+    source_artifact_uri TEXT
 );
 
 -- Entity extraction table (Memori pattern)
@@ -178,6 +186,13 @@ ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS fingerprint BLOB;
 ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS subcategory TEXT;
 ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS metadata JSON;
 
+-- reflections_v2: provenance columns (Track C, 2026-09-25). Both nullable so
+-- existing rows remain valid; the backfill script
+-- (scripts/backfill_reflection_provenance.py) populates them from any
+-- ``provenance:<json>`` tag entries that A-ext2 has already encoded.
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS source_session_id TEXT;
+ALTER TABLE reflections_v2 ADD COLUMN IF NOT EXISTS source_artifact_uri TEXT;
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_conversations_category ON conversations_v2(category, namespace);
 CREATE INDEX IF NOT EXISTS idx_conversations_tier ON conversations_v2(memory_tier, importance_score DESC);
@@ -187,6 +202,11 @@ CREATE INDEX IF NOT EXISTS idx_conversations_access ON conversations_v2(last_acc
 
 CREATE INDEX IF NOT EXISTS idx_reflections_category ON reflections_v2(category, namespace);
 CREATE INDEX IF NOT EXISTS idx_reflections_tier ON reflections_v2(memory_tier);
+-- Index for the new search_by_source_session MCP tool (Track C, 2026-09-25).
+-- The column is NULLABLE so this index covers only non-NULL rows, which is
+-- exactly what ``WHERE source_session_id = ?`` filters on.
+CREATE INDEX IF NOT EXISTS idx_reflections_source_session
+    ON reflections_v2(source_session_id);
 
 CREATE INDEX IF NOT EXISTS idx_entities_type ON memory_entities(entity_type, entity_value);
 CREATE INDEX IF NOT EXISTS idx_entities_memory ON memory_entities(memory_id);
