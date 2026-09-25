@@ -1920,10 +1920,20 @@ class ReflectionDatabaseAdapterOneiric:
             f"SELECT COUNT(*) FROM {self._table('conversations')} WHERE embedding IS NOT NULL"
         ).fetchone()[0]
 
+        # Bug 1 fix: aggregate distinct non-null project values so the
+        # ``reflection_stats`` MCP wrapper can render ``📁 Projects: N``.
+        # The ``WHERE project IS NOT NULL`` guard avoids counting NULL as
+        # a distinct project.
+        project_count = self.conn.execute(
+            f"SELECT COUNT(DISTINCT project) FROM {self._table('reflections')} "
+            "WHERE project IS NOT NULL"
+        ).fetchone()[0]
+
         return {
             "total_conversations": conv_count,
             "total_reflections": refl_count,
             "conversations_with_embeddings": embedding_count,
+            "total_projects": project_count,
             "database_path": self.db_path,
             "collection_name": self.collection_name,
         }
@@ -2292,7 +2302,7 @@ class ReflectionDatabaseAdapterOneiric:
 
         results = self.conn.execute(
             f"""
-            SELECT id, content, tags, created_at, updated_at,
+            SELECT id, content, tags, created_at, updated_at, project,
                    array_cosine_similarity(embedding::FLOAT[384], ?::FLOAT[384]) as similarity
             FROM {self._table("reflections")}
             WHERE embedding IS NOT NULL
@@ -2311,7 +2321,11 @@ class ReflectionDatabaseAdapterOneiric:
                 "tags": list(row[2]) if row[2] else [],
                 "created_at": row[3].isoformat() if row[3] else None,
                 "updated_at": row[4].isoformat() if row[4] else None,
-                "similarity": row[5] or 0.0,
+                # Bug 2 fix: surface ``project`` so quick_search can render
+                # the ``📁 Project: <name>`` line. The text-search path
+                # already had this; the semantic path was missed.
+                "project": row[5],
+                "similarity": row[6] or 0.0,
             }
             for row in results
         ]
@@ -2335,7 +2349,7 @@ class ReflectionDatabaseAdapterOneiric:
 
         results = self.conn.execute(
             f"""
-            SELECT id, content, tags, created_at, updated_at
+            SELECT id, content, tags, created_at, updated_at, project
             FROM {self._table("reflections")}
             WHERE insight_type IS NULL
                 AND (content LIKE ? OR list_contains(tags, ?))
@@ -2353,6 +2367,10 @@ class ReflectionDatabaseAdapterOneiric:
                 "tags": list(row[2]) if row[2] else [],
                 "created_at": row[3].isoformat() if row[3] else None,
                 "updated_at": row[4].isoformat() if row[4] else None,
+                # Bug 2 fix: surface ``project`` so quick_search can render
+                # the ``📁 Project: <name>`` line. The legacy
+                # ``search_conversations`` path already does this for v1.
+                "project": row[5],
             }
             for row in results
         ]

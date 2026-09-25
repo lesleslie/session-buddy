@@ -375,6 +375,46 @@ class TestReflectionDatabaseAdapterSearchReflections:
 
             assert len(results) <= 3
 
+    @pytest.mark.asyncio
+    async def test_search_reflections_returns_project_and_timestamp(
+        self, tmp_path: Path
+    ) -> None:
+        """Bug 2 fix: text-search result rows must include ``project`` and
+        a date key (the base adapter returns ``timestamp``; the Oneiric
+        adapter returns ``created_at``). The MCP wrapper reads both with
+        a fallback chain, so this test pins the base adapter's shape.
+        """
+        adapter = ReflectionDatabaseAdapter(collection_name="test_refl_shape")
+
+        async with adapter as db:
+            await db.store_reflection("hello world", project="acme")
+
+            results = await db.search_reflections("hello", limit=5)
+
+            assert len(results) == 1
+            row = results[0]
+            assert "project" in row, f"missing 'project' in row: {row.keys()}"
+            assert row["project"] == "acme"
+            # Base adapter returns ``timestamp`` (the Oneiric adapter returns
+            # ``created_at``; the MCP wrapper's ``or``-chain handles both).
+            assert "timestamp" in row or "created_at" in row, (
+                f"missing both 'timestamp' and 'created_at': {row.keys()}"
+            )
+            assert row.get("timestamp") or row.get("created_at")
+
+    @pytest.mark.asyncio
+    async def test_search_reflections_null_project_is_none(self, tmp_path: Path) -> None:
+        """NULL ``project`` column must surface as ``None`` (not be dropped)."""
+        adapter = ReflectionDatabaseAdapter(collection_name="test_refl_null_proj")
+
+        async with adapter as db:
+            await db.store_reflection("legacy row")  # project=None
+
+            results = await db.search_reflections("legacy", limit=5)
+
+            assert len(results) == 1
+            assert results[0]["project"] is None
+
 
 class TestReflectionDatabaseAdapterGetStats:
     """Test get_stats functionality."""
@@ -394,7 +434,7 @@ class TestReflectionDatabaseAdapterGetStats:
 
     @pytest.mark.asyncio
     async def test_get_stats_with_data(self, tmp_path: Path) -> None:
-        """Should return accurate counts."""
+        """Should return accurate counts, including distinct project count."""
         import uuid
 
         unique_collection = f"test_stats_data_{uuid.uuid4().hex[:8]}"
@@ -405,11 +445,34 @@ class TestReflectionDatabaseAdapterGetStats:
             await db.store_conversation("Conversation 1")
             await db.store_conversation("Conversation 2")
             await db.store_reflection("Reflection 1")
+            await db.store_reflection("Reflection 2", project="foo")
+            await db.store_reflection("Reflection 3", project="bar")
 
             stats = await db.get_stats()
 
             assert stats["total_conversations"] == 2
-            assert stats["total_reflections"] == 1
+            assert stats["total_reflections"] == 3
+            # Bug 1 fix: distinct non-null project count must be 2 (foo, bar).
+            assert stats["total_projects"] == 2
+
+    @pytest.mark.asyncio
+    async def test_get_stats_total_projects_excludes_null(self, tmp_path: Path) -> None:
+        """Bug 1 fix regression guard: NULL projects must NOT count as a project."""
+        import uuid
+
+        unique_collection = f"test_stats_null_projects_{uuid.uuid4().hex[:8]}"
+
+        adapter = ReflectionDatabaseAdapter(collection_name=unique_collection)
+
+        async with adapter as db:
+            await db.store_reflection("Reflection 1")  # project=None
+            await db.store_reflection("Reflection 2")  # project=None
+            await db.store_reflection("Reflection 3", project="foo")
+
+            stats = await db.get_stats()
+
+            assert stats["total_reflections"] == 3
+            assert stats["total_projects"] == 1  # only "foo" counts
 
 
 class TestReflectionDatabaseAdapterHealthCheck:

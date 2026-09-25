@@ -530,6 +530,81 @@ class TestStoreReflectionImpl:
                 result = await _store_reflection_impl("No tags content")
                 assert "stored" in result.lower() or "success" in result.lower()
 
+    @pytest.mark.asyncio
+    async def test_store_reflection_forwards_project(self):
+        """Bug 1 fix: ``project`` must reach the adapter (which already accepts it).
+
+        Covers the validation-regex envelope: valid project IDs pass through,
+        out-of-regex strings are rejected before the adapter call.
+        """
+        valid_ids = [
+            "mahavishnu",
+            "session-buddy",
+            "path.with.dots_and-dashes",
+            "x",  # 1 char minimum
+            "a" * 128,  # 128 char maximum
+        ]
+        for project in valid_ids:
+            mock_db = AsyncMock()
+            mock_db.store_reflection = AsyncMock(return_value=True)
+            with patch.dict(
+                "session_buddy.mcp.tools.memory.memory_tools.__dict__",
+                {"_reflection_tools_available": True, "_reflection_db": mock_db},
+                clear=False,
+            ):
+                with patch(
+                    "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+                    return_value=mock_db,
+                ):
+                    await _store_reflection_impl("c", ["t"], project=project)
+                    kwargs = mock_db.store_reflection.await_args.kwargs
+                    assert kwargs["project"] == project, (
+                        f"expected project={project!r}, got {kwargs['project']!r}"
+                    )
+
+        invalid_ids = [
+            "",  # empty
+            "a" * 129,  # too long
+            "has spaces",
+            "has/slash",
+            "has;semicolon",  # SQL-injection-like
+            "has'apostrophe",
+            "unicode-名前",  # non-ASCII (regex is ASCII-restricted by design)
+        ]
+        for project in invalid_ids:
+            mock_db = AsyncMock()
+            mock_db.store_reflection = AsyncMock(return_value=True)
+            with patch.dict(
+                "session_buddy.mcp.tools.memory.memory_tools.__dict__",
+                {"_reflection_tools_available": True, "_reflection_db": mock_db},
+                clear=False,
+            ):
+                with patch(
+                    "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+                    return_value=mock_db,
+                ):
+                    result = await _store_reflection_impl("c", ["t"], project=project)
+                    assert "validation" in result.lower() or "must match" in result.lower()
+                    mock_db.store_reflection.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_store_reflection_none_project_is_noop(self):
+        """``project=None`` must NOT trigger validation; the call goes through with project=None."""
+        mock_db = AsyncMock()
+        mock_db.store_reflection = AsyncMock(return_value=True)
+        with patch.dict(
+            "session_buddy.mcp.tools.memory.memory_tools.__dict__",
+            {"_reflection_tools_available": True, "_reflection_db": mock_db},
+            clear=False,
+        ):
+            with patch(
+                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+                return_value=mock_db,
+            ):
+                await _store_reflection_impl("c", ["t"], project=None)
+                kwargs = mock_db.store_reflection.await_args.kwargs
+                assert kwargs["project"] is None
+
 
 # =============================================================================
 # Test Quick Search
@@ -552,18 +627,21 @@ class TestQuickSearchImpl:
 
     @pytest.mark.asyncio
     async def test_quick_search_with_results(self):
-        """Should return search results."""
+        """Should return search results.
+
+        Bug 2 fix: the mock now mirrors the real adapter return shape
+        (``created_at`` ISO string, ``project`` string). The previous mock
+        enshrined the bug — returning ``timestamp`` instead of ``created_at``
+        meant the rendered line always read ``📅 Date: Unknown``.
+        """
         mock_db = AsyncMock()
-        # Bug 2 fix: ``_quick_search_impl`` now calls ``search_reflections``
-        # (the table ``store_reflection`` writes to) rather than
-        # ``search_conversations``. The previous mock enshrined the bug.
         mock_db.search_reflections = AsyncMock(
             return_value=[
                 {
                     "content": "Test result",
                     "project": "test-project",
                     "score": 0.85,
-                    "timestamp": "2023-01-01T12:00:00Z",
+                    "created_at": "2023-01-01T12:00:00",
                 }
             ]
         )
@@ -580,6 +658,37 @@ class TestQuickSearchImpl:
                 result = await _quick_search_impl("test query", min_score=0.7)
                 assert "test query" in result.lower()
                 assert "test result" in result.lower()
+                assert "📁 Project: test-project" in result
+                # Bug 2 fix: the date should now be the real value, not "Unknown".
+                assert "📅 Date: 2023-01-01T12:00:00" in result
+                assert "Unknown" not in result
+
+    @pytest.mark.asyncio
+    async def test_quick_search_with_null_created_at_renders_unknown(self):
+        """Null ``created_at`` row renders ``📅 Date: Unknown`` (not literal ``None``)."""
+        mock_db = AsyncMock()
+        mock_db.search_reflections = AsyncMock(
+            return_value=[
+                {
+                    "content": "Legacy row",
+                    "project": None,
+                    "score": None,
+                    "created_at": None,
+                }
+            ]
+        )
+        with patch.dict(
+            "session_buddy.mcp.tools.memory.memory_tools.__dict__",
+            {"_reflection_tools_available": True, "_reflection_db": mock_db},
+            clear=False,
+        ):
+            with patch(
+                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+                return_value=mock_db,
+            ):
+                result = await _quick_search_impl("legacy")
+                assert "📅 Date: Unknown" in result
+                assert "📅 Date: None" not in result
 
     @pytest.mark.asyncio
     async def test_quick_search_no_results(self):
@@ -935,6 +1044,58 @@ class TestReflectionStatsImpl:
             ):
                 result = await _reflection_stats_impl()
                 assert "error" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_reflection_stats_old_format_branch_renders_total_projects(self):
+        """Bug 1 fix: when ``get_stats`` returns the old-format dict (no
+        ``conversations_count``), ``_format_stats_old`` must render
+        ``📁 Projects: N`` from the new ``total_projects`` key.
+
+        Regression guard: the old code read ``stats.get('projects', 0)``,
+        which was never populated and always rendered 0.
+        """
+        mock_db = AsyncMock()
+        mock_db.get_stats = AsyncMock(
+            return_value={
+                "total_reflections": 100,
+                "total_projects": 5,
+                # Note: NO ``conversations_count`` — forces old-format branch
+            }
+        )
+        with patch.dict(
+            "session_buddy.mcp.tools.memory.memory_tools.__dict__",
+            {"_reflection_tools_available": True, "_reflection_db": mock_db},
+            clear=False,
+        ):
+            with patch(
+                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+                return_value=mock_db,
+            ):
+                result = await _reflection_stats_impl()
+                assert "📁 Projects: 5" in result
+                assert "📁 Projects: 0" not in result
+
+    @pytest.mark.asyncio
+    async def test_reflection_stats_old_format_legacy_projects_key(self):
+        """Backward-compat: legacy ``projects`` key still works for old test fixtures."""
+        mock_db = AsyncMock()
+        mock_db.get_stats = AsyncMock(
+            return_value={
+                "total_reflections": 10,
+                "projects": 3,  # legacy key, no total_projects
+            }
+        )
+        with patch.dict(
+            "session_buddy.mcp.tools.memory.memory_tools.__dict__",
+            {"_reflection_tools_available": True, "_reflection_db": mock_db},
+            clear=False,
+        ):
+            with patch(
+                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+                return_value=mock_db,
+            ):
+                result = await _reflection_stats_impl()
+                assert "📁 Projects: 3" in result
 
 
 # =============================================================================

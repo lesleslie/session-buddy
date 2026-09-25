@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import operator
+import re
 import typing as t
 from typing import TYPE_CHECKING, Any
 
@@ -115,15 +116,28 @@ def _format_score(score: float) -> str:
 # ============================================================================
 
 
+_PROJECT_PATTERN = re.compile(r"^[a-zA-Z0-9._-]{1,128}$")
+
+
 async def _store_reflection_operation(
-    db: ReflectionDatabaseAdapter, content: str, tags: list[str]
+    db: ReflectionDatabaseAdapter,
+    content: str,
+    tags: list[str],
+    project: str | None = None,
 ) -> dict[str, Any]:
-    """Execute reflection storage operation."""
-    success = await db.store_reflection(content, tags=tags)
+    """Execute reflection storage operation.
+
+    Bug 1 fix: thread ``project`` through to the adapter (which already
+    accepts it) so project-scoped recall and the ``reflection_stats``
+    project aggregation see the value. The MCP wrapper signature is the
+    only layer that previously dropped it.
+    """
+    success = await db.store_reflection(content, tags=tags, project=project)
     return {
         "success": success,
         "content": content,
         "tags": tags,
+        "project": project,
         "timestamp": utc_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -135,16 +149,34 @@ def _format_store_reflection_result(result: dict[str, Any]) -> str:
         result["content"],
         result.get("tags"),
         result.get("timestamp"),
+        result.get("project"),
     )
 
 
-async def _store_reflection_impl(content: str, tags: list[str] | None = None) -> str:
-    """Implementation for store_reflection tool."""
+async def _store_reflection_impl(
+    content: str,
+    tags: list[str] | None = None,
+    project: str | None = None,
+) -> str:
+    """Implementation for store_reflection tool.
+
+    Bug 1 fix: accept ``project`` and validate against ``^[a-zA-Z0-9._-]{1,128}$``
+    before threading into the adapter. Defense-in-depth: the MCP server has
+    no auth, so an attacker could otherwise inject arbitrary strings into a
+    column that downstream search queries interpret as a filter value.
+    """
     if not _check_reflection_tools_available():
         return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
 
     try:
         validate_required(content, "content")
+
+        if project is not None:
+            if not isinstance(project, str) or not _PROJECT_PATTERN.match(project):
+                return ToolMessages.validation_error(
+                    "Store reflection",
+                    "project must match ^[a-zA-Z0-9._-]{1,128}$",
+                )
 
         # OWASP memory guard — screens every write before it reaches the DB.
         # ``MemoryGuardBlockedError`` is imported at module top so the
@@ -165,7 +197,7 @@ async def _store_reflection_impl(content: str, tags: list[str] | None = None) ->
         tags = decision.tags
 
         db = await _get_reflection_database()
-        result = await _store_reflection_operation(db, content, tags or [])
+        result = await _store_reflection_operation(db, content, tags or [], project)
         return _format_store_reflection_result(result)
     except MemoryGuardBlockedError:
         raise
@@ -221,7 +253,13 @@ async def _quick_search_operation(
             lines.append(f"📁 Project: {result['project']}")
         if result.get("score") is not None:
             lines.append(f"⭐ Relevance: {_format_score(result['score'])}")
-        lines.append(f"📅 Date: {result.get('timestamp', 'Unknown')}")
+        # Bug 2 fix: the Oneiric adapter returns ``created_at``; the legacy
+        # ``ReflectionDatabaseAdapter`` returns ``timestamp``. Prefer the
+        # modern key but fall back so the wrapper works against both.
+        # The trailing ``or "Unknown"`` handles a NULL row without rendering
+        # the literal string ``"None"``.
+        ts = result.get("created_at") or result.get("timestamp") or "Unknown"
+        lines.append(f"📅 Date: {ts}")
     else:
         lines.extend(
             (
@@ -573,10 +611,16 @@ def _format_new_stats(stats: dict[str, t.Any]) -> list[str]:
 
 
 def _format_stats_old(stats: dict[str, t.Any]) -> list[str]:
-    """Format statistics in old/test format (total_reflections, projects, date_range)."""
+    """Format statistics in old/test format (total_reflections, projects, date_range).
+
+    Bug 1 fix: read ``total_projects`` (populated by ``get_stats``) instead
+    of the legacy ``projects`` key, which was never populated and rendered
+    as 0 forever. Kept ``stats.get('projects', 0)`` fallback for any test
+    fixtures still passing the old shape.
+    """
     output = [
         f"📈 Total reflections: {stats.get('total_reflections', 0)}",
-        f"📁 Projects: {stats.get('projects', 0)}",
+        f"📁 Projects: {stats.get('total_projects', stats.get('projects', 0))}",
     ]
 
     # Add date range if present
@@ -722,9 +766,18 @@ def _register_core_memory_tools(mcp: Any) -> None:
     """
 
     @mcp.tool()  # type: ignore[untyped-decorator]
-    async def store_reflection(content: str, tags: list[str] | None = None) -> str:
-        """Store an important insight or reflection for future reference."""
-        return await _store_reflection_impl(content, tags)
+    async def store_reflection(
+        content: str,
+        tags: list[str] | None = None,
+        project: str | None = None,
+    ) -> str:
+        """Store an important insight or reflection for future reference.
+
+        ``project`` is an optional identifier scoped to the reflection;
+        it must match ``^[a-zA-Z0-9._-]{1,128}$`` and is used by
+        ``quick_search`` / ``reflection_stats`` to filter and aggregate.
+        """
+        return await _store_reflection_impl(content, tags, project)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def quick_search(

@@ -295,6 +295,7 @@ def format_reflection_result(
     content: str,
     tags: list[str] | None = None,
     timestamp: str | None = None,
+    project: str | None = None,
 ) -> str:
     """Format a reflection storage result consistently.
 
@@ -303,6 +304,7 @@ def format_reflection_result(
         content: Content that was stored
         tags: Tags that were applied
         timestamp: When it was stored
+        project: Optional project identifier the reflection was scoped to
 
     Returns:
         Formatted result message
@@ -313,6 +315,7 @@ def format_reflection_result(
         ...     "Important insight",
         ...     ["learning", "bug-fix"],
         ...     "2025-01-12 14:30:00",
+        ...     project="mahavishnu",
         ... )
 
     """
@@ -327,6 +330,9 @@ def format_reflection_result(
 
     if timestamp:
         lines.append(f"📅 Stored: {timestamp}")
+
+    if project:
+        lines.append(f"📁 Project: {project}")
 
     return "\n".join(lines)
 
