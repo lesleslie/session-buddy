@@ -129,9 +129,7 @@ async def _get_via_infisical(key: str) -> str | None:
             "(e.g., dev, prod)."
         )
         raise RuntimeError(msg)
-    adapter_settings = InfisicalSecretSettings(
-        token=token, environment=environment
-    )
+    adapter_settings = InfisicalSecretSettings(token=token, environment=environment)
     return await InfisicalSecretAdapter(adapter_settings).get_secret(key)
 
 

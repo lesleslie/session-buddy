@@ -780,10 +780,12 @@ async def _search_by_source_session_operation(
     lines.append(f"📊 Found {len(rows)} reflection(s)")
     for row in rows:
         snippet = ToolMessages.truncate_text(row["content"], 150)
-        lines.extend((
-            f"  • id={row['id']}  📅 {row.get('created_at') or 'Unknown'}",
-            f"    📝 {snippet}",
-        ))
+        lines.extend(
+            (
+                f"  • id={row['id']}  📅 {row.get('created_at') or 'Unknown'}",
+                f"    📝 {snippet}",
+            )
+        )
         if row.get("project"):
             lines.append(f"    📁 Project: {row['project']}")
         if row.get("source_artifact_uri"):
