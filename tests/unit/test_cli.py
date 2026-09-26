@@ -156,30 +156,40 @@ class TestServerManagement:
 
 class TestCliInternals:
     @patch("builtins.print")
-    def test_start_server_handler_invokes_run_server(
+    @patch("asyncio.run")
+    @patch("mcp_common.server.launch")
+    def test_start_server_handler_invokes_launch_with_lambda_mcp(
         self,
+        mock_launch: MagicMock,
+        mock_asyncio_run: MagicMock,
         mock_print: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        # Patch the implementation module (``cli.base``) directly because
-        # that's where ``start_server_handler`` resolves ``SessionBuddySettings``
-        # via the module-local name. Patching ``cli.SessionBuddySettings``
-        # only mutates the re-exported attribute, not the local binding.
+        # Phase 4d (REQ-013): ``start_server_handler`` delegates to the
+        # canonical mcp-common launcher rather than calling
+        # ``run_server`` directly. Patch the implementation module
+        # (``cli.base``) directly because that's where
+        # ``start_server_handler`` resolves ``SessionBuddySettings`` and
+        # ``launch`` via module-local names.
         from session_buddy.cli import base as cli_base
 
         class FakeSettings:
             http_port = 1234
             websocket_port = 4321
 
-        mock_run_server = MagicMock()
+        fake_mcp = MagicMock(name="mcp")
         monkeypatch.setattr(cli_base, "SessionBuddySettings", FakeSettings)
         # ``_port_holder`` checks if the port is held (lsof); stub it so
         # the test does not depend on whether 1234 is actually free.
         monkeypatch.setattr(cli_base, "_port_holder", lambda _port: None)
+        # ``start_server_handler`` imports ``mcp`` from
+        # ``session_buddy.server_optimized`` at call time; replace the
+        # whole module with a stub that exports a fake ``mcp`` so the
+        # import succeeds without booting the FastMCP machinery.
         monkeypatch.setitem(
             __import__("sys").modules,
             "session_buddy.server_optimized",
-            SimpleNamespace(run_server=mock_run_server),
+            SimpleNamespace(mcp=fake_mcp),
         )
 
         cli_base.start_server_handler()
@@ -187,7 +197,14 @@ class TestCliInternals:
         mock_print.assert_any_call("🚀 Starting Session Management MCP Server...")
         mock_print.assert_any_call("HTTP Port: 1234")
         mock_print.assert_any_call("WebSocket Port: 4321")
-        mock_run_server.assert_called_once_with(host="127.0.0.1", port=1234)
+        mock_launch.assert_called_once()
+        kwargs = mock_launch.call_args.kwargs
+        assert kwargs["component_name"] == "session-buddy"
+        assert kwargs["host"] == "127.0.0.1"
+        assert kwargs["port"] == 1234
+        # build_server is a zero-arg callable (variadic per REQ-003).
+        assert kwargs["build_server"]() is fake_mcp
+        mock_asyncio_run.assert_called_once()
 
     def test_read_running_pid_missing_file(self, tmp_path: Path) -> None:
         from session_buddy.cli import _read_running_pid

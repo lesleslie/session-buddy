@@ -454,6 +454,15 @@ async def health_check(request: Any) -> Any:
         "version": __version__,
         "checks": checks,
     }
+    # Phase 4d (REQ-005): PATCH the existing handler to include the
+    # launcher field for incident triage. Do NOT register a duplicate
+    # ``@app.custom_route("/health", ...)`` — first-or-last-wins chaos
+    # would silently regress the existing contract. The launcher's
+    # version is read at request time so editable-install version drift
+    # doesn't lie about which build served the response.
+    import mcp_common
+
+    body["launcher"] = f"mcp_common.server.launcher@{mcp_common.__version__}"
     return JSONResponse(body, status_code=200 if http_ok else 503)
 
 
@@ -932,6 +941,14 @@ async def quality_monitor() -> str:
 def run_server(host: str = "127.0.0.1", port: int = 8678) -> None:
     """Run the optimized MCP server.
 
+    Backward-compat thin wrapper: the actual FastMCP ``run`` call moved
+    into ``mcp_common.server.launcher.launch`` (Phase 4d, REQ-013). This
+    wrapper preserves the legacy ``run_server(host, port)`` signature for
+    callers in ``session_buddy/cli_with_modes.py`` and
+    ``session_buddy/server.py``. The module-level ``mcp`` instance (above
+    at line 287) is the buildable the launcher's ``build_server`` closure
+    returns.
+
     Args:
         host: Host to bind to (default: 127.0.0.1)
         port: Port to bind to (default: 8678)
@@ -946,44 +963,41 @@ def run_server(host: str = "127.0.0.1", port: int = 8678) -> None:
         )
     )
 
-    try:
-        logger.info("Starting optimized session-buddy server")
+    logger.info("Starting optimized session-buddy server")
 
-        # Log the modular structure
-        logger.info(
-            "Modular components loaded",
-            context={
-                "session_tools": True,
-                "memory_tools": True,
-                "git_operations": True,
-                "logging_utils": True,
-            },
+    # Log the modular structure
+    logger.info(
+        "Modular components loaded",
+        context={
+            "session_tools": True,
+            "memory_tools": True,
+            "git_operations": True,
+            "logging_utils": True,
+        },
+    )
+
+    if not MCP_AVAILABLE:
+        logger.warning("Running in mock mode - FastMCP not available")
+        return
+
+    # Delegate to the canonical launcher. transport="http" + uvicorn grace
+    # timeout are pinned by mcp-common so per-component callers can't drift
+    # off the fleet standard. uvicorn_config={"timeout_graceful_shutdown":
+    # 30} replaces the legacy 2s default — session_lifecycle's end_session
+    # cleanup (PRE/SESSION hooks, quality_assessment, handoff-doc generation)
+    # needs the wider window to complete without being cut off mid-shutdown.
+    from mcp_common.server import launch
+
+    asyncio.run(
+        launch(
+            build_server=lambda: mcp,
+            component_name="session-buddy",
+            secrets_path=Path("~/.config/secrets.env"),
+            settings_path=None,
+            host=host,
+            port=port,
         )
-
-        if MCP_AVAILABLE:
-            # Use streamable-http transport for HTTP endpoint.
-            #
-            # ``uvicorn_config={"timeout_graceful_shutdown": 30}`` overrides
-            # FastMCP's hardcoded 2-second default (see
-            # ``fastmcp/server/mixins/transport.py:345``). 30s gives
-            # ``session_lifecycle``'s ``end_session`` cleanup room to
-            # complete PRE/SESSION hooks, ``perform_quality_assessment``
-            # and handoff-doc generation without being cut off mid-shutdown.
-            # Pending-checkpoint marker drain was moved to startup, so
-            # the remaining in-shutdown work fits inside 30s.
-            mcp.run(
-                transport="streamable-http",
-                host=host,
-                port=port,
-                path="/mcp",
-                uvicorn_config={"timeout_graceful_shutdown": 30},
-            )
-        else:
-            logger.warning("Running in mock mode - FastMCP not available")
-
-    except Exception:
-        logger.exception("Server startup failed")
-        sys.exit(1)
+    )
 
 
 if __name__ == "__main__":

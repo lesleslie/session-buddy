@@ -122,8 +122,21 @@ def start_server_handler() -> None:
     operator a clear message ("port 8678 is held by PID N") and avoids
     the bind-then-die cycle that previously required manual
     ``/mcp`` reconnects.
+
+    Phase 4d (launcher migration, REQ-013): the FastMCP ``run`` call
+    moved into ``mcp_common.server.launcher.launch`` so HTTP transport,
+    ``uvicorn_config={"timeout_graceful_shutdown": 30}``, and ``setdefault``
+    secrets loading are enforced by mcp-common rather than scattered
+    across per-component glue. ``mcp`` is the module-level ``FastMCP``
+    instance built in ``server_optimized.py`` with the ``session_lifecycle``
+    lifespan and version wiring — the launcher calls ``mcp.run_async`` via
+    ``run_with_uvicorn_config``. SIGTERM handling stays in mcp-common's
+    pre-launch sequence (the factory's ``_register_signal_handlers`` runs
+    before this handler).
     """
-    from session_buddy.server_optimized import run_server
+    from mcp_common.server import launch
+
+    from session_buddy.server_optimized import mcp
 
     settings = SessionBuddySettings()
 
@@ -143,8 +156,19 @@ def start_server_handler() -> None:
         )
         raise SystemExit(msg)
 
-    # Launch the server with HTTP transport
-    run_server(host="127.0.0.1", port=settings.http_port)
+    # ``mcp`` is the module-level FastMCP instance (server_optimized.py:287)
+    # with the ``session_lifecycle`` lifespan already wired. The launcher
+    # handles transport="http", uvicorn grace timeout, and secrets loading.
+    asyncio.run(
+        launch(
+            build_server=lambda: mcp,
+            component_name="session-buddy",
+            secrets_path=Path("~/.config/secrets.env"),
+            settings_path=None,
+            host="127.0.0.1",
+            port=settings.http_port,
+        )
+    )
 
 
 def _port_holder(port: int) -> tuple[int, str] | None:
