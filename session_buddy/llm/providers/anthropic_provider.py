@@ -31,7 +31,7 @@ def _ensure_anthropic_module() -> ModuleType:
     if "anthropic" in sys.modules:
         return sys.modules["anthropic"]  # type: ignore[return-value]
     try:
-        import anthropic as _real_anthropic  # noqa: F401 - side-effect: cache in sys.modules
+        import anthropic as _real_anthropic  # noqa: F401 - side-effect: cache in sys.modules  # ty: ignore[unresolved-import]
     except ImportError:
         stub = ModuleType("anthropic")
         stub.AsyncAnthropic = None  # ty: ignore[unresolved-attribute]
@@ -57,7 +57,7 @@ class AnthropicProvider(LLMProvider):
     async def _get_client(self) -> Any:
         if self._client is None:
             try:
-                import anthropic
+                import anthropic  # ty: ignore[unresolved-import]
             except ImportError:  # pragma: no cover - stub prevents this in tests
                 msg = "Anthropic package not installed. Install with: pip install anthropic"
                 raise ImportError(msg)
