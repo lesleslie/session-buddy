@@ -9,6 +9,26 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.29.0] - 2026-09-26
+
+### Added
+
+- Migrate launcher to mcp_common.server.launcher.launch() (Phase 4d)
+
+### Changed
+
+- session-buddy: Ruff-format auto-fixes from crackerjack run
+
+### Documentation
+
+- session-buddy: Align launcher-discovery frontmatter role with peers
+- session-buddy: Phase 4b launcher server-subcommand discovery (REQ-013)
+
+### Internal
+
+- deps: Bump mcp-common floor to >=0.28.0 for launcher migration (Phase 4)
+- session-buddy: Ty ignore for 11 optional adapter imports
+
 ## [0.28.0] - 2026-09-26
 
 ### Added
