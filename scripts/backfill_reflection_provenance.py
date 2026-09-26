@@ -171,9 +171,7 @@ def main(
             continue
         if updated or skipped:
             mode = "[dry-run] " if dry_run else ""
-            print(
-                f"  {mode}{db_path}: updated={updated} skipped={skipped}"
-            )
+            print(f"  {mode}{db_path}: updated={updated} skipped={skipped}")
         total_updated += updated
         total_skipped += skipped
 

@@ -88,10 +88,13 @@ async def capture_conversation_context(
                 lines.append(f"Trend: {trend}")
             lines.extend(["", ""])
 
-    # Session context if available
-    if manager.session_context:
+    # Session context if available (attribute is optional; never declared on
+    # ``SessionLifecycleManager`` — defensive read preserves the "skip if
+    # absent" intent of the original code).
+    session_context = getattr(manager, "session_context", None)
+    if session_context:
         lines.append("## Session Context")
-        for key, value in manager.session_context.items():
+        for key, value in session_context.items():
             if isinstance(value, (str, int, float, bool)):
                 lines.append(f"{key}: {value}")
             elif isinstance(value, list):

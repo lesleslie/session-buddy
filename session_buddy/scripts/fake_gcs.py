@@ -12,6 +12,7 @@ Environment variables consumed by the underlying shell scripts:
 - GCS_ENDPOINT (default ``http://127.0.0.1:4443``)
 - GCS_PROJECT (default ``local-dev``)
 """
+
 from __future__ import annotations
 
 import os

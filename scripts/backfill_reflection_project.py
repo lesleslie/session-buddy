@@ -15,6 +15,7 @@ The default project value is ``"legacy"`` (chosen as a sentinel so operators
 can distinguish pre-project-field reflections from new ones). To backfill
 with a different value, edit the ``DEFAULT_PROJECT`` constant below.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -94,8 +95,8 @@ def cli() -> None:
     )
     args = parser.parse_args()
 
-    exit_code = asyncio.run(main(args.dry_run))
-    sys.exit(0 if exit_code is not None else 0)
+    asyncio.run(main(args.dry_run))
+    sys.exit(0)
 
 
 if __name__ == "__main__":

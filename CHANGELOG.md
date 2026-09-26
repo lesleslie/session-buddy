@@ -9,6 +9,45 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.28.0] - 2026-09-26
+
+### Added
+
+- Add OpenAI-compat BifrostClient for LLM gateway
+- mcp: Pool_execute threads context to backend, surface backend name in envelope
+- mcp: Return structured dicts from pool tool wrappers
+- mcp: Thread backend, model, reflect_tasks through create_pool wrapper
+- Oneiric secrets adapter for BifrostClient credentials
+- pools: Add backend, model, reflect_tasks params to WorkerPool
+- pools: Emit channel_session_start/end events on pool lifecycle
+- pools: Opt-in per-task reflection storage via reflect_tasks flag
+- pools: Thread source_session_id + source_artifact_uri into task reflections
+- reflections: Add source_session_id + source_artifact_uri columns
+- reflections: Idempotent backfill script for provenance columns
+- reflections: Search_by_source_session MCP tool
+- reflections: Store_reflection extracts provenance from provenance: tags
+- Register pool tools + subagent_marker in optimized server
+- storage: Default backend → gcs; add bucket-name mapping
+- storage: Fake-gcs-server lifecycle scripts + 4-bucket layout
+- worker: Backend protocol with PlaceholderBackend + LLMBackend
+
+### Fixed
+
+- Correct 3 bugs blocking scripts/backfill_reflection_project.py
+- memory: Thread project through store_reflection + render real dates in quick_search
+
+### Testing
+
+- pools: End-to-end integration test for pool lifecycle observability
+- pools: Integration smoke for LLM-backed pool (skips if Bifrost down)
+- pools: Migrate stale wrapper-format assertions to structured-dict shape
+- storage: Integration smoke for fake-gcs-server backend
+
+### Internal
+
+- reflections: Drop 4 dead insight columns + add project backfill script
+- Remove dead insights pipeline (1,830 LOC) + clean up doc drift
+
 ## [0.27.1] - 2026-09-21
 
 ### Fixed

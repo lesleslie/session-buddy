@@ -24,7 +24,7 @@ class Backend(Protocol):
     """
 
     async def execute(
-        self, worker_id: str, pool_id: str, task: "Task"
+        self, worker_id: str, pool_id: str, task: Task
     ) -> dict[str, Any]: ...
 
 
@@ -36,9 +36,7 @@ class PlaceholderBackend:
     output for placeholder pools.
     """
 
-    async def execute(
-        self, worker_id: str, pool_id: str, task: "Task"
-    ) -> dict[str, Any]:
+    async def execute(self, worker_id: str, pool_id: str, task: Task) -> dict[str, Any]:
         await asyncio.sleep(0.1)
         return {
             "worker_id": worker_id,
@@ -70,9 +68,7 @@ class LLMBackend:
         self.system = system
         self._client = BifrostClient(base_url=base_url, timeout=timeout)
 
-    async def execute(
-        self, worker_id: str, pool_id: str, task: "Task"
-    ) -> dict[str, Any]:
+    async def execute(self, worker_id: str, pool_id: str, task: Task) -> dict[str, Any]:
         try:
             completion = await self._client.chat(
                 task.prompt,

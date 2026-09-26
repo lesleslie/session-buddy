@@ -161,7 +161,7 @@ class WorkerPool:
         _emit_channel_session_event(
             pool_id=self.pool_id,
             event_type="channel_session_start",
-            metadata=dict(self.pool_metadata),
+            metadata=self.pool_metadata.copy(),
         )
 
         logger.info(f"Pool {self.pool_id} initialized with {len(self.workers)} workers")
@@ -189,12 +189,10 @@ class WorkerPool:
         _emit_channel_session_event(
             pool_id=self.pool_id,
             event_type="channel_session_end",
-            metadata={
-                **self.pool_metadata,
-                "tasks_submitted": self.tasks_submitted,
-                "tasks_completed": self.tasks_completed,
-                "tasks_failed": self.tasks_failed,
-            },
+            metadata=self.pool_metadata
+            | {"tasks_submitted": self.tasks_submitted}
+            | {"tasks_completed": self.tasks_completed}
+            | {"tasks_failed": self.tasks_failed},
             message_count=self.tasks_completed,
         )
 
@@ -360,9 +358,7 @@ class WorkerPool:
         try:
             provenance = {
                 "source_session_id": self.pool_id,
-                "source_artifact_uri": (
-                    f"pool://{self.pool_id}/task/{task_id}"
-                ),
+                "source_artifact_uri": (f"pool://{self.pool_id}/task/{task_id}"),
             }
             await _memory_tools._store_reflection_impl(
                 content=_json.dumps(result, default=str),

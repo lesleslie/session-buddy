@@ -1509,7 +1509,6 @@ class SessionLifecycleManager:
             traceback.print_exc()  # Print full traceback for debugging
             return {"success": False, "error": f"{type(e).__name__}: {e}"}
 
-
     async def _store_conversation_checkpoint_if_enabled(
         self,
         checkpoint_type: str = "checkpoint",

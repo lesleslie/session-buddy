@@ -51,7 +51,6 @@ from session_buddy.ingesters.redaction import (
 )
 from session_buddy.memory.category_evolution import CategoryEvolutionEngine
 
-
 _SAFE_COLLECTION_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
 _SQL_KEYWORDS = frozenset(
     {
@@ -100,11 +99,12 @@ def _validate_collection_name(collection_name: str) -> str:
     for keyword in _SQL_KEYWORDS:
         if keyword in upper_name:
             msg = (
-                f"Collection name '{collection_name}' contains SQL keyword "
-                f"'{keyword}'"
+                f"Collection name '{collection_name}' contains SQL keyword '{keyword}'"
             )
             raise ValueError(msg)
     return collection_name
+
+
 from session_buddy.memory.causal import (
     infer_causal_links_for as _infer_causal_links_for,
 )
@@ -167,7 +167,7 @@ def _extract_provenance_from_tags(
             continue
         try:
             payload = json.loads(tag[len("provenance:") :])
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             continue
         if not isinstance(payload, dict):
             continue

@@ -101,9 +101,7 @@ async def pool_execute(
         pool = await manager.get_pool(pool_id)
         if pool is None:
             return {"success": False, "error": f"Pool {pool_id} not found"}
-        result = await pool.execute(
-            prompt=prompt, context=context, timeout=timeout
-        )
+        result = await pool.execute(prompt=prompt, context=context, timeout=timeout)
 
         logger.info(f"Executed task on pool {pool_id}")
 

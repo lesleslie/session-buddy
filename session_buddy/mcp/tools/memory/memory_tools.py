@@ -169,6 +169,64 @@ def _format_store_reflection_result(result: dict[str, Any]) -> str:
     )
 
 
+def _validate_project_format(project: str | None) -> None:
+    """Raise ``ValidationError`` when ``project`` is set but does not match the allowed pattern.
+
+    Extracted from ``_store_reflection_impl`` to keep that function's
+    cyclomatic complexity below the project threshold (pyscn default 15).
+    """
+    if project is not None and (
+        not isinstance(project, str) or not _PROJECT_PATTERN.match(project)
+    ):
+        raise ValidationError(
+            "project must match ^[a-zA-Z0-9._-]{1,128}$",
+        )
+
+
+async def _screen_and_persist_reflection(
+    content: str,
+    tags: list[str] | None,
+    project: str | None,
+    *,
+    source_session_id: str | None,
+    source_artifact_uri: str | None,
+) -> dict[str, Any]:
+    """Run the OWASP memory-guard screen, then persist via the reflection adapter.
+
+    Returns the storage result dict; raises ``MemoryGuardBlockedError`` when
+    the guard vetoes the write. Extracted from ``_store_reflection_impl``
+    to keep the orchestrator's cyclomatic complexity below the project
+    threshold (pyscn default 15).
+    """
+    # OWASP memory guard — screens every write before it reaches the DB.
+    # ``MemoryGuardBlockedError`` is imported at module top so the
+    # ``except`` clause in the caller can name it even when ``validate_required``
+    # raises before this import block executes.
+    from session_buddy.security.memory_guard_adapter import (
+        GuardAction,
+        MemoryGuardAdapter,
+    )
+
+    guard = MemoryGuardAdapter()
+    decision = guard.screen(content, tags)
+    if decision.action == GuardAction.BLOCK:
+        raise MemoryGuardBlockedError(
+            f"Memory guard blocked write: rule={decision.matched_rule}"
+        )
+    content = decision.content
+    tags = decision.tags
+
+    db = await _get_reflection_database()
+    return await _store_reflection_operation(
+        db,
+        content,
+        tags or [],
+        project,
+        source_session_id=source_session_id,
+        source_artifact_uri=source_artifact_uri,
+    )
+
+
 async def _store_reflection_impl(
     content: str,
     tags: list[str] | None = None,
@@ -196,37 +254,11 @@ async def _store_reflection_impl(
 
     try:
         validate_required(content, "content")
+        _validate_project_format(project)
 
-        if project is not None:
-            if not isinstance(project, str) or not _PROJECT_PATTERN.match(project):
-                return ToolMessages.validation_error(
-                    "Store reflection",
-                    "project must match ^[a-zA-Z0-9._-]{1,128}$",
-                )
-
-        # OWASP memory guard — screens every write before it reaches the DB.
-        # ``MemoryGuardBlockedError`` is imported at module top so the
-        # ``except`` clause below can name it even when ``validate_required``
-        # raises before this import block executes.
-        from session_buddy.security.memory_guard_adapter import (
-            GuardAction,
-            MemoryGuardAdapter,
-        )
-
-        guard = MemoryGuardAdapter()
-        decision = guard.screen(content, tags)
-        if decision.action == GuardAction.BLOCK:
-            raise MemoryGuardBlockedError(
-                f"Memory guard blocked write: rule={decision.matched_rule}"
-            )
-        content = decision.content
-        tags = decision.tags
-
-        db = await _get_reflection_database()
-        result = await _store_reflection_operation(
-            db,
+        result = await _screen_and_persist_reflection(
             content,
-            tags or [],
+            tags,
             project,
             source_session_id=source_session_id,
             source_artifact_uri=source_artifact_uri,
@@ -748,8 +780,10 @@ async def _search_by_source_session_operation(
     lines.append(f"📊 Found {len(rows)} reflection(s)")
     for row in rows:
         snippet = ToolMessages.truncate_text(row["content"], 150)
-        lines.append(f"  • id={row['id']}  📅 {row.get('created_at') or 'Unknown'}")
-        lines.append(f"    📝 {snippet}")
+        lines.extend((
+            f"  • id={row['id']}  📅 {row.get('created_at') or 'Unknown'}",
+            f"    📝 {snippet}",
+        ))
         if row.get("project"):
             lines.append(f"    📁 Project: {row['project']}")
         if row.get("source_artifact_uri"):
