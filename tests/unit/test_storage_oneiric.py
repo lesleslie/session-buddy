@@ -758,4 +758,128 @@ class TestAclse:
         """Test aclose() doesn't require cleanup for file storage."""
         storage = storage_oneiric.StorageBaseOneiric("file")
         # Should not raise
-        await storage.aclose()
+
+
+class TestGCSBackend:
+    """GCS backend wiring — round-trip via fake-gcs-server.
+
+    Validates:
+        1. ``gcs`` is in SUPPORTED_BACKENDS (no ValueError on register).
+        2. ``StorageAdapterSettings`` carries 4 GCS fields with None defaults.
+        3. ``GCSStorageOneiric`` translates ``(bucket, path)`` to oneiric's
+           ``key`` and round-trips bytes through fake-gcs-server.
+
+    Skips automatically if fake-gcs-server is not on PATH.
+    """
+
+    def test_gcs_in_supported_backends(self) -> None:
+        assert "gcs" in storage_oneiric.SUPPORTED_BACKENDS
+
+    def test_storage_adapter_settings_has_gcs_fields(self) -> None:
+        """The wrapper needs 4 GCS fields to construct oneiric's GCSStorageSettings."""
+        settings = StorageAdapterSettings()
+        assert hasattr(settings, "gcs_bucket")
+        assert hasattr(settings, "gcs_endpoint_url")
+        assert hasattr(settings, "gcs_project")
+        assert hasattr(settings, "gcs_credentials_path")
+        assert settings.gcs_bucket is None
+        assert settings.gcs_endpoint_url is None
+        assert settings.gcs_project is None
+        assert settings.gcs_credentials_path is None
+
+    def test_register_gcs_returns_gcs_storage_adapter(self) -> None:
+        """register_storage_adapter('gcs', ...) returns a GCSStorageOneiric instance.
+
+        Without the wiring fix, this raises ValueError("Unsupported backend: gcs").
+        """
+        import shutil
+
+        if shutil.which("fake-gcs-server") is None:
+            pytest.skip("fake-gcs-server not on PATH; skip without emulator")
+
+        adapter = storage_oneiric.register_storage_adapter(
+            "gcs",
+            config_overrides={
+                "default_backend": "gcs",
+                "buckets": {"sessions": "sessions-bucket"},
+                "local_path": Path("/tmp"),
+                "gcs_bucket": "sessions-bucket",
+                "gcs_endpoint_url": "http://127.0.0.1:4443",
+                "gcs_project": "local-dev",
+            },
+        )
+        assert isinstance(adapter, storage_oneiric.GCSStorageOneiric)
+        assert adapter.backend == "gcs"
+        assert adapter.buckets == {"sessions": "sessions-bucket"}
+        assert adapter.settings.gcs_endpoint_url == "http://127.0.0.1:4443"
+
+    @pytest.mark.asyncio
+    async def test_gcs_round_trip_via_fake_gcs_server(
+        self, tmp_path_factory: pytest.TempPathFactory
+    ) -> None:
+        """End-to-end: upload → download via fake-gcs-server subprocess."""
+        import shutil
+        import socket
+        import subprocess
+        import time
+
+        if shutil.which("fake-gcs-server") is None:
+            pytest.skip("fake-gcs-server not on PATH; install via: brew install fake-gcs-server")
+
+        # Dynamic port to avoid collisions with orphans.
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+
+        data_dir = tmp_path_factory.mktemp("fake-gcs")
+
+        proc = subprocess.Popen(
+            [
+                "fake-gcs-server",
+                "-filesystem-root", str(data_dir),
+                "-port", str(port),
+                "-host", "127.0.0.1",
+                "-public-host", f"127.0.0.1:{port}",
+                "-location", "US-CENTRAL1",
+                "-scheme", "http",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        def port_open(host: str, port: int, timeout: float = 10.0) -> bool:
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+                    if probe.connect_ex((host, port)) == 0:
+                        return True
+                time.sleep(0.1)
+            return False
+
+        try:
+            assert port_open("127.0.0.1", port), "fake-gcs-server did not start in 10s"
+            (data_dir / "sessions-bucket").mkdir(parents=True, exist_ok=True)
+
+            settings = StorageAdapterSettings(
+                default_backend="gcs",
+                buckets={"sessions": "sessions-bucket"},
+                local_path=Path("/tmp"),
+                gcs_bucket="sessions-bucket",
+                gcs_endpoint_url=f"http://127.0.0.1:{port}",
+                gcs_project="local-dev",
+            )
+            adapter = storage_oneiric.GCSStorageOneiric(settings=settings)
+
+            await adapter.upload("sessions", "hello.txt", b"hello-world")
+            result = await adapter.download("sessions", "hello.txt")
+            assert result == b"hello-world"
+            assert await adapter.exists("sessions", "hello.txt") is True
+
+            await adapter.delete("sessions", "hello.txt")
+            assert await adapter.exists("sessions", "hello.txt") is False
+        finally:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()

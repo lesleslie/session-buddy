@@ -71,6 +71,13 @@ class StorageAdapterSettings:
     default_backend: str = "file"
     buckets: dict[str, str] = field(default_factory=dict)
     local_path: Path = field(default_factory=_resolve_data_dir)
+    # GCS backend fields (optional; consumed by GCSStorageOneiric).
+    # Bound from session-buddy.yaml `storage.gcs.*` via Oneiric's nested
+    # loader — see audit_session_buddy_settings_wiring.py.
+    gcs_bucket: str | None = None
+    gcs_endpoint_url: str | None = None
+    gcs_project: str | None = None
+    gcs_credentials_path: str | None = None
 
     @classmethod
     def from_settings(cls) -> StorageAdapterSettings:
