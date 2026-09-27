@@ -157,6 +157,19 @@ tests/archived/
 # XDG - State directories
 .claude/*
 !.claude/settings.json
+# Shared team content (whitelisted — decisions, agents, workflows, skills).
+# `.claude/*` excludes all contents; re-include the directory entry first,
+# then the recursive `**` pattern. settings.json stays shared (whitelisted
+# above). Pattern matches mahavishnu's allowlist style. Per
+# oneiric/docs/adr/0001-deployability-discipline.md.
+!.claude/decisions/
+!.claude/decisions/**
+!.claude/agents/
+!.claude/agents/**
+!.claude/workflows/
+!.claude/workflows/**
+!.claude/skills/
+!.claude/skills/**
 .session-buddy/
 .skylos/
 .crackerjack/
