@@ -260,4 +260,15 @@ test-results/
 # `.scratch` is load-bearing — the gitignore rule only matches with it.
 docs/assets/images/.scratch/
 docs/assets/images/.scratch/**
+# Runtime data dirs (added 2026-09-26 fleet cleanup)
+data/
+# Backup files (added 2026-09-26 fleet cleanup)
+.gitignore.bak.*
+.gitignore.tmp
+# Coverage.py SQLite database (runtime artifact)
+.cov_test
+# Complexipy scanner output
+complexipy*.json
+# pytest-benchmark baseline output
+benchmark_baseline.json
 # <<< bodai-shared-gitignore <<<
