@@ -16,6 +16,7 @@ Key Features:
 
 from __future__ import annotations
 
+import asyncio
 import typing as t
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -40,7 +41,7 @@ class StorageProtocol(t.Protocol):
 
 
 # Supported storage backend types
-SUPPORTED_BACKENDS = ("file", "memory")
+SUPPORTED_BACKENDS = ("file", "memory", "gcs")
 
 
 class StorageBaseOneiric:
@@ -334,6 +335,136 @@ class MemoryStorageOneiric(StorageBaseOneiric):
         self._memory_store: dict[str, bytes] = {}
 
 
+class GCSStorageOneiric:
+    """Oneiric-compatible Google Cloud Storage adapter.
+
+    Wraps oneiric's ``GCSStorageAdapter`` lazily so installations that only
+    use ``file`` or ``memory`` backends don't pull google-cloud-storage as
+    a hard dependency. The bucket→gcs-bucket mapping is read from
+    ``settings.buckets`` (same convention as ``FileStorageOneiric``):
+    ``buckets["sessions"]`` is the GCS bucket name, ``path`` is the object
+    key within that bucket. Endpoint URL + project + credentials are
+    sourced from ``settings.gcs_*`` fields.
+    """
+
+    def __init__(self, settings: StorageAdapterSettings | None = None) -> None:
+        self.backend = "gcs"
+        self.settings = settings or StorageAdapterSettings.from_settings()
+        self.buckets: dict[str, str] = self.settings.buckets
+        self._adapters: dict[str, t.Any] = {}  # gcs_bucket_name -> GCSStorageAdapter
+        self._initialized = False
+        self._aclose_started = False
+
+    @property
+    def _settings(self) -> t.Any:
+        """Backwards-compat alias used by some call sites in tests.
+
+        Older call sites attribute-named ``_settings``; keep the alias
+        so existing fixtures that load via ``StorageAdapterSettings``-shaped
+        mocks don't break.
+        """
+        return self.settings
+
+    def _resolve_gcs_bucket(self, bucket: str) -> str:
+        if bucket not in self.buckets:
+            msg = f"Bucket not configured: {bucket}"
+            raise ValueError(msg)
+        return self.buckets[bucket]
+
+    async def _adapter_for(self, bucket: str) -> t.Any:
+        """Lazy-init oneiric's GCSStorageAdapter for the given logical bucket."""
+        gcs_bucket = self._resolve_gcs_bucket(bucket)
+        if gcs_bucket not in self._adapters:
+            try:
+                from oneiric.adapters.storage.gcs import (
+                    GCSStorageAdapter,
+                    GCSStorageSettings,
+                )
+            except ModuleNotFoundError as exc:
+                msg = (
+                    "GCS backend requires oneiric[storage-gcs] or 'google-cloud-storage'"
+                )
+                raise RuntimeError(msg) from exc
+            credentials_file = self.settings.gcs_credentials_path
+            self._adapters[gcs_bucket] = GCSStorageAdapter(
+                settings=GCSStorageSettings(
+                    bucket=gcs_bucket,
+                    endpoint_url=self.settings.gcs_endpoint_url,
+                    project=self.settings.gcs_project,
+                    credentials_file=Path(credentials_file)
+                    if credentials_file
+                    else None,
+                )
+            )
+        adapter = self._adapters[gcs_bucket]
+        # Idempotent init — oneiric's adapter tracks _client internally.
+        if not getattr(adapter, "_client", None):
+            await adapter.init()
+        return adapter
+
+    async def init(self) -> None:
+        if self._initialized:
+            return
+        for logical_bucket in list(self.buckets.keys()):
+            await self._adapter_for(logical_bucket)
+        self._initialized = True
+
+    async def aclose(self) -> None:
+        if self._aclose_started:
+            return
+        self._aclose_started = True
+        for adapter in self._adapters.values():
+            cleanup = getattr(adapter, "cleanup", None)
+            if callable(cleanup):
+                result = cleanup()
+                if asyncio.iscoroutine(result):
+                    await result  # type: ignore[arg-type]
+        self._initialized = False
+
+    async def upload(self, bucket: str, path: str, data: bytes) -> None:
+        adapter = await self._adapter_for(bucket)
+        await adapter.upload(key=path, data=data)
+
+    async def download(self, bucket: str, path: str) -> bytes:
+        adapter = await self._adapter_for(bucket)
+        result = await adapter.download(key=path)
+        if result is None:
+            msg = f"File not found: {path} in bucket {bucket}"
+            raise FileNotFoundError(msg)
+        return result
+
+    async def delete(self, bucket: str, path: str) -> None:
+        adapter = await self._adapter_for(bucket)
+        try:
+            await adapter.delete(key=path)
+        except Exception as exc:  # noqa: BLE001
+            # Mirror oneiric's is_not_found_error tolerance: treat 404
+            # deletes as no-ops.
+            if "404" not in str(exc) and "Not Found" not in str(exc):
+                raise
+
+    async def exists(self, bucket: str, path: str) -> bool:
+        adapter = await self._adapter_for(bucket)
+        return bool(await adapter.exists(key=path))
+
+    async def stat(self, bucket: str, path: str) -> dict[str, t.Any]:
+        """stat() for GCS — oneiric's adapter doesn't expose metadata, so
+        we return a minimal dict compatible with the FileStorageOneiric shape
+        (size + mtime + created) using key existence + payload size.
+        """
+        adapter = await self._adapter_for(bucket)
+        data = await adapter.download(key=path)
+        if data is None:
+            msg = f"File not found: {path} in bucket {bucket}"
+            raise FileNotFoundError(msg)
+        now = datetime.fromtimestamp(0, UTC).isoformat()
+        return {
+            "size": len(data),
+            "mtime": now,
+            "created": now,
+        }
+
+
 class StorageRegistryOneiric:
     """Oneiric-compatible storage registry.
 
@@ -416,9 +547,10 @@ class StorageRegistryOneiric:
             ValueError: If backend type is unknown
 
         """
-        adapter_map: dict[str, type[StorageBaseOneiric]] = {
+        adapter_map: dict[str, type[StorageBaseOneiric] | type[GCSStorageOneiric]] = {
             "file": FileStorageOneiric,
             "memory": MemoryStorageOneiric,
+            "gcs": GCSStorageOneiric,
         }
 
         adapter_class = adapter_map.get(backend)
@@ -640,6 +772,7 @@ __all__ = [
     "DEFAULT_SESSION_BUCKET",
     "SUPPORTED_BACKENDS",
     "FileStorageOneiric",
+    "GCSStorageOneiric",
     "MemoryStorageOneiric",
     "SessionStorageAdapter",
     "StorageBaseOneiric",
