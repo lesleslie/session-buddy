@@ -9,6 +9,18 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.29.1] - 2026-09-27
+
+### Documentation
+
+- session-buddy: Add .claude/decisions/deployability-discipline.md pointer
+- session-buddy: Add lite-schema frontmatter to deployability-discipline.md pointer
+
+### Internal
+
+- session-buddy: Extend .claude/ allowlist with decisions/agents/workflows/skills
+- session-buddy: Remove tracked CHECKPOINT file + pyscn report + extend gitignore
+
 ## [0.29.0] - 2026-09-26
 
 ### Added

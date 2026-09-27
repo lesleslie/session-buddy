@@ -250,4 +250,25 @@ playwright-junit.xml
 playwright-report/
 playwright-results.json
 test-results/
+
+# ============================================================================
+# Documentation — image assets
+# ============================================================================
+# Tracked images live under docs/assets/images/. Session scratch outputs
+# (named like "*-v4.png", "*-window.png", or anything dropped in
+# .scratch/) are local-only and must not be committed. The dot-prefix on
+# `.scratch` is load-bearing — the gitignore rule only matches with it.
+docs/assets/images/.scratch/
+docs/assets/images/.scratch/**
+# Runtime data dirs (added 2026-09-26 fleet cleanup)
+data/
+# Backup files (added 2026-09-26 fleet cleanup)
+.gitignore.bak.*
+.gitignore.tmp
+# Coverage.py SQLite database (runtime artifact)
+.cov_test
+# Complexipy scanner output
+complexipy*.json
+# pytest-benchmark baseline output
+benchmark_baseline.json
 # <<< bodai-shared-gitignore <<<
