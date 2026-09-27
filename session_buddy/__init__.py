@@ -2,14 +2,37 @@
 
 Provides comprehensive session management, conversation memory,
 and quality monitoring for Claude Code projects.
+
+``__version__`` is derived from the installed distribution metadata via
+``importlib.metadata.version()`` so :file:`pyproject.toml` is the single
+source of truth for the version string. Editable installs without a
+built ``.dist-info`` fall back to ``"0+unknown"`` (PEP 440 local-version
+label) so the import never crashes.
 """
 
 from __future__ import annotations
 
-from importlib import import_module
+from importlib import import_module, metadata as _metadata
 from typing import Any
 
-__version__ = "0.25.7"
+# PEP 440 local-version label; sentinel for "metadata not found" rather
+# than a real release version.
+_VERSION_FALLBACK = "0+unknown"
+
+
+def _resolve_version() -> str:
+    """Return the distribution version, falling back to a known sentinel.
+
+    Wrapped in a function so tests can monkeypatch the lookup without
+    having to reload the package.
+    """
+    try:
+        return _metadata.version("session-buddy")
+    except _metadata.PackageNotFoundError:
+        return _VERSION_FALLBACK
+
+
+__version__ = _resolve_version()
 
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "AdvancedFeaturesHub": ("session_buddy.advanced_features", "AdvancedFeaturesHub"),
