@@ -9,6 +9,29 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.29.2] - 2026-09-28
+
+### Added
+
+- session-buddy: Add GCSStorageOneiric to in-process storage wrapper
+- session-buddy: Adopt MemoryCacheAdapter for query cache
+- session-buddy: Single-source-of-truth version stamps via importlib.metadata
+
+### Changed
+
+- session-buddy: Delete duplicate query_cache_l2 CREATE TABLE block
+- session-buddy: Remove dead-on-arrival settings fields + add wiring audit script
+
+### Testing
+
+- session-buddy: Add __init__.py for tests/cache test package
+- session-buddy: Cross-namespace ACL denies sb.* reads from akosha.* by default
+- session-buddy: GCSStorageOneiric round-trip via fake-gcs-server
+
+### Internal
+
+- session-buddy: Post-Task-1 review follow-ups
+
 ## [0.29.1] - 2026-09-27
 
 ### Documentation
