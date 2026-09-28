@@ -37,10 +37,12 @@ class LLMProvidersConfig(BaseModel):
         default="qwen2.5-coder:7b",
         description="Default Ollama model",
     )
-    llama_server_base_url: str = Field(
-        default="http://localhost:8081",
-        description="llama.cpp server base URL",
-    )
+    # NOTE (2026-09-27 audit): ``llama_server_base_url`` had no consumer in
+    # the Bodai ecosystem — the actual llama.cpp URL is read via the
+    # ``LLAMA_SERVER_URL`` env var at runtime (see
+    # ``mahavishnu/workers/cloud_worker.py`` and
+    # ``crackerjack/crackerjack/adapters/ai/unified.py``). Same dead-on-arrival
+    # pattern as Crackerjack's removed ``ai.llama_server_url``. Removed.
     llama_server_default_model: str = Field(
         default="qwen3.5",
         description="Default llama-server model",
@@ -408,10 +410,12 @@ class SessionMgmtSettings(OneiricMCPConfig):
         default=Path("~/Projects/claude"),
         description="Path to global workspace directory",
     )
-    enable_global_toolkits: bool = Field(
-        default=True,
-        description="Enable global toolkit discovery and usage",
-    )
+    # NOTE (2026-09-27 audit): ``enable_global_toolkits`` had no consumer in
+    # the Bodai ecosystem — only set as a fixture attribute in
+    # ``tests/conftest.py`` (``mock_settings_instance.enable_global_toolkits = True``),
+    # not read by any runtime code path. Removed.
+
+
 
     # === Prometheus Metrics Settings ===
     enable_prometheus_metrics: bool = Field(
@@ -475,10 +479,12 @@ class SessionMgmtSettings(OneiricMCPConfig):
     )
 
     # === llama-server (llama.cpp) settings ===
-    llama_server_base_url: str = Field(
-        default="http://localhost:8081",
-        description="llama.cpp server base URL",
-    )
+    # NOTE (2026-09-27 audit): ``llama_server_base_url`` had no consumer in
+    # the Bodai ecosystem — the actual llama.cpp URL is read via the
+    # ``LLAMA_SERVER_URL`` env var at runtime (see
+    # ``mahavishnu/workers/cloud_worker.py`` and
+    # ``crackerjack/crackerjack/adapters/ai/unified.py``). Same dead-on-arrival
+    # pattern as Crackerjack's removed ``ai.llama_server_url``. Removed.
     llama_server_model: str = Field(
         default="qwen3.5",
         description="Default model served by llama.cpp",

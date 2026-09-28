@@ -1367,7 +1367,6 @@ def mock_settings(tmp_path):
         mock_settings_instance.enable_git_integration = True
         mock_settings_instance.git_auto_stage = False
         mock_settings_instance.global_workspace_path = Path("~/Projects/claude")
-        mock_settings_instance.enable_global_toolkits = True
         mock_settings_instance.openai_api_key = None
         mock_settings_instance.anthropic_api_key = None
         mock_settings_instance.gemini_api_key = None

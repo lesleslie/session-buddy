@@ -36,11 +36,6 @@ class TestLLMProvidersConfig:
         config = LLMProvidersConfig()
         assert config.ollama_default_model == "qwen2.5-coder:7b"
 
-    def test_llama_server_url_default(self) -> None:
-        """Test default llama-server URL."""
-        config = LLMProvidersConfig()
-        assert config.llama_server_base_url == "http://localhost:8081"
-
     def test_llama_server_model_default(self) -> None:
         """Test default llama-server model."""
         config = LLMProvidersConfig()
@@ -70,10 +65,8 @@ class TestLLMProvidersConfig:
         """Test setting custom service URLs."""
         config = LLMProvidersConfig(
             ollama_base_url="http://custom:11434",
-            llama_server_base_url="http://custom:8081",
         )
         assert config.ollama_base_url == "http://custom:11434"
-        assert config.llama_server_base_url == "http://custom:8081"
 
     def test_valid_provider_values(self) -> None:
         """Test that all valid provider values work."""

@@ -20,10 +20,10 @@ quarantine:
 retention:
   fix_failure_records:
     max_age_days: 90
-    archive_to_dhara: true
+    archive_to_dhara: false  # 2026-09-27: Dhara MCP removed; archival disabled
   quarantine_records:
     max_age_days: 30
-    archive_to_dhara: false
+    archive_to_dhara: false  # 2026-09-27: Dhara MCP removed; archival disabled
 
 baselines:
   namespaces: [user, feedback]

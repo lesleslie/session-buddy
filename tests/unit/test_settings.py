@@ -53,13 +53,6 @@ class TestLLMProvidersConfig:
         config = LLMProvidersConfig()
         assert config.ollama_default_model == "qwen2.5-coder:7b"
 
-    def test_llama_server_base_url_default(self) -> None:
-        """Test default llama-server base URL."""
-        from session_buddy.settings import LLMProvidersConfig
-
-        config = LLMProvidersConfig()
-        assert config.llama_server_base_url == "http://localhost:8081"
-
     def test_llama_server_default_model_default(self) -> None:
         """Test default llama-server model."""
         from session_buddy.settings import LLMProvidersConfig
@@ -104,10 +97,8 @@ class TestLLMProvidersConfig:
 
         config = LLMProvidersConfig(
             ollama_base_url="http://custom:11434",
-            llama_server_base_url="http://custom:8081",
         )
         assert config.ollama_base_url == "http://custom:11434"
-        assert config.llama_server_base_url == "http://custom:8081"
 
 
 class TestSessionMgmtSettingsLLMProviders:
@@ -156,13 +147,6 @@ class TestSessionMgmtSettingsLLMProviders:
 
         settings = SessionMgmtSettings()
         assert settings.zai_default_model == "glm-4.7"
-
-    def test_llama_server_base_url_default(self) -> None:
-        """Test default llama-server base URL (SessionMgmtSettings level)."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.llama_server_base_url == "http://localhost:8081"
 
     def test_llama_server_model_default(self) -> None:
         """Test default llama-server model (SessionMgmtSettings level)."""
