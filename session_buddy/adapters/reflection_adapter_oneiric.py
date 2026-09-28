@@ -748,35 +748,6 @@ class ReflectionDatabaseAdapterOneiric:
             f"ALTER TABLE {self._table('reflections')} ADD COLUMN IF NOT EXISTS source_artifact_uri TEXT"
         )
 
-        # ========================================================================
-        # QUERY CACHE L2 TABLE (Phase 1: Query Cache)
-        # ========================================================================
-        # Creates a persistent cache for query results to eliminate redundant vector searches
-
-        # Create query cache L2 table
-        self.conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS query_cache_l2 (
-                cache_key TEXT PRIMARY KEY,
-                normalized_query TEXT NOT NULL,
-                project TEXT,
-                result_ids TEXT[],
-                hit_count INTEGER DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                ttl_seconds INTEGER DEFAULT 604800
-            )
-            """
-        )
-
-        # Create indexes for query cache
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_query_cache_l2_accessed ON query_cache_l2(last_accessed)"
-        )
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_query_cache_l2_project ON query_cache_l2(project)"
-        )
-
         # REWRITTEN QUERIES TABLE (Phase 2: Query Rewriting)
         # ========================================================================
         # Tracks query rewrites for performance analysis and cache optimization
@@ -2729,7 +2700,6 @@ class ReflectionDatabaseAdapterOneiric:
         # Tables with no FK constraints in either schema — drop order
         # is irrelevant but listed explicitly so the reset is total.
         standalone_tables: tuple[str, ...] = (
-            "query_cache_l2",
             "rewritten_queries",
             "content_fingerprints",
             "memory_subcategories",
