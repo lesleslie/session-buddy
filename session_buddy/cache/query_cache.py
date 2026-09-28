@@ -3,8 +3,8 @@
 Pure substitution: delegates to oneiric.adapters.cache.memory.MemoryCacheAdapter.
 
 Pre-1.0 replace-not-extend (feedback-no-backwards-compat-pre-1.0.md): the
-L2 DuckDB infrastructure (query_cache_l2 table) is dead per spec §10
-risk #1 and is deleted in this commit alongside the substitution.
+L2 DuckDB infrastructure is dead per spec §10 risk #1 and is deleted in
+this commit alongside the substitution.
 """
 
 from __future__ import annotations

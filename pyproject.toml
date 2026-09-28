@@ -144,6 +144,7 @@ markers = [
     "embedding_test: mark test as requiring embeddings",
     "mcp: mark test as MCP-related",
     "mcp_test: mark test is MCP server test",
+    "req: Traceable spec REQ ID (D2 wire-up discipline; see crackerjack-compliant-code skill)",
 ]
 
 [tool.coverage.run]
