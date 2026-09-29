@@ -158,7 +158,7 @@ Akosha indexes these; reindex lag is ~30s. Read-side analytics via `mcp__akosha_
 - **404 on tasks_get / tasks_update / tasks_history / tasks_complete** — task not found OR caller lacks visibility. Both look identical to the caller (no info leak).
 - **`invalid_id_format`** — `task_id` doesn't match `^t-[0-9a-f]{32}$`. Check for truncation, UUID7 prefix lost, or extra dashes.
 - **`owner_mutation_forbidden`** — caller tried to set `owner`/`created_by`/`completed_by` via `tasks_update`. These fields are server-derived; users cannot change ownership.
-- **`akgosha reindex lag`** — `mcp__akosha__tasks_*` reads may show stale data for ~30s after a write. Use `mcp__session-buddy__tasks_*` for immediate consistency.
+- **`akosha reindex lag`** — `mcp__akosha__tasks_*` reads may show stale data for ~30s after a write. Use `mcp__session-buddy__tasks_*` for immediate consistency.
 
 ## Cross-references
 
