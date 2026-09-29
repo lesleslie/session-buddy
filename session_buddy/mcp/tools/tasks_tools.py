@@ -17,10 +17,12 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from pydantic import Field
+from sqlalchemy.engine import Engine
 
 # Sidecar module imported into the module namespace so tests can patch the
 # ``find_tasks_by_metadata`` / ``get_engine`` pair without round-tripping
@@ -28,15 +30,18 @@ from pydantic import Field
 from session_buddy.mcp.tools import tasks_storage
 from session_buddy.mcp.tools.tasks_events import (
     TaskCreatedPayload,
+    TaskUpdatedPayload,
     publish_task_event,
 )
 from session_buddy.mcp.tools.tasks_identity import derive_caller_identity
 from session_buddy.mcp.tools.tasks_models import (
     TASK_ID_PATTERN,
+    FieldDiff,
     JsonValue,
     LegacyTaskRow,
     Task,
     TaskListResult,
+    UpdateTaskRequest,
     new_task_id,
 )
 from session_buddy.mcp.tools.tasks_security import (
@@ -78,6 +83,25 @@ def _get_create_limiter() -> RateLimiter:
     if _create_rate_limiter is None:
         _create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
     return _create_rate_limiter
+
+
+# ---------------------------------------------------------------------------
+# Module-level rate limiter (tasks_update)
+# ---------------------------------------------------------------------------
+#
+# Spec §Input Limits: ``tasks_update`` + ``tasks_complete`` are throttled
+# to 120/min per caller. Separate ``RateLimiter`` instance from
+# ``tasks_create`` (60/min) so one tool's burst does not consume the
+# other's quota.
+_update_rate_limiter: RateLimiter | None = None
+
+
+def _get_update_limiter() -> RateLimiter:
+    """Return the module-level ``tasks_update`` rate limiter (lazy init)."""
+    global _update_rate_limiter
+    if _update_rate_limiter is None:
+        _update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    return _update_rate_limiter
 
 
 # ---------------------------------------------------------------------------
@@ -546,6 +570,393 @@ async def tasks_list(
         next_cursor=next_cursor,
         total=total_count,
     )
+
+
+# ---------------------------------------------------------------------------
+# T6: tasks_get + tasks_update helpers + tools
+# ---------------------------------------------------------------------------
+#
+# ``tasks_get`` and ``tasks_update`` share the reflection-id lookup
+# (``_find_reflection_id_by_task_id``) and the same visibility-filter
+# surface. Helpers are kept private to this module so future tasks can
+# extend them without breaking the public surface.
+
+
+def _find_reflection_id_by_task_id(engine: Engine, task_id: str) -> str | None:
+    """Return the reflection_id whose sidecar metadata carries ``task_id``.
+
+    The full 32-hex ``task_id`` is persisted in the sidecar metadata at
+    ``tasks_create`` time (T5 fix round 1); we filter on it directly so
+    the lookup is unambiguous even when many task rows exist for the
+    same owner. The defensive fallback scans all task rows in case a
+    pre-T5-fix row lacks the ``task_id`` sidecar key (zero in practice
+    — kept so a stray legacy writer cannot crash ``tasks_get``).
+    """
+    candidate_ids = tasks_storage.find_tasks_by_metadata(
+        engine=engine,
+        metadata_filter={"kind": "task", "task_id": task_id},
+    )
+    if candidate_ids:
+        return candidate_ids[0]
+    all_task_ids = tasks_storage.find_tasks_by_metadata(
+        engine=engine,
+        metadata_filter={"kind": "task"},
+    )
+    for rid in all_task_ids:
+        sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=rid)
+        if sidecar_meta and sidecar_meta.get("task_id") == task_id:
+            return rid
+    return None
+
+
+def _compute_diff(before: dict[str, Any], after: dict[str, Any]) -> list[FieldDiff]:
+    """Return ``FieldDiff`` rows for every key whose before/after differ.
+
+    Compares ``task.model_dump()`` snapshots from before/after the mutation.
+    ``updated_at`` always changes (server-set ``datetime.now(UTC)``) so it
+    shows up in the diff and is emitted as its own event — downstream
+    consumers can render timestamp changes distinctly from content changes
+    by inspecting ``diff.field``.
+    """
+    diffs: list[FieldDiff] = []
+    for key in sorted(set(before) | set(after)):
+        if before.get(key) != after.get(key):
+            diffs.append(FieldDiff(field=key, before=before.get(key), after=after.get(key)))
+    return diffs
+
+
+def _jsonify_value(value: Any) -> Any:
+    """JSON-serialize a single diff value so it survives SQLAlchemy JSON storage.
+
+    ``task.model_dump()`` returns raw ``datetime`` objects; the sidecar's
+    JSON column rejects those with ``Object of type datetime is not JSON
+    serializable``. Convert datetimes to ISO-8601 strings; pass through
+    everything else (str, int, float, bool, None, dict, list) unchanged.
+    """
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, list):
+        return [_jsonify_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(k): _jsonify_value(v) for k, v in value.items()}
+    return value
+
+
+async def _update_reflection(
+    reflection_id: str,
+    content: str,
+    tags: list[str],
+) -> None:
+    """Stub: persist updated content + tags to the canonical reflection DB.
+
+    T6 leaves this as a no-op so the brief's test path can run without a
+    real reflection adapter. T12 wires the canonical reflection adapter's
+    update primitive here. Tests that need to assert reflection DB state
+    patch this symbol via ``patch.object(tasks_tools, "_update_reflection", ...)``.
+    """
+    return
+
+
+def _sync_tags_after_field_change(
+    tags: list[str],
+    field: Literal["status", "priority", "effort"],
+    new_value: str | None,
+) -> list[str]:
+    """Sync the ``<field>:<value>`` tag prefix to match ``new_value``.
+
+    ``_build_task`` reads ``priority`` / ``status`` / ``effort`` from the
+    sidecar first, then OVERRIDES from a ``<field>:<value>`` tag in the
+    reflection row's tags list (the legacy tag-prefix convention). To
+    prevent a subsequent read from reverting a successful update, we
+    rewrite the prefix entry whenever a status / priority / effort
+    mutation lands. ``new_value=None`` removes the prefix entry.
+    """
+    out: list[str] = []
+    found = False
+    for tag in tags:
+        kind, _ = _coerce_tag_prefix(tag)
+        if kind == field:
+            found = True
+            if new_value is not None:
+                out.append(f"{field}:{new_value}")
+        else:
+            out.append(tag)
+    if not found and new_value is not None:
+        out.append(f"{field}:{new_value}")
+    return out
+
+
+async def _persist_task_update(
+    reflection_id: str,
+    task: Task,
+    sidecar_meta: dict[str, Any],
+    diff_events: list[FieldDiff],
+    actor: str,
+) -> None:
+    """Persist an updated task to the sidecar + sync tag-prefix + history entry.
+
+    Sidecar fields mirror the Task fields that T4 wrote at create time:
+    ``priority``, ``effort``, ``due_at``, ``parent_task_id``, plus a
+    refreshed ``updated_at``. The ``history`` list is appended (not
+    replaced) so T9's ``tasks_history`` can render the diff timeline.
+    The reflection row update is delegated to ``_update_reflection``
+    (a T6 stub; T12 wires the real adapter).
+    """
+    new_meta = dict(sidecar_meta)
+    new_meta["priority"] = task.priority
+    new_meta["effort"] = task.effort
+    new_meta["due_at"] = task.due_at.isoformat() if task.due_at is not None else None
+    new_meta["parent_task_id"] = task.parent_task_id
+    new_meta["updated_at"] = task.updated_at.isoformat()
+
+    synced_tags = list(task.tags)
+    for diff in diff_events:
+        if diff.field == "priority":
+            synced_tags = _sync_tags_after_field_change(synced_tags, "priority", diff.after)
+        elif diff.field == "status":
+            synced_tags = _sync_tags_after_field_change(synced_tags, "status", diff.after)
+        elif diff.field == "effort":
+            synced_tags = _sync_tags_after_field_change(synced_tags, "effort", diff.after)
+
+    history = list(new_meta.get("history") or [])
+    now_iso = datetime.now(UTC).isoformat()
+    for diff in diff_events:
+        history.append({
+            "field": diff.field,
+            "before": _jsonify_value(diff.before),
+            "after": _jsonify_value(diff.after),
+            "actor": actor,
+            "at": now_iso,
+        })
+    new_meta["history"] = history
+
+    tasks_storage.persist_task_metadata(
+        tasks_storage.get_engine(),
+        reflection_id,
+        new_meta,
+    )
+    await _update_reflection(
+        reflection_id=reflection_id,
+        content=task.content,
+        tags=synced_tags,
+    )
+
+
+def _apply_update_request(task: Task, request: UpdateTaskRequest) -> None:
+    """Mutate ``task`` in place with every non-None field from ``request``.
+
+    Extracted from ``tasks_update`` to keep its branch count under the
+    15-branch pylint limit. Server-set fields (owner, created_at,
+    created_by, completed_at, completed_by, workflow_id) are never on
+    UpdateTaskRequest, so they cannot be mutated via this path.
+    """
+    if request.content is not None:
+        task.content = request.content
+    if request.visibility is not None:
+        task.visibility = request.visibility
+    if request.status is not None:
+        task.status = request.status
+    if request.priority is not None:
+        task.priority = request.priority
+    if request.effort is not None:
+        task.effort = request.effort
+    if request.due_at is not None:
+        task.due_at = request.due_at
+    if request.tags is not None:
+        task.tags = request.tags
+    if request.parent_task_id is not None:
+        task.parent_task_id = request.parent_task_id
+    if request.result_notes is not None:
+        task.result_notes = request.result_notes
+    if request.metadata is not None:
+        task.metadata = request.metadata
+
+
+async def _emit_update_events(
+    task: Task,
+    diff_events: list[FieldDiff],
+    actor: str,
+) -> None:
+    """Publish one ``task.updated`` event per diff field.
+
+    Each event carries a single-entry ``diff`` dict so consumers can
+    render field-level changes distinctly. T2's ``TaskUpdatedPayload``
+    is the canonical envelope.
+    """
+    for diff in diff_events:
+        await publish_task_event(
+            "task.updated",
+            TaskUpdatedPayload(
+                task_id=task.id,
+                actor=actor,
+                updated_at=task.updated_at,
+                diff={diff.field: (diff.before, diff.after)},
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# tasks_get — T6
+# ---------------------------------------------------------------------------
+#
+# Spec §Tool Surface + §Authz Model. Server-side visibility filter;
+# private tasks are 404 to non-owners (no info leak about existence).
+# ``task_id`` is pattern-validated by Pydantic via the ``Annotated[..., Field(pattern=...)]``
+# signature; an invalid id raises ``ValidationError`` BEFORE this body runs.
+
+
+async def tasks_get(
+    ctx: Context,
+    task_id: Annotated[str, Field(pattern=TASK_ID_PATTERN)],
+) -> Task | dict[str, Any]:
+    """Fetch a single task by id. Returns 404 (not 403) on visibility failure."""
+    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+
+    # Explicit pattern validation (the Annotated[...] hint is documentation-only
+    # on a plain async function; the spec §Error Handling Matrix pins an
+    # ``invalid_id_format`` envelope so the caller can distinguish bad input
+    # from a not-found / not-visible task).
+    if not re.match(TASK_ID_PATTERN, task_id):
+        return {
+            "status": "error",
+            "error_code": "invalid_id_format",
+            "message": f"task_id {task_id!r} does not match TASK_ID_PATTERN",
+        }
+
+    engine = tasks_storage.get_engine()
+    target = _find_reflection_id_by_task_id(engine=engine, task_id=task_id)
+    if target is None:
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    reflection = await _read_reflection(target)
+    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    task = _build_task(reflection, sidecar_meta)
+    if task is None:
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    if not enforce_visibility_filter(caller, task):
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    return task
+
+
+# ---------------------------------------------------------------------------
+# tasks_update — T6
+# ---------------------------------------------------------------------------
+#
+# Spec §Tool Surface + §Authz Model + §UpdateTaskRequest + §Rate Limits +
+# §Error Handling. Pre-flight rejection of caller-supplied identity fields
+# (defense in depth; ``UpdateTaskRequest`` already excludes them per T1
+# contract but we re-check at the tool body to be paranoid). Rate limit
+# 120/min per caller — separate from ``tasks_create``'s 60/min.
+
+
+async def tasks_update(
+    ctx: Context,
+    task_id: Annotated[str, Field(pattern=TASK_ID_PATTERN)],
+    request: UpdateTaskRequest,
+) -> Task | dict[str, Any]:
+    """Update mutable fields on a task. Server rejects owner mutation; 120/min per caller."""
+    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+
+    # Defense in depth: even if a future UpdateTaskRequest change re-exposes
+    # owner/created_by/completed_by, we still reject at the tool body so the
+    # security-critical invariant holds. ``getattr(..., None)`` because
+    # Pydantic ``extra='forbid'`` raises AttributeError on unknown fields
+    # rather than returning None.
+    if (
+        getattr(request, "owner", None) is not None
+        or getattr(request, "created_by", None) is not None
+        or getattr(request, "completed_by", None) is not None
+    ):
+        return {
+            "status": "error",
+            "error_code": "owner_mutation_forbidden",
+            "message": "owner/created_by/completed_by are server-derived; caller cannot mutate.",
+        }
+
+    # Explicit pattern validation (Pydantic Field(pattern=...) only fires
+    # inside model construction; this is a plain async function so the
+    # signature annotation is documentation-only).
+    if not re.match(TASK_ID_PATTERN, task_id):
+        return {
+            "status": "error",
+            "error_code": "invalid_id_format",
+            "message": f"task_id {task_id!r} does not match TASK_ID_PATTERN",
+        }
+
+    # Rate limit (120/min per spec §Input Limits; separate from create).
+    limiter = _get_update_limiter()
+    try:
+        limiter.check(caller)
+    except RateLimitError as exc:
+        return {
+            "status": "error",
+            "error_code": "rate_limited",
+            "message": str(exc),
+            "details": {
+                "limit": limiter.limit,
+                "window_seconds": limiter.window_seconds,
+                "caller": caller,
+            },
+        }
+
+    # Locate + load the task (same lookup path as tasks_get).
+    engine = tasks_storage.get_engine()
+    target = _find_reflection_id_by_task_id(engine=engine, task_id=task_id)
+    if target is None:
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    reflection = await _read_reflection(target)
+    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    task = _build_task(reflection, sidecar_meta)
+    if task is None or not enforce_visibility_filter(caller, task):
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    # Snapshot before-state for the diff.
+    before = task.model_dump()
+
+    # Apply caller-supplied changes (extracted to keep this function under
+    # the 15-branch pylint limit).
+    _apply_update_request(task, request)
+    task.updated_at = datetime.now(UTC)
+
+    after = task.model_dump()
+    diff_events = _compute_diff(before, after)
+
+    # Persist + sync tag-prefix + append history.
+    await _persist_task_update(
+        reflection_id=target,
+        task=task,
+        sidecar_meta=sidecar_meta,
+        diff_events=diff_events,
+        actor=caller,
+    )
+
+    # Emit one task.updated per diff field (T2 payload contract).
+    await _emit_update_events(task=task, diff_events=diff_events, actor=caller)
+
+    return task
 
 
 # ---------------------------------------------------------------------------

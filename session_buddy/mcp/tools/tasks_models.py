@@ -156,6 +156,22 @@ class UpdateTaskRequest(BaseModel):
     metadata: dict[str, JsonValue] | None = None
 
 
+class FieldDiff(BaseModel):
+    """One field's before/after in a ``tasks_update`` mutation.
+
+    Emitted as a single-entry ``diff`` dict on each ``TaskUpdatedPayload``
+    (one event per changed field per spec §Update Task). Lives in
+    ``tasks_models`` so both the tool module and the event payload module
+    can import it without a circular import.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=False)
+
+    field: str
+    before: Any
+    after: Any
+
+
 # ---------------------------------------------------------------------------
 # Task event (audit trail)
 # ---------------------------------------------------------------------------

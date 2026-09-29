@@ -27,10 +27,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from session_buddy.mcp.tools.tasks_events import TaskCreatedPayload
+from session_buddy.mcp.tools.tasks_events import TaskCreatedPayload, TaskUpdatedPayload
 from session_buddy.mcp.tools.tasks_models import (
     TASK_ID_PATTERN,
     Task,
+    UpdateTaskRequest,
 )
 from session_buddy.mcp.tools.tasks_security import (
     MAX_CONTENT_BYTES,
@@ -832,3 +833,398 @@ async def test_tasks_list_returns_same_id_as_tasks_create(_t5_engine: Any) -> No
     assert re.match(TASK_ID_PATTERN, created.id)
     for item in listed.items:
         assert re.match(TASK_ID_PATTERN, item.id)
+
+
+# ===========================================================================
+# Task 6 — ``tasks_get`` + ``tasks_update`` tests
+# ===========================================================================
+#
+# These tests pin:
+# - ``tasks_get`` validates the id pattern (Pydantic), round-trips a
+#   created task, returns 404 for unknown ids, and returns 404 (not 403)
+#   when a non-owner tries to read a private task.
+# - ``tasks_update`` mutates the priority field, emits TaskUpdatedPayload,
+#   rejects caller-supplied owner, refuses to expose workflow_id via
+#   UpdateTaskRequest (T1 contract), enforces visibility, and rate-limits
+#   at 120/min. The history-diff test is skipped until T9 lands.
+
+
+# ---------------------------------------------------------------------------
+# tasks_get
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_get_validates_id_format() -> None:
+    """Invalid task_id returns ``invalid_id_format`` envelope; never reaches DB.
+
+    The spec §Error Handling Matrix pins an envelope (not a raised
+    exception) so the MCP client can render the error without parsing
+    a traceback.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    result = await tasks_tools.tasks_get(ctx, task_id="not-a-uuid")
+
+    assert isinstance(result, dict)
+    assert result.get("status") == "error"
+    assert result.get("error_code") == "invalid_id_format"
+
+
+@pytest.mark.asyncio
+async def test_tasks_get_returns_task_with_persisted_id(_t5_engine: Any) -> None:
+    """Round-trip: tasks_create then tasks_get returns the same Task."""
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(
+                    rid,
+                    content="get-me",
+                    tags=["task"],
+                ),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = await tasks_tools.tasks_create(ctx, content="get-me", tags=["task"])
+        assert isinstance(created, Task)
+
+        fetched = await tasks_tools.tasks_get(ctx, task_id=created.id)
+
+    assert isinstance(fetched, Task), (
+        f"Expected Task, got {type(fetched).__name__}: {fetched!r}"
+    )
+    assert fetched.id == created.id
+    assert fetched.content == "get-me"
+
+
+@pytest.mark.asyncio
+async def test_tasks_get_enforces_visibility_private(_t5_engine: Any) -> None:
+    """User B's tasks_get(user_a_task_id) returns 404 envelope (no info leak).
+
+    The spec §Authz Model pins 404 (not 403) so an attacker cannot
+    probe for existence by status code.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx_alice = _make_ctx({"user_email": "alice@example.com"})
+    ctx_bob = _make_ctx({"user_email": "bob@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        task_a = await tasks_tools.tasks_create(
+            ctx_alice,
+            content="alice-secret",
+            tags=["task"],
+        )
+        assert isinstance(task_a, Task)
+        assert task_a.owner == "user:alice@example.com"
+
+        result = await tasks_tools.tasks_get(ctx_bob, task_id=task_a.id)
+
+    assert isinstance(result, dict), (
+        f"Expected error envelope dict, got {type(result).__name__}"
+    )
+    assert result.get("status") == "error"
+    assert result.get("error_code") == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_tasks_get_returns_404_for_unknown_id(_t5_engine: Any) -> None:
+    """tasks_get(unknown_id) returns 404 envelope; never raises."""
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    # Use a structurally-valid id so the test exercises the lookup path
+    # (not the Pydantic pattern validator).
+    unknown_id = "t-0123456789abcdef0123456789abcdef"
+
+    with patch.object(tasks_tools, "_read_reflection", new=AsyncMock(return_value=None)):
+        result = await tasks_tools.tasks_get(ctx, task_id=unknown_id)
+
+    assert isinstance(result, dict)
+    assert result.get("status") == "error"
+    assert result.get("error_code") == "not_found"
+
+
+# ---------------------------------------------------------------------------
+# tasks_update
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_update_mutates_priority_and_emits_event(_t5_engine: Any) -> None:
+    """tasks_update(priority="high") persists; emits TaskUpdatedPayload.
+
+    Verifies:
+    - Returned Task reflects the mutation.
+    - At least one ``task.updated`` event is published with the priority
+      diff in its ``diff`` dict.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+    publish_mock = AsyncMock()
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=publish_mock),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(
+                    rid,
+                    content="x",
+                    tags=["task", "priority:normal"],
+                ),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = await tasks_tools.tasks_create(
+            ctx,
+            content="x",
+            tags=["task", "priority:normal"],
+        )
+        assert isinstance(created, Task)
+
+        tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+        updated = await tasks_tools.tasks_update(
+            ctx,
+            task_id=created.id,
+            request=UpdateTaskRequest(priority="high"),
+        )
+
+    assert isinstance(updated, Task), (
+        f"Expected Task, got {type(updated).__name__}: {updated!r}"
+    )
+    assert updated.priority == "high"
+
+    # At least one task.updated event was published with the priority diff.
+    publish_mock.assert_awaited()
+    update_events = [
+        call.args
+        for call in publish_mock.await_args_list
+        if call.args and call.args[0] == "task.updated"
+    ]
+    assert update_events, (
+        f"expected at least one task.updated event; got {publish_mock.await_args_list!r}"
+    )
+    priority_event = next(
+        (e for e in update_events if isinstance(e[1], TaskUpdatedPayload) and "priority" in e[1].diff),
+        None,
+    )
+    assert priority_event is not None, (
+        f"expected priority diff in task.updated; got {[e[1].diff for e in update_events]!r}"
+    )
+    payload = priority_event[1]
+    assert payload.task_id == created.id
+    assert payload.diff["priority"][1] == "high"
+
+
+@pytest.mark.asyncio
+async def test_tasks_update_rejects_owner_mutation(_t5_engine: Any) -> None:
+    """Caller-supplied owner via UpdateTaskRequest is REJECTED.
+
+    ``UpdateTaskRequest`` excludes ``owner`` per the T1 contract
+    (extra='forbid' on the model prevents construction with it). The
+    tool body ALSO has a defense-in-depth check that re-uses
+    ``getattr(request, "owner", None)`` so a future regression that
+    re-exposes the field still rejects it. We exercise that path by
+    subclassing ``UpdateTaskRequest`` to inject the forbidden field.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    class _OwnerExposedRequest(UpdateTaskRequest):
+        """Test-only subclass that re-exposes the forbidden ``owner`` field."""
+
+        owner: str | None = None
+        created_by: str | None = None
+        completed_by: str | None = None
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = await tasks_tools.tasks_create(ctx, content="x", tags=["task"])
+        assert isinstance(created, Task)
+
+        # Bypass the T1 contract (which excludes owner via extra='forbid')
+        # to simulate a regression. The tool body's pre-flight check
+        # must still reject it with the canonical envelope.
+        tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+        result = await tasks_tools.tasks_update(
+            ctx,
+            task_id=created.id,
+            request=_OwnerExposedRequest(owner="agent:victim"),
+        )
+
+    assert isinstance(result, dict)
+    assert result.get("status") == "error"
+    assert result.get("error_code") == "owner_mutation_forbidden"
+
+
+def test_tasks_update_cannot_change_workflow_id() -> None:
+    """UpdateTaskRequest excludes workflow_id; constructing one raises.
+
+    This is the T1 contract: ``workflow_id`` is server-set by T17's
+    ``tasks_handoff_to_workflow`` only and cannot be mutated via this
+    envelope. ``extra='forbid'`` on the ConfigDict makes Pydantic
+    reject unknown fields at construction time.
+    """
+    with pytest.raises(ValidationError) as excinfo:
+        UpdateTaskRequest(workflow_id="wf-some-id")  # ty: ignore[call-arg]
+    assert "workflow_id" in str(excinfo.value).lower()
+
+
+@pytest.mark.skip(reason="T9 dependency — tasks_history lands in T9")
+@pytest.mark.asyncio
+async def test_tasks_update_records_diff_in_history(_t5_engine: Any) -> None:
+    """After priority normal→high, tasks_history shows the diff.
+
+    Skipped until T9's ``tasks_history`` tool lands. For T6 the
+    ``_persist_task_update`` writes the history list into the sidecar
+    metadata under the ``history`` key — verified by sidecar inspection
+    in the integration test path that T12 wires.
+    """
+
+
+@pytest.mark.asyncio
+async def test_tasks_update_enforces_visibility_other_user(_t5_engine: Any) -> None:
+    """User B's update on User A's task returns 404 (no info leak)."""
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx_alice = _make_ctx({"user_email": "alice@example.com"})
+    ctx_bob = _make_ctx({"user_email": "bob@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        task_a = await tasks_tools.tasks_create(
+            ctx_alice,
+            content="x",
+            tags=["task"],
+        )
+        assert isinstance(task_a, Task)
+
+        tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+        result = await tasks_tools.tasks_update(
+            ctx_bob,
+            task_id=task_a.id,
+            request=UpdateTaskRequest(priority="high"),
+        )
+
+    assert isinstance(result, dict)
+    assert result.get("status") == "error"
+    assert result.get("error_code") == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_tasks_update_rate_limited_returns_envelope(_t5_engine: Any) -> None:
+    """tasks_update rate limit (120/min) returns envelope on overflow.
+
+    Use a 2-request limit so the 3rd call blows past quota in test
+    time. The dedicated limiter is separate from tasks_create's 60/min
+    (per spec §Input Limits).
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    # Single limiter instance shared across all 3 update calls so the
+    # sliding-window state actually accumulates (resetting between calls
+    # would let each call start fresh).
+    tasks_tools._update_rate_limiter = RateLimiter(limit=2, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = await tasks_tools.tasks_create(ctx, content="x", tags=["task"])
+        assert isinstance(created, Task)
+
+        # First two updates succeed.
+        for _ in range(2):
+            ok = await tasks_tools.tasks_update(
+                ctx,
+                task_id=created.id,
+                request=UpdateTaskRequest(priority="high"),
+            )
+            assert isinstance(ok, Task), (
+                f"Expected Task, got {type(ok).__name__}: {ok!r}"
+            )
+
+        # Third update trips the 2/min limit.
+        rate_limited = await tasks_tools.tasks_update(
+            ctx,
+            task_id=created.id,
+            request=UpdateTaskRequest(priority="low"),
+        )
+
+    assert isinstance(rate_limited, dict)
+    assert rate_limited.get("status") == "error"
+    assert rate_limited.get("error_code") == "rate_limited"
+    details = rate_limited.get("details", {})
+    assert details.get("limit") == 2
+    assert details.get("caller") == "user:les@example.com"
