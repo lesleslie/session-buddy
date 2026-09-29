@@ -41,6 +41,8 @@ from session_buddy.mcp.tools.tasks_models import (
     JsonValue,
     LegacyTaskRow,
     Task,
+    TaskEvent,
+    TaskHistoryResult,
     TaskListResult,
     UpdateTaskRequest,
     new_task_id,
@@ -1202,6 +1204,133 @@ async def tasks_search(
         tasks.append(task)
 
     return tasks
+
+
+# ---------------------------------------------------------------------------
+# tasks_history — T9
+# ---------------------------------------------------------------------------
+#
+# Spec line 128-133: ``tasks_history(task_id, k=50, cursor=None) ->
+# TaskHistoryResult`` with envelope shape ``{items: list[TaskEvent],
+# next_cursor: str | None}`` (NO ``total`` — spec is explicit).
+#
+# History source: sidecar ``metadata["history"]`` list written by T6's
+# ``_persist_task_update``. Each entry is a dict ``{field, before,
+# after, actor, at}``. ``event_type`` is hardcoded to ``"updated"`` for
+# v1 — other types in the ``Literal`` enum are reserved for future
+# T17 handoff events / completion events.
+#
+# Pagination: offset-based cursor (T5's ``base64-urlsafe JSON of
+# {"offset": int}`` scheme). Reuses ``_decode_cursor`` / ``_encode_cursor``
+# from T5 verbatim so callers can rely on a uniform cursor contract.
+#
+# Visibility filter: 404 (not 403) on missing / invisible — same
+# info-leak parity as ``tasks_get`` / ``tasks_update`` / ``tasks_complete``.
+#
+# ``actor`` is server-set (the history dict's ``actor`` field, captured
+# at update time by ``_persist_task_update``). Defaults to the current
+# caller if the dict's actor is missing — defensive fallback so a torn
+# sidecar row never crashes the reader.
+
+
+async def tasks_history(
+    ctx: Context,
+    task_id: Annotated[str, Field(pattern=TASK_ID_PATTERN)],
+    k: int = 50,
+    cursor: str | None = None,
+) -> TaskHistoryResult | dict[str, Any]:
+    """Fetch the change history for a task with cursor-based pagination.
+
+    History is read from the sidecar ``metadata["history"]`` list written
+    by ``_persist_task_update``. Each entry is mapped to a :class:`TaskEvent`
+    with ``event_type="updated"`` (T6 writes diff entries; other event
+    types are reserved for future use by completion / handoff events).
+    Empty history returns ``TaskHistoryResult(items=[], next_cursor=None)``
+    — NOT an error envelope. Visibility filter is enforced: missing or
+    invisible tasks return 404 (not 403) to avoid leaking existence.
+    """
+    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+
+    # Explicit pattern validation (the Annotated[..., Field(pattern=...)]
+    # signature hint is documentation-only on a plain async function;
+    # spec §Error Handling Matrix pins an ``invalid_id_format`` envelope
+    # so the caller can distinguish bad input from not-found / not-visible).
+    if not re.match(TASK_ID_PATTERN, task_id):
+        return {
+            "status": "error",
+            "error_code": "invalid_id_format",
+            "message": f"task_id {task_id!r} does not match TASK_ID_PATTERN",
+        }
+
+    # Locate + load the task (same lookup path as tasks_get / tasks_update
+    # / tasks_complete). Visibility check fires AFTER the lookup so a
+    # missing reflection and an invisible row look identical to the caller.
+    engine = tasks_storage.get_engine()
+    target = _find_reflection_id_by_task_id(engine=engine, task_id=task_id)
+    if target is None:
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    reflection = await _read_reflection(target)
+    sidecar_meta = (
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    )
+    task = _build_task(reflection, sidecar_meta)
+    if task is None or not enforce_visibility_filter(caller, task):
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    # Read the append-only history list from the sidecar. ``list()`` copies
+    # so a torn / missing list never crashes the reader — default to [].
+    history_list = list((sidecar_meta or {}).get("history") or [])
+
+    # Offset-based pagination via T5's cursor helpers (same scheme as
+    # ``tasks_list``). Garbage cursors decode to offset=0 — defensive
+    # fallback so a malformed cursor never 500s.
+    offset = _decode_cursor(cursor)
+    end = offset + k
+    page = history_list[offset:end]
+    next_cursor = _encode_cursor(end) if end < len(history_list) else None
+
+    # Map each dict entry to a TaskEvent. event_type="updated" for v1;
+    # the Literal enum reserves other types for future T17 handoff events.
+    items: list[TaskEvent] = []
+    for entry in page:
+        if not isinstance(entry, dict):
+            continue
+        at_raw = entry.get("at")
+        try:
+            timestamp = _parse_iso_optional(at_raw) or datetime.now(UTC)
+        except (TypeError, ValueError):
+            timestamp = datetime.now(UTC)
+
+        # diff is ``{field: (before, after)}`` per TaskEvent contract. When
+        # the history entry has no ``field`` key (e.g. a future created /
+        # completed event source) we leave ``diff`` as ``None`` so the
+        # consumer can render a no-diff event distinctly.
+        field = entry.get("field")
+        diff: dict[str, tuple[Any, Any]] | None = None
+        if isinstance(field, str) and field:
+            diff = {field: (entry.get("before"), entry.get("after"))}
+
+        items.append(
+            TaskEvent(
+                task_id=task_id,
+                event_type="updated",  # ty: ignore[arg-type]
+                actor=str(entry.get("actor") or caller),
+                timestamp=timestamp,
+                diff=diff,
+                notes=None,
+            )
+        )
+
+    return TaskHistoryResult(items=items, next_cursor=next_cursor)
 
 
 # ---------------------------------------------------------------------------
