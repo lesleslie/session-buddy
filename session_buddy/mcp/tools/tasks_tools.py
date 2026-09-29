@@ -29,6 +29,7 @@ from sqlalchemy.engine import Engine
 # through ``session_buddy.mcp.tools.tasks_storage``.
 from session_buddy.mcp.tools import tasks_storage
 from session_buddy.mcp.tools.tasks_events import (
+    TaskCompletedPayload,
     TaskCreatedPayload,
     TaskUpdatedPayload,
     publish_task_event,
@@ -965,6 +966,146 @@ async def tasks_update(
 
     # Emit one task.updated per diff field (T2 payload contract).
     await _emit_update_events(task=task, diff_events=diff_events, actor=caller)
+
+    return task
+
+
+# ---------------------------------------------------------------------------
+# tasks_complete — T7
+# ---------------------------------------------------------------------------
+#
+# v1.1 multi-agent-review hardening. ``tasks_complete`` is a pure state
+# mutation: status='done', completed_at=now, completed_by=caller, and
+# optionally result_notes. It MUST NOT inspect ``result_notes`` for any
+# dispatch trigger; the only dispatch edge is ``tasks_handoff_to_workflow``
+# (T17, mahavishnu PR #2). The regression test
+# ``test_tasks_complete_does_NOT_dispatch_even_with_handoff_prefix`` pins
+# this contract.
+#
+# Rate limit: shared 120/min limiter with ``tasks_update`` per spec
+# §Input Limits. Authz: only the ``owner`` may complete a task (spec line
+# 565). Visibility check returns 404 (not 403) — same info-leak parity as
+# ``tasks_get`` / ``tasks_update``.
+
+
+def _apply_complete_fields(
+    task: Task,
+    completed_by: str,
+    now: datetime,
+    result_notes: str | None,
+) -> None:
+    """Mutate ``task`` in place to mark it done.
+
+    Server-set fields only: ``status``, ``completed_at``, ``completed_by``,
+    ``updated_at``, and (optionally) ``result_notes``. ``workflow_id`` is
+    NEVER touched — it is server-set by T17's ``tasks_handoff_to_workflow``
+    only and ``tasks_complete`` MUST NOT mutate it.
+    """
+    task.status = "done"  # ty: ignore[arg-type]
+    task.completed_at = now
+    task.completed_by = completed_by
+    task.updated_at = now
+    if result_notes is not None:
+        task.result_notes = result_notes
+
+
+async def tasks_complete(
+    ctx: Context,
+    task_id: Annotated[str, Field(pattern=TASK_ID_PATTERN)],
+    result_notes: Annotated[str | None, Field(max_length=4096)] = None,
+) -> Task | dict[str, Any]:
+    """Mark a task as done. Server-sets completed_by from caller identity.
+
+    Strictly a state mutation: ``status='done'``, ``completed_at=now``,
+    ``completed_by=caller``, optionally ``result_notes``. Does NOT inspect
+    ``result_notes`` for any dispatch trigger — the only dispatch edge in
+    the system is ``tasks_handoff_to_workflow`` (T17, mahavishnu PR #2).
+    Returns the updated :class:`Task`, or an error envelope on rate
+    limit / pattern mismatch / not_found / not_visible.
+    """
+    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+
+    if not re.match(TASK_ID_PATTERN, task_id):
+        return {
+            "status": "error",
+            "error_code": "invalid_id_format",
+            "message": f"task_id {task_id!r} does not match TASK_ID_PATTERN",
+        }
+
+    limiter = _get_update_limiter()
+    try:
+        limiter.check(caller)
+    except RateLimitError as exc:
+        return {
+            "status": "error",
+            "error_code": "rate_limited",
+            "message": str(exc),
+            "details": {
+                "limit": limiter.limit,
+                "window_seconds": limiter.window_seconds,
+                "caller": caller,
+            },
+        }
+
+    engine = tasks_storage.get_engine()
+    target = _find_reflection_id_by_task_id(engine=engine, task_id=task_id)
+    if target is None:
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    reflection = await _read_reflection(target)
+    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    task = _build_task(reflection, sidecar_meta)
+    if task is None or not enforce_visibility_filter(caller, task):
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    # Authz: only the owner can complete a task (spec §Error Handling line
+    # 565). The 404 envelope hides existence from non-owners.
+    if task.owner != caller:
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    before = task.model_dump()
+
+    # Server-set mutation; ``workflow_id`` is intentionally untouched.
+    now = datetime.now(UTC)
+    _apply_complete_fields(
+        task=task,
+        completed_by=caller,
+        now=now,
+        result_notes=result_notes,
+    )
+
+    after = task.model_dump()
+    diff_events = _compute_diff(before, after)
+
+    await _persist_task_update(
+        reflection_id=target,
+        task=task,
+        sidecar_meta=sidecar_meta,
+        diff_events=diff_events,
+        actor=caller,
+    )
+
+    await publish_task_event(
+        "task.completed",
+        TaskCompletedPayload(
+            task_id=task.id,
+            actor=caller,
+            completed_at=task.completed_at,
+            has_workflow_id=task.workflow_id is not None,
+        ),
+    )
 
     return task
 

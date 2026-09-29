@@ -27,7 +27,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from session_buddy.mcp.tools.tasks_events import TaskCreatedPayload, TaskUpdatedPayload
+from session_buddy.mcp.tools.tasks_events import (
+    TaskCompletedPayload,
+    TaskCreatedPayload,
+    TaskUpdatedPayload,
+)
 from session_buddy.mcp.tools.tasks_models import (
     TASK_ID_PATTERN,
     Task,
@@ -1322,3 +1326,357 @@ async def test_tasks_update_content_round_trips_through_reflection_db(
         )
     finally:
         tasks_tools._update_reflection = original_update_reflection  # type: ignore[assignment]
+
+
+# ===========================================================================
+# Task 7 — ``tasks_complete`` tests
+# ===========================================================================
+#
+# The v1.1 multi-agent-review hardening. ``tasks_complete`` is a pure state
+# mutation; it MUST NOT inspect ``result_notes`` for any dispatch trigger.
+# The only dispatch edge in the system is ``tasks_handoff_to_workflow`` (T17,
+# mahavishnu PR #2). Regression test
+# ``test_tasks_complete_does_NOT_dispatch_even_with_handoff_prefix`` pins this.
+
+
+# ---------------------------------------------------------------------------
+# tasks_complete happy paths
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_complete_sets_status_done_and_completed_at(_t5_engine: Any) -> None:
+    """tasks_complete(id) sets status='done', completed_at=now, completed_by=caller."""
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+        patch.object(tasks_tools, "_update_reflection", new=AsyncMock()),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = await tasks_tools.tasks_create(ctx, content="finish-me", tags=["task"])
+        assert isinstance(created, Task)
+
+        tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+        completed = await tasks_tools.tasks_complete(ctx, task_id=created.id)
+
+    assert isinstance(completed, Task), (
+        f"Expected Task, got {type(completed).__name__}: {completed!r}"
+    )
+    assert completed.status == "done"
+    assert completed.completed_at is not None
+    assert completed.completed_by == "user:les@example.com"
+
+
+@pytest.mark.asyncio
+async def test_tasks_complete_records_result_notes(_t5_engine: Any) -> None:
+    """tasks_complete(id, result_notes="...") persists notes."""
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+        patch.object(tasks_tools, "_update_reflection", new=AsyncMock()),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = await tasks_tools.tasks_create(ctx, content="x", tags=["task"])
+        assert isinstance(created, Task)
+
+        tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+        completed = await tasks_tools.tasks_complete(
+            ctx,
+            task_id=created.id,
+            result_notes="Refactored the authz middleware",
+        )
+
+    assert isinstance(completed, Task)
+    assert completed.result_notes == "Refactored the authz middleware"
+
+
+def test_tasks_complete_server_overrides_completed_by() -> None:
+    """tasks_complete signature MUST NOT accept completed_by or owner (introspection).
+
+    The brief pins the v1.1 server-set contract: ``completed_by`` is
+    derived from caller identity. The signature is the load-bearing
+    boundary — if a future regression re-exposes ``completed_by`` /
+    ``owner`` as a parameter, this test fails immediately. ``inspect``
+    walks the live function object so any monkey-patched decoration that
+    re-binds parameters would also be caught.
+    """
+    import inspect
+
+    from session_buddy.mcp.tools import tasks_tools
+
+    sig = inspect.signature(tasks_tools.tasks_complete)
+    assert "completed_by" not in sig.parameters
+    assert "owner" not in sig.parameters
+
+
+# ---------------------------------------------------------------------------
+# tasks_complete authz
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_complete_rejects_non_owner_caller(_t5_engine: Any) -> None:
+    """User B cannot complete User A's task — 404 envelope, status unchanged.
+
+    Per spec §Authz Model line 565 + §Error Handling Matrix: non-owner
+    caller gets an error envelope with ``error_code='not_found'`` (404,
+    not 403 — same info-leak parity as ``tasks_get``).
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx_alice = _make_ctx({"user_email": "alice@example.com"})
+    ctx_bob = _make_ctx({"user_email": "bob@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        task_a = await tasks_tools.tasks_create(
+            ctx_alice,
+            content="alice-task",
+            tags=["task"],
+        )
+        assert isinstance(task_a, Task)
+        assert task_a.owner == "user:alice@example.com"
+
+        tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+        result = await tasks_tools.tasks_complete(ctx_bob, task_id=task_a.id)
+
+    assert isinstance(result, dict), (
+        f"Expected error envelope dict, got {type(result).__name__}"
+    )
+    assert result.get("status") == "error"
+    assert result.get("error_code") == "not_found"
+
+    # Verify status was NOT changed (read-back via tasks_get).
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    with patch.object(
+        tasks_tools,
+        "_read_reflection",
+        new=AsyncMock(
+            side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+        ),
+    ):
+        fetched = await tasks_tools.tasks_get(ctx_alice, task_id=task_a.id)
+    assert isinstance(fetched, Task)
+    assert fetched.status != "done"
+
+
+# ---------------------------------------------------------------------------
+# tasks_complete no-dispatch regression (v1.1 hardening)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_complete_does_NOT_dispatch_even_with_handoff_prefix(
+    _t5_engine: Any,
+) -> None:
+    """REGRESSION: result_notes='HANDOFF: ...' MUST NOT trigger any dispatch.
+
+    v1.1 multi-agent-review hardening. The function body MUST be a pure
+    state mutation: it does NOT call ``pool_route_execute``,
+    ``dispatch_to_pool``, ``route_task``, or any other dispatch primitive
+    regardless of ``result_notes`` content. The ONLY dispatch edge in the
+    system is ``tasks_handoff_to_workflow`` (T17, mahavishnu PR #2).
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+        patch.object(tasks_tools, "_update_reflection", new=AsyncMock()),
+        # Spy on the candidate dispatch primitive on the tasks_tools
+        # module itself. ``create=True`` adds the attribute if it does
+        # not exist so the patch always succeeds; the regression
+        # assertion below catches any future implementation that
+        # tries to call it.
+        patch.object(
+            tasks_tools,
+            "dispatch_to_pool",
+            new=AsyncMock(),
+            create=True,
+        ) as mock_dispatch,
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = await tasks_tools.tasks_create(ctx, content="x", tags=["task"])
+        assert isinstance(created, Task)
+
+        tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+        completed = await tasks_tools.tasks_complete(
+            ctx,
+            task_id=created.id,
+            result_notes="HANDOFF: trigger-something",
+        )
+
+    mock_dispatch.assert_not_called()
+    assert isinstance(completed, Task)
+    assert completed.status == "done"
+    # workflow_id must NOT be set as a side effect of complete.
+    assert completed.workflow_id is None
+
+
+# ---------------------------------------------------------------------------
+# tasks_complete event emission + rate limit + 404
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_complete_emits_task_completed_event(_t5_engine: Any) -> None:
+    """Spy on publish_task_event; verify TaskCompletedPayload emitted."""
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+    publish_mock = AsyncMock()
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=publish_mock),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+        patch.object(tasks_tools, "_update_reflection", new=AsyncMock()),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = await tasks_tools.tasks_create(ctx, content="x", tags=["task"])
+        assert isinstance(created, Task)
+
+        tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+        await tasks_tools.tasks_complete(ctx, task_id=created.id)
+
+    completed_events = [
+        call.args
+        for call in publish_mock.await_args_list
+        if call.args and call.args[0] == "task.completed"
+    ]
+    assert completed_events, (
+        f"expected at least one task.completed event; got {publish_mock.await_args_list!r}"
+    )
+    event_type, payload = completed_events[0][0], completed_events[0][1]
+    assert event_type == "task.completed"
+    assert isinstance(payload, TaskCompletedPayload)
+    assert payload.task_id == created.id
+    assert payload.actor == "user:les@example.com"
+
+
+@pytest.mark.asyncio
+async def test_tasks_complete_rate_limited_returns_envelope(_t5_engine: Any) -> None:
+    """121st tasks_complete call within 60s returns rate_limited envelope.
+
+    Shared 120/min limiter with ``tasks_update`` per spec §Input Limits.
+    Use a 2-request limit so the 3rd call blows past quota in test time.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    # Single limiter instance shared across all 3 complete calls so the
+    # sliding-window state actually accumulates.
+    tasks_tools._update_rate_limiter = RateLimiter(limit=2, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+        patch.object(tasks_tools, "_update_reflection", new=AsyncMock()),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = await tasks_tools.tasks_create(ctx, content="x", tags=["task"])
+        assert isinstance(created, Task)
+
+        # First two completes succeed.
+        for _ in range(2):
+            ok = await tasks_tools.tasks_complete(ctx, task_id=created.id)
+            assert isinstance(ok, Task), (
+                f"Expected Task, got {type(ok).__name__}: {ok!r}"
+            )
+
+        # Third complete trips the 2/min limit.
+        rate_limited = await tasks_tools.tasks_complete(ctx, task_id=created.id)
+
+    assert isinstance(rate_limited, dict)
+    assert rate_limited.get("status") == "error"
+    assert rate_limited.get("error_code") == "rate_limited"
+    details = rate_limited.get("details", {})
+    assert details.get("limit") == 2
+    assert details.get("caller") == "user:les@example.com"
+
+
+@pytest.mark.asyncio
+async def test_tasks_complete_returns_404_for_unknown_id(_t5_engine: Any) -> None:
+    """tasks_complete(unknown_id) returns 404 envelope."""
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    unknown_id = "t-0123456789abcdef0123456789abcdef"
+
+    with (
+        patch.object(tasks_tools, "_read_reflection", new=AsyncMock(return_value=None)),
+        patch.object(tasks_tools, "_update_reflection", new=AsyncMock()),
+    ):
+        result = await tasks_tools.tasks_complete(ctx, task_id=unknown_id)
+
+    assert isinstance(result, dict)
+    assert result.get("status") == "error"
+    assert result.get("error_code") == "not_found"
+
