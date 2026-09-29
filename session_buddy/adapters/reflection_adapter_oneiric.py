@@ -453,7 +453,7 @@ class ReflectionDatabaseAdapterOneiric:
         # This prevents race conditions by clearing cache while connection is still alive
         if self._query_cache:
             with suppress(Exception):
-                self._query_cache.invalidate()  # Clear cache
+                await self._query_cache.invalidate()  # Clear cache
                 await asyncio.sleep(0.1)  # Phase 6: Wait for pending operations
             self._query_cache = None
 
@@ -1617,7 +1617,7 @@ class ReflectionDatabaseAdapterOneiric:
         )
 
         # Check cache first (Phase 1: Query Cache)
-        cached_results = self._get_cached_conversations(
+        cached_results = await self._get_cached_conversations(
             query=query,
             project=project,
             limit=limit,
@@ -1635,7 +1635,7 @@ class ReflectionDatabaseAdapterOneiric:
         )
 
         # Populate cache for future searches (Phase 1: Query Cache)
-        self._cache_conversation_results(
+        await self._cache_conversation_results(
             query=query,
             project=project,
             limit=limit,
@@ -1778,7 +1778,7 @@ class ReflectionDatabaseAdapterOneiric:
             for row in rows
         ]
 
-    def _get_cached_conversations(
+    async def _get_cached_conversations(
         self,
         query: str,
         project: str | None,
@@ -1805,7 +1805,7 @@ class ReflectionDatabaseAdapterOneiric:
             project=project,
             limit=limit,
         )
-        cached_result_ids = self._query_cache.get(cache_key)
+        cached_result_ids = await self._query_cache.get(cache_key)
 
         if cached_result_ids is None:
             return None
@@ -1979,7 +1979,7 @@ class ReflectionDatabaseAdapterOneiric:
             for row in result
         ]
 
-    def _cache_conversation_results(
+    async def _cache_conversation_results(
         self,
         query: str,
         project: str | None,
@@ -2008,7 +2008,7 @@ class ReflectionDatabaseAdapterOneiric:
         result_ids = [r["id"] for r in results]
         normalized_query = QueryCacheManager.normalize_query(query)
 
-        self._query_cache.put(
+        await self._query_cache.put(
             cache_key=cache_key,
             result_ids=result_ids,
             normalized_query=normalized_query,
@@ -2277,7 +2277,7 @@ class ReflectionDatabaseAdapterOneiric:
             await self.initialize()
 
         # Check cache first (Phase 1: Query Cache)
-        cached_results = self._get_cached_reflections(
+        cached_results = await self._get_cached_reflections(
             query=query,
             limit=limit,
             use_cache=use_cache,
@@ -2294,7 +2294,7 @@ class ReflectionDatabaseAdapterOneiric:
         )
 
         # Populate cache for future searches (Phase 1: Query Cache)
-        self._cache_reflection_results(
+        await self._cache_reflection_results(
             query=query,
             limit=limit,
             results=results,
@@ -2303,7 +2303,7 @@ class ReflectionDatabaseAdapterOneiric:
 
         return results
 
-    def _get_cached_reflections(
+    async def _get_cached_reflections(
         self,
         query: str,
         limit: int,
@@ -2328,7 +2328,7 @@ class ReflectionDatabaseAdapterOneiric:
             project=None,  # reflections don't have project filter
             limit=limit,
         )
-        cached_result_ids = self._query_cache.get(cache_key)
+        cached_result_ids = await self._query_cache.get(cache_key)
 
         if cached_result_ids is None:
             return None
@@ -2385,7 +2385,7 @@ class ReflectionDatabaseAdapterOneiric:
             return await self._semantic_search_reflections(query, limit, project)
         return await self._text_search_reflections(query, limit, project)
 
-    def _cache_reflection_results(
+    async def _cache_reflection_results(
         self,
         query: str,
         limit: int,
@@ -2412,7 +2412,7 @@ class ReflectionDatabaseAdapterOneiric:
         result_ids = [r["id"] for r in results]
         normalized_query = QueryCacheManager.normalize_query(query)
 
-        self._query_cache.put(
+        await self._query_cache.put(
             cache_key=cache_key,
             result_ids=result_ids,
             normalized_query=normalized_query,

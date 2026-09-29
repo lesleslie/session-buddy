@@ -168,7 +168,7 @@ async def clear_query_cache(
 
         if cache_level in ("l1", "all"):
             # Clear L1 cache
-            cache.invalidate()  # This clears L1
+            await cache.invalidate()  # This clears L1
             cleared_l1 = True
 
         if cache_level in ("l2", "all"):
@@ -335,7 +335,7 @@ async def invalidate_cache(
             project=project,
             limit=10,  # Default limit
         )
-        db._query_cache.invalidate(cache_key=cache_key)
+        await db._query_cache.invalidate(cache_key=cache_key)
 
         return json.dumps(
             {

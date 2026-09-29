@@ -9,7 +9,6 @@ this commit alongside the substitution.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 from typing import Any
@@ -20,8 +19,8 @@ from oneiric.adapters.cache.memory import MemoryCacheAdapter, MemoryCacheSetting
 class QueryCacheManager:
     """Two-tier cache substitute: now in-process via MemoryCacheAdapter.
 
-    Sync API preserved for callers that reach the cache in non-async
-    contexts. Per-call asyncio.run() bridge with a running-loop guard.
+    All public methods are async; callers must be in a running event loop.
+    The MemoryCacheAdapter is the only underlying primitive.
     """
 
     def __init__(
@@ -122,31 +121,19 @@ class QueryCacheManager:
         key_string = json.dumps(components, sort_keys=True)
         return hashlib.sha256(key_string.encode()).hexdigest()
 
-    def _run_async(self, coro: Any) -> Any:
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            pass
-        else:
-            raise RuntimeError(
-                "QueryCacheManager sync API cannot be called from a running event loop. "
-                "Use the underlying MemoryCacheAdapter async interface directly."
-            )
-        return asyncio.run(coro)
-
-    def get(
+    async def get(
         self,
         cache_key: str,
         check_l2: bool = True,  # req: REQ-OSUB-A-001 — preserved kwarg, no-op (L2 deleted)
     ) -> list[str] | None:
-        raw = self._run_async(self._cache.get(cache_key))
+        raw = await self._cache.get(cache_key)
         if raw is None:
             return None
         if not isinstance(raw, list):
             return None
         return raw
 
-    def put(
+    async def put(
         self,
         cache_key: str,
         result_ids: list[str],
@@ -154,18 +141,18 @@ class QueryCacheManager:
         project: str | None = None,
     ) -> None:
         # req: REQ-OSUB-A-001 — store result_ids verbatim (the historical cache shape)
-        self._run_async(self._cache.set(cache_key, list(result_ids)))
+        await self._cache.set(cache_key, list(result_ids))
 
-    def invalidate(
+    async def invalidate(
         self,
         cache_key: str | None = None,
     ) -> None:
         # req: REQ-OSUB-A-001
         if cache_key is None:
-            self._run_async(self._cache.clear())
+            await self._cache.clear()
             return
-        self._run_async(self._cache.delete(cache_key))
+        await self._cache.delete(cache_key)
 
-    def close(self) -> None:
-        # req: REQ-OSUB-A-002 — was `async aclose`
-        self._run_async(self._cache.cleanup())
+    async def close(self) -> None:
+        # req: REQ-OSUB-A-002
+        await self._cache.cleanup()

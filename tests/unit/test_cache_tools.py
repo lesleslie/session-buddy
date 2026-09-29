@@ -34,7 +34,7 @@ class DummyCache:
             "l1_size": 3,
         }
 
-    def invalidate(self, cache_key: str | None = None) -> None:
+    async def invalidate(self, cache_key: str | None = None) -> None:
         self.invalidated.append(cache_key)
 
     def _clear_l2(self) -> None:

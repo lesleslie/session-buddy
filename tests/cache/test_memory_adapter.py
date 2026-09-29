@@ -10,8 +10,6 @@ REQ traceability: REQ-OSUB-A-001 (substitution), REQ-OSUB-A-002 (L2 removal).
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 
 from oneiric.adapters.cache.memory import MemoryCacheAdapter
@@ -20,10 +18,10 @@ from session_buddy.cache.query_cache import QueryCacheManager
 
 
 @pytest.mark.req(["REQ-OSUB-A-001"])
-def test_query_cache_delegates_to_memory_adapter() -> None:
+async def test_query_cache_delegates_to_memory_adapter() -> None:
     qc = QueryCacheManager(l1_max_size=10)  # NOTE: l1_max_size (NOT max_size — pure substitution)
-    qc.put("k", ["v"], normalized_query="q", project=None)
-    assert qc.get("k") == ["v"]
+    await qc.put("k", ["v"], normalized_query="q", project=None)
+    assert await qc.get("k") == ["v"]
     assert isinstance(qc._cache, MemoryCacheAdapter)
 
 
@@ -36,15 +34,11 @@ def test_query_cache_constructor_signature_preserved() -> None:
 
 
 @pytest.mark.req(["REQ-OSUB-A-001"])
-def test_sync_api_raises_in_running_loop() -> None:
-    """Sync API is non-blocking-call-safe. In async contexts, callers should hit the adapter directly."""
+async def test_query_cache_async_api_works_in_event_loop() -> None:
+    """The async API works in a running event loop (no running-loop guard)."""
     qc = QueryCacheManager(l1_max_size=10)
-
-    async def inside() -> None:
-        qc.put("k", ["v"], normalized_query="q", project=None)
-
-    with pytest.raises(RuntimeError, match="running event loop"):
-        asyncio.run(inside())
+    await qc.put("k", ["v"], normalized_query="q", project=None)
+    assert await qc.get("k") == ["v"]
 
 
 @pytest.mark.req(["REQ-OSUB-A-001", "REQ-OSUB-A-002"])
