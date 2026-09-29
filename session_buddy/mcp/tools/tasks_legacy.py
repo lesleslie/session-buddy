@@ -9,6 +9,7 @@ surface as ghost tasks.
 Functions:
     coerce_legacy_reflection(reflection) -> LegacyTaskRow | None
 """
+
 from __future__ import annotations
 
 from typing import Any

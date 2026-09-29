@@ -407,10 +407,6 @@ def _build_task(
         return None
 
 
-
-
-
-
 async def _query_legacy_reflections(
     caller: str,
 ) -> list[tuple[str, dict[str, Any]]]:
@@ -600,7 +596,9 @@ def _find_reflection_id_by_task_id(engine: Engine, task_id: str) -> str | None:
         metadata_filter={"kind": "task"},
     )
     for rid in all_task_ids:
-        sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=rid)
+        sidecar_meta = tasks_storage.read_task_metadata(
+            engine=engine, reflection_id=rid
+        )
         if sidecar_meta and sidecar_meta.get("task_id") == task_id:
             return rid
     return None
@@ -618,7 +616,9 @@ def _compute_diff(before: dict[str, Any], after: dict[str, Any]) -> list[FieldDi
     diffs: list[FieldDiff] = []
     for key in sorted(set(before) | set(after)):
         if before.get(key) != after.get(key):
-            diffs.append(FieldDiff(field=key, before=before.get(key), after=after.get(key)))
+            diffs.append(
+                FieldDiff(field=key, before=before.get(key), after=after.get(key))
+            )
     return diffs
 
 
@@ -719,22 +719,30 @@ async def _persist_task_update(
     synced_tags = list(task.tags)
     for diff in diff_events:
         if diff.field == "priority":
-            synced_tags = _sync_tags_after_field_change(synced_tags, "priority", diff.after)
+            synced_tags = _sync_tags_after_field_change(
+                synced_tags, "priority", diff.after
+            )
         elif diff.field == "status":
-            synced_tags = _sync_tags_after_field_change(synced_tags, "status", diff.after)
+            synced_tags = _sync_tags_after_field_change(
+                synced_tags, "status", diff.after
+            )
         elif diff.field == "effort":
-            synced_tags = _sync_tags_after_field_change(synced_tags, "effort", diff.after)
+            synced_tags = _sync_tags_after_field_change(
+                synced_tags, "effort", diff.after
+            )
 
     history = list(new_meta.get("history") or [])
     now_iso = datetime.now(UTC).isoformat()
     for diff in diff_events:
-        history.append({
-            "field": diff.field,
-            "before": _jsonify_value(diff.before),
-            "after": _jsonify_value(diff.after),
-            "actor": actor,
-            "at": now_iso,
-        })
+        history.append(
+            {
+                "field": diff.field,
+                "before": _jsonify_value(diff.before),
+                "after": _jsonify_value(diff.after),
+                "actor": actor,
+                "at": now_iso,
+            }
+        )
     new_meta["history"] = history
 
     tasks_storage.persist_task_metadata(
@@ -840,7 +848,9 @@ async def tasks_get(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    sidecar_meta = (
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    )
     task = _build_task(reflection, sidecar_meta)
     if task is None:
         return {
@@ -931,7 +941,9 @@ async def tasks_update(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    sidecar_meta = (
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
@@ -1053,7 +1065,9 @@ async def tasks_complete(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    sidecar_meta = (
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
@@ -1166,8 +1180,7 @@ async def tasks_search(
         # row produced by ``tasks_create`` has a sidecar entry, but a
         # future writer may bypass that path).
         sidecar_meta = (
-            tasks_storage.read_task_metadata(engine=engine, reflection_id=rid)
-            or {}
+            tasks_storage.read_task_metadata(engine=engine, reflection_id=rid) or {}
         )
         kind = sidecar_meta.get("kind") if isinstance(sidecar_meta, dict) else None
         tags_in = list(hit.get("tags") or [])
@@ -1301,7 +1314,7 @@ async def tasks_history(
         at_raw = entry.get("at")
         try:
             timestamp = _parse_iso_optional(at_raw) or datetime.now(UTC)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             timestamp = datetime.now(UTC)
 
         # diff is ``{field: (before, after)}`` per TaskEvent contract. When
