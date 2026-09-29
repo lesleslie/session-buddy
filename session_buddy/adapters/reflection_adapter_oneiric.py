@@ -528,12 +528,15 @@ class ReflectionDatabaseAdapterOneiric:
         # Create tables if they don't exist
         self._create_tables()
 
-        # Initialize query cache (Phase 1: Query Cache)
+        # Initialize query cache (Phase 1: Query Cache). QueryCacheManager
+        # is now a pure MemoryCacheAdapter substitute; its __init__ already
+        # constructs the in-process cache, so no explicit initialize() call
+        # is needed (a1b30b1d deleted the L2 DuckDB setup that previously
+        # required initialize(conn=...)).
         self._query_cache = QueryCacheManager(
             l1_max_size=1000,
             l2_ttl_days=7,
         )
-        await self._query_cache.initialize(conn=self.conn)
 
         # Initialize category evolution engine (Phase 5)
         self._category_engine = CategoryEvolutionEngine(
