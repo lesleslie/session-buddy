@@ -79,12 +79,16 @@ async def test_tasks_create_returns_task_with_server_derived_owner() -> None:
             tags=["task", "refactor"],
         )
 
-    assert isinstance(result, Task), f"Expected Task, got {type(result).__name__}: {result!r}"
+    assert isinstance(result, Task), (
+        f"Expected Task, got {type(result).__name__}: {result!r}"
+    )
     assert result.owner == "user:les@example.com"
     assert result.created_by == "user:les@example.com"
     assert result.id.startswith("t-")
     assert len(result.id) == len("t-") + 32
-    assert re.match(TASK_ID_PATTERN, result.id), f"id {result.id!r} does not match TASK_ID_PATTERN"
+    assert re.match(TASK_ID_PATTERN, result.id), (
+        f"id {result.id!r} does not match TASK_ID_PATTERN"
+    )
     assert "task" in result.tags
 
 
@@ -217,7 +221,9 @@ async def test_tasks_create_rate_limited_returns_envelope() -> None:
         )
 
     # Rate-limited response is the canonical error envelope, NOT a Task.
-    assert isinstance(second, dict), f"Expected error envelope dict, got {type(second).__name__}"
+    assert isinstance(second, dict), (
+        f"Expected error envelope dict, got {type(second).__name__}"
+    )
     assert second.get("status") == "error"
     assert second.get("error_code") == "rate_limited"
     assert "message" in second
@@ -581,7 +587,9 @@ async def test_tasks_list_filters_by_owner(_t5_engine: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_tasks_list_includes_legacy_when_include_legacy_true(_t5_engine: Any) -> None:
+async def test_tasks_list_includes_legacy_when_include_legacy_true(
+    _t5_engine: Any,
+) -> None:
     from session_buddy.mcp.tools import tasks_tools
 
     tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
@@ -773,3 +781,54 @@ async def test_tasks_list_envelope_shape(_t5_engine: Any) -> None:
         padded = page.next_cursor + "=" * (-len(page.next_cursor) % 4)
         decoded = json.loads(base64.urlsafe_b64decode(padded.encode()).decode())
         assert "offset" in decoded
+
+
+# ---------------------------------------------------------------------------
+# T5 fix round 1 — round-trip regression
+# ---------------------------------------------------------------------------
+#
+# Closes the v1-blocker from T5 concern #2: ``tasks_create`` now persists
+# the full 32-hex ``task_id`` in metadata, and ``tasks_list`` reads it back.
+# This test pins the contract: ``tasks_create(t).id`` MUST appear in the
+# ``items`` of the immediately-following ``tasks_list`` so T6/T7 can use
+# the listed id for get/update/complete.
+@pytest.mark.asyncio
+async def test_tasks_list_returns_same_id_as_tasks_create(_t5_engine: Any) -> None:
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(
+                    rid,
+                    content="round-trip body",
+                    tags=["task"],
+                ),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = await tasks_tools.tasks_create(
+            ctx,
+            content="round-trip test",
+            tags=["task"],
+        )
+        assert isinstance(created, Task)
+
+        listed = await tasks_tools.tasks_list(ctx)
+
+    listed_ids = [item.id for item in listed.items]
+    assert created.id in listed_ids, (
+        f"Round-trip broken: created.id={created.id!r} not in list {listed_ids!r}"
+    )
+    # Sanity: the listed id must still match the canonical pattern.
+    assert re.match(TASK_ID_PATTERN, created.id)
+    for item in listed.items:
+        assert re.match(TASK_ID_PATTERN, item.id)

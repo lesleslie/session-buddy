@@ -11,6 +11,7 @@ the FastMCP ``Context.request_state``.
 T4 lands ``tasks_create`` only. T5-T9 add the remaining ``tasks_*`` tools;
 T12 wires ``register_tasks_tools(mcp)`` into the FastMCP server.
 """
+
 from __future__ import annotations
 
 import base64
@@ -182,12 +183,16 @@ async def tasks_create(
     # is the discriminator that downstream ``tasks_list`` uses to scope
     # semantic searches (so an ``akosha`` query for ``task`` rows does
     # not return store_reflection rows written by other tools).
+    # ``metadata.task_id`` carries the full 32-hex id so the list/get/
+    # update round-trip in T5-T7 can recover the original id (the
+    # compact ``uuid_alias`` is display-only per spec §Data Model).
     uuid_alias = task.id[2:14]  # 12-hex compact form for display only
     await store_reflection(
         content=content,
         metadata={
             "kind": "task",
             "owner": task.owner,
+            "task_id": task.id,
             "uuid_alias": uuid_alias,
             "priority": priority,
             "effort": effort,
@@ -286,12 +291,14 @@ def _parse_iso_optional(value: Any) -> datetime | None:
         return value if value.tzinfo else value.replace(tzinfo=UTC)
     try:
         parsed = datetime.fromisoformat(str(value))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-def _build_task(reflection: dict[str, Any], sidecar_meta: dict[str, Any]) -> Task | None:
+def _build_task(
+    reflection: dict[str, Any], sidecar_meta: dict[str, Any]
+) -> Task | None:
     """Build a :class:`Task` from a reflection row + sidecar metadata.
 
     Returns ``None`` if the reflection row is missing required fields
@@ -322,14 +329,27 @@ def _build_task(reflection: dict[str, Any], sidecar_meta: dict[str, Any]) -> Tas
             effort = value
 
     owner = sidecar_meta.get("owner")
-    created_at = _parse_iso_optional(sidecar_meta.get("created_at")) or datetime.now(UTC)
+    created_at = _parse_iso_optional(sidecar_meta.get("created_at")) or datetime.now(
+        UTC
+    )
     due_at = _parse_iso_optional(sidecar_meta.get("due_at"))
     parent_task_id = sidecar_meta.get("parent_task_id")
     workflow_id = sidecar_meta.get("workflow_id")
 
+    # ``task_id`` is the full 32-hex id persisted at create time so the
+    # list/get/update round-trip recovers the original id. The synthetic
+    # SHA-256 fallback exists only for rows that pre-date the metadata
+    # extension (should be zero in practice — kept for defensive
+    # correctness so a stray legacy row can't crash ``tasks_list``).
+    persisted_task_id = sidecar_meta.get("task_id")
+    if isinstance(persisted_task_id, str) and persisted_task_id.startswith("t-"):
+        resolved_id: str = persisted_task_id
+    else:
+        resolved_id = _synthetic_task_id(reflection_id)
+
     try:
         return Task(
-            id=_synthetic_task_id(reflection_id),
+            id=resolved_id,
             content=content,
             owner=str(owner) if owner else None,
             visibility="private",
@@ -348,7 +368,7 @@ def _build_task(reflection: dict[str, Any], sidecar_meta: dict[str, Any]) -> Tas
             result_notes=None,
             metadata={},
         )
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
@@ -410,8 +430,10 @@ def _decode_cursor(cursor: str | None) -> int:
         return 0
     try:
         padded = cursor + "=" * (-len(cursor) % 4)
-        decoded = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
-    except (ValueError, KeyError, TypeError):
+        decoded = json.loads(
+            base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+        )
+    except ValueError, KeyError, TypeError:
         return 0
     offset = decoded.get("offset", 0)
     return int(offset) if isinstance(offset, int) and offset >= 0 else 0
@@ -477,10 +499,13 @@ async def tasks_list(
         reflection = await _read_reflection(rid)
         if reflection is None:
             continue  # orphan sidecar row — skip silently
-        sidecar_meta = tasks_storage.read_task_metadata(
-            tasks_storage.get_engine(),
-            rid,
-        ) or {}
+        sidecar_meta = (
+            tasks_storage.read_task_metadata(
+                tasks_storage.get_engine(),
+                rid,
+            )
+            or {}
+        )
         task = _build_task(reflection, sidecar_meta)
         if task is None:
             continue
@@ -507,11 +532,7 @@ async def tasks_list(
     offset = _decode_cursor(cursor)
     page_items: list[Task | LegacyTaskRow]
     page_items = typed_items[offset : offset + k]
-    next_cursor = (
-        _encode_cursor(offset + k)
-        if offset + k < len(typed_items)
-        else None
-    )
+    next_cursor = _encode_cursor(offset + k) if offset + k < len(typed_items) else None
 
     # When ``include_legacy`` is on, append legacy rows after the typed
     # page (they're surfaced as a separate category — the spec marks them
