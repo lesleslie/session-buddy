@@ -150,6 +150,9 @@ async def publish_task_event(
     downstream code can import the symbol and the call site has a stable
     shape.
 
+    Note: ``event_type="task.cancelled"`` reuses ``TaskCompletedPayload``
+    (spec is silent on a dedicated cancelled payload model).
+
     The ``redis`` parameter is accepted as ``Any`` so the stub does not
     force a redis import — T4+ will tighten this to the actual async
     redis client type once it lands.
