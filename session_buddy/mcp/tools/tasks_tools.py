@@ -647,14 +647,24 @@ async def _update_reflection(
     content: str,
     tags: list[str],
 ) -> None:
-    """Stub: persist updated content + tags to the canonical reflection DB.
+    """Persist updated content + tags to the canonical reflection DB.
 
-    T6 leaves this as a no-op so the brief's test path can run without a
-    real reflection adapter. T12 wires the canonical reflection adapter's
-    update primitive here. Tests that need to assert reflection DB state
-    patch this symbol via ``patch.object(tasks_tools, "_update_reflection", ...)``.
+    Delegates to the reflection adapter's ``update_reflection`` primitive
+    (added in T6 fix round 1). Raises if the row doesn't exist or the
+    adapter is unavailable.
     """
-    return
+    from session_buddy.reflection_tools import get_reflection_database
+
+    db = await get_reflection_database()
+    updated = await db.update_reflection(
+        reflection_id,
+        content=content,
+        tags=tags,
+    )
+    if not updated:
+        raise RuntimeError(
+            f"_update_reflection: reflection_id={reflection_id!r} not found"
+        )
 
 
 def _sync_tags_after_field_change(

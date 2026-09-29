@@ -1009,6 +1009,11 @@ async def test_tasks_update_mutates_priority_and_emits_event(_t5_engine: Any) ->
                 ),
             ),
         ),
+        # ``_update_reflection`` now hits the real adapter; this test
+        # only exercises the priority mutation path so a no-op patch
+        # is sufficient. The dedicated round-trip test in the T6 fix
+        # round 1 section below uses a spy to assert the new content.
+        patch.object(tasks_tools, "_update_reflection", new=AsyncMock()),
     ):
         tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
         created = await tasks_tools.tasks_create(
@@ -1199,6 +1204,10 @@ async def test_tasks_update_rate_limited_returns_envelope(_t5_engine: Any) -> No
                 side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
             ),
         ),
+        # ``_update_reflection`` is now a real adapter call (T6 fix
+        # round 1); this test only exercises the rate-limit envelope
+        # so a no-op patch is sufficient.
+        patch.object(tasks_tools, "_update_reflection", new=AsyncMock()),
     ):
         tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
         created = await tasks_tools.tasks_create(ctx, content="x", tags=["task"])
@@ -1228,3 +1237,88 @@ async def test_tasks_update_rate_limited_returns_envelope(_t5_engine: Any) -> No
     details = rate_limited.get("details", {})
     assert details.get("limit") == 2
     assert details.get("caller") == "user:les@example.com"
+
+
+# ---------------------------------------------------------------------------
+# T6 fix round 1 — content round-trip regression
+# ---------------------------------------------------------------------------
+#
+# T6 originally shipped with ``_update_reflection`` as a no-op stub, so
+# ``tasks_update(content=...)`` mutated the in-memory task but never
+# reached the reflection DB. This test pins the fix: a spy replaces
+# ``_update_reflection`` and asserts it was called with the new
+# content so the round-trip contract holds.
+
+
+@pytest.mark.asyncio
+async def test_tasks_update_content_round_trips_through_reflection_db(
+    _t5_engine: Any,
+) -> None:
+    """tasks_update(content='new') MUST call _update_reflection with 'new'."""
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    captured: dict[str, Any] = {}
+    original_update_reflection = tasks_tools._update_reflection
+
+    async def spy(reflection_id: str, content: str, tags: list[str]) -> None:
+        captured["reflection_id"] = reflection_id
+        captured["content"] = content
+        captured["tags"] = tags
+
+    tasks_tools._update_reflection = spy  # type: ignore[assignment]
+    try:
+        with (
+            patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+            patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+            patch.object(
+                tasks_tools,
+                "_read_reflection",
+                new=AsyncMock(
+                    side_effect=lambda rid: _t5_reflection_for(
+                        rid,
+                        content="original",
+                        tags=["task"],
+                    ),
+                ),
+            ),
+        ):
+            tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+            created = await tasks_tools.tasks_create(
+                ctx,
+                content="original",
+                tags=["task"],
+            )
+            assert isinstance(created, Task)
+
+            tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+            result = await tasks_tools.tasks_update(
+                ctx,
+                task_id=created.id,
+                request=UpdateTaskRequest(content="updated-text"),
+            )
+
+        assert isinstance(result, Task)
+        assert result.content == "updated-text"
+
+        # The spy MUST have been called with the new content; without it
+        # ``_persist_task_update``'s ``_update_reflection`` call would
+        # have been a no-op and a subsequent ``tasks_get`` would read
+        # stale content from the reflection DB.
+        assert captured.get("content") == "updated-text", (
+            f"_update_reflection was not called with the new content; "
+            f"captured={captured!r}"
+        )
+        assert captured.get("reflection_id"), (
+            f"_update_reflection was not called with a reflection_id; "
+            f"captured={captured!r}"
+        )
+        assert "task" in (captured.get("tags") or []), (
+            f"_update_reflection must preserve the 'task' discriminator tag; "
+            f"captured.tags={captured.get('tags')!r}"
+        )
+    finally:
+        tasks_tools._update_reflection = original_update_reflection  # type: ignore[assignment]

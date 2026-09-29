@@ -30,6 +30,14 @@ class ReflectionDatabaseProtocol(Protocol):
         min_score: float | None = None,
     ) -> list[dict[str, Any]]: ...
 
+    async def update_reflection(
+        self,
+        reflection_id: str,
+        *,
+        content: str | None = None,
+        tags: list[str] | None = None,
+    ) -> bool: ...
+
     @property
     def conn(self) -> Any: ...
 

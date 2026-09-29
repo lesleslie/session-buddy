@@ -2545,6 +2545,49 @@ class ReflectionDatabaseAdapterOneiric:
             "updated_at": result[4].isoformat() if result[4] else None,
         }
 
+    async def update_reflection(
+        self,
+        reflection_id: str,
+        *,
+        content: str | None = None,
+        tags: list[str] | None = None,
+    ) -> bool:
+        """Update an existing reflection's content and/or tags.
+
+        Returns True if a row was updated, False if the reflection_id
+        doesn't exist. Both ``content`` and ``tags`` are optional; pass
+        only the fields you want to mutate. Tags are stored as a
+        JSON-encoded list (matching ``store_reflection``'s convention).
+
+        Used by ``session_buddy.mcp.tools.tasks_tools.tasks_update`` to
+        persist the row-level state when the task's content or tag list
+        changes; the sidecar metadata is updated separately by
+        ``tasks_storage.persist_task_metadata``.
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        if content is None and tags is None:
+            return False  # nothing to do
+
+        sets: list[str] = []
+        params: list[t.Any] = []
+        if content is not None:
+            sets.append("content = ?")
+            params.append(content)
+        if tags is not None:
+            sets.append("tags = ?")
+            params.append(json.dumps(tags))
+        params.append(reflection_id)
+
+        sql = f"""
+            UPDATE {self._table("reflections")}
+            SET {", ".join(sets)}
+            WHERE id = ?
+        """
+        cur = self.conn.execute(sql, params)
+        return cur.rowcount > 0
+
     async def similarity_search(
         self, query: str, limit: int = 10
     ) -> list[dict[str, t.Any]]:
