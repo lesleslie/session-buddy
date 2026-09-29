@@ -99,12 +99,17 @@ async def _all_tool_names(app: Any) -> set[str]:
 
 
 class TestStaticCatalog:
-    """The 3 starter skills ship with valid metadata + catalog bodies."""
+    """The starter skills ship with valid metadata + catalog bodies."""
 
-    def test_three_skills(self) -> None:
-        assert len(_STATIC_SKILLS) == 3
+    def test_four_skills(self) -> None:
+        assert len(_STATIC_SKILLS) == 4
         names = [entry["name"] for entry in _STATIC_SKILLS]
-        assert names == ["search-sessions", "code-archaeologist", "pattern-capture"]
+        assert names == [
+            "search-sessions",
+            "code-archaeologist",
+            "pattern-capture",
+            "bodai-session-buddy-task-system",
+        ]
 
     def test_all_bodies_present(self) -> None:
         for entry in _STATIC_SKILLS:
@@ -255,14 +260,14 @@ class TestMCPToolRegistration:
         assert "session_buddy_get_skill" in names
 
     @pytest.mark.asyncio
-    async def test_list_skills_returns_three_entries(self) -> None:
+    async def test_list_skills_returns_four_entries(self) -> None:
         state = _seed_state()
         _install_state(state)
         app = _build_app()
         tool = await _resolve_tool(app, "session_buddy_list_skills")
         result = await tool()
         assert isinstance(result, list)
-        assert len(result) == 3
+        assert len(result) == 4
         for entry in result:
             assert entry["server"] == "session_buddy"
             assert entry["schema_version"] == 1
@@ -385,6 +390,97 @@ class TestH6Collision:
         from session_buddy.mcp.tools.skill_tools import register_skill_tools
 
         assert callable(register_skill_tools)
+
+
+# ---------------------------------------------------------------------------
+# bodai-session-buddy-task-system (Task 11)
+# ---------------------------------------------------------------------------
+
+
+class TestBodaiSessionBuddyTaskSystemSkill:
+    """The bodai-session-buddy-task-system skill is registered in _STATIC_SKILLS.
+
+    Phase 11 of the task-system plan adds this 4th skill to the catalog so
+    Claude Code can route "track this / what's on my plate / complete t-..."
+    through ``mcp__session_buddy__tasks_*`` (and the documented fallbacks
+    in the body) via the skill picker.
+    """
+
+    def test_bodai_session_buddy_task_system_skill_registered(self) -> None:
+        """The bodai-session-buddy-task-system skill is registered in _STATIC_SKILLS."""
+        assert "bodai-session-buddy-task-system" in _STATIC_SKILLS_BY_NAME
+        entry = _STATIC_SKILLS_BY_NAME["bodai-session-buddy-task-system"]
+        assert entry["version"] == "1.0.0"
+        assert entry["body_filename"] == "bodai-session-buddy-task-system.md"
+        assert "mcp__session_buddy__tasks_create" in entry["tool_refs"]
+
+    def test_bodai_session_buddy_task_system_body_loads(self) -> None:
+        """The skill body markdown file is readable and parses as frontmatter + body."""
+        body = _read_body("bodai-session-buddy-task-system.md")
+        assert body.startswith("---")
+        assert "name: bodai-session-buddy-task-system" in body
+        assert "tasks_create" in body
+
+    def test_body_file_present_on_disk(self) -> None:
+        """The validator at module load requires the body file on disk."""
+        assert (_CATALOG_DIR / "bodai-session-buddy-task-system.md").is_file()
+
+    def test_build_unsigned_metadata_for_task_system(self) -> None:
+        """The new skill round-trips through _build_unsigned_metadata."""
+        m = _build_unsigned_metadata("bodai-session-buddy-task-system")
+        assert isinstance(m, SkillMetadata)
+        assert m.server == "session_buddy"
+        assert m.name == "bodai-session-buddy-task-system"
+        assert m.version == "1.0.0"
+        assert m.id == "session_buddy:bodai-session-buddy-task-system:1.0.0"
+        assert m.content_type == "skill"
+        assert m.signature is None
+        assert m.server_pubkey_id is None
+        # SHA-256 of the body matches the recorded content_hash
+        body = _read_body("bodai-session-buddy-task-system.md")
+        assert m.content_hash == _sha256_hex(body.encode("utf-8"))
+        assert m.body_size == len(body.encode("utf-8"))
+
+    def test_tool_refs_match_spec(self) -> None:
+        """The catalog entry exposes the expected session-buddy / mahavishnu /
+        akosha tool surface (per the spec, all 11 task tools + Read + Write)."""
+        entry = _STATIC_SKILLS_BY_NAME["bodai-session-buddy-task-system"]
+        expected_tool_refs = {
+            "mcp__session_buddy__tasks_create",
+            "mcp__session_buddy__tasks_list",
+            "mcp__session_buddy__tasks_get",
+            "mcp__session_buddy__tasks_update",
+            "mcp__session_buddy__tasks_complete",
+            "mcp__session_buddy__tasks_search",
+            "mcp__session_buddy__tasks_history",
+            "mcp__mahavishnu__tasks_handoff_to_workflow",
+            "mcp__akosha__tasks_blocking",
+            "mcp__akosha__tasks_overdue_for",
+            "mcp__akosha__tasks_similar_to",
+        }
+        assert set(entry["tool_refs"]) == expected_tool_refs
+        # allowed_tools is a superset: tool_refs + Read + Write
+        assert expected_tool_refs.issubset(set(entry["allowed_tools"]))
+        assert "Read" in entry["allowed_tools"]
+        assert "Write" in entry["allowed_tools"]
+        assert entry["dependencies"] == []
+
+    @pytest.mark.asyncio
+    async def test_get_skill_returns_signed_body(self) -> None:
+        """get_skill returns the full body for the new skill (frontmatter + body)."""
+        state = _seed_state()
+        _install_state(state)
+        app = _build_app()
+        tool = await _resolve_tool(app, "session_buddy_get_skill")
+        result = await tool("bodai-session-buddy-task-system")
+        assert result["success"] is True
+        meta = result["metadata"]
+        assert meta["name"] == "bodai-session-buddy-task-system"
+        assert meta["signature"] is not None
+        assert meta["server_pubkey_id"] is not None
+        # body has the YAML frontmatter
+        assert result["body"].startswith("---\nname: bodai-session-buddy-task-system")
+        assert "tasks_create" in result["body"]
 
 
 # ---------------------------------------------------------------------------

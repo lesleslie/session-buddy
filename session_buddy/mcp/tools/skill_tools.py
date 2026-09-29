@@ -149,6 +149,50 @@ _STATIC_SKILLS: list[dict[str, Any]] = [
         ],
         "dependencies": [],
     },
+    {
+        "name": "bodai-session-buddy-task-system",
+        "body_filename": "bodai-session-buddy-task-system.md",
+        "version": "1.0.0",
+        "description": (
+            "Use ONLY when the user explicitly types "
+            "`/session-buddy:bodai-session-buddy-task-system` or selects "
+            "this Skill from the picker to track, list, or complete work "
+            "items that should survive the session. Routes through "
+            "`mcp__session_buddy__tasks_*` for the typed task system, with "
+            "fallback decision tree in the body for ephemeral vs. "
+            "persistent, subagent TodoWrite delegation, mahavishnu workflow "
+            "handoff, and akosha read-side analytics."
+        ),
+        "tool_refs": [
+            "mcp__session_buddy__tasks_create",
+            "mcp__session_buddy__tasks_list",
+            "mcp__session_buddy__tasks_get",
+            "mcp__session_buddy__tasks_update",
+            "mcp__session_buddy__tasks_complete",
+            "mcp__session_buddy__tasks_search",
+            "mcp__session_buddy__tasks_history",
+            "mcp__mahavishnu__tasks_handoff_to_workflow",
+            "mcp__akosha__tasks_blocking",
+            "mcp__akosha__tasks_overdue_for",
+            "mcp__akosha__tasks_similar_to",
+        ],
+        "allowed_tools": [
+            "mcp__session_buddy__tasks_create",
+            "mcp__session_buddy__tasks_list",
+            "mcp__session_buddy__tasks_get",
+            "mcp__session_buddy__tasks_update",
+            "mcp__session_buddy__tasks_complete",
+            "mcp__session_buddy__tasks_search",
+            "mcp__session_buddy__tasks_history",
+            "mcp__mahavishnu__tasks_handoff_to_workflow",
+            "mcp__akosha__tasks_blocking",
+            "mcp__akosha__tasks_overdue_for",
+            "mcp__akosha__tasks_similar_to",
+            "Read",
+            "Write",
+        ],
+        "dependencies": [],
+    },
 ]
 
 
