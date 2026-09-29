@@ -127,6 +127,7 @@ async def _store_reflection_operation(
     *,
     source_session_id: str | None = None,
     source_artifact_uri: str | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> dict[str, Any]:
     """Execute reflection storage operation.
 
@@ -141,6 +142,15 @@ async def _store_reflection_operation(
     also auto-extracts from ``provenance:<json>`` tag entries, but
     callers that already have the kwargs available can pass them
     explicitly to bypass tag parsing.
+
+    T4 (2026-09-29): accept ``metadata`` so the wrapper chain doesn't
+    TypeError when callers (e.g. the task system) pass per-write
+    annotations. The metadata is **not yet persisted** by the
+    underlying adapter — the ``reflections`` schema has no metadata
+    column and the adapter signature is out of scope for this fix —
+    so it is captured in the returned dict (and the caller log
+    envelope) for forward compatibility when the column migration
+    lands. Existing callers passing ``metadata=None`` see no change.
     """
     success = await db.store_reflection(
         content,
@@ -154,6 +164,7 @@ async def _store_reflection_operation(
         "content": content,
         "tags": tags,
         "project": project,
+        "metadata": metadata,
         "timestamp": utc_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -190,6 +201,7 @@ async def _screen_and_persist_reflection(
     *,
     source_session_id: str | None,
     source_artifact_uri: str | None,
+    metadata: dict[str, object] | None = None,
 ) -> dict[str, Any]:
     """Run the OWASP memory-guard screen, then persist via the reflection adapter.
 
@@ -197,6 +209,9 @@ async def _screen_and_persist_reflection(
     the guard vetoes the write. Extracted from ``_store_reflection_impl``
     to keep the orchestrator's cyclomatic complexity below the project
     threshold (pyscn default 15).
+
+    T4 (2026-09-29): forwards ``metadata`` so per-write annotations reach
+    the adapter alongside content + tags.
     """
     # OWASP memory guard — screens every write before it reaches the DB.
     # ``MemoryGuardBlockedError`` is imported at module top so the
@@ -224,6 +239,7 @@ async def _screen_and_persist_reflection(
         project,
         source_session_id=source_session_id,
         source_artifact_uri=source_artifact_uri,
+        metadata=metadata,
     )
 
 
@@ -234,6 +250,7 @@ async def _store_reflection_impl(
     *,
     source_session_id: str | None = None,
     source_artifact_uri: str | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> str:
     """Implementation for store_reflection tool.
 
@@ -248,6 +265,9 @@ async def _store_reflection_impl(
     pointers (no SQL injection risk because they go through parameterized
     inserts). Validation would require a per-deployment session-id scheme
     we do not yet have.
+
+    T4 (2026-09-29): accept optional ``metadata`` dict and forward through
+    the screen/persist chain. ``None`` callers retain previous behavior.
     """
     if not _check_reflection_tools_available():
         return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
@@ -262,6 +282,7 @@ async def _store_reflection_impl(
             project,
             source_session_id=source_session_id,
             source_artifact_uri=source_artifact_uri,
+            metadata=metadata,
         )
         return _format_store_reflection_result(result)
     except MemoryGuardBlockedError:

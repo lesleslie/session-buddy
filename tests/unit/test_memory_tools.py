@@ -8,11 +8,7 @@ Phase: Week 1 Day 2 - Quick Win Coverage (84% → 90%+)
 
 from __future__ import annotations
 
-import asyncio
-import operator
-from datetime import datetime
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -37,21 +33,14 @@ from session_buddy.mcp.tools.memory.memory_tools import (
     _format_store_reflection_result,
     _get_reflection_database,
     _quick_search_impl,
-    _quick_search_operation,
     _reflection_stats_impl,
-    _reflection_stats_operation,
     _reset_reflection_database_impl,
     _search_by_concept_impl,
-    _search_by_concept_operation,
     _search_by_file_impl,
-    _search_by_file_operation,
     _search_summary_impl,
-    _search_summary_operation,
     _store_reflection_impl,
-    _store_reflection_operation,
     register_memory_tools,
 )
-
 
 # =============================================================================
 # Test Format Score Helper
@@ -295,10 +284,9 @@ class TestCheckReflectionToolsAvailable:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": None},
             clear=False,
-        ):
-            with patch("importlib.util.find_spec", return_value=None):
-                result = _check_reflection_tools_available()
-                assert result is False
+        ), patch("importlib.util.find_spec", return_value=None):
+            result = _check_reflection_tools_available()
+            assert result is False
 
     def test_check_caches_result(self):
         """Should cache the check result."""
@@ -401,7 +389,6 @@ class TestExecuteDatabaseTool:
     @pytest.mark.asyncio
     async def test_execute_with_generic_exception(self):
         """Should handle generic exceptions."""
-        from session_buddy.utils.error_management import DatabaseUnavailableError
 
         async def op(db):
             raise Exception("generic error")
@@ -486,13 +473,12 @@ class TestStoreReflectionImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _store_reflection_impl("Test content", ["tag1", "tag2"])
-                assert "stored" in result.lower() or "success" in result.lower()
+            result = await _store_reflection_impl("Test content", ["tag1", "tag2"])
+            assert "stored" in result.lower() or "success" in result.lower()
 
     @pytest.mark.asyncio
     async def test_store_reflection_failure(self):
@@ -504,13 +490,12 @@ class TestStoreReflectionImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _store_reflection_impl("Test content")
-                assert "error" in result.lower()
+            result = await _store_reflection_impl("Test content")
+            assert "error" in result.lower()
 
     @pytest.mark.asyncio
     async def test_store_reflection_without_tags(self):
@@ -522,13 +507,12 @@ class TestStoreReflectionImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _store_reflection_impl("No tags content")
-                assert "stored" in result.lower() or "success" in result.lower()
+            result = await _store_reflection_impl("No tags content")
+            assert "stored" in result.lower() or "success" in result.lower()
 
     @pytest.mark.asyncio
     async def test_store_reflection_forwards_project(self):
@@ -551,16 +535,15 @@ class TestStoreReflectionImpl:
                 "session_buddy.mcp.tools.memory.memory_tools.__dict__",
                 {"_reflection_tools_available": True, "_reflection_db": mock_db},
                 clear=False,
+            ), patch(
+                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+                return_value=mock_db,
             ):
-                with patch(
-                    "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                    return_value=mock_db,
-                ):
-                    await _store_reflection_impl("c", ["t"], project=project)
-                    kwargs = mock_db.store_reflection.await_args.kwargs
-                    assert kwargs["project"] == project, (
-                        f"expected project={project!r}, got {kwargs['project']!r}"
-                    )
+                await _store_reflection_impl("c", ["t"], project=project)
+                kwargs = mock_db.store_reflection.await_args.kwargs
+                assert kwargs["project"] == project, (
+                    f"expected project={project!r}, got {kwargs['project']!r}"
+                )
 
         invalid_ids = [
             "",  # empty
@@ -578,14 +561,13 @@ class TestStoreReflectionImpl:
                 "session_buddy.mcp.tools.memory.memory_tools.__dict__",
                 {"_reflection_tools_available": True, "_reflection_db": mock_db},
                 clear=False,
+            ), patch(
+                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+                return_value=mock_db,
             ):
-                with patch(
-                    "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                    return_value=mock_db,
-                ):
-                    result = await _store_reflection_impl("c", ["t"], project=project)
-                    assert "validation" in result.lower() or "must match" in result.lower()
-                    mock_db.store_reflection.assert_not_awaited()
+                result = await _store_reflection_impl("c", ["t"], project=project)
+                assert "validation" in result.lower() or "must match" in result.lower()
+                mock_db.store_reflection.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_store_reflection_none_project_is_noop(self):
@@ -596,14 +578,136 @@ class TestStoreReflectionImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                await _store_reflection_impl("c", ["t"], project=None)
-                kwargs = mock_db.store_reflection.await_args.kwargs
-                assert kwargs["project"] is None
+            await _store_reflection_impl("c", ["t"], project=None)
+            kwargs = mock_db.store_reflection.await_args.kwargs
+            assert kwargs["project"] is None
+
+    @pytest.mark.asyncio
+    async def test_store_reflection_accepts_metadata_kwarg(self):
+        """T4 review: ``metadata`` kwarg must be accepted and threaded
+        through ``_store_reflection_impl`` without TypeError.
+
+        The adapter signature is out of scope for this fix — metadata
+        is captured in the returned dict but not yet persisted at the
+        SQL layer (no metadata column on the ``reflections`` table).
+        Existing callers that pass ``metadata=None`` (the default) see
+        unchanged behavior.
+        """
+        mock_db = AsyncMock()
+        mock_db.store_reflection = AsyncMock(return_value=True)
+        with patch.dict(
+            "session_buddy.mcp.tools.memory.memory_tools.__dict__",
+            {"_reflection_tools_available": True, "_reflection_db": mock_db},
+            clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
+        ):
+            metadata = {"kind": "task", "uuid_alias": "abc123def456"}
+            result = await _store_reflection_impl(
+                "c",
+                ["task"],
+                metadata=metadata,
+            )
+            # metadata kwarg accepted by the impl — no TypeError.
+            assert "error" not in result.lower()
+            # metadata kwarg was NOT forwarded to the adapter
+            # (adapter signature is out of scope for T4 fix).
+            adapter_kwargs = mock_db.store_reflection.await_args.kwargs
+            assert "metadata" not in adapter_kwargs
+
+    @pytest.mark.asyncio
+    async def test_store_reflection_metadata_default_is_none(self):
+        """``metadata=None`` (the default) must keep the prior call shape."""
+        mock_db = AsyncMock()
+        mock_db.store_reflection = AsyncMock(return_value=True)
+        with patch.dict(
+            "session_buddy.mcp.tools.memory.memory_tools.__dict__",
+            {"_reflection_tools_available": True, "_reflection_db": mock_db},
+            clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
+        ):
+            await _store_reflection_impl("c", ["t"])
+            adapter_kwargs = mock_db.store_reflection.await_args.kwargs
+            # Existing call shape unchanged — no metadata kwarg
+            # passed to the adapter regardless.
+            assert "metadata" not in adapter_kwargs
+
+
+# =============================================================================
+# Test Shim (session_buddy.tools.memory_tools.store_reflection)
+# =============================================================================
+
+
+class TestStoreReflectionShim:
+    """Pin the module-level shim's ``metadata`` forwarding contract.
+
+    T4 review (Finding 1) extended the shim in
+    ``session_buddy.tools.memory_tools`` to accept ``metadata=`` and
+    forward it to ``_store_reflection_impl``. These tests pin the
+    forwarding behavior so a future refactor that drops the kwarg
+    trips the regression.
+    """
+
+    @pytest.mark.asyncio
+    async def test_shim_accepts_metadata_and_forwards_to_impl(self):
+        """Shim accepts ``metadata=`` and threads it to the impl as a kwarg."""
+        from session_buddy.tools import memory_tools as shim_module
+
+        captured: dict[str, object] = {}
+
+        async def fake_impl(content, tags=None, **kwargs):
+            captured["content"] = content
+            captured["tags"] = tags
+            captured["kwargs"] = kwargs
+            return "stored"
+
+        original_impl = shim_module._store_reflection_impl
+        shim_module._store_reflection_impl = fake_impl
+        try:
+            result = await shim_module.store_reflection(
+                "hello",
+                ["task"],
+                metadata={"kind": "task", "uuid_alias": "abc123def456"},
+            )
+        finally:
+            shim_module._store_reflection_impl = original_impl
+
+        assert result == "stored"
+        assert captured["content"] == "hello"
+        assert captured["tags"] == ["task"]
+        assert captured["kwargs"].get("metadata") == {
+            "kind": "task",
+            "uuid_alias": "abc123def456",
+        }
+
+    @pytest.mark.asyncio
+    async def test_shim_default_metadata_is_none(self):
+        """Shim without ``metadata=`` passes ``metadata=None`` to the impl."""
+        from session_buddy.tools import memory_tools as shim_module
+
+        captured: dict[str, object] = {}
+
+        async def fake_impl(content, tags=None, **kwargs):
+            captured["kwargs"] = kwargs
+            return "stored"
+
+        original_impl = shim_module._store_reflection_impl
+        shim_module._store_reflection_impl = fake_impl
+        try:
+            await shim_module.store_reflection("hello", ["task"])
+        finally:
+            shim_module._store_reflection_impl = original_impl
+
+        # Default value is ``None``; the impl receives an explicit
+        # ``metadata=None`` kwarg (not a missing key).
+        assert captured["kwargs"].get("metadata") is None
 
 
 # =============================================================================
@@ -650,18 +754,17 @@ class TestQuickSearchImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _quick_search_impl("test query", min_score=0.7)
-                assert "test query" in result.lower()
-                assert "test result" in result.lower()
-                assert "📁 Project: test-project" in result
-                # Bug 2 fix: the date should now be the real value, not "Unknown".
-                assert "📅 Date: 2023-01-01T12:00:00" in result
-                assert "Unknown" not in result
+            result = await _quick_search_impl("test query", min_score=0.7)
+            assert "test query" in result.lower()
+            assert "test result" in result.lower()
+            assert "📁 Project: test-project" in result
+            # Bug 2 fix: the date should now be the real value, not "Unknown".
+            assert "📅 Date: 2023-01-01T12:00:00" in result
+            assert "Unknown" not in result
 
     @pytest.mark.asyncio
     async def test_quick_search_with_null_created_at_renders_unknown(self):
@@ -681,14 +784,13 @@ class TestQuickSearchImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _quick_search_impl("legacy")
-                assert "📅 Date: Unknown" in result
-                assert "📅 Date: None" not in result
+            result = await _quick_search_impl("legacy")
+            assert "📅 Date: Unknown" in result
+            assert "📅 Date: None" not in result
 
     @pytest.mark.asyncio
     async def test_quick_search_no_results(self):
@@ -701,13 +803,12 @@ class TestQuickSearchImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _quick_search_impl("nonexistent")
-                assert "no results" in result.lower()
+            result = await _quick_search_impl("nonexistent")
+            assert "no results" in result.lower()
 
     @pytest.mark.asyncio
     async def test_quick_search_with_exception(self):
@@ -720,13 +821,12 @@ class TestQuickSearchImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _quick_search_impl("test query")
-                assert "error" in result.lower()
+            result = await _quick_search_impl("test query")
+            assert "error" in result.lower()
 
 
 # =============================================================================
@@ -773,13 +873,12 @@ class TestSearchSummaryImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _search_summary_impl("test query")
-                assert "summary" in result.lower() or "test query" in result.lower()
+            result = await _search_summary_impl("test query")
+            assert "summary" in result.lower() or "test query" in result.lower()
 
     @pytest.mark.asyncio
     async def test_search_summary_no_results(self):
@@ -791,13 +890,12 @@ class TestSearchSummaryImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _search_summary_impl("nonexistent")
-                assert "no results" in result.lower()
+            result = await _search_summary_impl("nonexistent")
+            assert "no results" in result.lower()
 
     @pytest.mark.asyncio
     async def test_search_summary_with_exception(self):
@@ -809,13 +907,12 @@ class TestSearchSummaryImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _search_summary_impl("test query")
-                assert "error" in result.lower()
+            result = await _search_summary_impl("test query")
+            assert "error" in result.lower()
 
 
 # =============================================================================
@@ -856,13 +953,12 @@ class TestSearchByFileImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _search_by_file_impl("test_file.py", limit=5)
-                assert "test_file.py" in result.lower()
+            result = await _search_by_file_impl("test_file.py", limit=5)
+            assert "test_file.py" in result.lower()
 
     @pytest.mark.asyncio
     async def test_search_by_file_no_results(self):
@@ -874,13 +970,12 @@ class TestSearchByFileImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _search_by_file_impl("nonexistent.py")
-                assert "no conversations" in result.lower()
+            result = await _search_by_file_impl("nonexistent.py")
+            assert "no conversations" in result.lower()
 
     @pytest.mark.asyncio
     async def test_search_by_file_with_exception(self):
@@ -892,13 +987,12 @@ class TestSearchByFileImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _search_by_file_impl("test_file.py")
-                assert "error" in result.lower()
+            result = await _search_by_file_impl("test_file.py")
+            assert "error" in result.lower()
 
 
 # =============================================================================
@@ -939,13 +1033,12 @@ class TestSearchByConceptImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _search_by_concept_impl("authentication", limit=5)
-                assert "authentication" in result.lower()
+            result = await _search_by_concept_impl("authentication", limit=5)
+            assert "authentication" in result.lower()
 
     @pytest.mark.asyncio
     async def test_search_by_concept_no_results(self):
@@ -957,13 +1050,12 @@ class TestSearchByConceptImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _search_by_concept_impl("nonexistent_concept")
-                assert "no conversations" in result.lower()
+            result = await _search_by_concept_impl("nonexistent_concept")
+            assert "no conversations" in result.lower()
 
     @pytest.mark.asyncio
     async def test_search_by_concept_with_exception(self):
@@ -975,13 +1067,12 @@ class TestSearchByConceptImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _search_by_concept_impl("authentication")
-                assert "error" in result.lower()
+            result = await _search_by_concept_impl("authentication")
+            assert "error" in result.lower()
 
 
 # =============================================================================
@@ -1019,13 +1110,12 @@ class TestReflectionStatsImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _reflection_stats_impl()
-                assert "statistics" in result.lower() or "stats" in result.lower()
+            result = await _reflection_stats_impl()
+            assert "statistics" in result.lower() or "stats" in result.lower()
 
     @pytest.mark.asyncio
     async def test_reflection_stats_with_exception(self):
@@ -1037,13 +1127,12 @@ class TestReflectionStatsImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _reflection_stats_impl()
-                assert "error" in result.lower()
+            result = await _reflection_stats_impl()
+            assert "error" in result.lower()
 
     @pytest.mark.asyncio
     async def test_reflection_stats_old_format_branch_renders_total_projects(self):
@@ -1066,14 +1155,13 @@ class TestReflectionStatsImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _reflection_stats_impl()
-                assert "📁 Projects: 5" in result
-                assert "📁 Projects: 0" not in result
+            result = await _reflection_stats_impl()
+            assert "📁 Projects: 5" in result
+            assert "📁 Projects: 0" not in result
 
     @pytest.mark.asyncio
     async def test_reflection_stats_old_format_legacy_projects_key(self):
@@ -1089,13 +1177,12 @@ class TestReflectionStatsImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _reflection_stats_impl()
-                assert "📁 Projects: 3" in result
+            result = await _reflection_stats_impl()
+            assert "📁 Projects: 3" in result
 
 
 # =============================================================================
@@ -1145,13 +1232,12 @@ class TestResetReflectionDatabaseImpl:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": None},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            side_effect=Exception("Reset error"),
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                side_effect=Exception("Reset error"),
-            ):
-                result = await _reset_reflection_database_impl()
-                assert "error" in result.lower()
+            result = await _reset_reflection_database_impl()
+            assert "error" in result.lower()
 
 
 # =============================================================================
@@ -1498,13 +1584,12 @@ class TestEdgeCases:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _store_reflection_impl("")
-                assert "validation" in result.lower() or "error" in result.lower()
+            result = await _store_reflection_impl("")
+            assert "validation" in result.lower() or "error" in result.lower()
 
     @pytest.mark.asyncio
     async def test_store_reflection_none_tags(self):
@@ -1516,13 +1601,12 @@ class TestEdgeCases:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _store_reflection_impl("Content", None)
-                assert "stored" in result.lower() or "success" in result.lower()
+            result = await _store_reflection_impl("Content", None)
+            assert "stored" in result.lower() or "success" in result.lower()
 
     @pytest.mark.asyncio
     async def test_quick_search_with_custom_min_score(self):
@@ -1543,15 +1627,14 @@ class TestEdgeCases:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                await _quick_search_impl("query", min_score=0.5)
-                mock_db.search_reflections.assert_called_once()
-                call_kwargs = mock_db.search_reflections.call_args[1]
-                assert call_kwargs["query"] == "query"
+            await _quick_search_impl("query", min_score=0.5)
+            mock_db.search_reflections.assert_called_once()
+            call_kwargs = mock_db.search_reflections.call_args[1]
+            assert call_kwargs["query"] == "query"
 
     @pytest.mark.asyncio
     async def test_search_summary_with_custom_min_score(self):
@@ -1572,15 +1655,14 @@ class TestEdgeCases:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                await _search_summary_impl("query", min_score=0.3)
-                mock_db.search_reflections.assert_called_once()
-                call_kwargs = mock_db.search_reflections.call_args[1]
-                assert call_kwargs["query"] == "query"
+            await _search_summary_impl("query", min_score=0.3)
+            mock_db.search_reflections.assert_called_once()
+            call_kwargs = mock_db.search_reflections.call_args[1]
+            assert call_kwargs["query"] == "query"
 
     @pytest.mark.asyncio
     async def test_search_by_file_with_different_limit(self):
@@ -1592,15 +1674,14 @@ class TestEdgeCases:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                await _search_by_file_impl("test.py", limit=15)
-                mock_db.search_reflections.assert_called_once()
-                call_kwargs = mock_db.search_reflections.call_args[1]
-                assert call_kwargs["limit"] == 15
+            await _search_by_file_impl("test.py", limit=15)
+            mock_db.search_reflections.assert_called_once()
+            call_kwargs = mock_db.search_reflections.call_args[1]
+            assert call_kwargs["limit"] == 15
 
     @pytest.mark.asyncio
     async def test_search_by_concept_with_files_disabled(self):
@@ -1612,12 +1693,11 @@ class TestEdgeCases:
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
             clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
         ):
-            with patch(
-                "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
-                return_value=mock_db,
-            ):
-                result = await _search_by_concept_impl(
-                    "auth", include_files=False, limit=10
-                )
-                assert "no conversations" in result.lower()
+            result = await _search_by_concept_impl(
+                "auth", include_files=False, limit=10
+            )
+            assert "no conversations" in result.lower()

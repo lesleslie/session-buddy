@@ -39,14 +39,23 @@ from session_buddy.mcp.tools.tasks_security import (
 
 
 def _make_ctx(auth: dict[str, str]) -> Any:
-    """Build a stub ``Context``-like object whose ``request_state`` exposes ``auth``.
+    """Build a stub ``Context``-like object whose ``get_state`` exposes auth keys.
 
-    ``derive_caller_identity`` only reads ``mcp_context["auth"]``; the
-    task tool extracts that from ``ctx.request_state`` so tests can pass
-    a plain mapping without standing up a full FastMCP server.
+    FastMCP's ``Context.get_state(key)`` is the documented request-state
+    API; the task tool reads ``auth_user_email`` and ``auth_agent_id``
+    keys from it. The auth dict is split into separate keys here so
+    tests mirror the middleware contract that lands with T12+ auth wiring.
     """
     ctx = MagicMock()
-    ctx.request_state = {"auth": auth}
+
+    def _get_state(key: str) -> Any:
+        mapping = {
+            "auth_user_email": auth.get("user_email"),
+            "auth_agent_id": auth.get("agent_id"),
+        }
+        return mapping.get(key)
+
+    ctx.get_state.side_effect = _get_state
     return ctx
 
 
@@ -250,6 +259,69 @@ async def test_tasks_create_persists_via_store_reflection() -> None:
     assert meta["due_at"] is None
     assert meta["parent_task_id"] is None
     assert meta["workflow_id"] is None
+
+
+# T4 review regression: tasks_create must pass metadata= as a kwarg
+# to store_reflection so the new shim (which accepts metadata) doesn't
+# TypeError when the mock is unwired.
+@pytest.mark.asyncio
+async def test_tasks_create_regression_metadata_kwarg_to_store_reflection() -> None:
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    store_mock = AsyncMock(return_value=True)
+    with (
+        patch.object(tasks_tools, "store_reflection", new=store_mock),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+    ):
+        await tasks_tools.tasks_create(
+            ctx,
+            content="Refactor the auth handler",
+            tags=["task", "refactor"],
+        )
+
+    store_mock.assert_awaited_once()
+    _args, kwargs = store_mock.await_args
+    # ``metadata`` is a top-level kwarg (not nested under content/tags)
+    # so the extended shim receives it as a named parameter and can
+    # forward it to the impl.
+    assert "metadata" in kwargs, f"metadata kwarg missing: {kwargs!r}"
+    assert kwargs["metadata"]["kind"] == "task"
+    assert kwargs["metadata"]["owner"] == "user:les@example.com"
+
+
+# T4 review Finding 2 regression: the adapter must use ctx.get_state()
+# (the documented FastMCP request-state API), not ctx.request_state
+# (the SEP-2322 multi-round-trip string channel). The fix uses keys
+# ``auth_user_email`` / ``auth_agent_id``; this test pins that contract.
+@pytest.mark.asyncio
+async def test_tasks_create_uses_ctx_get_state_for_auth() -> None:
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=AsyncMock(return_value=True)),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+    ):
+        result = await tasks_tools.tasks_create(
+            ctx,
+            content="Refactor the auth handler",
+            tags=["task", "refactor"],
+        )
+
+    # The adapter must have called ctx.get_state() with the canonical
+    # auth keys (NOT ctx.request_state, which is the string-typed
+    # SEP-2322 channel).
+    get_state_calls = [call.args[0] for call in ctx.get_state.call_args_list]
+    assert "auth_user_email" in get_state_calls
+    assert "auth_agent_id" in get_state_calls
+
+    # Identity still resolves to the right caller.
+    assert result.owner == "user:les@example.com"
 
 
 # Defensive: limiter is module-scoped and persists across calls; we reset

@@ -76,15 +76,24 @@ def _get_create_limiter() -> RateLimiter:
 def _ctx_to_auth_context(ctx: Context) -> dict[str, Any]:
     """Adapt a FastMCP ``Context`` to the dict shape ``derive_caller_identity`` expects.
 
+    FastMCP's request state is exposed via ``Context.set_state(key, value)``
+    / ``Context.get_state(key)`` — ``Context.request_state`` is a separate
+    string-typed channel for the SEP-2322 multi-round-trip guard protocol
+    and is NOT a middleware-injectable dict.
+
     Auth middleware (out of scope for T4) populates
-    ``ctx.request_state["auth"]`` with ``{"user_email": ...}`` and / or
-    ``{"agent_id": ...}``. This helper bridges the gap so the rest of the
-    task system can stay decoupled from FastMCP's request-state shape.
+    ``auth_user_email`` and ``auth_agent_id`` keys via ``ctx.set_state(...)``.
+    This adapter reads those keys and packs them into the dict shape
+    ``derive_caller_identity`` expects. Keys resolve to ``None`` for
+    unauthenticated callers, which then fail closed in the spec §Authz
+    Model invariant.
     """
-    request_state = getattr(ctx, "request_state", None) or {}
-    if not isinstance(request_state, dict):
-        request_state = {}
-    return {"auth": request_state.get("auth") or {}}
+    return {
+        "auth": {
+            "user_email": ctx.get_state("auth_user_email"),
+            "agent_id": ctx.get_state("auth_agent_id"),
+        },
+    }
 
 
 # ---------------------------------------------------------------------------

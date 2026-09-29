@@ -28,9 +28,21 @@ from session_buddy.mcp.tools.memory.memory_tools import (
 )
 
 
-async def store_reflection(content: str, tags: list[str] | None = None) -> str:
-    """Store an important insight or reflection for future reference."""
-    return await _store_reflection_impl(content, tags)
+async def store_reflection(
+    content: str,
+    tags: list[str] | None = None,
+    metadata: dict[str, object] | None = None,
+) -> str:
+    """Store an important insight or reflection for future reference.
+
+    ``metadata`` is an optional, opaque dict that callers use to carry
+    per-write annotations (e.g. ``{"kind": "task", "uuid_alias": "..."}``
+    from session-buddy's task system). It is forwarded to the
+    underlying ``_store_reflection_impl`` so the body can decide
+    whether to persist it alongside the reflection. Existing callers
+    that don't pass ``metadata`` are unchanged.
+    """
+    return await _store_reflection_impl(content, tags, metadata=metadata)
 
 
 async def quick_search(
