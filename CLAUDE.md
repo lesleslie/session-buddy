@@ -8,6 +8,31 @@ For a shorter, tool-neutral bootstrap document, start with `AGENTS.md`.
 
 Session Buddy is a Claude Session Management MCP (Model Context Protocol) server providing comprehensive session management for Claude Code across any project. It operates as a standalone MCP server with isolated environment to avoid dependency conflicts.
 
+## Task System
+
+The session-buddy task system is the typed, persistent replacement for the built-in `TodoWrite`/`TaskCreate` tool family that Anthropic's upstream API does not advertise for `MiniMax-M*` models served through `https://api.minimax.io/anthropic` (server-side `tengu_vellum_ash` gate; verified 2026-09-29 against the issue trackers linked from the spec). All seven tools live under the `mcp__session-buddy__*` namespace.
+
+### Tools
+
+| Tool | Purpose |
+|------|---------|
+| `tasks_create(content, tags, owner=None, due=None, priority='normal', effort=None, parent_task_id=None, metadata=None)` | Mint a new task. `owner` and `created_by` are **server-derived** from caller identity (caller-supplied values are silently overwritten). Tags MUST include `"task"` (Pydantic-validated). Returns a `Task` whose `id` matches `^t-[0-9a-f]{32}$`. |
+| `tasks_list(status=None, owner=None, tag=None, parent_task_id=None, include_legacy=False, k=20, cursor=None)` | Filter by status/owner/tag with cursor pagination. Server-side: `owner` is **forced** to `caller_identity` regardless of caller input. `include_legacy=False` by default; legacy `tags=["todo"]` rows are excluded unless the caller opts in. |
+| `tasks_get(task_id)` | Fetch by id; 404 (not 403) on missing or invisible — no info leak. |
+| `tasks_update(task_id, request: UpdateTaskRequest)` | Mutate mutable fields. Caller-supplied `owner` / `created_by` / `completed_by` are **rejected** with `owner_mutation_forbidden`. `workflow_id` is server-set ONLY by the handoff tool. |
+| `tasks_complete(task_id, result_notes=None)` | Mark as done; owner-only (non-owners get 404). **No implicit dispatch** — even if `result_notes` starts with `"HANDOFF: "`, no workflow is triggered. Use the mahavishnu handoff tool for that. |
+| `tasks_search(query, project=None, min_score=None, k=10)` | Semantic search with `quick_search` parity (kind=task gate → visibility → min_score). |
+| `tasks_history(task_id, k=50, cursor=None)` | Cursor-paginated change log; returns `{items: list[TaskEvent], next_cursor: str \| None}`. |
+
+### Spec and skill
+
+- **Spec**: [`docs/superpowers/specs/2026-09-29-task-system-design.md`](../../mahavishnu/docs/superpowers/specs/2026-09-29-task-system-design.md) (lives in the mahavishnu repo; cross-references the goals, non-goals, and authz model).
+- **Skill**: [`session_buddy/mcp/skills_catalog/bodai-session-buddy-task-system.md`](session_buddy/mcp/skills_catalog/bodai-session-buddy-task-system.md) — auto-discoverable via `mcp__akosha__list_ecosystem_skills`; consult it for the decision tree (ephemeral checklist vs persistent task vs mahavishnu handoff).
+
+### Tasks vs `TodoWrite`
+
+The `TodoWrite`/`TaskCreate` tools Anthropic ships to native Claude models are NOT available to `MiniMax-M*` models served through the upstream proxy. The `tasks_*` tools above are the Bodai-native replacement — strictly more capable than the defaults (cross-session persistence, git-branch linking via `auto-coordinate`, semantic read via akosha, explicit workflow dispatch via mahavishnu, server-side caller-identity authz).
+
 ## Development Commands
 
 ### Installation & Setup
