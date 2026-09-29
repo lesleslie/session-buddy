@@ -1571,5 +1571,103 @@ class TestAllAsyncFunctionsAreAsync:
         assert hasattr(cm, "__aexit__")
 
 
+class TestTasksToolsRegistration:
+    """Regression: T12 must register all 7 ``tasks_*`` tools on a FastMCP server.
+
+    The seven tools (``tasks_create``, ``tasks_list``, ``tasks_get``,
+    ``tasks_update``, ``tasks_complete``, ``tasks_search``,
+    ``tasks_history``) are the v1 surface of the task system (spec at
+    docs/superpowers/specs/2026-09-29-task-system-design.md, v1.1).
+    Implementations live at module level in
+    ``session_buddy.mcp.tools.tasks_tools``; this test pins the
+    registration wiring so a future refactor cannot silently drop the
+    tools from the MCP surface.
+    """
+
+    @pytest.mark.asyncio
+    async def test_register_tasks_tools_exposes_all_seven(self) -> None:
+        """``register_tasks_tools(mcp)`` must register all 7 ``tasks_*`` tools."""
+        from mcp_common.fastmcp import FastMCP
+
+        from session_buddy.mcp.tools.tasks_tools import register_tasks_tools
+
+        mcp = FastMCP(name="test-tasks-registration")
+        register_tasks_tools(mcp)
+
+        # ``list_tools()`` is the FastMCP 3.x canonical registry
+        # accessor (replaces the v1 ``_tool_manager._tools`` dict).
+        registered = {t.name for t in await mcp.list_tools()}
+
+        expected = {
+            "tasks_create",
+            "tasks_list",
+            "tasks_get",
+            "tasks_update",
+            "tasks_complete",
+            "tasks_search",
+            "tasks_history",
+        }
+        missing = expected - registered
+        extra = registered - expected
+        assert not missing, f"Missing tools: {missing}; got: {registered}"
+        # ``register_tasks_tools`` MUST NOT register anything beyond
+        # the seven task tools — assert it is a tight wire so a
+        # copy/paste regression that double-registers a sibling group
+        # fails the test.
+        assert not extra, f"Unexpected tools registered: {extra}; got: {registered}"
+
+    @pytest.mark.asyncio
+    async def test_register_tasks_tools_is_idempotent(self) -> None:
+        """Calling ``register_tasks_tools`` twice must not duplicate registrations.
+
+        FastMCP's ``provider.tool`` decorator dedupes by function name
+        per the ``ToolDecoratorMixin.tool`` contract; pinning the
+        behaviour protects against a regression where a future change
+        accidentally registers the same tool twice and surfaces two
+        ``tasks_create`` MCP entries.
+        """
+        from mcp_common.fastmcp import FastMCP
+
+        from session_buddy.mcp.tools.tasks_tools import register_tasks_tools
+
+        mcp = FastMCP(name="test-tasks-idempotent")
+        register_tasks_tools(mcp)
+        register_tasks_tools(mcp)
+
+        registered = [t.name for t in await mcp.list_tools()]
+        # Seven unique names, no duplicates.
+        assert len(registered) == len(set(registered)) == 7
+        assert set(registered) == {
+            "tasks_create",
+            "tasks_list",
+            "tasks_get",
+            "tasks_update",
+            "tasks_complete",
+            "tasks_search",
+            "tasks_history",
+        }
+
+    def test_register_tasks_tools_is_in_profiles_registration_map(self) -> None:
+        """``register_tasks_tools`` must be wired into REGISTRATION_MAP and __init__ exports."""
+        # REGISTRATION_MAP is the W0 helper's invocation source — without
+        # this entry, the registration would never run at server startup.
+        from session_buddy.mcp.tools import register_tasks_tools as exported
+        from session_buddy.mcp.tools.profiles import (
+            REGISTRATION_MAP,
+            SESSION_BUDDY_MANDATORY_GROUPS,
+        )
+        from session_buddy.mcp.tools.tasks_tools import (
+            register_tasks_tools as canonical,
+        )
+
+        # Same function object — __init__ must re-export the canonical one.
+        assert exported is canonical
+        # REGISTRATION_MAP must point at the canonical function.
+        assert REGISTRATION_MAP.get("register_tasks_tools") is canonical
+        # Mandatory at every tier (parallel to register_agents_tools /
+        # _register_skills_signer_tools).
+        assert "register_tasks_tools" in SESSION_BUDDY_MANDATORY_GROUPS
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--no-cov", "--tb=short"])

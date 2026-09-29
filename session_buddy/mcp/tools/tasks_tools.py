@@ -17,10 +17,21 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import re
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import Annotated, Any, Literal
 
+# ``Context`` is imported at module level (not behind ``TYPE_CHECKING``)
+# so FastMCP can resolve the forward reference ``ctx: Context`` when
+# introspecting the tool signature for parameter-schema generation. With
+# ``from __future__ import annotations`` active, every annotation is
+# stored as a string; FastMCP / Pydantic resolve those strings against
+# the function's ``__globals__``, and ``TYPE_CHECKING``-gated imports
+# leave no runtime symbol to resolve. The same runtime import is used by
+# ``session_buddy/mcp/tools/advanced/rewriting_tools.py`` etc., so the
+# pattern is already established in this package.
+from mcp_common.fastmcp import Context
 from pydantic import Field
 from sqlalchemy.engine import Engine
 
@@ -69,8 +80,7 @@ from session_buddy.mcp.tools.tasks_security import (
 # DB call without standing up a real reflection adapter.
 from session_buddy.tools.memory_tools import search_reflections, store_reflection
 
-if TYPE_CHECKING:
-    from mcp_common.fastmcp import Context
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Module-level rate limiter
@@ -1341,15 +1351,56 @@ async def tasks_history(
 
 
 # ---------------------------------------------------------------------------
-# Registration stub
+# Registration
 # ---------------------------------------------------------------------------
+#
+# T12 (final PR #1 wiring). T4-T9 deliberately wrote each ``tasks_*``
+# function at module level (without ``@mcp.tool()``) so the central
+# registration point could apply the decorator against the live
+# FastMCP instance. This keeps the implementation in one place and
+# makes it trivial to add / rename tools without re-touching FastMCP.
+#
+# FastMCP supports ``mcp.tool()(func)`` as a function-call form of the
+# ``@mcp.tool()`` decorator; we use that form so the existing module-
+# level definitions (and their tests) stay untouched. The decorator is
+# idempotent within a single ``mcp`` instance per FastMCP docs.
 
 
 def register_tasks_tools(mcp: Any) -> None:
-    """Register task-system MCP tools. T4 registers ``tasks_create``; T5-T9 add the rest.
+    """Register task-system MCP tools. T4-T9 wrote the implementations; T12 wires them.
 
-    T12 wires this entry point into the FastMCP server. Until then the
-    function body is intentionally a no-op so callers can import the
-    symbol without side effects.
+    Wires the seven ``tasks_*`` MCP tools onto the supplied FastMCP
+    server using ``mcp.tool()(func)`` — the function-call form of
+    FastMCP's ``@mcp.tool()`` decorator (FastMCP 3.x ``provider.tool``
+    accepts both calling patterns per the ``ToolDecoratorMixin.tool``
+    docstring). The seven tools are:
+
+    * ``tasks_create`` (T4) — create a task; server-derived ``owner``;
+      60/min rate limit; emits ``task.created``.
+    * ``tasks_list`` (T5) — list tasks with pagination, visibility
+      filter, optional ``include_legacy`` gate.
+    * ``tasks_get`` (T6) — fetch one task by id; 404 on visibility.
+    * ``tasks_update`` (T6) — apply partial update; 404 on visibility;
+      reject owner mutation; 120/min rate limit; emits ``task.updated``.
+    * ``tasks_complete`` (T7) — mark a task done; rejects missing
+      ``result_notes``; emits ``task.completed``.
+    * ``tasks_search`` (T8) — semantic search with ``quick_search``
+      parity (project, min_score, k); kind=task + visibility gated.
+    * ``tasks_history`` (T9) — cursor-paginated change history; 404 on
+      visibility; ``event_type="updated"`` for v1.
+
+    Idempotent within a single ``mcp`` instance — calling this twice
+    on the same server re-registers the same tools (FastMCP dedupes by
+    ``func.__name__``). Calling on a fresh server is the normal path.
     """
-    return
+    mcp.tool()(tasks_create)
+    mcp.tool()(tasks_list)
+    mcp.tool()(tasks_get)
+    mcp.tool()(tasks_update)
+    mcp.tool()(tasks_complete)
+    mcp.tool()(tasks_search)
+    mcp.tool()(tasks_history)
+    logger.info(
+        "Registered task-system tools: tasks_create, tasks_list, tasks_get, "
+        "tasks_update, tasks_complete, tasks_search, tasks_history"
+    )

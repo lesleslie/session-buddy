@@ -123,6 +123,10 @@ from .skills.phase4_tools import register_phase4_tools
 # <working_dir>/.session-buddy/subagent.lock).
 from .subagent_marker import register_subagent_marker_tools
 
+# Task-system tools (T12 wiring). Exposes the seven ``tasks_*`` MCP tools
+# defined in ``session_buddy/mcp/tools/tasks_tools.py``.
+from .tasks_tools import register_tasks_tools
+
 # Git worktree tools (used by Mahavishnu SessionBuddyWorktreeProvider)
 from .worktree_tools import register_worktree_tools
 
@@ -167,6 +171,7 @@ __all__ = [
     "register_session_tools",
     "register_skill_tools",
     "register_subagent_marker_tools",
+    "register_tasks_tools",
     "register_team_tools",
     "register_validated_memory_tools",
     "register_workflow_metrics_tools",

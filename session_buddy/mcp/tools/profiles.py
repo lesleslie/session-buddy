@@ -158,6 +158,7 @@ from . import (
     register_session_tools,
     register_skill_tools,
     register_subagent_marker_tools,
+    register_tasks_tools,
     register_team_tools,
     register_workflow_metrics_tools,
     register_worktree_tools,
@@ -294,6 +295,15 @@ REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
     # init scripts). STANDARD tier is sufficient: marker creation is
     # cheap, fail-open, and required by the checkpoint subsystem.
     "register_subagent_marker_tools": register_subagent_marker_tools,
+    # Task system (spec docs/superpowers/specs/2026-09-29-task-system-design.md
+    # v1.1). Exposes the seven ``tasks_*`` MCP tools — tasks_create,
+    # tasks_list, tasks_get, tasks_update, tasks_complete, tasks_search,
+    # tasks_history — implemented at module level in
+    # ``session_buddy/mcp/tools/tasks_tools.py`` (T4-T9). T12 wires the
+    # registration. Marked mandatory below so the tools are reachable
+    # at every profile tier (parallel to ``register_agents_tools`` /
+    # ``_register_skills_signer_tools``).
+    "register_tasks_tools": register_tasks_tools,
     # Phase 1 — server-published skills tools (plan §5 Phase 1 task #2-3).
     # Reads the static catalog and signs ``get_skill`` responses via
     # the lifespan-owned :class:`SkillsSigner` (init runs in the
@@ -343,6 +353,14 @@ SESSION_BUDDY_MANDATORY_GROUPS: set[str] = {
     # ecosystem roster. Marking it mandatory per §10.3.6 wires the
     # W0 helper to invoke it at MINIMAL/STANDARD/FULL uniformly.
     "register_agents_tools",
+    # Task system (T12) — ``register_tasks_tools`` MUST be reachable
+    # at every tier so MINIMAL/STANDARD deployments still expose the
+    # seven ``tasks_*`` tools (the system is part of the v1 contract,
+    # not a FULL-tier add-on). Same rationale as
+    # ``register_agents_tools``: omitting it from MINIMAL would
+    # silently drop the task-system surface from any MINIMAL
+    # deployment that auto-projects ``list_tools()`` output.
+    "register_tasks_tools",
 }
 
 
