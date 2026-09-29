@@ -35,6 +35,14 @@ from session_buddy.mcp.tools.tasks_events import (
     publish_task_event,
 )
 from session_buddy.mcp.tools.tasks_identity import derive_caller_identity
+
+# Re-export from the dedicated module (T10 extraction). The legacy coercion
+# path is owned by ``tasks_legacy``; ``tasks_tools`` keeps a private alias
+# so the existing ``tasks_list`` call site (``row = _coerce_legacy_row(reflection)``)
+# continues to work without modification.
+from session_buddy.mcp.tools.tasks_legacy import (
+    coerce_legacy_reflection as _coerce_legacy_row,
+)
 from session_buddy.mcp.tools.tasks_models import (
     TASK_ID_PATTERN,
     FieldDiff,
@@ -399,22 +407,8 @@ def _build_task(
         return None
 
 
-def _coerce_legacy_row(reflection: dict[str, Any]) -> LegacyTaskRow | None:
-    """Coerce a legacy ``store_reflection(tags=["todo"])`` row.
 
-    Per spec §Migration, the row's ``_coerced=True`` marker is the
-    consumer's signal that this is a backwards-compat envelope, not a
-    typed ``Task``.
-    """
-    reflection_id = reflection.get("id")
-    content = reflection.get("content")
-    if not isinstance(reflection_id, str) or not isinstance(content, str):
-        return None
-    return LegacyTaskRow(
-        id=reflection_id,
-        content=content,
-        tags=list(reflection.get("tags") or []),
-    )
+
 
 
 async def _query_legacy_reflections(
