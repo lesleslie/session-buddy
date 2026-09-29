@@ -57,7 +57,7 @@ from session_buddy.mcp.tools.tasks_security import (
 # ``tasks_tools.store_reflection`` from a non-module path) so tests can
 # ``patch.object(tasks_tools, "store_reflection", ...)`` and intercept the
 # DB call without standing up a real reflection adapter.
-from session_buddy.tools.memory_tools import store_reflection
+from session_buddy.tools.memory_tools import search_reflections, store_reflection
 
 if TYPE_CHECKING:
     from mcp_common.fastmcp import Context
@@ -1108,6 +1108,100 @@ async def tasks_complete(
     )
 
     return task
+
+
+# ---------------------------------------------------------------------------
+# tasks_search — T8
+# ---------------------------------------------------------------------------
+#
+# Spec line 121-126 + brief: ``tasks_search(query, project=None,
+# min_score=None, k=10) -> list[Task]``. Semantic search over tasks with
+# quick_search parity. Filters the underlying ``search_reflections``
+# results to ``kind=task`` rows via the sidecar metadata (with ``"task"``
+# tag as a defensive fallback), then applies the visibility filter and
+# an optional ``min_score`` post-filter.
+#
+# Filter ordering per the brief's design notes:
+#   1. kind=task gate (cheap, drops non-task reflections early)
+#   2. visibility filter (security gate; private rows hidden unconditionally)
+#   3. min_score filter (relevance gate; applied last)
+#
+# ``min_score`` is a post-filter (not a forwarded kwarg) because the
+# module-level ``search_reflections`` wrapper at
+# ``session_buddy/tools/memory_tools.py`` does not accept ``min_score`` —
+# the underlying ``session_buddy.reflection.search`` primitive does, but
+# plumbing it through the wrapper is T12 wiring territory. The post-filter
+# here is correct under the spec's correctness contract: high-score
+# private rows are still hidden; low-score public rows are still hidden.
+
+
+async def tasks_search(
+    ctx: Context,
+    query: str,
+    project: str | None = None,
+    min_score: float | None = None,
+    k: int = 10,
+) -> list[Task]:
+    """Semantic search over tasks with quick_search parity.
+
+    Returns only ``kind=task`` rows (non-task reflections filtered via
+    sidecar metadata, with the ``"task"`` tag as a defensive fallback).
+    Visibility filter: private tasks excluded for non-owners. Project,
+    ``min_score``, and ``k`` forward to or post-filter the underlying
+    ``search_reflections`` call.
+    """
+    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+
+    raw_results = await search_reflections(
+        query=query,
+        limit=k,
+        project=project,
+    )
+
+    engine = tasks_storage.get_engine()
+    tasks: list[Task] = []
+    for hit in raw_results:
+        rid = hit.get("id")
+        if not isinstance(rid, str) or not rid:
+            continue
+
+        # kind=task gate via sidecar metadata; fall back to the "task" tag
+        # discriminator when sidecar metadata is missing (defensive — every
+        # row produced by ``tasks_create`` has a sidecar entry, but a
+        # future writer may bypass that path).
+        sidecar_meta = (
+            tasks_storage.read_task_metadata(engine=engine, reflection_id=rid)
+            or {}
+        )
+        kind = sidecar_meta.get("kind") if isinstance(sidecar_meta, dict) else None
+        tags_in = list(hit.get("tags") or [])
+        if kind != "task" and "task" not in tags_in:
+            continue
+
+        # Re-read the reflection for the canonical ``_build_task`` shape.
+        # The hit already carries ``content`` / ``tags`` / ``metadata`` but
+        # ``_build_task`` expects the ``ReflectionDatabaseAdapter.get_reflection_by_id``
+        # dict shape (id/content/tags/project/created_at/updated_at).
+        reflection = await _read_reflection(rid)
+        if reflection is None:
+            continue
+        task = _build_task(reflection, sidecar_meta)
+        if task is None:
+            continue
+
+        # Visibility gate (security; private rows hidden unconditionally).
+        if not enforce_visibility_filter(caller, task):
+            continue
+
+        # min_score post-filter (relevance; applied last per the brief).
+        if min_score is not None:
+            score = hit.get("score")
+            if not isinstance(score, (int, float)) or float(score) < float(min_score):
+                continue
+
+        tasks.append(task)
+
+    return tasks
 
 
 # ---------------------------------------------------------------------------
