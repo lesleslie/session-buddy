@@ -317,7 +317,7 @@ def _build_task(
         return None
 
     status: str = "open"
-    priority: str = str(sidecar_meta.get("priority") or "normal")
+    priority: str = sidecar_meta.get("priority") or "normal"
     effort: str | None = sidecar_meta.get("effort")
     for tag in tags_in:
         kind, value = _coerce_tag_prefix(tag)
@@ -353,9 +353,9 @@ def _build_task(
             content=content,
             owner=str(owner) if owner else None,
             visibility="private",
-            status=status,  # type: ignore[arg-type]
-            priority=priority,  # type: ignore[arg-type]
-            effort=effort,  # type: ignore[arg-type]
+            status=status,  # ty: ignore[arg-type]
+            priority=priority,  # ty: ignore[arg-type]
+            effort=effort,  # ty: ignore[arg-type]
             tags=tags_in,
             parent_task_id=str(parent_task_id) if parent_task_id else None,
             workflow_id=str(workflow_id) if workflow_id else None,
@@ -449,7 +449,7 @@ def _passes_post_filters(
         return False
     if tag is not None and tag not in task.tags:
         return False
-    return not (parent_task_id is not None and task.parent_task_id != parent_task_id)
+    return parent_task_id is None or task.parent_task_id == parent_task_id
 
 
 async def tasks_list(
