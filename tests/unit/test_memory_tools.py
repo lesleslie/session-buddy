@@ -588,17 +588,26 @@ class TestStoreReflectionImpl:
 
     @pytest.mark.asyncio
     async def test_store_reflection_accepts_metadata_kwarg(self):
-        """T4 review: ``metadata`` kwarg must be accepted and threaded
-        through ``_store_reflection_impl`` without TypeError.
+        """T4 review (flipped in fix round 2): ``metadata`` kwarg must
+        be accepted, threaded through ``_store_reflection_impl`` without
+        TypeError, AND persisted to the SQLModel sidecar via
+        ``tasks_storage.persist_task_metadata``.
 
-        The adapter signature is out of scope for this fix — metadata
-        is captured in the returned dict but not yet persisted at the
-        SQL layer (no metadata column on the ``reflections`` table).
-        Existing callers that pass ``metadata=None`` (the default) see
-        unchanged behavior.
+        The reflection adapter itself does NOT accept ``metadata=``
+        (its signature is out of scope for T4); instead the impl
+        captures the returned reflection_id and calls the sidecar so
+        downstream ``tasks_list`` (T5) can filter by discriminator
+        fields like ``kind=task`` after a session restart.
+
+        The SQLModel sidecar uses an in-memory engine by default; tests
+        inject a fresh engine via ``tasks_storage.set_engine(...)`` so
+        the module-level singleton does not leak across cases.
         """
+        from session_buddy.mcp.tools import tasks_storage
+
+        tasks_storage.set_engine(tasks_storage.create_metadata_engine())
         mock_db = AsyncMock()
-        mock_db.store_reflection = AsyncMock(return_value=True)
+        mock_db.store_reflection = AsyncMock(return_value="ref-round-2-id")
         with patch.dict(
             "session_buddy.mcp.tools.memory.memory_tools.__dict__",
             {"_reflection_tools_available": True, "_reflection_db": mock_db},
@@ -616,9 +625,17 @@ class TestStoreReflectionImpl:
             # metadata kwarg accepted by the impl — no TypeError.
             assert "error" not in result.lower()
             # metadata kwarg was NOT forwarded to the adapter
-            # (adapter signature is out of scope for T4 fix).
+            # (adapter signature is intentionally out of scope; the
+            # sidecar absorbs the metadata instead).
             adapter_kwargs = mock_db.store_reflection.await_args.kwargs
             assert "metadata" not in adapter_kwargs
+            # AND the metadata reached the SQLModel sidecar keyed by
+            # the adapter's returned reflection_id.
+            stored = tasks_storage.read_task_metadata(
+                tasks_storage.get_engine(),
+                "ref-round-2-id",
+            )
+            assert stored == metadata
 
     @pytest.mark.asyncio
     async def test_store_reflection_metadata_default_is_none(self):

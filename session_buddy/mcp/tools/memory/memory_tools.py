@@ -145,12 +145,14 @@ async def _store_reflection_operation(
 
     T4 (2026-09-29): accept ``metadata`` so the wrapper chain doesn't
     TypeError when callers (e.g. the task system) pass per-write
-    annotations. The metadata is **not yet persisted** by the
-    underlying adapter — the ``reflections`` schema has no metadata
-    column and the adapter signature is out of scope for this fix —
-    so it is captured in the returned dict (and the caller log
-    envelope) for forward compatibility when the column migration
-    lands. Existing callers passing ``metadata=None`` see no change.
+    annotations. The metadata IS now persisted end-to-end via the
+    SQLModel sidecar in ``session_buddy.mcp.tools.tasks_storage`` —
+    the existing reflection adapter's ``store_reflection`` signature
+    is intentionally out of scope for this fix, so the sidecar is
+    keyed by the returned reflection_id and survives a session
+    restart (which is what ``tasks_list`` needs to read back the
+    ``kind=task`` discriminator). The metadata is also captured in
+    the returned dict for the impl's log envelope.
     """
     success = await db.store_reflection(
         content,
@@ -159,6 +161,23 @@ async def _store_reflection_operation(
         source_session_id=source_session_id,
         source_artifact_uri=source_artifact_uri,
     )
+
+    # T4 fix round 2: thread ``metadata`` into the SQLModel sidecar so
+    # ``tasks_list`` (T5) can filter by discriminator fields after a
+    # session restart. ``success`` is the reflection_id (a ULID string)
+    # returned by the adapter. ``metadata=None`` callers see no sidecar
+    # write — the existing fast path is preserved.
+    if metadata is not None and success:
+        # Lazy import: avoids a hard dep on SQLModel at module import
+        # for callers that never touch task metadata.
+        from session_buddy.mcp.tools import tasks_storage
+
+        tasks_storage.persist_task_metadata(
+            tasks_storage.get_engine(),
+            str(success),
+            dict(metadata),
+        )
+
     return {
         "success": success,
         "content": content,

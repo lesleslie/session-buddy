@@ -36,6 +36,11 @@ dependencies = [
     # so this must be a runtime dependency, not optional.
     "pytz>=2024.1",
     "rich>=15.0.0",
+    # SQLModel (T4 fix round 2, 2026-09-29): introduced ONLY for task
+    # metadata persistence in ``session_buddy.mcp.tools.tasks_storage``.
+    # Broader SQLModel adoption is out of scope for this fix round; the
+    # rest of session-buddy keeps its existing raw-SQL adapter.
+    "sqlmodel>=0.0.16",
     "structlog>=25.5.0",
     "typer>=0.26.6",
     "crackerjack>=0.70.0",
