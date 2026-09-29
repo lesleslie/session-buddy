@@ -13,13 +13,18 @@ T12 wires ``register_tasks_tools(mcp)`` into the FastMCP server.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
 from datetime import UTC, datetime
-from typing import Annotated, Any, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
-from mcp_common.fastmcp import Context
 from pydantic import Field
 
+# Sidecar module imported into the module namespace so tests can patch the
+# ``find_tasks_by_metadata`` / ``get_engine`` pair without round-tripping
+# through ``session_buddy.mcp.tools.tasks_storage``.
+from session_buddy.mcp.tools import tasks_storage
 from session_buddy.mcp.tools.tasks_events import (
     TaskCreatedPayload,
     publish_task_event,
@@ -28,7 +33,9 @@ from session_buddy.mcp.tools.tasks_identity import derive_caller_identity
 from session_buddy.mcp.tools.tasks_models import (
     TASK_ID_PATTERN,
     JsonValue,
+    LegacyTaskRow,
     Task,
+    TaskListResult,
     new_task_id,
 )
 from session_buddy.mcp.tools.tasks_security import (
@@ -36,6 +43,7 @@ from session_buddy.mcp.tools.tasks_security import (
     MAX_TAG_LEN,
     RateLimiter,
     RateLimitError,
+    enforce_visibility_filter,
 )
 
 # Imported into the module namespace (rather than referenced as
@@ -43,6 +51,9 @@ from session_buddy.mcp.tools.tasks_security import (
 # ``patch.object(tasks_tools, "store_reflection", ...)`` and intercept the
 # DB call without standing up a real reflection adapter.
 from session_buddy.tools.memory_tools import store_reflection
+
+if TYPE_CHECKING:
+    from mcp_common.fastmcp import Context
 
 # ---------------------------------------------------------------------------
 # Module-level rate limiter
@@ -202,6 +213,318 @@ async def tasks_create(
     )
 
     return task
+
+
+# ---------------------------------------------------------------------------
+# tasks_list — T5
+# ---------------------------------------------------------------------------
+#
+# Spec §Data Flow path 2 + §Authz Model + §Migration. Server-side:
+# - ``owner`` filter is forced to ``caller_identity`` (the security-
+#   critical invariant from §Authz Model; callers cannot read other
+#   users' private tasks).
+# - The visibility filter is enforced on every row.
+# - ``include_legacy=True`` is the only way to surface legacy
+#   ``tags=["todo"]`` rows (default ``False`` per spec §Migration).
+# - ``tasks_list`` is read-only — no event emission.
+
+# Status / priority / effort are stored as ``<kind>:<value>`` tag prefixes
+# per spec §Data Flow path 1 ("strip priority:/status:/effort: tags"). The
+# following Literal values are the only legal coercions.
+_TAG_PREFIX_STATUS_VALUES = {"open", "in_progress", "blocked", "done", "cancelled"}
+_TAG_PREFIX_PRIORITY_VALUES = {"critical", "high", "normal", "low"}
+_TAG_PREFIX_EFFORT_VALUES = {"xs", "s", "m", "l", "xl"}
+
+
+def _coerce_tag_prefix(tag: str) -> tuple[str | None, str | None]:
+    """Parse a ``<kind>:<value>`` tag; return (kind, value) or (None, None).
+
+    Tags without a recognised prefix are returned as ``(None, None)`` so
+    callers can fall through to the literal list. Used to derive
+    ``status``/``priority``/``effort`` from the legacy tag-prefix storage
+    convention.
+    """
+    if ":" not in tag:
+        return None, None
+    kind, _, value = tag.partition(":")
+    if not kind or not value:
+        return None, None
+    return kind, value
+
+
+async def _read_reflection(reflection_id: str) -> dict[str, Any] | None:
+    """Read a reflection row by ID; return None for orphans / deletions.
+
+    Thin wrapper around ``ReflectionDatabaseAdapter.get_reflection_by_id``
+    so tests can ``patch.object(tasks_tools, "_read_reflection", ...)``
+    without standing up the canonical reflection adapter. Callers
+    ``await`` this helper; tests that patch the symbol provide an
+    ``AsyncMock``.
+    """
+    from session_buddy.reflection_tools import get_reflection_database
+
+    db = await get_reflection_database()
+    return await db.get_reflection_by_id(reflection_id)
+
+
+def _synthetic_task_id(reflection_id: str) -> str:
+    """Return a stable ``t-{32 hex}`` identifier derived from the reflection row.
+
+    The original task ID is only stored compactly as ``uuid_alias`` (12 hex)
+    on the sidecar; the full 32-hex form cannot be recovered, so list
+    surfaces a deterministic synthetic id. The pattern check still passes.
+    """
+    digest = hashlib.sha256(reflection_id.encode("utf-8", "surrogatepass")).hexdigest()
+    return f"t-{digest[:32]}"
+
+
+def _parse_iso_optional(value: Any) -> datetime | None:
+    """Parse an ISO-8601 string into a tz-aware ``datetime``; return None on missing/garbage."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _build_task(reflection: dict[str, Any], sidecar_meta: dict[str, Any]) -> Task | None:
+    """Build a :class:`Task` from a reflection row + sidecar metadata.
+
+    Returns ``None`` if the reflection row is missing required fields
+    (e.g. no ``id``). Coerces status/priority/effort from ``<kind>:<value>``
+    tag prefixes per spec §Data Flow path 1; falls back to sidecar
+    metadata, then to type defaults.
+    """
+    reflection_id = reflection.get("id")
+    if not isinstance(reflection_id, str) or not reflection_id:
+        return None
+    content = reflection.get("content")
+    if not isinstance(content, str) or not content:
+        return None
+    tags_in = list(reflection.get("tags") or [])
+    if "task" not in tags_in:
+        return None
+
+    status: str = "open"
+    priority: str = str(sidecar_meta.get("priority") or "normal")
+    effort: str | None = sidecar_meta.get("effort")
+    for tag in tags_in:
+        kind, value = _coerce_tag_prefix(tag)
+        if kind == "status" and value in _TAG_PREFIX_STATUS_VALUES:
+            status = value
+        elif kind == "priority" and value in _TAG_PREFIX_PRIORITY_VALUES:
+            priority = value
+        elif kind == "effort" and value in _TAG_PREFIX_EFFORT_VALUES:
+            effort = value
+
+    owner = sidecar_meta.get("owner")
+    created_at = _parse_iso_optional(sidecar_meta.get("created_at")) or datetime.now(UTC)
+    due_at = _parse_iso_optional(sidecar_meta.get("due_at"))
+    parent_task_id = sidecar_meta.get("parent_task_id")
+    workflow_id = sidecar_meta.get("workflow_id")
+
+    try:
+        return Task(
+            id=_synthetic_task_id(reflection_id),
+            content=content,
+            owner=str(owner) if owner else None,
+            visibility="private",
+            status=status,  # type: ignore[arg-type]
+            priority=priority,  # type: ignore[arg-type]
+            effort=effort,  # type: ignore[arg-type]
+            tags=tags_in,
+            parent_task_id=str(parent_task_id) if parent_task_id else None,
+            workflow_id=str(workflow_id) if workflow_id else None,
+            due_at=due_at,
+            created_at=created_at,
+            updated_at=created_at,
+            created_by=str(owner) if owner else None,
+            completed_at=None,
+            completed_by=None,
+            result_notes=None,
+            metadata={},
+        )
+    except (ValueError, TypeError):
+        return None
+
+
+def _coerce_legacy_row(reflection: dict[str, Any]) -> LegacyTaskRow | None:
+    """Coerce a legacy ``store_reflection(tags=["todo"])`` row.
+
+    Per spec §Migration, the row's ``_coerced=True`` marker is the
+    consumer's signal that this is a backwards-compat envelope, not a
+    typed ``Task``.
+    """
+    reflection_id = reflection.get("id")
+    content = reflection.get("content")
+    if not isinstance(reflection_id, str) or not isinstance(content, str):
+        return None
+    return LegacyTaskRow(
+        id=reflection_id,
+        content=content,
+        tags=list(reflection.get("tags") or []),
+    )
+
+
+async def _query_legacy_reflections(
+    caller: str,
+) -> list[tuple[str, dict[str, Any]]]:
+    """Return legacy ``tags ⊇ ["todo"]`` reflections eligible for ``include_legacy``.
+
+    Only returns rows whose coerced ``owner`` matches ``caller`` (the
+    spec §Migration conservative default leaves unowned rows hidden).
+    The actual SQL/IO is delegated to a helper so tests can stub it
+    via ``patch.object(tasks_tools, "_query_legacy_reflections", ...)``.
+    """
+    from session_buddy.reflection_tools import get_reflection_database
+
+    db = await get_reflection_database()
+    rows = await db.search_reflections(query="", limit=1000, use_embeddings=False)
+    out: list[tuple[str, dict[str, Any]]] = []
+    for row in rows or []:
+        tags = list(row.get("tags") or [])
+        if "todo" not in tags or "task" in tags:
+            continue  # exclude typed rows
+        reflection = await _read_reflection(row["id"])
+        if reflection is None:
+            continue
+        coerced_owner = reflection.get("project") or reflection.get("created_by")
+        if coerced_owner != caller:
+            continue
+        out.append((row["id"], reflection))
+    return out
+
+
+# Pagination cursor: opaque, base64-urlsafe JSON of ``{"offset": int}``.
+def _encode_cursor(offset: int) -> str:
+    raw = json.dumps({"offset": int(offset)}, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_cursor(cursor: str | None) -> int:
+    if not cursor:
+        return 0
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        decoded = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+    except (ValueError, KeyError, TypeError):
+        return 0
+    offset = decoded.get("offset", 0)
+    return int(offset) if isinstance(offset, int) and offset >= 0 else 0
+
+
+def _passes_post_filters(
+    task: Task,
+    status: str | None,
+    tag: str | None,
+    parent_task_id: str | None,
+) -> bool:
+    if status is not None and task.status != status:
+        return False
+    if tag is not None and tag not in task.tags:
+        return False
+    return not (parent_task_id is not None and task.parent_task_id != parent_task_id)
+
+
+async def tasks_list(
+    ctx: Context,
+    status: (
+        Literal["open", "in_progress", "blocked", "done", "cancelled"] | None
+    ) = None,
+    owner: str | None = None,
+    tag: str | None = None,
+    parent_task_id: Annotated[str | None, Field(pattern=TASK_ID_PATTERN)] = None,
+    include_legacy: bool = False,
+    k: int = 20,
+    cursor: str | None = None,
+) -> TaskListResult:
+    """List tasks owned by the caller with optional filters and pagination.
+
+    Server-side (spec §Authz Model + §Migration):
+
+    - ``owner`` filter is forced to ``caller_identity``. A caller-supplied
+      ``owner`` that doesn't match the caller returns an empty result —
+      callers cannot widen past their own privilege to read other users'
+      private tasks.
+    - ``enforce_visibility_filter(caller, task)`` is applied to every
+      candidate row (public rows pass; private/team rows require owner
+      match).
+    - ``include_legacy=True`` is the only way to surface legacy
+      ``tags=["todo"]`` rows (default ``False`` per §Migration).
+    """
+    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+
+    # Security boundary: caller cannot filter by another user's owner. The
+    # brief pins the empty-result behaviour; the spec is more nuanced
+    # (return caller's rows + public ones) but the brief is the binding
+    # contract for T5.
+    if owner is not None and owner != caller:
+        return TaskListResult(items=[], next_cursor=None, total=0)
+
+    metadata_filter: dict[str, Any] = {"kind": "task", "owner": caller}
+    candidate_ids = tasks_storage.find_tasks_by_metadata(
+        tasks_storage.get_engine(),
+        metadata_filter,
+        limit=1000,
+    )
+
+    typed_items: list[Task] = []
+    for rid in candidate_ids:
+        reflection = await _read_reflection(rid)
+        if reflection is None:
+            continue  # orphan sidecar row — skip silently
+        sidecar_meta = tasks_storage.read_task_metadata(
+            tasks_storage.get_engine(),
+            rid,
+        ) or {}
+        task = _build_task(reflection, sidecar_meta)
+        if task is None:
+            continue
+        if not enforce_visibility_filter(caller, task):
+            continue
+        if not _passes_post_filters(task, status, tag, parent_task_id):
+            continue
+        typed_items.append(task)
+
+    legacy_items: list[LegacyTaskRow] = []
+    if include_legacy:
+        for rid, reflection in await _query_legacy_reflections(caller):
+            row = _coerce_legacy_row(reflection)
+            if row is not None:
+                legacy_items.append(row)
+
+    # Sort by created_at DESC. Legacy rows lack created_at; sort them last
+    # (treated as oldest).
+    typed_items.sort(key=lambda t: t.created_at, reverse=True)
+
+    # Apply pagination to the typed list. Legacy rows are appended after
+    # pagination since they bypass owner-side filtering at the sidecar
+    # level (their visibility is enforced inside ``_query_legacy_reflections``).
+    offset = _decode_cursor(cursor)
+    page_items: list[Task | LegacyTaskRow]
+    page_items = typed_items[offset : offset + k]
+    next_cursor = (
+        _encode_cursor(offset + k)
+        if offset + k < len(typed_items)
+        else None
+    )
+
+    # When ``include_legacy`` is on, append legacy rows after the typed
+    # page (they're surfaced as a separate category — the spec marks them
+    # with ``_coerced=True`` so consumers render distinctly).
+    if include_legacy:
+        page_items = list(page_items) + legacy_items
+
+    total_count = len(typed_items) + (len(legacy_items) if include_legacy else 0)
+    return TaskListResult(
+        items=page_items,
+        next_cursor=next_cursor,
+        total=total_count,
+    )
 
 
 # ---------------------------------------------------------------------------

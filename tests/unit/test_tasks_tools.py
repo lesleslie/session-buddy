@@ -336,3 +336,440 @@ def test_module_rate_limiter_is_singleton() -> None:
     assert a is b
     assert a.limit == 42
     assert a.window_seconds == 42
+
+
+# ===========================================================================
+# Task 5 — ``tasks_list`` tests
+# ===========================================================================
+#
+# The end-to-end tests below stand up a real SQLModel sidecar engine and
+# patch ``tasks_tools.store_reflection`` so it (a) returns a unique
+# reflection_id and (b) persists the supplied metadata to the sidecar.
+# That mimics the behaviour the production wrapper chain has — the sidecar
+# is populated by ``_store_reflection_operation`` after the adapter call
+# returns the reflection_id. Tests then mock ``_read_reflection`` to feed
+# deterministic reflection content back into ``tasks_list``.
+import base64
+import json
+import uuid
+
+from session_buddy.mcp.tools import tasks_storage
+from session_buddy.mcp.tools.tasks_models import LegacyTaskRow, TaskListResult
+
+
+@pytest.fixture
+def _t5_engine() -> Any:
+    """Yield a fresh in-memory sidecar engine; reset the singleton after."""
+    e = tasks_storage.create_metadata_engine()
+    tasks_storage.set_engine(e)
+    try:
+        yield e
+    finally:
+        tasks_storage.set_engine(None)
+
+
+def _t5_fake_store_reflection(content: str, tags=None, metadata=None) -> str:
+    """Sync inner helper. Production wrapper is async; the AsyncMock
+    below wraps this so callers can ``await`` it.
+    """
+    reflection_id = f"ref-{uuid.uuid4().hex[:12]}"
+    if metadata is not None:
+        tasks_storage.persist_task_metadata(
+            tasks_storage.get_engine(),
+            reflection_id,
+            dict(metadata),
+        )
+    return reflection_id
+
+
+def _t5_store_reflection_mock() -> Any:
+    """Build an ``AsyncMock`` whose side_effect is the sync fake above.
+
+    The production wrapper is async and the test runner awaits the
+    mock; ``AsyncMock(side_effect=...)`` natively returns a coroutine
+    per call so this works as a drop-in ``new=`` argument for
+    ``patch.object``.
+    """
+    from unittest.mock import AsyncMock
+
+    return AsyncMock(side_effect=_t5_fake_store_reflection)
+
+
+def _t5_reflection_for(
+    reflection_id: str,
+    content: str = "task body",
+    tags: list[str] | None = None,
+    project: str | None = None,
+    timestamp: Any = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a reflection dict that matches ``ReflectionDatabaseAdapterOneiric.get_reflection_by_id`` shape."""
+    from datetime import UTC, datetime
+
+    base: dict[str, Any] = {
+        "id": reflection_id,
+        "content": content,
+        "tags": list(tags) if tags is not None else ["task"],
+        "project": project,
+        "created_at": (timestamp or datetime.now(UTC)).isoformat(),
+        "updated_at": (timestamp or datetime.now(UTC)).isoformat(),
+    }
+    if extra:
+        base.update(extra)
+    return base
+
+
+# ---------------------------------------------------------------------------
+# Test 1 — defaults: caller creates 3 tasks; tasks_list() returns all 3.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_list_returns_only_caller_tasks_by_default(_t5_engine: Any) -> None:
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(
+                    rid,
+                    content=f"body-{rid}",
+                    tags=["task", "refactor"],
+                ),
+            ),
+        ),
+    ):
+        for i in range(3):
+            result = await tasks_tools.tasks_create(
+                ctx,
+                content=f"task body {i}",
+                tags=["task", "refactor"],
+            )
+            assert isinstance(result, Task), f"task_create {i} returned {result!r}"
+
+        listing = await tasks_tools.tasks_list(ctx)
+
+    assert isinstance(listing, TaskListResult)
+    assert listing.total == 3
+    assert len(listing.items) == 3
+    assert listing.next_cursor is None
+    assert all(item.owner == "user:les@example.com" for item in listing.items)
+    assert all("refactor" in item.tags for item in listing.items)
+
+
+# ---------------------------------------------------------------------------
+# Test 2 — status filter
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_list_filters_by_status(_t5_engine: Any) -> None:
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    # The fake reflection read stamps status onto the tags via "status:done".
+    # The Task builder parses the prefix back to a status Literal value.
+    done_reflection_ids: set[str] = set()
+
+    async def _fake_create_then_track_one_done():
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        result = await tasks_tools.tasks_create(
+            ctx,
+            content="body",
+            tags=["task"],
+        )
+        assert isinstance(result, Task)
+        return result
+
+    # Re-bind the limiter each call to ensure fresh state.
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+
+    async def _read(rid: str) -> dict[str, Any]:
+        if rid in done_reflection_ids:
+            return _t5_reflection_for(rid, tags=["task", "status:done"])
+        return _t5_reflection_for(rid, tags=["task"])
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(tasks_tools, "_read_reflection", new=AsyncMock(side_effect=_read)),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        created = []
+        for i in range(3):
+            r = await tasks_tools.tasks_create(
+                ctx,
+                content=f"body-{i}",
+                tags=["task"],
+            )
+            assert isinstance(r, Task)
+            created.append(r)
+
+        # Mark the second task as done by tagging its reflection.
+        done_reflection_ids.add(created[1].id)  # not used directly; use sidecar lookup
+        # Find the reflection_id associated with created[1]'s uuid_alias in the sidecar.
+        from session_buddy.mcp.tools import tasks_storage
+
+        rows = tasks_storage.find_tasks_by_metadata(
+            tasks_storage.get_engine(),
+            {"uuid_alias": created[1].id[2:14]},
+        )
+        assert rows, "expected at least one sidecar row for created[1]"
+        done_reflection_ids.add(rows[0])
+
+        listing = await tasks_tools.tasks_list(ctx, status="open")
+
+    assert listing.total == 2
+    assert len(listing.items) == 2
+    assert all(item.status == "open" for item in listing.items)
+
+
+# ---------------------------------------------------------------------------
+# Test 3 — caller passing another user's owner returns 0.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_list_filters_by_owner(_t5_engine: Any) -> None:
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        for i in range(2):
+            r = await tasks_tools.tasks_create(
+                ctx,
+                content=f"body-{i}",
+                tags=["task"],
+            )
+            assert isinstance(r, Task)
+
+        listing = await tasks_tools.tasks_list(
+            ctx,
+            owner="user:alice@example.com",
+        )
+
+    assert listing.total == 0
+    assert listing.items == []
+    assert listing.next_cursor is None
+
+
+# ---------------------------------------------------------------------------
+# Test 4 — include_legacy gate
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_list_includes_legacy_when_include_legacy_true(_t5_engine: Any) -> None:
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    legacy_reflection_id = "ref-legacy-001"
+    legacy_reflection = _t5_reflection_for(
+        legacy_reflection_id,
+        content="legacy body",
+        tags=["todo", "cleanup"],
+    )
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_query_legacy_reflections",
+            new=AsyncMock(return_value=[(legacy_reflection_id, legacy_reflection)]),
+        ),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+    ):
+        # No tasks created — verify default behaviour excludes legacy
+        listing_default = await tasks_tools.tasks_list(ctx)
+        assert listing_default.total == 0
+        assert listing_default.items == []
+
+        # include_legacy=True surfaces the row as LegacyTaskRow
+        listing_with_legacy = await tasks_tools.tasks_list(ctx, include_legacy=True)
+
+    assert listing_with_legacy.total == 1
+    assert len(listing_with_legacy.items) == 1
+    legacy_item = listing_with_legacy.items[0]
+    assert isinstance(legacy_item, LegacyTaskRow)
+    assert legacy_item.id == legacy_reflection_id
+    assert legacy_item.content == "legacy body"
+    assert legacy_item.tags == ["todo", "cleanup"]
+
+
+# ---------------------------------------------------------------------------
+# Test 5 — authz: User B cannot read User A's private tasks.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_list_excludes_other_users_private_tasks(_t5_engine: Any) -> None:
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx_alice = _make_ctx({"user_email": "alice@example.com"})
+    ctx_bob = _make_ctx({"user_email": "bob@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        # Alice creates a private task.
+        alice_task = await tasks_tools.tasks_create(
+            ctx_alice,
+            content="alice secret task",
+            tags=["task", "private"],
+        )
+        assert isinstance(alice_task, Task)
+        assert alice_task.owner == "user:alice@example.com"
+
+        # Bob lists — must NOT include Alice's task.
+        bob_listing = await tasks_tools.tasks_list(ctx_bob)
+        # Alice may also have a record in the sidecar; the visibility filter
+        # is the security boundary, so verify Bob sees zero tasks.
+        assert bob_listing.total == 0
+        assert bob_listing.items == []
+        assert all(item.owner != "user:alice@example.com" for item in bob_listing.items)
+
+
+# ---------------------------------------------------------------------------
+# Test 6 — pagination (k=2, cursor)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_list_pagination_k_and_cursor(_t5_engine: Any) -> None:
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        for i in range(5):
+            r = await tasks_tools.tasks_create(
+                ctx,
+                content=f"body-{i}",
+                tags=["task"],
+            )
+            assert isinstance(r, Task)
+
+        page1 = await tasks_tools.tasks_list(ctx, k=2)
+        assert len(page1.items) == 2
+        assert page1.total == 5
+        assert page1.next_cursor is not None
+
+        page2 = await tasks_tools.tasks_list(ctx, k=2, cursor=page1.next_cursor)
+        assert len(page2.items) == 2
+        assert page2.total == 5
+        assert page2.next_cursor is not None
+
+        page3 = await tasks_tools.tasks_list(ctx, k=2, cursor=page2.next_cursor)
+        assert len(page3.items) == 1
+        assert page3.total == 5
+        assert page3.next_cursor is None
+
+        # Page items must not overlap across pages.
+        seen_ids = {i.id for i in page1.items}
+        seen_ids.update(i.id for i in page2.items)
+        seen_ids.update(i.id for i in page3.items)
+        assert len(seen_ids) == 5
+
+
+# ---------------------------------------------------------------------------
+# Test 7 — envelope shape (TaskListResult, not list[Task])
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tasks_list_envelope_shape(_t5_engine: Any) -> None:
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+    ):
+        tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+        r = await tasks_tools.tasks_create(
+            ctx,
+            content="body",
+            tags=["task"],
+        )
+        assert isinstance(r, Task)
+
+        listing = await tasks_tools.tasks_list(ctx)
+
+    assert isinstance(listing, TaskListResult), (
+        f"Expected TaskListResult, got {type(listing).__name__}"
+    )
+    assert hasattr(listing, "items")
+    assert hasattr(listing, "next_cursor")
+    assert hasattr(listing, "total")
+    assert listing.total == 1
+    assert len(listing.items) == 1
+    assert isinstance(listing.items[0], Task)
+    # Verify the cursor is opaque (base64-like).
+    page = await tasks_tools.tasks_list(ctx, k=1)
+    if page.next_cursor:
+        # Must not raise when decoded; should be base64-urlsafe JSON.
+        padded = page.next_cursor + "=" * (-len(page.next_cursor) % 4)
+        decoded = json.loads(base64.urlsafe_b64decode(padded.encode()).decode())
+        assert "offset" in decoded

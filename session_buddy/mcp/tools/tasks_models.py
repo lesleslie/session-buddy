@@ -157,32 +157,6 @@ class UpdateTaskRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# List / history results (paginated envelopes)
-# ---------------------------------------------------------------------------
-
-
-class TaskListResult(BaseModel):
-    """Paginated list of tasks. ``total`` is the *filtered* count, not the
-    global one; ``next_cursor`` is ``None`` when the page exhausts results."""
-
-    model_config = ConfigDict(extra="forbid", frozen=False)
-
-    items: list[Task]
-    next_cursor: str | None = None
-    total: int
-
-
-class TaskHistoryResult(BaseModel):
-    """Paginated task-event history. No ``total`` — history is append-only
-    and consumers page forward until ``next_cursor`` is ``None``."""
-
-    model_config = ConfigDict(extra="forbid", frozen=False)
-
-    items: list[TaskEvent]
-    next_cursor: str | None = None
-
-
-# ---------------------------------------------------------------------------
 # Task event (audit trail)
 # ---------------------------------------------------------------------------
 
@@ -212,8 +186,44 @@ class TaskEvent(BaseModel):
     notes: str | None = None
 
 
-# Resolve forward references so TaskHistoryResult.items: list[TaskEvent]
-# is materialised after TaskEvent is defined.
+# ---------------------------------------------------------------------------
+# List / history results (paginated envelopes)
+# ---------------------------------------------------------------------------
+
+
+class TaskHistoryResult(BaseModel):
+    """Paginated task-event history. No ``total`` — history is append-only
+    and consumers page forward until ``next_cursor`` is ``None``."""
+
+    model_config = ConfigDict(extra="forbid", frozen=False)
+
+    items: list[TaskEvent]
+    next_cursor: str | None = None
+
+
+class TaskListResult(BaseModel):
+    """Paginated list of tasks. ``total`` is the *filtered* count, not the
+    global one; ``next_cursor`` is ``None`` when the page exhausts results.
+
+    ``items`` may include :class:`LegacyTaskRow` envelopes when the caller
+    opted in via ``tasks_list(include_legacy=True)``; clients render them
+    distinctly using the ``_coerced`` marker on the legacy rows."""
+
+    model_config = ConfigDict(extra="forbid", frozen=False)
+
+    # ``LegacyTaskRow`` is defined further down in this module. The union
+    # references it as a forward string; ``TaskListResult.model_rebuild()``
+    # at the bottom of the file resolves the string once ``LegacyTaskRow``
+    # is in scope.
+    items: list[Task | LegacyTaskRow]  # type: ignore[valid-type]
+    next_cursor: str | None = None
+    total: int
+
+
+# Resolve forward references so the ``list[TaskEvent]`` /
+# ``list[Task | LegacyTaskRow]`` annotations resolve at runtime. Must run
+# AFTER ``LegacyTaskRow`` is defined (see the call at the bottom of this
+# module).
 TaskHistoryResult.model_rebuild()
 
 
@@ -282,3 +292,11 @@ class LegacyTaskRow(BaseModel):
         "Legacy store_reflection row; not a typed Task. "
         "Use tasks_create for new work."
     )
+
+
+# Materialise ``TaskListResult.items: list[Task | LegacyTaskRow]`` now
+# that ``LegacyTaskRow`` is in scope. Without this ``model_rebuild``
+# call, Pydantic's typing resolver raises ``PydanticUndefinedAnnotation``
+# at first instantiation because ``from __future__ import annotations``
+# keeps the union members as strings.
+TaskListResult.model_rebuild()
