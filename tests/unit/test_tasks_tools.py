@@ -2019,14 +2019,6 @@ async def test_tasks_search_enforces_visibility_private(_t5_engine: Any) -> None
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(
-    reason=(
-        "T5 _build_task hardcodes visibility='private' and T6 "
-        "_persist_task_update does not write visibility to the sidecar; "
-        "visibility_public needs the T5 fix to read visibility from "
-        "sidecar metadata. Tracked as T12 follow-up."
-    )
-)
 async def test_tasks_search_enforces_visibility_public(_t5_engine: Any) -> None:
     """Public tasks appear in any user's tasks_search results.
 
@@ -2100,6 +2092,68 @@ async def test_tasks_search_enforces_visibility_public(_t5_engine: Any) -> None:
 
     assert any(t.id == task_a.id for t in results), (
         f"User B must see Alice's public task; got {[t.id for t in results]!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_tasks_user_team_visibility_persists(_t5_engine: Any) -> None:
+    """``visibility='team'`` round-trips through ``tasks_update`` → sidecar → ``_build_task``.
+
+    Pins T12's persistence contract: ``_persist_task_update`` must write
+    ``visibility`` to the sidecar so a follow-up ``_build_task`` call
+    (e.g. from ``tasks_get`` or ``tasks_search``) recovers the updated
+    value instead of falling back to the hardcoded default.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+    from session_buddy.mcp.tools import tasks_storage
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+    captured: dict[str, str] = {}
+
+    def _capture_and_store(*args: Any, **kwargs: Any) -> str:
+        rid = _t5_fake_store_reflection(*args, **kwargs)
+        captured.setdefault("rid", rid)
+        return rid
+
+    with (
+        patch.object(
+            tasks_tools,
+            "store_reflection",
+            new=AsyncMock(side_effect=_capture_and_store),
+        ),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(
+                side_effect=lambda rid: _t5_reflection_for(rid, tags=["task"]),
+            ),
+        ),
+        patch.object(tasks_tools, "_update_reflection", new=AsyncMock()),
+    ):
+        created = await tasks_tools.tasks_create(ctx, content="x", tags=["task"])
+        assert isinstance(created, Task)
+
+        tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+        updated = await tasks_tools.tasks_update(
+            ctx,
+            task_id=created.id,
+            request=UpdateTaskRequest(visibility="team"),
+        )
+        assert isinstance(updated, Task)
+
+        reflection = _t5_reflection_for(captured["rid"], tags=["task"])
+        sidecar_meta = tasks_storage.read_task_metadata(
+            tasks_storage.get_engine(),
+            captured["rid"],
+        ) or {}
+        rebuilt = tasks_tools._build_task(reflection, sidecar_meta)
+
+    assert isinstance(rebuilt, Task)
+    assert rebuilt.visibility == "team", (
+        f"Sidecar persistence failed: rebuilt.visibility={sidecar_meta.get('visibility')!r}"
     )
 
 

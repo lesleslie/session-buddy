@@ -397,7 +397,7 @@ def _build_task(
             id=resolved_id,
             content=content,
             owner=str(owner) if owner else None,
-            visibility="private",
+            visibility=sidecar_meta.get("visibility", "private"),
             status=status,  # ty: ignore[arg-type]
             priority=priority,  # ty: ignore[arg-type]
             effort=effort,  # ty: ignore[arg-type]
@@ -722,6 +722,8 @@ async def _persist_task_update(
     new_meta = dict(sidecar_meta)
     new_meta["priority"] = task.priority
     new_meta["effort"] = task.effort
+    if getattr(task, "visibility", None) is not None:
+        new_meta["visibility"] = task.visibility
     new_meta["due_at"] = task.due_at.isoformat() if task.due_at is not None else None
     new_meta["parent_task_id"] = task.parent_task_id
     new_meta["updated_at"] = task.updated_at.isoformat()
