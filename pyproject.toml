@@ -150,6 +150,7 @@ markers = [
     "mcp: mark test as MCP-related",
     "mcp_test: mark test is MCP server test",
     "req: Traceable spec REQ ID (D2 wire-up discipline; see crackerjack-compliant-code skill)",
+    "requires_network: Test requires network access (Redis, etc.)",
 ]
 
 [tool.coverage.run]
