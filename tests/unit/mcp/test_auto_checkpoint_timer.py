@@ -202,6 +202,13 @@ async def test_lifespan_swallows_non_attribute_error_during_dhara_aclose(
     settings_stub.midpoint_commit_interval_s = 0
     settings_stub.midpoint_commits_enabled = False
     settings_stub.midpoint_commit_min_quality_delta = 10
+    # Task 4 wiring: see note in test_server_lifespan.py. ``enabled=False``
+    # keeps the publisher's init() a no-op so no Redis is required.
+    settings_stub.bodai_events = MagicMock(
+        stream="bodai:events",
+        consumer_group="bodai-default",
+        enabled=False,
+    )
     monkeypatch.setattr(
         "session_buddy.settings.get_settings", lambda: settings_stub
     )

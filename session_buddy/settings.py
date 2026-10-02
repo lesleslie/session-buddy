@@ -23,6 +23,30 @@ from oneiric.core.config import OneiricMCPConfig
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+class BodaiEventsConfig(BaseModel):
+    """Bodai task-system event bus settings.
+
+    Consumed by ``_lifespan_with_dhara_cleanup`` (session_buddy/mcp/server.py)
+    to construct the singleton ``BodaiEventsPublisher``. The publisher takes
+    ``stream`` / ``consumer_group`` / ``enabled`` kwargs directly; this
+    section exists so operators can toggle the bus and pick a different
+    stream or group per environment without code changes.
+    """
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable the bodai:events Redis Streams publisher",
+    )
+    stream: str = Field(
+        default="bodai:events",
+        description="Redis Streams name for bodai task events",
+    )
+    consumer_group: str = Field(
+        default="bodai-default",
+        description="Consumer group name for bodai:events consumers",
+    )
+
+
 class LLMProvidersConfig(BaseModel):
     """LLM provider configuration."""
 
@@ -674,6 +698,14 @@ class SessionMgmtSettings(OneiricMCPConfig):
     enable_conscious_agent: bool = Field(
         default=True,
         description="Enable background Conscious Agent",
+    )
+
+    # === Bodai Task System Events (Phase 1) ===
+    # See ``BodaiEventsConfig`` above; consumed by the FastMCP lifespan
+    # in session_buddy/mcp/server.py to construct the singleton publisher.
+    bodai_events: BodaiEventsConfig = Field(
+        default_factory=BodaiEventsConfig,
+        description="Bodai task-system event bus configuration",
     )
     enable_filesystem_extraction: bool = Field(
         default=True,

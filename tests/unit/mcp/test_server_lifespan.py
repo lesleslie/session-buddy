@@ -118,6 +118,14 @@ async def test_lifespan_skips_orchestrator_for_invalid_cwd(
     settings_stub.midpoint_commit_interval_s = 60
     settings_stub.midpoint_commits_enabled = False
     settings_stub.midpoint_commit_min_quality_delta = 10
+    # Task 4 wiring: the lifespan now also reads settings.bodai_events
+    # to construct the BodaiEventsPublisher. ``enabled=False`` keeps
+    # the publisher's init() a no-op so no Redis connection is needed.
+    settings_stub.bodai_events = MagicMock(
+        stream="bodai:events",
+        consumer_group="bodai-default",
+        enabled=False,
+    )
     monkeypatch.setattr(
         "session_buddy.settings.get_settings", lambda: settings_stub,
     )
@@ -188,6 +196,12 @@ async def test_lifespan_starts_orchestrator_for_valid_cwd(
     settings_stub.midpoint_commit_interval_s = 60
     settings_stub.midpoint_commits_enabled = False
     settings_stub.midpoint_commit_min_quality_delta = 10
+    # Task 4 wiring: see note in test_lifespan_skips_orchestrator_for_invalid_cwd.
+    settings_stub.bodai_events = MagicMock(
+        stream="bodai:events",
+        consumer_group="bodai-default",
+        enabled=False,
+    )
     monkeypatch.setattr(
         "session_buddy.settings.get_settings", lambda: settings_stub,
     )
@@ -223,3 +237,140 @@ async def test_lifespan_starts_orchestrator_for_valid_cwd(
         "the negative-case test cannot be trusted without this control. "
         f"build_calls={build_calls!r}"
     )
+
+
+# --- Task 4: BodaiEventsPublisher lifespan wiring -----------------------------
+#
+# Before Task 4 the FastMCP lifespan never constructed the singleton
+# BodaiEventsPublisher; ``tasks_events.publish_task_event`` and
+# ``publish_task_event_raw`` no-op'd because ``_publisher`` was always
+# None. The fix wires the publisher into ``_lifespan_with_dhara_cleanup``
+# via the ``settings.bodai_events.{stream,consumer_group,enabled}`` keys,
+# stores it on the ``tasks_events._publisher`` module slot, and clears the
+# slot in the finally block. These tests pin the new contract.
+
+
+@pytest.mark.unit
+async def test_lifespan_instantiates_publisher_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+    _clean_pending_dir: None,
+) -> None:
+    """Lifespan must construct the publisher and install it on tasks_events._publisher.
+
+    When ``settings.bodai_events.enabled=True`` the publisher's transport
+    init is called too. We patch ``_init_transport`` so no Redis is required
+    in the test environment; the publisher object itself is real and its
+    constructor signature must match settings.
+    """
+    from session_buddy.mcp import server as mcp_server
+    from session_buddy.mcp.events.bodai_events_publisher import BodaiEventsPublisher
+    from session_buddy.mcp.tools import tasks_events
+
+    assert tasks_events._publisher is None
+
+    # Replace the original FastMCP lifespan with a no-op so we don't
+    # need a real ASGI app. Mirror the existing tests' pattern.
+    @asynccontextmanager
+    async def _noop_lifespan(_app):
+        yield
+
+    monkeypatch.setattr(mcp_server, "_original_lifespan", _noop_lifespan)
+
+    settings_stub = MagicMock()
+    settings_stub.auto_checkpoint_interval = 0
+    settings_stub.midpoint_commit_interval_s = 0
+    settings_stub.midpoint_commits_enabled = False
+    settings_stub.midpoint_commit_min_quality_delta = 10
+    # enabled=True so the publisher's init() runs the (patched) transport
+    # path. The singleton ``BodaiEventsPublisher`` object is real so its
+    # __init__ / health / cleanup are exercised.
+    settings_stub.bodai_events = MagicMock(
+        stream="bodai:events-test",
+        consumer_group="bodai-test-cg",
+        enabled=True,
+    )
+    monkeypatch.setattr(
+        "session_buddy.settings.get_settings", lambda: settings_stub,
+    )
+
+    # Patch _init_transport so no real Redis is needed. AsyncMock so the
+    # publisher's await ``self._init_transport()`` runs cleanly.
+    async def _fake_init_transport(self) -> None:
+        self._init_ok = True
+
+    monkeypatch.setattr(
+        BodaiEventsPublisher, "_init_transport", _fake_init_transport,
+    )
+
+    async with mcp_server._lifespan_with_dhara_cleanup(app=MagicMock()) as publisher:
+        # Lifespan must yield the publisher so callers can use it directly.
+        assert isinstance(publisher, BodaiEventsPublisher)
+        # Module slot is the same object — ``publish_task_event`` finds it.
+        assert tasks_events._publisher is publisher
+        # The constructor read settings.bodai_events correctly.
+        assert publisher.enabled is True
+        assert publisher._settings.stream == "bodai:events-test"
+        assert publisher._settings.group == "bodai-test-cg"
+
+    # After exit, the module slot must be cleared so a stale publisher
+    # can never be picked up by a new lifespan.
+    assert tasks_events._publisher is None
+
+
+@pytest.mark.unit
+async def test_lifespan_clears_publisher_on_exit_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    _clean_pending_dir: None,
+) -> None:
+    """Lifespan must clear the module slot even when ``enabled=False``.
+
+    The publisher is constructed but its transport init is a no-op. The
+    finally block must reach the cleanup path and zero out the slot —
+    otherwise a subsequent lifespan would inherit a stale disabled
+    publisher from a previous run.
+    """
+    from session_buddy.mcp import server as mcp_server
+    from session_buddy.mcp.events.bodai_events_publisher import BodaiEventsPublisher
+    from session_buddy.mcp.tools import tasks_events
+
+    assert tasks_events._publisher is None
+
+    @asynccontextmanager
+    async def _noop_lifespan(_app):
+        yield
+
+    monkeypatch.setattr(mcp_server, "_original_lifespan", _noop_lifespan)
+
+    settings_stub = MagicMock()
+    settings_stub.auto_checkpoint_interval = 0
+    settings_stub.midpoint_commit_interval_s = 0
+    settings_stub.midpoint_commits_enabled = False
+    settings_stub.midpoint_commit_min_quality_delta = 10
+    # enabled=False — publisher.init() must early-return without touching
+    # the transport. _init_ok stays False, but that's fine because
+    # health() short-circuits to True for disabled publishers.
+    settings_stub.bodai_events = MagicMock(
+        stream="bodai:events",
+        consumer_group="bodai-default",
+        enabled=False,
+    )
+    monkeypatch.setattr(
+        "session_buddy.settings.get_settings", lambda: settings_stub,
+    )
+
+    # Patch _init_transport as a tripwire: if init() calls it when
+    # disabled=False, the test fails loudly.
+    def _tripwire(self) -> None:
+        raise AssertionError(
+            "_init_transport must NOT be called when enabled=False"
+        )
+
+    monkeypatch.setattr(BodaiEventsPublisher, "_init_transport", _tripwire)
+
+    async with mcp_server._lifespan_with_dhara_cleanup(app=MagicMock()) as publisher:
+        assert isinstance(publisher, BodaiEventsPublisher)
+        assert publisher.enabled is False
+        assert tasks_events._publisher is publisher
+
+    # Slot cleared even when init() was a no-op.
+    assert tasks_events._publisher is None

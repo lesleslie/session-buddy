@@ -340,6 +340,7 @@ async def health_check(request: Any) -> Any:
     from starlette.responses import JSONResponse
 
     from session_buddy.mcp.signer_feed import get_signer_feed_state
+    from session_buddy.mcp.tools import tasks_events
 
     state = get_signer_feed_state()
     if state is not None:
@@ -365,6 +366,31 @@ async def health_check(request: Any) -> Any:
             ingester_running=False,
         )
 
+    # Bodai task-system event bus (Task 4): the lifespan installs the
+    # singleton BodaiEventsPublisher on tasks_events._publisher. Surface
+    # it as a second feed in the aggregator so a Redis outage is visible
+    # to operators via /health. When the lifespan hasn't run yet (no
+    # publisher installed), the feed reports FAILED — no ingester alive.
+    publisher = tasks_events._publisher
+    if publisher is not None:
+        publisher_state_snapshot = HealthFeedState(
+            entities_count=publisher.entities_count,
+            last_updated_timestamp=publisher.last_updated_timestamp or None,
+            cycles_total=publisher.cycles_total,
+            errors_total=publisher.errors_total,
+            last_error_at=None,
+            ingester_running=publisher.enabled and publisher._init_ok,
+        )
+    else:
+        publisher_state_snapshot = HealthFeedState(
+            entities_count=0,
+            last_updated_timestamp=None,
+            cycles_total=0,
+            errors_total=0,
+            last_error_at=None,
+            ingester_running=False,
+        )
+
     # Phase 4 observability: time the aggregator call so the
     # ``mcp_common_health_aggregate_duration_ms`` histogram surfaces
     # per-/health p50/p95/p99 latency to operators.
@@ -372,7 +398,10 @@ async def health_check(request: Any) -> Any:
 
     aggregator_start = _time.perf_counter()
     snap = aggregate_feed_states(
-        {"skills_signer": signer_state_snapshot},
+        {
+            "skills_signer": signer_state_snapshot,
+            "bodai_events": publisher_state_snapshot,
+        },
         # Operator-tunable via HEALTH_FEED_HALFLIFE_SECONDS env var
         # (set by ``--health-disable-decay`` on the MCPServerCLIFactory
         # start command). ``0`` disables the time-bounded decay
@@ -406,6 +435,7 @@ async def health_check(request: Any) -> Any:
         pass
 
     verdict = snap["checks"]["skills_signer"]
+    publisher_verdict = snap["checks"]["bodai_events"]
     checks: dict[str, dict[str, object]] = {
         "skills_signer": {
             "ok": verdict["healthy"],
@@ -415,7 +445,16 @@ async def health_check(request: Any) -> Any:
             "feed_last_updated_timestamp": signer_state_snapshot.last_updated_timestamp,
             "cycles_total": signer_state_snapshot.cycles_total,
             "errors_total": signer_state_snapshot.errors_total,
-        }
+        },
+        "bodai_events": {
+            "ok": publisher_verdict["healthy"],
+            "status": publisher_verdict["status"].value,
+            "reason_codes": [c.value for c in publisher_verdict["reason_codes"]],
+            "feed_entities_count": publisher_state_snapshot.entities_count,
+            "feed_last_updated_timestamp": publisher_state_snapshot.last_updated_timestamp,
+            "cycles_total": publisher_state_snapshot.cycles_total,
+            "errors_total": publisher_state_snapshot.errors_total,
+        },
     }
 
     # Phase 1.5: keep the legacy manifest fields on the wire so the
@@ -431,8 +470,9 @@ async def health_check(request: Any) -> Any:
     else:
         checks["skills_signer"]["error"] = "not initialized; awaiting lifespan"
 
-    # Top-level aggregate verdict. Session-Buddy has one data feed so
-    # the worst status is just that feed's status.
+    # Top-level aggregate verdict. Session-Buddy has two data feeds
+    # (skills_signer + bodai_events) so the worst status is the worst
+    # across both — see ``mcp_common.health.aggregator.aggregate_feed_states``.
     worst_status = snap["status"].value
     status_severity = {
         "healthy": 0,
@@ -444,7 +484,7 @@ async def health_check(request: Any) -> Any:
     checks["_aggregate"] = {
         "status": worst_status,
         "reason_codes": [c.value for c in snap["reason_codes"]],
-        "data_feeds_ok": verdict["healthy"],
+        "data_feeds_ok": verdict["healthy"] and publisher_verdict["healthy"],
         "halflife_seconds": int(os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")),
     }
 

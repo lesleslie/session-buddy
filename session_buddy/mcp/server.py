@@ -30,7 +30,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from mcp_common.tools.dispatch import _apply_tool_profile
 
@@ -41,6 +41,9 @@ from .tools.profiles import (
     SESSION_BUDDY_MANDATORY_GROUPS,
     _dhara_publisher,
 )
+
+if TYPE_CHECKING:
+    from session_buddy.mcp.events.bodai_events_publisher import BodaiEventsPublisher
 
 logger = logging.getLogger(__name__)
 
@@ -272,16 +275,48 @@ def _build_orchestrator(
     )
 
 
+def _init_publisher(settings: Any) -> Any:
+    """Construct the BodaiEventsPublisher from settings.
+
+    ``init()`` swallows transport errors so a Redis outage does not block
+    server startup; the publisher still goes into ``tasks_events._publisher``
+    and ``health()`` will report degraded so /health surfaces the outage.
+    """
+    from session_buddy.mcp.events.bodai_events_publisher import BodaiEventsPublisher
+
+    return BodaiEventsPublisher(
+        stream=settings.bodai_events.stream,
+        consumer_group=settings.bodai_events.consumer_group,
+        enabled=settings.bodai_events.enabled,
+    )
+
+
+async def _teardown_publisher(publisher: Any) -> None:
+    """Best-effort publisher cleanup + module-slot clear.
+
+    Blanket suppression preserves the pre-Task-4 behavior: any
+    shutdown-time error (network blip, closed loop, etc.) must not break
+    lifespan exit.
+    """
+    from session_buddy.mcp.tools import tasks_events
+
+    if publisher is not None:
+        with suppress(Exception):
+            await publisher.cleanup()
+    tasks_events._publisher = None
+
+
 _original_lifespan = mcp._lifespan
 
 
 @asynccontextmanager
-async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
+async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[BodaiEventsPublisher | None]:
     from session_buddy.core.auto_checkpoint_loop import (
         AutoCheckpointLoop,
         QualityDeltaSignal,
         _midpoint_commit_forward,
     )
+    from session_buddy.mcp.tools import tasks_events
     from session_buddy.settings import get_settings
 
     settings = get_settings()
@@ -385,9 +420,22 @@ async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[None]:
                 pending_consume_fn=_consume_pending,
             )
             await auto_loop.start()
+        # ------------------------------------------------------------------
+        # Bodai task-system event bus (Task 4): construct the singleton
+        # BodaiEventsPublisher and install it on tasks_events._publisher so
+        # ``tasks_events.publish_task_event`` / ``publish_task_event_raw``
+        # find it. ``init()`` swallows transport errors so Redis outages
+        # never block startup; ``health()`` will report degraded so /health
+        # surfaces the outage. The publisher is yielded so callers can use
+        # it without an extra module-level import.
+        # ------------------------------------------------------------------
+        publisher = _init_publisher(settings)
+        await publisher.init()
+        tasks_events._publisher = publisher
         try:
-            yield
+            yield publisher
         finally:
+            await _teardown_publisher(publisher)
             if auto_loop is not None:
                 await auto_loop.stop()
             # Close the Dhara publisher if one was wired. Blanket suppression
