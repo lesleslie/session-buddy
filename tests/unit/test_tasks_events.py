@@ -6,6 +6,15 @@ Per the Task 2 brief, these tests pin:
 - ``serialize_event_field`` caps at 4096 bytes.
 - All six ``TaskXxxPayload`` Pydantic models accept a canonical
   ``t-`` + 32 hex ``task_id`` and reject a malformed one.
+
+Per the Task 3 brief, these tests pin:
+
+- ``publish_task_event`` with no publisher installed is a no-op.
+- ``publish_task_event`` with a publisher installed delegates to
+  ``publisher.publish(event_type, payload)``.
+- ``publish_task_event_raw`` wraps a raw dict into the correct envelope
+  before delegating.
+- Unknown event types log + no-op without calling the publisher.
 """
 
 from __future__ import annotations
@@ -15,6 +24,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from session_buddy.mcp.tools import tasks_events
 from session_buddy.mcp.tools.tasks_events import (
     TaskCompletedPayload,
     TaskCreatedPayload,
@@ -158,3 +168,98 @@ def _kwargs_for(cls: type[BaseModel]) -> dict[str, object]:
             "orphaned_at": _NOW,
         }
     raise AssertionError(f"unhandled payload class: {cls.__name__}")
+
+
+# ---------------------------------------------------------------------------
+# publish_task_event + publish_task_event_raw (Task 3)
+# ---------------------------------------------------------------------------
+
+
+def _valid_created_payload() -> TaskCreatedPayload:
+    """Return a fully-valid ``TaskCreatedPayload`` for the publisher tests.
+
+    Required: ``task_id`` (32 hex chars after ``t-``), ``owner``, ``actor``,
+    ``created_at``, ``content_hash``.
+    """
+    return TaskCreatedPayload(
+        task_id=_VALID_TASK_ID,
+        owner="alice",
+        actor="alice",
+        created_at=_NOW,
+        content_hash="0" * 64,
+    )
+
+
+@pytest.mark.asyncio
+async def test_publish_task_event_no_publisher_is_noop(monkeypatch) -> None:
+    """When ``_publisher`` is ``None`` the call must return without touching
+    the transport or raising — keeps the stub callable before T4 wires the
+    publisher in."""
+    monkeypatch.setattr(tasks_events, "_publisher", None)
+    await tasks_events.publish_task_event("task.created", _valid_created_payload())
+
+
+@pytest.mark.asyncio
+async def test_publish_task_event_with_publisher_enqueues(monkeypatch) -> None:
+    """With a publisher installed, the call must delegate via
+    ``publisher.publish(event_type, payload)`` exactly once."""
+    calls: list[tuple[str, BaseModel]] = []
+
+    class _FakePublisher:
+        async def publish(self, event_type: str, payload: BaseModel) -> str:
+            calls.append((event_type, payload))
+            return "1-0"
+
+    monkeypatch.setattr(tasks_events, "_publisher", _FakePublisher())
+    payload = _valid_created_payload()
+    await tasks_events.publish_task_event("task.created", payload)
+    assert calls == [("task.created", payload)]
+
+
+@pytest.mark.asyncio
+async def test_publish_task_event_raw_wraps_dict_into_base_model(monkeypatch) -> None:
+    """``publish_task_event_raw`` looks up the right ``_ENVELOPE_BY_EVENT_TYPE``
+    class, instantiates it from the raw dict, then delegates to the
+    publisher — even if the publisher's ``publish`` is sync-shaped, the
+    wrap step itself is exercised."""
+    calls: list[tuple[str, BaseModel]] = []
+
+    class _FakePublisher:
+        async def publish(self, event_type: str, payload: BaseModel) -> str:
+            calls.append((event_type, payload))
+            return "1-0"
+
+    monkeypatch.setattr(tasks_events, "_publisher", _FakePublisher())
+    raw = {
+        "task_id": _VALID_TASK_ID,
+        "workflow_id": "wf-z",
+        "reason": "step_3_update_failed",
+        "orphaned_at": _NOW,
+        "actor": "default",
+    }
+    await tasks_events.publish_task_event_raw("task.handoff_orphan", raw)
+    assert len(calls) == 1
+    event_type, envelope = calls[0]
+    assert event_type == "task.handoff_orphan"
+    assert isinstance(envelope, tasks_events.TaskHandoffOrphanPayload)
+    assert envelope.task_id == _VALID_TASK_ID
+    assert envelope.reason == "step_3_update_failed"
+
+
+@pytest.mark.asyncio
+async def test_envelope_lookup_unknown_event_type_logs_and_noops(
+    monkeypatch,
+) -> None:
+    """An unmapped event_type must log + return without invoking the publisher —
+    keeps the raw path defensive against caller typos."""
+    invoked = False
+
+    class _FakePublisher:
+        async def publish(self, event_type: str, payload: BaseModel) -> str:
+            nonlocal invoked
+            invoked = True
+            return "1-0"
+
+    monkeypatch.setattr(tasks_events, "_publisher", _FakePublisher())
+    await tasks_events.publish_task_event_raw("bogus.event", {})
+    assert invoked is False

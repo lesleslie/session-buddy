@@ -10,13 +10,18 @@ spinning up subsystems.
 
 from __future__ import annotations
 
+import logging
 import re
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from session_buddy.mcp.events.bodai_events_publisher import BodaiEventsPublisher
 from session_buddy.mcp.tools.tasks_models import TASK_ID_PATTERN
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Field sanitizer
@@ -126,8 +131,33 @@ class TaskHandoffOrphanPayload(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Publish stub (redis client wiring deferred to T4+)
+# Publish wiring (T3 — publisher lives in session_buddy.mcp.events)
 # ---------------------------------------------------------------------------
+
+
+# Maps the public event-type string to the envelope class that should wrap
+# a raw payload before it is XADD'd. ``task.cancelled`` deliberately reuses
+# ``TaskCompletedPayload`` (spec is silent on a dedicated cancelled model).
+_ENVELOPE_BY_EVENT_TYPE: dict[str, type[BaseModel]] = {
+    "task.created": TaskCreatedPayload,
+    "task.updated": TaskUpdatedPayload,
+    "task.completed": TaskCompletedPayload,
+    "task.cancelled": TaskCompletedPayload,
+    "task.handoff_started": TaskHandoffStartedPayload,
+    "task.handoff_completed": TaskHandoffCompletedPayload,
+    "task.handoff_orphan": TaskHandoffOrphanPayload,
+}
+
+# Module-level slot for the singleton publisher. Task 4 wires a real
+# ``BodaiEventsPublisher`` into this slot from
+# ``_lifespan_with_dhara_cleanup``; until then ``publish_task_event`` and
+# ``publish_task_event_raw`` are typed no-ops.
+_publisher: BodaiEventsPublisher | None = None
+
+
+def _get_publisher() -> BodaiEventsPublisher | None:
+    """Return the current ``BodaiEventsPublisher`` (or ``None`` if not yet initialized)."""
+    return _publisher
 
 
 async def publish_task_event(
@@ -143,18 +173,53 @@ async def publish_task_event(
     payload: BaseModel,
     redis: Any = None,
 ) -> None:
-    """Publish a task event to the ``bodai:events`` Redis Stream.
+    """Publish a typed ``task.*`` envelope via the configured publisher.
 
-    Stub: redis client wiring deferred to T4+ (when the first tool that
-    actually emits an event lands). For now, this is a typed no-op so
-    downstream code can import the symbol and the call site has a stable
-    shape.
+    No-op when ``_publisher`` is ``None`` (Task 4 wires it). The ``redis``
+    parameter is preserved for API compatibility — direct-publish support
+    is deferred until the typed envelope is replaced by a struct without a
+    Pydantic dependency on the cross-package path.
 
     Note: ``event_type="task.cancelled"`` reuses ``TaskCompletedPayload``
     (spec is silent on a dedicated cancelled payload model).
-
-    The ``redis`` parameter is accepted as ``Any`` so the stub does not
-    force a redis import — T4+ will tighten this to the actual async
-    redis client type once it lands.
     """
-    return
+    publisher = _get_publisher()
+    if publisher is None:
+        return
+    try:
+        await publisher.publish(event_type, payload)
+    except Exception as exc:  # noqa: BLE001 — degrade gracefully per spec
+        logger.warning("bodai_events: publish %s failed: %s", event_type, exc)
+
+
+async def publish_task_event_raw(
+    event_type: str,
+    payload: Mapping[str, Any],
+    redis: Any = None,
+) -> None:
+    """Publish a task.* event with a raw dict payload (cross-package API).
+
+    Looks up the envelope class via ``_ENVELOPE_BY_EVENT_TYPE``, sanitizes
+    string fields through ``serialize_event_field``, instantiates the
+    envelope, and delegates to ``BodaiEventsPublisher.publish``. Unknown
+    event types log + return without touching the publisher.
+
+    The ``redis`` parameter is currently unused (kept for future direct-publish
+    support and API compatibility with ``publish_task_event``).
+    """
+    payload_class = _ENVELOPE_BY_EVENT_TYPE.get(event_type)
+    if payload_class is None:
+        logger.warning("bodai_events: unknown event_type %r", event_type)
+        return
+    publisher = _get_publisher()
+    if publisher is None:
+        return
+    try:
+        sanitized = {
+            k: serialize_event_field(v) if isinstance(v, str) else v
+            for k, v in payload.items()
+        }
+        envelope = payload_class(**sanitized)
+        await publisher.publish(event_type, envelope)
+    except Exception as exc:  # noqa: BLE001 — degrade gracefully per spec
+        logger.warning("bodai_events: raw publish %s failed: %s", event_type, exc)
