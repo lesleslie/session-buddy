@@ -178,3 +178,13 @@ enable_hot_reload: false
 # ``_log_access`` in ``reflection_adapter_oneiric.py`` — so the log is
 # populated from day one even when the analysis loop is off.
 enable_conscious_agent: false
+
+# === Bodai Task System Events (Phase 1) ===
+# Settings consumed by the FastMCP lifespan (Task 4) to construct the
+# BodaiEventsPublisher. The publisher itself takes stream/consumer_group/
+# enabled kwargs directly; this section exists so operators can toggle the
+# bus and pick a different stream or group per environment without code.
+bodai_events:
+  enabled: true
+  stream: "bodai:events"
+  consumer_group: "bodai-default"
