@@ -19,6 +19,14 @@ classifiers = [
 ]
 dependencies = [
     "aiofiles>=25.1.0",
+    # Bodai task-event publisher (Phase 6 / v1.1): oneiric's
+    # RedisStreamsQueueAdapter lazy-imports coredis in its init() path.
+    # oneiric 0.23.1 dropped its [cache] extras spec; coredis is no
+    # longer pulled in by installing oneiric. Declare it as a direct
+    # session-buddy dependency so a fresh `pip install session-buddy`
+    # produces a working BodaiEventsPublisher (otherwise it degrades
+    # to silent no-op + errors_total tick on every publish()).
+    "coredis>=6.9.0",
     "cryptography>=50.0.0",  # ed25519 signing for skill/agent distribution (Phase 1.5)
     "fastmcp>=3.4.0,<5",
     "hatchling>=1.30.1",
