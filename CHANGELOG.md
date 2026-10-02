@@ -9,6 +9,41 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.30.0] - 2026-10-01
+
+### Added
+
+- Bodai-session-buddy-task-system skill catalog entry
+- session-buddy: Register tasks_tools in REGISTRATION_MAP (final PR #1 wiring)
+- session-buddy: Task legacy coercion path (extracted to tasks_legacy.py with content validation)
+- session-buddy: Task-event payload schemas + serializer
+- session-buddy: Task-system identity derivation + rate limiter + visibility filter
+- session-buddy: Task-system integration tests (authz isolation + lifecycle + legacy + size caps) + resolve pools.py merge conflict
+- session-buddy: Task-system Pydantic model layer
+- session-buddy: Tasks_complete (no implicit dispatch — T17 handoff is the only dispatch edge)
+- session-buddy: Tasks_create tool with server-derived identity + rate limit + event emission
+- session-buddy: Tasks_get + tasks_update with authz (404 on visibility, reject owner mutation) + rate limit
+- session-buddy: Tasks_history with cursor pagination
+- session-buddy: Tasks_list with pagination, visibility filter, include_legacy gate
+- session-buddy: Tasks_search with quick_search parity (project, min_score, k)
+
+### Fixed
+
+- session-buddy: Drop dead QueryCacheManager.initialize call (Phase A L2-deletion residue)
+- session-buddy: QueryCacheManager async API replaces sync bridge
+- session-buddy: T10 review NITs — trailing newlines + ruff format cleanup
+- session-buddy: T11 NIT — fix 'akgosha' typo to 'akosha' in skill body
+- session-buddy: T2 review fixes — restore pattern-check test, correct cancelled-event docstring
+- session-buddy: T4 fix round 2 — SQLModel migration for task metadata persistence
+- session-buddy: T4 review — extend store_reflection metadata, fix ctx.request_state misuse
+- session-buddy: T5 fix round 1 — persist full task_id in metadata for create/list round-trip
+- session-buddy: T5 fix round 2 — crackerjack ty directive + trivial polish
+- session-buddy: T6 fix round 1 — wire _update_reflection to persist content + tags
+
+### Documentation
+
+- session-buddy: CLAUDE.md cross-link for task system
+
 ## [0.29.2] - 2026-09-28
 
 ### Added
