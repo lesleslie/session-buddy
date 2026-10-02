@@ -137,18 +137,22 @@ Task.tags          = ["task", "<domain>", ...optional]  # "task" discriminator r
 Task.status        = open | in_progress | blocked | done | cancelled
 Task.priority      = critical | high | normal | low
 Task.effort        = xs | s | m | l | xl
-Task.visibility    = private (default) | team (treated as private in v1) | public (v1.1)
+Task.visibility    = private (default) | team (treated as private in v1.1; v2+ expands) | public (supported in v1.1)
 ```
 
 ## Events
 
-All `tasks_*` mutations emit typed events on `bodai:events` Redis Stream under the `task.*` namespace:
+`tasks_*` mutations emit events to `bodai:events` Redis Stream via oneiric `RedisStreamsQueueAdapter`; consumers read via `XREADGROUP` with consumer group `bodai-task-orphan-sweeper`.
+
+Event types under the `task.*` namespace:
 
 - `task.created` — new task minted
 - `task.updated` — one event per diff field (content, priority, status, etc., plus `updated_at`)
 - `task.completed` — task marked done
 - `task.cancelled` — task cancelled (reuses `task.completed` payload for v1)
 - `task.handoff_started` / `task.handoff_completed` / `task.handoff_orphan` — emitted by `tasks_handoff_to_workflow` (mahavishnu, T17)
+
+v1.1 adds the `TaskOrphanSweeper` in mahavishnu that re-links tasks on `task.handoff_orphan` events.
 
 Akosha indexes these; reindex lag is ~30s. Read-side analytics via `mcp__akosha__tasks_*` tools will reflect writes within that window.
 
@@ -170,4 +174,8 @@ Akosha indexes these; reindex lag is ~30s. Read-side analytics via `mcp__akosha_
 ## Versioning
 
 - v1.0: Initial release with `tasks_create`, `tasks_list`, `tasks_get`, `tasks_update`, `tasks_complete`, `tasks_search`, `tasks_history`.
-- v1.1 follow-ups: `visibility="public"` support (currently hardcoded private in `_build_task`), team-mode ACL, orphan GC for tasks_storage sidecar.
+- v1.1 ships: T12 fixed in v1.1; `visibility="public"` is supported. `BodaiEventsPublisher` ships events to `bodai:events` via oneiric `RedisStreamsQueueAdapter`; `TaskOrphanSweeper` re-links tasks on `task.handoff_orphan` events. v1.1 preserves current `team` semantics — see v2+ scope below.
+
+## v2+ scope
+
+- **team-mode ACL**: when `visibility="team"`, callers should see other members' team-visible tasks; v1.1 preserves current `team` semantics (treated as private) and defers this to v2+.
