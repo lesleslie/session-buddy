@@ -474,7 +474,7 @@ class StorageRegistryOneiric:
     """
 
     def __init__(self) -> None:
-        self._adapters: dict[str, StorageBaseOneiric] = {}
+        self._adapters: dict[str, StorageBaseOneiric | GCSStorageOneiric] = {}
         self._settings: StorageAdapterSettings | None = None
 
     async def init(self) -> None:
@@ -490,7 +490,7 @@ class StorageRegistryOneiric:
         backend: str,
         config_overrides: dict[str, t.Any] | None = None,
         force: bool = False,
-    ) -> StorageBaseOneiric:
+    ) -> StorageBaseOneiric | GCSStorageOneiric:
         """Register a storage adapter.
 
         Args:
@@ -564,7 +564,7 @@ class StorageRegistryOneiric:
 
     def _apply_config_overrides(
         self,
-        adapter: StorageBaseOneiric,
+        adapter: StorageBaseOneiric | GCSStorageOneiric,
         config_overrides: dict[str, t.Any] | None,
     ) -> None:
         """Apply configuration overrides to adapter.
@@ -610,7 +610,9 @@ class StorageRegistryOneiric:
 
         return overrides
 
-    def get_storage_adapter(self, backend: str | None = None) -> StorageBaseOneiric:
+    def get_storage_adapter(
+        self, backend: str | None = None
+    ) -> StorageBaseOneiric | GCSStorageOneiric:
         """Get a storage adapter.
 
         Args:
@@ -681,7 +683,7 @@ def register_storage_adapter(
     backend: str,
     config_overrides: dict[str, t.Any] | None = None,
     force: bool = False,
-) -> StorageBaseOneiric:
+) -> StorageBaseOneiric | GCSStorageOneiric:
     """Register a storage adapter for a specific backend.
 
     Args:

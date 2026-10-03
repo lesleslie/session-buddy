@@ -881,9 +881,8 @@ async def tasks_get(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = cast(
-        "dict[str, Any]",
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {},
+    sidecar_meta: dict[str, Any] = (
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None:
@@ -975,9 +974,8 @@ async def tasks_update(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = cast(
-        "dict[str, Any]",
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {},
+    sidecar_meta: dict[str, Any] = (
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1100,9 +1098,8 @@ async def tasks_complete(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = cast(
-        "dict[str, Any]",
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {},
+    sidecar_meta: dict[str, Any] = (
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1325,9 +1322,8 @@ async def tasks_history(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = cast(
-        "dict[str, Any]",
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {},
+    sidecar_meta: dict[str, Any] = (
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1339,7 +1335,7 @@ async def tasks_history(
 
     # Read the append-only history list from the sidecar. ``list()`` copies
     # so a torn / missing list never crashes the reader — default to [].
-    history_list = (sidecar_meta or {}).get("history") or []
+    history_list = sidecar_meta.get("history") or []
 
     # Offset-based pagination via T5's cursor helpers (same scheme as
     # ``tasks_list``). Garbage cursors decode to offset=0 — defensive
