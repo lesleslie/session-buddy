@@ -251,7 +251,6 @@ deps-file = "pyproject.toml"
 exclude-deps = [
     # Optional/missing imports - all use try/except ImportError patterns
     "aiofiles",     # team_knowledge uses importlib find_spec, not direct import
-    "rich",         # quality_engine.py only uses in f-string for output formatting
     # Transitive dependency pins — declared in pyproject.toml so the
     # runtime contract is explicit, but not imported directly by
     # session-buddy source code. DuckDB's Python client requires pytz
@@ -261,6 +260,18 @@ exclude-deps = [
     "pytz",
     # Only keep hatchling - the only dependency from pyproject.toml that's in exclude-deps
     "hatchling",
+    # ``coredis`` is not imported directly by session-buddy source — it
+    # is pulled in as a transitive dep of oneiric and required at
+    # runtime by ``oneiric.adapters.queue.redis_streams.RedisStreamsQueueAdapter``
+    # (oneiric 0.23.1 dropped its [cache] extras spec; coredis is no
+    # longer auto-installed with oneiric). Declaring it here as a
+    # direct dep ensures a fresh ``pip install session-buddy`` produces
+    # a working BodaiEventsPublisher — without it, the publisher
+    # degrades to a silent no-op (``errors_total`` ticks on every
+    # ``publish()``). Without the exclude-deps entry, creosote flags
+    # it as an unused direct dependency because the import is hidden
+    # behind oneiric's lazy import.
+    "coredis",
 ]
 
 [tool.refurb]
