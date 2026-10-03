@@ -881,8 +881,11 @@ async def tasks_get(
         }
 
     reflection = await _read_reflection(target)
+    _sidecar_meta_raw = tasks_storage.read_task_metadata(
+        engine=engine, reflection_id=target
+    )
     sidecar_meta: dict[str, Any] = (
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+        _sidecar_meta_raw if _sidecar_meta_raw is not None else {}
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None:
@@ -974,8 +977,11 @@ async def tasks_update(
         }
 
     reflection = await _read_reflection(target)
+    _sidecar_meta_raw = tasks_storage.read_task_metadata(
+        engine=engine, reflection_id=target
+    )
     sidecar_meta: dict[str, Any] = (
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+        _sidecar_meta_raw if _sidecar_meta_raw is not None else {}
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1098,8 +1104,11 @@ async def tasks_complete(
         }
 
     reflection = await _read_reflection(target)
+    _sidecar_meta_raw = tasks_storage.read_task_metadata(
+        engine=engine, reflection_id=target
+    )
     sidecar_meta: dict[str, Any] = (
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+        _sidecar_meta_raw if _sidecar_meta_raw is not None else {}
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1322,8 +1331,11 @@ async def tasks_history(
         }
 
     reflection = await _read_reflection(target)
+    _sidecar_meta_raw = tasks_storage.read_task_metadata(
+        engine=engine, reflection_id=target
+    )
     sidecar_meta: dict[str, Any] = (
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+        _sidecar_meta_raw if _sidecar_meta_raw is not None else {}
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):

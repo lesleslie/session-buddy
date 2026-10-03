@@ -585,7 +585,7 @@ class StorageRegistryOneiric:
 
     def _prepare_overrides(
         self,
-        adapter: StorageBaseOneiric,
+        adapter: StorageBaseOneiric | GCSStorageOneiric,
         config_overrides: dict[str, t.Any],
     ) -> dict[str, t.Any]:
         """Prepare configuration overrides with type conversion.
@@ -628,8 +628,14 @@ class StorageRegistryOneiric:
         if backend not in self._adapters:
             # Auto-register if not found
             adapter = self.register_storage_adapter(backend)
-            # Initialize the adapter synchronously
-            adapter._initialize_sync()
+            # ``_initialize_sync`` lives on ``StorageBaseOneiric``; the
+            # ``GCSStorageOneiric`` sibling has its own async ``init``
+            # path driven by the bucket map and is wired up in
+            # ``configure_storage_buckets``. Narrow the call with
+            # ``isinstance`` so the union-typed ``adapter`` can be
+            # dispatched without losing the static type info.
+            if isinstance(adapter, StorageBaseOneiric):
+                adapter._initialize_sync()
             return adapter
 
         return self._adapters[backend]
@@ -667,7 +673,7 @@ def get_storage_registry() -> StorageRegistryOneiric:
     return _storage_registry
 
 
-def get_storage_adapter(backend: str | None = None) -> StorageBaseOneiric:
+def get_storage_adapter(backend: str | None = None) -> StorageBaseOneiric | GCSStorageOneiric:
     """Get storage adapter from registry."""
     registry = get_storage_registry()
     return registry.get_storage_adapter(backend)
