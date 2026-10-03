@@ -174,7 +174,7 @@ async def _store_reflection_operation(
 
         tasks_storage.persist_task_metadata(
             tasks_storage.get_engine(),
-            str(success),
+            success,
             dict(metadata),
         )
 

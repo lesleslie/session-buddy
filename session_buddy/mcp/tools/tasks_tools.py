@@ -432,7 +432,7 @@ async def _query_legacy_reflections(
     db = await get_reflection_database()
     rows = await db.search_reflections(query="", limit=1000, use_embeddings=False)
     out: list[tuple[str, dict[str, Any]]] = []
-    for row in rows or []:
+    for row in rows:
         tags = list(row.get("tags") or [])
         if "todo" not in tags or "task" in tags:
             continue  # exclude typed rows
@@ -448,7 +448,7 @@ async def _query_legacy_reflections(
 
 # Pagination cursor: opaque, base64-urlsafe JSON of ``{"offset": int}``.
 def _encode_cursor(offset: int) -> str:
-    raw = json.dumps({"offset": int(offset)}, separators=(",", ":")).encode("utf-8")
+    raw = json.dumps({"offset": offset}, separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
@@ -565,7 +565,7 @@ async def tasks_list(
     # page (they're surfaced as a separate category — the spec marks them
     # with ``_coerced=True`` so consumers render distinctly).
     if include_legacy:
-        page_items = list(page_items) + legacy_items
+        page_items = page_items.copy() + legacy_items
 
     total_count = len(typed_items) + (len(legacy_items) if include_legacy else 0)
     return TaskListResult(
@@ -623,13 +623,11 @@ def _compute_diff(before: dict[str, Any], after: dict[str, Any]) -> list[FieldDi
     consumers can render timestamp changes distinctly from content changes
     by inspecting ``diff.field``.
     """
-    diffs: list[FieldDiff] = []
-    for key in sorted(set(before) | set(after)):
-        if before.get(key) != after.get(key):
-            diffs.append(
-                FieldDiff(field=key, before=before.get(key), after=after.get(key))
-            )
-    return diffs
+    return [
+        FieldDiff(field=key, before=before.get(key), after=after.get(key))
+        for key in sorted(set(before) | set(after))
+        if before.get(key) != after.get(key)
+    ]
 
 
 def _jsonify_value(value: Any) -> Any:
@@ -719,7 +717,7 @@ async def _persist_task_update(
     The reflection row update is delegated to ``_update_reflection``
     (a T6 stub; T12 wires the real adapter).
     """
-    new_meta = dict(sidecar_meta)
+    new_meta = sidecar_meta.copy()
     new_meta["priority"] = task.priority
     new_meta["effort"] = task.effort
     if getattr(task, "visibility", None) is not None:
@@ -728,7 +726,7 @@ async def _persist_task_update(
     new_meta["parent_task_id"] = task.parent_task_id
     new_meta["updated_at"] = task.updated_at.isoformat()
 
-    synced_tags = list(task.tags)
+    synced_tags = task.tags.copy()
     for diff in diff_events:
         if diff.field == "priority":
             synced_tags = _sync_tags_after_field_change(
@@ -1307,7 +1305,7 @@ async def tasks_history(
 
     # Read the append-only history list from the sidecar. ``list()`` copies
     # so a torn / missing list never crashes the reader — default to [].
-    history_list = list((sidecar_meta or {}).get("history") or [])
+    history_list = (sidecar_meta or {}).get("history") or []
 
     # Offset-based pagination via T5's cursor helpers (same scheme as
     # ``tasks_list``). Garbage cursors decode to offset=0 — defensive

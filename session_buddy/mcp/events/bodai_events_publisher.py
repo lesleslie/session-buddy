@@ -106,7 +106,7 @@ class BodaiEventsPublisher:
                 return None
             self.cycles_total += 1
             try:
-                data = {"channel": event_type, **payload.model_dump(mode="json")}
+                data = {"channel": event_type} | payload.model_dump(mode="json")
                 message_id = await self._adapter.enqueue(data)
             except Exception as exc:  # noqa: BLE001 — degrade gracefully per spec
                 self.errors_total += 1

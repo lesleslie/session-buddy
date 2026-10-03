@@ -2567,7 +2567,7 @@ class ReflectionDatabaseAdapterOneiric:
         if not self._initialized:
             await self.initialize()
 
-        if content is None and tags is None:
+        if content is None is tags:
             return False  # nothing to do
 
         sets: list[str] = []

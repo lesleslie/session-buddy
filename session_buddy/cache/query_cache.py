@@ -141,7 +141,7 @@ class QueryCacheManager:
         project: str | None = None,
     ) -> None:
         # req: REQ-OSUB-A-001 — store result_ids verbatim (the historical cache shape)
-        await self._cache.set(cache_key, list(result_ids))
+        await self._cache.set(cache_key, result_ids.copy())
 
     async def invalidate(
         self,
