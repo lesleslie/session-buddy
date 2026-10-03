@@ -65,10 +65,10 @@ class SessionStorageAdapter:
         """
         self.backend = backend
         self.bucket = bucket
-        self._adapter: StorageBaseOneiric | None = None
+        self._adapter: StorageBaseOneiric | GCSStorageOneiric | None = None
         self._initialized = False
 
-    async def _ensure_adapter(self) -> StorageBaseOneiric:
+    async def _ensure_adapter(self) -> StorageBaseOneiric | GCSStorageOneiric:
         """Ensure storage adapter is initialized.
 
         Returns:
@@ -78,17 +78,22 @@ class SessionStorageAdapter:
             ValueError: If adapter not registered
 
         """
-        if self._adapter is None:
+        # Local rebinding so ty can narrow ``adapter`` to non-None after
+        # the lazy-import block. ``self._adapter`` is still the canonical
+        # store; the local is just for the type checker's benefit.
+        adapter = self._adapter
+        if adapter is None:
             from session_buddy.adapters.storage_oneiric import get_storage_adapter
 
-            self._adapter = get_storage_adapter(self.backend)
+            adapter = get_storage_adapter(self.backend)
+            self._adapter = adapter
 
         if not self._initialized:
             # Initialize buckets on first use
-            await self._adapter.init()
+            await adapter.init()
             self._initialized = True
 
-        return self._adapter
+        return adapter
 
     def _get_session_path(self, session_id: str, filename: str = "state.json") -> str:
         """Construct storage path for session file.

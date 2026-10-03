@@ -884,9 +884,9 @@ async def tasks_get(
     _sidecar_meta_raw = tasks_storage.read_task_metadata(
         engine=engine, reflection_id=target
     )
-    sidecar_meta: dict[str, Any] = (
-        _sidecar_meta_raw if _sidecar_meta_raw is not None else {}
-    )
+    if _sidecar_meta_raw is None:
+        _sidecar_meta_raw = {}
+    sidecar_meta: dict[str, Any] = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None:
         return {
@@ -980,9 +980,9 @@ async def tasks_update(
     _sidecar_meta_raw = tasks_storage.read_task_metadata(
         engine=engine, reflection_id=target
     )
-    sidecar_meta: dict[str, Any] = (
-        _sidecar_meta_raw if _sidecar_meta_raw is not None else {}
-    )
+    if _sidecar_meta_raw is None:
+        _sidecar_meta_raw = {}
+    sidecar_meta: dict[str, Any] = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
@@ -1107,9 +1107,9 @@ async def tasks_complete(
     _sidecar_meta_raw = tasks_storage.read_task_metadata(
         engine=engine, reflection_id=target
     )
-    sidecar_meta: dict[str, Any] = (
-        _sidecar_meta_raw if _sidecar_meta_raw is not None else {}
-    )
+    if _sidecar_meta_raw is None:
+        _sidecar_meta_raw = {}
+    sidecar_meta: dict[str, Any] = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
@@ -1334,9 +1334,9 @@ async def tasks_history(
     _sidecar_meta_raw = tasks_storage.read_task_metadata(
         engine=engine, reflection_id=target
     )
-    sidecar_meta: dict[str, Any] = (
-        _sidecar_meta_raw if _sidecar_meta_raw is not None else {}
-    )
+    if _sidecar_meta_raw is None:
+        _sidecar_meta_raw = {}
+    sidecar_meta: dict[str, Any] = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
