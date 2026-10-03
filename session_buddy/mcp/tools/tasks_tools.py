@@ -347,8 +347,27 @@ def _parse_iso_optional(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def _coerce_sidecar_meta(meta: dict[str, Any] | None) -> dict[str, Any]:
+    """Coerce a ``read_task_metadata`` result to a non-None ``dict[str, Any]``.
+
+    Five prior attempts at narrowing ``dict | None`` in-place at the
+    call site (cast, annotated ``or`` assignment, conditional expression,
+    mutating rebinding, if-else with annotated branches, widening the
+    receiving function) all left ty tracking the union through the
+    narrowing control flow. The function-body form works because the
+    return type annotation ``dict[str, Any]`` acts as a type predicate
+    for both return statements: ty accepts ``dict[str, Any]()`` (explicit
+    constructor call) as a ``dict[str, Any]`` and ``meta`` narrowed in
+    the else branch as ``dict[str, Any]``. Pre-1.0: receive the widest
+    type, narrow once at a named boundary, callers get the simple form.
+    """
+    if meta is None:
+        return dict[str, Any]()
+    return meta
+
+
 def _build_task(
-    reflection: dict[str, Any], sidecar_meta: dict[str, Any] | None
+    reflection: dict[str, Any], sidecar_meta: dict[str, Any]
 ) -> Task | None:
     """Build a :class:`Task` from a reflection row + sidecar metadata.
 
@@ -357,14 +376,13 @@ def _build_task(
     tag prefixes per spec §Data Flow path 1; falls back to sidecar
     metadata, then to type defaults.
 
-    ``sidecar_meta`` is accepted as ``dict | None`` so call sites can
-    pass the raw return of ``tasks_storage.read_task_metadata``
-    without per-site ``or {}`` / if-else narrowing dances. Pre-1.0
-    decision: receive the widest type the source provides, narrow
-    once at the boundary.
+    ``sidecar_meta`` is expected to be non-None (callers use the
+    ``_coerce_sidecar_meta`` helper to narrow the optional return
+    of ``tasks_storage.read_task_metadata``). Keeping the parameter
+    non-Optional means the body's ``.get()`` calls return ``Any``
+    rather than ``Any | None`` — fewer downstream annotations to
+    maintain.
     """
-    if sidecar_meta is None:
-        sidecar_meta = {}
     reflection_id = reflection.get("id")
     if not isinstance(reflection_id, str) or not reflection_id:
         return None
@@ -889,8 +907,8 @@ async def tasks_get(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(
-        engine=engine, reflection_id=target
+    sidecar_meta = _coerce_sidecar_meta(
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None:
@@ -982,8 +1000,8 @@ async def tasks_update(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(
-        engine=engine, reflection_id=target
+    sidecar_meta = _coerce_sidecar_meta(
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1106,8 +1124,8 @@ async def tasks_complete(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(
-        engine=engine, reflection_id=target
+    sidecar_meta = _coerce_sidecar_meta(
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1330,8 +1348,8 @@ async def tasks_history(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(
-        engine=engine, reflection_id=target
+    sidecar_meta = _coerce_sidecar_meta(
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
