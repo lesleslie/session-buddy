@@ -347,42 +347,28 @@ def _parse_iso_optional(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-def _coerce_sidecar_meta(meta: dict[str, Any] | None) -> dict[str, Any]:
-    """Coerce a ``read_task_metadata`` result to a non-None ``dict[str, Any]``.
-
-    Five prior attempts at narrowing ``dict | None`` in-place at the
-    call site (cast, annotated ``or`` assignment, conditional expression,
-    mutating rebinding, if-else with annotated branches, widening the
-    receiving function) all left ty tracking the union through the
-    narrowing control flow. The function-body form works because the
-    return type annotation ``dict[str, Any]`` acts as a type predicate
-    for both return statements: ty accepts ``dict[str, Any]()`` (explicit
-    constructor call) as a ``dict[str, Any]`` and ``meta`` narrowed in
-    the else branch as ``dict[str, Any]``. Pre-1.0: receive the widest
-    type, narrow once at a named boundary, callers get the simple form.
-    """
-    if meta is None:
-        return dict[str, Any]()
-    return meta
-
-
 def _build_task(
-    reflection: dict[str, Any], sidecar_meta: dict[str, Any]
+    reflection: dict[str, Any] | None, sidecar_meta: dict[str, Any] | None
 ) -> Task | None:
     """Build a :class:`Task` from a reflection row + sidecar metadata.
 
     Returns ``None`` if the reflection row is missing required fields
-    (e.g. no ``id``). Coerces status/priority/effort from ``<kind>:<value>``
-    tag prefixes per spec §Data Flow path 1; falls back to sidecar
-    metadata, then to type defaults.
+    (e.g. no ``id``) or absent. Coerces status/priority/effort from
+    ``<kind>:<value>`` tag prefixes per spec §Data Flow path 1; falls
+    back to sidecar metadata, then to type defaults.
 
-    ``sidecar_meta`` is expected to be non-None (callers use the
-    ``_coerce_sidecar_meta`` helper to narrow the optional return
-    of ``tasks_storage.read_task_metadata``). Keeping the parameter
-    non-Optional means the body's ``.get()`` calls return ``Any``
-    rather than ``Any | None`` — fewer downstream annotations to
-    maintain.
+    Both ``reflection`` and ``sidecar_meta`` are accepted as ``dict |
+    None`` to match the optional returns of ``_read_reflection`` and
+    ``tasks_storage.read_task_metadata`` at the call site without
+    extra narrowing helpers. The body starts with two guards that
+    rebind either parameter to a concrete ``dict[str, Any]()`` if it
+    was ``None`` so the rest of the function sees a non-Optional type
+    — fewer downstream ``Any | None`` annotations to maintain.
     """
+    if reflection is None:
+        return None
+    if sidecar_meta is None:
+        sidecar_meta = dict[str, Any]()
     reflection_id = reflection.get("id")
     if not isinstance(reflection_id, str) or not reflection_id:
         return None
@@ -753,7 +739,7 @@ def _sync_tags_after_field_change(
 async def _persist_task_update(
     reflection_id: str,
     task: Task,
-    sidecar_meta: dict[str, Any],
+    sidecar_meta: dict[str, Any] | None,
     diff_events: list[FieldDiff],
     actor: str,
 ) -> None:
@@ -765,7 +751,15 @@ async def _persist_task_update(
     replaced) so T9's ``tasks_history`` can render the diff timeline.
     The reflection row update is delegated to ``_update_reflection``
     (a T6 stub; T12 wires the real adapter).
+
+    ``sidecar_meta`` is accepted as ``dict[str, Any] | None`` to match
+    the optional return of ``tasks_storage.read_task_metadata`` at the
+    call site. The body guards with a rebind to ``dict[str, Any]()``
+    if it was ``None`` so the subsequent ``.copy()`` and ``.get()``
+    calls see a non-Optional type.
     """
+    if sidecar_meta is None:
+        sidecar_meta = dict[str, Any]()
     new_meta = sidecar_meta.copy()
     new_meta["priority"] = task.priority
     new_meta["effort"] = task.effort
@@ -907,8 +901,8 @@ async def tasks_get(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = _coerce_sidecar_meta(
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
+    sidecar_meta = tasks_storage.read_task_metadata(
+        engine=engine, reflection_id=target
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None:
@@ -1000,8 +994,8 @@ async def tasks_update(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = _coerce_sidecar_meta(
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
+    sidecar_meta = tasks_storage.read_task_metadata(
+        engine=engine, reflection_id=target
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1124,8 +1118,8 @@ async def tasks_complete(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = _coerce_sidecar_meta(
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
+    sidecar_meta = tasks_storage.read_task_metadata(
+        engine=engine, reflection_id=target
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1348,8 +1342,8 @@ async def tasks_history(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = _coerce_sidecar_meta(
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
+    sidecar_meta = tasks_storage.read_task_metadata(
+        engine=engine, reflection_id=target
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1358,6 +1352,14 @@ async def tasks_history(
             "error_code": "not_found",
             "message": f"No task with id {task_id}",
         }
+
+    # Narrow the optional sidecar metadata to a non-None dict for the
+    # ``.get("history")`` lookup below. Same body-rebind pattern used in
+    # ``_build_task`` / ``_persist_task_update`` so ty sees ``dict[str,
+    # Any]`` (not ``dict[str, Any] | None``) for the post-``_build_task``
+    # consumers in this scope.
+    if sidecar_meta is None:
+        sidecar_meta = dict[str, Any]()
 
     # Read the append-only history list from the sidecar. ``list()`` copies
     # so a torn / missing list never crashes the reader — default to [].
