@@ -82,7 +82,7 @@ The v2 plan had 10 NEW Critical issues from a 4-agent review (MCP agent failed a
 
 ## Global Constraints
 
-- **Spec**: `/Users/les/Projects/session-buddy/docs/superpowers/specs/2026-07-27-quality-scoring-crackerjack-fallback-design.md` (v2)
+- **Spec**: `/Users/les/Projects/session-buddy/docs/specs/2026-07-27-quality-scoring-crackerjack-fallback-design.md` (v2)
 - **Crackerjack CLI shape** (verified in Task 0, commit 54df5a4a): the only viable invocation for a 30s-budgeted CLI fallback is `python -m crackerjack run --comp --skip-hooks` with semantic command `check`. There is NO `--security` flag (`No such option: --security`); security is bundled into `--comp`. `--run-tests` and `--fast --quick` exceed 90s on a real fixture — too slow for the fallback's timeout budget. `run-tests` is a separate top-level subcommand but is also slow. `parse_output` returns `(parsed_data, memory_insights)` — destructure both.
 - **Opt-in default**: `enable_crackerjack_fallback: bool = False`. Synthesis change is unconditional.
 - **Env var**: `SESSION_BUDDY_CRACKERJACK_FALLBACK` (per Oneiric project-name strip).
@@ -131,7 +131,7 @@ ______________________________________________________________________
 | `tests/unit/test_quality_scoring.py` | Synthesis + consumer chain tests | MODIFY |
 | `tests/unit/test_crackerjack_tools.py` | MCP banner tests | MODIFY |
 | `tests/integration/test_crackerjack_fallback_real.py` | Real-subprocess smoke | NEW |
-| `docs/superpowers/plans/2026-07-27-cli-flag-mapping.md` | Task 0 evidence file (committed as part of Task 0) | NEW (or no commit) |
+| `docs/plans/2026-07-27-cli-flag-mapping.md` | Task 0 evidence file (committed as part of Task 0) | NEW (or no commit) |
 
 ______________________________________________________________________
 
@@ -175,7 +175,7 @@ for argv_tail in [['run', '--comp'], ['run', '--run-tests'], ['run', '--fast', '
 "
 ```
 
-**Step 0.3: Record findings in `docs/superpowers/plans/2026-07-27-cli-flag-mapping.md`**
+**Step 0.3: Record findings in `docs/plans/2026-07-27-cli-flag-mapping.md`**
 
 The file MUST contain a markdown table mapping `crackerjack` CLI invocations to the parser's semantic command name AND the resulting `parsed_data` keys. Task 4 reads this file. Example:
 
@@ -201,7 +201,7 @@ If the probe fails with `ModuleNotFoundError: crackerjack`:
 
 ```bash
 cd /Users/les/Projects/session-buddy
-git add docs/superpowers/plans/2026-07-27-cli-flag-mapping.md
+git add docs/plans/2026-07-27-cli-flag-mapping.md
 git -c user.name="les" -c user.email="les@local" commit -m "docs(preflight): record crackerjack CLI flag-to-metric mapping
 
 Task 0 of the quality-scoring crackerjack fallback plan. Task 4
@@ -869,7 +869,7 @@ Expected: 6 new tests FAIL (the helper still returns None at the lock-exit place
 **Step 4.3: Read the Task 0 mapping**
 
 ```bash
-cat docs/superpowers/plans/2026-07-27-cli-flag-mapping.md
+cat docs/plans/2026-07-27-cli-flag-mapping.md
 ```
 
 This gives the verified mapping: `{"lint": "run --fast --quick", "security": "run --security", "test": "run --run-tests", "check": "run --comp"}`.
@@ -882,7 +882,7 @@ In `session_buddy/utils/crackerjack/fallback.py`, add at the top (after the logg
 # Crackerjack v0.47+ uses 'run' subcommand with flag combinations. The
 # semantic command name (lint, security, check, test) is what the
 # parser's _get_applicable_parsers keys on. Mapping recorded in
-# docs/superpowers/plans/2026-07-27-cli-flag-mapping.md (Task 0).
+# docs/plans/2026-07-27-cli-flag-mapping.md (Task 0).
 _METRIC_TO_FLAG: dict[str, tuple[str, tuple[str, ...]]] = {
     "code_coverage": ("check", ("--comp", "--skip-hooks")),
     "lint_score":    ("check", ("--comp", "--skip-hooks")),
@@ -2923,7 +2923,7 @@ ______________________________________________________________________
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-07-27-quality-scoring-crackerjack-fallback.md`. Two execution options:
+Plan complete and saved to `docs/plans/2026-07-27-quality-scoring-crackerjack-fallback.md`. Two execution options:
 
 1. **Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration
 1. **Inline Execution** — Execute tasks in this session using executing-plans, batch execution with checkpoints

@@ -4,7 +4,7 @@
 
 **Goal:** Lift 10 session-buddy modules to ≥95% line + ≥90% branch coverage each, with a durable coverage-observability stack (audit script, backlog doc, baseline manifest, validator, anti-target list, selected-modules list) that prepares the way for the existing `--cov-fail-under=85` global gate without raising it.
 
-**Architecture:** Phased fan-out — Phase 0 builds the observability stack; Phase 0.5 selects concrete modules from a hard machine-checked prerequisite; Phase 1 dispatches 5 parallel subagents per batch (one per module) in isolated worktrees with per-agent `COVERAGE_FILE`; one wave-lead gate per merged batch runs combined coverage + nodeid-set-diff against the baseline manifest; Phase 2 regenerates backlog + delta JSON + completion report. Source: spec `docs/superpowers/specs/2026-08-03-session-buddy-coverage-improvement-design.md` (v2, commit `af3f819c`).
+**Architecture:** Phased fan-out — Phase 0 builds the observability stack; Phase 0.5 selects concrete modules from a hard machine-checked prerequisite; Phase 1 dispatches 5 parallel subagents per batch (one per module) in isolated worktrees with per-agent `COVERAGE_FILE`; one wave-lead gate per merged batch runs combined coverage + nodeid-set-diff against the baseline manifest; Phase 2 regenerates backlog + delta JSON + completion report. Source: spec `docs/specs/2026-08-03-session-buddy-coverage-improvement-design.md` (v2, commit `af3f819c`).
 
 **Tech Stack:** Python 3.13, pytest 8+ with `pytest-asyncio` (mode=auto), pytest-cov with `branch=true`, Python `coverage` CLI (5.x+) for `coverage combine`, Bash for `scripts/run_coverage_audit.sh` (POSIX-portable), `ruff check`/`pyright`/`crackerjack security` for the per-batch quality gate (Q3 deferred-to-action), `git worktree` for per-agent isolation, JSON for all manifests (no YAML, no INI).
 
@@ -1269,7 +1269,7 @@ export COVERAGE_FILE="$PWD/.coverage.wave1.module1"
 
 - [ ] **Step 2: Read the spec's subagent brief template**
 
-Open `docs/superpowers/specs/2026-08-03-session-buddy-coverage-improvement-design.md` and copy the "Subagent brief template" section into a working scratch file `task6-brief.md`. Replace `<module>` with the actual picked path.
+Open `docs/specs/2026-08-03-session-buddy-coverage-improvement-design.md` and copy the "Subagent brief template" section into a working scratch file `task6-brief.md`. Replace `<module>` with the actual picked path.
 
 - [ ] **Step 3: Write module tests (TDD: write tests first against the public surface)**
 
@@ -1608,7 +1608,7 @@ new_failures_total = len(batch1a.get("new_failures", [])) + len(batch1b.get("new
 body = f"""# Wave-1 Coverage Completion Report
 
 **Date:** {datetime.utcnow().isoformat()}Z
-**Wave spec:** `docs/superpowers/specs/2026-08-03-session-buddy-coverage-improvement-design.md` (v2)
+**Wave spec:** `docs/specs/2026-08-03-session-buddy-coverage-improvement-design.md` (v2)
 **Baseline:** `docs/baselines/wave1-baseline.json`
 **Delta:** `docs/baselines/wave1-delta.json`
 

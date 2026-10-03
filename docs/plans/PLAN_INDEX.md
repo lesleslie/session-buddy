@@ -54,7 +54,7 @@ and reproduced here for index readability.
 | Bodai-wide observability surface | `docs/plans/2026-07-11-phase-6-bodai-observability.md` |
 | Repo-local decisions index | `.claude/decisions/README.md` |
 | Follow-up tracker index | `docs/followups/README.md` |
-| Source plan defining this index | `docs/superpowers/plans/2026-07-16-plan-lifecycle-unification.md` |
+| Source plan defining this index | `docs/plans/2026-07-16-plan-lifecycle-unification.md` |
 
 ## Review Entry Points
 
@@ -93,13 +93,13 @@ One table per store. Entries are sorted by `date` DESC, with ties broken by path
 |---|---|---|---|---|---|
 | [`docs/plans/2026-07-16-checkpoint-async-refactor.md`](2026-07-16-checkpoint-async-refactor.md) | 2026-07-16 | `shipped` | `implementation` | `persistence` | Checkpoint Async Refactor (Multi-Session MCP Contention Fix) |
 
-### Superpowers Specs (`docs/superpowers/specs/`)
+### Superpowers Specs (`docs/specs/`)
 
 | Path | Date | Status | Role | Topic | Title |
 |---|---|---|---|---|---|
 | _no entries with valid frontmatter_ | | | | | |
 
-### Superpowers Plans (`docs/superpowers/plans/`)
+### Superpowers Plans (`docs/plans/`)
 
 | Path | Date | Status | Role | Topic | Title |
 |---|---|---|---|---|---|

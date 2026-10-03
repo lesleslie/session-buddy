@@ -21,7 +21,7 @@ topic: lifecycle
 >
 > 1. Mahavishnu's `docs/schemas/document-frontmatter-v1.md` (and `docs/schemas/topic-vocabulary-v1.md`) — the canonical schema and topic vocabulary. This file is a *per-repo adoption guide*, not a schema amendment.
 > 1. Mahavishnu's `scripts/validate_document_frontmatter.py` and `scripts/regenerate_plan_index.py` — copy both verbatim into your repo under `scripts/`.
-> 1. Mahavishnu's `docs/superpowers/plans/2026-07-16-plan-lifecycle-unification.md` — read the "Approved Adjustments" section (Adjustment A — hybrid topic vocab; Adjustment B — two-pass migration). The two-pass pattern is load-bearing.
+> 1. Mahavishnu's `docs/plans/2026-07-16-plan-lifecycle-unification.md` — read the "Approved Adjustments" section (Adjustment A — hybrid topic vocab; Adjustment B — two-pass migration). The two-pass pattern is load-bearing.
 
 ______________________________________________________________________
 
@@ -44,7 +44,7 @@ ls docs/archive/ 2>/dev/null       # already-archived material
 
 | Layout | Repos using it | What to do |
 |---|---|---|
-| **6-store (Mahavishnu)** — `docs/adr/`, `docs/plans/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, `.claude/decisions/`, `docs/followups/` | mahavishnu (template) | Use the validator's `DEFAULT_STORES` as-is. No scanner changes. |
+| **6-store (Mahavishnu)** — `docs/adr/`, `docs/plans/`, `docs/specs/`, `docs/plans/`, `.claude/decisions/`, `docs/followups/` | mahavishnu (template) | Use the validator's `DEFAULT_STORES` as-is. No scanner changes. |
 | **Flat docs/ + docs/plans/** (canonical + many loose .md) | **session-buddy** (P7.A template) | Add per-repo extra path: `docs/` (loose docs) and the schema docs themselves. See Step 3 below. |
 | **One repo-specific store only** (e.g., `docs/specs/`, `docs/decisions/`) | some upstream community plugins | Adapt `DEFAULT_STORES` and re-export in the per-repo playbook run log. |
 | **No docs/ tree at all** (code-only repos) | none observed in Bodai | Skip the frontmatter migration; only set up scripts/schemas if the repo wants to start documenting. |
@@ -306,7 +306,7 @@ Regenerated to 128 lines, 5 sections. The legacy hand-maintained index (separate
 ### What did NOT need to change
 
 - `.claude/decisions/` (does not exist in session-buddy; no creation).
-- `docs/adr/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, `docs/followups/` (none of these exist; not created).
+- `docs/adr/`, `docs/specs/`, `docs/plans/`, `docs/followups/` (none of these exist; not created).
 - `docs/archive/` (already finalized; skipped via the `EXCLUDED_DIRS` set in the helper).
 - `CLAUDE.md`, `AGENTS.md`, top-level `README.md` (project-level, not docs).
 

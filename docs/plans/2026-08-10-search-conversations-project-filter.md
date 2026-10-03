@@ -133,7 +133,7 @@ In `tests/unit/test_reflection_adapter_oneiric.py`, append a new class after `Te
 class TestProjectScopedSearch:
     """Regression coverage for the search_conversations project filter.
 
-    Plan: docs/superpowers/plans/2026-08-10-search-conversations-project-filter.md
+    Plan: docs/plans/2026-08-10-search-conversations-project-filter.md
     """
 
     async def test_text_search_filters_by_project(self, adapter, tmp_path: Path) -> None:

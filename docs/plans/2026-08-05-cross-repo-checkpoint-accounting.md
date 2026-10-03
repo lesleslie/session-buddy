@@ -8,7 +8,7 @@
 
 **Architecture:** New `cross_repo_work_v2` DuckDB table (one row per `conversation_id` × `repo_name`; `work_entries` is a JSON column of discriminated-union entries deduped by `(kind, sha|plan_path)`). New `CheckpointCrossRepoAccountant` orchestrates `AmbientPuller` (returns `dict[str, list[CommitEntry]]` per-repo) + `MergePrimitive` (single-`BEGIN TRANSACTION` write across the batch) + write. New MCP tool `store_cross_repo_work` using session-buddy's local `require_auth(optional=False)` decorator + server-side path resolution from `settings/ecosystem.yaml`. `HandoffLink` reads the table and renders a markdown section between "Quality Breakdown" and "Recommendations" in the production handoff path.
 
-**Spec:** `docs/superpowers/specs/2026-08-05-cross-repo-checkpoint-accounting-design.md` (commit `0e75c7b3`, v3).
+**Spec:** `docs/specs/2026-08-05-cross-repo-checkpoint-accounting-design.md` (commit `0e75c7b3`, v3).
 
 ## Global Constraints
 

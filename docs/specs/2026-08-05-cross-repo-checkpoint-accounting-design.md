@@ -1,6 +1,6 @@
 # Cross-Repo Work Accounting in Checkpoint — Design
 
-> **For agentic workers:** This spec captures the design for cross-repo work accounting in session-buddy checkpoints. The implementation plan will follow in a separate document under `docs/superpowers/plans/`.
+> **For agentic workers:** This spec captures the design for cross-repo work accounting in session-buddy checkpoints. The implementation plan will follow in a separate document under `docs/plans/`.
 
 **Date:** 2026-08-05
 **Status:** Draft v2 (post-multi-agent-review)
@@ -342,7 +342,7 @@ All writes go through session-buddy's `ReflectionDatabaseAdapter` (`session_budd
   },
   {
     "kind": "plan_ref",
-    "plan_path": "docs/superpowers/plans/2026-08-05-foo.md",  -- required for plan_ref
+    "plan_path": "docs/plans/2026-08-05-foo.md",  -- required for plan_ref
     "phase": "phase-1",
     "provenance": "explicit"
   }
