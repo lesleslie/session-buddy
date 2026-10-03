@@ -348,7 +348,7 @@ def _parse_iso_optional(value: Any) -> datetime | None:
 
 
 def _build_task(
-    reflection: dict[str, Any], sidecar_meta: dict[str, Any]
+    reflection: dict[str, Any], sidecar_meta: dict[str, Any] | None
 ) -> Task | None:
     """Build a :class:`Task` from a reflection row + sidecar metadata.
 
@@ -356,7 +356,15 @@ def _build_task(
     (e.g. no ``id``). Coerces status/priority/effort from ``<kind>:<value>``
     tag prefixes per spec §Data Flow path 1; falls back to sidecar
     metadata, then to type defaults.
+
+    ``sidecar_meta`` is accepted as ``dict | None`` so call sites can
+    pass the raw return of ``tasks_storage.read_task_metadata``
+    without per-site ``or {}`` / if-else narrowing dances. Pre-1.0
+    decision: receive the widest type the source provides, narrow
+    once at the boundary.
     """
+    if sidecar_meta is None:
+        sidecar_meta = {}
     reflection_id = reflection.get("id")
     if not isinstance(reflection_id, str) or not reflection_id:
         return None
@@ -881,13 +889,9 @@ async def tasks_get(
         }
 
     reflection = await _read_reflection(target)
-    _sidecar_meta_raw = tasks_storage.read_task_metadata(
+    sidecar_meta = tasks_storage.read_task_metadata(
         engine=engine, reflection_id=target
     )
-    if _sidecar_meta_raw is None:
-        sidecar_meta: dict[str, Any] = {}
-    else:
-        sidecar_meta = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None:
         return {
@@ -978,13 +982,9 @@ async def tasks_update(
         }
 
     reflection = await _read_reflection(target)
-    _sidecar_meta_raw = tasks_storage.read_task_metadata(
+    sidecar_meta = tasks_storage.read_task_metadata(
         engine=engine, reflection_id=target
     )
-    if _sidecar_meta_raw is None:
-        sidecar_meta: dict[str, Any] = {}
-    else:
-        sidecar_meta = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
@@ -1106,13 +1106,9 @@ async def tasks_complete(
         }
 
     reflection = await _read_reflection(target)
-    _sidecar_meta_raw = tasks_storage.read_task_metadata(
+    sidecar_meta = tasks_storage.read_task_metadata(
         engine=engine, reflection_id=target
     )
-    if _sidecar_meta_raw is None:
-        sidecar_meta: dict[str, Any] = {}
-    else:
-        sidecar_meta = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
@@ -1334,13 +1330,9 @@ async def tasks_history(
         }
 
     reflection = await _read_reflection(target)
-    _sidecar_meta_raw = tasks_storage.read_task_metadata(
+    sidecar_meta = tasks_storage.read_task_metadata(
         engine=engine, reflection_id=target
     )
-    if _sidecar_meta_raw is None:
-        sidecar_meta: dict[str, Any] = {}
-    else:
-        sidecar_meta = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
