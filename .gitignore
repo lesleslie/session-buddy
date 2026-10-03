@@ -136,6 +136,13 @@ oneiric.yaml
 # Archived Files
 # ============================================================================
 .archive/
+# Exceptions: docs/plans/.archive/ and docs/specs/.archive/ are
+# intentionally version-controlled. Superseded plans/specs land at
+# their canonical .archive/ paths and must survive a clean checkout.
+!docs/plans/.archive/
+!docs/plans/.archive/**
+!docs/specs/.archive/
+!docs/specs/.archive/**
 tests/archived/
 
 # ============================================================================
