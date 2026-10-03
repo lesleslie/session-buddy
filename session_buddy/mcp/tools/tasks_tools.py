@@ -885,8 +885,9 @@ async def tasks_get(
         engine=engine, reflection_id=target
     )
     if _sidecar_meta_raw is None:
-        _sidecar_meta_raw = {}
-    sidecar_meta: dict[str, Any] = _sidecar_meta_raw
+        sidecar_meta: dict[str, Any] = {}
+    else:
+        sidecar_meta = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None:
         return {
@@ -981,8 +982,9 @@ async def tasks_update(
         engine=engine, reflection_id=target
     )
     if _sidecar_meta_raw is None:
-        _sidecar_meta_raw = {}
-    sidecar_meta: dict[str, Any] = _sidecar_meta_raw
+        sidecar_meta: dict[str, Any] = {}
+    else:
+        sidecar_meta = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
@@ -1108,8 +1110,9 @@ async def tasks_complete(
         engine=engine, reflection_id=target
     )
     if _sidecar_meta_raw is None:
-        _sidecar_meta_raw = {}
-    sidecar_meta: dict[str, Any] = _sidecar_meta_raw
+        sidecar_meta: dict[str, Any] = {}
+    else:
+        sidecar_meta = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
@@ -1335,8 +1338,9 @@ async def tasks_history(
         engine=engine, reflection_id=target
     )
     if _sidecar_meta_raw is None:
-        _sidecar_meta_raw = {}
-    sidecar_meta: dict[str, Any] = _sidecar_meta_raw
+        sidecar_meta: dict[str, Any] = {}
+    else:
+        sidecar_meta = _sidecar_meta_raw
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {

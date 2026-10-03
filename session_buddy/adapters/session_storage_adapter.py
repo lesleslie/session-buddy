@@ -26,7 +26,10 @@ from contextlib import suppress
 from session_buddy.utils.time import utc_now
 
 if t.TYPE_CHECKING:
-    from session_buddy.adapters.storage_oneiric import StorageBaseOneiric
+    from session_buddy.adapters.storage_oneiric import (
+        GCSStorageOneiric,
+        StorageBaseOneiric,
+    )
 
 logger = logging.getLogger(__name__)
 
