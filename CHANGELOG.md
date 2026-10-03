@@ -9,6 +9,44 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.31.0] - 2026-10-03
+
+### Added
+
+- session-buddy: BodaiEventsPublisher owns Redis Streams + OTel
+- session-buddy: Publish_task_event_raw + envelope-by-type lookup
+- session-buddy: Wire BodaiEventsPublisher into FastMCP lifespan + /health
+
+### Changed
+
+- session-buddy: Apply refurb mechanical fixes (FURB123/124/138/143/173)
+
+### Fixed
+
+- session-buddy: Add _coerce_sidecar_meta helper for narrowing read_task_metadata
+- session-buddy: Correct creosote exclude-deps for coredis + rich
+- session-buddy: Correct relative path to mahavishnu spec in CLAUDE.md
+- session-buddy: Import GCSStorageOneiric + if-else narrow sidecar_meta
+- session-buddy: Move sidecar_meta None-handling into _build_task
+- session-buddy: Narrow union-typed adapter dispatch + use if-expr for sidecar_meta
+- session-buddy: Propagate union to session adapter + use rebinding for sidecar_meta
+- session-buddy: Resolve ty errors + clean suppressions from comprehensive hook sweep
+- session-buddy: T12 visibility_public reads from sidecar metadata
+- session-buddy: Widen storage adapter return types + annotate sidecar_meta
+- ty: Widen _build_task and _persist_task_update to accept optional dicts
+
+### Documentation
+
+- session-buddy: Skill catalog reflects T12 fix + BodaiEventsPublisher + TaskOrphanSweeper
+
+### Testing
+
+- session-buddy: BodaiEventsPublisher e2e Redis round-trip
+
+### Build
+
+- session-buddy: Declare coredis dep for BodaiEventsPublisher
+
 ## [0.30.0] - 2026-10-01
 
 ### Added
