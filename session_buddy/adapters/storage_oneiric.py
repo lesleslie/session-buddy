@@ -534,7 +534,7 @@ class StorageRegistryOneiric:
             msg = f"Unsupported backend: {backend}. Must be one of {SUPPORTED_BACKENDS}"
             raise ValueError(msg)
 
-    def _create_adapter(self, backend: str) -> StorageBaseOneiric:
+    def _create_adapter(self, backend: str) -> StorageBaseOneiric | GCSStorageOneiric:
         """Create a storage adapter instance.
 
         Args:

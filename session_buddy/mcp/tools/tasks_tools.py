@@ -20,7 +20,7 @@ import json
 import logging
 import re
 from datetime import UTC, datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 # ``Context`` is imported at module level (not behind ``TYPE_CHECKING``)
 # so FastMCP can resolve the forward reference ``ctx: Context`` when
@@ -251,12 +251,18 @@ async def tasks_create(
 
     # Emit ``task.created`` with a typed payload per T2.
     content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    # ``owner`` is server-derived from ``caller`` in the Task constructor
+    # two lines above; Pydantic's ``owner: str | None`` model field stays
+    # optional in the type system but is never None at this point.
+    # ``cast`` documents the runtime invariant for ty without changing
+    # the public model shape.
+    owner_str = cast("str", task.owner)
     await publish_task_event(
         "task.created",
         TaskCreatedPayload(
             task_id=task.id,
-            owner=task.owner,
-            actor=task.owner,
+            owner=owner_str,
+            actor=owner_str,
             created_at=now,
             content_hash=content_hash,
         ),
@@ -398,9 +404,23 @@ def _build_task(
             content=content,
             owner=str(owner) if owner else None,
             visibility=sidecar_meta.get("visibility", "private"),
-            status=status,  # ty: ignore[arg-type]
-            priority=priority,  # ty: ignore[arg-type]
-            effort=effort,  # ty: ignore[arg-type]
+            # status / priority / effort are validated against the
+            # ``_TAG_PREFIX_*_VALUES`` sets above (lines 369-373) so the
+            # runtime values are guaranteed Literal members. ``cast``
+            # documents the invariant for ty without weakening the local
+            # ``str`` typing used to drive the validation loop.
+            status=cast(
+                "Literal['open', 'in_progress', 'blocked', 'done', 'cancelled']",
+                status,
+            ),
+            priority=cast(
+                "Literal['critical', 'high', 'normal', 'low']",
+                priority,
+            ),
+            effort=cast(
+                "Literal['xs', 's', 'm', 'l', 'xl'] | None",
+                effort,
+            ),
             tags=tags_in,
             parent_task_id=str(parent_task_id) if parent_task_id else None,
             workflow_id=str(workflow_id) if workflow_id else None,
@@ -558,7 +578,10 @@ async def tasks_list(
     # level (their visibility is enforced inside ``_query_legacy_reflections``).
     offset = _decode_cursor(cursor)
     page_items: list[Task | LegacyTaskRow]
-    page_items = typed_items[offset : offset + k]
+    # ``typed_items`` is invariantly ``list[Task]``; the wider
+    # ``list[Task | LegacyTaskRow]`` annotation comes from the legacy
+    # concat below. Slicing preserves the runtime type so cast is safe.
+    page_items = cast("list[Task | LegacyTaskRow]", typed_items[offset : offset + k])
     next_cursor = _encode_cursor(offset + k) if offset + k < len(typed_items) else None
 
     # When ``include_legacy`` is on, append legacy rows after the typed
@@ -858,8 +881,9 @@ async def tasks_get(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = (
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    sidecar_meta = cast(
+        "dict[str, Any]",
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {},
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None:
@@ -951,8 +975,9 @@ async def tasks_update(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = (
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    sidecar_meta = cast(
+        "dict[str, Any]",
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {},
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1019,7 +1044,7 @@ def _apply_complete_fields(
     NEVER touched — it is server-set by T17's ``tasks_handoff_to_workflow``
     only and ``tasks_complete`` MUST NOT mutate it.
     """
-    task.status = "done"  # ty: ignore[arg-type]
+    task.status = "done"
     task.completed_at = now
     task.completed_by = completed_by
     task.updated_at = now
@@ -1075,8 +1100,9 @@ async def tasks_complete(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = (
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    sidecar_meta = cast(
+        "dict[str, Any]",
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {},
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1122,7 +1148,10 @@ async def tasks_complete(
         TaskCompletedPayload(
             task_id=task.id,
             actor=caller,
-            completed_at=task.completed_at,
+            # ``_apply_complete_fields`` set ``task.completed_at = now``
+            # before this event is emitted, so the field is non-None at
+            # runtime. ``cast`` documents the invariant for ty.
+            completed_at=cast("datetime", task.completed_at),
             has_workflow_id=task.workflow_id is not None,
         ),
     )
@@ -1193,7 +1222,11 @@ async def tasks_search(
             tasks_storage.read_task_metadata(engine=engine, reflection_id=rid) or {}
         )
         kind = sidecar_meta.get("kind") if isinstance(sidecar_meta, dict) else None
-        tags_in = list(hit.get("tags") or [])
+        # ``hit`` is a TypedDict; ``get("tags")`` returns ``list[str] | None``
+        # and ``or []`` widens to ``list[str] | list[Unknown]`` in ty's view.
+        # The Pydantic ``Task.tags`` field requires ``list[str]`` so we
+        # narrow here.
+        tags_in = cast("list[str]", hit.get("tags") or [])
         if kind != "task" and "task" not in tags_in:
             continue
 
@@ -1292,8 +1325,9 @@ async def tasks_history(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = (
-        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {}
+    sidecar_meta = cast(
+        "dict[str, Any]",
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target) or {},
     )
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
@@ -1339,7 +1373,7 @@ async def tasks_history(
         items.append(
             TaskEvent(
                 task_id=task_id,
-                event_type="updated",  # ty: ignore[arg-type]
+                event_type="updated",
                 actor=str(entry.get("actor") or caller),
                 timestamp=timestamp,
                 diff=diff,

@@ -231,7 +231,7 @@ class TaskListResult(BaseModel):
     # references it as a forward string; ``TaskListResult.model_rebuild()``
     # at the bottom of the file resolves the string once ``LegacyTaskRow``
     # is in scope.
-    items: list[Task | LegacyTaskRow]  # ty: ignore[valid-type]
+    items: list[Task | LegacyTaskRow]
     next_cursor: str | None = None
     total: int
 
