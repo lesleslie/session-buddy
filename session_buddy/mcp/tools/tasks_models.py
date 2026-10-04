@@ -305,8 +305,7 @@ class LegacyTaskRow(BaseModel):
     tags: list[str]
     coerced: bool = Field(default=True, alias="_coerced")
     note: str = (
-        "Legacy store_reflection row; not a typed Task. "
-        "Use tasks_create for new work."
+        "Legacy store_reflection row; not a typed Task. Use tasks_create for new work."
     )
 
 

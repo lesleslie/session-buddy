@@ -130,7 +130,6 @@ def _patch_healthy_checks() -> list:
             "check_file_system",
             "check_database",
             "check_dependencies",
-            "check_v2_migration",
             "check_code_graph_adapter",
             "check_code_index_round_trip",
             "check_auto_capture_recent",
@@ -200,7 +199,6 @@ class TestRunAllDoctorChecks:
 
         Three checks need the database path:
             - ``check_database``
-            - ``check_v2_migration``
             - ``check_auto_capture_recent``
 
         The aggregator should call ``get_database_path`` exactly once
@@ -241,7 +239,6 @@ class TestRunAllDoctorChecks:
             "check_file_system": make_recorder("check_file_system"),
             "check_database": make_recorder("check_database"),
             "check_dependencies": make_recorder("check_dependencies"),
-            "check_v2_migration": make_recorder("check_v2_migration"),
             "check_code_graph_adapter": make_recorder("check_code_graph_adapter"),
             "check_code_index_round_trip": make_recorder("check_code_index_round_trip"),
             "check_auto_capture_recent": make_recorder("check_auto_capture_recent"),
@@ -282,10 +279,9 @@ class TestRunAllDoctorChecks:
             "Path resolution is not centralized."
         )
 
-        # The three DB-using checks all received the sentinel path.
+        # The two DB-using checks all received the sentinel path.
         db_using = (
             "check_database",
-            "check_v2_migration",
             "check_auto_capture_recent",
         )
         for name in db_using:
@@ -332,8 +328,8 @@ class TestRunAllDoctorChecks:
         # Mock all doctor checks except the three that touch DuckDB.
         # We let the real check bodies run, but count the connects.
         try:
-            # We can't easily let the real ``check_v2_migration`` /
-            # ``check_auto_capture_recent`` bodies run in a unit test
+            # We can't easily let the real ``check_auto_capture_recent``
+            # bodies run in a unit test
             # (they have heavy deps). Instead, mock them to call
             # ``duckdb.connect`` exactly once each so we can verify the
             # aggregator passed the same path.
@@ -367,6 +363,7 @@ class TestRunAllDoctorChecks:
                     "counts": {"v2_conversations": 0},
                 }
 
+            # Patch get_migration_status to call duckdb.connect once.
             def fake_open_adapter(db_path: object = None) -> object:
                 counting_connect(str(db_path) if db_path else ":memory:")
                 # Return a mock that mimics a ReflectionDatabaseAdapterOneiric
@@ -397,14 +394,6 @@ class TestRunAllDoctorChecks:
                 await ctx.initialize()
                 return ComponentHealth(
                     name="auto_capture_recent",
-                    status=HealthStatus.HEALTHY,
-                    message="ok",
-                )
-
-            async def fake_v2(db_path: object = None) -> ComponentHealth:
-                fake_migration_status(db_path)
-                return ComponentHealth(
-                    name="v2_migration",
                     status=HealthStatus.HEALTHY,
                     message="ok",
                 )
@@ -440,7 +429,6 @@ class TestRunAllDoctorChecks:
                 patch("session_buddy.doctor.check_claude_hooks_config", mock_check),
                 patch("session_buddy.doctor.check_server_port_bound", mock_check),
                 patch("session_buddy.doctor.check_database", fake_database),
-                patch("session_buddy.doctor.check_v2_migration", fake_v2),
                 patch("session_buddy.doctor.check_auto_capture_recent", fake_auto_capture),
                 patch(
                     "session_buddy.settings.get_database_path",
@@ -459,7 +447,7 @@ class TestRunAllDoctorChecks:
             # Three DB-using checks, three connects (one per check).
             # This proves: 1) each check got a path, 2) the aggregator
             # passed the same path to all of them.
-            db_using = ("check_database", "check_v2_migration", "check_auto_capture_recent")
+            db_using = ("check_database", "check_auto_capture_recent")
             assert call_count == len(db_using), (
                 f"Expected {len(db_using)} duckdb.connect calls "
                 f"(one per DB-using check), got {call_count}"

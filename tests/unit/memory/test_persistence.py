@@ -54,9 +54,9 @@ def memory_conn(
     """
     db_file = tmp_path / "test_persistence.duckdb"
     conn = duckdb.connect(str(db_file))
-    from session_buddy.memory.migration import apply_migrations
+    from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
 
-    apply_migrations(conn)
+    conn.execute(SCHEMA_V2_SQL)
 
     @contextmanager
     def fake_connect():

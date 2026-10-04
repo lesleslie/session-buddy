@@ -60,7 +60,7 @@ def register_access_log_tools(mcp: FastMCP) -> None:
             _get_logger().exception("Access log statistics query failed")
             return {
                 "error": f"Access log stats unavailable: {e}",
-                "hint": "Ensure schema_v2 is enabled and memory_access_log exists.",
+                "hint": "Ensure memory_access_log exists.",
             }
 
 

@@ -26,7 +26,6 @@ async def test_register_feature_flags_tools_uses_current_flag_values(
     from session_buddy.mcp.tools.infrastructure import feature_flags_tools
 
     flags = SimpleNamespace(
-        use_schema_v2=True,
         enable_llm_entity_extraction=False,
         enable_anthropic=True,
         enable_ollama=False,
@@ -44,7 +43,6 @@ async def test_register_feature_flags_tools_uses_current_flag_values(
 
     status = await mcp.tools["feature_flags_status"]()
     assert status == {
-        "use_schema_v2": True,
         "enable_llm_entity_extraction": False,
         "enable_anthropic": True,
         "enable_ollama": False,
@@ -54,10 +52,8 @@ async def test_register_feature_flags_tools_uses_current_flag_values(
 
     plan = await mcp.tools["rollout_plan"]()
     assert "day_1_2" in plan
-    assert "day_3_4" in plan
     assert "day_5_6" in plan
     assert "day_7" in plan
-    assert "rollback" in plan
     assert plan["notes"].startswith("All flags default to false")
 
 

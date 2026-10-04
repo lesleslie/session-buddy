@@ -439,8 +439,6 @@ class SessionMgmtSettings(OneiricMCPConfig):
     # ``tests/conftest.py`` (``mock_settings_instance.enable_global_toolkits = True``),
     # not read by any runtime code path. Removed.
 
-
-
     # === Prometheus Metrics Settings ===
     enable_prometheus_metrics: bool = Field(
         default=True,
@@ -678,11 +676,7 @@ class SessionMgmtSettings(OneiricMCPConfig):
     )
 
     # === Feature Flags (rollout) ===
-    # Default to False; enable gradually and flip to True post-rollout
-    use_schema_v2: bool = Field(
-        default=True,
-        description="Use enhanced schema v2 for memory tables",
-    )
+    # Schema v2 is the only schema as of 2026-10-04 (V1 retired).
     enable_llm_entity_extraction: bool = Field(
         default=True,
         description="Enable multi-provider LLM entity extraction",

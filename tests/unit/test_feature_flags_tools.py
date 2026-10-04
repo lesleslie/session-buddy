@@ -26,7 +26,6 @@ async def test_feature_flags_status_shape(monkeypatch: t.Any) -> None:
     register_feature_flags_tools(mcp)
     res = await mcp.tools["feature_flags_status"]()
     keys = {
-        "use_schema_v2",
         "enable_llm_entity_extraction",
         "enable_anthropic",
         "enable_ollama",
@@ -44,7 +43,9 @@ async def test_rollout_plan_contains_staged_steps() -> None:
     plan = await mcp.tools["rollout_plan"]()
 
     assert "day_1_2" in plan
-    assert "day_3_4" in plan
-    assert "rollback" in plan
-    assert any("SESSION_MGMT_USE_SCHEMA_V2" in step for step in plan["day_1_2"])
-    assert any("trigger_migration" in step for step in plan["rollback"])
+    assert "day_5_6" in plan
+    assert "day_7" in plan
+    assert any(
+        "SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION" in step
+        for step in plan["day_1_2"]
+    )

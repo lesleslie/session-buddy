@@ -85,7 +85,6 @@ from session_buddy.mcp.tools.session.crackerjack_tools import (
     register_crackerjack_tools,
 )
 from session_buddy.mcp.tools.session.hooks_tools import register_hooks_tools
-from session_buddy.mcp.tools.session.migration_tools import register_migration_tools
 from session_buddy.mcp.tools.session.prompt_tools import register_prompt_tools
 from session_buddy.mcp.tools.session.session_tools import register_session_tools
 
@@ -187,7 +186,6 @@ __all__ = [
     "register_llm_tools",
     "register_memory_health_tools",
     "register_memory_tools",
-    "register_migration_tools",
     "register_monitoring_tools",
     "register_pool_tools",
     "register_prompt_tools",

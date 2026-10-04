@@ -310,7 +310,9 @@ _original_lifespan = mcp._lifespan
 
 
 @asynccontextmanager
-async def _lifespan_with_dhara_cleanup(app: Any) -> AsyncGenerator[BodaiEventsPublisher | None]:
+async def _lifespan_with_dhara_cleanup(
+    app: Any,
+) -> AsyncGenerator[BodaiEventsPublisher | None]:
     from session_buddy.core.auto_checkpoint_loop import (
         AutoCheckpointLoop,
         QualityDeltaSignal,

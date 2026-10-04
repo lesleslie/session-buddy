@@ -15,6 +15,7 @@ mcp_common client) is::
         ...
     }
 """
+
 from __future__ import annotations
 
 import re

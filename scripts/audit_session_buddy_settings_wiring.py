@@ -28,7 +28,7 @@ import re
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 # --- Configuration -----------------------------------------------------------
@@ -92,10 +92,10 @@ DEAD = "DEAD"
 
 @dataclass(frozen=True)
 class Field:
-    group: str          # top-level group, e.g. "remote"
-    leaf: str           # leaf field name, e.g. "circuit_breaker_threshold"
-    parent: str         # parent class name, e.g. "RemoteSourceConfig"
-    python_path: str    # "remote.circuit_breaker_threshold"
+    group: str  # top-level group, e.g. "remote"
+    leaf: str  # leaf field name, e.g. "circuit_breaker_threshold"
+    parent: str  # parent class name, e.g. "RemoteSourceConfig"
+    python_path: str  # "remote.circuit_breaker_threshold"
     is_list_parent: bool = False  # True if this is a list[X] / dict[X] field whose inner fields are accessed transitively
 
 
@@ -114,8 +114,11 @@ def extract_schema() -> list[Field]:
     """
     if str(SESSION_BUDDY_ROOT) not in sys.path:
         sys.path.insert(0, str(SESSION_BUDDY_ROOT))
-    from session_buddy.settings import SessionMgmtSettings  # type: ignore[import-not-found]
     from pydantic import BaseModel
+
+    from session_buddy.settings import (
+        SessionMgmtSettings,  # type: ignore[import-not-found]
+    )
 
     fields: list[Field] = []
 
@@ -213,9 +216,7 @@ def scan_with_ripgrep(
         leaf_index.setdefault(f.leaf, []).append(f.python_path)
 
     # Pattern: common access prefixes for Oneiric settings.
-    prefix_alt = (
-        r"settings|cfg|config|_settings|self\.config|self\._config"
-    )
+    prefix_alt = r"settings|cfg|config|_settings|self\.config|self\._config"
     pattern = rf"(?:{prefix_alt})\.([a-z_][a-z0-9_]*)(?:\.([a-z_][a-z0-9_]*))?"
 
     rg_path = rg()
@@ -225,7 +226,12 @@ def scan_with_ripgrep(
 
     for root in consumer_roots:
         argv = [
-            rg_path, "--json", "--no-config", "--no-messages", "-g", "*.py",
+            rg_path,
+            "--json",
+            "--no-config",
+            "--no-messages",
+            "-g",
+            "*.py",
         ]
         for g in EXCLUDE_GLOBS:
             argv.extend(["-g", g])
@@ -292,9 +298,7 @@ def scan_with_grep(
         field_index[(g, f.leaf)] = f.python_path
         leaf_index.setdefault(f.leaf, []).append(f.python_path)
     grep_bin = grep()
-    prefix_alt = (
-        r"settings|cfg|config|_settings|self\.config|self\._config"
-    )
+    prefix_alt = r"settings|cfg|config|_settings|self\.config|self\._config"
     pattern = rf"(?:{prefix_alt})\.([a-z_][a-z0-9_]*)(?:\.([a-z_][a-z0-9_]*))?"
 
     for root in consumer_roots:
@@ -302,8 +306,12 @@ def scan_with_grep(
         for g in EXCLUDE_GLOBS:
             excludes.extend(["--exclude-dir", g.lstrip("!")])
         argv = [
-            grep_bin, "-rEn", "--include=*.py", *excludes,
-            pattern, str(root),
+            grep_bin,
+            "-rEn",
+            "--include=*.py",
+            *excludes,
+            pattern,
+            str(root),
         ]
         try:
             proc = subprocess.run(argv, capture_output=True, text=True, timeout=120)
@@ -370,8 +378,14 @@ def find_dynamic_consumers(
     for root in consumer_roots:
         for pattern in patterns:
             argv = [
-                rg_path, "--no-config", "--no-messages", "-o",
-                "-g", "*.py", pattern, str(root),
+                rg_path,
+                "--no-config",
+                "--no-messages",
+                "-o",
+                "-g",
+                "*.py",
+                pattern,
+                str(root),
             ]
             for g in EXCLUDE_GLOBS:
                 argv.extend(["-g", g])
@@ -454,17 +468,17 @@ def print_report(
     title: str = "config-schema wiring audit",
 ) -> None:
     by_status: dict[str, list[Field]] = {
-        WIRED: [], WIRED_DYNAMIC: [], INDIRECT: [], DEAD: []
+        WIRED: [],
+        WIRED_DYNAMIC: [],
+        INDIRECT: [],
+        DEAD: [],
     }
     for f, status, _ in results:
         by_status[status].append(f)
     total = len(results)
     print()
     print("=" * 78)
-    print(
-        f"{title} "
-        f"({total} fields, {len(consumer_roots)} repos)"
-    )
+    print(f"{title} ({total} fields, {len(consumer_roots)} repos)")
     print("=" * 78)
     print()
     for status in (WIRED, WIRED_DYNAMIC, INDIRECT, DEAD):
@@ -492,7 +506,8 @@ def print_report(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--show-wired", action="store_true",
+        "--show-wired",
+        action="store_true",
         help="Print every WIRED field with its first consumer file:line.",
     )
     args = parser.parse_args()
@@ -510,7 +525,9 @@ def main() -> int:
     print()
     print(f"Scanning {len(CONSUMER_ROOTS)} repos for consumers ...")
     consumers = scan_with_ripgrep(fields, CONSUMER_ROOTS)
-    print(f"  -> {sum(1 for hits in consumers.values() if hits)} fields have static consumers")
+    print(
+        f"  -> {sum(1 for hits in consumers.values() if hits)} fields have static consumers"
+    )
     dynamic = find_dynamic_consumers(fields, CONSUMER_ROOTS)
     print(f"  -> {sum(1 for v in dynamic.values() if v)} fields have dynamic consumers")
     results = classify(fields, consumers, dynamic)

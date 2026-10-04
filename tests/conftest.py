@@ -1386,7 +1386,6 @@ def mock_settings(tmp_path):
         mock_settings_instance.server_host = "localhost"
         mock_settings_instance.server_port = 3000
         mock_settings_instance.enable_hot_reload = False
-        mock_settings_instance.use_schema_v2 = True
         mock_settings_instance.enable_llm_entity_extraction = True
         mock_settings_instance.enable_anthropic = True
         mock_settings_instance.enable_ollama = False

@@ -9,6 +9,7 @@ llm_providers:
   ollama_default_model: "Qwen3-8B-8.2B-Q4_K_M"
   fallback_providers:
     - "minimax"
+    - "llama_server"
     - "ollama"
 
 # === LLM Provider URLs ===
@@ -177,7 +178,7 @@ enable_hot_reload: false
 # (``memory_access_log`` writes) is unconditional — see
 # ``_log_access`` in ``reflection_adapter_oneiric.py`` — so the log is
 # populated from day one even when the analysis loop is off.
-enable_conscious_agent: false
+enable_conscious_agent: true
 
 # === Bodai Task System Events (Phase 1) ===
 # Settings consumed by the FastMCP lifespan (Task 4) to construct the

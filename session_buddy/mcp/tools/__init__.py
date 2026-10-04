@@ -103,7 +103,6 @@ from .session.crackerjack_tools import (
     register_crackerjack_tools,
 )
 from .session.hooks_tools import register_hooks_tools
-from .session.migration_tools import register_migration_tools
 from .session.prompt_tools import register_prompt_tools
 from .session.session_tools import register_session_tools
 
@@ -158,7 +157,6 @@ __all__ = [
     "register_llm_tools",
     "register_memory_health_tools",
     "register_memory_tools",
-    "register_migration_tools",
     "register_monitoring_tools",
     "register_otel_trace_tools",
     "register_phase3_knowledge_graph_tools",

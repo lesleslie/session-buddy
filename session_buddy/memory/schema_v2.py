@@ -390,11 +390,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cross_repo_work_v2_conv_repo
 """
 
 # Append the v2.1 DDL to the canonical SCHEMA_V2_SQL so the
-# ``create_v2_schema()`` path (used by ``migrate_v1_to_v2`` and by the
-# read-side ``require_reflection_database()`` adapter) emits the new
-# tables on a fresh DB.  Forward-only patches targeting only existing
-# DBs live in ``migration.MIGRATIONS``; both paths converge in
-# ``migration.apply_migrations``.
+# read-side ``require_reflection_database()`` adapter emits the new
+# tables on a fresh DB. V1 was retired 2026-10-04 — there is no
+# migration path from a V1 database; greenfield V2 only.
 SCHEMA_V2_SQL = SCHEMA_V2_SQL + CROSS_REPO_CHECKPOINT_V2_1_DDL
 
 

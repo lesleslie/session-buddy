@@ -111,11 +111,11 @@ def _make_config(**overrides) -> AkoshaSyncConfig:
 
 def _seed_reflection_db(db_path: Path) -> None:
     """Apply v2 schema and seed a few conversations + reflections."""
-    from session_buddy.memory.migration import apply_migrations
+    from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
 
     conn = duckdb.connect(str(db_path))
     try:
-        apply_migrations(conn)
+        conn.execute(SCHEMA_V2_SQL)
         # source_type has CHECK constraint restricting to enumerated
         # values; use 'manual' which is always allowed.
         conn.execute(

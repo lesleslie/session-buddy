@@ -148,7 +148,6 @@ class TestRegistrationMap:
             "register_export_tools",
             "register_llm_tools",
             "register_memory_health_tools",
-            "register_migration_tools",
             "register_phase3_knowledge_graph_tools",
             "register_phase4_tools",
             "register_pool_tools",

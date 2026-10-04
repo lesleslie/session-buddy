@@ -381,9 +381,7 @@ class GCSStorageOneiric:
                     GCSStorageSettings,
                 )
             except ModuleNotFoundError as exc:
-                msg = (
-                    "GCS backend requires oneiric[storage-gcs] or 'google-cloud-storage'"
-                )
+                msg = "GCS backend requires oneiric[storage-gcs] or 'google-cloud-storage'"
                 raise RuntimeError(msg) from exc
             credentials_file = self.settings.gcs_credentials_path
             self._adapters[gcs_bucket] = GCSStorageAdapter(
@@ -437,7 +435,7 @@ class GCSStorageOneiric:
         adapter = await self._adapter_for(bucket)
         try:
             await adapter.delete(key=path)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             # Mirror oneiric's is_not_found_error tolerance: treat 404
             # deletes as no-ops.
             if "404" not in str(exc) and "Not Found" not in str(exc):
@@ -547,7 +545,7 @@ class StorageRegistryOneiric:
             ValueError: If backend type is unknown
 
         """
-        adapter_map: dict[str, type[StorageBaseOneiric] | type[GCSStorageOneiric]] = {
+        adapter_map: dict[str, type[StorageBaseOneiric | GCSStorageOneiric]] = {
             "file": FileStorageOneiric,
             "memory": MemoryStorageOneiric,
             "gcs": GCSStorageOneiric,
@@ -673,7 +671,9 @@ def get_storage_registry() -> StorageRegistryOneiric:
     return _storage_registry
 
 
-def get_storage_adapter(backend: str | None = None) -> StorageBaseOneiric | GCSStorageOneiric:
+def get_storage_adapter(
+    backend: str | None = None,
+) -> StorageBaseOneiric | GCSStorageOneiric:
     """Get storage adapter from registry."""
     registry = get_storage_registry()
     return registry.get_storage_adapter(backend)

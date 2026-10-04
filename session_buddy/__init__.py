@@ -12,7 +12,8 @@ label) so the import never crashes.
 
 from __future__ import annotations
 
-from importlib import import_module, metadata as _metadata
+from importlib import import_module
+from importlib import metadata as _metadata
 from typing import Any
 
 # PEP 440 local-version label; sentinel for "metadata not found" rather

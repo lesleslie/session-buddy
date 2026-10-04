@@ -901,9 +901,7 @@ async def tasks_get(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(
-        engine=engine, reflection_id=target
-    )
+    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
     task = _build_task(reflection, sidecar_meta)
     if task is None:
         return {
@@ -994,9 +992,7 @@ async def tasks_update(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(
-        engine=engine, reflection_id=target
-    )
+    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
@@ -1118,9 +1114,7 @@ async def tasks_complete(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(
-        engine=engine, reflection_id=target
-    )
+    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
@@ -1342,9 +1336,7 @@ async def tasks_history(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(
-        engine=engine, reflection_id=target
-    )
+    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
     task = _build_task(reflection, sidecar_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {

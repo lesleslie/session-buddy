@@ -433,10 +433,10 @@ def _re_attach_utils_to_session_buddy() -> None:
 
 # Submodules of ``session_buddy.memory`` that string-form
 # ``monkeypatch.setattr("session_buddy.memory.X.Y", ...)`` calls in tests
-# like ``test_advanced_tools_coverage.py`` and ``test_migration_tools.py``
-# depend on. The ``session_buddy.memory`` package's ``__init__.py`` only
-# eagerly imports ``category_evolution``; ``persistence``, ``migration``,
-# etc. are only loaded on demand. After the autouse
+# like ``test_advanced_tools_coverage.py`` depend on. The
+# ``session_buddy.memory`` package's ``__init__.py`` only eagerly imports
+# ``category_evolution``; ``persistence``, ``schema_v2``, etc. are only
+# loaded on demand. After the autouse
 # ``restore_session_buddy_modules`` fixture re-imports ``session_buddy``,
 # the freshly imported ``session_buddy.memory`` package has no
 # ``persistence`` attribute, and string-form ``monkeypatch.setattr`` calls

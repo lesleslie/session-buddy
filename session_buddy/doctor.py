@@ -79,7 +79,7 @@ async def check_database(db_path: Path | None = None) -> ComponentHealth:
     resolution. The underlying ``check_database_health`` uses the singleton
     reflection adapter, so the ``db_path`` is currently a no-op for this
     check — the path is plumbed for symmetry with the other DB-using
-    checks (``check_v2_migration``, ``check_auto_capture_recent``) so the
+    checks (``check_auto_capture_recent``) so the
     aggregator can resolve the canonical path once and pass it everywhere.
     """
     return await check_database_health()
@@ -88,69 +88,6 @@ async def check_database(db_path: Path | None = None) -> ComponentHealth:
 # ---------------------------------------------------------------------------
 # New checks
 # ---------------------------------------------------------------------------
-async def check_v2_migration(db_path: Path | None = None) -> ComponentHealth:
-    """Verify the v2 schema migration has been applied.
-
-    Pass: ``current_version == "v2"`` and ``v2_conversations > 0``.
-    Degraded: migration ran but v2 is empty.
-    Fail: migration never ran (v1 still current).
-    """
-    name = "v2_migration"
-    try:
-        # ``get_migration_status`` in session_buddy.memory.migration is the
-        # backing function for the MCP tool. It accepts an optional db_path
-        # and returns the same dict shape.
-        from session_buddy.memory.migration import get_migration_status
-
-        status = get_migration_status(db_path)
-    except Exception as exc:  # noqa: BLE001 - doctor health check must report ComponentHealth even on any DB/import failure
-        return ComponentHealth(
-            name=name,
-            status=HealthStatus.UNHEALTHY,
-            message=f"Failed to read migration status: {exc}",
-        )
-
-    # ``status`` shape (per migration_tools.py):
-    # { current_version: str, migration_history: list[...], counts: {v1: int, v2: int} }
-    if not isinstance(status, dict):
-        return ComponentHealth(
-            name=name,
-            status=HealthStatus.UNHEALTHY,
-            message=f"Migration status returned unexpected shape: {type(status).__name__}",
-        )
-    version = status.get("current_version", "unknown")
-    counts: dict[str, Any] = status.get("counts", {}) or {}
-    v2_count = int(counts.get("v2_conversations", 0) or 0)
-    history: list[dict[str, Any]] = status.get("migration_history", []) or []
-
-    if version == "v2" and v2_count > 0:
-        return ComponentHealth(
-            name=name,
-            status=HealthStatus.HEALTHY,
-            message=f"v2 schema active ({v2_count} conversations)",
-            metadata={"version": version, "v2_conversations": v2_count},
-        )
-    if version == "v2":
-        return ComponentHealth(
-            name=name,
-            status=HealthStatus.DEGRADED,
-            message="v2 active but contains 0 conversations; migration may be partial",
-            metadata={"version": version, "v2_conversations": v2_count},
-        )
-    return ComponentHealth(
-        name=name,
-        status=HealthStatus.UNHEALTHY,
-        message=(
-            f"Schema is {version!r}; run trigger_migration(create_backup_first=True) to upgrade"
-        ),
-        metadata={
-            "version": version,
-            "history_count": len(history),
-            "v2_conversations": v2_count,
-        },
-    )
-
-
 async def check_code_graph_adapter() -> ComponentHealth:
     """Regression guard: ``ReflectionDatabaseAdapterOneiric`` must expose ``_get_conn``.
 
@@ -556,7 +493,6 @@ async def run_all_doctor_checks() -> list[ComponentHealth]:
         check_file_system(),
         check_database(db_path),
         check_dependencies(),
-        check_v2_migration(db_path),
         check_code_graph_adapter(),
         check_code_index_round_trip(),
         check_auto_capture_recent(db_path),
@@ -603,7 +539,7 @@ def register_doctor_command(app: typer.Typer) -> None:
         only: list[str] | None = typer.Option(  # noqa: B008 - typer idiom: default must live in typer.Option
             None,
             "--check",
-            help="Run only the named check (repeatable: --check v2_migration).",
+            help="Run only the named check (repeatable: --check <name>).",
         ),
         timeout: float = typer.Option(
             30.0,

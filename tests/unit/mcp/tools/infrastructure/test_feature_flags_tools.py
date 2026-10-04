@@ -46,7 +46,6 @@ class _FakeMCP:
 
 @dataclass(slots=True)
 class _FakeFlags:
-    use_schema_v2: bool = False
     enable_llm_entity_extraction: bool = False
     enable_anthropic: bool = False
     enable_ollama: bool = False
@@ -111,7 +110,6 @@ class TestFeatureFlagsStatus:
         _mcp, tools = registered
         result = asyncio_check(tools.tools["feature_flags_status"])
         assert result == {
-            "use_schema_v2": False,
             "enable_llm_entity_extraction": False,
             "enable_anthropic": False,
             "enable_ollama": False,
@@ -136,11 +134,9 @@ class TestFeatureFlagsStatus:
         registered,
         patched_flags: _FakeFlags,
     ) -> None:
-        patched_flags.use_schema_v2 = True
         patched_flags.enable_anthropic = True
         _mcp, tools = registered
         result = asyncio_check(tools.tools["feature_flags_status"])
-        assert result["use_schema_v2"] is True
         assert result["enable_anthropic"] is True
         assert result["enable_ollama"] is False
 
@@ -150,7 +146,6 @@ class TestFeatureFlagsStatus:
         patched_flags: _FakeFlags,
     ) -> None:
         for fname in (
-            "use_schema_v2",
             "enable_llm_entity_extraction",
             "enable_anthropic",
             "enable_ollama",
@@ -174,34 +169,25 @@ class TestRolloutPlan:
         result = asyncio_check(tools.tools["rollout_plan"])
         assert set(result.keys()) == {
             "day_1_2",
-            "day_3_4",
             "day_5_6",
             "day_7",
-            "rollback",
             "notes",
         }
 
     def test_day_segments_are_lists_of_strings(self, registered) -> None:
         _mcp, tools = registered
         result = asyncio_check(tools.tools["rollout_plan"])
-        for key in ("day_1_2", "day_3_4", "day_5_6", "day_7", "rollback"):
+        for key in ("day_1_2", "day_5_6", "day_7"):
             assert isinstance(result[key], list)
             for item in result[key]:
                 assert isinstance(item, str)
                 assert item  # non-empty
 
-    def test_mentions_schema_v2_in_day_1_2(self, registered) -> None:
+    def test_mentions_env_var_in_day_1_2(self, registered) -> None:
         _mcp, tools = registered
         result = asyncio_check(tools.tools["rollout_plan"])
         joined = " ".join(result["day_1_2"])
-        assert "SESSION_MGMT_USE_SCHEMA_V2" in joined
-
-    def test_mentions_rollback_helpers(self, registered) -> None:
-        _mcp, tools = registered
-        result = asyncio_check(tools.tools["rollout_plan"])
-        joined = " ".join(result["rollback"])
-        assert "trigger_migration" in joined
-        assert "rollback_migration" in joined
+        assert "SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION" in joined
 
     def test_notes_mentions_monitoring(self, registered) -> None:
         _mcp, tools = registered

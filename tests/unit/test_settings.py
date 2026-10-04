@@ -1092,12 +1092,16 @@ class TestSessionMgmtSettingsDevelopment:
 class TestSessionMgmtSettingsFeatureFlags:
     """Test SessionMgmtSettings feature flags."""
 
-    def test_use_schema_v2_default_true(self) -> None:
-        """Test that schema v2 is enabled by default."""
+    def test_use_schema_v2_field_removed(self) -> None:
+        """V1 retired 2026-10-04 — schema v2 is the only schema.
+
+        The ``use_schema_v2`` field is gone from ``SessionMgmtSettings``
+        because v2 is unconditional. Verify it is no longer a field on
+        the dataclass.
+        """
         from session_buddy.settings import SessionMgmtSettings
 
-        settings = SessionMgmtSettings()
-        assert settings.use_schema_v2 is True
+        assert "use_schema_v2" not in SessionMgmtSettings.model_fields
 
     def test_enable_llm_entity_extraction_default_true(self) -> None:
         """Test that LLM entity extraction is enabled by default."""

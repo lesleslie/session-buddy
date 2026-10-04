@@ -2,6 +2,7 @@
 
 Implements spec (v1.1) §Authz Model + §Input Limits.
 """
+
 from __future__ import annotations
 
 import time
@@ -36,7 +37,9 @@ class RateLimiter:
     # ``defaultdict`` so a never-seen caller materializes a fresh empty
     # deque without a KeyError. Per-caller isolation falls out of the
     # dict keying.
-    _buckets: dict[str, deque[float]] = field(default_factory=lambda: defaultdict(deque))
+    _buckets: dict[str, deque[float]] = field(
+        default_factory=lambda: defaultdict(deque)
+    )
 
     def check(self, caller: str, *, now: float | None = None) -> None:
         """Raise ``RateLimitError`` if caller has exceeded limit in window."""
@@ -59,7 +62,7 @@ class RateLimitError(Exception):
     """Raised by ``RateLimiter.check()`` when caller exceeds quota."""
 
 
-def enforce_visibility_filter(caller: str, task: "Task") -> bool:
+def enforce_visibility_filter(caller: str, task: Task) -> bool:
     """Return True iff ``caller`` is allowed to read ``task`` under its visibility.
 
     - private: caller must match ``task.owner``

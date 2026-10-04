@@ -50,7 +50,6 @@ async def test_file_change_extraction_persists_with_activity_weight(
     import session_buddy.tools.entity_extraction_tools as eet
 
     flags = ff.FeatureFlags(
-        use_schema_v2=True,
         enable_llm_entity_extraction=True,
         enable_anthropic=False,
         enable_ollama=False,

@@ -48,7 +48,6 @@ def mock_feature_flags_enabled():
         "session_buddy.mcp.tools.advanced.entity_extraction_tools.get_feature_flags",
         return_value=FeatureFlags(
             enable_llm_entity_extraction=True,
-            use_schema_v2=True,
         ),
     )
 
@@ -62,7 +61,6 @@ def mock_feature_flags_disabled():
         "session_buddy.mcp.tools.advanced.entity_extraction_tools.get_feature_flags",
         return_value=FeatureFlags(
             enable_llm_entity_extraction=False,
-            use_schema_v2=False,
         ),
     )
 
@@ -124,27 +122,6 @@ class TestExtractAndStoreMemory:
         self, mock_feature_flags_disabled
     ) -> None:
         with mock_feature_flags_disabled:
-            result = await extract_and_store_memory(
-                user_input="Hello",
-                ai_output="Hi there",
-            )
-        assert result["status"] == "skipped"
-        assert result["reason"] == "feature_disabled"
-
-    @pytest.mark.asyncio
-    async def test_returns_skipped_when_schema_v2_disabled(
-        self, mock_feature_flags_disabled
-    ) -> None:
-        """Even if LLM extraction is on but schema_v2 is off, skip."""
-        from session_buddy.config.feature_flags import FeatureFlags
-
-        with patch(
-            "session_buddy.mcp.tools.advanced.entity_extraction_tools.get_feature_flags",
-            return_value=FeatureFlags(
-                enable_llm_entity_extraction=True,
-                use_schema_v2=False,
-            ),
-        ):
             result = await extract_and_store_memory(
                 user_input="Hello",
                 ai_output="Hi there",

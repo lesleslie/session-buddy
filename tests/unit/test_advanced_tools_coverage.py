@@ -102,7 +102,6 @@ async def test_extract_and_store_memory_cover_disabled_and_enabled_paths(
         "get_feature_flags",
         lambda: SimpleNamespace(
             enable_llm_entity_extraction=False,
-            use_schema_v2=False,
         ),
     )
 
@@ -163,7 +162,6 @@ async def test_extract_and_store_memory_cover_disabled_and_enabled_paths(
         "get_feature_flags",
         lambda: SimpleNamespace(
             enable_llm_entity_extraction=True,
-            use_schema_v2=True,
         ),
     )
     monkeypatch.setattr(tools_module, "EntityExtractionEngine", FakeEngine)

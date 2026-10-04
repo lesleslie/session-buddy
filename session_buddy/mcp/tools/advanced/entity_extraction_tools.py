@@ -23,13 +23,13 @@ async def extract_and_store_memory(
     namespace: str = "default",
     activity_score: float | None = None,
 ) -> dict[str, t.Any]:
-    """Extract entities using cascade and persist to v2 tables (when enabled).
+    """Extract entities using cascade and persist to v2 tables.
 
     This is a module-level function that can be imported and called directly
     by both the MCP tool and internal modules like app_monitor.
     """
     flags = get_feature_flags()
-    if not flags.enable_llm_entity_extraction or not flags.use_schema_v2:
+    if not flags.enable_llm_entity_extraction:
         return {
             "status": "skipped",
             "reason": "feature_disabled",

@@ -1069,7 +1069,7 @@ async def test_tasks_update_rejects_owner_mutation(_t5_engine: Any) -> None:
 
     ``UpdateTaskRequest`` excludes ``owner`` per the T1 contract
     (extra='forbid' on the model prevents construction with it). The
-    tool body ALSO has a defense-in-depth check that re-uses
+    tool body ALSO has a defense-in-depth check that reuses
     ``getattr(request, "owner", None)`` so a future regression that
     re-exposes the field still rejects it. We exercise that path by
     subclassing ``UpdateTaskRequest`` to inject the forbidden field.
@@ -2466,4 +2466,3 @@ async def test_tasks_history_validates_id_format(_t5_engine: Any) -> None:
     assert isinstance(result, dict)
     assert result.get("status") == "error"
     assert result.get("error_code") == "invalid_id_format"
-
