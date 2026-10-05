@@ -30,6 +30,16 @@ import yaml
 
 import pytest
 
+from session_buddy.settings import (
+    DatabaseConfig,
+    LLMApiKeysConfig,
+    LLMConfig,
+    PathsConfig,
+    ServerIdentityConfig,
+    SessionBuddySettings,
+    SessionMgmtSettings,
+)
+
 
 class TestLLMProvidersConfig:
     """Test LLMProvidersConfig model."""
@@ -1338,34 +1348,44 @@ class TestLegacyDebugFlag:
 
 
 class TestGetSettings:
-    """Test get_settings() global function."""
+    """Test get_settings() global function.
 
-    def test_get_settings_returns_session_mgmt_settings(self) -> None:
-        """Test that get_settings returns SessionMgmtSettings instance."""
+    Post-conversion: get_settings() returns SessionBuddySettings
+    (replaces the legacy SessionMgmtSettings). Tests build real
+    SessionBuddySettings instances and patch the module-level
+    ``_settings`` global.
+    """
+
+    def test_get_settings_returns_session_buddy_settings(self) -> None:
+        """Test that get_settings returns SessionBuddySettings instance."""
         from session_buddy import settings as settings_module
 
-        # Clear any cached settings first
         settings_module._settings = None
 
-        mock_instance = SessionMgmtSettings()
+        mock_instance = SessionBuddySettings(
+            mcp_server=ServerIdentityConfig(server_name="Loaded")
+        )
         with patch.object(
             settings_module, "_settings", None
         ):
             with patch.object(
-                settings_module.SessionMgmtSettings, "load", return_value=mock_instance
+                settings_module.SessionBuddySettings,
+                "load",
+                return_value=mock_instance,
             ):
                 result = settings_module.get_settings()
-                # The result IS the mock instance from load()
                 assert result is mock_instance
 
     def test_get_settings_caches_result(self) -> None:
         """Test that get_settings caches the settings instance."""
         from session_buddy import settings as settings_module
 
-        mock_settings = SessionMgmtSettings()
+        mock_settings = SessionBuddySettings(
+            mcp_server=ServerIdentityConfig(server_name="Cached")
+        )
         with patch.object(settings_module, "_settings", mock_settings):
             with patch.object(
-                settings_module.SessionMgmtSettings, "load"
+                settings_module.SessionBuddySettings, "load"
             ) as mock_load:
                 result = settings_module.get_settings()
                 assert result is mock_settings
@@ -1375,17 +1395,19 @@ class TestGetSettings:
         """Test that reload=True forces fresh load."""
         from session_buddy import settings as settings_module
 
-        mock_settings = SessionMgmtSettings()
-        new_settings = SessionMgmtSettings(server_name="Reloaded")
+        mock_settings = SessionBuddySettings()
+        new_settings = SessionBuddySettings(
+            mcp_server=ServerIdentityConfig(server_name="Reloaded")
+        )
 
         with patch.object(settings_module, "_settings", mock_settings):
             with patch.object(
-                settings_module.SessionMgmtSettings,
+                settings_module.SessionBuddySettings,
                 "load",
                 return_value=new_settings,
             ) as mock_load:
                 result = settings_module.get_settings(reload=True)
-                assert result.server_name == "Reloaded"
+                assert result.mcp_server.server_name == "Reloaded"
                 mock_load.assert_called_once()
 
 
@@ -1396,27 +1418,39 @@ class TestReloadSettings:
         """Test that reload_settings forces a reload."""
         from session_buddy import settings as settings_module
 
-        new_settings = SessionMgmtSettings(server_name="Reloaded")
+        new_settings = SessionBuddySettings(
+            mcp_server=ServerIdentityConfig(server_name="Reloaded")
+        )
 
         with patch.object(settings_module, "_settings", None):
             with patch.object(
-                settings_module.SessionMgmtSettings,
+                settings_module.SessionBuddySettings,
                 "load",
                 return_value=new_settings,
             ) as mock_load:
                 result = settings_module.reload_settings()
-                mock_load.assert_called_once_with("session-buddy")
+                mock_load.assert_called_once()
 
 
 class TestGetDatabasePath:
-    """Test get_database_path() function."""
+    """Test get_database_path() function.
+
+    Post-conversion: reads ``settings.database.path`` joined with
+    ``settings.paths.data_dir`` if relative.
+    """
+
+    def _make(self, *, db_path: Path, data_dir: Path) -> SessionBuddySettings:
+        return SessionBuddySettings(
+            database=DatabaseConfig(path=db_path),
+            paths=PathsConfig(data_dir=data_dir),
+        )
 
     def test_get_database_path_with_absolute_path(self) -> None:
         """Test get_database_path with absolute database_path."""
         from session_buddy import settings as settings_module
 
-        settings = SessionMgmtSettings(
-            database_path=Path("/absolute/path/db.duckdb"),
+        settings = self._make(
+            db_path=Path("/absolute/path/db.duckdb"),
             data_dir=Path("~/.claude/data"),
         )
         with patch.object(settings_module, "_settings", settings):
@@ -1427,8 +1461,8 @@ class TestGetDatabasePath:
         """Test get_database_path with relative path uses data_dir."""
         from session_buddy import settings as settings_module
 
-        settings = SessionMgmtSettings(
-            database_path=Path("relative/db.duckdb"),
+        settings = self._make(
+            db_path=Path("relative/db.duckdb"),
             data_dir=Path("/tmp/data"),
         )
         with patch.object(settings_module, "_settings", settings):
@@ -1439,8 +1473,8 @@ class TestGetDatabasePath:
         """Test get_database_path expands ~ in paths."""
         from session_buddy import settings as settings_module
 
-        settings = SessionMgmtSettings(
-            database_path=Path("~/my/db.duckdb"),
+        settings = self._make(
+            db_path=Path("~/my/db.duckdb"),
             data_dir=Path("~/.claude/data"),
         )
         with patch.object(settings_module, "_settings", settings):
@@ -1450,26 +1484,35 @@ class TestGetDatabasePath:
     def test_get_database_path_with_string_values(self) -> None:
         """Test get_database_path handles raw string settings values."""
         from session_buddy import settings as settings_module
-        from unittest.mock import Mock
 
-        mock_settings = Mock()
-        mock_settings.database_path = "relative/db.duckdb"
-        mock_settings.data_dir = "/tmp/data"
-
-        with patch.object(settings_module, "_settings", mock_settings):
+        settings = self._make(
+            db_path=Path("relative/db.duckdb"),
+            data_dir=Path("/tmp/data"),
+        )
+        with patch.object(settings_module, "_settings", settings):
             result = settings_module.get_database_path()
-
         assert result == Path("/tmp/data/relative/db.duckdb")
 
 
 class TestGetLogFilePath:
-    """Test get_log_file_path() function."""
+    """Test get_log_file_path() function.
+
+    Post-conversion: reads ``settings.paths.log_file_path`` joined
+    with ``settings.paths.log_dir`` if relative.
+    """
+
+    def _make(self, *, log_file_path: Path, log_dir: Path) -> SessionBuddySettings:
+        return SessionBuddySettings(
+            paths=PathsConfig(
+                log_file_path=log_file_path, log_dir=log_dir
+            ),
+        )
 
     def test_get_log_file_path_with_absolute_path(self) -> None:
         """Test get_log_file_path with absolute log_file_path."""
         from session_buddy import settings as settings_module
 
-        settings = SessionMgmtSettings(
+        settings = self._make(
             log_file_path=Path("/absolute/log/app.log"),
             log_dir=Path("~/.claude/logs"),
         )
@@ -1481,7 +1524,7 @@ class TestGetLogFilePath:
         """Test get_log_file_path with relative path uses log_dir."""
         from session_buddy import settings as settings_module
 
-        settings = SessionMgmtSettings(
+        settings = self._make(
             log_file_path=Path("relative/log.log"),
             log_dir=Path("/tmp/logs"),
         )
@@ -1493,7 +1536,7 @@ class TestGetLogFilePath:
         """Test get_log_file_path expands ~ in paths."""
         from session_buddy import settings as settings_module
 
-        settings = SessionMgmtSettings(
+        settings = self._make(
             log_file_path=Path("~/my/logs/app.log"),
             log_dir=Path("~/.claude/logs"),
         )
@@ -1504,45 +1547,47 @@ class TestGetLogFilePath:
     def test_get_log_file_path_with_string_values(self) -> None:
         """Test get_log_file_path rejects raw string settings values."""
         from session_buddy import settings as settings_module
-        from unittest.mock import Mock
 
-        mock_settings = Mock()
-        mock_settings.log_file_path = "relative/app.log"
-        mock_settings.log_dir = "/tmp/logs"
-
-        with patch.object(settings_module, "_settings", mock_settings):
-            with pytest.raises(AttributeError):
-                settings_module.get_log_file_path()
+        settings = self._make(
+            log_file_path=Path("relative/app.log"),
+            log_dir=Path("/tmp/logs"),
+        )
+        with patch.object(settings_module, "_settings", settings):
+            result = settings_module.get_log_file_path()
+            assert result == Path("/tmp/logs/relative/app.log")
 
 
 class TestGetLLMAPIKey:
-    """Test get_llm_api_key() function."""
+    """Test get_llm_api_key() function.
+
+    Post-conversion: the helper reads
+    ``settings.llm.api_keys.<provider>``. Tests construct
+    SessionBuddySettings with ``LLMApiKeysConfig`` overrides and
+    patch the module-level singleton.
+    """
+
+    def _make(self, **api_keys: str | None) -> SessionBuddySettings:
+        return SessionBuddySettings(
+            llm=LLMConfig(api_keys=LLMApiKeysConfig(**api_keys)),
+        )
 
     def test_get_llm_api_key_openai(self) -> None:
         """Test get_llm_api_key for OpenAI provider."""
         from session_buddy import settings as settings_module
-        from unittest.mock import Mock
 
-        # Use a placeholder test API key
         test_key = "sk-test-placeholder-key-for-unit-testing-only"
-        mock_settings = Mock()
-        mock_settings.openai_api_key = test_key
-        mock_settings.get_api_key_secure = Mock(return_value=test_key)
-        with patch.object(settings_module, "_settings", mock_settings):
+        settings = self._make(openai=test_key)
+        with patch.object(settings_module, "_settings", settings):
             result = settings_module.get_llm_api_key("openai")
             assert result == test_key
 
     def test_get_llm_api_key_anthropic(self) -> None:
         """Test get_llm_api_key for Anthropic provider."""
         from session_buddy import settings as settings_module
-        from unittest.mock import Mock
 
-        # Use a placeholder test API key
         test_key = "sk-ant-test-placeholder-key-for-unit-testing-only-1234567890"
-        mock_settings = Mock()
-        mock_settings.anthropic_api_key = test_key
-        mock_settings.get_api_key_secure = Mock(return_value=test_key)
-        with patch.object(settings_module, "_settings", mock_settings):
+        settings = self._make(anthropic=test_key)
+        with patch.object(settings_module, "_settings", settings):
             result = settings_module.get_llm_api_key("anthropic")
             assert result == test_key
 
@@ -1550,35 +1595,25 @@ class TestGetLLMAPIKey:
         """Test get_llm_api_key for MiniMax provider."""
         from session_buddy import settings as settings_module
 
-        settings = SessionMgmtSettings(minimax_api_key="minimax-key")
+        settings = self._make(minimax="minimax-key")
         with patch.object(settings_module, "_settings", settings):
-            with patch.object(
-                settings_module.SessionMgmtSettings,
-                "get_api_key",
-                return_value="minimax-key",
-            ):
-                result = settings_module.get_llm_api_key("minimax")
-                assert result == "minimax-key"
+            result = settings_module.get_llm_api_key("minimax")
+            assert result == "minimax-key"
 
     def test_get_llm_api_key_zai(self) -> None:
         """Test get_llm_api_key for ZAI provider."""
         from session_buddy import settings as settings_module
 
-        settings = SessionMgmtSettings(zai_api_key="zai-key")
+        settings = self._make(zai="zai-key")
         with patch.object(settings_module, "_settings", settings):
-            with patch.object(
-                settings_module.SessionMgmtSettings,
-                "get_api_key",
-                return_value="zai-key",
-            ):
-                result = settings_module.get_llm_api_key("zai")
-                assert result == "zai-key"
+            result = settings_module.get_llm_api_key("zai")
+            assert result == "zai-key"
 
     def test_get_llm_api_key_unknown_provider(self) -> None:
         """Test get_llm_api_key returns None for unknown provider."""
         from session_buddy import settings as settings_module
 
-        settings = SessionMgmtSettings()
+        settings = self._make()
         with patch.object(settings_module, "_settings", settings):
             result = settings_module.get_llm_api_key("unknown_provider")
             assert result is None
@@ -1587,7 +1622,7 @@ class TestGetLLMAPIKey:
         """Test get_llm_api_key returns None for empty/whitespace API key."""
         from session_buddy import settings as settings_module
 
-        settings = SessionMgmtSettings(openai_api_key="   ")
+        settings = self._make(openai="   ")
         with patch.object(settings_module, "_settings", settings):
             result = settings_module.get_llm_api_key("openai")
             assert result is None

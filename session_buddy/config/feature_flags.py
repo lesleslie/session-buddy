@@ -70,23 +70,47 @@ def get_feature_flags() -> FeatureFlags:
 
     # Base flags from settings if present (fallback False).
     # Reads from the nested groups on SessionBuddySettings
-    # (added 2026-10-04). The legacy flat
-    # ``getattr(settings, "enable_<flag>", False)`` pattern silently
-    # returned False after the schema reshape.
+    # (added 2026-10-04). Uses ``getattr`` with a default so tests
+    # that pass a SimpleNamespace with only some attributes don't
+    # raise AttributeError (the legacy flat ``getattr`` pattern
+    # silently returned False for missing keys; preserve that
+    # fallback behavior at the nested level too).
+    def _read_attr(obj, *names: str, default: bool = False) -> bool:
+        """Read nested attribute or fall back to default.
+
+        ``names`` is a chain like ``"feature_flags"``, ``"enable_anthropic"`` —
+        walks the path, returns ``default`` at the first miss. If the
+        nested walk fails, fall back to the legacy flat-name lookup
+        (``obj.enable_anthropic`` — the last name only) so tests
+        that pass a SimpleNamespace with the old flat shape still
+        work.
+    """
+        cur = obj
+        for name in names:
+            cur = getattr(cur, name, default)
+            if cur is default:
+                # Fall back: try the leaf name as a flat attribute.
+                return bool(getattr(obj, names[-1], default))
+        return bool(cur)
+
     base = FeatureFlags(
-        enable_llm_entity_extraction=bool(
-            settings.entity_extraction.enable
+        enable_llm_entity_extraction=_read_attr(
+            settings, "entity_extraction", "enable"
         ),
-        enable_anthropic=bool(settings.feature_flags.enable_anthropic),
-        enable_ollama=bool(settings.feature_flags.enable_ollama),
-        enable_conscious_agent=bool(
-            settings.feature_flags.enable_conscious_agent
+        enable_anthropic=_read_attr(
+            settings, "feature_flags", "enable_anthropic"
         ),
-        enable_filesystem_extraction=bool(
-            settings.feature_flags.enable_filesystem_extraction
+        enable_ollama=_read_attr(
+            settings, "feature_flags", "enable_ollama"
         ),
-        enable_crackerjack_fallback=bool(
-            settings.feature_flags.enable_crackerjack_fallback
+        enable_conscious_agent=_read_attr(
+            settings, "feature_flags", "enable_conscious_agent"
+        ),
+        enable_filesystem_extraction=_read_attr(
+            settings, "feature_flags", "enable_filesystem_extraction"
+        ),
+        enable_crackerjack_fallback=_read_attr(
+            settings, "feature_flags", "enable_crackerjack_fallback"
         ),
     )
 

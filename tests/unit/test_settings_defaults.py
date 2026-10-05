@@ -2,25 +2,38 @@ from __future__ import annotations
 
 import pytest
 
-from session_buddy.settings import SessionMgmtSettings, get_settings
+from session_buddy.settings import SessionBuddySettings, SessionMgmtSettings, get_settings
 
 
 def test_settings_defaults_present() -> None:
     s = get_settings(reload=True)
-    assert s.filesystem_dedupe_ttl_seconds >= 60
-    assert s.filesystem_max_file_size_bytes >= 10000
-    assert isinstance(s.filesystem_ignore_dirs, list)
-    assert s.llm_extraction_timeout >= 1
-    assert s.llm_extraction_retries >= 0
+    # Nested filesystem_extraction group
+    assert s.filesystem_extraction.dedupe_ttl_seconds >= 60
+    assert s.filesystem_extraction.max_file_size_bytes >= 10000
+    assert isinstance(s.filesystem_extraction.ignore_dirs, list)
+    # Nested entity_extraction group
+    assert s.entity_extraction.timeout >= 1
+    assert s.entity_extraction.retries >= 0
 
 
 def test_legacy_debug_maps_to_enable_debug_mode() -> None:
-    # This test needs to be updated to work with our mock settings
-    from session_buddy.settings import get_settings
-    # Since we're mocking the settings, we need to test the functionality differently
-    # The model_validator is tested in integration tests
+    """The legacy ``debug: true`` YAML key still maps to
+    ``enable_debug_mode=True`` on the nested ``mcp_server`` group
+    (the root-level ``debug`` field on OneiricMCPConfig is read
+    by the model_validator, which maps it to ``enable_debug_mode``
+    in the nested group).
+    """
+    from session_buddy.settings import SessionBuddySettings
+
     settings = get_settings()
-    assert hasattr(settings, "enable_debug_mode")
+    # New schema: enable_debug_mode lives in the mcp_server group.
+    assert hasattr(settings, "mcp_server")
+    assert hasattr(settings.mcp_server, "enable_debug_mode")
+    # Direct validator test: the legacy ``debug: True`` mapping is
+    # handled by the _map_legacy_debug_flag model_validator on
+    # SessionBuddySettings.
+    result = SessionBuddySettings.model_validate({"debug": True})
+    assert result.mcp_server.enable_debug_mode is True
 
 
 class TestGitPruneDelayValidation:

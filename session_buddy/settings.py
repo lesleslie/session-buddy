@@ -1923,10 +1923,15 @@ class SessionBuddySettings(OneiricMCPConfig):
         """Return a masked representation of the named API-key field.
 
         Migration shim: ``llm/security.get_masked_api_key`` used to
-        call ``settings.get_masked_key(...)``. Reads the named field
-        and keeps only the trailing ``visible_chars`` characters.
+        call ``settings.get_masked_key(...)``. Reads from the nested
+        ``llm.api_keys`` group when given the ``api_keys.<provider>``
+        convention, falling back to flat ``getattr`` for legacy keys.
         """
-        raw = getattr(self, key_name, None)
+        if key_name.startswith("api_keys."):
+            provider = key_name.removeprefix("api_keys.")
+            raw = getattr(self.llm.api_keys, provider, None)
+        else:
+            raw = getattr(self, key_name, None)
         if not isinstance(raw, str) or not raw.strip():
             return "***"
         if visible_chars <= 0 or len(raw) <= visible_chars:
@@ -1936,9 +1941,18 @@ class SessionBuddySettings(OneiricMCPConfig):
     def get_api_key(self, key_name: str = "api_key") -> str:
         """Migration shim: returns the value of the named field.
 
+        Reads from the nested ``llm.api_keys`` group when called
+        with the ``api_keys.<provider>`` key-name convention (used
+        by ``get_llm_api_key``). Falls back to flat ``getattr`` for
+        legacy callers that pass a bare field name.
+
         Raises ``ValueError`` if the key is missing or empty.
         """
-        value = getattr(self, key_name, None)
+        if key_name.startswith("api_keys."):
+            provider = key_name.removeprefix("api_keys.")
+            value = getattr(self.llm.api_keys, provider, None)
+        else:
+            value = getattr(self, key_name, None)
         if not isinstance(value, str) or not value.strip():
             msg = f"API key {key_name!r} is missing or empty"
             raise ValueError(msg)

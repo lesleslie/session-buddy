@@ -16,6 +16,16 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
+from session_buddy.settings import (
+    DatabaseConfig,
+    EntityExtractionConfig,
+    FeatureFlagsConfig,
+    MCPTransportConfig,
+    PathsConfig,
+    ServerIdentityConfig,
+    SessionBuddySettings,
+)
+
 import pytest
 
 try:
@@ -417,7 +427,7 @@ def isolated_test_db_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     test_log_dir.mkdir(exist_ok=True)
     test_db_path = test_data_dir / "reflection.duckdb"
 
-    # Replace the cached SessionMgmtSettings singleton. We import the
+    # Replace the cached SessionBuddySettings singleton. We import the
     # real module/class here so the patched instance is the same class
     # the production code uses (preserves isinstance checks). The 3-arg
     # form of monkeypatch.setattr is REQUIRED here: the dotted-string
@@ -426,15 +436,23 @@ def isolated_test_db_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     # import resolves to ``setattr("session_buddy", "settings._settings",
     # ...)`` which is not what we want.
     import session_buddy.settings as _settings_module
-    from session_buddy.settings import SessionMgmtSettings
+    from session_buddy.settings import SessionBuddySettings
 
     # Build a real settings instance pointing at our isolated dirs.
     # We use the production load() so any environment-var overrides
-    # are honored, then mutate the three path fields.
-    real_settings = SessionMgmtSettings.load("session-buddy")
-    real_settings.data_dir = test_data_dir
-    real_settings.log_dir = test_log_dir
-    real_settings.database_path = test_db_path
+    # are honored, then mutate the path fields. Phase 5: read via
+    # the new nested paths (paths.data_dir, paths.log_dir, database.path).
+    real_settings = SessionBuddySettings.load()
+    real_settings = real_settings.model_copy(
+        update={
+            "paths": real_settings.paths.model_copy(
+                update={"data_dir": test_data_dir, "log_dir": test_log_dir}
+            ),
+            "database": real_settings.database.model_copy(
+                update={"path": test_db_path}
+            ),
+        }
+    )
     monkeypatch.setattr(_settings_module, "_settings", real_settings)
 
     # Belt-and-suspenders: reset the DI module's configured flag so any
@@ -1309,126 +1327,41 @@ def mock_settings(tmp_path):
     test_log_dir = tmp_path / "session-buddy-logs"
     test_log_dir.mkdir(exist_ok=True)
 
-    with patch("session_buddy.settings.SessionMgmtSettings") as mock_settings_class:
-        mock_settings_instance = Mock()
-        mock_settings_instance.server_name = "Test Session Buddy MCP"
-        mock_settings_instance.server_description = "Test configuration for Session Buddy MCP server"
-        mock_settings_instance.log_level = "INFO"
-        mock_settings_instance.enable_debug_mode = False
-        mock_settings_instance.data_dir = test_data_dir
-        mock_settings_instance.log_dir = test_log_dir
-        mock_settings_instance.database_path = test_data_dir / "reflection.duckdb"
-        mock_settings_instance.database_connection_timeout = 30
-        mock_settings_instance.database_query_timeout = 120
-        mock_settings_instance.database_max_connections = 10
-        mock_settings_instance.enable_multi_project = True
-        mock_settings_instance.auto_detect_projects = True
-        mock_settings_instance.project_groups_enabled = True
-        mock_settings_instance.enable_full_text_search = True
-        mock_settings_instance.search_index_update_interval = 3600
-        mock_settings_instance.max_search_results = 100
-        mock_settings_instance.enable_semantic_search = True
-        mock_settings_instance.embedding_model = "all-MiniLM-L6-v2"
-        mock_settings_instance.embedding_cache_size = 1000
-        mock_settings_instance.enable_faceted_search = True
-        mock_settings_instance.max_facet_values = 50
-        mock_settings_instance.enable_search_suggestions = True
-        mock_settings_instance.suggestion_limit = 10
-        mock_settings_instance.enable_stemming = True
-        mock_settings_instance.enable_fuzzy_matching = True
-        mock_settings_instance.fuzzy_threshold = 0.8
-        mock_settings_instance.enable_token_optimization = True
-        mock_settings_instance.default_max_tokens = 4000
-        mock_settings_instance.default_chunk_size = 2000
-        mock_settings_instance.optimization_strategy = "auto"
-        mock_settings_instance.enable_response_chunking = True
-        mock_settings_instance.enable_duplicate_filtering = True
-        mock_settings_instance.track_token_usage = True
-        mock_settings_instance.usage_retention_days = 90
-        mock_settings_instance.auto_checkpoint_interval = 1800
-        mock_settings_instance.enable_auto_commit = True
-        mock_settings_instance.commit_message_template = "checkpoint: Session checkpoint - {timestamp}"
-        mock_settings_instance.enable_permission_system = True
-        mock_settings_instance.default_trusted_operations = ["git_commit", "uv_sync", "file_operations"]
-        mock_settings_instance.auto_cleanup_old_sessions = True
-        mock_settings_instance.session_retention_days = 365
-        mock_settings_instance.enable_auto_store_reflections = True
-        mock_settings_instance.auto_store_quality_delta_threshold = 10
-        mock_settings_instance.auto_store_exceptional_quality_threshold = 90
-        mock_settings_instance.auto_store_manual_checkpoints = True
-        mock_settings_instance.auto_store_session_end = True
-        mock_settings_instance.enable_conversation_storage = True
-        mock_settings_instance.conversation_storage_min_length = 100
-        mock_settings_instance.conversation_storage_max_length = 50000
-        mock_settings_instance.auto_store_conversations_on_checkpoint = True
-        mock_settings_instance.auto_store_conversations_on_session_end = True
-        mock_settings_instance.enable_crackerjack = True
-        mock_settings_instance.crackerjack_command = "crackerjack"
-        mock_settings_instance.enable_git_integration = True
-        mock_settings_instance.git_auto_stage = False
-        mock_settings_instance.global_workspace_path = Path("~/Projects/claude")
-        mock_settings_instance.openai_api_key = None
-        mock_settings_instance.anthropic_api_key = None
-        mock_settings_instance.gemini_api_key = None
-        mock_settings_instance.log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        mock_settings_instance.enable_file_logging = True
-        mock_settings_instance.log_file_path = Path("/tmp/test-session-buddy-logs/session-buddy.log")
-        mock_settings_instance.log_file_max_size = 10 * 1024 * 1024
-        mock_settings_instance.log_file_backup_count = 5
-        mock_settings_instance.enable_performance_logging = False
-        mock_settings_instance.log_slow_queries = True
-        mock_settings_instance.slow_query_threshold = 1.0
-        mock_settings_instance.anonymize_paths = False
-        mock_settings_instance.enable_rate_limiting = True
-        mock_settings_instance.max_requests_per_minute = 100
-        mock_settings_instance.max_query_length = 10000
-        mock_settings_instance.max_content_length = 1000000
-        mock_settings_instance.server_host = "localhost"
-        mock_settings_instance.server_port = 3000
-        mock_settings_instance.enable_hot_reload = False
-        mock_settings_instance.enable_llm_entity_extraction = True
-        mock_settings_instance.enable_anthropic = True
-        mock_settings_instance.enable_ollama = False
-        mock_settings_instance.enable_conscious_agent = True
-        mock_settings_instance.enable_filesystem_extraction = True
-        mock_settings_instance.llm_extraction_timeout = 10
-        mock_settings_instance.llm_extraction_retries = 1
-        mock_settings_instance.filesystem_dedupe_ttl_seconds = 120
-        mock_settings_instance.filesystem_max_file_size_bytes = 1000000
-        mock_settings_instance.filesystem_ignore_dirs = [
-            ".git",
-            "__pycache__",
-            "node_modules",
-            ".venv",
-            "venv",
-            ".pytest_cache",
-            ".mypy_cache",
-            ".ruff_cache",
-            "dist",
-            "build",
-            ".DS_Store",
-            ".idea",
-            ".vscode",
-        ]
-        # Set up the mock to return the instance when load is called OR directly instantiated
-        mock_settings_class.return_value = mock_settings_instance  # For SessionMgmtSettings()
-        mock_settings_class.load.return_value = mock_settings_instance  # For SessionMgmtSettings.load()
-        # Also mock model_validate to return the instance when called with test data
-        def mock_model_validate(data, **kwargs):
-            result = Mock()
-            for attr, value in mock_settings_instance.__dict__.items():
-                setattr(result, attr, value)
-            # Handle special case for debug flag mapping
-            if isinstance(data, dict) and "debug" in data and "enable_debug_mode" not in data:
-                result.enable_debug_mode = bool(data["debug"])
-            return result
-        mock_settings_class.model_validate = mock_model_validate
-        previous_settings = settings_module._settings
-        settings_module._settings = mock_settings_instance
-        try:
-            yield mock_settings_instance
-        finally:
-            settings_module._settings = previous_settings
+    # Build a real SessionBuddySettings instance with overrides for
+    # test-only fields (paths land in tmp_path; flags on). Replaces the
+    # legacy 70+-attribute ``Mock`` fixture (Phase 5 of the conversion
+    # plan). A real instance surfaces validation errors immediately
+    # and avoids ``Mock(spec=...)`` silently accepting unknown kwargs.
+    settings_instance = SessionBuddySettings(
+        mcp_server=ServerIdentityConfig(
+            server_name="Test Session Buddy MCP",
+            server_description="Test configuration for Session Buddy MCP server",
+        ),
+        mcp_transport=MCPTransportConfig(server_port=3000),
+        paths=PathsConfig(
+            data_dir=test_data_dir,
+            log_dir=test_log_dir,
+            log_file_path=Path("/tmp/test-session-buddy-logs/session-buddy.log"),
+        ),
+        database=DatabaseConfig(path=test_data_dir / "reflection.duckdb"),
+        feature_flags=FeatureFlagsConfig(
+            enable_anthropic=True,
+            enable_ollama=False,
+            enable_conscious_agent=True,
+            enable_filesystem_extraction=True,
+        ),
+        entity_extraction=EntityExtractionConfig(enable=True, timeout=10, retries=1),
+        # auto_store_exceptional_quality_threshold defaults to 70
+        # (settings/session-buddy.yaml); tests that need 90 override.
+    )
+    previous_settings = settings_module._settings
+    settings_module._settings = settings_instance
+    try:
+        yield settings_instance
+    finally:
+        # Reset to None so the next test triggers a fresh load
+        # (avoids stale-instance cross-test pollution).
+        settings_module._settings = None
 
 
 @pytest.fixture
