@@ -1,29 +1,17 @@
-"""Comprehensive unit tests for session_buddy/settings.py (896 lines).
+"""Comprehensive unit tests for ``SessionBuddySettings`` (Oneiric-shaped).
 
-Tests:
-- LLMProvidersConfig
-- SessionMgmtSettings
-- Path expansion (user paths ~)
-- Legacy debug flag mapping
-- Git prune delay validation
-- Commit message template validation
-- get_settings() / reload_settings()
-- get_database_path()
-- get_log_file_path()
-- get_llm_api_key()
+Covers the 22 nested ``*Config`` groups, validators, loaders, and
+helpers. Replaces the legacy flat-shape ``SessionMgmtSettings`` test
+suite (deleted in Phase 6). Constructors use the nested
+``Group(<field>=value)`` pattern.
 
-Uses tempfile.TemporaryDirectory for all file operations.
-Mocks external dependencies (filesystem beyond temp dir, environment variables).
-Run with: python -m pytest tests/unit/test_settings.py -v --no-cov
+Run with: ``python -m pytest tests/unit/test_settings.py -v --no-cov``
 """
 
 from __future__ import annotations
 
-import os
-import tempfile
 import warnings
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import yaml
@@ -31,802 +19,608 @@ import yaml
 import pytest
 
 from session_buddy.settings import (
+    AkoshaSyncConfig,
+    BodaiEventsConfig,
+    ConversationStorageConfig,
     DatabaseConfig,
+    DevelopmentConfig,
+    EntityExtractionConfig,
+    FeatureFlagsConfig,
+    FilesystemExtractionConfig,
+    GitMaintenanceConfig,
+    IntegrationsConfig,
     LLMApiKeysConfig,
     LLMConfig,
+    LoggingConfig,
+    MCPTransportConfig,
     PathsConfig,
+    PrometheusConfig,
+    ReflectionAutoStoreConfig,
+    SearchConfig,
+    SecurityConfig,
     ServerIdentityConfig,
     SessionBuddySettings,
+    SessionConfig,
+    TokensConfig,
 )
 
 
-class TestLLMProvidersConfig:
-    """Test LLMProvidersConfig model."""
+# ===========================================================================
+# LLMConfig (consolidated; absorbs the legacy LLMProvidersConfig + flat
+# minimax_*/zai_*/llama_server_*/default_llm_provider/llm_fallback_chain
+# fields)
+# ===========================================================================
+
+
+class TestLLMConfig:
+    """Test the consolidated ``LLMConfig`` group."""
 
     def test_default_provider_is_minimax(self) -> None:
-        """Test that default provider is minimax."""
-        from session_buddy.settings import LLMProvidersConfig
-
-        config = LLMProvidersConfig()
-        assert config.default_provider == "minimax"
+        settings = SessionBuddySettings()
+        assert settings.llm.default_provider == "minimax"
 
     def test_ollama_base_url_default(self) -> None:
-        """Test default Ollama base URL."""
-        from session_buddy.settings import LLMProvidersConfig
-
-        config = LLMProvidersConfig()
-        assert config.ollama_base_url == "http://localhost:11434"
+        settings = SessionBuddySettings()
+        assert settings.llm.ollama_base_url == "http://localhost:11434"
 
     def test_ollama_default_model_default(self) -> None:
-        """Test default Ollama model."""
-        from session_buddy.settings import LLMProvidersConfig
-
-        config = LLMProvidersConfig()
-        assert config.ollama_default_model == "qwen2.5-coder:7b"
+        settings = SessionBuddySettings()
+        assert settings.llm.ollama_default_model == "qwen2.5-coder:7b"
 
     def test_llama_server_default_model_default(self) -> None:
-        """Test default llama-server model."""
-        from session_buddy.settings import LLMProvidersConfig
-
-        config = LLMProvidersConfig()
-        assert config.llama_server_default_model == "qwen3.5"
+        settings = SessionBuddySettings()
+        assert settings.llm.llama_server_default_model == "qwen3.5"
 
     def test_fallback_providers_default(self) -> None:
-        """Test default fallback providers list."""
-        from session_buddy.settings import LLMProvidersConfig
-
-        config = LLMProvidersConfig()
-        assert config.fallback_providers == ["minimax", "llama_server", "ollama"]
-
-    def test_valid_provider_literals(self) -> None:
-        """Test all valid provider literal values."""
-        from session_buddy.settings import LLMProvidersConfig
-
-        valid_providers = ["minimax", "zai", "openai", "gemini", "ollama", "llama_server"]
-        for provider in valid_providers:
-            config = LLMProvidersConfig(default_provider=provider)
-            assert config.default_provider == provider
-
-    def test_custom_provider(self) -> None:
-        """Test setting a custom provider."""
-        from session_buddy.settings import LLMProvidersConfig
-
-        config = LLMProvidersConfig(default_provider="ollama")
-        assert config.default_provider == "ollama"
-
-    def test_custom_fallback_chain(self) -> None:
-        """Test setting a custom fallback chain."""
-        from session_buddy.settings import LLMProvidersConfig
-
-        custom_chain = ["ollama", "minimax"]
-        config = LLMProvidersConfig(fallback_providers=custom_chain)
-        assert config.fallback_providers == custom_chain
-
-    def test_custom_urls(self) -> None:
-        """Test setting custom service URLs."""
-        from session_buddy.settings import LLMProvidersConfig
-
-        config = LLMProvidersConfig(
-            ollama_base_url="http://custom:11434",
-        )
-        assert config.ollama_base_url == "http://custom:11434"
-
-
-class TestSessionMgmtSettingsLLMProviders:
-    """Test SessionMgmtSettings LLM provider fields."""
-
-    def test_llm_providers_default(self) -> None:
-        """Test default LLM providers config."""
-        from session_buddy.settings import LLMProvidersConfig, SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert isinstance(settings.llm_providers, LLMProvidersConfig)
-        assert settings.llm_providers.default_provider == "minimax"
-
-    def test_custom_llm_providers(self) -> None:
-        """Test setting custom LLM providers config."""
-        from session_buddy.settings import LLMProvidersConfig, SessionMgmtSettings
-
-        custom = LLMProvidersConfig(default_provider="ollama")
-        settings = SessionMgmtSettings(llm_providers=custom)
-        assert settings.llm_providers.default_provider == "ollama"
+        settings = SessionBuddySettings()
+        assert settings.llm.fallback_providers == [
+            "minimax",
+            "llama_server",
+            "ollama",
+        ]
 
     def test_minimax_base_url_default(self) -> None:
-        """Test default MiniMax base URL."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.minimax_base_url == "https://api.minimax.io/v1"
+        settings = SessionBuddySettings()
+        assert settings.llm.minimax_base_url == "https://api.minimax.io/v1"
 
     def test_minimax_default_model_default(self) -> None:
-        """Test default MiniMax model."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.minimax_default_model == "MiniMax-M2.7"
+        settings = SessionBuddySettings()
+        assert settings.llm.minimax_default_model == "MiniMax-M2.7"
 
     def test_zai_base_url_default(self) -> None:
-        """Test default ZAI base URL."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.zai_base_url == "https://api.z.ai/api/coding/paas/v4"
+        settings = SessionBuddySettings()
+        assert settings.llm.zai_base_url == "https://api.z.ai/api/coding/paas/v4"
 
     def test_zai_default_model_default(self) -> None:
-        """Test default ZAI model."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.zai_default_model == "glm-4.7"
+        settings = SessionBuddySettings()
+        assert settings.llm.zai_default_model == "glm-4.7"
 
     def test_llama_server_model_default(self) -> None:
-        """Test default llama-server model (SessionMgmtSettings level)."""
-        from session_buddy.settings import SessionMgmtSettings
+        settings = SessionBuddySettings()
+        assert settings.llm.llama_server_model == "qwen3.5"
 
-        settings = SessionMgmtSettings()
-        assert settings.llama_server_model == "qwen3.5"
+    def test_valid_provider_literals(self) -> None:
+        valid_providers = ["minimax", "zai", "openai", "gemini", "ollama", "llama_server"]
+        for provider in valid_providers:
+            settings = SessionBuddySettings(
+                llm=LLMConfig(default_provider=provider),
+            )
+            assert settings.llm.default_provider == provider
 
-    def test_default_llm_provider_default(self) -> None:
-        """Test default LLM provider field."""
-        from session_buddy.settings import SessionMgmtSettings
+    def test_custom_provider(self) -> None:
+        settings = SessionBuddySettings(
+            llm=LLMConfig(default_provider="ollama"),
+        )
+        assert settings.llm.default_provider == "ollama"
 
-        settings = SessionMgmtSettings()
-        assert settings.default_llm_provider == "minimax"
+    def test_custom_fallback_chain(self) -> None:
+        custom_chain = ["ollama", "minimax"]
+        settings = SessionBuddySettings(
+            llm=LLMConfig(fallback_providers=custom_chain),
+        )
+        assert settings.llm.fallback_providers == custom_chain
 
-    def test_llm_fallback_chain_default(self) -> None:
-        """Test default LLM fallback chain."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.llm_fallback_chain == ["minimax", "llama_server", "ollama"]
-
-    def test_custom_llm_fallback_chain(self) -> None:
-        """Test setting custom LLM fallback chain."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(llm_fallback_chain=["ollama", "minimax"])
-        assert settings.llm_fallback_chain == ["ollama", "minimax"]
+    def test_custom_urls(self) -> None:
+        settings = SessionBuddySettings(
+            llm=LLMConfig(ollama_base_url="http://custom:11434"),
+        )
+        assert settings.llm.ollama_base_url == "http://custom:11434"
 
 
-class TestSessionMgmtSettingsCore:
-    """Test SessionMgmtSettings core MCP fields."""
+# ===========================================================================
+# ServerIdentityConfig (MCP server identity + log level)
+# ===========================================================================
+
+
+class TestServerIdentityConfig:
+    """Test the ``mcp_server`` group (formerly the flat ``server_name``/etc.)."""
 
     def test_server_name_default(self) -> None:
-        """Test default server name."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.server_name == "Session Buddy MCP"
+        settings = SessionBuddySettings()
+        assert settings.mcp_server.server_name == "Session Buddy MCP"
 
     def test_server_description_default(self) -> None:
-        """Test default server description."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
+        settings = SessionBuddySettings()
         assert (
-            settings.server_description == "Session management and tooling MCP server"
+            settings.mcp_server.server_description
+            == "Session management and tooling MCP server"
         )
 
     def test_log_level_default(self) -> None:
-        """Test default log level."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.log_level == "INFO"
+        settings = SessionBuddySettings()
+        assert settings.mcp_server.log_level == "INFO"
 
     def test_enable_debug_mode_default_false(self) -> None:
-        """Test that debug mode is False by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_debug_mode is False
+        settings = SessionBuddySettings()
+        assert settings.mcp_server.enable_debug_mode is False
 
     def test_valid_log_levels(self) -> None:
-        """Test all valid log level literals."""
-        from session_buddy.settings import SessionMgmtSettings
-
         for level in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-            settings = SessionMgmtSettings(log_level=level)
-            assert settings.log_level == level
+            settings = SessionBuddySettings(
+                mcp_server=ServerIdentityConfig(log_level=level),
+            )
+            assert settings.mcp_server.log_level == level
 
     def test_custom_server_name(self) -> None:
-        """Test setting custom server name."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(server_name="Custom Server")
-        assert settings.server_name == "Custom Server"
+        settings = SessionBuddySettings(
+            mcp_server=ServerIdentityConfig(server_name="Custom Server"),
+        )
+        assert settings.mcp_server.server_name == "Custom Server"
 
     def test_custom_log_level(self) -> None:
-        """Test setting custom log level."""
-        from session_buddy.settings import SessionMgmtSettings
+        settings = SessionBuddySettings(
+            mcp_server=ServerIdentityConfig(log_level="DEBUG"),
+        )
+        assert settings.mcp_server.log_level == "DEBUG"
 
-        settings = SessionMgmtSettings(log_level="DEBUG")
-        assert settings.log_level == "DEBUG"
+
+# ===========================================================================
+# PathsConfig (path settings + ~ expansion)
+# ===========================================================================
 
 
-class TestSessionMgmtSettingsPaths:
-    """Test SessionMgmtSettings path fields and expansion."""
+class TestPathsConfig:
+    """Test ``paths`` group (formerly flat ``data_dir``/``log_dir``/etc.)."""
 
     def test_default_data_dir(self) -> None:
-        """Test default data directory path."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.data_dir == Path("~/.claude/data")
+        settings = SessionBuddySettings()
+        assert settings.paths.data_dir == Path("~/.claude/data")
 
     def test_default_log_dir(self) -> None:
-        """Test default log directory path."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.log_dir == Path("~/.claude/logs")
-
-    def test_default_database_path(self) -> None:
-        """Test default database path."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.database_path == Path("~/.claude/data/reflection.duckdb")
+        settings = SessionBuddySettings()
+        assert settings.paths.log_dir == Path("~/.claude/logs")
 
     def test_default_global_workspace_path(self) -> None:
-        """Test default global workspace path."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.global_workspace_path == Path("~/Projects/claude")
+        settings = SessionBuddySettings()
+        assert settings.paths.global_workspace_path == Path("~/Projects/claude")
 
     def test_default_log_file_path(self) -> None:
-        """Test default log file path."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.log_file_path == Path("~/.claude/logs/session-buddy.log")
+        settings = SessionBuddySettings()
+        assert settings.paths.log_file_path == Path(
+            "~/.claude/logs/session-buddy.log"
+        )
 
     def test_user_path_expansion_data_dir(self) -> None:
-        """Test that ~ is expanded in data_dir."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(data_dir=Path("~/my/data"))
-        expanded = settings.data_dir
+        settings = SessionBuddySettings(
+            paths=PathsConfig(data_dir=Path("~/my/data")),
+        )
+        expanded = settings.paths.data_dir
         assert "~" not in str(expanded)
         assert expanded.is_absolute()
 
     def test_user_path_expansion_log_dir(self) -> None:
-        """Test that ~ is expanded in log_dir."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(log_dir=Path("~/my/logs"))
-        expanded = settings.log_dir
-        assert "~" not in str(expanded)
-        assert expanded.is_absolute()
-
-    def test_user_path_expansion_database_path(self) -> None:
-        """Test that ~ is expanded in database_path."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(database_path=Path("~/my/db.duckdb"))
-        expanded = settings.database_path
-        assert "~" not in str(expanded)
-        assert expanded.is_absolute()
-
-    def test_user_path_expansion_log_file_path(self) -> None:
-        """Test that ~ is expanded in log_file_path."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(log_file_path=Path("~/my/logs/app.log"))
-        expanded = settings.log_file_path
+        settings = SessionBuddySettings(
+            paths=PathsConfig(log_dir=Path("~/my/logs")),
+        )
+        expanded = settings.paths.log_dir
         assert "~" not in str(expanded)
         assert expanded.is_absolute()
 
     def test_user_path_expansion_global_workspace_path(self) -> None:
-        """Test that ~ is expanded in global_workspace_path."""
-        from session_buddy.settings import SessionMgmtSettings
+        settings = SessionBuddySettings(
+            paths=PathsConfig(global_workspace_path=Path("~/my/workspace")),
+        )
+        expanded = settings.paths.global_workspace_path
+        assert "~" not in str(expanded)
+        assert expanded.is_absolute()
 
-        settings = SessionMgmtSettings(global_workspace_path=Path("~/my/workspace"))
-        expanded = settings.global_workspace_path
+    def test_user_path_expansion_log_file_path(self) -> None:
+        settings = SessionBuddySettings(
+            paths=PathsConfig(log_file_path=Path("~/my/logs/app.log")),
+        )
+        expanded = settings.paths.log_file_path
         assert "~" not in str(expanded)
         assert expanded.is_absolute()
 
     def test_string_path_inputs_are_expanded(self) -> None:
-        """Test that string inputs go through the path expansion validator."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(
-            data_dir="~/my/data",
-            log_dir="~/my/logs",
-            database_path="~/my/db.duckdb",
-            log_file_path="~/my/logs/app.log",
-            global_workspace_path="~/my/workspace",
+        settings = SessionBuddySettings(
+            paths=PathsConfig(
+                data_dir="~/my/data",
+                log_dir="~/my/logs",
+                log_file_path="~/my/logs/app.log",
+                global_workspace_path="~/my/workspace",
+            ),
         )
-
-        assert settings.data_dir.is_absolute()
-        assert settings.log_dir.is_absolute()
-        assert settings.database_path.is_absolute()
-        assert settings.log_file_path.is_absolute()
-        assert settings.global_workspace_path.is_absolute()
+        assert settings.paths.data_dir.is_absolute()
+        assert settings.paths.log_dir.is_absolute()
+        assert settings.paths.log_file_path.is_absolute()
+        assert settings.paths.global_workspace_path.is_absolute()
 
 
-class TestSessionMgmtSettingsDatabase:
-    """Test SessionMgmtSettings database configuration."""
+# ===========================================================================
+# DatabaseConfig
+# ===========================================================================
 
-    def test_database_connection_timeout_default(self) -> None:
-        """Test default database connection timeout."""
-        from session_buddy.settings import SessionMgmtSettings
 
-        settings = SessionMgmtSettings()
-        assert settings.database_connection_timeout == 30
+class TestDatabaseConfig:
+    """Test ``database`` group (formerly flat ``database_*``)."""
 
-    def test_database_query_timeout_default(self) -> None:
-        """Test default database query timeout."""
-        from session_buddy.settings import SessionMgmtSettings
+    def test_default_path(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.database.path == Path("~/.claude/data/reflection.duckdb")
 
-        settings = SessionMgmtSettings()
-        assert settings.database_query_timeout == 120
+    def test_default_connection_timeout(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.database.connection_timeout == 30
 
-    def test_database_max_connections_default(self) -> None:
-        """Test default max database connections."""
-        from session_buddy.settings import SessionMgmtSettings
+    def test_default_query_timeout(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.database.query_timeout == 120
 
-        settings = SessionMgmtSettings()
-        assert settings.database_max_connections == 10
+    def test_default_max_connections(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.database.max_connections == 10
 
     def test_connection_timeout_range_min(self) -> None:
-        """Test minimum connection timeout is enforced."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(database_connection_timeout=1)
-        assert settings.database_connection_timeout == 1
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(connection_timeout=1),
+        )
+        assert settings.database.connection_timeout == 1
 
     def test_connection_timeout_range_max(self) -> None:
-        """Test maximum connection timeout is enforced."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(database_connection_timeout=300)
-        assert settings.database_connection_timeout == 300
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(connection_timeout=300),
+        )
+        assert settings.database.connection_timeout == 300
 
     def test_query_timeout_range_min(self) -> None:
-        """Test minimum query timeout is enforced."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(database_query_timeout=1)
-        assert settings.database_query_timeout == 1
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(query_timeout=1),
+        )
+        assert settings.database.query_timeout == 1
 
     def test_query_timeout_range_max(self) -> None:
-        """Test maximum query timeout is enforced."""
-        from session_buddy.settings import SessionMgmtSettings
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(query_timeout=3600),
+        )
+        assert settings.database.query_timeout == 3600
 
-        settings = SessionMgmtSettings(database_query_timeout=3600)
-        assert settings.database_query_timeout == 3600
+
+# ===========================================================================
+# MultiProjectConfig
+# ===========================================================================
 
 
-class TestSessionMgmtSettingsMultiProject:
-    """Test SessionMgmtSettings multi-project settings."""
+class TestMultiProjectConfig:
+    """Test ``multi_project`` group."""
 
     def test_enable_multi_project_default_true(self) -> None:
-        """Test that multi-project is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_multi_project is True
+        settings = SessionBuddySettings()
+        assert settings.multi_project.enable_multi_project is True
 
     def test_auto_detect_projects_default_true(self) -> None:
-        """Test that auto-detect projects is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.auto_detect_projects is True
+        settings = SessionBuddySettings()
+        assert settings.multi_project.auto_detect_projects is True
 
     def test_project_groups_enabled_default_true(self) -> None:
-        """Test that project groups are enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.project_groups_enabled is True
+        settings = SessionBuddySettings()
+        assert settings.multi_project.project_groups_enabled is True
 
 
-class TestSessionMgmtSettingsSearch:
-    """Test SessionMgmtSettings search configuration."""
+# ===========================================================================
+# SearchConfig
+# ===========================================================================
+
+
+class TestSearchConfig:
+    """Test ``search`` group."""
 
     def test_enable_full_text_search_default_true(self) -> None:
-        """Test that full-text search is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_full_text_search is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_full_text_search is True
 
     def test_enable_semantic_search_default_true(self) -> None:
-        """Test that semantic search is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_semantic_search is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_semantic_search is True
 
     def test_enable_faceted_search_default_true(self) -> None:
-        """Test that faceted search is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_faceted_search is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_faceted_search is True
 
     def test_enable_search_suggestions_default_true(self) -> None:
-        """Test that search suggestions are enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_search_suggestions is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_search_suggestions is True
 
     def test_enable_stemming_default_true(self) -> None:
-        """Test that stemming is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_stemming is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_stemming is True
 
     def test_enable_fuzzy_matching_default_true(self) -> None:
-        """Test that fuzzy matching is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_fuzzy_matching is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_fuzzy_matching is True
 
     def test_max_search_results_default(self) -> None:
-        """Test default max search results."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.max_search_results == 100
+        settings = SessionBuddySettings()
+        assert settings.search.max_search_results == 100
 
     def test_max_search_results_range_min(self) -> None:
-        """Test minimum max search results is enforced."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(max_search_results=1)
-        assert settings.max_search_results == 1
+        settings = SessionBuddySettings(
+            search=SearchConfig(max_search_results=1),
+        )
+        assert settings.search.max_search_results == 1
 
     def test_max_search_results_range_max(self) -> None:
-        """Test maximum max search results is enforced."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(max_search_results=10000)
-        assert settings.max_search_results == 10000
+        settings = SessionBuddySettings(
+            search=SearchConfig(max_search_results=10000),
+        )
+        assert settings.search.max_search_results == 10000
 
     def test_embedding_model_default(self) -> None:
-        """Test default embedding model."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.embedding_model == "all-MiniLM-L6-v2"
+        settings = SessionBuddySettings()
+        assert settings.search.embedding_model == "all-MiniLM-L6-v2"
 
     def test_embedding_cache_size_default(self) -> None:
-        """Test default embedding cache size."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.embedding_cache_size == 1000
+        settings = SessionBuddySettings()
+        assert settings.search.embedding_cache_size == 1000
 
     def test_search_index_update_interval_default(self) -> None:
-        """Test default search index update interval."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.search_index_update_interval == 3600
+        settings = SessionBuddySettings()
+        assert settings.search.search_index_update_interval == 3600
 
     def test_fuzzy_threshold_default(self) -> None:
-        """Test default fuzzy threshold."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.fuzzy_threshold == 0.8
+        settings = SessionBuddySettings()
+        assert settings.search.fuzzy_threshold == 0.8
 
     def test_fuzzy_threshold_range_min(self) -> None:
-        """Test minimum fuzzy threshold is enforced."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(fuzzy_threshold=0.1)
-        assert settings.fuzzy_threshold == 0.1
+        settings = SessionBuddySettings(
+            search=SearchConfig(fuzzy_threshold=0.1),
+        )
+        assert settings.search.fuzzy_threshold == 0.1
 
     def test_fuzzy_threshold_range_max(self) -> None:
-        """Test maximum fuzzy threshold is enforced."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings(fuzzy_threshold=1.0)
-        assert settings.fuzzy_threshold == 1.0
+        settings = SessionBuddySettings(
+            search=SearchConfig(fuzzy_threshold=1.0),
+        )
+        assert settings.search.fuzzy_threshold == 1.0
 
     def test_max_facet_values_default(self) -> None:
-        """Test default max facet values."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.max_facet_values == 50
+        settings = SessionBuddySettings()
+        assert settings.search.max_facet_values == 50
 
     def test_suggestion_limit_default(self) -> None:
-        """Test default suggestion limit."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.suggestion_limit == 10
+        settings = SessionBuddySettings()
+        assert settings.search.suggestion_limit == 10
 
 
-class TestSessionMgmtSettingsTokenOptimization:
-    """Test SessionMgmtSettings token optimization settings."""
+# ===========================================================================
+# TokensConfig
+# ===========================================================================
+
+
+class TestTokensConfig:
+    """Test ``tokens`` group."""
 
     def test_enable_token_optimization_default_true(self) -> None:
-        """Test that token optimization is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_token_optimization is True
+        settings = SessionBuddySettings()
+        assert settings.tokens.enable_token_optimization is True
 
     def test_default_max_tokens_default(self) -> None:
-        """Test default max tokens."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.default_max_tokens == 4000
+        settings = SessionBuddySettings()
+        assert settings.tokens.default_max_tokens == 4000
 
     def test_default_chunk_size_default(self) -> None:
-        """Test default chunk size."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.default_chunk_size == 2000
+        settings = SessionBuddySettings()
+        assert settings.tokens.default_chunk_size == 2000
 
     def test_optimization_strategy_default(self) -> None:
-        """Test default optimization strategy."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.optimization_strategy == "auto"
+        settings = SessionBuddySettings()
+        assert settings.tokens.optimization_strategy == "auto"
 
     def test_enable_response_chunking_default_true(self) -> None:
-        """Test that response chunking is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_response_chunking is True
+        settings = SessionBuddySettings()
+        assert settings.tokens.enable_response_chunking is True
 
     def test_enable_duplicate_filtering_default_true(self) -> None:
-        """Test that duplicate filtering is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_duplicate_filtering is True
+        settings = SessionBuddySettings()
+        assert settings.tokens.enable_duplicate_filtering is True
 
     def test_track_token_usage_default_true(self) -> None:
-        """Test that token usage tracking is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.track_token_usage is True
+        settings = SessionBuddySettings()
+        assert settings.tokens.track_token_usage is True
 
     def test_usage_retention_days_default(self) -> None:
-        """Test default usage retention days."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.usage_retention_days == 90
+        settings = SessionBuddySettings()
+        assert settings.tokens.usage_retention_days == 90
 
 
-class TestSessionMgmtSettingsSessionManagement:
-    """Test SessionMgmtSettings session management settings."""
+# ===========================================================================
+# SessionConfig
+# ===========================================================================
+
+
+class TestSessionConfig:
+    """Test ``session`` group (auto-checkpoint, commit template, etc.)."""
 
     def test_auto_checkpoint_interval_default(self) -> None:
-        """Test default auto checkpoint interval."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.auto_checkpoint_interval == 1800
+        settings = SessionBuddySettings()
+        assert settings.session.auto_checkpoint_interval == 1800
 
     def test_enable_auto_commit_default_true(self) -> None:
-        """Test that auto commit is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_auto_commit is True
+        settings = SessionBuddySettings()
+        assert settings.session.enable_auto_commit is True
 
     def test_commit_message_template_default(self) -> None:
-        """Test default commit message template."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.commit_message_template == "checkpoint: Session checkpoint - {timestamp}"
+        settings = SessionBuddySettings()
+        assert (
+            settings.session.commit_message_template
+            == "checkpoint: Session checkpoint - {timestamp}"
+        )
 
     def test_commit_message_template_must_contain_timestamp(self) -> None:
-        """Test that commit message template must contain {timestamp}."""
         import pydantic
-        from session_buddy.settings import SessionMgmtSettings
 
         with pytest.raises(pydantic.ValidationError):
-            SessionMgmtSettings(commit_message_template="invalid template without timestamp")
+            SessionConfig(commit_message_template="invalid template without timestamp")
 
     def test_commit_message_template_validator_accepts_valid_value(self) -> None:
-        """Test the validator directly on a valid template."""
-        from session_buddy.settings import SessionMgmtSettings
-
         template = "checkpoint: Session checkpoint - {timestamp}"
-        assert SessionMgmtSettings.validate_commit_template(template) == template
+        # The validator is now a private @field_validator on SessionConfig.
+        assert SessionConfig._validate_commit_template(template) == template
 
     def test_commit_message_template_validator_rejects_invalid_value(self) -> None:
-        """Test the validator directly on an invalid template."""
-        from session_buddy.settings import SessionMgmtSettings
-
         with pytest.raises(ValueError, match="must contain {timestamp}"):
-            SessionMgmtSettings.validate_commit_template("checkpoint without placeholder")
+            SessionConfig._validate_commit_template("checkpoint without placeholder")
 
     def test_enable_permission_system_default_true(self) -> None:
-        """Test that permission system is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_permission_system is True
+        settings = SessionBuddySettings()
+        assert settings.session.enable_permission_system is True
 
     def test_default_trusted_operations_default(self) -> None:
-        """Test default trusted operations."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.default_trusted_operations == ["git_commit", "uv_sync", "file_operations"]
+        settings = SessionBuddySettings()
+        assert settings.session.default_trusted_operations == [
+            "git_commit",
+            "uv_sync",
+            "file_operations",
+        ]
 
     def test_auto_cleanup_old_sessions_default_true(self) -> None:
-        """Test that auto cleanup old sessions is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.auto_cleanup_old_sessions is True
+        settings = SessionBuddySettings()
+        assert settings.session.auto_cleanup_old_sessions is True
 
     def test_session_retention_days_default(self) -> None:
-        """Test default session retention days."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.session_retention_days == 365
+        settings = SessionBuddySettings()
+        assert settings.session.session_retention_days == 365
 
 
-class TestSessionMgmtSettingsAutoStore:
-    """Test SessionMgmtSettings selective auto-store settings."""
+# ===========================================================================
+# ReflectionAutoStoreConfig
+# ===========================================================================
+
+
+class TestReflectionAutoStoreConfig:
+    """Test ``reflection_auto_store`` group."""
 
     def test_enable_auto_store_reflections_default_true(self) -> None:
-        """Test that auto store reflections is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_auto_store_reflections is True
+        settings = SessionBuddySettings()
+        assert settings.reflection_auto_store.enable_auto_store_reflections is True
 
     def test_auto_store_quality_delta_threshold_default(self) -> None:
-        """Test default quality delta threshold."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.auto_store_quality_delta_threshold == 10
+        settings = SessionBuddySettings()
+        assert settings.reflection_auto_store.auto_store_quality_delta_threshold == 10
 
     def test_auto_store_exceptional_quality_threshold_default(self) -> None:
-        """Test default exceptional quality threshold."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.auto_store_exceptional_quality_threshold == 90
+        settings = SessionBuddySettings()
+        assert (
+            settings.reflection_auto_store.auto_store_exceptional_quality_threshold
+            == 70
+        )
 
     def test_auto_store_manual_checkpoints_default_true(self) -> None:
-        """Test that auto store manual checkpoints is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.auto_store_manual_checkpoints is True
+        settings = SessionBuddySettings()
+        assert (
+            settings.reflection_auto_store.auto_store_manual_checkpoints is True
+        )
 
     def test_auto_store_session_end_default_true(self) -> None:
-        """Test that auto store session end is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.auto_store_session_end is True
+        settings = SessionBuddySettings()
+        assert settings.reflection_auto_store.auto_store_session_end is True
 
 
-class TestSessionMgmtSettingsConversationStorage:
-    """Test SessionMgmtSettings conversation storage settings."""
+# ===========================================================================
+# ConversationStorageConfig
+# ===========================================================================
+
+
+class TestConversationStorageConfig:
+    """Test ``conversation_storage`` group."""
 
     def test_enable_conversation_storage_default_true(self) -> None:
-        """Test that conversation storage is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_conversation_storage is True
+        settings = SessionBuddySettings()
+        assert settings.conversation_storage.enable_conversation_storage is True
 
     def test_conversation_storage_min_length_default(self) -> None:
-        """Test default conversation storage min length."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.conversation_storage_min_length == 100
+        settings = SessionBuddySettings()
+        assert settings.conversation_storage.conversation_storage_min_length == 100
 
     def test_conversation_storage_max_length_default(self) -> None:
-        """Test default conversation storage max length."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.conversation_storage_max_length == 50000
+        settings = SessionBuddySettings()
+        assert settings.conversation_storage.conversation_storage_max_length == 50000
 
     def test_auto_store_conversations_on_checkpoint_default_true(self) -> None:
-        """Test that auto store conversations on checkpoint is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.auto_store_conversations_on_checkpoint is True
+        settings = SessionBuddySettings()
+        assert (
+            settings.conversation_storage.auto_store_conversations_on_checkpoint
+            is True
+        )
 
     def test_auto_store_conversations_on_session_end_default_true(self) -> None:
-        """Test that auto store conversations on session end is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
+        settings = SessionBuddySettings()
+        assert (
+            settings.conversation_storage.auto_store_conversations_on_session_end
+            is True
+        )
 
-        settings = SessionMgmtSettings()
-        assert settings.auto_store_conversations_on_session_end is True
+
+# ===========================================================================
+# IntegrationsConfig
+# ===========================================================================
 
 
-class TestSessionMgmtSettingsIntegration:
-    """Test SessionMgmtSettings integration settings."""
+class TestIntegrationsConfig:
+    """Test ``integrations`` group."""
 
     def test_enable_crackerjack_default_true(self) -> None:
-        """Test that Crackerjack integration is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_crackerjack is True
+        settings = SessionBuddySettings()
+        assert settings.integrations.enable_crackerjack is True
 
     def test_crackerjack_command_default(self) -> None:
-        """Test default Crackerjack command."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.crackerjack_command == "crackerjack"
+        settings = SessionBuddySettings()
+        assert settings.integrations.crackerjack_command == "crackerjack"
 
     def test_enable_git_integration_default_true(self) -> None:
-        """Test that git integration is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_git_integration is True
+        settings = SessionBuddySettings()
+        assert settings.integrations.enable_git_integration is True
 
     def test_git_auto_stage_default_false(self) -> None:
-        """Test that git auto stage is disabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.git_auto_stage is False
+        settings = SessionBuddySettings()
+        assert settings.integrations.git_auto_stage is False
 
 
-class TestSessionMgmtSettingsGitMaintenance:
-    """Test SessionMgmtSettings git maintenance settings."""
+# ===========================================================================
+# GitMaintenanceConfig
+# ===========================================================================
+
+
+class TestGitMaintenanceConfig:
+    """Test ``git_maintenance`` group (git gc scheduling)."""
 
     def test_git_auto_gc_default_true(self) -> None:
-        """Test that git auto gc is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.git_auto_gc is True
+        settings = SessionBuddySettings()
+        assert settings.git_maintenance.git_auto_gc is True
 
     def test_git_gc_prune_delay_default(self) -> None:
-        """Test default git gc prune delay."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.git_gc_prune_delay == "2.weeks"
+        settings = SessionBuddySettings()
+        assert settings.git_maintenance.git_gc_prune_delay == "2.weeks"
 
     def test_git_gc_auto_threshold_default(self) -> None:
-        """Test default git gc auto threshold."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.git_gc_auto_threshold == 6700
+        settings = SessionBuddySettings()
+        assert settings.git_maintenance.git_gc_auto_threshold == 6700
 
     def test_git_gc_only_when_clean_default_true(self) -> None:
-        """Test that git gc only when clean is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.git_gc_only_when_clean is True
+        settings = SessionBuddySettings()
+        assert settings.git_maintenance.git_gc_only_when_clean is True
 
     def test_git_gc_prune_delay_valid_formats(self) -> None:
-        """Test valid git gc prune delay formats are accepted."""
-        from session_buddy.settings import SessionMgmtSettings
-
         valid_delays = [
             "2.weeks",
             "1.month",
@@ -840,19 +634,18 @@ class TestSessionMgmtSettingsGitMaintenance:
             "1.year",
         ]
         for delay in valid_delays:
-            settings = SessionMgmtSettings(git_gc_prune_delay=delay)
-            assert settings.git_gc_prune_delay == delay
+            settings = SessionBuddySettings(
+                git_maintenance=GitMaintenanceConfig(git_gc_prune_delay=delay),
+            )
+            assert settings.git_maintenance.git_gc_prune_delay == delay
 
     def test_git_gc_prune_delay_validator_accepts_valid_values(self) -> None:
-        """Test the validator directly on valid values."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        assert SessionMgmtSettings.validate_prune_delay("2.weeks") == "2.weeks"
+        assert (
+            GitMaintenanceConfig._validate_prune_delay("2.weeks") == "2.weeks"
+        )
 
     def test_git_gc_prune_delay_invalid_formats_rejected(self) -> None:
-        """Test invalid git gc prune delay formats are rejected."""
         import pydantic
-        from session_buddy.settings import SessionMgmtSettings
 
         invalid_delays = [
             "now; rm -rf /",
@@ -865,324 +658,282 @@ class TestSessionMgmtSettingsGitMaintenance:
         ]
         for delay in invalid_delays:
             with pytest.raises(pydantic.ValidationError):
-                SessionMgmtSettings(git_gc_prune_delay=delay)
+                GitMaintenanceConfig(git_gc_prune_delay=delay)
 
     def test_git_gc_prune_delay_now_triggers_warning(self) -> None:
-        """Test that setting prune_delay to 'now' triggers a warning."""
-        from session_buddy.settings import SessionMgmtSettings
-
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            SessionMgmtSettings(git_gc_prune_delay="now")
+            GitMaintenanceConfig(git_gc_prune_delay="now")
             assert len(w) == 1
             assert "data loss" in str(w[0].message).lower()
 
     def test_git_gc_prune_delay_validator_rejects_invalid_values(self) -> None:
-        """Test the validator directly on invalid values."""
-        from session_buddy.settings import SessionMgmtSettings
-
         with pytest.raises(ValueError, match="Invalid git_gc_prune_delay"):
-            SessionMgmtSettings.validate_prune_delay("bad-value")
+            GitMaintenanceConfig._validate_prune_delay("bad-value")
 
     def test_git_gc_prune_delay_validator_warns_on_now(self) -> None:
-        """Test the validator directly on 'now'."""
-        from session_buddy.settings import SessionMgmtSettings
-
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            assert SessionMgmtSettings.validate_prune_delay("now") == "now"
+            assert GitMaintenanceConfig._validate_prune_delay("now") == "now"
             assert len(w) == 1
 
 
-class TestSessionMgmtSettingsPrometheus:
-    """Test SessionMgmtSettings Prometheus metrics settings."""
+# ===========================================================================
+# PrometheusConfig
+# ===========================================================================
+
+
+class TestPrometheusConfig:
+    """Test ``prometheus`` group."""
 
     def test_enable_prometheus_metrics_default_true(self) -> None:
-        """Test that Prometheus metrics is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_prometheus_metrics is True
+        settings = SessionBuddySettings()
+        assert settings.prometheus.enable_prometheus_metrics is True
 
     def test_prometheus_metrics_port_default(self) -> None:
-        """Test default Prometheus metrics port."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.prometheus_metrics_port == 9090
+        settings = SessionBuddySettings()
+        assert settings.prometheus.prometheus_metrics_port == 9090
 
     def test_prometheus_metrics_path_default(self) -> None:
-        """Test default Prometheus metrics path."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.prometheus_metrics_path == "/metrics"
+        settings = SessionBuddySettings()
+        assert settings.prometheus.prometheus_metrics_path == "/metrics"
 
 
-class TestSessionMgmtSettingsAPIKeys:
-    """Test SessionMgmtSettings API key fields."""
+# ===========================================================================
+# LLMApiKeysConfig
+# ===========================================================================
+
+
+class TestLLMApiKeysConfig:
+    """Test the per-provider API keys nested under ``llm.api_keys``."""
 
     def test_openai_api_key_default_none(self) -> None:
-        """Test that OpenAI API key defaults to None."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.openai_api_key is None
+        settings = SessionBuddySettings()
+        assert settings.llm.api_keys.openai is None
 
     def test_anthropic_api_key_default_none(self) -> None:
-        """Test that Anthropic API key defaults to None."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.anthropic_api_key is None
+        settings = SessionBuddySettings()
+        assert settings.llm.api_keys.anthropic is None
 
     def test_gemini_api_key_default_none(self) -> None:
-        """Test that Gemini API key defaults to None."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.gemini_api_key is None
+        settings = SessionBuddySettings()
+        assert settings.llm.api_keys.gemini is None
 
     def test_qwen_api_key_default_none(self) -> None:
-        """Test that Qwen API key defaults to None."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.qwen_api_key is None
+        settings = SessionBuddySettings()
+        assert settings.llm.api_keys.qwen is None
 
     def test_minimax_api_key_default_none(self) -> None:
-        """Test that MiniMax API key defaults to None."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.minimax_api_key is None
+        settings = SessionBuddySettings()
+        assert settings.llm.api_keys.minimax is None
 
     def test_zai_api_key_default_none(self) -> None:
-        """Test that ZAI API key defaults to None."""
-        from session_buddy.settings import SessionMgmtSettings
+        settings = SessionBuddySettings()
+        assert settings.llm.api_keys.zai is None
 
-        settings = SessionMgmtSettings()
-        assert settings.zai_api_key is None
+    def test_api_keys_override(self) -> None:
+        settings = SessionBuddySettings(
+            llm=LLMConfig(api_keys=LLMApiKeysConfig(minimax="sk-test")),
+        )
+        assert settings.llm.api_keys.minimax == "sk-test"
 
 
-class TestSessionMgmtSettingsLogging:
-    """Test SessionMgmtSettings logging settings."""
+# ===========================================================================
+# LoggingConfig
+# ===========================================================================
+
+
+class TestLoggingConfig:
+    """Test ``logging`` group."""
 
     def test_log_format_default(self) -> None:
-        """Test default log format."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.log_format == "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        settings = SessionBuddySettings()
+        assert (
+            settings.logging.log_format
+            == "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
 
     def test_enable_file_logging_default_true(self) -> None:
-        """Test that file logging is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_file_logging is True
+        settings = SessionBuddySettings()
+        assert settings.logging.enable_file_logging is True
 
     def test_log_file_max_size_default(self) -> None:
-        """Test default log file max size (10MB)."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.log_file_max_size == 10 * 1024 * 1024
+        settings = SessionBuddySettings()
+        assert settings.logging.log_file_max_size == 10 * 1024 * 1024
 
     def test_log_file_backup_count_default(self) -> None:
-        """Test default log file backup count."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.log_file_backup_count == 5
+        settings = SessionBuddySettings()
+        assert settings.logging.log_file_backup_count == 5
 
     def test_enable_performance_logging_default_false(self) -> None:
-        """Test that performance logging is disabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_performance_logging is False
+        settings = SessionBuddySettings()
+        assert settings.logging.enable_performance_logging is False
 
     def test_log_slow_queries_default_true(self) -> None:
-        """Test that slow query logging is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.log_slow_queries is True
+        settings = SessionBuddySettings()
+        assert settings.logging.log_slow_queries is True
 
     def test_slow_query_threshold_default(self) -> None:
-        """Test default slow query threshold."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.slow_query_threshold == 1.0
+        settings = SessionBuddySettings()
+        assert settings.logging.slow_query_threshold == 1.0
 
 
-class TestSessionMgmtSettingsSecurity:
-    """Test SessionMgmtSettings security settings."""
+# ===========================================================================
+# SecurityConfig
+# ===========================================================================
+
+
+class TestSecurityConfig:
+    """Test ``security`` group."""
 
     def test_anonymize_paths_default_false(self) -> None:
-        """Test that path anonymization is disabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.anonymize_paths is False
+        settings = SessionBuddySettings()
+        assert settings.security.anonymize_paths is False
 
     def test_enable_rate_limiting_default_true(self) -> None:
-        """Test that rate limiting is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_rate_limiting is True
+        settings = SessionBuddySettings()
+        assert settings.security.enable_rate_limiting is True
 
     def test_max_requests_per_minute_default(self) -> None:
-        """Test default max requests per minute."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.max_requests_per_minute == 100
+        settings = SessionBuddySettings()
+        assert settings.security.max_requests_per_minute == 100
 
     def test_max_query_length_default(self) -> None:
-        """Test default max query length."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.max_query_length == 10000
+        settings = SessionBuddySettings()
+        assert settings.security.max_query_length == 10000
 
     def test_max_content_length_default(self) -> None:
-        """Test default max content length."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.max_content_length == 1000000
+        settings = SessionBuddySettings()
+        assert settings.security.max_content_length == 1000000
 
 
-class TestSessionMgmtSettingsMCPServer:
-    """Test SessionMgmtSettings MCP server settings."""
+# ===========================================================================
+# MCPTransportConfig
+# ===========================================================================
+
+
+class TestMCPTransportConfig:
+    """Test ``mcp_transport`` group (HTTP/WS transport)."""
 
     def test_server_host_default(self) -> None:
-        """Test default server host."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.server_host == "localhost"
+        settings = SessionBuddySettings()
+        assert settings.mcp_transport.server_host == "localhost"
 
     def test_server_port_default(self) -> None:
-        """Test default server port."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.server_port == 8678
+        settings = SessionBuddySettings()
+        assert settings.mcp_transport.server_port == 8678
 
     def test_enable_websockets_default_true(self) -> None:
-        """Test that WebSockets is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_websockets is True
+        settings = SessionBuddySettings()
+        assert settings.mcp_transport.enable_websockets is True
 
 
-class TestSessionMgmtSettingsDevelopment:
-    """Test SessionMgmtSettings development settings."""
+# ===========================================================================
+# DevelopmentConfig
+# ===========================================================================
+
+
+class TestDevelopmentConfig:
+    """Test ``development`` group."""
 
     def test_enable_hot_reload_default_false(self) -> None:
-        """Test that hot reload is disabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_hot_reload is False
+        settings = SessionBuddySettings()
+        assert settings.development.enable_hot_reload is False
 
 
-class TestSessionMgmtSettingsFeatureFlags:
-    """Test SessionMgmtSettings feature flags."""
+# ===========================================================================
+# FeatureFlagsConfig
+# ===========================================================================
+
+
+class TestFeatureFlagsConfig:
+    """Test ``feature_flags`` group + retired-field assertions."""
 
     def test_use_schema_v2_field_removed(self) -> None:
-        """V1 retired 2026-10-04 — schema v2 is the only schema.
+        """V1 retired 2026-10-04 — schema v2 is unconditional.
 
-        The ``use_schema_v2`` field is gone from ``SessionMgmtSettings``
-        because v2 is unconditional. Verify it is no longer a field on
-        the dataclass.
+        The ``use_schema_v2`` field is gone from the settings class.
         """
-        from session_buddy.settings import SessionMgmtSettings
-
-        assert "use_schema_v2" not in SessionMgmtSettings.model_fields
+        assert "use_schema_v2" not in SessionBuddySettings.model_fields
 
     def test_enable_llm_entity_extraction_default_true(self) -> None:
-        """Test that LLM entity extraction is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
+        # ``enable_llm_entity_extraction`` is now ``entity_extraction.enable``.
+        settings = SessionBuddySettings()
+        assert settings.entity_extraction.enable is True
 
-        settings = SessionMgmtSettings()
-        assert settings.enable_llm_entity_extraction is True
-
-    def test_enable_anthropic_default_true(self) -> None:
-        """Test that Anthropic provider is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.enable_anthropic is True
+    def test_enable_anthropic_default_false(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.feature_flags.enable_anthropic is False
 
     def test_enable_ollama_default_false(self) -> None:
-        """Test that Ollama provider is disabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
+        settings = SessionBuddySettings()
+        assert settings.feature_flags.enable_ollama is False
 
-        settings = SessionMgmtSettings()
-        assert settings.enable_ollama is False
+    def test_enable_conscious_agent_default_false(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.feature_flags.enable_conscious_agent is False
 
-    def test_enable_conscious_agent_default_true(self) -> None:
-        """Test that conscious agent is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
+    def test_enable_filesystem_extraction_default_false(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.feature_flags.enable_filesystem_extraction is False
 
-        settings = SessionMgmtSettings()
-        assert settings.enable_conscious_agent is True
+    def test_enable_crackerjack_fallback_default_false(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.feature_flags.enable_crackerjack_fallback is False
 
-    def test_enable_filesystem_extraction_default_true(self) -> None:
-        """Test that filesystem extraction is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
+    def test_feature_flag_override(self) -> None:
+        settings = SessionBuddySettings(
+            feature_flags=FeatureFlagsConfig(
+                enable_conscious_agent=True,
+                enable_filesystem_extraction=True,
+            ),
+        )
+        assert settings.feature_flags.enable_conscious_agent is True
+        assert settings.feature_flags.enable_filesystem_extraction is True
 
-        settings = SessionMgmtSettings()
-        assert settings.enable_filesystem_extraction is True
+
+# ===========================================================================
+# EntityExtractionConfig
+# ===========================================================================
 
 
-class TestSessionMgmtSettingsExtraction:
-    """Test SessionMgmtSettings extraction control settings."""
+class TestEntityExtractionConfig:
+    """Test ``entity_extraction`` group (LLM extraction knobs)."""
 
     def test_llm_extraction_timeout_default(self) -> None:
-        """Test default LLM extraction timeout."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.llm_extraction_timeout == 10
+        settings = SessionBuddySettings()
+        assert settings.entity_extraction.timeout == 10
 
     def test_llm_extraction_retries_default(self) -> None:
-        """Test default LLM extraction retries."""
-        from session_buddy.settings import SessionMgmtSettings
+        settings = SessionBuddySettings()
+        assert settings.entity_extraction.retries == 1
 
-        settings = SessionMgmtSettings()
-        assert settings.llm_extraction_retries == 1
+    def test_custom_extraction(self) -> None:
+        settings = SessionBuddySettings(
+            entity_extraction=EntityExtractionConfig(timeout=30, retries=2),
+        )
+        assert settings.entity_extraction.timeout == 30
+        assert settings.entity_extraction.retries == 2
 
 
-class TestSessionMgmtSettingsFilesystemExtraction:
-    """Test SessionMgmtSettings filesystem extraction settings."""
+# ===========================================================================
+# FilesystemExtractionConfig
+# ===========================================================================
+
+
+class TestFilesystemExtractionConfig:
+    """Test ``filesystem_extraction`` group."""
 
     def test_filesystem_dedupe_ttl_seconds_default(self) -> None:
-        """Test default filesystem dedupe TTL."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.filesystem_dedupe_ttl_seconds == 120
+        settings = SessionBuddySettings()
+        assert settings.filesystem_extraction.dedupe_ttl_seconds == 120
 
     def test_filesystem_max_file_size_bytes_default(self) -> None:
-        """Test default filesystem max file size."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.filesystem_max_file_size_bytes == 1_000_000
+        settings = SessionBuddySettings()
+        assert settings.filesystem_extraction.max_file_size_bytes == 1_000_000
 
     def test_filesystem_ignore_dirs_default(self) -> None:
-        """Test default filesystem ignore directories."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
+        settings = SessionBuddySettings()
         expected = [
             ".git",
             "__pycache__",
@@ -1198,165 +949,137 @@ class TestSessionMgmtSettingsFilesystemExtraction:
             ".idea",
             ".vscode",
         ]
-        assert settings.filesystem_ignore_dirs == expected
+        assert settings.filesystem_extraction.ignore_dirs == expected
 
 
-class TestSessionMgmtSettingsAkoshaSync:
-    """Test SessionMgmtSettings Akosha sync settings."""
+# ===========================================================================
+# AkoshaSyncConfig
+# ===========================================================================
+
+
+class TestAkoshaSyncConfig:
+    """Test ``cloud_sync`` group (formerly flat ``akosha_*``)."""
 
     def test_akosha_cloud_bucket_default_empty(self) -> None:
-        """Test that Akosha cloud bucket is empty by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_cloud_bucket == ""
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.cloud_bucket == ""
 
     def test_akosha_cloud_endpoint_default_empty(self) -> None:
-        """Test that Akosha cloud endpoint is empty by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_cloud_endpoint == ""
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.cloud_endpoint == ""
 
     def test_akosha_cloud_region_default_auto(self) -> None:
-        """Test that Akosha cloud region is 'auto' by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_cloud_region == "auto"
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.cloud_region == "auto"
 
     def test_akosha_system_id_default_empty(self) -> None:
-        """Test that Akosha system ID is empty by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_system_id == ""
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.system_id == ""
 
     def test_akosha_upload_on_session_end_default_true(self) -> None:
-        """Test that upload on session end is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_upload_on_session_end is True
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.upload_on_session_end is True
 
     def test_akosha_enable_fallback_default_true(self) -> None:
-        """Test that fallback is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_enable_fallback is True
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.enable_fallback is True
 
     def test_akosha_force_method_default_auto(self) -> None:
-        """Test that force method is 'auto' by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_force_method == "auto"
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.force_method == "auto"
 
     def test_akosha_upload_timeout_seconds_default(self) -> None:
-        """Test default upload timeout."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_upload_timeout_seconds == 300
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.upload_timeout_seconds == 300
 
     def test_akosha_max_retries_default(self) -> None:
-        """Test default max retries."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_max_retries == 3
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.max_retries == 3
 
     def test_akosha_retry_backoff_seconds_default(self) -> None:
-        """Test default retry backoff."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_retry_backoff_seconds == 2.0
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.retry_backoff_seconds == 2.0
 
     def test_akosha_enable_compression_default_true(self) -> None:
-        """Test that compression is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_enable_compression is True
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.enable_compression is True
 
     def test_akosha_enable_deduplication_default_true(self) -> None:
-        """Test that deduplication is enabled by default."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_enable_deduplication is True
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.enable_deduplication is True
 
     def test_akosha_chunk_size_mb_default(self) -> None:
-        """Test default chunk size."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.akosha_chunk_size_mb == 5
+        settings = SessionBuddySettings()
+        assert settings.cloud_sync.chunk_size_mb == 5
 
     def test_akosha_force_method_valid_literals(self) -> None:
-        """Test valid akosha force method literals."""
-        from session_buddy.settings import SessionMgmtSettings
+        # New Literal: ["auto", "sync", "async"] (renamed from the legacy
+        # ["auto", "cloud", "http"] in 2026-09-27 audit).
+        for method in ["auto", "sync", "async"]:
+            settings = SessionBuddySettings(
+                cloud_sync=AkoshaSyncConfig(force_method=method),
+            )
+            assert settings.cloud_sync.force_method == method
 
-        for method in ["auto", "cloud", "http"]:
-            settings = SessionMgmtSettings(akosha_force_method=method)
-            assert settings.akosha_force_method == method
+    def test_custom_akosha_settings(self) -> None:
+        settings = SessionBuddySettings(
+            cloud_sync=AkoshaSyncConfig(
+                cloud_bucket="my-bucket",
+                cloud_endpoint="https://akosha.example.com",
+                system_id="my-system",
+            ),
+        )
+        assert settings.cloud_sync.cloud_bucket == "my-bucket"
+        assert settings.cloud_sync.cloud_endpoint == "https://akosha.example.com"
+        assert settings.cloud_sync.system_id == "my-system"
+
+
+# ===========================================================================
+# Legacy debug-flag mapping (now ``debug`` -> ``mcp_server.enable_debug_mode``)
+# ===========================================================================
 
 
 class TestLegacyDebugFlag:
-    """Test legacy debug flag mapping to enable_debug_mode."""
+    """Test the ``_map_legacy_debug_flag`` validator on ``SessionBuddySettings``."""
 
-    def test_legacy_debug_flag_maps_to_enable_debug_mode(self) -> None:
-        """Test that legacy 'debug' field maps to 'enable_debug_mode'."""
-        from session_buddy.settings import SessionMgmtSettings
+    def test_legacy_debug_flag_maps_to_mcp_server_enable_debug_mode(self) -> None:
+        settings = SessionBuddySettings.model_validate({"debug": True})
+        assert settings.mcp_server.enable_debug_mode is True
 
-        settings = SessionMgmtSettings.model_validate({"debug": True})
-        assert settings.enable_debug_mode is True
+    def test_legacy_debug_false_maps_to_mcp_server_enable_debug_mode_false(
+        self,
+    ) -> None:
+        settings = SessionBuddySettings.model_validate({"debug": False})
+        assert settings.mcp_server.enable_debug_mode is False
 
-    def test_legacy_debug_false_maps_to_enable_debug_mode_false(self) -> None:
-        """Test that legacy 'debug: false' maps correctly."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings.model_validate({"debug": False})
-        assert settings.enable_debug_mode is False
-
-    def test_explicit_enable_debug_mode_not_overridden(self) -> None:
-        """Test that explicit enable_debug_mode takes precedence."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        data = {"debug": True, "enable_debug_mode": False}
-        settings = SessionMgmtSettings.model_validate(data)
-        assert settings.enable_debug_mode is False
+    def test_explicit_mcp_server_enable_debug_mode_wins(self) -> None:
+        """An explicit nested ``mcp_server.enable_debug_mode`` overrides
+        the legacy ``debug`` shorthand."""
+        settings = SessionBuddySettings.model_validate(
+            {"debug": True, "mcp_server": {"enable_debug_mode": False}}
+        )
+        assert settings.mcp_server.enable_debug_mode is False
 
     def test_non_dict_passthrough(self) -> None:
-        """Test that non-dict values are returned unchanged."""
-        from session_buddy.settings import SessionMgmtSettings
-
         marker = object()
-        assert SessionMgmtSettings.map_legacy_debug_flag(marker) is marker
+        assert SessionBuddySettings._map_legacy_debug_flag(marker) is marker
 
-    def test_debug_flag_maps_to_enable_debug_mode(self) -> None:
-        """Test the validator directly on legacy debug input."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        data = {"debug": 1}
-        result = SessionMgmtSettings.map_legacy_debug_flag(data)
-        assert result["enable_debug_mode"] is True
+    def test_debug_flag_maps_to_mcp_server_enable_debug_mode(self) -> None:
+        result = SessionBuddySettings._map_legacy_debug_flag({"debug": 1})
+        assert result["mcp_server"]["enable_debug_mode"] is True
         assert result["debug"] == 1
 
 
-class TestGetSettings:
-    """Test get_settings() global function.
+# ===========================================================================
+# get_settings() / reload_settings() / get_database_path() / get_log_file_path()
+# / get_llm_api_key() — already rewritten in Phase 5 partial commit
+# ===========================================================================
 
-    Post-conversion: get_settings() returns SessionBuddySettings
-    (replaces the legacy SessionMgmtSettings). Tests build real
-    SessionBuddySettings instances and patch the module-level
-    ``_settings`` global.
-    """
+
+class TestGetSettings:
+    """Test ``get_settings()`` global function."""
 
     def test_get_settings_returns_session_buddy_settings(self) -> None:
-        """Test that get_settings returns SessionBuddySettings instance."""
         from session_buddy import settings as settings_module
 
         settings_module._settings = None
@@ -1364,9 +1087,7 @@ class TestGetSettings:
         mock_instance = SessionBuddySettings(
             mcp_server=ServerIdentityConfig(server_name="Loaded")
         )
-        with patch.object(
-            settings_module, "_settings", None
-        ):
+        with patch.object(settings_module, "_settings", None):
             with patch.object(
                 settings_module.SessionBuddySettings,
                 "load",
@@ -1376,7 +1097,6 @@ class TestGetSettings:
                 assert result is mock_instance
 
     def test_get_settings_caches_result(self) -> None:
-        """Test that get_settings caches the settings instance."""
         from session_buddy import settings as settings_module
 
         mock_settings = SessionBuddySettings(
@@ -1391,7 +1111,6 @@ class TestGetSettings:
                 mock_load.assert_not_called()
 
     def test_get_settings_reload_parameter(self) -> None:
-        """Test that reload=True forces fresh load."""
         from session_buddy import settings as settings_module
 
         mock_settings = SessionBuddySettings()
@@ -1411,10 +1130,9 @@ class TestGetSettings:
 
 
 class TestReloadSettings:
-    """Test reload_settings() function."""
+    """Test ``reload_settings()`` function."""
 
     def test_reload_settings_calls_get_settings_with_reload_true(self) -> None:
-        """Test that reload_settings forces a reload."""
         from session_buddy import settings as settings_module
 
         new_settings = SessionBuddySettings(
@@ -1432,11 +1150,7 @@ class TestReloadSettings:
 
 
 class TestGetDatabasePath:
-    """Test get_database_path() function.
-
-    Post-conversion: reads ``settings.database.path`` joined with
-    ``settings.paths.data_dir`` if relative.
-    """
+    """Test ``get_database_path()`` function."""
 
     def _make(self, *, db_path: Path, data_dir: Path) -> SessionBuddySettings:
         return SessionBuddySettings(
@@ -1445,7 +1159,6 @@ class TestGetDatabasePath:
         )
 
     def test_get_database_path_with_absolute_path(self) -> None:
-        """Test get_database_path with absolute database_path."""
         from session_buddy import settings as settings_module
 
         settings = self._make(
@@ -1457,7 +1170,6 @@ class TestGetDatabasePath:
             assert result == Path("/absolute/path/db.duckdb")
 
     def test_get_database_path_with_relative_path_and_data_dir(self) -> None:
-        """Test get_database_path with relative path uses data_dir."""
         from session_buddy import settings as settings_module
 
         settings = self._make(
@@ -1469,7 +1181,6 @@ class TestGetDatabasePath:
             assert result == Path("/tmp/data/relative/db.duckdb")
 
     def test_get_database_path_expands_user_tilde(self) -> None:
-        """Test get_database_path expands ~ in paths."""
         from session_buddy import settings as settings_module
 
         settings = self._make(
@@ -1481,7 +1192,6 @@ class TestGetDatabasePath:
             assert "~" not in str(result)
 
     def test_get_database_path_with_string_values(self) -> None:
-        """Test get_database_path handles raw string settings values."""
         from session_buddy import settings as settings_module
 
         settings = self._make(
@@ -1494,21 +1204,14 @@ class TestGetDatabasePath:
 
 
 class TestGetLogFilePath:
-    """Test get_log_file_path() function.
-
-    Post-conversion: reads ``settings.paths.log_file_path`` joined
-    with ``settings.paths.log_dir`` if relative.
-    """
+    """Test ``get_log_file_path()`` function."""
 
     def _make(self, *, log_file_path: Path, log_dir: Path) -> SessionBuddySettings:
         return SessionBuddySettings(
-            paths=PathsConfig(
-                log_file_path=log_file_path, log_dir=log_dir
-            ),
+            paths=PathsConfig(log_file_path=log_file_path, log_dir=log_dir),
         )
 
     def test_get_log_file_path_with_absolute_path(self) -> None:
-        """Test get_log_file_path with absolute log_file_path."""
         from session_buddy import settings as settings_module
 
         settings = self._make(
@@ -1520,7 +1223,6 @@ class TestGetLogFilePath:
             assert result == Path("/absolute/log/app.log")
 
     def test_get_log_file_path_with_relative_path_and_log_dir(self) -> None:
-        """Test get_log_file_path with relative path uses log_dir."""
         from session_buddy import settings as settings_module
 
         settings = self._make(
@@ -1532,7 +1234,6 @@ class TestGetLogFilePath:
             assert result == Path("/tmp/logs/relative/log.log")
 
     def test_get_log_file_path_expands_user_tilde(self) -> None:
-        """Test get_log_file_path expands ~ in paths."""
         from session_buddy import settings as settings_module
 
         settings = self._make(
@@ -1544,7 +1245,6 @@ class TestGetLogFilePath:
             assert "~" not in str(result)
 
     def test_get_log_file_path_with_string_values(self) -> None:
-        """Test get_log_file_path rejects raw string settings values."""
         from session_buddy import settings as settings_module
 
         settings = self._make(
@@ -1553,17 +1253,11 @@ class TestGetLogFilePath:
         )
         with patch.object(settings_module, "_settings", settings):
             result = settings_module.get_log_file_path()
-            assert result == Path("/tmp/logs/relative/app.log")
+        assert result == Path("/tmp/logs/relative/app.log")
 
 
 class TestGetLLMAPIKey:
-    """Test get_llm_api_key() function.
-
-    Post-conversion: the helper reads
-    ``settings.llm.api_keys.<provider>``. Tests construct
-    SessionBuddySettings with ``LLMApiKeysConfig`` overrides and
-    patch the module-level singleton.
-    """
+    """Test ``get_llm_api_key()`` function."""
 
     def _make(self, **api_keys: str | None) -> SessionBuddySettings:
         return SessionBuddySettings(
@@ -1571,7 +1265,6 @@ class TestGetLLMAPIKey:
         )
 
     def test_get_llm_api_key_openai(self) -> None:
-        """Test get_llm_api_key for OpenAI provider."""
         from session_buddy import settings as settings_module
 
         test_key = "sk-test-placeholder-key-for-unit-testing-only"
@@ -1581,7 +1274,6 @@ class TestGetLLMAPIKey:
             assert result == test_key
 
     def test_get_llm_api_key_anthropic(self) -> None:
-        """Test get_llm_api_key for Anthropic provider."""
         from session_buddy import settings as settings_module
 
         test_key = "sk-ant-test-placeholder-key-for-unit-testing-only-1234567890"
@@ -1591,7 +1283,6 @@ class TestGetLLMAPIKey:
             assert result == test_key
 
     def test_get_llm_api_key_minimax(self) -> None:
-        """Test get_llm_api_key for MiniMax provider."""
         from session_buddy import settings as settings_module
 
         settings = self._make(minimax="minimax-key")
@@ -1600,7 +1291,6 @@ class TestGetLLMAPIKey:
             assert result == "minimax-key"
 
     def test_get_llm_api_key_zai(self) -> None:
-        """Test get_llm_api_key for ZAI provider."""
         from session_buddy import settings as settings_module
 
         settings = self._make(zai="zai-key")
@@ -1609,7 +1299,6 @@ class TestGetLLMAPIKey:
             assert result == "zai-key"
 
     def test_get_llm_api_key_unknown_provider(self) -> None:
-        """Test get_llm_api_key returns None for unknown provider."""
         from session_buddy import settings as settings_module
 
         settings = self._make()
@@ -1618,7 +1307,6 @@ class TestGetLLMAPIKey:
             assert result is None
 
     def test_get_llm_api_key_empty_key_returns_none(self) -> None:
-        """Test get_llm_api_key returns None for empty/whitespace API key."""
         from session_buddy import settings as settings_module
 
         settings = self._make(openai="   ")
@@ -1627,191 +1315,103 @@ class TestGetLLMAPIKey:
             assert result is None
 
 
-class TestSessionMgmtSettingsLoad:
-    """Test SessionMgmtSettings.load() with temp directory."""
+# ===========================================================================
+# SessionBuddySettings.load() — round-trip the Oneiric layered loader
+# ===========================================================================
 
-    def test_load_creates_instance_from_defaults(self) -> None:
-        """Test that load() creates an instance with defaults."""
-        from session_buddy.settings import SessionMgmtSettings
 
-        # When no config files exist, load() should still work with defaults
-        result = SessionMgmtSettings.load("session-buddy")
-        assert isinstance(result, SessionMgmtSettings)
+class TestSessionBuddySettingsLoad:
+    """Test ``SessionBuddySettings.load()`` with explicit config_path."""
 
-    def test_load_with_temp_settings_file(self) -> None:
-        """Test loading from a temporary settings file."""
-        import yaml
-        from session_buddy.settings import SessionMgmtSettings
+    def test_load_with_empty_path_uses_defaults(self) -> None:
+        """``load()`` with no path falls back to the Oneiric search;
+        even with no config files it must yield a usable instance."""
+        # We can't fully exercise the Oneiric path without a real
+        # project_root, but ``load()`` returns a ``SessionBuddySettings``
+        # either way.
+        result = SessionBuddySettings.load()
+        assert isinstance(result, SessionBuddySettings)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_path = Path(tmpdir)
-            settings_file = tmp_path / "settings" / "session-buddy.yaml"
-            settings_file.parent.mkdir(parents=True, exist_ok=True)
+    def test_load_from_explicit_yaml(self, tmp_path: Path) -> None:
+        """A nested-shape YAML at an explicit path is honored by
+        ``load(config_path=...)``."""
+        config_file = tmp_path / "test-config.yaml"
+        config_file.write_text(
+            yaml.dump(
+                {
+                    "mcp_server": {"server_name": "Test Server"},
+                    "mcp_transport": {"server_port": 9999},
+                }
+            )
+        )
 
-            config_data = {
-                "server_name": "Test Server",
-                "log_level": "DEBUG",
-            }
-            with settings_file.open("w") as f:
-                yaml.safe_dump(config_data, f)
+        result = SessionBuddySettings.load(config_path=config_file)
+        assert result.mcp_server.server_name == "Test Server"
+        assert result.mcp_transport.server_port == 9999
 
-            # Override the settings directory lookup to use temp dir
-            original_cwd = Path.cwd()
-            try:
-                import os
 
-                os.chdir(tmpdir)
-                result = SessionMgmtSettings.load("session-buddy")
-                assert result.server_name == "Test Server"
-                assert result.log_level == "DEBUG"
-            finally:
-                os.chdir(original_cwd)
+# ===========================================================================
+# __all__ exports
+# ===========================================================================
 
 
 class TestExports:
     """Test module exports."""
 
-    def test_all_exports_present(self) -> None:
-        """Test that all items in __all__ are actually exported."""
+    def test_session_buddy_settings_in_all(self) -> None:
         from session_buddy import settings as settings_module
 
-        expected = [
-            "SessionMgmtSettings",
+        assert "SessionBuddySettings" in settings_module.__all__
+
+    def test_legacy_session_mgmt_settings_removed(self) -> None:
+        """``SessionMgmtSettings`` was deleted in Phase 6; it must not
+        appear in ``__all__`` or as a module attribute."""
+        from session_buddy import settings as settings_module
+
+        assert "SessionMgmtSettings" not in settings_module.__all__
+        assert not hasattr(settings_module, "SessionMgmtSettings")
+
+    def test_all_nested_configs_exported(self) -> None:
+        from session_buddy import settings as settings_module
+
+        expected_groups = [
+            "ServerIdentityConfig",
+            "MCPTransportConfig",
+            "PathsConfig",
+            "DatabaseConfig",
+            "MultiProjectConfig",
+            "SearchConfig",
+            "TokensConfig",
+            "SessionConfig",
+            "ConversationStorageConfig",
+            "ReflectionAutoStoreConfig",
+            "IntegrationsConfig",
+            "GitMaintenanceConfig",
+            "PrometheusConfig",
+            "DevelopmentConfig",
+            "LoggingConfig",
+            "SecurityConfig",
+            "LLMConfig",
+            "LLMApiKeysConfig",
+            "EntityExtractionConfig",
+            "FeatureFlagsConfig",
+            "FilesystemExtractionConfig",
+            "AkoshaSyncConfig",
+            "BodaiEventsConfig",
+        ]
+        for cls_name in expected_groups:
+            assert cls_name in settings_module.__all__
+            assert hasattr(settings_module, cls_name)
+
+    def test_helper_functions_exported(self) -> None:
+        from session_buddy import settings as settings_module
+
+        for name in [
             "get_database_path",
             "get_llm_api_key",
             "get_log_file_path",
             "get_settings",
             "reload_settings",
-        ]
-        for item in expected:
-            assert hasattr(settings_module, item)
-            assert item in settings_module.__all__
-
-
-# Import at end to avoid issues with mock patching
-# (SessionMgmtSettings was removed in Phase 6 — TestSessionMgmtSettingsLoad
-# class above needs a follow-up to use SessionBuddySettings.)
-
-
-# ---------------------------------------------------------------------------
-# Nested-dict merge in the load() flat YAML loop
-# ---------------------------------------------------------------------------
-
-
-class TestNestedYamlMerge:
-    """Pin the nested-dict merge added 2026-10-04.
-
-    Before the fix, ``settings/local.yaml`` overriding only one nested
-    key (e.g. ``llm_providers.fallback_providers``) would overwrite the
-    entire ``llm_providers`` block, wiping out ``ollama_base_url`` and
-    ``ollama_default_model``. The load() loop now merges nested dicts
-    field-by-field.
-    """
-
-    def test_partial_local_override_preserves_committed_nested_keys(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A local.yaml that only specifies one nested key must not
-        erase the other keys the committed YAML provided.
-        """
-        settings_dir = tmp_path / "settings"
-        settings_dir.mkdir()
-        # Committed: full nested block.
-        (settings_dir / "session-buddy.yaml").write_text(
-            yaml.dump(
-                {
-                    "llm_providers": {
-                        "default_provider": "minimax",
-                        "ollama_base_url": "http://localhost:11434",
-                        "ollama_default_model": "Qwen3-8B-8.2B-Q4_K_M",
-                        "llama_server_default_model": "qwen3.5",
-                        "fallback_providers": [
-                            "minimax",
-                            "llama_server",
-                            "ollama",
-                        ],
-                    },
-                }
-            )
-        )
-        # local: only overrides fallback_providers.
-        (settings_dir / "local.yaml").write_text(
-            yaml.dump(
-                {
-                    "llm_providers": {
-                        "fallback_providers": ["zai"],
-                    },
-                }
-            )
-        )
-
-        monkeypatch.chdir(tmp_path)
-        loaded = SessionMgmtSettings.load(server_name="session-buddy")
-
-        # Override landed.
-        assert loaded.llm_providers.fallback_providers == ["zai"]
-        # Non-overridden keys preserved.
-        assert loaded.llm_providers.default_provider == "minimax"
-        assert (
-            loaded.llm_providers.ollama_default_model
-            == "Qwen3-8B-8.2B-Q4_K_M"
-        )
-        assert (
-            loaded.llm_providers.ollama_base_url
-            == "http://localhost:11434"
-        )
-        assert loaded.llm_providers.llama_server_default_model == "qwen3.5"
-
-    def test_flat_keys_still_replace_not_merge(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Regression guard: non-dict overrides still replace, not merge."""
-        settings_dir = tmp_path / "settings"
-        settings_dir.mkdir()
-        (settings_dir / "session-buddy.yaml").write_text(
-            yaml.dump({"log_level": "INFO"})
-        )
-        (settings_dir / "local.yaml").write_text(
-            yaml.dump({"log_level": "DEBUG"})
-        )
-
-        monkeypatch.chdir(tmp_path)
-        loaded = SessionMgmtSettings.load(server_name="session-buddy")
-
-        assert loaded.log_level == "DEBUG"
-
-    def test_bodai_events_merge(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """The same merge rule must apply to other nested blocks
-        (``bodai_events``, ``storage``)."""
-        settings_dir = tmp_path / "settings"
-        settings_dir.mkdir()
-        (settings_dir / "session-buddy.yaml").write_text(
-            yaml.dump(
-                {
-                    "bodai_events": {
-                        "enabled": True,
-                        "stream": "bodai:events",
-                        "consumer_group": "bodai-default",
-                    },
-                }
-            )
-        )
-        # local.yaml only overrides consumer_group.
-        (settings_dir / "local.yaml").write_text(
-            yaml.dump(
-                {
-                    "bodai_events": {
-                        "consumer_group": "custom-group",
-                    },
-                }
-            )
-        )
-
-        monkeypatch.chdir(tmp_path)
-        loaded = SessionMgmtSettings.load(server_name="session-buddy")
-
-        assert loaded.bodai_events.consumer_group == "custom-group"
-        assert loaded.bodai_events.stream == "bodai:events"
-        assert loaded.bodai_events.enabled is True
+        ]:
+            assert name in settings_module.__all__
+            assert hasattr(settings_module, name)

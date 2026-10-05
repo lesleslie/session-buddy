@@ -1,418 +1,545 @@
-"""Unit tests for Session Buddy settings and configuration.
+"""Unit tests for ``SessionBuddySettings`` nested ``*Config`` groups.
 
 Tests configuration loading, validation, and defaults for:
-- LLM provider configuration
-- Core MCP settings
-- Database configuration
-- Search and semantic search settings
-- Token optimization settings
+
+- LLM provider configuration (``LLMConfig`` + ``LLMApiKeysConfig``)
+- Core MCP identity + transport (``ServerIdentityConfig``,
+  ``MCPTransportConfig``)
+- Paths (``PathsConfig``) and database (``DatabaseConfig``)
+- Multi-project coordination (``MultiProjectConfig``)
+- Search + embedding settings (``SearchConfig``)
+- Token optimization (``TokensConfig``)
+
+Replaces the legacy flat-shape ``SessionMgmtSettings`` test suite
+(deleted in Phase 6). Each test constructs a real
+``SessionBuddySettings`` instance via the nested constructor pattern:
+
+    SessionBuddySettings(
+        multi_project=MultiProjectConfig(enable_multi_project=False),
+    )
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-# NOTE: this file (test_settings_core.py) was the most-extensive legacy
-# settings test suite, with 30+ classes asserting on the flat
-# ``SessionMgmtSettings`` shape. Phase 6 deleted the legacy class;
-# the test classes below are slated for a follow-up rewrite to
-# assert on ``SessionBuddySettings`` + the nested *Config groups.
-# For now, the import is removed so the rest of the suite can
-# collect, and the affected test bodies are skipped via
-# ``__test__ = False`` below if the import cannot be resolved.
-try:
-    from session_buddy.settings import SessionMgmtSettings  # noqa: F401
-    _LEGACY_AVAILABLE = True
-except ImportError:
-    _LEGACY_AVAILABLE = False
+from session_buddy.settings import (
+    AkoshaSyncConfig,
+    ConversationStorageConfig,
+    DatabaseConfig,
+    FeatureFlagsConfig,
+    GitMaintenanceConfig,
+    IntegrationsConfig,
+    LLMApiKeysConfig,
+    LLMConfig,
+    LoggingConfig,
+    MCPTransportConfig,
+    MultiProjectConfig,
+    PathsConfig,
+    PrometheusConfig,
+    ReflectionAutoStoreConfig,
+    SearchConfig,
+    SecurityConfig,
+    ServerIdentityConfig,
+    SessionBuddySettings,
+    SessionConfig,
+    TokensConfig,
+)
 
 
-class TestLLMProvidersConfig:
-    """Test LLMProvidersConfig dataclass."""
+class TestLLMConfig:
+    """Test the consolidated ``LLMConfig`` group."""
 
     def test_default_provider_is_minimax(self) -> None:
-        """Test that default provider is minimax."""
-        config = LLMProvidersConfig()
-        assert config.default_provider == "minimax"
+        settings = SessionBuddySettings()
+        assert settings.llm.default_provider == "minimax"
 
     def test_ollama_url_default(self) -> None:
-        """Test default Ollama URL."""
-        config = LLMProvidersConfig()
-        assert config.ollama_base_url == "http://localhost:11434"
+        settings = SessionBuddySettings()
+        assert settings.llm.ollama_base_url == "http://localhost:11434"
 
     def test_ollama_model_default(self) -> None:
-        """Test default Ollama model."""
-        config = LLMProvidersConfig()
-        assert config.ollama_default_model == "qwen2.5-coder:7b"
+        settings = SessionBuddySettings()
+        assert settings.llm.ollama_default_model == "qwen2.5-coder:7b"
 
     def test_llama_server_model_default(self) -> None:
-        """Test default llama-server model."""
-        config = LLMProvidersConfig()
-        assert config.llama_server_default_model == "qwen3.5"
+        settings = SessionBuddySettings()
+        assert settings.llm.llama_server_default_model == "qwen3.5"
+
+    def test_llama_server_model_field_default(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.llm.llama_server_model == "qwen3.5"
 
     def test_fallback_providers_default(self) -> None:
-        """Test default fallback provider chain."""
-        config = LLMProvidersConfig()
-        assert config.fallback_providers == [
+        settings = SessionBuddySettings()
+        assert settings.llm.fallback_providers == [
             "minimax",
             "llama_server",
             "ollama",
         ]
 
+    def test_minimax_base_url_default(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.llm.minimax_base_url == "https://api.minimax.io/v1"
+
+    def test_minimax_default_model_default(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.llm.minimax_default_model == "MiniMax-M2.7"
+
+    def test_zai_base_url_default(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.llm.zai_base_url == "https://api.z.ai/api/coding/paas/v4"
+
+    def test_zai_default_model_default(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.llm.zai_default_model == "glm-4.7"
+
     def test_custom_provider(self) -> None:
-        """Test setting custom provider."""
-        config = LLMProvidersConfig(default_provider="ollama")
-        assert config.default_provider == "ollama"
+        settings = SessionBuddySettings(
+            llm=LLMConfig(default_provider="ollama"),
+        )
+        assert settings.llm.default_provider == "ollama"
 
     def test_custom_fallback_chain(self) -> None:
-        """Test setting custom fallback chain."""
-        custom_chain = ["ollama", "minimax"]
-        config = LLMProvidersConfig(fallback_providers=custom_chain)
-        assert config.fallback_providers == custom_chain
-
-    def test_custom_urls(self) -> None:
-        """Test setting custom service URLs."""
-        config = LLMProvidersConfig(
-            ollama_base_url="http://custom:11434",
+        settings = SessionBuddySettings(
+            llm=LLMConfig(fallback_providers=["ollama", "minimax"]),
         )
-        assert config.ollama_base_url == "http://custom:11434"
+        assert settings.llm.fallback_providers == ["ollama", "minimax"]
+
+    def test_custom_ollama_url(self) -> None:
+        settings = SessionBuddySettings(
+            llm=LLMConfig(ollama_base_url="http://custom:11434"),
+        )
+        assert settings.llm.ollama_base_url == "http://custom:11434"
 
     def test_valid_provider_values(self) -> None:
-        """Test that all valid provider values work."""
         providers = ["minimax", "zai", "openai", "gemini", "ollama", "llama_server"]
         for provider in providers:
-            config = LLMProvidersConfig(default_provider=provider)
-            assert config.default_provider == provider
+            settings = SessionBuddySettings(
+                llm=LLMConfig(default_provider=provider),
+            )
+            assert settings.llm.default_provider == provider
+
+    def test_api_keys_group_is_nested(self) -> None:
+        settings = SessionBuddySettings()
+        assert isinstance(settings.llm.api_keys, LLMApiKeysConfig)
+        assert settings.llm.api_keys.openai is None
+        assert settings.llm.api_keys.minimax is None
 
 
-class TestSessionMgmtSettingsBasics:
-    """Test SessionMgmtSettings basic initialization."""
+class TestServerIdentityConfig:
+    """Test ``ServerIdentityConfig`` (MCP server identity)."""
 
     def test_server_name_default(self) -> None:
-        """Test default server name."""
-        settings = SessionMgmtSettings()
-        assert settings.server_name == "Session Buddy MCP"
+        settings = SessionBuddySettings()
+        assert settings.mcp_server.server_name == "Session Buddy MCP"
 
     def test_server_description_default(self) -> None:
-        """Test default server description."""
-        settings = SessionMgmtSettings()
-        assert settings.server_description == "Session management and tooling MCP server"
+        settings = SessionBuddySettings()
+        assert (
+            settings.mcp_server.server_description
+            == "Session management and tooling MCP server"
+        )
 
     def test_log_level_default(self) -> None:
-        """Test default log level."""
-        settings = SessionMgmtSettings()
-        assert settings.log_level == "INFO"
+        settings = SessionBuddySettings()
+        assert settings.mcp_server.log_level == "INFO"
 
-    def test_debug_mode_default(self) -> None:
-        """Test that debug mode is disabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_debug_mode is False
+    def test_enable_debug_mode_default(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.mcp_server.enable_debug_mode is False
 
     def test_custom_server_name(self) -> None:
-        """Test setting custom server name."""
-        settings = SessionMgmtSettings(server_name="Custom Server")
-        assert settings.server_name == "Custom Server"
+        settings = SessionBuddySettings(
+            mcp_server=ServerIdentityConfig(server_name="Custom Server"),
+        )
+        assert settings.mcp_server.server_name == "Custom Server"
 
     def test_enable_debug_mode(self) -> None:
-        """Test enabling debug mode."""
-        settings = SessionMgmtSettings(enable_debug_mode=True)
-        assert settings.enable_debug_mode is True
+        settings = SessionBuddySettings(
+            mcp_server=ServerIdentityConfig(enable_debug_mode=True),
+        )
+        assert settings.mcp_server.enable_debug_mode is True
 
     def test_custom_log_level(self) -> None:
-        """Test setting custom log level."""
-        settings = SessionMgmtSettings(log_level="DEBUG")
-        assert settings.log_level == "DEBUG"
+        settings = SessionBuddySettings(
+            mcp_server=ServerIdentityConfig(log_level="DEBUG"),
+        )
+        assert settings.mcp_server.log_level == "DEBUG"
 
     def test_valid_log_levels(self) -> None:
-        """Test all valid log level values."""
         levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         for level in levels:
-            settings = SessionMgmtSettings(log_level=level)
-            assert settings.log_level == level
+            settings = SessionBuddySettings(
+                mcp_server=ServerIdentityConfig(log_level=level),
+            )
+            assert settings.mcp_server.log_level == level
 
 
-class TestSessionMgmtSettingsPaths:
-    """Test SessionMgmtSettings path configuration."""
+class TestPathsConfig:
+    """Test ``PathsConfig`` (filesystem path settings + ~ expansion)."""
 
     def test_default_data_dir(self) -> None:
-        """Test default data directory."""
-        settings = SessionMgmtSettings()
-        assert str(settings.data_dir) == "~/.claude/data"
+        settings = SessionBuddySettings()
+        assert settings.paths.data_dir == Path("~/.claude/data")
 
     def test_default_log_dir(self) -> None:
-        """Test default log directory."""
-        settings = SessionMgmtSettings()
-        assert str(settings.log_dir) == "~/.claude/logs"
+        settings = SessionBuddySettings()
+        assert settings.paths.log_dir == Path("~/.claude/logs")
 
-    def test_default_database_path(self) -> None:
-        """Test default database path."""
-        settings = SessionMgmtSettings()
-        assert str(settings.database_path) == "~/.claude/data/reflection.duckdb"
+    def test_default_global_workspace_path(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.paths.global_workspace_path == Path("~/Projects/claude")
+
+    def test_default_log_file_path(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.paths.log_file_path == Path(
+            "~/.claude/logs/session-buddy.log"
+        )
 
     def test_custom_data_dir(self) -> None:
-        """Test setting custom data directory."""
-        custom_path = Path("/custom/data")
-        settings = SessionMgmtSettings(data_dir=custom_path)
-        assert settings.data_dir == custom_path
+        settings = SessionBuddySettings(
+            paths=PathsConfig(data_dir=Path("/custom/data")),
+        )
+        assert settings.paths.data_dir == Path("/custom/data")
 
-    def test_custom_database_path(self) -> None:
-        """Test setting custom database path."""
-        custom_path = Path("/custom/db.duckdb")
-        settings = SessionMgmtSettings(database_path=custom_path)
-        assert settings.database_path == custom_path
+    def test_user_path_expansion_data_dir(self) -> None:
+        settings = SessionBuddySettings(
+            paths=PathsConfig(data_dir=Path("~/my/data")),
+        )
+        expanded = settings.paths.data_dir
+        assert "~" not in str(expanded)
+        assert expanded.is_absolute()
+
+    def test_user_path_expansion_log_dir(self) -> None:
+        settings = SessionBuddySettings(
+            paths=PathsConfig(log_dir=Path("~/my/logs")),
+        )
+        expanded = settings.paths.log_dir
+        assert "~" not in str(expanded)
+        assert expanded.is_absolute()
+
+    def test_user_path_expansion_global_workspace_path(self) -> None:
+        settings = SessionBuddySettings(
+            paths=PathsConfig(global_workspace_path=Path("~/my/workspace")),
+        )
+        expanded = settings.paths.global_workspace_path
+        assert "~" not in str(expanded)
+        assert expanded.is_absolute()
+
+    def test_user_path_expansion_log_file_path(self) -> None:
+        settings = SessionBuddySettings(
+            paths=PathsConfig(log_file_path=Path("~/my/logs/app.log")),
+        )
+        expanded = settings.paths.log_file_path
+        assert "~" not in str(expanded)
+        assert expanded.is_absolute()
+
+    def test_string_path_inputs_are_expanded(self) -> None:
+        settings = SessionBuddySettings(
+            paths=PathsConfig(
+                data_dir="~/my/data",
+                log_dir="~/my/logs",
+                log_file_path="~/my/logs/app.log",
+                global_workspace_path="~/my/workspace",
+            ),
+        )
+        assert settings.paths.data_dir.is_absolute()
+        assert settings.paths.log_dir.is_absolute()
+        assert settings.paths.log_file_path.is_absolute()
+        assert settings.paths.global_workspace_path.is_absolute()
 
 
-class TestSessionMgmtSettingsDatabaseConfig:
-    """Test SessionMgmtSettings database configuration."""
+class TestDatabaseConfig:
+    """Test ``DatabaseConfig`` (DuckDB connection settings)."""
 
-    def test_database_connection_timeout_default(self) -> None:
-        """Test default database connection timeout."""
-        settings = SessionMgmtSettings()
-        assert settings.database_connection_timeout == 30
+    def test_default_path(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.database.path == Path("~/.claude/data/reflection.duckdb")
 
-    def test_database_query_timeout_default(self) -> None:
-        """Test default database query timeout."""
-        settings = SessionMgmtSettings()
-        assert settings.database_query_timeout == 120
+    def test_default_connection_timeout(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.database.connection_timeout == 30
 
-    def test_database_max_connections_default(self) -> None:
-        """Test default max database connections."""
-        settings = SessionMgmtSettings()
-        assert settings.database_max_connections == 10
+    def test_default_query_timeout(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.database.query_timeout == 120
+
+    def test_default_max_connections(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.database.max_connections == 10
 
     def test_custom_connection_timeout(self) -> None:
-        """Test setting custom connection timeout."""
-        settings = SessionMgmtSettings(database_connection_timeout=60)
-        assert settings.database_connection_timeout == 60
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(connection_timeout=60),
+        )
+        assert settings.database.connection_timeout == 60
 
     def test_custom_query_timeout(self) -> None:
-        """Test setting custom query timeout."""
-        settings = SessionMgmtSettings(database_query_timeout=300)
-        assert settings.database_query_timeout == 300
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(query_timeout=300),
+        )
+        assert settings.database.query_timeout == 300
 
     def test_custom_max_connections(self) -> None:
-        """Test setting custom max connections."""
-        settings = SessionMgmtSettings(database_max_connections=20)
-        assert settings.database_max_connections == 20
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(max_connections=20),
+        )
+        assert settings.database.max_connections == 20
 
     def test_connection_timeout_constraints(self) -> None:
-        """Test connection timeout constraints."""
         # Min value
-        settings = SessionMgmtSettings(database_connection_timeout=1)
-        assert settings.database_connection_timeout == 1
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(connection_timeout=1),
+        )
+        assert settings.database.connection_timeout == 1
         # Max value
-        settings = SessionMgmtSettings(database_connection_timeout=300)
-        assert settings.database_connection_timeout == 300
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(connection_timeout=300),
+        )
+        assert settings.database.connection_timeout == 300
 
     def test_query_timeout_constraints(self) -> None:
-        """Test query timeout constraints."""
         # Min value
-        settings = SessionMgmtSettings(database_query_timeout=1)
-        assert settings.database_query_timeout == 1
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(query_timeout=1),
+        )
+        assert settings.database.query_timeout == 1
         # Max value
-        settings = SessionMgmtSettings(database_query_timeout=3600)
-        assert settings.database_query_timeout == 3600
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(query_timeout=3600),
+        )
+        assert settings.database.query_timeout == 3600
 
 
-class TestSessionMgmtSettingsMultiProject:
-    """Test SessionMgmtSettings multi-project configuration."""
+class TestMultiProjectConfig:
+    """Test ``MultiProjectConfig``."""
 
     def test_multi_project_enabled_default(self) -> None:
-        """Test that multi-project is enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_multi_project is True
+        settings = SessionBuddySettings()
+        assert settings.multi_project.enable_multi_project is True
 
     def test_auto_detect_projects_default(self) -> None:
-        """Test that auto-detect projects is enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.auto_detect_projects is True
+        settings = SessionBuddySettings()
+        assert settings.multi_project.auto_detect_projects is True
 
     def test_project_groups_enabled_default(self) -> None:
-        """Test that project groups are enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.project_groups_enabled is True
+        settings = SessionBuddySettings()
+        assert settings.multi_project.project_groups_enabled is True
 
     def test_disable_multi_project(self) -> None:
-        """Test disabling multi-project features."""
-        settings = SessionMgmtSettings(enable_multi_project=False)
-        assert settings.enable_multi_project is False
+        settings = SessionBuddySettings(
+            multi_project=MultiProjectConfig(enable_multi_project=False),
+        )
+        assert settings.multi_project.enable_multi_project is False
 
     def test_disable_auto_detect(self) -> None:
-        """Test disabling auto-detect projects."""
-        settings = SessionMgmtSettings(auto_detect_projects=False)
-        assert settings.auto_detect_projects is False
+        settings = SessionBuddySettings(
+            multi_project=MultiProjectConfig(auto_detect_projects=False),
+        )
+        assert settings.multi_project.auto_detect_projects is False
 
 
-class TestSessionMgmtSettingsSearch:
-    """Test SessionMgmtSettings search configuration."""
+class TestSearchConfig:
+    """Test ``SearchConfig`` (database search + embeddings)."""
 
     def test_full_text_search_enabled_default(self) -> None:
-        """Test that full-text search is enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_full_text_search is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_full_text_search is True
 
     def test_semantic_search_enabled_default(self) -> None:
-        """Test that semantic search is enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_semantic_search is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_semantic_search is True
 
     def test_faceted_search_enabled_default(self) -> None:
-        """Test that faceted search is enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_faceted_search is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_faceted_search is True
 
     def test_search_suggestions_enabled_default(self) -> None:
-        """Test that search suggestions are enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_search_suggestions is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_search_suggestions is True
 
     def test_stemming_enabled_default(self) -> None:
-        """Test that stemming is enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_stemming is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_stemming is True
 
     def test_fuzzy_matching_enabled_default(self) -> None:
-        """Test that fuzzy matching is enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_fuzzy_matching is True
+        settings = SessionBuddySettings()
+        assert settings.search.enable_fuzzy_matching is True
 
     def test_max_search_results_default(self) -> None:
-        """Test default max search results."""
-        settings = SessionMgmtSettings()
-        assert settings.max_search_results == 100
+        settings = SessionBuddySettings()
+        assert settings.search.max_search_results == 100
 
     def test_embedding_model_default(self) -> None:
-        """Test default embedding model."""
-        settings = SessionMgmtSettings()
-        assert settings.embedding_model == "all-MiniLM-L6-v2"
+        settings = SessionBuddySettings()
+        assert settings.search.embedding_model == "all-MiniLM-L6-v2"
 
     def test_search_index_update_interval_default(self) -> None:
-        """Test default search index update interval."""
-        settings = SessionMgmtSettings()
-        assert settings.search_index_update_interval == 3600
+        settings = SessionBuddySettings()
+        assert settings.search.search_index_update_interval == 3600
 
     def test_fuzzy_threshold_default(self) -> None:
-        """Test default fuzzy matching threshold."""
-        settings = SessionMgmtSettings()
-        assert settings.fuzzy_threshold == 0.8
+        settings = SessionBuddySettings()
+        assert settings.search.fuzzy_threshold == 0.8
 
     def test_custom_fuzzy_threshold(self) -> None:
-        """Test setting custom fuzzy threshold."""
-        settings = SessionMgmtSettings(fuzzy_threshold=0.7)
-        assert settings.fuzzy_threshold == 0.7
+        settings = SessionBuddySettings(
+            search=SearchConfig(fuzzy_threshold=0.7),
+        )
+        assert settings.search.fuzzy_threshold == 0.7
 
     def test_disable_features(self) -> None:
-        """Test disabling search features."""
-        settings = SessionMgmtSettings(
-            enable_full_text_search=False,
-            enable_semantic_search=False,
-            enable_faceted_search=False,
-            enable_search_suggestions=False,
-            enable_stemming=False,
-            enable_fuzzy_matching=False,
+        settings = SessionBuddySettings(
+            search=SearchConfig(
+                enable_full_text_search=False,
+                enable_semantic_search=False,
+                enable_faceted_search=False,
+                enable_search_suggestions=False,
+                enable_stemming=False,
+                enable_fuzzy_matching=False,
+            ),
         )
-        assert settings.enable_full_text_search is False
-        assert settings.enable_semantic_search is False
-        assert settings.enable_faceted_search is False
-        assert settings.enable_search_suggestions is False
-        assert settings.enable_stemming is False
-        assert settings.enable_fuzzy_matching is False
+        assert settings.search.enable_full_text_search is False
+        assert settings.search.enable_semantic_search is False
+        assert settings.search.enable_faceted_search is False
+        assert settings.search.enable_search_suggestions is False
+        assert settings.search.enable_stemming is False
+        assert settings.search.enable_fuzzy_matching is False
 
 
-class TestSessionMgmtSettingsTokenOptimization:
-    """Test SessionMgmtSettings token optimization configuration."""
+class TestTokensConfig:
+    """Test ``TokensConfig`` (token optimization)."""
 
     def test_token_optimization_enabled_default(self) -> None:
-        """Test that token optimization is enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_token_optimization is True
+        settings = SessionBuddySettings()
+        assert settings.tokens.enable_token_optimization is True
 
     def test_response_chunking_enabled_default(self) -> None:
-        """Test that response chunking is enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_response_chunking is True
+        settings = SessionBuddySettings()
+        assert settings.tokens.enable_response_chunking is True
 
     def test_duplicate_filtering_enabled_default(self) -> None:
-        """Test that duplicate filtering is enabled by default."""
-        settings = SessionMgmtSettings()
-        assert settings.enable_duplicate_filtering is True
+        settings = SessionBuddySettings()
+        assert settings.tokens.enable_duplicate_filtering is True
 
     def test_default_max_tokens(self) -> None:
-        """Test default max tokens."""
-        settings = SessionMgmtSettings()
-        assert settings.default_max_tokens == 4000
+        settings = SessionBuddySettings()
+        assert settings.tokens.default_max_tokens == 4000
 
     def test_default_chunk_size(self) -> None:
-        """Test default chunk size."""
-        settings = SessionMgmtSettings()
-        assert settings.default_chunk_size == 2000
+        settings = SessionBuddySettings()
+        assert settings.tokens.default_chunk_size == 2000
 
     def test_optimization_strategy_default(self) -> None:
-        """Test default optimization strategy."""
-        settings = SessionMgmtSettings()
-        assert settings.optimization_strategy == "auto"
+        settings = SessionBuddySettings()
+        assert settings.tokens.optimization_strategy == "auto"
 
     def test_custom_max_tokens(self) -> None:
-        """Test setting custom max tokens."""
-        settings = SessionMgmtSettings(default_max_tokens=8000)
-        assert settings.default_max_tokens == 8000
+        settings = SessionBuddySettings(
+            tokens=TokensConfig(default_max_tokens=8000),
+        )
+        assert settings.tokens.default_max_tokens == 8000
 
     def test_custom_chunk_size(self) -> None:
-        """Test setting custom chunk size."""
-        settings = SessionMgmtSettings(default_chunk_size=5000)
-        assert settings.default_chunk_size == 5000
+        settings = SessionBuddySettings(
+            tokens=TokensConfig(default_chunk_size=5000),
+        )
+        assert settings.tokens.default_chunk_size == 5000
 
     def test_custom_optimization_strategy(self) -> None:
-        """Test setting custom optimization strategy."""
-        settings = SessionMgmtSettings(optimization_strategy="summarize_content")
-        assert settings.optimization_strategy == "summarize_content"
+        settings = SessionBuddySettings(
+            tokens=TokensConfig(optimization_strategy="summarize_content"),
+        )
+        assert settings.tokens.optimization_strategy == "summarize_content"
 
     def test_disable_token_optimization(self) -> None:
-        """Test disabling token optimization."""
-        settings = SessionMgmtSettings(enable_token_optimization=False)
-        assert settings.enable_token_optimization is False
+        settings = SessionBuddySettings(
+            tokens=TokensConfig(enable_token_optimization=False),
+        )
+        assert settings.tokens.enable_token_optimization is False
 
     def test_disable_chunking(self) -> None:
-        """Test disabling response chunking."""
-        settings = SessionMgmtSettings(enable_response_chunking=False)
-        assert settings.enable_response_chunking is False
+        settings = SessionBuddySettings(
+            tokens=TokensConfig(enable_response_chunking=False),
+        )
+        assert settings.tokens.enable_response_chunking is False
 
 
-class TestSessionMgmtSettingsIntegration:
-    """Test SessionMgmtSettings integrated configuration."""
+class TestMCPTransportConfig:
+    """Test ``MCPTransportConfig`` (HTTP/WS transport layer)."""
+
+    def test_server_host_default(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.mcp_transport.server_host == "localhost"
+
+    def test_server_port_default(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.mcp_transport.server_port == 8678
+
+    def test_enable_websockets_default(self) -> None:
+        settings = SessionBuddySettings()
+        assert settings.mcp_transport.enable_websockets is True
+
+    def test_custom_port(self) -> None:
+        settings = SessionBuddySettings(
+            mcp_transport=MCPTransportConfig(server_port=9000),
+        )
+        assert settings.mcp_transport.server_port == 9000
+
+
+class TestIntegratedConstruction:
+    """Test multi-group construction in one ``SessionBuddySettings`` call."""
 
     def test_all_settings_together(self) -> None:
-        """Test setting multiple configurations together."""
-        settings = SessionMgmtSettings(
-            server_name="Custom",
-            enable_debug_mode=True,
-            enable_token_optimization=True,
-            enable_semantic_search=False,
-            database_max_connections=20,
-            default_max_tokens=8000,
+        # ``debug: True`` at the root flows through the
+        # ``_map_legacy_debug_flag`` model_validator to populate
+        # ``mcp_server.enable_debug_mode``.
+        settings = SessionBuddySettings.model_validate(
+            {
+                "debug": True,
+                "mcp_server": {"server_name": "Custom"},
+                "tokens": {
+                    "enable_token_optimization": True,
+                    "default_max_tokens": 8000,
+                },
+                "search": {"enable_semantic_search": False},
+                "database": {"max_connections": 20},
+            }
         )
-        assert settings.server_name == "Custom"
-        assert settings.enable_debug_mode is True
-        assert settings.enable_token_optimization is True
-        assert settings.enable_semantic_search is False
-        assert settings.database_max_connections == 20
-        assert settings.default_max_tokens == 8000
+        assert settings.mcp_server.server_name == "Custom"
+        assert settings.mcp_server.enable_debug_mode is True
+        assert settings.tokens.enable_token_optimization is True
+        assert settings.tokens.default_max_tokens == 8000
+        assert settings.search.enable_semantic_search is False
+        assert settings.database.max_connections == 20
 
-    def test_llm_providers_nested(self) -> None:
-        """Test LLM providers nested configuration."""
-        settings = SessionMgmtSettings()
-        assert isinstance(settings.llm_providers, LLMProvidersConfig)
-        assert settings.llm_providers.default_provider == "minimax"
-
-    def test_custom_llm_providers_config(self) -> None:
-        """Test customizing LLM providers configuration."""
-        custom_llm_config = LLMProvidersConfig(
-            default_provider="ollama",
-            fallback_providers=["ollama", "minimax"],
+    def test_default_construction_returns_correct_types(self) -> None:
+        """Each nested group has the expected type on the default
+        ``SessionBuddySettings()`` instance.
+        """
+        settings = SessionBuddySettings()
+        assert isinstance(settings.mcp_server, ServerIdentityConfig)
+        assert isinstance(settings.mcp_transport, MCPTransportConfig)
+        assert isinstance(settings.paths, PathsConfig)
+        assert isinstance(settings.database, DatabaseConfig)
+        assert isinstance(settings.multi_project, MultiProjectConfig)
+        assert isinstance(settings.search, SearchConfig)
+        assert isinstance(settings.tokens, TokensConfig)
+        assert isinstance(settings.session, SessionConfig)
+        assert isinstance(
+            settings.conversation_storage, ConversationStorageConfig
         )
-        settings = SessionMgmtSettings(llm_providers=custom_llm_config)
-        assert settings.llm_providers.default_provider == "ollama"
-        assert settings.llm_providers.fallback_providers == ["ollama", "minimax"]
+        assert isinstance(
+            settings.reflection_auto_store, ReflectionAutoStoreConfig
+        )
+        assert isinstance(settings.integrations, IntegrationsConfig)
+        assert isinstance(settings.git_maintenance, GitMaintenanceConfig)
+        assert isinstance(settings.prometheus, PrometheusConfig)
+        assert isinstance(settings.logging, LoggingConfig)
+        assert isinstance(settings.security, SecurityConfig)
+        assert isinstance(settings.llm, LLMConfig)
+        assert isinstance(settings.feature_flags, FeatureFlagsConfig)
+        assert isinstance(settings.cloud_sync, AkoshaSyncConfig)

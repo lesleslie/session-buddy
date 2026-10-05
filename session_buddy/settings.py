@@ -948,18 +948,26 @@ class SessionBuddySettings(OneiricMCPConfig):
     @model_validator(mode="before")
     @classmethod
     def _map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
-        """Map legacy ``debug`` YAML key to root ``debug``.
+        """Map legacy ``debug`` YAML key to ``mcp_server.enable_debug_mode``.
 
-        Preserves the same translation that
-        ``SessionMgmtSettings.map_legacy_debug_flag`` does for the
-        legacy flat class — keeps operator YAMLs that use the
-        shorthand ``debug: true`` working.
+        The legacy flat ``SessionMgmtSettings`` exposed
+        ``enable_debug_mode`` as a top-level field; the new
+        Oneiric-shaped schema nests it under ``mcp_server``. Operators
+        with YAMLs using the shorthand ``debug: true`` still get
+        ``mcp_server.enable_debug_mode == True`` after this pass.
+        Explicit ``mcp_server.enable_debug_mode`` keys always win.
         """
         if not isinstance(data, dict):
             return data
-        if "debug" in data and "enable_debug_mode" not in data:
+        if "debug" in data and not (
+            "mcp_server" in data
+            and isinstance(data.get("mcp_server"), dict)
+            and "enable_debug_mode" in data["mcp_server"]
+        ):
             data = dict(data)
-            data["enable_debug_mode"] = bool(data["debug"])
+            mcp_server = dict(data.get("mcp_server") or {})
+            mcp_server.setdefault("enable_debug_mode", bool(data["debug"]))
+            data["mcp_server"] = mcp_server
         return data
 
     def pid_path(self) -> Path:
@@ -1266,7 +1274,30 @@ def get_llm_api_key(provider: str) -> str | None:
 
 
 __all__ = [
-    "SessionMgmtSettings",
+    "SessionBuddySettings",
+    "ServerIdentityConfig",
+    "MCPTransportConfig",
+    "PathsConfig",
+    "DatabaseConfig",
+    "MultiProjectConfig",
+    "SearchConfig",
+    "TokensConfig",
+    "SessionConfig",
+    "ConversationStorageConfig",
+    "ReflectionAutoStoreConfig",
+    "IntegrationsConfig",
+    "GitMaintenanceConfig",
+    "PrometheusConfig",
+    "DevelopmentConfig",
+    "LoggingConfig",
+    "SecurityConfig",
+    "LLMConfig",
+    "LLMApiKeysConfig",
+    "EntityExtractionConfig",
+    "FeatureFlagsConfig",
+    "FilesystemExtractionConfig",
+    "AkoshaSyncConfig",
+    "BodaiEventsConfig",
     "get_database_path",
     "get_llm_api_key",
     "get_log_file_path",

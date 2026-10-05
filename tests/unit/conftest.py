@@ -135,7 +135,7 @@ def unmock_settings():
     """Undo the mock_settings patch from tests/conftest.py BEFORE test runs.
 
     The root conftest.py has an autouse=True mock_settings fixture that
-    patches SessionMgmtSettings at module level. We need to restore
+    patches SessionBuddySettings at module level. We need to restore
     the real class so that unit tests can test actual settings behavior.
     """
     import sys
@@ -145,8 +145,8 @@ def unmock_settings():
         yield
         return
 
-    # Get the real SessionMgmtSettings from the settings module itself
-    real_class = settings_module.SessionMgmtSettings
+    # Get the real SessionBuddySettings from the settings module itself
+    real_class = settings_module.SessionBuddySettings
 
     # Check if it's been mocked (look for Mock attributes)
     is_mock = isinstance(real_class, (Mock, MagicMock))
@@ -158,8 +158,8 @@ def unmock_settings():
         # Reload the existing module so the mocked attribute is replaced with
         # the real class without forcing a second NumPy extension import.
         FreshModule = importlib.reload(settings_module)
-        FreshClass = FreshModule.SessionMgmtSettings
-        settings_module.SessionMgmtSettings = FreshClass
+        FreshClass = FreshModule.SessionBuddySettings
+        settings_module.SessionBuddySettings = FreshClass
         settings_module._settings = None
 
     yield

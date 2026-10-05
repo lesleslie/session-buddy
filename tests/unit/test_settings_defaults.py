@@ -60,7 +60,7 @@ class TestGitPruneDelayValidation:
             settings = SessionBuddySettings(
                 git_maintenance=GitMaintenanceConfig(git_gc_prune_delay=delay)
             )
-            assert settings.git_gc_prune_delay == delay
+            assert settings.git_maintenance.git_gc_prune_delay == delay
 
     def test_invalid_prune_delay_formats_raise_error(self):
         """Invalid prune delay formats raise ValidationError."""
@@ -88,7 +88,7 @@ class TestGitPruneDelayValidation:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            SessionMgmtSettings(git_gc_prune_delay="now")
+            GitMaintenanceConfig(git_gc_prune_delay="now")
 
             # Should have triggered a warning
             assert len(w) == 1
@@ -97,7 +97,7 @@ class TestGitPruneDelayValidation:
 
     def test_default_prune_delay_is_safe(self):
         """Default prune delay is safe (2.weeks)."""
-        settings = SessionBuddySettings(
-            database=DatabaseConfig(path=__import__("pathlib").Path("test.duckdb"))
-        )
-        assert settings.git_gc_prune_delay == "2.weeks"
+        from pathlib import Path
+
+        settings = SessionBuddySettings(database=DatabaseConfig(path=Path("test.duckdb")))
+        assert settings.git_maintenance.git_gc_prune_delay == "2.weeks"
