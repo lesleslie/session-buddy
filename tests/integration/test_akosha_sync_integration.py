@@ -491,9 +491,14 @@ class TestSessionEndHookIntegration:
         )
 
         with patch("session_buddy.settings.get_settings") as mock_settings:
-            mock_settings_obj = Mock()
+            # New shape (Phase 3a): the akosha_* fields live under
+            # ``settings.cloud_sync.<field>``; mirror onto a ``cloud_sync``
+            # child Mock so the production reader finds them.
+            cloud_sync_mock = Mock()
             for key, value in config_disabled.__dict__.items():
-                setattr(mock_settings_obj, key, value)
+                setattr(cloud_sync_mock, key, value)
+            mock_settings_obj = Mock()
+            mock_settings_obj.cloud_sync = cloud_sync_mock
             mock_settings.return_value = mock_settings_obj
 
             # Patch asyncio.create_task
