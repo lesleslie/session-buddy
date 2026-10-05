@@ -192,28 +192,12 @@ def _parse_event_timestamp(timestamp: str) -> datetime:
 def _make_dhara_publisher() -> DharaChannelPublisher | None:
     """Return a DharaChannelPublisher if a Dhara URL is configured, else None.
 
-    URL resolution order (highest priority first):
-    1. ``SESSION_BUDDY_DHARA_URL`` environment variable (highest priority;
-       tests and operators may override via env directly).
-    2. ``SessionMgmtSettings.dhara_url`` loaded from the YAML settings file.
-
-    The env-var is checked first so that tests using ``monkeypatch.setenv``
-    do not need to reload or replace the settings singleton.
+    URL is read from the ``SESSION_BUDDY_DHARA_URL`` environment variable
+    only — the previously-supported ``SessionMgmtSettings.dhara_url``
+    field was removed 2026-10-04 (obsolete; env-var path was already the
+    primary one and the YAML fallback never carried weight).
     """
-    # 1. Env-var lookup — fastest path and easiest to override in tests.
     url: str | None = os.environ.get("SESSION_BUDDY_DHARA_URL", "").strip() or None
-
-    if not url:
-        # 2. Settings object — may be populated from the YAML config file.
-        try:
-            from session_buddy.settings import get_settings
-
-            raw = get_settings().dhara_url
-            if isinstance(raw, str) and raw.strip():
-                url = raw.strip()
-        except ImportError:
-            # Settings not yet initialised (e.g. during early import).
-            pass
 
     if not url:
         return None

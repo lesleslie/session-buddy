@@ -380,14 +380,10 @@ class SessionMgmtSettings(OneiricMCPConfig):
     )
 
     # === Integration Settings ===
-    dhara_url: str | None = Field(
-        default=None,
-        description=(
-            "Base URL for the Dhara persistent-storage MCP server "
-            "(e.g. http://localhost:8683). "
-            "Used when the SESSION_BUDDY_DHARA_URL environment variable is not set."
-        ),
-    )
+    # NOTE (2026-10-04): the obsolete ``dhara_url`` field was removed.
+    # The Dhara URL is now read exclusively from the
+    # ``SESSION_BUDDY_DHARA_URL`` environment variable in
+    # ``channel_tracking_tools._make_dhara_publisher()``.
     enable_crackerjack: bool = Field(
         default=True,
         description="Enable Crackerjack code quality integration",
@@ -921,8 +917,22 @@ class SessionMgmtSettings(OneiricMCPConfig):
             if not isinstance(flat_data, dict):
                 continue
             # Flat keys map directly to SessionMgmtSettings fields.
+            # Nested dicts (``llm_providers:``, ``bodai_events:``,
+            # ``storage:``) are merged into whatever the prior layer
+            # (Oneiric or an earlier file in ``flat_paths``) put in
+            # ``relevant_data[k]`` so a downstream ``local.yaml`` can
+            # override individual nested keys without wiping the rest.
+            # Without this, ``local.yaml``'s partial ``llm_providers``
+            # block erases the committed ``ollama_base_url`` and
+            # ``ollama_default_model`` (drift observed 2026-10-04).
             for k, v in flat_data.items():
-                if k in cls.model_fields and v is not None:
+                if k not in cls.model_fields or v is None:
+                    continue
+                if isinstance(v, dict) and isinstance(relevant_data.get(k), dict):
+                    merged = dict(relevant_data[k])
+                    merged.update(v)
+                    relevant_data[k] = merged
+                else:
                     relevant_data[k] = v
 
         return cls(**relevant_data)

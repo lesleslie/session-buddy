@@ -26,6 +26,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import yaml
+
 import pytest
 
 
@@ -751,13 +753,6 @@ class TestSessionMgmtSettingsConversationStorage:
 
 class TestSessionMgmtSettingsIntegration:
     """Test SessionMgmtSettings integration settings."""
-
-    def test_dhara_url_default_none(self) -> None:
-        """Test that Dhara URL defaults to None."""
-        from session_buddy.settings import SessionMgmtSettings
-
-        settings = SessionMgmtSettings()
-        assert settings.dhara_url is None
 
     def test_enable_crackerjack_default_true(self) -> None:
         """Test that Crackerjack integration is enabled by default."""
@@ -1661,3 +1656,127 @@ class TestExports:
 
 # Import at end to avoid issues with mock patching
 from session_buddy.settings import SessionMgmtSettings
+
+
+# ---------------------------------------------------------------------------
+# Nested-dict merge in the load() flat YAML loop
+# ---------------------------------------------------------------------------
+
+
+class TestNestedYamlMerge:
+    """Pin the nested-dict merge added 2026-10-04.
+
+    Before the fix, ``settings/local.yaml`` overriding only one nested
+    key (e.g. ``llm_providers.fallback_providers``) would overwrite the
+    entire ``llm_providers`` block, wiping out ``ollama_base_url`` and
+    ``ollama_default_model``. The load() loop now merges nested dicts
+    field-by-field.
+    """
+
+    def test_partial_local_override_preserves_committed_nested_keys(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A local.yaml that only specifies one nested key must not
+        erase the other keys the committed YAML provided.
+        """
+        settings_dir = tmp_path / "settings"
+        settings_dir.mkdir()
+        # Committed: full nested block.
+        (settings_dir / "session-buddy.yaml").write_text(
+            yaml.dump(
+                {
+                    "llm_providers": {
+                        "default_provider": "minimax",
+                        "ollama_base_url": "http://localhost:11434",
+                        "ollama_default_model": "Qwen3-8B-8.2B-Q4_K_M",
+                        "llama_server_default_model": "qwen3.5",
+                        "fallback_providers": [
+                            "minimax",
+                            "llama_server",
+                            "ollama",
+                        ],
+                    },
+                }
+            )
+        )
+        # local: only overrides fallback_providers.
+        (settings_dir / "local.yaml").write_text(
+            yaml.dump(
+                {
+                    "llm_providers": {
+                        "fallback_providers": ["zai"],
+                    },
+                }
+            )
+        )
+
+        monkeypatch.chdir(tmp_path)
+        loaded = SessionMgmtSettings.load(server_name="session-buddy")
+
+        # Override landed.
+        assert loaded.llm_providers.fallback_providers == ["zai"]
+        # Non-overridden keys preserved.
+        assert loaded.llm_providers.default_provider == "minimax"
+        assert (
+            loaded.llm_providers.ollama_default_model
+            == "Qwen3-8B-8.2B-Q4_K_M"
+        )
+        assert (
+            loaded.llm_providers.ollama_base_url
+            == "http://localhost:11434"
+        )
+        assert loaded.llm_providers.llama_server_default_model == "qwen3.5"
+
+    def test_flat_keys_still_replace_not_merge(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression guard: non-dict overrides still replace, not merge."""
+        settings_dir = tmp_path / "settings"
+        settings_dir.mkdir()
+        (settings_dir / "session-buddy.yaml").write_text(
+            yaml.dump({"log_level": "INFO"})
+        )
+        (settings_dir / "local.yaml").write_text(
+            yaml.dump({"log_level": "DEBUG"})
+        )
+
+        monkeypatch.chdir(tmp_path)
+        loaded = SessionMgmtSettings.load(server_name="session-buddy")
+
+        assert loaded.log_level == "DEBUG"
+
+    def test_bodai_events_merge(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The same merge rule must apply to other nested blocks
+        (``bodai_events``, ``storage``)."""
+        settings_dir = tmp_path / "settings"
+        settings_dir.mkdir()
+        (settings_dir / "session-buddy.yaml").write_text(
+            yaml.dump(
+                {
+                    "bodai_events": {
+                        "enabled": True,
+                        "stream": "bodai:events",
+                        "consumer_group": "bodai-default",
+                    },
+                }
+            )
+        )
+        # local.yaml only overrides consumer_group.
+        (settings_dir / "local.yaml").write_text(
+            yaml.dump(
+                {
+                    "bodai_events": {
+                        "consumer_group": "custom-group",
+                    },
+                }
+            )
+        )
+
+        monkeypatch.chdir(tmp_path)
+        loaded = SessionMgmtSettings.load(server_name="session-buddy")
+
+        assert loaded.bodai_events.consumer_group == "custom-group"
+        assert loaded.bodai_events.stream == "bodai:events"
+        assert loaded.bodai_events.enabled is True

@@ -449,15 +449,6 @@ def test_register_attaches_both_tools() -> None:
 class TestMakeDharaPublisher:
     def test_env_unset_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("SESSION_BUDDY_DHARA_URL", raising=False)
-
-        # Force get_settings() to also report no URL by mocking the import.
-        class _Settings:
-            dhara_url = ""
-
-        monkeypatch.setattr(
-            "session_buddy.settings.get_settings",
-            lambda: _Settings(),
-        )
         result = _make_dhara_publisher()
         assert result is None
 
@@ -482,22 +473,26 @@ class TestMakeDharaPublisher:
         # Whitespace-only is treated as empty.
         assert result is None
 
-    def test_settings_url_used_when_env_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """When env is unset, ``get_settings().dhara_url`` is consulted."""
-
-        class _Settings:
-            dhara_url = "http://settings.invalid:8683"
-
+    def test_settings_path_removed_obsolete(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Settings.dhara_url was removed 2026-10-04. The env var is the
+        only configuration path; ``_make_dhara_publisher`` must not
+        consult settings even if a stale ``dhara_url`` attribute hangs
+        around on the settings instance.
+        """
         monkeypatch.delenv("SESSION_BUDDY_DHARA_URL", raising=False)
-        # The function does ``from session_buddy.settings import get_settings``
-        # inside the block — patching at the source module path intercepts it.
+
+        class _StaleSettings:
+            dhara_url = "http://stale.invalid:8683"
+
         monkeypatch.setattr(
             "session_buddy.settings.get_settings",
-            lambda: _Settings(),
+            lambda: _StaleSettings(),
         )
         result = _make_dhara_publisher()
-        assert isinstance(result, DharaChannelPublisher)
-        assert result.dhara_url == "http://settings.invalid:8683"
+        # The stale settings path must be ignored — env var is unset.
+        assert result is None
 
 
 # ---------------------------------------------------------------------------
