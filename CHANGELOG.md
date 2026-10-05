@@ -9,6 +9,41 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.32.0] - 2026-10-05
+
+### Added
+
+- session-buddy: Introduce SessionBuddySettings Oneiric-shaped schema alongside legacy
+- session-buddy: Swap loader to Oneiric + reshape YAML to nested
+
+### Changed
+
+- session-buddy: Migrate production consumers to nested settings shape
+- session-buddy: Phase 6 — delete SessionMgmtSettings + LLMProvidersConfig + docs cleanup
+- session-buddy: Pre-existing test fix — drop stale perf test
+- session-buddy: Promote schema v2, retire v1, align LLM chain, rename env vars
+- session-buddy: Rename CLI-side SessionBuddySettings → CLILaunchSettings
+
+### Fixed
+
+- session-buddy: Adapters/settings.py reads paths.data_dir (nested)
+- session-buddy: Point task-system spec link at canonical docs/specs path
+- session-buddy: Remove obsolete dhara_url field, fix nested-dict merge drift
+
+### Testing
+
+- session-buddy: Fix 2 integration test files to new nested shape
+- session-buddy: Fix 6 test files with flat-shape SimpleNamespace fixtures
+- session-buddy: Fix akosha_sync_integration mock to nested cloud_sync
+- session-buddy: Fix akosha_tools test fixtures to nested cloud_sync shape
+- session-buddy: Fix phase6 integration test to new nested shape
+- session-buddy: Fix second akosha_sync_integration mock to nested cloud_sync
+- session-buddy: Partial Phase 5 rewrite — settings tests + conftest
+- session-buddy: Phase 5 follow-up — rewrite settings tests on SessionBuddySettings
+- session-buddy: Update 3 test fixtures to new nested shape
+- session-buddy: Update 4 test files to match Phase 3b new contract
+- session-buddy: Update conversation_storage fixture to nested shape
+
 ## [0.31.1] - 2026-10-03
 
 ### Added
