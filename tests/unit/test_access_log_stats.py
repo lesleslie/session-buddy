@@ -29,8 +29,10 @@ async def test_access_log_stats_reports_top_and_provider(
 
     db_path = tmp_path / "stats.duckdb"
 
-    # Configure settings
-    fake_settings = SimpleNamespace(database_path=str(db_path))
+    # Configure settings (new shape Phase 3a: settings.database.path).
+    fake_settings = SimpleNamespace(
+        database=SimpleNamespace(path=str(db_path))
+    )
     monkeypatch.setattr(settings_mod, "get_settings", lambda: fake_settings)
 
     # Setup v2 schema

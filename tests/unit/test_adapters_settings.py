@@ -15,7 +15,9 @@ from session_buddy.adapters.settings import (
 
 
 def test_resolve_data_dir_with_absolute_path(monkeypatch) -> None:
-    fake_settings = SimpleNamespace(data_dir=Path("/var/tmp/session-buddy"))
+    # New shape (Phase 3a): settings.paths.data_dir (nested group),
+    # not the legacy flat settings.data_dir.
+    fake_settings = SimpleNamespace(paths=SimpleNamespace(data_dir=Path("/var/tmp/session-buddy")))
     # Use the 3-arg form with explicit module reference to avoid pytest's
     # dotted-string resolver (which can fail when other tests in the batch
     # have left module-level state that confuses the path walker).
@@ -27,7 +29,7 @@ def test_resolve_data_dir_with_absolute_path(monkeypatch) -> None:
 
 
 def test_resolve_data_dir_with_relative_path(monkeypatch) -> None:
-    fake_settings = SimpleNamespace(data_dir=Path("relative/data"))
+    fake_settings = SimpleNamespace(paths=SimpleNamespace(data_dir=Path("relative/data")))
     monkeypatch.setattr(
         _adapter_settings, "get_settings", lambda: fake_settings
     )
@@ -48,7 +50,7 @@ def test_default_session_buckets() -> None:
 
 
 def test_from_settings_builds_adapter_configs(monkeypatch) -> None:
-    fake_settings = SimpleNamespace(data_dir=Path("/tmp/session-buddy"))
+    fake_settings = SimpleNamespace(paths=SimpleNamespace(data_dir=Path("/tmp/session-buddy")))
     monkeypatch.setattr(
         _adapter_settings, "get_settings", lambda: fake_settings
     )

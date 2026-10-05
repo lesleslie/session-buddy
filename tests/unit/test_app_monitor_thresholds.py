@@ -14,8 +14,9 @@ def test_should_ignore_large_file(tmp_path: t.Any, monkeypatch: t.Any) -> None:
     mon = ProjectActivityMonitor(project_paths=[str(tmp_path)])
     handler = IDEFileHandler(mon)
 
-    # Lower size threshold for the test
-    handler.monitor._settings.filesystem_max_file_size_bytes = 100
+    # Lower size threshold for the test (new shape Phase 3a:
+    # settings.filesystem_extraction.<field>).
+    handler.monitor._settings.filesystem_extraction.max_file_size_bytes = 100
 
     big = tmp_path / "big.py"
     big.write_bytes(b"x" * 101)

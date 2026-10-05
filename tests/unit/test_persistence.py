@@ -14,7 +14,10 @@ def test_insert_processed_memory_inserts_all(
 ) -> None:
     # Prepare isolated DuckDB path via settings monkeypatch
     db_path = tmp_path / "persistence.duckdb"
-    fake_settings = SimpleNamespace(database_path=str(db_path))
+    # New shape (Phase 3a): settings.database.path (nested).
+    fake_settings = SimpleNamespace(
+        database=SimpleNamespace(path=str(db_path))
+    )
 
     # Patch the symbol used inside persistence module
     import session_buddy.memory.persistence as persistence_mod

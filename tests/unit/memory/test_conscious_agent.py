@@ -111,13 +111,17 @@ class TestStartConsciousAgentWithLock:
         self, reset_election_state, tmp_path: Path, monkeypatch
     ) -> None:
         # Use a real tempfile but disable the feature.
-        settings = SimpleNamespace(enable_conscious_agent=False)
+        settings = SimpleNamespace(
+            feature_flags=SimpleNamespace(enable_conscious_agent=False)
+        )
         assert _start_conscious_agent_with_lock(settings) is False
 
     def test_in_process_elected_blocks_second_call(
         self, reset_election_state, monkeypatch
     ) -> None:
-        settings = SimpleNamespace(enable_conscious_agent=True)
+        settings = SimpleNamespace(
+            feature_flags=SimpleNamespace(enable_conscious_agent=True)
+        )
         # First call would try to flock — patch the lockfile path so we
         # don't actually take a real lock. Instead, simulate the election
         # by patching ``_conscious_agent_elected`` to True after first
@@ -141,7 +145,9 @@ class TestStartConsciousAgentWithLock:
             conscious_agent.tempfile, "gettempdir", lambda: str(tmp_path)
         )
 
-        settings = SimpleNamespace(enable_conscious_agent=True)
+        settings = SimpleNamespace(
+            feature_flags=SimpleNamespace(enable_conscious_agent=True)
+        )
         assert _start_conscious_agent_with_lock(settings) is True
         assert lock_path.exists()
         # The PID is written to the file.
@@ -168,7 +174,9 @@ class TestStartConsciousAgentWithLock:
             conscious_agent.tempfile, "gettempdir", lambda: str(tmp_path)
         )
 
-        settings = SimpleNamespace(enable_conscious_agent=True)
+        settings = SimpleNamespace(
+            feature_flags=SimpleNamespace(enable_conscious_agent=True)
+        )
         try:
             assert _start_conscious_agent_with_lock(settings) is False
         finally:
@@ -190,7 +198,9 @@ class TestStartConsciousAgentWithLock:
 
         monkeypatch.setattr(P, "touch", boom)
         try:
-            settings = SimpleNamespace(enable_conscious_agent=True)
+            settings = SimpleNamespace(
+            feature_flags=SimpleNamespace(enable_conscious_agent=True)
+        )
             assert _start_conscious_agent_with_lock(settings) is False
         finally:
             monkeypatch.setattr(P, "touch", original_touch)

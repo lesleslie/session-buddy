@@ -30,21 +30,27 @@ from session_buddy.storage.sync_protocol import (
 
 @pytest.fixture
 def mock_settings() -> Mock:
-    """Create mock settings object."""
+    """Create mock settings object.
+
+    New shape (Phase 3a): the akosha_* fields live under
+    ``settings.cloud_sync.<field>``; the legacy ``akosha_`` prefix
+    shim was dropped. The Mock auto-creates ``cloud_sync`` as a
+    child Mock, so setting attributes on it flows through.
+    """
     settings = Mock()
-    settings.akosha_cloud_bucket = "test-bucket"
-    settings.akosha_cloud_endpoint = "https://test.r2.cloudflarestorage.com"
-    settings.akosha_cloud_region = "auto"
-    settings.akosha_system_id = "test-system"
-    settings.akosha_upload_on_session_end = True
-    settings.akosha_enable_fallback = True
-    settings.akosha_force_method = "auto"
-    settings.akosha_upload_timeout_seconds = 300
-    settings.akosha_max_retries = 3
-    settings.akosha_retry_backoff_seconds = 2.0
-    settings.akosha_enable_compression = True
-    settings.akosha_enable_deduplication = True
-    settings.akosha_chunk_size_mb = 5
+    settings.cloud_sync.cloud_bucket = "test-bucket"
+    settings.cloud_sync.cloud_endpoint = "https://test.r2.cloudflarestorage.com"
+    settings.cloud_sync.cloud_region = "auto"
+    settings.cloud_sync.system_id = "test-system"
+    settings.cloud_sync.upload_on_session_end = True
+    settings.cloud_sync.enable_fallback = True
+    settings.cloud_sync.force_method = "auto"
+    settings.cloud_sync.upload_timeout_seconds = 300
+    settings.cloud_sync.max_retries = 3
+    settings.cloud_sync.retry_backoff_seconds = 2.0
+    settings.cloud_sync.enable_compression = True
+    settings.cloud_sync.enable_deduplication = True
+    settings.cloud_sync.chunk_size_mb = 5
     return settings
 
 
