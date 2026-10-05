@@ -125,8 +125,10 @@ class TestConnect:
     def test_creates_parent_dir_and_connects(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path
     ) -> None:
+        # New shape (Phase 3a): ``settings.database.path`` is the
+        # nested field, not the legacy flat ``settings.database_path``.
         fake_settings = SimpleNamespace(
-            database_path=str(tmp_path / "nested" / "ref.duckdb")
+            database=SimpleNamespace(path=str(tmp_path / "nested" / "ref.duckdb"))
         )
         monkeypatch.setattr(persistence, "get_settings", lambda: fake_settings)
 

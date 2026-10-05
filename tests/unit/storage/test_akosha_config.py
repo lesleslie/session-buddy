@@ -106,20 +106,24 @@ class TestValidateConsistency:
 
     def test_invalid_force_method_in_from_settings_falls_back(self) -> None:
         """from_settings rejects unrecognized force_method, defaulting to auto."""
-        settings = Mock(spec=[])
-        settings.akosha_force_method = "rocket"
-        settings.akosha_cloud_bucket = ""
-        settings.akosha_cloud_endpoint = ""
-        settings.akosha_cloud_region = "auto"
-        settings.akosha_system_id = ""
-        settings.akosha_upload_on_session_end = True
-        settings.akosha_enable_fallback = True
-        settings.akosha_upload_timeout_seconds = 300
-        settings.akosha_max_retries = 3
-        settings.akosha_retry_backoff_seconds = 2.0
-        settings.akosha_enable_compression = True
-        settings.akosha_enable_deduplication = True
-        settings.akosha_chunk_size_mb = 5
+        # New shape (Phase 3a): settings.cloud_sync.<field>, no
+        # ``akosha_`` prefix. The ``akosha_`` legacy shim was dropped.
+        cloud_sync = Mock()
+        cloud_sync.force_method = "rocket"
+        cloud_sync.cloud_bucket = ""
+        cloud_sync.cloud_endpoint = ""
+        cloud_sync.cloud_region = "auto"
+        cloud_sync.system_id = ""
+        cloud_sync.upload_on_session_end = True
+        cloud_sync.enable_fallback = True
+        cloud_sync.upload_timeout_seconds = 300
+        cloud_sync.max_retries = 3
+        cloud_sync.retry_backoff_seconds = 2.0
+        cloud_sync.enable_compression = True
+        cloud_sync.enable_deduplication = True
+        cloud_sync.chunk_size_mb = 5
+        settings = Mock()
+        settings.cloud_sync = cloud_sync
         cfg = AkoshaSyncConfig.from_settings(settings)
         assert cfg.force_method == "auto"
 
@@ -133,36 +137,42 @@ class TestFromSettingsFallbacks:
     """from_settings's _string/_bool/_int/_float helpers."""
 
     def test_string_falls_back_to_unprefixed_attr(self) -> None:
-        """When akosha_foo is missing, falls back to foo."""
-        settings = Mock(spec=["cloud_bucket"])
-        settings.cloud_bucket = "fallback-bucket"
+        """When the nested ``cloud_bucket`` is missing, falls back to default."""
+        settings = Mock()
+        settings.cloud_sync = Mock(spec=["cloud_bucket"])
+        settings.cloud_sync.cloud_bucket = "fallback-bucket"
         cfg = AkoshaSyncConfig.from_settings(settings)
         assert cfg.cloud_bucket == "fallback-bucket"
 
     def test_string_blank_value_falls_back(self) -> None:
-        settings = Mock(spec=["akosha_cloud_bucket", "cloud_bucket"])
-        settings.akosha_cloud_bucket = "   "
-        settings.cloud_bucket = "real-bucket"
+        settings = Mock()
+        cloud_sync = Mock()
+        cloud_sync.cloud_bucket = "   "
+        settings.cloud_sync = cloud_sync
         cfg = AkoshaSyncConfig.from_settings(settings)
-        assert cfg.cloud_bucket == "real-bucket"
+        # Blank values fall through to the default (empty string).
+        assert cfg.cloud_bucket == ""
 
     def test_int_coercion_handles_bool_passthrough(self) -> None:
         """isinstance(True, int) is True, but the helper guards against that."""
-        settings = Mock(spec=[])
-        settings.akosha_max_retries = True  # bool, not int — should NOT be accepted
+        settings = Mock()
+        settings.cloud_sync = Mock()
+        settings.cloud_sync.max_retries = True  # bool, not int — should NOT be accepted
         cfg = AkoshaSyncConfig.from_settings(settings)
         # Default kicks in (3) because True is bool, not int
         assert cfg.max_retries == 3
 
     def test_float_coercion_handles_bool_passthrough(self) -> None:
-        settings = Mock(spec=[])
-        settings.akosha_retry_backoff_seconds = True
+        settings = Mock()
+        settings.cloud_sync = Mock()
+        settings.cloud_sync.retry_backoff_seconds = True
         cfg = AkoshaSyncConfig.from_settings(settings)
         assert cfg.retry_backoff_seconds == 2.0  # default
 
     def test_int_accepts_real_int(self) -> None:
-        settings = Mock(spec=[])
-        settings.akosha_upload_timeout_seconds = 999
+        settings = Mock()
+        settings.cloud_sync = Mock()
+        settings.cloud_sync.upload_timeout_seconds = 999
         cfg = AkoshaSyncConfig.from_settings(settings)
         assert cfg.upload_timeout_seconds == 999
 

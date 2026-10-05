@@ -65,7 +65,13 @@ async def test_conscious_agent_promotes_and_demotes(
     # Patch settings to use tmp db
     from session_buddy import settings as settings_mod
 
-    fake = type("S", (), {"database_path": str(db_path)})
+    # New shape (Phase 3a): settings.database.path (nested group),
+    # not the legacy flat settings.database_path.
+    fake = type(
+        "S",
+        (),
+        {"database": type("D", (), {"path": str(db_path)})()},
+    )
     monkeypatch.setattr(settings_mod, "get_settings", lambda: fake)
 
     # Run analysis/promotion
