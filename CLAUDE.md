@@ -26,7 +26,7 @@ The session-buddy task system is the typed, persistent replacement for the built
 
 ### Spec and skill
 
-- **Spec**: [`docs/superpowers/specs/2026-09-29-task-system-design.md`](../mahavishnu/docs/superpowers/specs/2026-09-29-task-system-design.md) (lives in the mahavishnu repo; cross-references the goals, non-goals, and authz model).
+- **Spec**: [`docs/superpowers/specs/2026-09-29-task-system-design.md`](../mahavishnu/docs/specs/2026-09-29-task-system-design.md) (lives in the mahavishnu repo; cross-references the goals, non-goals, and authz model).
 - **Skill**: [`session_buddy/mcp/skills_catalog/bodai-session-buddy-task-system.md`](session_buddy/mcp/skills_catalog/bodai-session-buddy-task-system.md) — auto-discoverable via `mcp__akosha__list_ecosystem_skills`; consult it for the decision tree (ephemeral checklist vs persistent task vs mahavishnu handoff).
 
 ### Tasks vs `TodoWrite`
