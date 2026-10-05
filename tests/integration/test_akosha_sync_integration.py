@@ -408,10 +408,15 @@ class TestMCPToolsIntegration:
         from session_buddy.mcp.tools.memory.akosha_tools import akosha_sync_status
 
         with patch("session_buddy.settings.get_settings") as mock_settings:
-            # Mock settings
-            mock_settings_obj = Mock()
+            # Mock settings. New shape (Phase 3a): the akosha_* fields
+            # live under ``settings.cloud_sync.<field>``; mirror the
+            # sample_config attrs onto a ``cloud_sync`` child Mock so the
+            # akosha_tools reader finds them.
+            cloud_sync_mock = Mock()
             for key, value in sample_config.__dict__.items():
-                setattr(mock_settings_obj, key, value)
+                setattr(cloud_sync_mock, key, value)
+            mock_settings_obj = Mock()
+            mock_settings_obj.cloud_sync = cloud_sync_mock
             mock_settings.return_value = mock_settings_obj
 
             result = await akosha_sync_status()
