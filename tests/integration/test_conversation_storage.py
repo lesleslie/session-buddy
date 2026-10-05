@@ -146,29 +146,50 @@ async def test_settings_integration() -> None:
     print("Testing Settings Integration")
     print("=" * 70)
 
-    from session_buddy.settings import SessionMgmtSettings
+    from session_buddy.settings import SessionBuddySettings
 
-    settings = SessionMgmtSettings()
+    settings = SessionBuddySettings()
 
-    # Check that new settings exist with correct defaults
-    assert hasattr(settings, "enable_conversation_storage")
-    assert settings.enable_conversation_storage is True
+    # Check that nested-group settings exist with correct defaults
+    # (Phase 3a: all conversation_* fields live under
+    # ``settings.conversation_storage``).
+    assert hasattr(settings, "conversation_storage")
+    assert hasattr(settings.conversation_storage, "enable_conversation_storage")
+    assert settings.conversation_storage.enable_conversation_storage is True
     print("✅ enable_conversation_storage: True")
 
-    assert hasattr(settings, "conversation_storage_min_length")
-    assert settings.conversation_storage_min_length == 100
-    print(f"✅ conversation_storage_min_length: {settings.conversation_storage_min_length}")
+    assert hasattr(
+        settings.conversation_storage, "conversation_storage_min_length"
+    )
+    assert settings.conversation_storage.conversation_storage_min_length == 100
+    print(
+        f"✅ conversation_storage_min_length: {settings.conversation_storage.conversation_storage_min_length}"
+    )
 
-    assert hasattr(settings, "conversation_storage_max_length")
-    assert settings.conversation_storage_max_length == 50000
-    print(f"✅ conversation_storage_max_length: {settings.conversation_storage_max_length}")
+    assert hasattr(
+        settings.conversation_storage, "conversation_storage_max_length"
+    )
+    assert settings.conversation_storage.conversation_storage_max_length == 50000
+    print(
+        f"✅ conversation_storage_max_length: {settings.conversation_storage.conversation_storage_max_length}"
+    )
 
-    assert hasattr(settings, "auto_store_conversations_on_checkpoint")
-    assert settings.auto_store_conversations_on_checkpoint is True
+    assert hasattr(
+        settings.conversation_storage, "auto_store_conversations_on_checkpoint"
+    )
+    assert (
+        settings.conversation_storage.auto_store_conversations_on_checkpoint
+        is True
+    )
     print("✅ auto_store_conversations_on_checkpoint: True")
 
-    assert hasattr(settings, "auto_store_conversations_on_session_end")
-    assert settings.auto_store_conversations_on_session_end is True
+    assert hasattr(
+        settings.conversation_storage, "auto_store_conversations_on_session_end"
+    )
+    assert (
+        settings.conversation_storage.auto_store_conversations_on_session_end
+        is True
+    )
     print("✅ auto_store_conversations_on_session_end: True")
 
     print("\n" + "=" * 70)

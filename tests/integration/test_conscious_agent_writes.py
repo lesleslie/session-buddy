@@ -123,22 +123,24 @@ async def test_instrumentation_runs_when_flag_off(
     """
     db = fast_temp_db
 
-    # Force the global SessionMgmtSettings singleton to report the flag
+    # Force the global SessionBuddySettings singleton to report the flag
     # as off. The adapter does not consult this flag today, but we patch
     # it to make the "unconditional" contract observable: if a future
     # change accidentally short-circuits the write on flag=False, this
     # test catches it.
     import session_buddy.settings as _settings_module
-    from session_buddy.settings import SessionMgmtSettings
+    from session_buddy.settings import SessionBuddySettings
 
-    base = _settings_module._settings or SessionMgmtSettings.load("session-buddy")
-    monkeypatch.setattr(base, "enable_conscious_agent", False)
+    base = _settings_module._settings or SessionBuddySettings.load()
+    # New shape (Phase 3a): the flag lives on
+    # ``settings.feature_flags.enable_conscious_agent`` (nested group).
+    monkeypatch.setattr(base.feature_flags, "enable_conscious_agent", False)
     monkeypatch.setattr(_settings_module, "_settings", base)
 
     # Sanity check: the flag really is off at the global level.
     from session_buddy.settings import get_settings
 
-    assert get_settings().enable_conscious_agent is False
+    assert get_settings().feature_flags.enable_conscious_agent is False
 
     query = f"unconditional-instrumentation-{uuid.uuid4().hex}"
     await db.search_conversations(query, limit=5)
@@ -181,10 +183,14 @@ def test_multi_worker_only_one_starts_agent(
 
     # Build two fake settings objects with enable_conscious_agent=True so
     # the function actually attempts to acquire the lock. Use SimpleNamespace
-    # to avoid coupling the test to the SessionMgmtSettings constructor.
+    # to avoid coupling the test to the SessionBuddySettings constructor.
+    # New shape (Phase 3a): the flag lives on
+    # ``settings.feature_flags.enable_conscious_agent`` (nested group).
     from types import SimpleNamespace
 
-    settings = SimpleNamespace(enable_conscious_agent=True)
+    settings = SimpleNamespace(
+        feature_flags=SimpleNamespace(enable_conscious_agent=True)
+    )
 
     # First call wins the lock and returns True.
     first = _start_conscious_agent_with_lock(settings)
@@ -227,7 +233,9 @@ def test_lock_function_short_circuits_when_flag_off(
 
     from types import SimpleNamespace
 
-    settings = SimpleNamespace(enable_conscious_agent=False)
+    settings = SimpleNamespace(
+        feature_flags=SimpleNamespace(enable_conscious_agent=False)
+    )
 
     result = _start_conscious_agent_with_lock(settings)
 
