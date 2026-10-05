@@ -45,18 +45,29 @@ class TestPhase6CoreRuntime:
 
     async def test_config_load_via_mcp_base_settings(self):
         """Test success criterion: Settings resolved via MCPBaseSettings."""
-        from session_buddy.settings import SessionMgmtSettings
+        from session_buddy.settings import SessionBuddySettings
 
-        settings = SessionMgmtSettings.load("session-buddy")
+        settings = SessionBuddySettings.load()
 
-        # Verify MCP base settings fields
-        assert hasattr(settings, "server_name"), "Should have server_name"
-        assert hasattr(settings, "log_level"), "Should have log_level"
-        assert hasattr(settings, "enable_debug_mode"), "Should have enable_debug_mode"
+        # Verify nested-group MCP base settings fields (Phase 3a).
+        assert hasattr(settings.mcp_server, "server_name"), (
+            "Should have mcp_server.server_name"
+        )
+        assert hasattr(settings.mcp_server, "log_level"), (
+            "Should have mcp_server.log_level"
+        )
+        assert hasattr(settings.mcp_server, "enable_debug_mode"), (
+            "Should have mcp_server.enable_debug_mode"
+        )
 
-        # Verify custom SessionBuddy settings
-        assert hasattr(settings, "server_port"), "Should have server_port"
-        assert hasattr(settings, "enable_websockets"), "Should have enable_websockets"
+        # Verify custom SessionBuddy settings — server_port and
+        # enable_websockets moved into the mcp_transport group.
+        assert hasattr(settings.mcp_transport, "server_port"), (
+            "Should have mcp_transport.server_port"
+        )
+        assert hasattr(settings.mcp_transport, "enable_websockets"), (
+            "Should have mcp_transport.enable_websockets"
+        )
 
     async def test_no_acb_dependencies_import(self):
         """Test success criterion: No ACB imports in runtime."""
