@@ -135,7 +135,7 @@ class MemoryHealthAnalyzer:
         Args:
             db_path: Path to memory database directory. When None, resolves
                 to ``get_settings().database_path.parent / "memory"`` so test
-                fixtures that monkeypatch SessionMgmtSettings._settings will
+                fixtures that monkeypatch SessionBuddySettings._settings will
                 redirect this path.
             logger: Optional logger instance
         """

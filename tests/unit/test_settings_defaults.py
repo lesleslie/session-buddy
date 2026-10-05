@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from session_buddy.settings import SessionBuddySettings, SessionMgmtSettings, get_settings
+from session_buddy.settings import (
+    DatabaseConfig,
+    GitMaintenanceConfig,
+    SessionBuddySettings,
+    get_settings,
+)
 
 
 def test_settings_defaults_present() -> None:
@@ -52,7 +57,9 @@ class TestGitPruneDelayValidation:
         ]
 
         for delay in valid_delays:
-            settings = SessionMgmtSettings(git_gc_prune_delay=delay)
+            settings = SessionBuddySettings(
+                git_maintenance=GitMaintenanceConfig(git_gc_prune_delay=delay)
+            )
             assert settings.git_gc_prune_delay == delay
 
     def test_invalid_prune_delay_formats_raise_error(self):
@@ -71,7 +78,9 @@ class TestGitPruneDelayValidation:
 
         for delay in invalid_delays:
             with pytest.raises(pydantic.ValidationError):
-                SessionMgmtSettings(git_gc_prune_delay=delay)
+                SessionBuddySettings(
+                    git_maintenance=GitMaintenanceConfig(git_gc_prune_delay=delay)
+                )
 
     def test_now_value_triggers_warning(self):
         """Setting prune_delay to 'now' triggers a warning."""
@@ -88,5 +97,7 @@ class TestGitPruneDelayValidation:
 
     def test_default_prune_delay_is_safe(self):
         """Default prune delay is safe (2.weeks)."""
-        settings = SessionMgmtSettings()
+        settings = SessionBuddySettings(
+            database=DatabaseConfig(path=__import__("pathlib").Path("test.duckdb"))
+        )
         assert settings.git_gc_prune_delay == "2.weeks"

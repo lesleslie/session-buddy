@@ -193,7 +193,7 @@ def _make_dhara_publisher() -> DharaChannelPublisher | None:
     """Return a DharaChannelPublisher if a Dhara URL is configured, else None.
 
     URL is read from the ``SESSION_BUDDY_DHARA_URL`` environment variable
-    only — the previously-supported ``SessionMgmtSettings.dhara_url``
+    only — the previously-supported ``SessionBuddySettings.dhara_url``
     field was removed 2026-10-04 (obsolete; env-var path was already the
     primary one and the YAML fallback never carried weight).
     """

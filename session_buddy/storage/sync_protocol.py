@@ -31,7 +31,7 @@ class SyncMethod(Protocol):
 
     Example:
         >>> class CloudSyncMethod:
-        ...     def __init__(self, settings: SessionMgmtSettings):
+        ...     def __init__(self, settings: SessionBuddySettings):
         ...         self.settings = settings
         ...
         ...     async def sync(self, **kwargs) -> dict[str, Any]:

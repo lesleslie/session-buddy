@@ -63,7 +63,7 @@ class KnowledgeGraphDatabase:
             db_path: Path to DuckDB database file.
                     Defaults to KnowledgeGraphAdapterSettings.from_settings().database_path
                     (resolved via get_settings(), so test fixtures that monkeypatch
-                    SessionMgmtSettings._settings will redirect this path).
+                    SessionBuddySettings._settings will redirect this path).
 
         """
         if db_path is None:

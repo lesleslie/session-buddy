@@ -36,5 +36,5 @@
 ## Security & Configuration Tips
 
 - Store MCP client configs as `example.mcp.json` derivatives and keep secrets out of version control.
-- Audit runtime settings with `uv run python -c "from session_buddy.settings import SessionMgmtSettings; print(SessionMgmtSettings().model_dump_json())"`; rely on `tempfile` utilities for ephemeral paths.
+- Audit runtime settings with `uv run python -c "from session_buddy.settings import SessionBuddySettings; print(SessionBuddySettings().model_dump_json())"`; rely on `tempfile` utilities for ephemeral paths.
 - Review permission updates through the `permissions` MCP tool to uphold least-privilege defaults.

@@ -66,7 +66,7 @@ class CLILaunchSettings(OneiricMCPConfig):
     mode: str = "standard"
 
     # Snapshot path helpers (migrated from MCPServerSettings via
-    # SessionMgmtSettings in settings.py; replicated here so the
+    # SessionBuddySettings in settings.py; replicated here so the
     # CLI-side settings class still satisfies the structural protocol
     # in utils.runtime_snapshots).
     def pid_path(self) -> Path:

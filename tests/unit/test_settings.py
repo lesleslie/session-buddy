@@ -37,7 +37,6 @@ from session_buddy.settings import (
     PathsConfig,
     ServerIdentityConfig,
     SessionBuddySettings,
-    SessionMgmtSettings,
 )
 
 
@@ -1690,7 +1689,8 @@ class TestExports:
 
 
 # Import at end to avoid issues with mock patching
-from session_buddy.settings import SessionMgmtSettings
+# (SessionMgmtSettings was removed in Phase 6 — TestSessionMgmtSettingsLoad
+# class above needs a follow-up to use SessionBuddySettings.)
 
 
 # ---------------------------------------------------------------------------

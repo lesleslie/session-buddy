@@ -545,7 +545,7 @@ Session-Buddy uses MiniMax as the primary cloud LLM provider:
 
 - `session_buddy/llm_providers.py` — LLMManager with multi-provider support
 - `session_buddy/llm/security.py` — API key validation and masking
-- `session_buddy/settings.py` — MiniMax and ZAI settings fields in SessionMgmtSettings
+- `session_buddy/settings.py` — MiniMax and ZAI settings fields in SessionBuddySettings
 - `tests/integration/test_zai_fallback_chain.py` — Integration tests for provider fallback chain
 
 ### Token Optimization

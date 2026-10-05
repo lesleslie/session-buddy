@@ -100,7 +100,7 @@ class Field:
 
 
 def extract_schema() -> list[Field]:
-    """Import Session-Buddy's ``SessionMgmtSettings`` and walk every nested field.
+    """Import Session-Buddy's ``SessionBuddySettings`` and walk every nested field.
 
     Path scheme:
       - Top-level leaf field ``foo`` -> group="", leaf="foo", path="foo"
@@ -117,7 +117,7 @@ def extract_schema() -> list[Field]:
     from pydantic import BaseModel
 
     from session_buddy.settings import (
-        SessionMgmtSettings,  # type: ignore[import-not-found]
+        SessionBuddySettings,  # type: ignore[import-not-found]
     )
 
     fields: list[Field] = []
@@ -173,7 +173,7 @@ def extract_schema() -> list[Field]:
                     )
                 )
 
-    walk(SessionMgmtSettings, "")
+    walk(SessionBuddySettings, "")
     return fields
 
 
@@ -519,7 +519,7 @@ def main() -> int:
     rg_path = rg()
     print(f"Scanner: {'ripgrep (' + rg_path + ')' if rg_path else 'grep (fallback)'}")
     print()
-    print("Extracting schema from session_buddy.settings.SessionMgmtSettings ...")
+    print("Extracting schema from session_buddy.settings.SessionBuddySettings ...")
     fields = extract_schema()
     print(f"Found {len(fields)} fields.")
     print()
@@ -532,7 +532,7 @@ def main() -> int:
     print(f"  -> {sum(1 for v in dynamic.values() if v)} fields have dynamic consumers")
     results = classify(fields, consumers, dynamic)
 
-    print_report(results, CONSUMER_ROOTS, title="SessionMgmtSettings wiring audit")
+    print_report(results, CONSUMER_ROOTS, title="SessionBuddySettings wiring audit")
 
     if args.show_wired:
         print("WIRED fields with first consumer:")

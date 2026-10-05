@@ -70,7 +70,7 @@ def _start_conscious_agent_with_lock(settings: Any) -> bool:
 
     Args:
         settings: An object with an ``enable_conscious_agent`` boolean
-            attribute. ``SessionMgmtSettings`` works; ``SimpleNamespace``
+            attribute. ``SessionBuddySettings`` works; ``SimpleNamespace``
             works for tests.
 
     Returns:

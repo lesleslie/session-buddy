@@ -34,7 +34,7 @@ if t.TYPE_CHECKING:  # pragma: no cover
 class _SnapshotSettings(t.Protocol):
     """Structural type for anything we treat as snapshot-eligible settings.
 
-    Both the production ``SessionMgmtSettings`` (migrated to
+    Both the production ``SessionBuddySettings`` (migrated to
     ``OneiricMCPConfig``) and the legacy ``MCPServerSettings`` used by
     the upstream fixtures satisfy this. ``OneiricMCPConfig`` alone
     does not — that's why we keep this Protocol narrow.

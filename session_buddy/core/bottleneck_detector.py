@@ -134,7 +134,7 @@ class BottleneckDetector:
         Args:
             db_path: Path to workflow metrics database. When None, resolves
                 to ``get_settings().database_path.parent / "workflow_metrics.db"``
-                so test fixtures that monkeypatch SessionMgmtSettings._settings
+                so test fixtures that monkeypatch SessionBuddySettings._settings
                 will redirect this path.
             logger: Optional logger instance
         """
