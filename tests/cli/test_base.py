@@ -29,7 +29,7 @@ from oneiric.cli.base import OneiricCLIBase, ExitCode
 
 from session_buddy.cli.base import (
     SessionBuddyCLI,
-    SessionBuddySettings,
+    CLILaunchSettings,
     _doctor_checks_dict,
     _run_health_probe,
     start_server_handler,
@@ -94,18 +94,18 @@ def test_subclass_help_string_passed_through() -> None:
 
 
 def test_settings_class_present_and_subclass_of_oneiric_config() -> None:
-    """SessionBuddySettings extends OneiricMCPConfig — required by the
+    """CLILaunchSettings extends OneiricMCPConfig — required by the
     mcp-common lifecycle sub-Typer for ``cache_root`` / ``pid_path``
     shims (regression pin)."""
     from oneiric.core.config import OneiricMCPConfig
 
-    assert issubclass(SessionBuddySettings, OneiricMCPConfig)
+    assert issubclass(CLILaunchSettings, OneiricMCPConfig)
 
 
 def test_settings_pid_and_snapshot_paths_live_under_cache_dir() -> None:
     """Regression pin from the legacy test suite: pid/health/telemetry
     snapshot paths must all live under ``cache_dir``."""
-    settings = SessionBuddySettings()
+    settings = CLILaunchSettings()
     assert isinstance(settings.pid_path(), Path)
     assert isinstance(settings.health_snapshot_path(), Path)
     assert isinstance(settings.telemetry_snapshot_path(), Path)
@@ -120,7 +120,7 @@ def test_settings_pid_and_snapshot_paths_live_under_cache_dir() -> None:
 def test_settings_cache_root_shim() -> None:
     """Regression pin: ``cache_root`` is a Path shimmed from ``cache_dir``
     so mcp-common's ``validate_cache_ownership`` can read it."""
-    settings = SessionBuddySettings()
+    settings = CLILaunchSettings()
     assert isinstance(settings.cache_root, Path)
     assert settings.cache_root == Path(settings.cache_dir)
 
@@ -279,7 +279,7 @@ def test_health_probe_returns_real_dict_shape() -> None:
     ``get_health_status()`` data."""
     import json
 
-    probe = _run_health_probe(SessionBuddySettings())
+    probe = _run_health_probe(CLILaunchSettings())
     # Real RuntimeHealthSnapshot (not dict / not stub).
     assert not isinstance(probe, dict), (
         "_run_health_probe must return RuntimeHealthSnapshot so "

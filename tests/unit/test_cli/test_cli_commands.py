@@ -123,9 +123,9 @@ class TestCLISettings:
 
     def test_settings_initialization(self):
         """Test settings are properly initialized."""
-        from session_buddy.cli import SessionBuddySettings
+        from session_buddy.cli import CLILaunchSettings
 
-        settings = SessionBuddySettings()
+        settings = CLILaunchSettings()
 
         assert settings.server_name == "session-buddy"
         assert settings.http_port == 8678
@@ -135,11 +135,11 @@ class TestCLISettings:
 
     def test_settings_from_env(self):
         """Test settings can be loaded from environment."""
-        from session_buddy.cli import SessionBuddySettings
+        from session_buddy.cli import CLILaunchSettings
 
         with patch.dict("os.environ", {"MAHAVISHNU_HTTP_PORT": "9000"}):
             # Environment variables use MAHAVISHNU prefix for compatibility
-            settings = SessionBuddySettings()
+            settings = CLILaunchSettings()
 
             # Default should be used if env var not mapped correctly
             assert settings.http_port == 8678  # Default value
@@ -306,9 +306,9 @@ class TestCLIServerLifecycle:
 
     def test_server_configuration(self):
         """Test server configuration settings."""
-        from session_buddy.cli import SessionBuddySettings
+        from session_buddy.cli import CLILaunchSettings
 
-        settings = SessionBuddySettings()
+        settings = CLILaunchSettings()
 
         # Verify critical settings
         assert settings.server_name is not None
@@ -374,9 +374,9 @@ class TestCLIProcessManagement:
 
     def test_process_timeouts(self):
         """Test process timeout settings."""
-        from session_buddy.cli import SessionBuddySettings
+        from session_buddy.cli import CLILaunchSettings
 
-        settings = SessionBuddySettings()
+        settings = CLILaunchSettings()
 
         # Verify timeout settings
         assert settings.startup_timeout >= 0
@@ -421,9 +421,9 @@ class TestCLIScenarios:
 
     def test_cli_with_custom_settings(self):
         """Test CLI with custom settings configuration."""
-        from session_buddy.cli import SessionBuddySettings
+        from session_buddy.cli import CLILaunchSettings
 
-        custom_settings = SessionBuddySettings(
+        custom_settings = CLILaunchSettings(
             server_name="custom-session-buddy",
             http_port=9000,
             websocket_port=9001,

@@ -7,7 +7,7 @@ exposes the same ``version`` / ``doctor`` / ``health`` / ``--json`` /
 ``--version`` UX as the rest of the Core 7 Bodai components.
 
 This module is the canonical home for ``SessionBuddyCLI`` and its
-supporting helpers (``SessionBuddySettings``, ``start_server_handler``,
+supporting helpers (``CLILaunchSettings``, ``start_server_handler``,
 ``_port_holder``, ``_read_running_pid``, ``_run_health_probe``). The
 legacy ``session_buddy/cli/__init__.py`` re-exports them so callers
 that import from either location keep working.
@@ -69,7 +69,7 @@ class _HasPidPath(t.Protocol):
 # ---------------------------------------------------------------------------
 
 
-class SessionBuddySettings(OneiricMCPConfig):
+class CLILaunchSettings(OneiricMCPConfig):
     """Session Buddy specific MCP server settings extending OneiricMCPConfig."""
 
     # Session Buddy specific settings
@@ -138,7 +138,7 @@ def start_server_handler() -> None:
 
     from session_buddy.server_optimized import mcp
 
-    settings = SessionBuddySettings()
+    settings = CLILaunchSettings()
 
     print("🚀 Starting Session Management MCP Server...")
     print(f"HTTP Port: {settings.http_port}")
@@ -215,7 +215,7 @@ def _read_running_pid(settings: _HasPidPath) -> int | None:
         return None
 
 
-def _run_health_probe(settings: SessionBuddySettings) -> RuntimeHealthSnapshot:
+def _run_health_probe(settings: CLILaunchSettings) -> RuntimeHealthSnapshot:
     """Run ``get_health_status`` and return a ``RuntimeHealthSnapshot``.
 
     Returned snapshot mirrors the pre-adoption shape so the mcp-common
@@ -337,7 +337,7 @@ class SessionBuddyCLI(OneiricCLIBase):
         by the mcp-common variant. ``server health`` is still available
         for operators who want the RuntimeHealthSnapshot shape.
         """
-        sb_settings = self._settings or SessionBuddySettings()
+        sb_settings = self._settings or CLILaunchSettings()
         factory = MCPServerCLIFactory(
             server_name=sb_settings.server_name,
             settings=t.cast("MCPServerSettings", sb_settings),
@@ -379,7 +379,7 @@ class SessionBuddyCLI(OneiricCLIBase):
 
 __all__ = [
     "SessionBuddyCLI",
-    "SessionBuddySettings",
+    "CLILaunchSettings",
     "_doctor_checks_dict",
     "_port_holder",
     "_read_running_pid",

@@ -25,7 +25,7 @@ from __future__ import annotations
 # just the backward-compat shim layer.
 from session_buddy.cli.base import (  # noqa: F401
     SessionBuddyCLI,
-    SessionBuddySettings,
+    CLILaunchSettings,
     _port_holder,
     _read_running_pid,
     _run_health_probe,
@@ -66,7 +66,7 @@ def main() -> None:
 
 __all__ = [
     "SessionBuddyCLI",
-    "SessionBuddySettings",
+    "CLILaunchSettings",
     "create_session_buddy_cli",
     "main",
     "start_server_handler",

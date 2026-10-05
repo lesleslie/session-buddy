@@ -26,18 +26,18 @@ from session_buddy.modes.standard import StandardMode
 
 
 # ============================================================================
-# Test SessionBuddySettings
+# Test CLILaunchSettings
 # ============================================================================
 
 
-class TestSessionBuddySettings:
-    """Tests for SessionBuddySettings class."""
+class TestCLILaunchSettings:
+    """Tests for CLILaunchSettings class."""
 
     def test_settings_default_values(self) -> None:
-        """Test default values for SessionBuddySettings."""
-        from session_buddy.cli_with_modes import SessionBuddySettings
+        """Test default values for CLILaunchSettings."""
+        from session_buddy.cli_with_modes import CLILaunchSettings
 
-        settings = SessionBuddySettings()
+        settings = CLILaunchSettings()
 
         assert settings.server_name == "session-buddy"
         assert settings.http_port == 8678
@@ -48,10 +48,10 @@ class TestSessionBuddySettings:
         assert settings.mode == "standard"
 
     def test_settings_custom_values(self) -> None:
-        """Test custom values for SessionBuddySettings."""
-        from session_buddy.cli_with_modes import SessionBuddySettings
+        """Test custom values for CLILaunchSettings."""
+        from session_buddy.cli_with_modes import CLILaunchSettings
 
-        settings = SessionBuddySettings(
+        settings = CLILaunchSettings(
             server_name="custom-server",
             http_port=9000,
             websocket_port=9001,
@@ -71,26 +71,26 @@ class TestSessionBuddySettings:
 
     def test_settings_mode_parameter(self) -> None:
         """Test that mode parameter is properly stored."""
-        from session_buddy.cli_with_modes import SessionBuddySettings
+        from session_buddy.cli_with_modes import CLILaunchSettings
 
-        settings_lite = SessionBuddySettings(mode="lite")
-        settings_standard = SessionBuddySettings(mode="standard")
+        settings_lite = CLILaunchSettings(mode="lite")
+        settings_standard = CLILaunchSettings(mode="standard")
 
         assert settings_lite.mode == "lite"
         assert settings_standard.mode == "standard"
 
     def test_settings_inherits_oneiric_mcp_config(self) -> None:
-        """Test that SessionBuddySettings inherits from OneiricMCPConfig.
+        """Test that CLILaunchSettings inherits from OneiricMCPConfig.
 
         Note: this previously asserted ``MCPServerSettings`` as the
         base class. session-buddy migrated from MCPServerSettings ->
         OneiricMCPConfig; the assertion is updated to match the new
         inheritance chain without changing the test's intent.
         """
-        from session_buddy.cli_with_modes import SessionBuddySettings
+        from session_buddy.cli_with_modes import CLILaunchSettings
         from oneiric.core.config import OneiricMCPConfig
 
-        settings = SessionBuddySettings()
+        settings = CLILaunchSettings()
 
         assert isinstance(settings, OneiricMCPConfig)
 
@@ -104,9 +104,9 @@ class TestSessionBuddySettings:
         mirrors ``cache_dir`` into ``cache_root`` so startup does not raise
         ``AttributeError``. This test pins the shim contract.
         """
-        from session_buddy.cli_with_modes import SessionBuddySettings
+        from session_buddy.cli_with_modes import CLILaunchSettings
 
-        settings = SessionBuddySettings()
+        settings = CLILaunchSettings()
 
         assert isinstance(settings.cache_root, Path)
         assert settings.cache_root == Path(settings.cache_dir)
@@ -690,33 +690,33 @@ class TestIntegrationScenarios:
 
     def test_cli_factory_preserves_settings(self) -> None:
         """Test that CLI factory properly initializes with settings."""
-        from session_buddy.cli_with_modes import create_session_buddy_cli, SessionBuddySettings
+        from session_buddy.cli_with_modes import create_session_buddy_cli, CLILaunchSettings
 
         cli_factory = create_session_buddy_cli()
 
         # Settings should be accessible
         assert cli_factory.settings is not None
-        assert isinstance(cli_factory.settings, SessionBuddySettings)
+        assert isinstance(cli_factory.settings, CLILaunchSettings)
 
     def test_settings_mode_direct(self) -> None:
-        """Test that SessionBuddySettings accepts mode directly."""
-        from session_buddy.cli_with_modes import SessionBuddySettings
+        """Test that CLILaunchSettings accepts mode directly."""
+        from session_buddy.cli_with_modes import CLILaunchSettings
 
         # Direct mode parameter should work
-        settings = SessionBuddySettings(mode="lite")
+        settings = CLILaunchSettings(mode="lite")
         assert settings.mode == "lite"
 
-        settings2 = SessionBuddySettings(mode="standard")
+        settings2 = CLILaunchSettings(mode="standard")
         assert settings2.mode == "standard"
 
     def test_settings_mode_from_constructor(self) -> None:
         """Test that mode passed to constructor is preserved."""
-        from session_buddy.cli_with_modes import SessionBuddySettings
+        from session_buddy.cli_with_modes import CLILaunchSettings
 
-        settings = SessionBuddySettings(mode="lite")
+        settings = CLILaunchSettings(mode="lite")
         assert settings.mode == "lite"
 
-        settings = SessionBuddySettings(mode="standard")
+        settings = CLILaunchSettings(mode="standard")
         assert settings.mode == "standard"
 
 
@@ -807,20 +807,20 @@ class TestOperationModeInterface:
 # ============================================================================
 
 
-class TestSessionBuddySettingsPaths:
+class TestCLILaunchSettingsPaths:
     """Coverage lift: Exercise pid_path/health_snapshot_path/telemetry_snapshot_path.
 
     Prior tests covered only default ``__init__`` values; the three
-    ``*_path`` methods on ``SessionBuddySettings`` (lines 72-79) were not
+    ``*_path`` methods on ``CLILaunchSettings`` (lines 72-79) were not
     exercised. These tests pin the contract that each method returns a
     ``Path`` rooted at ``cache_dir``.
     """
 
     def test_pid_path_joins_cache_dir(self, tmp_path: Path) -> None:
         """pid_path() returns ``<cache_dir>/mcp_server.pid``."""
-        from session_buddy.cli_with_modes import SessionBuddySettings
+        from session_buddy.cli_with_modes import CLILaunchSettings
 
-        settings = SessionBuddySettings(cache_dir=str(tmp_path))
+        settings = CLILaunchSettings(cache_dir=str(tmp_path))
 
         result = settings.pid_path()
         assert isinstance(result, Path)
@@ -828,9 +828,9 @@ class TestSessionBuddySettingsPaths:
 
     def test_health_snapshot_path_joins_cache_dir(self, tmp_path: Path) -> None:
         """health_snapshot_path() returns ``<cache_dir>/runtime_health.json``."""
-        from session_buddy.cli_with_modes import SessionBuddySettings
+        from session_buddy.cli_with_modes import CLILaunchSettings
 
-        settings = SessionBuddySettings(cache_dir=str(tmp_path))
+        settings = CLILaunchSettings(cache_dir=str(tmp_path))
 
         result = settings.health_snapshot_path()
         assert isinstance(result, Path)
@@ -838,9 +838,9 @@ class TestSessionBuddySettingsPaths:
 
     def test_telemetry_snapshot_path_joins_cache_dir(self, tmp_path: Path) -> None:
         """telemetry_snapshot_path() returns ``<cache_dir>/runtime_telemetry.json``."""
-        from session_buddy.cli_with_modes import SessionBuddySettings
+        from session_buddy.cli_with_modes import CLILaunchSettings
 
-        settings = SessionBuddySettings(cache_dir=str(tmp_path))
+        settings = CLILaunchSettings(cache_dir=str(tmp_path))
 
         result = settings.telemetry_snapshot_path()
         assert isinstance(result, Path)
@@ -861,12 +861,12 @@ class TestRunHealthProbe:
     ) -> None:
         """When no PID file exists, snapshot.orchestrator_pid is None and watchers_running False."""
         from session_buddy.cli_with_modes import (
-            SessionBuddySettings,
+            CLILaunchSettings,
             _run_health_probe,
         )
         from session_buddy.cli_with_modes import asyncio as cli_asyncio
 
-        settings = SessionBuddySettings(cache_dir=str(tmp_path))
+        settings = CLILaunchSettings(cache_dir=str(tmp_path))
         fake_health = {"status": "ok", "components": {}}
 
         def _consume_coro(coro: Any) -> dict[str, Any]:
@@ -899,7 +899,7 @@ class TestRunHealthProbe:
     ) -> None:
         """When a PID file exists, snapshot.orchestrator_pid is the int and watchers_running True."""
         from session_buddy.cli_with_modes import (
-            SessionBuddySettings,
+            CLILaunchSettings,
             _run_health_probe,
         )
         from session_buddy.cli_with_modes import asyncio as cli_asyncio
@@ -907,7 +907,7 @@ class TestRunHealthProbe:
         pid_file = tmp_path / "mcp_server.pid"
         pid_file.write_text("4242\n")
 
-        settings = SessionBuddySettings(cache_dir=str(tmp_path))
+        settings = CLILaunchSettings(cache_dir=str(tmp_path))
         fake_health = {"status": "ok", "components": {"server": "up"}}
 
         def _consume_coro(coro: Any) -> dict[str, Any]:

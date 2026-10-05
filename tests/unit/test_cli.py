@@ -34,13 +34,13 @@ def test_session_buddy_settings_cache_root_shim() -> None:
     ``validate_cache_ownership(self.settings.cache_root)`` (factory.py:406).
     ``cache_root`` is a Path on the legacy MCPServerSettings base; it was
     dropped in the OneiricMCPConfig migration (commit 05bc2622). The shim on
-    ``session_buddy.cli.SessionBuddySettings`` mirrors ``cache_dir`` into
+    ``session_buddy.cli.CLILaunchSettings`` mirrors ``cache_dir`` into
     ``cache_root`` so startup does not raise ``AttributeError``. This test
     pins the shim contract.
     """
-    from session_buddy.cli import SessionBuddySettings
+    from session_buddy.cli import CLILaunchSettings
 
-    settings = SessionBuddySettings()
+    settings = CLILaunchSettings()
 
     assert isinstance(settings.cache_root, Path)
     assert settings.cache_root == Path(settings.cache_dir)
@@ -54,9 +54,9 @@ def test_session_buddy_settings_snapshot_paths_return_paths_under_cache_dir() ->
     ``session_buddy.utils.runtime_snapshots`` (which uses the structural
     ``_HasPidPath`` protocol). Drift here breaks the lifecycle verbs.
     """
-    from session_buddy.cli import SessionBuddySettings
+    from session_buddy.cli import CLILaunchSettings
 
-    settings = SessionBuddySettings()
+    settings = CLILaunchSettings()
 
     pid_path = settings.pid_path()
     health_path = settings.health_snapshot_path()
@@ -169,7 +169,7 @@ class TestCliInternals:
         # canonical mcp-common launcher rather than calling
         # ``run_server`` directly. Patch the implementation module
         # (``cli.base``) directly because that's where
-        # ``start_server_handler`` resolves ``SessionBuddySettings`` and
+        # ``start_server_handler`` resolves ``CLILaunchSettings`` and
         # ``launch`` via module-local names.
         from session_buddy.cli import base as cli_base
 
@@ -178,7 +178,7 @@ class TestCliInternals:
             websocket_port = 4321
 
         fake_mcp = MagicMock(name="mcp")
-        monkeypatch.setattr(cli_base, "SessionBuddySettings", FakeSettings)
+        monkeypatch.setattr(cli_base, "CLILaunchSettings", FakeSettings)
         # ``_port_holder`` checks if the port is held (lsof); stub it so
         # the test does not depend on whether 1234 is actually free.
         monkeypatch.setattr(cli_base, "_port_holder", lambda _port: None)
@@ -389,7 +389,7 @@ class TestCliInternals:
             http_port = 8678
             websocket_port = 8677
 
-        monkeypatch.setattr(cli_base, "SessionBuddySettings", FakeSettings)
+        monkeypatch.setattr(cli_base, "CLILaunchSettings", FakeSettings)
         monkeypatch.setattr(
             cli_base, "_port_holder", lambda port: (1234, "another-server")
         )

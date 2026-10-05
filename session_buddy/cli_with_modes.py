@@ -47,7 +47,7 @@ class _HasPidPath(t.Protocol):
     def pid_path(self) -> Path: ...
 
 
-class SessionBuddySettings(OneiricMCPConfig):
+class CLILaunchSettings(OneiricMCPConfig):
     """Session Buddy specific MCP server settings."""
 
     # Session Buddy specific settings
@@ -115,7 +115,7 @@ def start_server_handler(mode: str = "standard") -> None:
         )
 
         # Start server in HTTP mode
-        settings = SessionBuddySettings()
+        settings = CLILaunchSettings()
         print(f"\nHTTP Port: {settings.http_port}")
         print(f"WebSocket Port: {settings.websocket_port}")
         print("-" * 60)
@@ -150,7 +150,7 @@ def _read_running_pid(settings: _HasPidPath) -> int | None:
         return None
 
 
-def _run_health_probe(settings: SessionBuddySettings) -> RuntimeHealthSnapshot:
+def _run_health_probe(settings: CLILaunchSettings) -> RuntimeHealthSnapshot:
     """Run health probe on Session-Buddy server.
 
     Args:
@@ -180,7 +180,7 @@ def create_session_buddy_cli() -> MCPServerCLIFactory:
     mode = os.getenv("SESSION_BUDDY_MODE", "standard").lower()
 
     # Initialize settings with mode
-    settings = SessionBuddySettings(mode=mode)
+    settings = CLILaunchSettings(mode=mode)
 
     # Create start handler with mode
     def start_handler() -> None:
@@ -188,7 +188,7 @@ def create_session_buddy_cli() -> MCPServerCLIFactory:
 
     # Create the CLI factory
     # ``MCPServerCLIFactory`` annotates ``settings`` as
-    # ``MCPServerSettings | None``. We pass ``SessionBuddySettings``
+    # ``MCPServerSettings | None``. We pass ``CLILaunchSettings``
     # (an ``OneiricMCPConfig`` subclass); the factory only reads
     # ``.server_name``, never type-discriminates, so we cast through
     # ``MCPServerSettings`` to satisfy ty without widening the

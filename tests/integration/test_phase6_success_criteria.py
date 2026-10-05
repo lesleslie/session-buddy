@@ -29,7 +29,7 @@ from session_buddy.adapters.reflection_adapter_oneiric import (
     ReflectionDatabaseAdapterOneiric,
 )
 from session_buddy.adapters.storage_oneiric import FileStorageOneiric, MemoryStorageOneiric
-from session_buddy.cli import SessionBuddySettings
+from session_buddy.cli import CLILaunchSettings
 from session_buddy.di.container import ServiceContainer
 from session_buddy.server import mcp
 
@@ -86,7 +86,7 @@ class TestPhase6MCPCLI:
 
     async def test_cli_settings_loaded(self):
         """Test success criterion: CLI settings load correctly."""
-        settings = SessionBuddySettings()
+        settings = CLILaunchSettings()
 
         assert hasattr(settings, "server_name"), "Should have server_name"
         assert hasattr(settings, "cache_root"), "Should have cache_root"
@@ -95,7 +95,7 @@ class TestPhase6MCPCLI:
 
     async def test_oneiric_cache_health_snapshot_exists(self):
         """Test success criterion: .oneiric_cache/runtime_health.json exists."""
-        settings = SessionBuddySettings()
+        settings = CLILaunchSettings()
         health_path = settings.health_snapshot_path()
 
         assert health_path is not None, "Health snapshot path should be configured"
@@ -103,7 +103,7 @@ class TestPhase6MCPCLI:
 
     async def test_oneiric_cache_permissions(self):
         """Test success criterion: .oneiric_cache/ configured correctly."""
-        settings = SessionBuddySettings()
+        settings = CLILaunchSettings()
         cache_dir = settings.cache_root  # Attribute not method
 
         assert cache_dir is not None, "Cache root should be configured"
