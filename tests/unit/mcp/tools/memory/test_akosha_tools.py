@@ -36,24 +36,29 @@ from session_buddy.storage.akosha_sync import HybridAkoshaSync
 
 
 def _fake_settings(**overrides) -> SimpleNamespace:
-    """Build a settings namespace that AkoshaSyncConfig.from_settings consumes."""
+    """Build a settings namespace that AkoshaSyncConfig.from_settings consumes.
+
+    New shape (Phase 3a): the akosha_* fields live under
+    ``settings.cloud_sync.<field>``; the legacy ``akosha_`` prefix
+    shim was dropped. The dict uses the nested field names directly.
+    """
     base = dict(
-        akosha_cloud_bucket="my-bucket",
-        akosha_cloud_endpoint="https://s3.example.com",
-        akosha_cloud_region="us-east-1",
-        akosha_system_id="test-system",
-        akosha_upload_on_session_end=True,
-        akosha_enable_fallback=True,
-        akosha_force_method="auto",
-        akosha_upload_timeout_seconds=300,
-        akosha_max_retries=3,
-        akosha_retry_backoff_seconds=2.0,
-        akosha_enable_compression=True,
-        akosha_enable_deduplication=True,
-        akosha_chunk_size_mb=5,
+        cloud_bucket="my-bucket",
+        cloud_endpoint="https://s3.example.com",
+        cloud_region="us-east-1",
+        system_id="test-system",
+        upload_on_session_end=True,
+        enable_fallback=True,
+        force_method="auto",
+        upload_timeout_seconds=300,
+        max_retries=3,
+        retry_backoff_seconds=2.0,
+        enable_compression=True,
+        enable_deduplication=True,
+        chunk_size_mb=5,
     )
     base.update(overrides)
-    return SimpleNamespace(**base)
+    return SimpleNamespace(cloud_sync=SimpleNamespace(**base))
 
 
 # ---------------------------------------------------------------------------
@@ -255,9 +260,13 @@ class TestAkoshaSyncStatus:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # All Akosha settings empty → cloud_configured = False.
+        # New shape (Phase 3a): the akosha_* fields live under
+        # ``settings.cloud_sync.<field>``; an empty ``cloud_sync`` is
+        # enough for ``getattr(settings.cloud_sync, ..., default)`` to
+        # return ``default`` for every read.
         monkeypatch.setattr(
             akosha_tools.settings_module, "get_settings",
-            lambda: SimpleNamespace(),
+            lambda: SimpleNamespace(cloud_sync=SimpleNamespace()),
         )
 
         result = await akosha_sync_status()
