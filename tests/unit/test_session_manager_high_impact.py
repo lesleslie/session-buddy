@@ -1144,10 +1144,12 @@ async def test_schedule_git_maintenance_covers_settings_and_gc_paths(
     tmp_path: Path,
 ) -> None:
     settings = SimpleNamespace(
-        git_auto_gc=False,
-        git_gc_only_when_clean=True,
-        git_gc_prune_delay=10,
-        git_gc_auto_threshold=25,
+        git_maintenance=SimpleNamespace(
+            git_auto_gc=False,
+            git_gc_only_when_clean=True,
+            git_gc_prune_delay=10,
+            git_gc_auto_threshold=25,
+        ),
     )
     fake_settings_module = types.ModuleType("session_buddy.settings")
     fake_settings_module.get_settings = lambda: settings  # type: ignore[attr-defined]
@@ -1168,7 +1170,7 @@ async def test_schedule_git_maintenance_covers_settings_and_gc_paths(
     assert output == []
     git_gc.assert_not_called()
 
-    settings.git_auto_gc = True
+    settings.git_maintenance.git_auto_gc = True
     manager.current_project = "demo"
 
     output = []

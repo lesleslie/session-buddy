@@ -43,13 +43,15 @@ class TestGetMaskedApiKey:
 
     def test_settings_branch_returns_masked_string(self) -> None:
         mock_settings = MagicMock()
-        mock_settings.openai_api_key = "sk-real-key-1234567890abcdef"
+        # New shape (Phase 3b): API keys live under
+        # ``settings.llm.api_keys.<provider>``.
+        mock_settings.llm.api_keys.openai = "sk-real-key-1234567890abcdef"
         mock_settings.get_masked_key.return_value = "sk-...cdef"
         with patch("session_buddy.llm.security.get_settings", return_value=mock_settings):
             result = get_masked_api_key("openai")
         assert result == "sk-...cdef"
         mock_settings.get_masked_key.assert_called_once_with(
-            key_name="openai_api_key", visible_chars=4
+            key_name="api_keys.openai", visible_chars=4
         )
 
     def test_settings_branch_non_string_value_falls_through(self) -> None:
@@ -173,7 +175,8 @@ class TestGetProviderApiKeyAndEnv:
         ):
             api_key, env = _get_provider_api_key_and_env("openai")
         assert api_key == "from-settings"
-        assert env == "settings.openai_api_key"
+        # New contract (Phase 3b): the env hint names the nested key.
+        assert env == "settings.llm.api_keys.openai"
 
     def test_openai_env_fallback(self) -> None:
         with patch("session_buddy.llm.security.get_llm_api_key", return_value=""):

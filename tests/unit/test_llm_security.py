@@ -176,7 +176,8 @@ class TestGetProviderApiKeyAndEnv:
         with patch("session_buddy.llm.security.get_llm_api_key", return_value="from-settings"):
             api_key, env = _get_provider_api_key_and_env("openai")
         assert api_key == "from-settings"
-        assert env == "settings.openai_api_key"
+        # New contract (Phase 3b): the env hint names the nested key.
+        assert env == "settings.llm.api_keys.openai"
 
     def test_openai_env_fallback(self) -> None:
         with patch("session_buddy.llm.security.get_llm_api_key", return_value=""):

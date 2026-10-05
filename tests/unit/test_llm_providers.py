@@ -354,11 +354,15 @@ class TestGetProviderApiKeyAndEnv:
 
     def test_returns_key_from_settings(self):
         mock_settings = MagicMock()
-        mock_settings.openai_api_key = "settings-key"
+        # New shape (Phase 3b): API keys live under
+        # ``settings.llm.api_keys.<provider>``. MagicMock auto-creates
+        # the chained attributes, so a single attribute set on the
+        # nested path is enough.
+        mock_settings.llm.api_keys.openai = "settings-key"
         with patch("session_buddy.llm_providers.get_settings", return_value=mock_settings):
             key, source = _get_provider_api_key_and_env("openai")
             assert key == "settings-key"
-            assert source == "settings.openai_api_key"
+            assert source == "settings.llm.api_keys.openai"
 
     def test_returns_key_from_env(self):
         with patch.dict(os.environ, {"OPENAI_API_KEY": "env-key"}):
