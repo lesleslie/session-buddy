@@ -30,10 +30,15 @@ def manager() -> MagicMock:
 def _settings(
     *, enabled: bool = True, min_length: int = 1, max_length: int = 50_000
 ) -> SimpleNamespace:
+    # New shape (Phase 3a): settings.conversation_storage.<field> —
+    # the conversation_* fields live under a nested group, not flat on
+    # the root.
     return SimpleNamespace(
-        enable_conversation_storage=enabled,
-        conversation_storage_min_length=min_length,
-        conversation_storage_max_length=max_length,
+        conversation_storage=SimpleNamespace(
+            enable_conversation_storage=enabled,
+            conversation_storage_min_length=min_length,
+            conversation_storage_max_length=max_length,
+        ),
     )
 
 
