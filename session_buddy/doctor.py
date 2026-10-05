@@ -218,11 +218,11 @@ async def check_auto_capture_recent(db_path: Path | None = None) -> ComponentHea
             from session_buddy.settings import get_settings
 
             settings = get_settings()
-            db_path = Path(
-                getattr(settings, "database_path", None)
-                or getattr(settings, "reflection_db_path", None)
-                or ":memory:"
-            )
+            # ``reflection_db_path`` was a never-declared defensive
+            # fallback (the getattr returned None on every invocation
+            # before the refactor). Drop it; ``settings.database.path``
+            # is the single source of truth.
+            db_path = Path(settings.database.path) or ":memory:"
         if str(db_path) == ":memory:":
             # In-memory means no real production data to inspect.
             return ComponentHealth(

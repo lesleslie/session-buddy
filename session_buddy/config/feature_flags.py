@@ -68,19 +68,25 @@ def get_feature_flags() -> FeatureFlags:
     """
     settings = get_settings()
 
-    # Base flags from settings if present (fallback False)
+    # Base flags from settings if present (fallback False).
+    # Reads from the nested groups on SessionBuddySettings
+    # (added 2026-10-04). The legacy flat
+    # ``getattr(settings, "enable_<flag>", False)`` pattern silently
+    # returned False after the schema reshape.
     base = FeatureFlags(
         enable_llm_entity_extraction=bool(
-            getattr(settings, "enable_llm_entity_extraction", False)
+            settings.entity_extraction.enable
         ),
-        enable_anthropic=bool(getattr(settings, "enable_anthropic", False)),
-        enable_ollama=bool(getattr(settings, "enable_ollama", False)),
-        enable_conscious_agent=bool(getattr(settings, "enable_conscious_agent", False)),
+        enable_anthropic=bool(settings.feature_flags.enable_anthropic),
+        enable_ollama=bool(settings.feature_flags.enable_ollama),
+        enable_conscious_agent=bool(
+            settings.feature_flags.enable_conscious_agent
+        ),
         enable_filesystem_extraction=bool(
-            getattr(settings, "enable_filesystem_extraction", False)
+            settings.feature_flags.enable_filesystem_extraction
         ),
         enable_crackerjack_fallback=bool(
-            getattr(settings, "enable_crackerjack_fallback", False)
+            settings.feature_flags.enable_crackerjack_fallback
         ),
     )
 

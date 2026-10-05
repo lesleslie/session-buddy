@@ -368,23 +368,15 @@ async def _helper_functions(
 def get_masked_api_key(provider: str = "openai") -> str:
     """Return a masked API key suitable for logging."""
     settings = get_settings()
-    key_field_map = {
-        "openai": "openai_api_key",
-        "anthropic": "anthropic_api_key",
-        "gemini": "gemini_api_key",
-        "qwen": "qwen_api_key",
-        "minimax": "minimax_api_key",
-        "zai": "zai_api_key",
-    }
-    key_field = key_field_map.get(provider)
-    if key_field:
-        configured = getattr(settings, key_field, None)
-        if isinstance(configured, str) and configured.strip():
-            if SECURITY_AVAILABLE and APIKeyValidator is not None:
-                return APIKeyValidator.mask_key(configured, visible_chars=4)
-            if len(configured) <= 4:
-                return "***"
-            return f"...{configured[-4:]}"
+    # Read directly from the nested LLMApiKeysConfig (Phase 3b:
+    # collapsed 4-site ``field_map`` literal to direct attribute access).
+    configured = getattr(settings.llm.api_keys, provider, None)
+    if isinstance(configured, str) and configured.strip():
+        if SECURITY_AVAILABLE and APIKeyValidator is not None:
+            return APIKeyValidator.mask_key(configured, visible_chars=4)
+        if len(configured) <= 4:
+            return "***"
+        return f"...{configured[-4:]}"
 
     api_key = None
     if provider == "openai":
@@ -416,19 +408,12 @@ def get_masked_api_key(provider: str = "openai") -> str:
 def _get_provider_api_key_and_env(provider: str) -> tuple[str | None, str | None]:
     """Return configured API key and the backing source name."""
     settings = get_settings()
-    field_map = {
-        "openai": "openai_api_key",
-        "anthropic": "anthropic_api_key",
-        "gemini": "gemini_api_key",
-        "qwen": "qwen_api_key",
-        "minimax": "minimax_api_key",
-        "zai": "zai_api_key",
-    }
-    field = field_map.get(provider)
-    if field is not None:
-        configured = getattr(settings, field, None)
-        if isinstance(configured, str) and configured.strip():
-            return configured, f"settings.{field}"
+    # Direct read from nested LLMApiKeysConfig (Phase 3b).
+    configured = getattr(settings.llm.api_keys, provider, None)
+    if isinstance(configured, str) and configured.strip():
+        # Public contract per tests/unit/test_settings.py:1553 and
+        # tests/unit/test_llm_providers.py:361.
+        return configured, f"settings.llm.api_keys.{provider}"
 
     if provider == "openai":
         return os.getenv("OPENAI_API_KEY"), "OPENAI_API_KEY"

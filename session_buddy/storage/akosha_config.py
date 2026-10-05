@@ -292,21 +292,21 @@ class AkoshaSyncConfig:
         """
 
         def _string(name: str, default: str) -> str:
-            value = getattr(settings, name, default)
-            if not isinstance(value, str) or not value.strip():
-                value = getattr(settings, name.removeprefix("akosha_"), default)
+            # Read from the nested ``cloud_sync`` group (Phase 3a). The
+            # ``akosha_`` prefix is stripped so callers can pass
+            # ``akosha_cloud_bucket`` and we look up ``cloud_bucket``.
+            nested_field = name.removeprefix("akosha_")
+            value = getattr(settings.cloud_sync, nested_field, default)
             return value if isinstance(value, str) and value.strip() else default
 
         def _bool(name: str, default: bool) -> bool:
-            value = getattr(settings, name, default)
-            if not isinstance(value, bool):
-                value = getattr(settings, name.removeprefix("akosha_"), default)
+            nested_field = name.removeprefix("akosha_")
+            value = getattr(settings.cloud_sync, nested_field, default)
             return value if isinstance(value, bool) else default
 
         def _int(name: str, default: int) -> int:
-            value = getattr(settings, name, default)
-            if not isinstance(value, int) or isinstance(value, bool):
-                value = getattr(settings, name.removeprefix("akosha_"), default)
+            nested_field = name.removeprefix("akosha_")
+            value = getattr(settings.cloud_sync, nested_field, default)
             return (
                 value
                 if isinstance(value, int) and not isinstance(value, bool)
@@ -314,9 +314,8 @@ class AkoshaSyncConfig:
             )
 
         def _float(name: str, default: float) -> float:
-            value = getattr(settings, name, default)
-            if not isinstance(value, (int, float)) or isinstance(value, bool):
-                value = getattr(settings, name.removeprefix("akosha_"), default)
+            nested_field = name.removeprefix("akosha_")
+            value = getattr(settings.cloud_sync, nested_field, default)
             return (
                 value
                 if isinstance(value, (int, float)) and not isinstance(value, bool)

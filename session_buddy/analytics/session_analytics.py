@@ -257,7 +257,7 @@ class SessionAnalytics:
                 from session_buddy.settings import get_settings
 
                 settings = get_settings()
-                conn = duckdb.connect(str(settings.database_path), config=db_config)
+                conn = duckdb.connect(str(settings.database.path), config=db_config)
 
             return conn
         except ImportError:

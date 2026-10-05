@@ -239,7 +239,9 @@ class IDEFileHandler(FileSystemEventHandler):
     def __init__(self, monitor: ProjectActivityMonitor) -> None:
         self.monitor = monitor
         # Merge settings-driven ignore dirs
-        self.ignore_patterns = set(self.monitor._settings.filesystem_ignore_dirs)
+        self.ignore_patterns = set(
+            self.monitor._settings.filesystem_extraction.ignore_dirs
+        )
         self.ignore_patterns.add(".vscode/settings.json")
 
         # Critical file patterns for smart thresholding
@@ -250,7 +252,9 @@ class IDEFileHandler(FileSystemEventHandler):
             "api": ["api", "endpoint", "route", "controller"],
             "security": ["security", "encrypt", "hash", "crypto"],
         }
-        self._recent_ttl_seconds = self.monitor._settings.filesystem_dedupe_ttl_seconds
+        self._recent_ttl_seconds = (
+            self.monitor._settings.filesystem_extraction.dedupe_ttl_seconds
+        )
 
     def should_ignore(self, file_path: str) -> bool:
         """Check if file should be ignored."""
@@ -266,7 +270,7 @@ class IDEFileHandler(FileSystemEventHandler):
             return True
 
         # Ignore large or temporary files
-        max_size = self.monitor._settings.filesystem_max_file_size_bytes
+        max_size = self.monitor._settings.filesystem_extraction.max_file_size_bytes
         with suppress(Exception):
             if path.exists() and path.is_file() and path.stat().st_size > max_size:
                 return True

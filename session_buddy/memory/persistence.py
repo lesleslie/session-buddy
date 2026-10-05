@@ -37,9 +37,7 @@ def _connect() -> duckdb.DuckDBPyConnection:
         msg = "duckdb module is not available"
         raise ImportError(msg)
     settings = get_settings()
-    db_path = Path(
-        str(getattr(settings, "database_path", "~/.claude/data/reflection.duckdb"))
-    ).expanduser()
+    db_path = Path(str(settings.database.path)).expanduser()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return duckdb.connect(str(db_path), config={"allow_unsigned_extensions": True})
 

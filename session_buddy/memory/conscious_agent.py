@@ -80,7 +80,7 @@ def _start_conscious_agent_with_lock(settings: Any) -> bool:
 
     """
     # Short-circuit: feature flag off -> no agent, no lockfile, no work.
-    if not getattr(settings, "enable_conscious_agent", False):
+    if not settings.feature_flags.enable_conscious_agent:
         return False
 
     # In-process election cache. POSIX ``flock`` locks the *open file

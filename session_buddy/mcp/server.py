@@ -334,9 +334,9 @@ async def _lifespan_with_dhara_cleanup(
 
     # Effective interval: 10 min (commits) vs 30 min (analytics-only)
     effective_interval = (
-        settings.midpoint_commit_interval_s
-        if getattr(settings, "midpoint_commits_enabled", False)
-        else settings.auto_checkpoint_interval
+        settings.session.midpoint_commit_interval_s
+        if settings.session.midpoint_commits_enabled
+        else settings.session.auto_checkpoint_interval
     )
 
     # Build the quality-delta signal if a provider is configured.
@@ -349,7 +349,7 @@ async def _lifespan_with_dhara_cleanup(
     if quality_provider is not None:
         signals.append(
             QualityDeltaSignal(
-                min_delta=getattr(settings, "midpoint_commit_min_quality_delta", 10),
+                min_delta=settings.session.midpoint_commit_min_quality_delta,
                 quality_provider=quality_provider,
             )
         )
@@ -357,7 +357,7 @@ async def _lifespan_with_dhara_cleanup(
 
     # forward_to factory: real commit when enabled, no-op otherwise.
     def forward_to_factory(working_dir: Path):
-        if getattr(settings, "midpoint_commits_enabled", False):
+        if settings.session.midpoint_commits_enabled:
 
             async def forward(_result: Any) -> None:
                 await _midpoint_commit_forward(working_dir)

@@ -34,19 +34,14 @@ def get_masked_api_key(provider: str = "openai") -> str:
 
     """
     settings = get_settings()
-    key_field_map = {
-        "openai": "openai_api_key",
-        "anthropic": "anthropic_api_key",
-        "gemini": "gemini_api_key",
-        "qwen": "qwen_api_key",
-        "minimax": "minimax_api_key",
-        "zai": "zai_api_key",
-    }
-    key_field = key_field_map.get(provider)
-    if key_field:
-        configured = getattr(settings, key_field, None)
-        if isinstance(configured, str) and configured.strip():
-            return settings.get_masked_key(key_name=key_field, visible_chars=4)
+    # Read the configured key directly from the nested LLMApiKeysConfig.
+    # Replaces the legacy hardcoded ``key_field_map`` + ``getattr``
+    # pattern (Phase 3b dedupe: 4 sites collapsed to direct reads).
+    configured = getattr(settings.llm.api_keys, provider, None)
+    if isinstance(configured, str) and configured.strip():
+        return settings.get_masked_key(
+            key_name=f"api_keys.{provider}", visible_chars=4
+        )
 
     api_key = None
 
@@ -80,7 +75,10 @@ def _get_provider_api_key_and_env(provider: str) -> tuple[str | None, str | None
     """Get API key and environment variable name for provider."""
     configured_key = get_llm_api_key(provider)
     if configured_key:
-        return configured_key, f"settings.{provider}_api_key"
+        # Per Phase 3b: the env-var-name string reflects the new
+        # nested path. This is part of the public contract per tests
+        # at tests/unit/test_settings.py:1553 and tests/unit/test_llm_providers.py:361.
+        return configured_key, f"settings.llm.api_keys.{provider}"
     if provider == "openai":
         return os.getenv("OPENAI_API_KEY"), "OPENAI_API_KEY"
     if provider == "anthropic":

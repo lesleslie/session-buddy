@@ -163,7 +163,7 @@ async def store_conversation_checkpoint(
         settings = get_settings()
 
         # Check for conversation storage settings
-        enable_storage = getattr(settings, "enable_conversation_storage", True)
+        enable_storage = settings.conversation_storage.enable_conversation_storage
 
         if not enable_storage:
             logger.debug("Conversation storage disabled in settings")
@@ -188,7 +188,7 @@ async def store_conversation_checkpoint(
         }
 
         # Check minimum length requirement
-        min_length = getattr(settings, "conversation_storage_min_length", 100)
+        min_length = settings.conversation_storage.conversation_storage_min_length
         if len(conversation_text) < min_length:
             logger.debug(
                 "Conversation text too short (%d < %d), skipping storage",
@@ -199,7 +199,7 @@ async def store_conversation_checkpoint(
             return result
 
         # Check maximum length requirement (chunking)
-        max_length = getattr(settings, "conversation_storage_max_length", 50000)
+        max_length = settings.conversation_storage.conversation_storage_max_length
         if len(conversation_text) > max_length:
             logger.info(
                 "Conversation text too long (%d > %d), truncating",

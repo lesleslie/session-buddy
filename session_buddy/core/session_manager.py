@@ -647,11 +647,11 @@ class SessionLifecycleManager:
             settings = get_settings()
 
             # Check if automatic gc is enabled
-            if not settings.git_auto_gc:
+            if not settings.git_maintenance.git_auto_gc:
                 return
 
             # Check if we should only run when git is clean
-            if settings.git_gc_only_when_clean and await asyncio.to_thread(
+            if settings.git_maintenance.git_gc_only_when_clean and await asyncio.to_thread(
                 is_git_operation_in_progress, directory
             ):
                 output.append("\n🔄 Git operation in progress - skipping gc")
@@ -665,8 +665,8 @@ class SessionLifecycleManager:
             success, message = await asyncio.to_thread(
                 schedule_automatic_git_gc,
                 directory,
-                prune_delay=settings.git_gc_prune_delay,
-                auto_threshold=settings.git_gc_auto_threshold,
+                prune_delay=settings.git_maintenance.git_gc_prune_delay,
+                auto_threshold=settings.git_maintenance.git_gc_auto_threshold,
             )
 
             if success:
@@ -674,8 +674,8 @@ class SessionLifecycleManager:
                 self.logger.info(
                     "Scheduled git gc, project=%s, prune_delay=%s, threshold=%d",
                     self.current_project,
-                    settings.git_gc_prune_delay,
-                    settings.git_gc_auto_threshold,
+                    settings.git_maintenance.git_gc_prune_delay,
+                    settings.git_maintenance.git_gc_auto_threshold,
                 )
             else:
                 self.logger.warning(

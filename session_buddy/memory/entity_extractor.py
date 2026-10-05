@@ -307,8 +307,8 @@ class EntityExtractionEngine:
             self.manager = None
         self.fallback_extractor = PatternBasedExtractor()
         settings = get_settings()
-        self.timeout_s = settings.llm_extraction_timeout
-        self.retries = settings.llm_extraction_retries
+        self.timeout_s = settings.entity_extraction.timeout
+        self.retries = settings.entity_extraction.retries
 
     async def extract_entities(
         self, user_input: str, ai_output: str
