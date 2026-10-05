@@ -8,7 +8,9 @@ from session_buddy.settings import get_settings
 
 def _resolve_data_dir() -> Path:
     settings = get_settings()
-    data_dir = settings.data_dir.expanduser()
+    # Phase 3c: read from the nested paths group on
+    # SessionBuddySettings (post-conversion).
+    data_dir = settings.paths.data_dir.expanduser()
     return data_dir if data_dir.is_absolute() else Path.home() / data_dir
 
 
