@@ -1,191 +1,230 @@
 # Session Buddy - Base Configuration
-# This file contains the default configuration settings.
-# Create settings/local.yaml for local overrides (gitignored).
+# Nested Oneiric-shape (SessionBuddySettings schema). Each top-level
+# key is a *Config group; every leaf group has ``extra="forbid"``.
+# Override keys in settings/local.yaml (gitignored) or
+# ~/.config/session-buddy/local.yaml (XDG). Env-var overrides use the
+# prefix ``SESSION_BUDDY_`` with ``__`` as the nested delimiter
+# (e.g. ``SESSION_BUDDY_LLM__DEFAULT_PROVIDER=zai``).
 
-# === LLM Provider Configuration ===
-llm_providers:
+# === LLM provider configuration (consolidated) ===
+llm:
   default_provider: "minimax"
-  ollama_base_url: "http://localhost:11434"
-  ollama_default_model: "Qwen3-8B-8.2B-Q4_K_M"
   fallback_providers:
     - "minimax"
     - "llama_server"
     - "ollama"
 
-# === LLM Provider URLs ===
-minimax_base_url: "https://api.minimax.io/v1"
-minimax_default_model: "MiniMax-M2.7"
-zai_base_url: "https://api.z.ai/api/coding/paas/v4"
-zai_default_model: "glm-4.7"
+  ollama_base_url: "http://localhost:11434"
+  ollama_default_model: "Qwen3-8B-8.2B-Q4_K_M"
+  llama_server_default_model: "qwen3.5"
+  llama_server_model: "qwen3.5"  # canonical: llama_server_default_model
 
-# === MCP Base Settings ===
-server_name: "Session Buddy MCP"
-server_description: "Session management and tooling MCP server"
-log_level: "INFO"
-data_dir: "~/.claude/data"
-log_dir: "~/.claude/logs"
+  minimax_base_url: "https://api.minimax.io/v1"
+  minimax_default_model: "MiniMax-M2.7"
+  zai_base_url: "https://api.z.ai/api/coding/paas/v4"
+  zai_default_model: "glm-4.7"
 
-# === Database Settings ===
-database_path: "~/.claude/data/reflection.duckdb"
-database_connection_timeout: 30
-database_query_timeout: 120
-database_max_connections: 10
+  api_keys:
+    openai: null
+    anthropic: null
+    gemini: null
+    qwen: null
+    minimax: null
+    zai: null
 
-# Multi-project coordination
-enable_multi_project: true
-auto_detect_projects: true
-project_groups_enabled: true
+# === MCP server identity + log level ===
+mcp_server:
+  server_name: "Session Buddy MCP"
+  server_description: "Session management and tooling MCP server"
+  log_level: "INFO"
+  enable_debug_mode: false
 
-# Database search
-enable_full_text_search: true
-search_index_update_interval: 3600
-max_search_results: 100
+# === MCP transport layer ===
+mcp_transport:
+  server_host: "localhost"
+  server_port: 8678
+  enable_websockets: true
 
-# === Search Settings ===
-enable_semantic_search: true
-embedding_model: "all-MiniLM-L6-v2"
-embedding_cache_size: 1000
+# === Paths ===
+paths:
+  data_dir: "~/.claude/data"
+  log_dir: "~/.claude/logs"
+  global_workspace_path: "~/Projects/claude"
+  log_file_path: "~/.claude/logs/session-buddy.log"
 
-# Advanced search
-enable_faceted_search: true
-max_facet_values: 50
-enable_search_suggestions: true
-suggestion_limit: 10
-enable_stemming: true
-enable_fuzzy_matching: true
-fuzzy_threshold: 0.8
+# === Database ===
+database:
+  path: "~/.claude/data/reflection.duckdb"
+  connection_timeout: 30
+  query_timeout: 120
+  max_connections: 10
 
-# === Token Optimization ===
-enable_token_optimization: true
-default_max_tokens: 4000
-default_chunk_size: 2000
-optimization_strategy: "auto"
-enable_response_chunking: true
-enable_duplicate_filtering: true
-track_token_usage: true
-usage_retention_days: 90
+# === Multi-project coordination ===
+multi_project:
+  enable_multi_project: true
+  auto_detect_projects: true
+  project_groups_enabled: true
 
-# === Session Management ===
-auto_checkpoint_interval: 1800  # 30 minutes
-enable_auto_commit: true
-commit_message_template: "checkpoint: Session checkpoint - {timestamp}"
-enable_permission_system: true
-default_trusted_operations:
-  - git_commit
-  - uv_sync
-  - file_operations
-auto_cleanup_old_sessions: true
-session_retention_days: 365
+# === Search & embeddings ===
+search:
+  enable_full_text_search: true
+  search_index_update_interval: 3600
+  max_search_results: 100
+  enable_semantic_search: true
+  embedding_model: "all-MiniLM-L6-v2"
+  embedding_cache_size: 1000
+  enable_faceted_search: true
+  max_facet_values: 50
+  enable_search_suggestions: true
+  suggestion_limit: 10
+  enable_stemming: true
+  enable_fuzzy_matching: true
+  fuzzy_threshold: 0.8
 
-# === Storage Settings ===
-storage:
-  # Default backend: file (legacy default; backward compatible).
-  # Override via SESSION_STORAGE_BACKEND=gcs for fake-gcs-server or prod GCS.
-  # All backends supported: "file" | "gcs" | "s3" | "azure" | "memory"
-  default_backend: "${SESSION_STORAGE_BACKEND:file}"
+# === Token optimization ===
+tokens:
+  enable_token_optimization: true
+  default_max_tokens: 4000
+  default_chunk_size: 2000
+  optimization_strategy: "auto"
+  enable_response_chunking: true
+  enable_duplicate_filtering: true
+  track_token_usage: true
+  usage_retention_days: 90
 
-  # File storage settings (local filesystem)
-  file:
-    local_path: "${SESSION_STORAGE_PATH:~/.claude/data/sessions}"
-    auto_mkdir: true
+# === Session / checkpoint ===
+session:
+  auto_checkpoint_interval: 1800  # 30 minutes
+  midpoint_commits_enabled: false
+  midpoint_commit_min_quality_delta: 10
+  midpoint_commit_interval_s: 600
+  enable_auto_commit: true
+  commit_message_template: "checkpoint: Session checkpoint - {timestamp}"
+  enable_permission_system: true
+  default_trusted_operations:
+    - git_commit
+    - uv_sync
+    - file_operations
+  auto_cleanup_old_sessions: true
+  session_retention_days: 365
 
-  # S3 storage settings (AWS S3 / MinIO compatible)
-  s3:
-    bucket_name: "${S3_BUCKET:session-buddy}"
-    endpoint_url: "${S3_ENDPOINT:}"  # Leave empty for AWS, set for MinIO
-    access_key_id: "${S3_ACCESS_KEY:}"
-    secret_access_key: "${S3_SECRET_KEY:}"
-    region: "${S3_REGION:us-east-1}"
+# === Conversation storage ===
+conversation_storage:
+  enable_conversation_storage: true
+  conversation_storage_min_length: 100
+  conversation_storage_max_length: 50000
+  auto_store_conversations_on_checkpoint: true
+  auto_store_conversations_on_session_end: true
 
-  # Azure Blob storage settings
-  azure:
-    account_name: "${AZURE_ACCOUNT:}"
-    account_key: "${AZURE_KEY:}"
-    container: "${AZURE_CONTAINER:sessions}"
+# === Reflection auto-store ===
+reflection_auto_store:
+  enable_auto_store_reflections: true
+  auto_store_quality_delta_threshold: 10
+  auto_store_exceptional_quality_threshold: 70  # Lowered from 90 to capture more sessions
+  auto_store_manual_checkpoints: true
+  auto_store_session_end: true
 
-  # Google Cloud Storage settings
-  gcs:
-    bucket_name: "${GCS_BUCKET:sessions-hot}"
-    endpoint_url: "${GCS_ENDPOINT:http://127.0.0.1:4443}"  # fake-gcs-server default
-    project: "${GCS_PROJECT:local-dev}"
-    credentials_path: "${GCS_CREDENTIALS:}"  # Empty for fake, path for real GCS
+# === External tool integrations ===
+integrations:
+  enable_crackerjack: true
+  crackerjack_command: "crackerjack"
+  enable_git_integration: true
+  git_auto_stage: false
 
-  # Memory storage settings (testing only)
-  memory:
-    max_size_mb: 100
+# === Git maintenance ===
+git_maintenance:
+  git_auto_gc: true
+  # Prune delay: 'now' (aggressive), '2.weeks' (Git default, safe), '1.month' (conservative)
+  git_gc_prune_delay: "2.weeks"
+  git_gc_auto_threshold: 6700
+  git_gc_only_when_clean: true
 
-  # Bucket configuration (logical groupings; matches the 4-bucket tiering layout)
-  buckets:
-    sessions: "sessions-hot"
-    checkpoints: "checkpoints-warm"
-    handoffs: "handoffs-cold"
-    archived: "archived"
+# === Prometheus metrics ===
+prometheus:
+  enable_prometheus_metrics: true
+  prometheus_metrics_port: 9090
+  prometheus_metrics_path: "/metrics"
 
-# Selective auto-store for reflections
-enable_auto_store_reflections: true
-auto_store_quality_delta_threshold: 10
-auto_store_exceptional_quality_threshold: 70  # Lowered from 90 to capture more sessions
-auto_store_manual_checkpoints: true
-auto_store_session_end: true
+# === Development toggles ===
+development:
+  enable_hot_reload: false
 
-# === Integration Settings ===
-enable_crackerjack: true
-enable_crackerjack_fallback: false
-crackerjack_command: "crackerjack"
-enable_git_integration: true
-git_auto_stage: false
+# === Logging ===
+logging:
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  enable_file_logging: true
+  log_file_max_size: 10485760  # 10MB
+  log_file_backup_count: 5
+  enable_performance_logging: false
+  log_slow_queries: true
+  slow_query_threshold: 1.0
 
-# === Git Maintenance Settings ===
-# Automatic git garbage collection during checkpoints
-git_auto_gc: true
-# Prune delay: 'now' (aggressive), '2.weeks' (Git default, safe), '1.month' (conservative)
-git_gc_prune_delay: "2.weeks"
-# Loose object threshold to trigger gc (Git default: 6700)
-git_gc_auto_threshold: 6700
-# Only run gc when no git operation (rebase, merge, bisect) is in progress
-git_gc_only_when_clean: true
+# === Security ===
+security:
+  anonymize_paths: false
+  enable_rate_limiting: true
+  max_requests_per_minute: 100
+  max_query_length: 10000
+  max_content_length: 1000000
 
-global_workspace_path: "~/Projects/claude"
-enable_global_toolkits: true
+# === Entity extraction (LLM-driven) ===
+entity_extraction:
+  enable: true
+  timeout: 10
+  retries: 1
 
-# === Logging Settings ===
-log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-enable_file_logging: true
-log_file_path: "~/.claude/logs/session-buddy.log"
-log_file_max_size: 10485760  # 10MB
-log_file_backup_count: 5
-enable_performance_logging: false
-log_slow_queries: true
-slow_query_threshold: 1.0
+# === Feature flags (per-toggle opt-ins) ===
+feature_flags:
+  enable_anthropic: true
+  enable_ollama: false
+  enable_conscious_agent: true
+  enable_filesystem_extraction: true
+  enable_crackerjack_fallback: false
 
-# === Security Settings ===
-anonymize_paths: false
-enable_rate_limiting: true
-max_requests_per_minute: 100
-max_query_length: 10000
-max_content_length: 1000000
+# === Filesystem extraction knobs ===
+filesystem_extraction:
+  dedupe_ttl_seconds: 120
+  max_file_size_bytes: 1000000
+  ignore_dirs:
+    - ".git"
+    - "__pycache__"
+    - "node_modules"
+    - ".venv"
+    - "venv"
+    - ".pytest_cache"
+    - ".mypy_cache"
+    - ".ruff_cache"
+    - "dist"
+    - "build"
+    - ".DS_Store"
+    - ".idea"
+    - ".vscode"
 
-# === MCP Server Settings ===
-server_host: "localhost"
-enable_websockets: true
+# === Akosha cloud sync ===
+cloud_sync:
+  cloud_bucket: ""
+  cloud_endpoint: ""
+  cloud_region: "auto"
+  system_id: ""
+  upload_on_session_end: true
+  enable_fallback: true
+  force_method: "auto"
+  upload_timeout_seconds: 300
+  max_retries: 3
+  retry_backoff_seconds: 2.0
+  enable_compression: true
+  enable_deduplication: true
+  chunk_size_mb: 5
 
-# === Development Settings ===
-enable_debug_mode: false
-enable_hot_reload: false
-
-# === Conscious Agent Settings (Phase 0c) ===
-# Gates the background analysis loop ONLY. The read-path instrumentation
-# (``memory_access_log`` writes) is unconditional — see
-# ``_log_access`` in ``reflection_adapter_oneiric.py`` — so the log is
-# populated from day one even when the analysis loop is off.
-enable_conscious_agent: true
-
-# === Bodai Task System Events (Phase 1) ===
-# Settings consumed by the FastMCP lifespan (Task 4) to construct the
-# BodaiEventsPublisher. The publisher itself takes stream/consumer_group/
-# enabled kwargs directly; this section exists so operators can toggle the
-# bus and pick a different stream or group per environment without code.
+# === Bodai task-system event bus ===
 bodai_events:
   enabled: true
   stream: "bodai:events"
   consumer_group: "bodai-default"
+
+# === Storage backend (kept flat — StorageAdapterSettings not on
+#     SessionBuddySettings, but operator-tunable via env vars) ===
+# Read by session_buddy/adapters/storage_oneiric.py via
+# SESSION_STORAGE_BACKEND / S3_* / AZURE_* / GCS_* env vars. This
+# section documents the legacy shape but is not consumed by
+# SessionBuddySettings directly.

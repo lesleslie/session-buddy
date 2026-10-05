@@ -1966,16 +1966,17 @@ class SessionBuddySettings(OneiricMCPConfig):
     ) -> SessionBuddySettings:
         """Load via Oneiric's layered loader.
 
-        Replaces the legacy ``SessionMgmtSettings.load`` manual
-        flat-YAML re-read loop. Oneiric's loader returns a
-        ``OneiricSettings`` instance whose ``model_dump()`` includes
-        framework groups (app/adapters/services/...) that this class
-        doesn't declare; we filter to known keys before validating
-        so the ``extra="allow"`` root doesn't trip.
+        Oneiric's loader returns a ``OneiricSettings`` whose
+        ``model_dump()`` includes framework groups (app / adapters /
+        services / **logging** / secrets / ...) whose shape differs
+        from the session-buddy groups of the same name. ``extra=allow``
+        at the root would silently keep them as ``__pydantic_extra__``,
+        and ``extra=forbid`` on each leaf group rejects them outright.
 
-        The legacy ``SessionMgmtSettings.load`` is still active
-        during Phase 1; Phase 2 swaps ``get_settings()`` to call this
-        method, and Phase 6 deletes ``SessionMgmtSettings`` entirely.
+        Solution: recursively filter the Oneiric dump to only the
+        fields each group declares. Oneiric's ``logging.environment``
+        drops at the leaf, ``llm.api_keys.minimax`` keeps only the six
+        declared keys, etc.
         """
         from pathlib import Path
 
@@ -1986,61 +1987,162 @@ class SessionBuddySettings(OneiricMCPConfig):
             project_name="session-buddy",
             project_root=Path(__file__).resolve().parent.parent,
         )
-        # Filter to keys in the new schema (handles Oneiric's framework
-        # groups + our own group keys).
-        relevant: dict[str, t.Any] = {
-            k: v
-            for k, v in loaded.model_dump().items()
-            if k in cls.model_fields
-        }
+
+        # Combine Oneiric's model_dump() with its __pydantic_extra__
+        # storage. OneiricSettings is configured with extra="allow",
+        # so unknown YAML keys (our session-buddy groups) survive
+        # only as ``__pydantic_extra__`` and are absent from
+        # model_dump(). Merge with extra winning on conflict (an
+        # operator override should always beat the framework default).
+        dump = dict(loaded.model_dump())
+        extra = getattr(loaded, "__pydantic_extra__", None) or {}
+        dump.update(extra)
+
+        # Apply SESSION_BUDDY_ env-var overrides. OneiricSettings reads
+        # env vars with its own ``env_prefix="ONEIRIC_"``; session-buddy
+        # needs its own prefix, so we apply a second pass here. Nested
+        # delimiter is ``__`` (matching the SessionBuddySettings
+        # model_config). e.g. SESSION_BUDDY_LLM__DEFAULT_PROVIDER=zai
+        # overrides dump["llm"]["default_provider"] = "zai".
+        _apply_session_buddy_env_overrides(dump)
+
+        # Recursive filter: keep only fields each declared model knows
+        # about, recursing into nested BaseModel groups.
+        relevant = _filter_model_dump(dump, cls)
         return cls.model_validate(relevant)
 
 
 # Global settings instance
-_settings: SessionMgmtSettings | None = None
+_settings: SessionBuddySettings | None = None
 
 
-def get_settings(reload: bool = False) -> SessionMgmtSettings:
+def _filter_model_dump(
+    data: dict[str, t.Any], model_cls: t.Any
+) -> dict[str, t.Any]:
+    """Recursively filter a model_dump() dict to fields each declared
+    BaseModel knows about. Drops unknown keys at every level so
+    nested-dict collisions between Oneiric's framework groups and
+    session-buddy's domain groups don't trip ``extra="forbid"``.
+    """
+    out: dict[str, t.Any] = {}
+    for key, field_info in model_cls.model_fields.items():
+        if key not in data:
+            continue
+        value = data[key]
+        annotation = field_info.annotation
+        # Pydantic v2 may store annotation as a string for forward refs
+        sub_cls: t.Any = None
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            sub_cls = annotation
+        if sub_cls is not None and isinstance(value, dict):
+            out[key] = _filter_model_dump(value, sub_cls)
+        elif sub_cls is not None and isinstance(value, list):
+            # List-of-leaf: keep only the items that parse against the
+            # leaf type. session-buddy has no list-of-BaseModel today
+            # so this is a no-op for current schema.
+            out[key] = value
+        elif value is None:
+            # Drop None so the dataclass default fills the field
+            # (Oneiric returns None for some fields that
+            # OneiricMCPConfig declares as required, e.g. ``cache_dir``).
+            continue
+        else:
+            out[key] = value
+    return out
+
+
+def _apply_session_buddy_env_overrides(dump: dict[str, t.Any]) -> None:
+    """Apply ``SESSION_BUDDY_*`` env overrides to ``dump`` in place.
+
+    OneiricSettings reads env vars with its own ``env_prefix="ONEIRIC_"``
+    — session-buddy needs its own prefix, so a second pass applies
+    ``SESSION_BUDDY_*`` overrides here. The nested delimiter is
+    ``__`` (matching SessionBuddySettings.model_config).
+
+    Examples:
+        SESSION_BUDDY_LLM__DEFAULT_PROVIDER=zai      → dump["llm"]["default_provider"]
+        SESSION_BUDDY_LLM__API_KEYS__MINIMAX=sk-...  → dump["llm"]["api_keys"]["minimax"]
+        SESSION_BUDDY_DATABASE__PATH=/tmp/x.db        → dump["database"]["path"]
+        SESSION_BUDDY_FEATURE_FLAGS__ENABLE_CONSCIOUS_AGENT=1 → dump["feature_flags"]["enable_conscious_agent"]
+
+    Booleans are parsed via a small truthy/falsy allowlist; other
+    values are passed through as strings (Pydantic's validators
+    cast at ``model_validate`` time).
+    """
+    prefix = "SESSION_BUDDY_"
+    delim = "__"
+    truthy = {"true", "1", "yes", "on"}
+    falsy = {"false", "0", "no", "off"}
+
+    for env_name, raw_value in os.environ.items():
+        if not env_name.startswith(prefix):
+            continue
+        parts = [p.lower() for p in env_name[len(prefix):].split(delim)]
+        if not parts:
+            continue
+        # Walk the dump dict, creating intermediate dicts as needed.
+        cur = dump
+        for part in parts[:-1]:
+            nxt = cur.get(part)
+            if not isinstance(nxt, dict):
+                nxt = {}
+                cur[part] = nxt
+            cur = nxt
+        # Cast booleans; everything else stays as string.
+        v = raw_value.strip().lower()
+        if v in truthy:
+            value: t.Any = True
+        elif v in falsy:
+            value = False
+        else:
+            value = raw_value
+        cur[parts[-1]] = value
+
+
+def get_settings(reload: bool = False) -> SessionBuddySettings:
     """Get the global settings instance.
 
     Args:
         reload: Force reload settings from files
 
     Returns:
-        Global SessionMgmtSettings instance
+        Global SessionBuddySettings instance
 
     """
     global _settings
 
     if _settings is None or reload:
-        # Delegates to the classmethod ``load()`` which preserves
-        # backwards-compatible MCPBaseSettings.load(server_name) semantics
-        # on top of oneiric's layered loader. Tests patch this method to
-        # inject mocks; routing through ``cls.load`` keeps the patch point
-        # functional.
-        _settings = SessionMgmtSettings.load("session-buddy")
+        # Delegates to SessionBuddySettings.load which uses Oneiric's
+        # layered loader. The legacy SessionMgmtSettings.load is kept
+        # for direct test callers and removed in Phase 6.
+        _settings = SessionBuddySettings.load()
 
     # _settings is guaranteed non-None here
     assert _settings is not None
     return _settings
 
 
-def reload_settings() -> SessionMgmtSettings:
+def reload_settings() -> SessionBuddySettings:
     """Force reload settings from files.
 
     Returns:
-        Freshly loaded SessionMgmtSettings instance
+        Freshly loaded SessionBuddySettings instance
 
     """
     return get_settings(reload=True)
 
 
 def get_database_path() -> Path:
+    """Resolve the database path, joining with data_dir if relative.
+
+    Reads from the nested ``database.path`` and ``paths.data_dir``
+    fields of SessionBuddySettings.
+    """
     settings = get_settings()
-    raw = settings.database_path
+    raw = settings.database.path
     path = raw.expanduser() if isinstance(raw, Path) else Path(str(raw)).expanduser()
     if not path.is_absolute():
-        data_dir_raw = settings.data_dir
+        data_dir_raw = settings.paths.data_dir
         data_dir = (
             data_dir_raw.expanduser()
             if isinstance(data_dir_raw, Path)
@@ -2051,32 +2153,42 @@ def get_database_path() -> Path:
 
 
 def get_log_file_path() -> Path:
+    """Resolve the log file path, joining with log_dir if relative.
+
+    Reads from the nested ``paths.log_file_path`` and
+    ``paths.log_dir`` fields of SessionBuddySettings.
+    """
     settings = get_settings()
-    path = settings.log_file_path.expanduser()
+    raw = settings.paths.log_file_path
+    path = raw.expanduser() if isinstance(raw, Path) else Path(str(raw)).expanduser()
     if not path.is_absolute():
-        path = settings.log_dir.expanduser() / path
+        log_dir_raw = settings.paths.log_dir
+        log_dir = (
+            log_dir_raw.expanduser()
+            if isinstance(log_dir_raw, Path)
+            else Path(str(log_dir_raw)).expanduser()
+        )
+        path = log_dir / path
     return path
 
 
 def get_llm_api_key(provider: str) -> str | None:
+    """Look up the API key for ``provider`` from the nested
+    ``llm.api_keys.<provider>`` field of SessionBuddySettings.
+
+    Returns ``None`` if the provider is unknown or the key is unset.
+    Phase 3b deduplicates the ``field_map`` literal at the 4 other
+    sites that read this same data.
+    """
     settings = get_settings()
-    field_map = {
-        "openai": "openai_api_key",
-        "anthropic": "anthropic_api_key",
-        "gemini": "gemini_api_key",
-        "qwen": "qwen_api_key",
-        "minimax": "minimax_api_key",
-        "zai": "zai_api_key",
-    }
-    field = field_map.get(provider)
-    if field is None:
-        return None
-    raw = getattr(settings, field, None)
+    raw = getattr(settings.llm.api_keys, provider, None)
     if not isinstance(raw, str) or not raw.strip():
         return None
     if provider in ("openai", "anthropic"):
-        return settings.get_api_key_secure(key_name=field, provider=provider)
-    return settings.get_api_key(key_name=field)
+        return settings.get_api_key_secure(
+            key_name=f"api_keys.{provider}", provider=provider
+        )
+    return settings.get_api_key(key_name=f"api_keys.{provider}")
 
 
 __all__ = [
