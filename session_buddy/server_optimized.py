@@ -313,34 +313,60 @@ attach_otel_middleware(
 
 
 # HTTP health endpoint for Claude Code compatibility
-@mcp.custom_route("/health", methods=["GET"])
-async def health_check(request: Any) -> Any:
-    """HTTP health check endpoint for Claude Code `mcp list` compatibility.
+# Phase 1.3 (mcp-health-check-enrichment, 2026-10-09): operator-tunable
+# halflife defaults to 60s. mcp-common's canonical default is 300s; this
+# repo overrides to 60s so a fresh server's first-cycle warm-up window is
+# shorter than the LB probe interval. The env var
+# ``HEALTH_FEED_HALFLIFE_SECONDS`` still wins when set (operator override).
+DEFAULT_HEALTH_FEED_HALFLIFE_SECONDS = 60
 
-    Phase 1.5 (plan §10.3.3): extended with the skills_signer feed state
-    so clients can verify SkillMetadata.signature / AgentMetadata.signature
-    against the persisted public key.
 
-    Phase 4: body delegates per-feed evaluation to
-    ``mcp_common.health.aggregator.aggregate_feed_states``. Session-Buddy
-    has exactly one data feed (skills_signer), so the aggregator's worst
-    status is just that feed's status. The body now mirrors the
-    aggregator's verdict enum (``healthy`` / ``warming_up`` / ``degraded``
-    / ``failed``) instead of the legacy binary ``ok`` / ``degraded``.
-    HTTP code stays 200 for healthy + warming_up; 503 for degraded +
-    failed.
+def _resolve_health_halflife() -> int:
+    """Return the operator-tunable halflife for the health aggregator.
 
-    During the brief warm-up window before the lifespan runs
-    ``init_signer_feed_state()``, ``/health`` returns 503 with
-    ``checks.skills_signer.error = "not initialized"`` and
-    ``status = "failed"``.
+    Reads ``HEALTH_FEED_HALFLIFE_SECONDS`` from the environment. Falls
+    back to :data:`DEFAULT_HEALTH_FEED_HALFLIFE_SECONDS` (60s, the
+    Phase 1.3 fleet-wide override) when unset. A value of ``0`` is
+    passed through verbatim to disable the time-bounded decay
+    predicate entirely (see plan §5 task 7).
     """
+    raw = os.getenv("HEALTH_FEED_HALFLIFE_SECONDS")
+    if raw is None or raw == "":
+        return DEFAULT_HEALTH_FEED_HALFLIFE_SECONDS
+    try:
+        return int(raw)
+    except ValueError:
+        return DEFAULT_HEALTH_FEED_HALFLIFE_SECONDS
+
+
+def _build_health_snapshot() -> dict[str, object]:
+    """Return the canonical Session-Buddy health snapshot body.
+
+    Phase 1.3 (mcp-health-check-enrichment): both the ``GET /health``
+    HTTP route and the ``get_health`` MCP tool route through this
+    helper so they cannot disagree on feed state (REQ-HC-003). The
+    helper delegates per-feed evaluation to
+    ``mcp_common.health.aggregator.aggregate_feed_states`` and emits
+    the canonical health metrics into the shared Prometheus
+    registry via ``mcp_common.health.metrics.update_health_metrics``.
+
+    The returned ``body`` dict always carries the canonical
+    ``HealthSnapshot`` envelope (``status``, ``checks``,
+    ``reason_codes``) plus the legacy Phase 1.5 manifest fields so
+    Phase 2/6 installer tooling continues to parse. Callers translate
+    ``status`` into the right wire code: 200 for
+    ``healthy``/``warming_up``, 503 for ``degraded``/``failed``.
+    """
+    import time as _time
+
+    import mcp_common
     from mcp_common.health.aggregator import aggregate_feed_states
     from mcp_common.health.feed import HealthFeedState
-    from starlette.responses import JSONResponse
 
     from session_buddy.mcp.signer_feed import get_signer_feed_state
     from session_buddy.mcp.tools import tasks_events
+
+    halflife_seconds = _resolve_health_halflife()
 
     state = get_signer_feed_state()
     if state is not None:
@@ -394,20 +420,15 @@ async def health_check(request: Any) -> Any:
     # Phase 4 observability: time the aggregator call so the
     # ``mcp_common_health_aggregate_duration_ms`` histogram surfaces
     # per-/health p50/p95/p99 latency to operators.
-    import time as _time
-
     aggregator_start = _time.perf_counter()
     snap = aggregate_feed_states(
         {
             "skills_signer": signer_state_snapshot,
             "bodai_events": publisher_state_snapshot,
         },
-        # Operator-tunable via HEALTH_FEED_HALFLIFE_SECONDS env var
-        # (set by ``--health-disable-decay`` on the MCPServerCLIFactory
-        # start command). ``0`` disables the time-bounded decay
-        # predicate entirely — see plan §5 task 7.
-        halflife_seconds=int(os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")),
+        halflife_seconds=halflife_seconds,
     )
+    aggregator_duration_ms: float = (_time.perf_counter() - aggregator_start) * 1000.0
     # Phase 4 observability: emit the canonical health metrics (plan
     # §4 Observability + §11.4 PromQL alerts) into the shared
     # CollectorRegistry that the existing ``/metrics`` endpoint
@@ -415,20 +436,15 @@ async def health_check(request: Any) -> Any:
     # module are a forward-compat miss — the body still works
     # without emitting metrics.
     try:
-        import time as _time
-
         from mcp_common.health.metrics import update_health_metrics
 
         from session_buddy.mcp.metrics import get_metrics
 
-        aggregator_duration_ms: float = (
-            _time.perf_counter() - aggregator_start
-        ) * 1000.0
         update_health_metrics(
             registry=get_metrics().registry,
             snap=snap,
             repo="session-buddy",
-            halflife_seconds=int(os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")),
+            halflife_seconds=halflife_seconds,
             duration_ms=aggregator_duration_ms,
         )
     except ImportError:
@@ -474,36 +490,106 @@ async def health_check(request: Any) -> Any:
     # (skills_signer + bodai_events) so the worst status is the worst
     # across both — see ``mcp_common.health.aggregator.aggregate_feed_states``.
     worst_status = snap["status"].value
-    status_severity = {
-        "healthy": 0,
-        "warming_up": 1,
-        "degraded": 2,
-        "failed": 3,
-    }
-    http_ok = status_severity.get(worst_status, 0) < 2
     checks["_aggregate"] = {
         "status": worst_status,
         "reason_codes": [c.value for c in snap["reason_codes"]],
         "data_feeds_ok": verdict["healthy"] and publisher_verdict["healthy"],
-        "halflife_seconds": int(os.getenv("HEALTH_FEED_HALFLIFE_SECONDS", "300")),
+        "halflife_seconds": halflife_seconds,
     }
 
-    body = {
+    body: dict[str, object] = {
         "status": worst_status,
         "service": "session-buddy",
         "version": __version__,
         "checks": checks,
     }
-    # Phase 4d (REQ-005): PATCH the existing handler to include the
-    # launcher field for incident triage. Do NOT register a duplicate
-    # ``@app.custom_route("/health", ...)`` — first-or-last-wins chaos
-    # would silently regress the existing contract. The launcher's
-    # version is read at request time so editable-install version drift
-    # doesn't lie about which build served the response.
-    import mcp_common
-
+    # Phase 4d (REQ-005): include the launcher field for incident
+    # triage. Version is read at request time so editable-install
+    # version drift doesn't lie about which build served the response.
     body["launcher"] = f"mcp_common.server.launcher@{mcp_common.__version__}"
-    return JSONResponse(body, status_code=200 if http_ok else 503)
+    return body
+
+
+# Severity ranking for the canonical StatusValue enum. ``degraded`` (2)
+# and ``failed`` (3) map to HTTP 503; ``healthy`` (0) and ``warming_up``
+# (1) map to 200. The MCP tool's ``get_health`` uses the same mapping
+# so the two surfaces cannot disagree (REQ-HC-003).
+_STATUS_SEVERITY: dict[str, int] = {
+    "healthy": 0,
+    "warming_up": 1,
+    "degraded": 2,
+    "failed": 3,
+}
+
+
+def _http_status_for(status_value: str) -> int:
+    """Translate a canonical StatusValue string to the wire HTTP code."""
+    return 200 if _STATUS_SEVERITY.get(status_value, 0) < 2 else 503
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Any) -> Any:
+    """HTTP health check endpoint for Claude Code `mcp list` compatibility.
+
+    Phase 1.5 (plan §10.3.3): extended with the skills_signer feed state
+    so clients can verify SkillMetadata.signature / AgentMetadata.signature
+    against the persisted public key.
+
+    Phase 4: body delegates per-feed evaluation to
+    ``mcp_common.health.aggregator.aggregate_feed_states``. Session-Buddy
+    has exactly one data feed (skills_signer), so the aggregator's worst
+    status is just that feed's status. The body now mirrors the
+    aggregator's verdict enum (``healthy`` / ``warming_up`` / ``degraded``
+    / ``failed``) instead of the legacy binary ``ok`` / ``degraded``.
+    HTTP code stays 200 for healthy + warming_up; 503 for degraded +
+    failed.
+
+    During the brief warm-up window before the lifespan runs
+    ``init_signer_feed_state()``, ``/health`` returns 503 with
+    ``checks.skills_signer.error = "not initialized"`` and
+    ``status = "failed"``.
+
+    Phase 1.3 (mcp-health-check-enrichment): the route now delegates to
+    ``_build_health_snapshot()`` so the HTTP and MCP-tool surfaces share
+    a single source of truth (REQ-HC-003). Default halflife dropped to
+    60s (operator-tunable via ``HEALTH_FEED_HALFLIFE_SECONDS``).
+    """
+    from starlette.responses import JSONResponse
+
+    body = _build_health_snapshot()
+    worst_status = str(body["status"])
+    return JSONResponse(body, status_code=_http_status_for(worst_status))
+
+
+@mcp.tool()
+async def get_health() -> dict[str, object]:
+    """Return the canonical Session-Buddy health snapshot.
+
+    Phase 1.3 (mcp-health-check-enrichment, REQ-HC-001 + REQ-HC-002 +
+    REQ-HC-003): this MCP tool surfaces the same feed-state as the
+    ``GET /health`` HTTP route — both route through
+    :func:`_build_health_snapshot` so they cannot disagree. The body
+    shape is the canonical ``HealthSnapshot`` envelope
+    (``status``, ``checks``, ``reason_codes``) plus the legacy Phase
+    1.5 manifest fields.
+
+    The response includes a ``status_code`` field at the top level
+    mirroring the wire code the HTTP route would return (200 for
+    ``healthy``/``warming_up``; 503 for ``degraded``/``failed``).
+    MCP-protocol transport does not honour HTTP status codes, so
+    callers that need a probe-grade "is the server healthy?" check
+    should still call ``GET /health``; this tool is the convenience
+    surface for orchestrators and dashboards.
+
+    Returns:
+        The canonical health snapshot body, identical to the body
+        served by the ``/health`` HTTP route plus a synthetic
+        ``status_code`` field for orchestrator convenience.
+    """
+    body = _build_health_snapshot()
+    worst_status = str(body["status"])
+    body["status_code"] = _http_status_for(worst_status)
+    return body
 
 
 @mcp.custom_route("/healthz", methods=["GET"])
