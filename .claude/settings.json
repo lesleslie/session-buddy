@@ -4,5 +4,17 @@
       "Read(./.claude/handoff/**)",
       "Read(./.claude/backups/**)"
     ]
+  },
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --python $CLAUDE_PROJECT_DIR/.venv/bin/python $CLAUDE_PROJECT_DIR/.claude/hooks/agent-merge-on-end.py"
+          }
+        ]
+      }
+    ]
   }
 }

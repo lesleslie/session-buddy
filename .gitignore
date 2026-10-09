@@ -177,6 +177,11 @@ tests/archived/
 !.claude/workflows/**
 !.claude/skills/
 !.claude/skills/**
+# PR-1c: SessionEnd hook is part of the cross-repo merge-workflow infra
+# (mahavishnu/.claude/hooks/agent-merge-on-end.py). settings.json is
+# already whitelisted above. Track the hook so fresh clones ship it.
+!.claude/hooks/
+!.claude/hooks/**
 .session-buddy/
 .skylos/
 .crackerjack/
