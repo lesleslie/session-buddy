@@ -9,6 +9,1024 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.33.0] - 2026-10-09
+
+### Added
+
+- **BREAKING:** session-buddy: Rename BodaiCLIBase to OneiricCLIBase
+- Add 10 Priority 1 security tests and fix subprocess helper bugs
+- Add CheckpointOrchestrator with retry, lock, narrow exceptions
+- Add CheckpointPolicy + WorkingTreeInspector
+- Add code_call_chain and code_impact_analysis MCP tools
+- Add DharaChannelPublisher for Phase 2 time-series publishing
+- Add health check tools using mcp-common
+- Add JWT authentication to Session-Buddy WebSocket
+- Add MCP tool input validation for crackerjack integration
+- Add OpenAI-compat BifrostClient for LLM gateway
+- Add PendingCheckpoint marker + CheckpointMetrics
+- Add pre_compact_sync tool for PreCompactHook integration
+- Add PyCharm IDE tools for Session-Buddy
+- Add session-buddy plugin manifest + namespaced commands (additive)
+- Adopt coverage-ratchet at current coverage
+- akosha: Include source_type in sync payload (Item 1)
+- architecture: Phase 2.1 - create server decomposition skeletons
+- architecture: Phase 2.2 - extract 40 utility functions to server_helpers.py
+- architecture: Phase 2.3 - extract quality engine (52 functions, 1,220 LOC)
+- architecture: Phase 2.4 - extract advanced features (17 MCP tools, 621 LOC)
+- architecture: Phase 2.5 - extract core infrastructure (17 functions, 2 classes, 614 LOC)
+- architecture: Phase 2.6 - final cleanup (215 lines saved, 35.4% reduction)
+- AutoCheckpointLoop with pending-marker drain + opt-in mid-task commits
+- Bodai-session-buddy-task-system skill catalog entry
+- Channel_session_get_state MCP tool — read-back via from_dict
+- Channel_session_get_state MCP tool — read-back via from_dict
+- checkpoint: Add SnapshotCleanupTask (7-day TTL)
+- checkpoint: Add stash-free SnapshotMechanism with hardened restore
+- checkpoint: Add SubagentDetector with per-tree lockfile signal source
+- checkpoint: Add SubagentDetector.write() + lifecycle hook + CLI + MCP tool
+- checkpoint: Module re-exports + cleanup-snapshots CLI
+- checkpoint: Promote PII-scrubbing helpers + migrate 5 log sites     Extracts _safe_transient_info and _safe_error_message from orchestrator.py
+- Complete Phase 1 ACB config migration
+- complexity-score: Line-weighted cyclomatic average
+- conscious-agent: Multi-worker lock + unconditional access log
+- coverage-wave1: Regenerated backlog + end-of-wave delta (10 modules lifted)
+- coverage: Batch 1a gate — 5 modules lifted, 0 new failures
+- coverage: Batch 1a gate — 5 modules lifted, 0 wave-1 regressions (3 pre-existing flakies documented)
+- coverage: Batch 1b gate — 5 modules lifted, 0 wave-1 regressions (7 pre-existing flakies documented)
+- coverage: Batch 1b gate — 5 modules lifted, 0 wave-1 regressions (F13 sys.modules fix applied; 2 pre-existing flakies documented)
+- coverage: Wave-1 baseline manifest + first backlog doc
+- crackerjack-tools: Harden _format_metrics_section and add unavailable banner
+- crackerjack: Producer retry invokes CLI fallback on timeout
+- Delegate MCP auth to mcp_common.auth, keep full backward-compat API
+- fallback: _finalize() single observability-emit point
+- fallback: Helper skeleton with lock and disabled check
+- fallback: Parse output, post-filter empty sections, success return
+- fallback: Subprocess invocation with split timeout/cancel handlers
+- fallback: Wire _finalize and OTel span across all outcomes
+- feature-flags: Add enable_crackerjack_fallback with full wiring
+- Implement category evolution enhancements with temporal decay
+- Implement Session-Buddy Category Evolution TODOs
+- Implement V2 quality scoring algorithm
+- ingesters: Claude_code_transcript ingester for LLM conversation capture
+- Integrate mcp-common adapters and complete DuckPGQ knowledge graph (Week 2 Days 1-3)
+- Integrate Phase 3 semantic relationship enhancement
+- lint-score: Severity-tier weighting replaces issue count
+- llm: Add llama_server tier; update default fallback chain to minimax→llama_server→ollama
+- mcp: Add distilled_skill_health tool (Item 4 cross-component)
+- mcp: Add list_worktrees, create_worktree, remove_worktree tools
+- mcp: Phase 1 server-published skills (session_buddy_list_skills + session_buddy_get_skill)
+- mcp: Phase 3 server-published agents (list_agents + get_agent + AgentMetadata schema)
+- mcp: Phase 5 installer_cache substrate (atomic + locked marketplace cache)
+- mcp: Pool_execute threads context to backend, surface backend name in envelope
+- mcp: Return structured dicts from pool tool wrappers
+- mcp: Thread backend, model, reflect_tasks through create_pool wrapper
+- memory: Add migration --rollback and --verify-only safety nets
+- memory: Add redaction library for transcript/PII scrubbing
+- memory: Add v2 rewire columns, source_type CHECK, cross-tool index
+- memory: Cross-tool search_by_source with source_type + project filter
+- Memory_provenance table + memory_lineage MCP tool
+- metrics: Expose Conscious Agent stats as Prometheus counters (Item 6)
+- metrics: Register CRACKERJACK_FALLBACK_* counters and histogram
+- Migrate launcher to mcp_common.server.launcher.launch() (Phase 4d)
+- Migrate to ACB-backed cache adapters
+- Oneiric secrets adapter for BifrostClient credentials
+- Phase 1 Day 1 - Storage adapter foundation (ACB migration)
+- Phase 2 Days 4-5 - Serverless backend consolidation (ACB migration)
+- Phase 2 Priority 1 completion - add core module tests
+- Phase 2 Priority 2 - comprehensive integration tests
+- pools: Add backend, model, reflect_tasks params to WorkerPool
+- pools: Emit channel_session_start/end events on pool lifecycle
+- pools: Opt-in per-task reflection storage via reflect_tasks flag
+- pools: Thread source_session_id + source_artifact_uri into task reflections
+- precommit: Add Prometheus counter to channel_session_state_writer (task 145)
+- profiles: Wire new register_*_tools into REGISTRATION_MAP
+- quality-scoring: Synthesis emits None + unavailable: True
+- quality-scoring: Wire try_crackerjack_cli into consumer chain
+- reflections: Add source_session_id + source_artifact_uri columns
+- reflections: Idempotent backfill script for provenance columns
+- reflections: Search_by_source_session MCP tool
+- reflections: Store_reflection extracts provenance from provenance: tags
+- Register pool tools + subagent_marker in optimized server
+- Register_multi_project_tools over MultiProjectCoordinator
+- Register_natural_scheduling_tools over ReminderScheduler
+- Restore channel_session_get_state under canonical MCP path
+- Rewire reflection adapter to v2 with redaction hook
+- scripts: Coverage audit script with --self-test mode
+- scripts: Deterministic backlog validator
+- scripts: Wave-1 module selector + anti-target detection
+- security-score: Bandit severity tiers drive the score
+- security: Add OWASP Agent Memory Guard at store_reflection write path
+- session-buddy: Add ecosystem_run_history MCP tool (Phase 1)
+- session-buddy: Add GCSStorageOneiric to in-process storage wrapper
+- session-buddy: Adopt BodaiCLIBase + real doctor/health (Phase 3 Task 4.3)
+- session-buddy: Adopt MemoryCacheAdapter for query cache
+- session-buddy: Bodai.apps entry-point (Phase 5.1)
+- session-buddy: BodaiEventsPublisher owns Redis Streams + OTel
+- session-buddy: Emit health-aggregator metrics from /health probe
+- session-buddy: Expand canonical ecosystem diagram with Dhara + Oneiric
+- session-buddy: Hook single-flight gate + thin-shell plugin manifest
+- session-buddy: Introduce SessionBuddySettings Oneiric-shaped schema alongside legacy
+- session-buddy: Migrate to mcp-common CommonMCPClient (Phase 3 REQ-004)
+- session-buddy: Mirror wave-11 mermaid CI guard from crackerjack
+- session-buddy: Plan 3 Tier 1 — export_markdown + lint_memory MCP tools
+- session-buddy: Plan 3 Tier 1 — wire export_markdown + lint_memory into server + profiles
+- session-buddy: Plan 7 Phase 2 — FastMCP 3.4 consumer bump
+- session-buddy: Publish_task_event_raw + envelope-by-type lookup
+- session-buddy: Register discover_tools + deprecate ping alias
+- session-buddy: Register tasks_tools in REGISTRATION_MAP (final PR #1 wiring)
+- session-buddy: Search_code_graph MCP tool (read-through facade over code_graphs)
+- session-buddy: Single-source-of-truth version stamps via importlib.metadata
+- session-buddy: Swap loader to Oneiric + reshape YAML to nested
+- session-buddy: Task legacy coercion path (extracted to tasks_legacy.py with content validation)
+- session-buddy: Task-event payload schemas + serializer
+- session-buddy: Task-system identity derivation + rate limiter + visibility filter
+- session-buddy: Task-system integration tests (authz isolation + lifecycle + legacy + size caps) + resolve pools.py merge conflict
+- session-buddy: Task-system Pydantic model layer
+- session-buddy: Tasks_complete (no implicit dispatch — T17 handoff is the only dispatch edge)
+- session-buddy: Tasks_create tool with server-derived identity + rate limit + event emission
+- session-buddy: Tasks_get + tasks_update with authz (404 on visibility, reject owner mutation) + rate limit
+- session-buddy: Tasks_history with cursor pagination
+- session-buddy: Tasks_list with pagination, visibility filter, include_legacy gate
+- session-buddy: Tasks_search with quick_search parity (project, min_score, k)
+- session-buddy: Unify /health aggregator to mcp-common contract
+- session-buddy: Wire /health + get_health() through mcp_common aggregator (Phase 1.3)
+- session-buddy: Wire BodaiEventsPublisher into FastMCP lifespan + /health
+- session-buddy: Wire shell CLI command (Plan Task 3.1.1)
+- skills-signer: Phase 1.5 ed25519 signing infrastructure
+- State_writer — validate-on-write at channel event boundaries
+- State_writer — validate-on-write at channel event boundaries
+- storage: Default backend → gcs; add bucket-name mapping
+- storage: Fake-gcs-server lifecycle scripts + 4-bucket layout
+- substrate-compat: Extract stamp/calltime pattern into shared helper (task 144)
+- testing: Phase 2 - expand test coverage from 5.70% to 13.86% (111 new tests)
+- treesitter: Add tree-sitter integration for code analysis
+- w3: Adopt security.signature action kit + add direct oneiric dep
+- Week 4 Day 3 - Knowledge Graph tests + Resource cleanup fixes
+- Week 4 Days 1-2 - Health checks & server_core tests complete
+- Week 4 Days 3-4 - Knowledge graph + LLM provider tests complete
+- Week 5 Day 2 - Session Tools & Advanced Features Testing (51 tests, 100% pass rate)
+- Week 5 Day 4 complete - Multi-project and app monitoring tests
+- Week 8 Day 1 - Fix test isolation with before/after cleanup pattern
+- Wire CheckpointOrchestrator into session_manager with lite-mode bypass
+- Wire cross-repo work accounting into checkpoint pipeline (wave-1)
+- Wire DharaChannelPublisher in server startup via SESSION_BUDDY_DHARA_URL
+- Wire track_channel_session to record_channel_session_state
+- Wire track_channel_session to record_channel_session_state
+- worker: Backend protocol with PlaceholderBackend + LLMBackend
+
+### Changed
+
+- **BREAKING:** Rename project from session-mgmt-mcp to session-buddy
+- adapter: Drop dead v1 SQL branches in conversation search
+- Complete all remaining complexity refactorings (11/11 done)
+- Consolidate LLMManager to delegate directly to mcp_common FallbackChain
+- crackerjack: Make pure calculation helpers @staticmethod
+- DI pattern refinement and resource cleanup improvements
+- Increase refurb timeout in crackerjack settings
+- Initial commit - Claude Session Management MCP Server
+- mcp: H-6 rename list_skills → list_workflow_patterns
+- Migrate serverless_mode.py to use aiocache instead of custom backends
+- Modern Python style improvements (refurb FURB138, FURB107, FURB145, FURB168)
+- Modernize SessionLifecycleManager DI pattern with Inject[] support
+- Phase 1 quick wins - remove unused code, simplify patterns
+- Phase 2 - context manager simplification across codebase
+- Phase 3 Day 1 - Create reusable utility modules for code deduplication
+- Phase 3 Day 2 - Refactor memory_tools.py using utility modules
+- Phase 3 Day 2 - Refactor search_tools.py using utility modules
+- Phase 3 Day 3 - Refactor knowledge_graph_tools.py using utility modules
+- Phase 3 Day 3 - Refactor monitoring_tools.py using utility modules
+- Phase 3 Day 3 - Refactor serverless_tools.py using utility modules
+- Phase 3 Day 3 - Refactor validated_memory_tools.py using utility modules
+- Phase 3 Day 4 - Refactor llm_tools.py using utility modules
+- Phase 3 Day 4 - Refactor session_tools.py using utility modules
+- Phase 3 Day 4 - Refactor team_tools.py using utility modules
+- Phase 4 Day 1 - Extract crackerjack utilities for modularity
+- Phase 4 Day 2 - Extract quality analysis utilities
+- Phase 4 Day 3 - Extract serverless storage backends
+- Phase 4 Day 4 - Extract session lifecycle utilities
+- Phase 4 Day 5 - Extract LLM provider modules
+- Phase 5 Category Evolution complete + Fast Hook Fixes
+- Phase 5 Day 1 - Extract advanced search utilities
+- Phase 5 Day 2 - Extract scheduler utilities
+- Phase 5 Day 3 - Extract server core modules
+- quality_utils_v2: Fix refurb and complexipy violations
+- Reduce cognitive complexity in OllamaProvider and knowledge graph tools
+- Reduce complexity in cleanup and search functions (17→<15)
+- Reduce complexity of highest complexity functions (26, 28 → 10-12)
+- Revert "merge: batch1a module5"
+- Scrub PII from error paths + bounded outer run timeout
+- search: Extract category-specific tool registration helpers (Item B)
+- Session Checkpoint - 2026-01-23
+- Session checkpoint test
+- Session-buddy (quality: 0/100) - 2026-08-04 23:02:05
+- Session-buddy (quality: 0/100) - 2026-08-05 00:18:26
+- Session-buddy (quality: 47/100) - 2026-08-04 01:58:34
+- Session-buddy (quality: 58/100) - 2025-12-26 23:18:32
+- Session-buddy (quality: 60/100) - 2026-04-21 05:11:16
+- Session-buddy (quality: 60/100) - 2026-04-21 21:25:27
+- Session-buddy (quality: 60/100) - 2026-06-08 09:16:30
+- Session-buddy (quality: 60/100) - 2026-06-08 11:59:08
+- Session-buddy (quality: 60/100) - 2026-06-08 19:04:06
+- Session-buddy (quality: 61/100) - 2025-12-20 14:20:48
+- Session-buddy (quality: 61/100) - 2025-12-20 14:26:34
+- Session-buddy (quality: 61/100) - 2026-04-24 13:09:06
+- Session-buddy (quality: 61/100) - 2026-04-24 13:17:04
+- Session-buddy (quality: 61/100) - 2026-04-24 15:36:12
+- Session-buddy (quality: 61/100) - 2026-04-24 15:46:45
+- Session-buddy (quality: 61/100) - 2026-04-26 21:17:07
+- Session-buddy (quality: 61/100) - 2026-05-22 07:57:08
+- Session-buddy (quality: 61/100) - 2026-06-05 18:46:10
+- Session-buddy (quality: 61/100) - 2026-06-05 18:52:49
+- Session-buddy (quality: 61/100) - 2026-06-05 19:11:31
+- Session-buddy (quality: 61/100) - 2026-06-05 19:22:23
+- Session-buddy (quality: 61/100) - 2026-06-05 19:28:42
+- Session-buddy (quality: 62/100) - 2026-04-21 06:50:45
+- Session-buddy (quality: 62/100) - 2026-04-21 20:36:13
+- Session-buddy (quality: 62/100) - 2026-04-21 21:01:47
+- Session-buddy (quality: 62/100) - 2026-04-21 21:18:01
+- Session-buddy (quality: 62/100) - 2026-04-21 21:24:17
+- Session-buddy (quality: 62/100) - 2026-06-01 16:57:09
+- Session-buddy (quality: 62/100) - 2026-06-01 17:08:42
+- Session-buddy (quality: 62/100) - 2026-06-01 17:14:46
+- Session-buddy (quality: 62/100) - 2026-06-05 12:44:47
+- Session-buddy (quality: 62/100) - 2026-06-05 18:30:24
+- Session-buddy (quality: 62/100) - 2026-06-08 04:19:43
+- Session-buddy (quality: 62/100) - 2026-06-08 06:23:30
+- Session-buddy (quality: 62/100) - 2026-06-08 08:25:02
+- Session-buddy (quality: 63/100) - 2026-02-17 08:34:17
+- Session-buddy (quality: 63/100) - 2026-02-17 08:52:43
+- Session-buddy (quality: 63/100) - 2026-02-17 08:55:08
+- Session-buddy (quality: 63/100) - 2026-02-17 08:58:00
+- Session-buddy (quality: 63/100) - 2026-02-18 00:42:35
+- Session-buddy (quality: 63/100) - 2026-05-22 03:51:39
+- Session-buddy (quality: 63/100) - 2026-05-23 02:18:51
+- Session-buddy (quality: 63/100) - 2026-05-29 03:26:56
+- Session-buddy (quality: 63/100) - 2026-05-30 15:27:46
+- Session-buddy (quality: 63/100) - 2026-06-01 18:49:23
+- Session-buddy (quality: 63/100) - 2026-06-01 21:27:00
+- Session-buddy (quality: 63/100) - 2026-06-02 04:10:50
+- Session-buddy (quality: 63/100) - 2026-06-02 10:05:42
+- Session-buddy (quality: 63/100) - 2026-06-08 06:35:48
+- Session-buddy (quality: 64/100) - 2026-01-01 05:02:26
+- Session-buddy (quality: 64/100) - 2026-01-02 05:49:47
+- Session-buddy (quality: 64/100) - 2026-01-03 09:18:41
+- Session-buddy (quality: 64/100) - 2026-01-04 02:02:49
+- Session-buddy (quality: 64/100) - 2026-01-05 08:54:44
+- Session-buddy (quality: 64/100) - 2026-03-20 08:39:33
+- Session-buddy (quality: 64/100) - 2026-06-02 15:18:05
+- Session-buddy (quality: 64/100) - 2026-06-06 22:19:42
+- Session-buddy (quality: 64/100) - 2026-06-07 00:24:56
+- Session-buddy (quality: 64/100) - 2026-06-29 13:54:09
+- Session-buddy (quality: 65/100) - 2026-05-31 06:58:06
+- Session-buddy (quality: 65/100) - 2026-07-13 05:42:38
+- Session-buddy (quality: 66/100) - 2025-12-19 13:11:49
+- Session-buddy (quality: 66/100) - 2026-01-08 03:25:05
+- Session-buddy (quality: 66/100) - 2026-07-27 02:35:44
+- Session-buddy (quality: 66/100) - 2026-08-03 03:08:46
+- Session-buddy (quality: 67/100) - 2026-07-10 06:13:17
+- Session-buddy (quality: 67/100) - 2026-07-11 01:43:47
+- Session-buddy (quality: 67/100) - 2026-07-29 21:37:40
+- Session-buddy (quality: 68/100) - 2026-01-11 15:59:11
+- Session-buddy (quality: 68/100) - 2026-01-12 02:32:02
+- Session-buddy (quality: 73/100)
+- Session-buddy (quality: 73/100)
+- Session-buddy (quality: 73/100) - 2026-01-15 20:30:12
+- Session-buddy (quality: 73/100) - 2026-01-16 09:04:50
+- Session-buddy (quality: 73/100) - 2026-01-18 17:09:44
+- Session-buddy (quality: 73/100) - 2026-01-18 21:09:16
+- Session-buddy (quality: 73/100) - 2026-01-19 13:32:16
+- Session-buddy (quality: 73/100) - 2026-01-20 00:41:33
+- Session-buddy (quality: 75/100) - 2026-02-17 06:25:18
+- Session-buddy (quality: 75/100) - 2026-02-17 07:39:00
+- Session-buddy (quality: 75/100) - 2026-02-17 08:18:08
+- Session-buddy (quality: 75/100) - 2026-02-17 11:27:34
+- Session-buddy (quality: 75/100) - 2026-02-22 06:07:44
+- Session-buddy (quality: 77/100) - 2026-07-11 01:58:29
+- Session-buddy (quality: 77/100) - 2026-07-11 02:05:33
+- session-buddy: Apply refurb mechanical fixes (FURB123/124/138/143/173)
+- session-buddy: Bump oneiric floor to >=0.20 for OneiricCLIBase
+- session-buddy: Coverage-improvement wave-1 design (v1)
+- session-buddy: Coverage-improvement wave-1 design (v2)
+- session-buddy: Coverage-improvement wave-1 implementation plan
+- session-buddy: Cross-repo work accounting in checkpoint
+- session-buddy: Cross-repo work accounting in checkpoint (v1)
+- session-buddy: Cross-repo work accounting v2 (post-7-agent-review)
+- session-buddy: Cross-repo work accounting v2 (post-power-trio)
+- session-buddy: Cross-repo work accounting v3 (post-power-trio)
+- session-buddy: Delete duplicate query_cache_l2 CREATE TABLE block
+- session-buddy: Migrate production consumers to nested settings shape
+- session-buddy: Phase 6 — delete SessionMgmtSettings + LLMProvidersConfig + docs cleanup
+- session-buddy: Pre-existing test fix — drop stale perf test
+- session-buddy: Promote schema v2, retire v1, align LLM chain, rename env vars
+- session-buddy: Re-export canonical AgentMetadata/SkillMetadata aliases (Phase 10 task 4)
+- session-buddy: Remove dead-on-arrival settings fields + add wiring audit script
+- session-buddy: Rename CLI-side SessionBuddySettings → CLILaunchSettings
+- session-buddy: Ruff-format auto-fixes from crackerjack run
+- session-buddy: Use apply_tool_profile() from mcp-common 0.18.0
+- session-buddy: Use bootstrap_baseline_tools from mcp-common
+- session-buddy: Use path= instead of project_root= in load_settings()
+- session-buddy: Use project_root= instead of path= in load_settings()
+- session-buddy: Vendor ChannelSessionState locally, drop dhara fallback chain
+- Session-mgmt-mcp (quality: 66/100) - 2025-11-09 01:16:15
+- Session-mgmt-mcp (quality: 66/100) - 2025-11-09 03:04:03
+- Session-mgmt-mcp (quality: 68/100) - 2025-11-07 22:29:21
+- Session-mgmt-mcp (quality: 68/100) - 2025-11-07 23:46:29
+- Session-mgmt-mcp (quality: 68/100) - 2025-11-17 00:49:01
+- Session-mgmt-mcp (quality: 68/100) - 2025-11-19 10:20:15
+- Session-mgmt-mcp (quality: 68/100) - 2025-11-19 21:35:03
+- Session-mgmt-mcp (quality: 69/100) - 2025-10-03 01:42:50
+- Session-mgmt-mcp (quality: 69/100) - 2025-10-03 02:50:35
+- Session-mgmt-mcp (quality: 69/100) - 2025-10-04 01:27:41
+- Session-mgmt-mcp (quality: 69/100) - 2025-10-04 12:39:57
+- Session-mgmt-mcp (quality: 70/100) - 2025-10-26 22:05:19
+- Session-mgmt-mcp (quality: 70/100) - 2025-10-28 04:09:46
+- Session-mgmt-mcp (quality: 70/100) - 2025-10-28 19:36:53
+- Session-mgmt-mcp (quality: 70/100) - 2025-10-29 04:13:30
+- Session-mgmt-mcp (quality: 70/100) - 2025-10-29 06:23:49
+- Session-mgmt-mcp (quality: 70/100) - 2025-11-05 08:28:52
+- Session-mgmt-mcp (quality: 70/100) - 2025-11-05 12:27:17
+- Session-mgmt-mcp (quality: 70/100) - 2025-11-05 13:55:51
+- Session-mgmt-mcp (quality: 71/100) - 2025-10-10 05:26:31
+- Session-mgmt-mcp (quality: 71/100) - 2025-10-11 07:53:57
+- Session-mgmt-mcp (quality: 73/100) - 2025-09-22 02:47:23
+- Session-mgmt-mcp (quality: 73/100) - 2025-09-22 12:47:38
+- Session-mgmt-mcp (quality: 73/100) - 2025-09-22 13:02:12
+- Session-mgmt-mcp (quality: 73/100) - 2025-09-22 16:41:30
+- Session-mgmt-mcp (quality: 73/100) - 2025-09-22 21:29:16
+- Session-mgmt-mcp (quality: 73/100) - 2025-09-28 14:24:52
+- Session-mgmt-mcp (quality: 73/100) - 2025-09-29 03:43:29
+- Session-mgmt-mcp (quality: 73/100) - 2025-10-01 00:02:01
+- Session-mgmt-mcp (quality: 73/100) - 2025-10-01 23:18:55
+- Session-mgmt-mcp (quality: 75/100) - 2025-11-05 19:31:38
+- Session-mgmt-mcp (quality: 76/100) - 2025-09-18 16:08:50
+- Session-mgmt-mcp (quality: 76/100) - 2025-09-19 10:25:31
+- Session-mgmt-mcp (quality: 76/100) - 2025-09-20 21:25:38
+- Session-mgmt-mcp (quality: 76/100) - 2025-09-20 22:48:31
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-06 03:05:33
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-06 08:48:16
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-06 11:58:34
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-06 13:33:33
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-06 20:47:44
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-08 12:47:14
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-09 03:39:45
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-10 01:53:57
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-10 19:47:49
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-11 00:17:11
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-11 00:48:52
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-11 01:07:54
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-11 01:14:24
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-11 14:46:25
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-12 13:31:45
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-12 18:25:53
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-12 18:38:52
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-12 18:49:58
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-14 22:34:27
+- Session-mgmt-mcp (quality: 80/100) - 2025-09-15 19:18:59
+- Session-mgmt-mcp (quality: 82/100) - 2025-09-03 19:23:19
+- Session-mgmt-mcp (quality: 82/100) - 2025-09-03 23:05:32
+- Session-mgmt-mcp (quality: 82/100) - 2025-09-04 07:12:20
+- Session-mgmt-mcp (quality: 85/100) - 2025-09-03 13:25:47
+- settings: Migrate session-buddy to OneiricMCPConfig
+- Switch v2 row IDs from UUID v4 to ULID
+- tier 15: allow dots in branch names; reject .. for path traversal
+- Unknown (quality: 73/100) - 2025-09-25 05:20:04
+- Unknown (quality: 76/100) - 2025-09-17 13:45:47
+- Update config, core, deps
+- Update config, core, deps
+- Update config, deps
+- Update config, deps
+- Update config, deps
+- Update core, deps
+- Update dependencies
+- Update dependencies
+- Update dependencies
+- Update dependencies
+- Update dependencies
+- Update depends.get() to depends.get_sync() for synchronous context
+
+### Fixed
+
+- adapter+schema: Repair store_reflection + fingerprint_tools for v2 rewire
+- adapter: Honor project filter in search_conversations + add plan
+- Add ACB_LIBRARY_MODE environment variable to crackerjack subprocess calls
+- Add input length validation to multi_project_tools
+- Add input validation + ownership check to natural_scheduling_tools
+- Add safe JSON serialization for non-serializable objects in logging context
+- Address multi-agent review findings in LLMManager consolidation
+- bugfixes
+- channel: Close parallel-package hazard by deleting orphan mcp_tools
+- checkpoint: Add module-level 'import asyncio' to 7 files with antipattern
+- checkpoint: Align narrow-exception tuple + remove catch-all + pin backoff
+- checkpoint: Atomic pending-marker writes + malformed-state handling
+- checkpoint: Close 2 additional C-5 str(exc) PII routes
+- checkpoint: Close durability + TOCTOU + budget gaps surfaced by final review
+- checkpoint: Import asyncio at module level in session_manager.py
+- checkpoint: Partial — remove dead lock + thread sync subprocess in scoring
+- checkpoint: Rename to advisory wrapper + validate working_dir
+- checkpoint: Restore missing PII-scrubbing helpers module
+- checkpoint: Validate os.getcwd() in lifespan + strengthen lite-mode test
+- cleanup: Collapse MergePrimitive.merge() + break intelligence_tools.py circular import
+- cli: Debug and resolve MCP server start/stop messaging issues
+- Code quality improvements - type hints and style fixes
+- Code_graph tool wireup + typer 0.27.1 regression + checkpoint cycle
+- complexity-score: Drop complexity_weighted_avg orphan
+- Correct 3 bugs blocking scripts/backfill_reflection_project.py
+- Correct dhara_url docstring priority, close publisher on shutdown
+- Correct import paths for auto-compaction and reflection database
+- Correct test fixtures and imports for IDE tools
+- Coverage parser decimals + asyncio import (checkpoint bugfix batch)
+- crackerjack-fallback: Address 14 final-review issues in single consolidated patch
+- DharaChannelPublisher aclose, named task, stable tests, declare httpx dep
+- Dispatch git checkpoint ops via to_thread (partial)
+- docs: Resolve two broken local links in PLAN_INDEX + decisions index
+- Env-var gate + call-time substrate compat (S-CHANNEL-DURABLE v1.1)
+- fallback: Route get_feature_flags through module attribute and cover enabled path
+- Fix critical type checking errors exposed by crackerjack
+- fixup! chore(discovery): audit and fill ALL_TOOLS_REGISTRY (Item 5)
+- fixup! feat(akosha): include source_type in sync payload (Item 1)
+- fixup! feat(metrics): expose Conscious Agent stats as Prometheus counters (Item 6)
+- Hoist dhara publisher out of loop, settings integration, robust test task drain
+- Import typing as t to resolve NameError in SessionLifecycleManager
+- Improve type safety - reduce pyright errors by 77%
+- Initialize reflection database before storing checkpoint
+- mcp: Align Session-Buddy with streamable-http transport
+- mcp: Drop spurious await on get_activity_summary
+- mcp: Guard redundant signer init in lifespan wrapper
+- mcp: Restore blanket suppression for _dhara_publisher.aclose()
+- memory: Thread project through store_reflection + render real dates in quick_search
+- Move TYPE_CHECKING-only imports to runtime scope
+- multi-project: Add context column to session_links table
+- multi-project: Resolve reflection_db.conn on calling thread before executor dispatch
+- natural-scheduler: Align SQL queries with schema column names
+- natural-scheduler: Resolve context_triggers KeyError + update stale unit test mocks
+- PEP8 N806 - rename class variables from Logger/Requests to logger_class/requests_class
+- quality-scorer: Read .coverage SQLite file when coverage.json absent
+- quality: Add explicit float cast for type coverage
+- quality: Default-missing instead of default-perfect
+- quality: First-wins semantic for all four metric slots
+- quality: Resolve V2 linting issues
+- reflection: Use settings pattern instead of deprecated db_path kwarg
+- Register MCP prompts for slash command support
+- Register SessionLogger in DI container to prevent checkpoint errors
+- Replace all Any with t.Any and fix Logger DI reference
+- Resolve Anthropic API thinking block errors and code quality issues
+- Resolve critical type annotation and missing function issues
+- Resolve hook failures and add coverage.json fallback
+- Resolve remaining 7 unit test failures (Phase 2 Priority 2 completion)
+- Resolve test infrastructure crisis - 14→0 collection errors
+- Resolve two MCP tool bugs
+- scheduling: Make ownership deferral explicit in cancel/execute envelope
+- session-buddy: Adapters/settings.py reads paths.data_dir (nested)
+- session-buddy: Add _coerce_sidecar_meta helper for narrowing read_task_metadata
+- session-buddy: Add ty ignore for optional-dep imports
+- session-buddy: Advanced_features + advanced_features_v2 — 2 tests
+- session-buddy: Align v2/legacy reflections schema + cache read paths
+- session-buddy: Anchor load_settings() project_root at package install location
+- session-buddy: App_monitor + conscious_agent — 3 tests
+- session-buddy: App_monitor get_active_files naive/aware subtraction
+- session-buddy: App_monitor tz-aware compare against system local time
+- session-buddy: Append /mcp to DHARA_DEFAULT_URL (Phase 2 REQ-005)
+- session-buddy: Bump mcp-common floor to >=0.19.0
+- session-buddy: Catch duckdb.CatalogException in advanced_search
+- session-buddy: Category_evolution + context_manager — 5 tests
+- session-buddy: Code_indexing + health_check integration — 5 tests
+- session-buddy: Conftest-sysmodules-pollution — 9 tests + suite unblock
+- session-buddy: Correct creosote exclude-deps for coredis + rich
+- session-buddy: Correct relative path to mahavishnu spec in CLAUDE.md
+- session-buddy: Crackerjack mocks, datetime normalization, insights trim, HttpSync non-dict result
+- session-buddy: Database_pool + entity_extraction — 3 tests
+- session-buddy: Datetime-tz-awareness — 6 test_parse_time_expression tests
+- session-buddy: Defensive ResourceWarning + otel/test patches + logging
+- session-buddy: Defensive subprocess except + recommendation tz awareness
+- session-buddy: Deprecation-safe loop + symbol mapping in code-graph SQL fallback
+- session-buddy: Drop aspirational tables from MEMORY_ARCHITECTURE ER diagram
+- session-buddy: Drop dead QueryCacheManager.initialize call (Phase A L2-deletion residue)
+- session-buddy: Drop Redis L2 from cache-tier diagram (no redis client)
+- session-buddy: Duckdb-schema-missing — 1 test (duckpgq env-dependent skip)
+- session-buddy: Extraction + entity + runtime_snapshots — 3 tests
+- session-buddy: Fix table names in developer ARCHITECTURE ER diagram
+- session-buddy: FURB123 use r.metadata.copy() instead of dict()
+- session-buddy: Health_checks + llm_providers — 6 tests
+- session-buddy: Import GCSStorageOneiric + if-else narrow sidecar_meta
+- session-buddy: Knowledge_graph close resets conn + session_manager DI/template RuntimeError handling
+- session-buddy: Mcp_server_core + server_core git session — 6 tests
+- session-buddy: Metrics + optimized_examples + progressive_search — 3 tests
+- session-buddy: Move sidecar_meta None-handling into _build_task
+- session-buddy: Narrow union-typed adapter dispatch + use if-expr for sidecar_meta
+- session-buddy: None-coverage defence + workflow patterns outer-exception envelope
+- session-buddy: Phase6 + token_optimization + edge_cases — 3 tests
+- session-buddy: Point task-system spec link at canonical docs/specs path
+- session-buddy: Propagate union to session adapter + use rebinding for sidecar_meta
+- session-buddy: QueryCacheManager async API replaces sync bridge
+- session-buddy: Raise mcp-common floor + drop local source override (PyPI 0.17.0 ships submodule)
+- session-buddy: Recommendation_helpers + resource_cleanup + server — 3 tests
+- session-buddy: Refine canonical diagram per wave-11 review
+- session-buddy: Refresh ARCHITECTURE.md Last Updated stamp (2026-08-19)
+- session-buddy: Register baseline tools in optimized server
+- session-buddy: Register baseline tools via register_baseline_tools
+- session-buddy: Register ReflectionDatabaseAdapterOneiric in DI container
+- session-buddy: Remove duplicate session lifecycle flowchart from README
+- session-buddy: Remove obsolete dhara_url field, fix nested-dict merge drift
+- session-buddy: Remove orphan tool + sync profile docstring
+- session-buddy: Remove unused register_baseline_tools import
+- session-buddy: Remove unused ty ignore directives
+- session-buddy: Rename __code_ingest_file_impl to public code_ingest_file
+- session-buddy: Replace 'return None' with bare 'return' in fallback stubs
+- session-buddy: Replace pie chart in QUALITY_SCORING_V2 with table
+- session-buddy: Replace try/except stubs with direct local definitions
+- session-buddy: Resolve 11 post-ty-migration issues
+- session-buddy: Resolve 7 ty type-check errors
+- session-buddy: Resolve datetime-tz-awareness + advanced_search DuckDB issues
+- session-buddy: Resolve session_tools, server, state_writer test failures
+- session-buddy: Resolve ty comprehensive-hook failures
+- session-buddy: Resolve ty errors + clean suppressions from comprehensive hook sweep
+- session-buddy: Resolve ty errors across 6 batches
+- session-buddy: Runtime_snapshots OneiricMCPConfig/MCPServerSettings - 1 test
+- session-buddy: Server_tools + serverless + session_manager — 9 tests
+- session-buddy: Shell_adapter + token_optimizer + cli — 6 tests
+- session-buddy: Silence ty pre-existing errors + refurb FURB143
+- session-buddy: Suppress DTZ005/BLE001 with justification comments
+- session-buddy: Sync port defaults (2026-08-19)
+- session-buddy: T10 review NITs — trailing newlines + ruff format cleanup
+- session-buddy: T11 NIT — fix 'akgosha' typo to 'akosha' in skill body
+- session-buddy: T12 visibility_public reads from sidecar metadata
+- session-buddy: T2 review fixes — restore pattern-check test, correct cancelled-event docstring
+- session-buddy: T4 fix round 2 — SQLModel migration for task metadata persistence
+- session-buddy: T4 review — extend store_reflection metadata, fix ctx.request_state misuse
+- session-buddy: T5 fix round 1 — persist full task_id in metadata for create/list round-trip
+- session-buddy: T5 fix round 2 — crackerjack ty directive + trivial polish
+- session-buddy: T6 fix round 1 — wire _update_reflection to persist content + tags
+- session-buddy: Test_akosha_sync_integration.py — 13 tests
+- session-buddy: Test_cache_tools.py — 2 tests
+- session-buddy: Test_fastmcp_migration.py — 1 test
+- session-buddy: Test_git_operations.py — 2 tests
+- session-buddy: Test_mcp_crackerjack_tools.py integration — 12 tests
+- session-buddy: Test_quality_scoring_helpers.py — 8 tests (cache TTL tz-naive, coverage precision fallback, git RuntimeError catch, CRACKERJACK_AVAILABLE=False contract, coverage-only synthesis)
+- session-buddy: Test_search_tools_extras.py — 5 tests (KeyError in _extract_mentioned_files)
+- session-buddy: Test_serverless_storage_adapter.py — 9 tests (tz-aware compare)
+- session-buddy: Test_session_tools.py FastMCP 3.4 — 18 tests
+- session-buddy: Test_session_workflows.py — 1 test
+- session-buddy: Test_skills_tracker.py — 8 tests (sqlite3.Row.get + missing schema columns)
+- session-buddy: Test_worktree_manager_v2.py — 2 tests
+- session-buddy: Thread min_score/project through quick_search + search_by_concept (Phase 3)
+- session-buddy: Use real mcp_common imports (no local stubs)
+- session-buddy: Widen storage adapter return types + annotate sidecar_meta
+- session-buddy: Wire last_error_at tracking in SignerFeedState
+- session-buddy: Wire register_baseline_tools into registration system
+- session: Allow external workspace paths in _setup_working_directory
+- settings: Remove dead `server_port: 3000` override
+- Simplify checkpoint git commit logic - remove pre-commit hooks interference
+- Single-flight coalescing on tools/call "checkpoint"
+- Sync session_buddy.__version__ to installed release (0.7.4 → 0.25.7)
+- test: Update 36 files
+- tests: Rename shim test files to resolve pytest import collision
+- tier 10: add conftest-level db_path isolation fixture
+- tier 11: fix hardcoded dates and event loop staleness in tests
+- tier 12: refine isolated_test_db_path fixture
+- tier 13: fix broken DI fixture + worker hang/fail tests
+- tier 14: route 4 DuckDB modules through get_settings() + fix telemetry test
+- tier 16: fix 14 errors across 6 test files (logging, server_optimized, worktree_v2, instance_managers, query_rewriter, session_manager_high_impact, reflection_db)
+- tier 17: fix get_stats key in health_checks + SSRF loopback allow
+- tier 18: fix 3 more batch-isolated failures
+- tier 19: fix 11 batch-isolated failures (git_operations + coverage_gaps)
+- tier 20: doctor command + conftest pollution hardening + reflection shim
+- tools: Add asyncio.Lock to lazy singletons + structured ImportError envelope
+- ty: Widen _build_task and _persist_task_update to accept optional dicts
+- Update config, core, deps, docs, tests
+- Update config, core, deps, docs, tests
+- Update config, core, deps, docs, tests
+- Update config, core, deps, docs, tests
+- Update config, core, deps, docs, tests
+- Update config, core, deps, docs, tests
+- Update config, core, deps, docs, tests
+- Update config, core, deps, docs, tests
+- Update config, core, deps, docs, tests
+- Update config, core, deps, docs, tests
+- Update config, core, deps, tests
+- Update config, core, deps, tests
+- Update config, core, deps, tests
+- Update config, core, tests
+- Update config, deps, docs, tests
+- Use depends.get_sync() for synchronous DI container access in server.py
+- utils: 2 worktree MCP bugs (sanitization, timeout)
+- WebSocket integration tests - V4 migration foreign key bug
+- Week 4 regression fixes + technical debt documentation
+- Week 6 Day 1 - DI environment handling and placeholder assertion
+- worktree: Harden against argument injection, resource exhaustion, info disclosure
+
+### Removed
+
+- Remove redundant Claude memory integration documentation
+
+### Documentation
+
+- Add ACB config migration summary and update README
+- Add complete Session Buddy database improvements summary
+- Add comprehensive ACB migration plan
+- Add comprehensive ACB migration plan
+- Add comprehensive code review for Week 2 Days 3-5 mcp-common integration
+- Add comprehensive complexity refactoring progress tracker
+- Add comprehensive crackerjack integration guide
+- Add comprehensive rename summary documentation
+- Add docs/assets/images/ + .scratch/ convention
+- Add Phase 1 refactoring summary
+- Add Phase 4 completion summary
+- Add Phase 4 production monitoring and API documentation
+- Add session checkpoint summary
+- architectural: Fix cross-component stale path references in CLAUDE.md
+- architectural: Replace phantom CLI commands in QUICKSTART.md
+- architecture: Add comprehensive server.py decomposition plan
+- archive: Add redirect stub at docs/CLAUDE_QWEN_CONFIG_SYNC.md
+- channel-durable: Flip status to built per multi-agent review
+- checkpoint: Clarify LockfileSignalSource.write() docstring
+- CLAUDE.md: Cross-reference MCP backend wiring discipline (Bodai-wide)
+- Cleanup and reorganize documentation structure
+- Complete Phase 2.5 - ACB Graph Adapter Investigation
+- Complete Phase 3 - Testing & Validation (Production Ready)
+- Comprehensive test coverage analysis and improvement plan
+- config: Update 4 files
+- config: Update 4 files
+- config: Update CHANGELOG, pyproject
+- config: Update CHANGELOG, pyproject, uv
+- config: Update CHANGELOG, pyproject, uv
+- config: Update CHANGELOG, pyproject, uv
+- config: Update CHANGELOG, pyproject, uv
+- Consolidate documentation - Phase 2.1 file migration
+- core: Update 12 files
+- coverage-wave1: Completion report
+- Create core documentation - Phase 2.2/2.3 complete
+- design: Mark SKILL_METRICS_AGGREGATION as historical; record proposed layout was not built
+- design: Mark SKILL_METRICS_IMPLEMENTATION as historical; record proposed layout was not built
+- docs: Update 6 files
+- Drop 'Dhara publisher' qualifier from CLAUDE.md (Phase 8 T16)
+- feature-tracking: Correct TOOL_REGISTRATION_GAPS (2026-09-09)
+- Fix broken badge images in README + Mahavishnu typos in ARCHITECTURE
+- fix: Correct cwd for uv run session-buddy server start
+- frontmatter: Migrate adapter-architecture/* docs
+- frontmatter: Migrate architecture/* docs
+- frontmatter: Migrate auth/* docs
+- frontmatter: Migrate convergence-control-plane/UNIFIED_ROADMAP
+- frontmatter: Migrate docs/api/ + docs/initialization/ (2 files)
+- frontmatter: Migrate docs/design/ (3 files)
+- frontmatter: Migrate docs/developer/ (6 files)
+- frontmatter: Migrate docs/features/ (6 files)
+- frontmatter: Migrate docs/integration/ (1 file)
+- frontmatter: Migrate docs/migrations/ (4 files)
+- frontmatter: Migrate docs/performance/ (3 files)
+- frontmatter: Migrate docs/plans/ (3 files)
+- frontmatter: Migrate docs/realtime/ (2 files)
+- frontmatter: Migrate docs/reference/ (4 files)
+- frontmatter: Migrate docs/schemas/ (2 files)
+- frontmatter: Migrate docs/security/SECURITY_ARCHITECTURE.md
+- frontmatter: Migrate docs/user/ (4 files)
+- frontmatter: Migrate learning-pipeline/* docs
+- frontmatter: Migrate lifecycle/* docs (incl. README)
+- frontmatter: Migrate mcp-design/* docs
+- frontmatter: Migrate observability/* docs
+- frontmatter: Migrate oneiric-config/* docs
+- frontmatter: Migrate storage-consolidation/SYNC_IMPLEMENTATION
+- Mark refactor plans shipped and update PLAN_INDEX
+- Mark SKILL_METRICS_ARCHITECTURE as historical; sibling of unimplemented design
+- mechanical: Normalize CLI form in docs/api/WEBSOCKET_API.md
+- mechanical: Normalize CLI form in docs/guides/operational-modes.md
+- mechanical: Normalize CLI form in docs/initialization/TAXONOMY_INITIALIZATION.md
+- mechanical: Normalize CLI form in docs/migrations/ONEIRIC_MIGRATION_COMPLETE.md
+- mechanical: Normalize CLI form in docs/migrations/ONEIRIC_MIGRATION_PLAN.md
+- mechanical: Normalize CLI form in docs/reference/service-dependencies.md
+- mechanical: Normalize CLI form in docs/user/CONFIGURATION.md
+- mechanical: Normalize CLI form in docs/user/DEPLOYMENT.md
+- mechanical: Normalize CLI form in QUALITY_TRACKING_PROPOSAL
+- mechanical: Normalize CLI form to `uv run session-buddy`
+- Move CLAUDE_QWEN_CONFIG_SYNC to docs/archive (rename detection)
+- observability: Add Crackerjack fallback alert rules and dashboard panel
+- Phase 2 Priority 1 completion summary and analysis
+- Phase 3 Refactoring Complete - Summary Document
+- Phase 4 Day 13 - User Documentation Complete
+- Phase 4 Refactoring Complete - Summary Document
+- Phase 4 Refactoring Plan - Large File Modularization
+- Phase 5 Refactoring Complete - Summary Document
+- Phase 5 Refactoring Plan - Advanced Feature Modularization
+- phase1: Complete Phase 1 ACB foundation summary
+- phase2: Add comprehensive Phase 2 progress summary
+- plan: Phase 0 — session-buddy third-party notices
+- plan: Quality-scoring crackerjack fallback v2 - applies 5-agent review
+- plan: Quality-scoring crackerjack fallback v3 - applies 10 new Criticals from v2 review
+- plan: Restructure Tasks 9/11 to remove cross-task forward reference
+- plan: S-CHANNEL-DURABLE — wire channel_session_state into session-buddy (4 tasks)
+- plan: V5 - record 4 brief defects fixed in Task 5 implementer commit 49af617e
+- plans: Async refactor plan for checkpoint contention
+- plans: Mark 2026-07-16-checkpoint-async-refactor as shipped
+- plans: Tick Phase 2-4 items shipped under refactor lineage
+- preflight: Record crackerjack CLI flag-to-metric mapping
+- Quality-scoring crackerjack CLI fallback implementation plan
+- Quality-scoring field audit implementation plan
+- readme: Add Bodai Ecosystem Role section
+- readme: Bump Python badge from 3.13+ to 3.14+
+- Reconcile auto-checkpoint review findings
+- refactor: Extract tool-registration gap acknowledgment to feature-tracking
+- Refresh content of archived CLAUDE_QWEN_CONFIG_SYNC
+- refresh: Bump stale Last Updated dates to 2026-09-09
+- S-CHANNEL-DURABLE substrate key shape + thread_id collapse rationale
+- S-CHANNEL-DURABLE wire-up spec
+- session-buddy: Add .claude/decisions/deployability-discipline.md pointer
+- session-buddy: Add lite-schema frontmatter to deployability-discipline.md pointer
+- session-buddy: Add tool-profile rationale + CLAUDE.md subsection (W1.2 backfill)
+- session-buddy: Align launcher-discovery frontmatter role with peers
+- session-buddy: Apply 10 P0 doc drift fixes from 2026-08-12 audit
+- session-buddy: CLAUDE.md cross-link for task system
+- session-buddy: Copy validator + regenerator + schemas (P7.A seed)
+- session-buddy: Fix documented-but-not-wired audit findings (2026-08-19)
+- session-buddy: Fix documented-but-not-wired audit findings (2026-08-19)
+- session-buddy: Fix MCP-tool-hallucination audit findings (2026-08-19)
+- session-buddy: Fix removed-but-referenced audit findings (2026-08-19)
+- session-buddy: Mark service-dependencies ecosystem diagram as canonical
+- session-buddy: Normalize loose docs/ + sub-store directories to unified frontmatter (P7.A sweep, batch 1/3)
+- session-buddy: Normalize root-level + commands/ + templates/ + plugin pkg files (P7.A sweep, batch 2/3)
+- session-buddy: Phase 4b launcher server-subcommand discovery (REQ-013)
+- session-buddy: Refresh stale tool/line counts (2026-08-19)
+- session-buddy: Skill catalog reflects T12 fix + BodaiEventsPublisher + TaskOrphanSweeper
+- spec: Quality-scoring crackerjack CLI fallback design
+- spec: Quality-scoring crackerjack CLI fallback design v2
+- spec: Quality-scoring field audit design
+- task-13: Regenerate verification numerics per reviewer (ruff/tests/orphan/coverage)
+- Update comprehensive improvement plan with Phase 2 completion
+- Update config, core, deps, docs
+- Update config, deps, docs
+- Update config, deps, docs
+- Update config, deps, docs
+- Update config, deps, docs
+- Update config, deps, docs
+- Update config, deps, docs
+- Update config, deps, docs
+- Update config, deps, docs
+- Update core, deps, docs
+- Update core, deps, docs
+- Update core, docs
+- Update documentation
+- Update documentation
+- Update migration plan - Phase 1 complete
+- Update migration plan - Phase 2 complete
+- Update migration plan - Phase 4 Day 13 complete
+- Update references from session-mgmt to session-buddy
+- V4 - fix 4 plan-vs-reality discrepancies from Task 0 preflight
+- Week 3 checkpoint report - test infrastructure restoration complete
+- Week 5 testing phase complete - comprehensive summary
+
+### Testing
+
+- adapter: Cover vector-search project filter via VSS-enabled fixture
+- Add comprehensive context manager tests (71 tests, 94.58% coverage)
+- Add comprehensive health_tools tests and fix slow compaction test
+- Add comprehensive tests for llm_providers.py helper functions
+- Add comprehensive tests for memory_tools helper functions
+- Add comprehensive tests for server.py helper functions
+- Add comprehensive tests for Week 5 Day 3 modules (39 tests, 100% pass rate)
+- Add comprehensive validated memory tools tests (38 tests, 80.86% coverage)
+- Add knowledge graph adapter tests (27 tests, 17 passing, 52.16% coverage)
+- Add knowledge_graph helper function tests (26 tests)
+- Add Phase 4 analytics and integration tests
+- Add WebSocket server load testing script
+- channel: Rewrite durable_restart to producer-half only after consumer deletion
+- checkpoint: End-to-end loop coverage + tautology fix
+- checkpoint: Harden stash-spy against subcommand-position false positives
+- checkpoint: Property-based keystone + stash-clobber regression + coverage gate
+- Complete Week 5 Day 1 - Quality Engine & Crackerjack Tools coverage
+- config: Update 4 files
+- config: Update 4 files
+- config: Update 5 files
+- config: Update 6 files
+- config: Update 6 files
+- config: Update CHANGELOG, coverage, pyproject
+- core: Update 9 files
+- coverage: Add cli_with_modes to pytest_runtest_setup re-attach list (F13)
+- coverage: Fix shared-state race in test_resolve_default_db_returns_required_database
+- coverage: Fix sys.modules pollution in TestModuleSysPathBranch (F13)
+- coverage: Lift admin_shell_tracking_tools to 100% line / 100% branch
+- coverage: Lift akosha_tools to ≥95% line / ≥90% branch
+- coverage: Lift cli_with_modes to 100% line / 100% branch
+- coverage: Lift history_cache to 100% line / 100% branch
+- coverage: Lift prompt_tools to ≥95% line / ≥90% branch
+- coverage: Lift session_buddy.cli to 100% line / 100% branch
+- coverage: Lift session_buddy.utils.scheduler.time_parser to 99% line / 95% branch
+- coverage: Replace pragma-hidden helpers with explicit call-counter assertions
+- Cross-process durability + completion report for S-CHANNEL-DURABLE
+- Cross-process durability + completion report for S-CHANNEL-DURABLE
+- docs: Update 6 files
+- docs: Update 9 files
+- fallback: 7 error-path tests covering all 10 outcomes
+- fallback: Concurrency test asserts module-level lock serializes
+- fallback: Real-subprocess integration test (gated, importorskip)
+- Fan-out coverage push to 5 modules (~10% -> 77% peak)
+- Implement comprehensive logging_utils tests
+- Improve test infrastructure and fix pytest 9.0+ compatibility
+- integration: E2e tests for multi_project and natural_scheduling tools
+- integration: Pin concurrent-checkpoint contention (RED)
+- Lift causal chains to full coverage
+- Lift code graph to full coverage
+- Lift conversation storage coverage
+- Mark DuckDB 1.5.3 bug as xfail in cascade tests
+- multi-project: Round-trip e2e for 5 tools with real MultiProjectCoordinator
+- Optimize test suite for speed and efficiency
+- Pin SessionBuddySettings.cache_root for both classes
+- pools: End-to-end integration test for pool lifecycle observability
+- pools: Integration smoke for LLM-backed pool (skips if Bifrost down)
+- pools: Migrate stale wrapper-format assertions to structured-dict shape
+- quality-scoring: Add metrics-registry regression net
+- quality: Update fixtures for default-missing semantics
+- registry: Whitelist build_status as diagnostic
+- Remove pre-commit hooks - crackerjack manages code quality
+- scheduling: Round-trip e2e for create/list/list_due/execute with real ReminderScheduler
+- session-buddy: Add __init__.py for tests/cache test package
+- session-buddy: Add doc-drift CI guard (2026-08-19)
+- session-buddy: Add tests for 3 uncovered adapters
+- session-buddy: BodaiEventsPublisher e2e Redis round-trip
+- session-buddy: Cross-namespace ACL denies sb.* reads from akosha.* by default
+- session-buddy: Fix 2 integration test files to new nested shape
+- session-buddy: Fix 6 test files with flat-shape SimpleNamespace fixtures
+- session-buddy: Fix akosha_sync_integration mock to nested cloud_sync
+- session-buddy: Fix akosha_tools test fixtures to nested cloud_sync shape
+- session-buddy: Fix phase6 integration test to new nested shape
+- session-buddy: Fix second akosha_sync_integration mock to nested cloud_sync
+- session-buddy: GCSStorageOneiric round-trip via fake-gcs-server
+- session-buddy: Partial Phase 5 rewrite — settings tests + conftest
+- session-buddy: Per-repo baseline surface gate
+- session-buddy: Phase 5 follow-up — rewrite settings tests on SessionBuddySettings
+- session-buddy: Task 4 — align test fixtures to new schema contracts
+- session-buddy: Update 3 test fixtures to new nested shape
+- session-buddy: Update 4 test files to match Phase 3b new contract
+- session-buddy: Update conversation_storage fixture to nested shape
+- session_mgmt_mcp: Update 7 files
+- storage: Integration smoke for fake-gcs-server backend
+- test: Update 12 files
+- test: Update 14 files
+
+### Build
+
+- deps: Drop dhara dep from runtime dependencies (Phase 8 T11)
+- session-buddy: Declare coredis dep for BodaiEventsPublisher
+
+### Internal
+
+- Add archive/backup directories to gitignore
+- Apply auto-formatting fixes from crackerjack hooks
+- auth: Drop unused hashlib import
+- Bump requires-python to >=3.14
+- Bump version to 0.10.0
+- Bump version to 0.10.1
+- Bump version to 0.10.10
+- Bump version to 0.10.11
+- Bump version to 0.10.12
+- Bump version to 0.10.2
+- Bump version to 0.10.3
+- Bump version to 0.10.4
+- Bump version to 0.10.5
+- Bump version to 0.10.6
+- Bump version to 0.10.7
+- Bump version to 0.10.8
+- Bump version to 0.10.9
+- Bump version to 0.11.0
+- Bump version to 0.11.1
+- Bump version to 0.12.0
+- Bump version to 0.13.0
+- Bump version to 0.14.0
+- Bump version to 0.14.1
+- Bump version to 0.14.2
+- Bump version to 0.14.3
+- Bump version to 0.14.4
+- Bump version to 0.14.5
+- Bump version to 0.14.6
+- Bump version to 0.14.7
+- Bump version to 0.14.8
+- Bump version to 0.15.0
+- Bump version to 0.16.0
+- Bump version to 0.16.1
+- Bump version to 0.16.2
+- Bump version to 0.16.3
+- Bump version to 0.16.4
+- Bump version to 0.16.5
+- Bump version to 0.16.6
+- Bump version to 0.17.0
+- Bump version to 0.18.0
+- Bump version to 0.19.0
+- Bump version to 0.19.1
+- Bump version to 0.19.10
+- Bump version to 0.19.11
+- Bump version to 0.19.12
+- Bump version to 0.19.13
+- Bump version to 0.19.14
+- Bump version to 0.19.15
+- Bump version to 0.19.16
+- Bump version to 0.19.17
+- Bump version to 0.19.18
+- Bump version to 0.19.19
+- Bump version to 0.19.2
+- Bump version to 0.19.20
+- Bump version to 0.19.21
+- Bump version to 0.19.3
+- Bump version to 0.19.4
+- Bump version to 0.19.5
+- Bump version to 0.19.6
+- Bump version to 0.19.7
+- Bump version to 0.19.8
+- Bump version to 0.19.9
+- Bump version to 0.20.0
+- Bump version to 0.21.0
+- Bump version to 0.22.0
+- Bump version to 0.22.1
+- Bump version to 0.23.0
+- Bump version to 0.24.0
+- Bump version to 0.24.1
+- Bump version to 0.25.0
+- Bump version to 0.25.1
+- Bump version to 0.25.2
+- Bump version to 0.25.3
+- Bump version to 0.25.4
+- Bump version to 0.25.5
+- Bump version to 0.25.6
+- Bump version to 0.25.7
+- Bump version to 0.26.0
+- Bump version to 0.26.1
+- Bump version to 0.26.2
+- Bump version to 0.26.3
+- Bump version to 0.26.4
+- Bump version to 0.27.0
+- Bump version to 0.27.1
+- Bump version to 0.28.0
+- Bump version to 0.29.0
+- Bump version to 0.29.1
+- Bump version to 0.29.2
+- Bump version to 0.30.0
+- Bump version to 0.31.0
+- Bump version to 0.31.1
+- Bump version to 0.31.2
+- Bump version to 0.32.0
+- Bump version to 0.8.0
+- Bump version to 0.9.0
+- Bump version to 0.9.1
+- Bump version to 0.9.2
+- Bump version to 0.9.3
+- Bump version to 0.9.4
+- Bump version to 0.9.5
+- Bump version to 0.9.6
+- Bump version to 0.9.7
+- Bump version to 0.9.8
+- Bump version to 0.9.9
+- channel: Backfill <NEW> placeholder + drop defensive hasattr guard
+- coverage-wave1: Close Phase 0 — observability stack ready
+- coverage-wave1: Fix F3 — restore --ignore flag in test_invocation field
+- coverage-wave1: Preflight baseline failure manifest
+- deps: Bump crackerjack>=0.70.0; remove duplicated validator script; fix spec frontmatter
+- deps: Bump mcp-common floor to >=0.26.0,<0.27.0 (Phase 2.5)
+- deps: Bump mcp-common floor to >=0.28.0 for launcher migration (Phase 4)
+- deps: Bump oneiric floor to >=0.19.1
+- discovery: Audit and fill ALL_TOOLS_REGISTRY (Item 5)
+- gitignore: Add .coverage* + untrack .coverage-ratchet.json (bodai 2026-08-17)
+- gitignore: Add backup file patterns to silence checkpoint tool artifacts
+- gitignore: Also match .lycheecache/ directory form
+- gitignore: Apply Bodai canonical snippet
+- gitignore: Fix .lycheecache trailing slash; ignore .superpowers/
+- gitignore: Track .worktrees/ to silence worktree add artifacts
+- gitignore: Untrack .lycheecache (lychee link-checker cache)
+- lint: Apply formatting fixes from ruff
+- Normalize LICENSE attribution to Robert Leslie and Wedgwood Web Works
+- Organize and clean up working documentation
+- Organize root directory scripts and tests
+- pyproject: Add [project.scripts] entry for session-buddy CLI
+- reflections: Drop 4 dead insight columns + add project backfill script
+- Remove .idea from git tracking, update dependencies
+- Remove .superprofits/ scratch typo, add to .gitignore
+- Remove dead insights pipeline (1,830 LOC) + clean up doc drift
+- Remove tracked .gitignore.bak.* backups
+- Remove unused ty: ignore directives from mcp/telemetry.py
+- repo: Ignore coverage artifacts
+- Session checkpoint - Phase 4 complete, production-ready
+- Session checkpoint after Phase 4 WebSocket deployment
+- session-buddy: Bump tool-config pins from 3.13 to 3.14
+- session-buddy: Extend .claude/ allowlist with decisions/agents/workflows/skills
+- session-buddy: Gitignore .superpowers/; archive exceptions for plans/specs
+- session-buddy: Migrate [project.optional-dependencies] → [dependency-groups]
+- session-buddy: Post-Task-1 review follow-ups
+- session-buddy: Raise fastmcp ceiling to <5 (Bodai Phase 3)
+- session-buddy: Relocate plans to docs/plans/, specs to docs/specs/
+- session-buddy: Remove 6 archived duplicate diagram blocks
+- session-buddy: Remove 6 trivially-low-info diagram blocks from active docs
+- session-buddy: Remove LICENSE (consolidated to root-level LICENSE)
+- session-buddy: Remove stale editor backups and analysis artifacts
+- session-buddy: Remove tracked CHECKPOINT file + pyscn report + extend gitignore
+- session-buddy: SessionEnd hook wire-up + push governance cross-link
+- session-buddy: Strip PostgreSQL + Ollama from canonical diagram
+- session-buddy: Sync uv.lock to pyproject.toml (0.19.21)
+- session-buddy: Ty ignore for 11 optional adapter imports
+- session-buddy: Uv python pin 3.14
+- session-buddy: Widen DEFAULT_SKIP_DIRS to include .crackerjack + uv
+- stderr-parsing: Deprecate _parse_stderr_metrics
+- test-pass-rate: Drop orphan metric from quality_metrics
+- tests: Clean up F401/F841 in test_akosha_sync_integration.py (Item C)
+- Untrack and delete 55 historical *.backup/*.bak files
+- Update coverage metrics to 32.6%
+- Update coverage metrics to 32.7%
+- Update LICENSE copyright to 2026
+- Update uv.lock with ACB GitHub source
+
 ## [0.32.0] - 2026-10-05
 
 ### Added
