@@ -2255,6 +2255,7 @@ class ReflectionDatabaseAdapterOneiric:
         use_embeddings: bool = True,
         use_cache: bool = True,
         project: str | None = None,
+        min_score: float | None = None,
     ) -> list[dict[str, t.Any]]:
         """Search reflections by content or tags.
 
@@ -2267,6 +2268,13 @@ class ReflectionDatabaseAdapterOneiric:
                 this project are returned. Bug 3 fix: project was previously
                 accepted as a kwarg but silently ignored because the search
                 path never threaded it into the SQL ``WHERE`` clause.
+            min_score: Minimum similarity threshold for semantic search
+                results. Phase 3 fix (bodai-search-infrastructure-fix
+                plan §5.3.1-3.2): previously this parameter was dropped
+                by the MCP handler, making ``min_score`` purely cosmetic.
+                Now applied as an SQL ``WHERE`` filter in the semantic
+                path; the text path ignores it (text scores are always
+                0.0, so applying it would suppress every row).
 
 
         Returns:
@@ -2291,6 +2299,7 @@ class ReflectionDatabaseAdapterOneiric:
             limit=limit,
             use_embeddings=use_embeddings,
             project=project,
+            min_score=min_score,
         )
 
         # Populate cache for future searches (Phase 1: Query Cache)
@@ -2368,6 +2377,7 @@ class ReflectionDatabaseAdapterOneiric:
         limit: int,
         use_embeddings: bool,
         project: str | None = None,
+        min_score: float | None = None,
     ) -> list[dict[str, t.Any]]:
         """Search reflections using semantic or text search.
 
@@ -2376,13 +2386,19 @@ class ReflectionDatabaseAdapterOneiric:
             limit: Maximum number of results
             use_embeddings: Whether to use semantic search if available
             project: Optional project filter (Bug 3 fix)
+            min_score: Optional minimum similarity threshold; applied
+                as an SQL ``WHERE`` filter in the semantic path only
+                (text path always scores 0.0, so the filter would
+                suppress every row).
 
         Returns:
             List of matching reflections
 
         """
         if use_embeddings and self.settings.enable_embeddings:
-            return await self._semantic_search_reflections(query, limit, project)
+            return await self._semantic_search_reflections(
+                query, limit, project, min_score=min_score
+            )
         return await self._text_search_reflections(query, limit, project)
 
     async def _cache_reflection_results(
@@ -2420,11 +2436,21 @@ class ReflectionDatabaseAdapterOneiric:
         )
 
     async def _semantic_search_reflections(
-        self, query: str, limit: int = 10, project: str | None = None
+        self,
+        query: str,
+        limit: int = 10,
+        project: str | None = None,
+        min_score: float | None = None,
     ) -> list[dict[str, t.Any]]:
         """Perform semantic search on reflections using embeddings.
 
         Bug 3 fix: accepts ``project`` and adds it to the ``WHERE`` clause.
+
+        Phase 3 fix (bodai-search-infrastructure-fix plan §5.3.1-3.2):
+        accepts ``min_score`` and adds ``AND similarity >= ?`` to the
+        ``WHERE`` clause when provided. Previously this parameter was
+        dropped by the MCP handler, making ``min_score`` purely
+        cosmetic.
         """
         if not self._initialized:
             await self.initialize()
@@ -2435,9 +2461,19 @@ class ReflectionDatabaseAdapterOneiric:
             return await self._text_search_reflections(query, limit, project)
 
         project_clause = "AND project = ?" if project is not None else ""
+        min_score_clause = (
+            "AND array_cosine_similarity(embedding::FLOAT[384], ?::FLOAT[384]) >= ?"
+            if min_score is not None
+            else ""
+        )
         params: list[t.Any] = [query_embedding]
         if project is not None:
             params.append(project)
+        if min_score is not None:
+            # The similarity placeholder comes BEFORE the threshold in
+            # the WHERE clause (one extra ? for the similarity check).
+            params.append(query_embedding)
+            params.append(min_score)
         params.append(limit)
 
         results = self.conn.execute(
@@ -2447,6 +2483,7 @@ class ReflectionDatabaseAdapterOneiric:
             FROM {self._table("reflections")}
             WHERE embedding IS NOT NULL
                 {project_clause}
+                {min_score_clause}
             ORDER BY similarity DESC
             LIMIT ?
             """,
@@ -2475,26 +2512,71 @@ class ReflectionDatabaseAdapterOneiric:
         """Perform text search on reflections.
 
         Bug 3 fix: accepts ``project`` and adds it to the ``WHERE`` clause.
+
+        Phase 3 fix (bodai-search-infrastructure-fix plan §5.3.1-3.2):
+        token-aware fallback. Multi-word queries like ``"test pytest
+        marker"`` are split on whitespace and OR-combined in the
+        ``WHERE`` clause so a reflection containing *any* of the
+        tokens matches. Previously the entire query was wrapped in a
+        single ``LIKE '%query%'`` literal, which only matched when the
+        full phrase appeared as a contiguous substring of a
+        reflection's content. The legacy literal-phrase path is
+        retained as the first OR'd clause so single-word queries
+        still match exactly; a row that contains the full phrase is
+        preferred because the ORDER BY clause ranks full-phrase hits
+        first (via a synthetic ``match_rank`` expression). The
+        ``list_contains(tags, ?)`` clause is unchanged.
         """
         if not self._initialized:
             await self.initialize()
 
+        # Split the query into tokens, keeping the full phrase as the
+        # first (most-specific) match predicate. Strip empties so a
+        # query of pure whitespace doesn't generate `%%` LIKE patterns
+        # that match every row.
+        tokens = [t for t in query.split() if t]
+        match_clauses: list[str] = []
+        params: list[t.Any] = []
+        if tokens:
+            # Full-phrase match (most specific).
+            match_clauses.append("content LIKE ?")
+            params.append(f"%{query}%")
+            # Per-token matches (broader).
+            for tok in tokens:
+                match_clauses.append("content LIKE ?")
+                params.append(f"%{tok}%")
+            # Tag match for the full query (unchanged behavior).
+            match_clauses.append("list_contains(tags, ?)")
+            params.append(query)
+        else:
+            # No tokens — empty query should not match anything.
+            return []
+
+        where_expr = " OR ".join(match_clauses)
         project_clause = "AND project = ?" if project is not None else ""
-        params: list[t.Any] = [f"%{query}%", query]
         if project is not None:
             params.append(project)
         params.append(limit)
 
+        # Rank: full-phrase match first, then per-token matches. Use
+        # ``CASE`` so the ORDER BY stays deterministic.
+        rank_expr = "CASE WHEN content LIKE ? THEN 0 ELSE 1 END"
+        # The full-phrase LIKE pattern reuses the first ``content LIKE ?``
+        # parameter from ``params``; reference it positionally so the
+        # binding order matches.
+        rank_params: list[t.Any] = [f"%{query}%"] if tokens else []
+
         results = self.conn.execute(
             f"""
-            SELECT id, content, tags, created_at, updated_at, project
+            SELECT id, content, tags, created_at, updated_at, project,
+                   {rank_expr} AS match_rank
             FROM {self._table("reflections")}
-            WHERE (content LIKE ? OR list_contains(tags, ?))
+            WHERE ({where_expr})
                 {project_clause}
-            ORDER BY created_at DESC
+            ORDER BY match_rank ASC, created_at DESC
             LIMIT ?
             """,
-            params,
+            rank_params + params,
         ).fetchall()
 
         return [

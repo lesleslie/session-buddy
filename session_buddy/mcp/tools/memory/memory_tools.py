@@ -328,20 +328,31 @@ async def _quick_search_operation(
 ) -> str:
     """Execute quick search operation and format results.
 
-    Bug 2 fix: search the ``reflections`` table (where ``store_reflection``
-    writes) rather than ``conversations``. The previous ``search_conversations``
-    call always returned "No results found" for stored reflections because
-    the two paths target different tables (``conversations_v2`` vs
-    ``reflections_v2`` in the v2 schema).
+    Bug 2 fix (legacy): search the ``reflections`` table (where
+    ``store_reflection`` writes) rather than ``conversations``. The
+    previous ``search_conversations`` call always returned "No results
+    found" for stored reflections because the two paths target
+    different tables (``conversations_v2`` vs ``reflections_v2`` in
+    the v2 schema).
 
-    Note: ``search_reflections`` does not yet accept ``project`` or
-    ``min_score`` — those are part of Bug 3's fix. For now we pass the
-    supported kwargs only.
+    Phase 3 fix (bodai-search-infrastructure-fix plan §5.3.1-3.2):
+    - Removed the hardcoded ``use_embeddings=False`` so the adapter's
+      semantic-search path runs when an embedding provider is
+      available. Previously the handler forced text-only matching,
+      which uses ``LIKE '%query%'`` and returns "No results found" for
+      any multi-word phrase that is not a single contiguous substring
+      of an existing reflection (e.g. ``"test pytest marker"`` even
+      when reflections discuss pytest markers).
+    - Thread ``project`` and ``min_score`` through to the adapter
+      instead of dropping them. The wrapper advertises both kwargs;
+      dropping them before made the call silently non-scoped and made
+      ``min_score`` purely cosmetic.
     """
     results = await db.search_reflections(
         query=query,
         limit=1,
-        use_embeddings=False,
+        project=project,
+        min_score=min_score,
     )
 
     lines = [f"🔍 Quick search for: '{query}'"]
@@ -655,16 +666,25 @@ async def _search_by_concept_operation(
     include_files: bool,
     limit: int,
     project: str | None,
+    min_score: float = 0.0,
 ) -> str:
     """Execute concept search operation.
 
-    Bug 2 fix: search reflections rather than conversations.
+    Bug 2 fix (legacy): search reflections rather than conversations.
+
+    Phase 3 fix (bodai-search-infrastructure-fix plan §5.3.1-3.2):
+    removed the hardcoded ``use_embeddings=False`` so the adapter's
+    semantic-search path runs when an embedding provider is available.
+    Previously the handler forced text-only matching, which uses
+    ``LIKE '%query%'`` and returns "No conversations found about this
+    concept" for any concept that is not a contiguous substring of an
+    existing reflection.
     """
     results = await db.search_reflections(
         query=concept,
         project=project,
         limit=limit,
-        use_embeddings=False,
+        min_score=min_score,
     )
     return await _format_concept_search_results(concept, results, include_files)
 
@@ -674,15 +694,23 @@ async def _search_by_concept_impl(
     include_files: bool = True,
     limit: int = 10,
     project: str | None = None,
+    min_score: float = 0.0,
 ) -> str:
-    """Implementation for search_by_concept tool."""
+    """Implementation for search_by_concept tool.
+
+    Phase 3 fix (bodai-search-infrastructure-fix plan §5.3.1-3.2):
+    accept ``min_score`` and thread it into the adapter. The MCP wrapper
+    advertises ``min_score`` (default 0.7) but the previous signature
+    dropped it before reaching the adapter, making the parameter purely
+    cosmetic.
+    """
     if not _check_reflection_tools_available():
         return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
 
     try:
         db = await _get_reflection_database()
         return await _search_by_concept_operation(
-            db, concept, include_files, limit, project
+            db, concept, include_files, limit, project, min_score
         )
     except DatabaseUnavailableError as e:
         return ToolMessages.not_available("Search by concept", str(e))
@@ -1015,8 +1043,16 @@ def _register_core_memory_tools(mcp: Any) -> None:
         project: str | None = None,
         min_score: float = 0.7,
     ) -> str:
-        """Search for conversations about a specific development concept."""
-        return await _search_by_concept_impl(concept, include_files, limit, project)
+        """Search for conversations about a specific development concept.
+
+        Phase 3 fix (bodai-search-infrastructure-fix plan §5.3.1-3.2):
+        ``min_score`` is now threaded into the adapter so semantic
+        similarity results below the threshold are filtered out, not
+        just displayed-but-ignored.
+        """
+        return await _search_by_concept_impl(
+            concept, include_files, limit, project, min_score
+        )
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reflection_stats(project: str | None = None) -> str:
