@@ -82,16 +82,36 @@ class TestAutoStoreDecision:
 
 
 def _settings(**overrides):
-    """Helper: build a settings SimpleNamespace with sensible defaults."""
+    """Helper: build a settings ``SimpleNamespace`` mirroring the real
+    ``SessionBuddySettings`` Pydantic shape.
+
+    The top-level gates (``enable_auto_store_reflections``,
+    ``auto_store_manual_checkpoints``, ``auto_store_session_end``) live
+    flat on ``SessionBuddySettings``. The thresholds live nested under
+    ``reflection_auto_store`` — see
+    ``session_buddy/settings.py:480`` and ``:486``. Mirroring that
+    shape here means a test monkeypatches ``get_settings`` with a stub
+    that exposes the same attribute paths the consumer actually uses in
+    production; flat reads would raise ``AttributeError`` against this
+    helper, locking the consumer's access pattern in.
+    """
+    auto_store_overrides = {
+        k: overrides.pop(k)
+        for k in ("auto_store_exceptional_quality_threshold", "auto_store_quality_delta_threshold")
+        if k in overrides
+    }
     base = dict(
         enable_auto_store_reflections=True,
         auto_store_manual_checkpoints=True,
         auto_store_session_end=True,
-        auto_store_exceptional_quality_threshold=95,
-        auto_store_quality_delta_threshold=10,
     )
     base.update(overrides)
-    return SimpleNamespace(**base)
+    nested = SimpleNamespace(
+        auto_store_exceptional_quality_threshold=95,
+        auto_store_quality_delta_threshold=10,
+        **auto_store_overrides,
+    )
+    return SimpleNamespace(**base, reflection_auto_store=nested)
 
 
 class TestShouldAutoStoreDisabled:
@@ -421,3 +441,81 @@ class TestFormatAutoStoreSummary:
         # The formatter appends " (quality: ...)" only when quality_score is
         # in metadata. With empty metadata, no parens.
         assert "(quality:" not in msg
+
+
+# ---------------------------------------------------------------------------
+# Regression (Bug 2026-10-10): consumer must read the nested
+# SessionBuddySettings.reflection_auto_store.* fields, not the
+# pre-consolidation flat attributes.
+#
+# Why a separate class: the ``_settings()`` helper at the top of this
+# module returns ``SimpleNamespace``, which auto-creates any attribute
+# the consumer asks for. So a flat ``config.auto_store_quality_delta_threshold``
+# read on the test stub never raises — even though that exact read
+# would raise ``AttributeError`` against the real Pydantic model in
+# production. These tests pin the consumer to the real nested shape;
+# if a future refactor reintroduces the flat read, this test fails
+# immediately rather than waiting for a production traceback.
+# ---------------------------------------------------------------------------
+
+
+class TestConsumerUsesNestedReflectionAutoStoreSettings:
+    """Drives the consumer with a stub shaped like the real
+    ``SessionBuddySettings`` (nested ``reflection_auto_store``
+    submodel only, no flat attrs) so the consumer's flat-access
+    attribute lookup raises ``AttributeError`` and the test fails
+    with the production traceback text as the failure mode.
+    """
+
+    def test_quality_delta_branch_reads_nested_threshold(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Nested mock with the two thresholds as if loaded from a real
+        # SessionBuddySettings; flat attribute lookups raise.
+        from types import SimpleNamespace
+
+        nested = SimpleNamespace(
+            auto_store_exceptional_quality_threshold=70,
+            auto_store_quality_delta_threshold=10,
+        )
+        real_shape = SimpleNamespace(
+            enable_auto_store_reflections=True,
+            auto_store_manual_checkpoints=True,
+            auto_store_session_end=True,
+            reflection_auto_store=nested,
+        )
+        monkeypatch.setattr(ru, "get_settings", lambda: real_shape)
+
+        # quality_score=50 with previous=35: 50 < 70 (exceptional
+        # threshold) so the consumer falls THROUGH line 110 and reaches
+        # the delta branch at line 121. delta = 15 ≥ 10 → QUALITY_IMPROVEMENT.
+        # The consumer reads
+        # ``config.reflection_auto_store.auto_store_quality_delta_threshold``
+        # at reflection_utils.py:123.
+        decision = ru.should_auto_store_checkpoint(
+            quality_score=50, previous_score=35
+        )
+        assert decision.should_store is True
+        assert decision.reason == CheckpointReason.QUALITY_IMPROVEMENT
+
+    def test_exceptional_branch_reads_nested_threshold(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from types import SimpleNamespace
+
+        nested = SimpleNamespace(
+            auto_store_exceptional_quality_threshold=70,
+            auto_store_quality_delta_threshold=10,
+        )
+        real_shape = SimpleNamespace(
+            enable_auto_store_reflections=True,
+            auto_store_manual_checkpoints=True,
+            auto_store_session_end=True,
+            reflection_auto_store=nested,
+        )
+        monkeypatch.setattr(ru, "get_settings", lambda: real_shape)
+
+        # 95 with no previous_score → catches the line 110/116 path.
+        decision = ru.should_auto_store_checkpoint(quality_score=95)
+        assert decision.should_store is True
+        assert decision.reason == CheckpointReason.EXCEPTIONAL_QUALITY

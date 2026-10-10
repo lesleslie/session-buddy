@@ -107,20 +107,20 @@ def should_auto_store_checkpoint(
         )
 
     # Store exceptional quality sessions
-    if quality_score >= config.auto_store_exceptional_quality_threshold:
+    if quality_score >= config.reflection_auto_store.auto_store_exceptional_quality_threshold:
         return AutoStoreDecision(
             should_store=True,
             reason=CheckpointReason.EXCEPTIONAL_QUALITY,
             metadata={
                 "quality_score": quality_score,
-                "threshold": config.auto_store_exceptional_quality_threshold,
+                "threshold": config.reflection_auto_store.auto_store_exceptional_quality_threshold,
             },
         )
 
     # Store significant quality changes
     if previous_score is not None:
         quality_delta = abs(quality_score - previous_score)
-        threshold = config.auto_store_quality_delta_threshold
+        threshold = config.reflection_auto_store.auto_store_quality_delta_threshold
 
         if quality_delta >= threshold:
             reason = (
