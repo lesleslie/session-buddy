@@ -2472,8 +2472,7 @@ class ReflectionDatabaseAdapterOneiric:
         if min_score is not None:
             # The similarity placeholder comes BEFORE the threshold in
             # the WHERE clause (one extra ? for the similarity check).
-            params.append(query_embedding)
-            params.append(min_score)
+            params.extend((query_embedding, min_score))
         params.append(limit)
 
         results = self.conn.execute(
