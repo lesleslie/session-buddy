@@ -281,6 +281,21 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
             enabled=settings.bodai_events.enabled,
         )
         await publisher.init()
+        # Mark the init round-trip as the publisher's first cycle so the
+        # aggregator's HNSW hardening branch
+        # (``mcp-common/health/feed.py:206``,
+        # ``EMPTY + cycles_total == 0 + ingester_running → DEGRADED``)
+        # does not flag a just-installed, fully-initialised publisher
+        # as broken-before-first-success. The cookbook's prescript
+        # ("pre-warm every consumer-shaped feed so each feed starts
+        # at cycles_total=1, healthy=true") — see
+        # ``mcp-common/docs/mcp/launcher-cookbook.md:32`` and
+        # ``:651`` — applies here: a publisher with
+        # ``_init_ok == True`` has demonstrably completed one cycle
+        # (the Redis transport ping), so we credit it.
+        if publisher._init_ok:
+            publisher.cycles_total = 1
+            publisher.last_updated_timestamp = __import__("time").time()
         tasks_events_mod._publisher = publisher
         logger.info(
             "bodai_events publisher installed pre-yield stream=%s enabled=%s",

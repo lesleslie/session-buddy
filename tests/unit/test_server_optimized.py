@@ -943,6 +943,76 @@ class TestSessionLifecycleContextManager:
 
         assert mock_manager.initialize_session.called
 
+    async def test_publisher_pre_warm_credits_init_cycle(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """After ``await publisher.init()`` succeeds, the lifespan must
+        bump ``cycles_total`` to 1 so the aggregator's HNSW hardening
+        branch (``mcp-common/health/feed.py:206``: ``EMPTY +
+        cycles_total == 0 + ingester_running → DEGRADED``) does not
+        flag a just-installed, fully-initialised publisher as
+        broken-before-first-success.
+
+        Without the bump the aggregator returns ``DEGRADED`` →
+        ``/health=503`` even though the publisher is alive and the
+        Redis transport is healthy.
+        """
+        import session_buddy.mcp.tools.tasks_events as tasks_events_mod
+        import session_buddy.server_optimized as so
+
+        mock_app = MagicMock()
+        monkeypatch.setattr(so, "is_git_repository", lambda _: False)
+
+        from session_buddy.mcp.events.bodai_events_publisher import (
+            BodaiEventsPublisher,
+        )
+
+        def _make_fake_publisher(*_args: object, **_kwargs: object) -> MagicMock:
+            fake = MagicMock(spec=BodaiEventsPublisher)
+            fake.entities_count = 0
+            fake.cycles_total = 0
+            fake.errors_total = 0
+            fake.last_updated_timestamp = None
+            fake.enabled = True
+            fake._init_ok = True
+            fake.init = AsyncMock(return_value=None)  # type: ignore[method-assign]
+            return fake
+
+        monkeypatch.setattr(
+            "session_buddy.mcp.events.bodai_events_publisher.BodaiEventsPublisher",
+            MagicMock(side_effect=_make_fake_publisher),
+        )
+        with (
+            patch.object(
+                so,
+                "_delayed_session_init",
+                new=AsyncMock(return_value=None),
+            ),
+            patch.object(
+                so,
+                "_register_component_to_dhara",
+                new=AsyncMock(return_value=None),
+            ),
+            patch.object(
+                so.lifecycle_manager,
+                "drain_pending_markers",
+                new=AsyncMock(return_value=None),
+            ),
+        ):
+            async with so.session_lifecycle(mock_app):
+                pass
+
+        publisher = tasks_events_mod._publisher
+        assert publisher is not None
+        assert publisher._init_ok is True
+        # The contract under test: cycles_total must move past 0 once
+        # init has succeeded so the aggregator's HNSW hardening check
+        # does not flag this feed as broken-before-first-success.
+        assert publisher.cycles_total >= 1, (
+            f"publisher.cycles_total must be bumped past 0 after a "
+            f"successful init; got {publisher.cycles_total}"
+        )
+
     async def test_handles_init_failure_gracefully(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
