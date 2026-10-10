@@ -249,6 +249,50 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
             f"/health will report skills_signer.error={exc!s}",
         )
 
+    # Phase 4 (Bodai task system, plan §5 task 4): install the
+    # BodaiEventsPublisher singleton on tasks_events._publisher BEFORE
+    # the lifespan yields so /health sees ``ingester_running=True``
+    # for the bodai_events feed. Without this, _build_health_snapshot
+    # falls into the aggregator's "EMPTY + INGESTER_NOT_RUNNING"
+    # branch (mcp_common/health/feed.py:213-218) and reports
+    # FAILED → /health=503 → launch_with_healthcheck.sh kills the
+    # process → launchd KeepAlive.Crashed restart loop (Bug
+    # 2026-10-10, 23 MB error log of repeated startup banners).
+    #
+    # Mirror of session_buddy/mcp/server.py:434-436 — that lifespan
+    # wraps the publisher install but is not the one wired into the
+    # running ``mcp`` instance (see ``FastMCP(...,
+    # lifespan=session_lifecycle)`` above). ``publisher.init()``
+    # swallows transport errors so a Redis outage never blocks
+    # startup; the publisher still goes into the slot and /health
+    # surfaces the outage status instead of the silent restart
+    # loop.
+    try:
+        from session_buddy.mcp.events.bodai_events_publisher import (
+            BodaiEventsPublisher,
+        )
+        from session_buddy.mcp.tools import tasks_events as tasks_events_mod
+        from session_buddy.settings import get_settings
+
+        settings = get_settings()
+        publisher = BodaiEventsPublisher(
+            stream=settings.bodai_events.stream,
+            consumer_group=settings.bodai_events.consumer_group,
+            enabled=settings.bodai_events.enabled,
+        )
+        await publisher.init()
+        tasks_events_mod._publisher = publisher
+        logger.info(
+            "bodai_events publisher installed pre-yield stream=%s enabled=%s",
+            settings.bodai_events.stream,
+            settings.bodai_events.enabled,
+        )
+    except Exception as exc:  # noqa: BLE001 - publisher init must not block startup
+        logger.warning(
+            f"Phase 4: bodai_events publisher install failed; "
+            f"/health will report bodai_events error={exc!s}",
+        )
+
     # Drain pending checkpoint markers at startup, in background. Each marker
     # triggers git diff + git commit via asyncio.to_thread; running this on
     # the shutdown path would exceed FastMCP's timeout_graceful_shutdown=2

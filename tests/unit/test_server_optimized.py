@@ -883,6 +883,34 @@ class TestSessionLifecycleContextManager:
 
         monkeypatch.setattr(so, "_register_component_to_dhara", _noop_register)
 
+        # BodaiEventsPublisher is installed pre-yield (Phase 4, Bug
+        # 2026-10-10 health-cold-feed fix). Without an explicit stub the
+        # constructor+init would open a real coredis connection that
+        # leaks its ``_anchor_active`` ContextVar across the asyncio
+        # teardown — the test would still pass its assertions but the
+        # event loop would error on close. Replace the class with a
+        # no-op factory; the slot assignment at
+        # ``tasks_events._publisher = publisher`` is satisfied.
+        from session_buddy.mcp.events.bodai_events_publisher import (
+            BodaiEventsPublisher,
+        )
+
+        def _make_fake_publisher(*_args: object, **_kwargs: object) -> MagicMock:
+            fake = MagicMock(spec=BodaiEventsPublisher)
+            fake.entities_count = 0
+            fake.cycles_total = 0
+            fake.errors_total = 0
+            fake.last_updated_timestamp = None
+            fake.enabled = True
+            fake._init_ok = True
+            fake.init = AsyncMock(return_value=None)  # type: ignore[method-assign]
+            return fake
+
+        monkeypatch.setattr(
+            "session_buddy.mcp.events.bodai_events_publisher.BodaiEventsPublisher",
+            MagicMock(side_effect=_make_fake_publisher),
+        )
+
         # Mock lifecycle manager
         mock_manager = MagicMock()
         mock_manager.initialize_session = AsyncMock(
