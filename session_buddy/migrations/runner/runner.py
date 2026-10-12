@@ -17,7 +17,9 @@ emit structured output.
 
 from __future__ import annotations
 
+import re
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Any
 
@@ -62,6 +64,21 @@ class StepResult:
     error: str | None = None
 
 
+_STEP_ID_RE = re.compile(r"^(\d{3})_")
+
+
+def _step_id_from_stem(stem: str) -> str:
+    """Extract the 3-digit step ID from a forward-script stem.
+
+    Canonical bundle: ``001_consolidate_conversations`` -> ``001``. The
+    regex catches ``000`` and any other 3-digit numeric prefix; for
+    non-numeric stems (synthetic test bundles) the full stem is returned
+    as the step identifier.
+    """
+    match = _STEP_ID_RE.match(stem)
+    return match.group(1) if match else stem
+
+
 def _extract_rows_affected(result: Any) -> int:
     """Return the row-count touched by a DuckDB DML/SELECT statement.
 
@@ -69,8 +86,12 @@ def _extract_rows_affected(result: Any) -> int:
     results; a single-row ``[(N,)]`` payload is the conventional retrieval
     path. For SELECTs the runner walks ``fetchall`` and counts rows.
 
-    Returns 0 when the result is empty or otherwise unreachable.
+    Returns 0 when the result is empty, ``None`` (DuckDB returns
+    ``None`` for comment-only statements that hit no DDL/DML path),
+    or otherwise unreachable.
     """
+    if result is None:
+        return 0
     if result.description is None:
         return 0
     if len(result.description) == 1 and result.description[0][0] == "Count":
@@ -80,14 +101,34 @@ def _extract_rows_affected(result: Any) -> int:
     return len(rows)
 
 
+def _strip_sql_comments(sql: str) -> str:
+    """Remove ``-- ...`` line comments before semicolon-splitting.
+
+    The canonical bundle's script headers embed semicolons inside multi-line
+    ``-- comment`` prose (e.g. ``-- Marker handling: the
+    ``__uuid7_migration_done`` marker table is the ...``). A naive
+    ``script_sql.split(';')`` would split on those embedded semicolons,
+    producing fragments like ``-- Marker handling: the
+    ``__uuid7_migration_done`` marker table is the`` that are not valid
+    SQL on their own. Stripping comments first preserves the original
+    statement boundaries.
+    """
+    lines = []
+    for line in sql.splitlines():
+        # Strip trailing ``-- ...`` only when it appears outside a string
+        # literal. The canonical bundle does not embed ``--`` inside a
+        # string literal, so a flat ``split('--', 1)`` is safe.
+        stripped = line.split("--", 1)[0]
+        lines.append(stripped)
+    return "\n".join(lines)
+
+
 def _execute_script(conn: duckdb.DuckDBPyConnection, script_sql: str) -> int:
     """Execute a single SQL script, summing rows touched across statements.
 
-    The script is split on top-level semicolons (``;``) that do not sit
-    inside a string literal or a line comment. The migration bundle in
-    :mod:`session_buddy.migrations.2026_10_11_uuid7_consolidation` does
-    not embed semicolons in literal strings, so a flat split covers every
-    shipped step. Each statement is executed independently so a failure
+    The script has its ``--`` line comments stripped (so semicolons in
+    comment prose do not fragment the SQL), then is split on remaining
+    semicolons. Each statement is executed independently so a failure
     on statement N is attributed to that statement; the row-count is the
     sum of ``Count`` pseudo-column reads across DML statements and the
     row count of any final SELECT.
@@ -95,7 +136,8 @@ def _execute_script(conn: duckdb.DuckDBPyConnection, script_sql: str) -> int:
     Returns:
         Total rows touched by the script.
     """
-    statements = [s.strip() for s in script_sql.split(";") if s.strip()]
+    stripped_sql = _strip_sql_comments(script_sql)
+    statements = [s.strip() for s in stripped_sql.split(";") if s.strip()]
     total = 0
     for stmt in statements:
         result = conn.execute(stmt)
@@ -121,12 +163,23 @@ class MigrationRunner:
     # Connection lifecycle.
     # ------------------------------------------------------------------
     def _open(self) -> duckdb.DuckDBPyConnection:
-        """Open a read-write connection and register the UDF on it.
+        """Open a read-write connection and register the UDFs on it.
 
-        The ``ulid_to_uuid7`` UDF is registered per-connection because
-        DuckDB UDFs are not persisted across sessions. The function is
-        pure so ``side_effects=False`` is correct and lets DuckDB cache
-        repeated calls with the same input.
+        Two UDFs are registered per-connection (DuckDB UDFs are not
+        persisted across sessions):
+
+        * ``ulid_to_uuid7(ulid_text)`` — deterministic converter used by 007
+          to translate legacy ULIDs into canonical UUID7 hex. Pure
+          (``side_effects=False``).
+        * ``uuid7()`` — non-deterministic helper used by 003 to absorb
+          ``default_reflections`` rows that need a fresh UUID7 (their
+          legacy ids are non-PK-shaped). Returns a 32-char lowercase hex
+          UUID7 from ``uuid.uuid7().hex``.
+
+        The ``uuid7()`` UDF does NOT have ``side_effects=False`` because
+        it relies on the system clock + OS RNG. DuckDB will not cache
+        repeated calls with the same args (which is what we want — every
+        absorbed row needs a distinct id).
         """
         conn = duckdb.connect(str(self._ctx.db_path))
         try:
@@ -141,10 +194,26 @@ class MigrationRunner:
         except duckdb.Error as exc:
             # Restricted context (e.g. read-only DB, sandboxed connection):
             # log and continue. The forward scripts that depend on the UDF
-            # (003_id_swap_load_bearing, 004_id_swap_dormant_active) will
-            # fail loudly at execution time if they actually need it; the
-            # ``status`` / ``reset-stuck`` / non-UDF rollback paths do not.
+            # (003, 007) will fail loudly at execution time if they
+            # actually need it; the ``status`` / ``reset-stuck`` /
+            # non-UDF rollback paths do not.
             logger.warning("could not register ulid_to_uuid7 UDF: %s", exc)
+        try:
+            # Zero-arg UUID7 generator for ``default_reflections`` absorb
+            # (default_reflections rows get fresh UUID7s, not derived
+            # from their legacy ids). ``side_effects=True`` is REQUIRED:
+            # the default is False, which lets DuckDB cache the function
+            # result and reuse it for every row of a vectorized SELECT,
+            # causing every absorbed row to share the same UUID7 PK and
+            # fail the PK uniqueness constraint.
+            conn.create_function(
+                "uuid7",
+                lambda: uuid.uuid7().hex,
+                return_type=duckdb.sqltypes.VARCHAR,
+                side_effects=True,
+            )
+        except duckdb.Error as exc:
+            logger.warning("could not register uuid7 UDF: %s", exc)
         self._marker = MarkerStore(conn)
         self._marker.ensure_schema()
         return conn
@@ -270,6 +339,12 @@ class MigrationRunner:
                         rows_affected=rows_affected,
                         duration_ms=duration_ms,
                     )
+                )
+                step_id = _step_id_from_stem(step_name)
+                logger.info(
+                    "migration.%s.rows_affected: %d",
+                    step_id,
+                    rows_affected,
                 )
                 logger.info(
                     "step %r done (%d rows, %d ms)",

@@ -72,6 +72,11 @@ def test_reflection_database() -> dict[str, Any]:
         conn = duckdb.connect(str(db_path))
 
         # Test core tables
+        # Note: ``access_log_v2`` is intentionally absent from this list.
+        # PR-D's 006_drop_vestigial.sql drops it; Phase 0 / PR-C. The
+        # canonical event log is ``memory_access_log`` (FK ->
+        # conversations(id); the 3 pre-existing rows survive 007's
+        # rebuild and get UUID7 PKs).
         tables = [
             "conversations",
             "reflections",
@@ -79,7 +84,7 @@ def test_reflection_database() -> dict[str, Any]:
             "project_groups",
             "project_dependencies",
             "session_links",
-            "access_log_v2",
+            "memory_access_log",
             "code_graphs",
         ]
 
