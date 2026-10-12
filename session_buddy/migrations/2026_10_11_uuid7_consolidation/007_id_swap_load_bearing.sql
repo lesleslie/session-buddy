@@ -1,3 +1,55 @@
+-- =============================================================================
+-- S2-prep site map: 5 `uuid7()` -> `ulid_to_uuid7()` swap sites applied by
+-- PR-D (commit a76444da). PR-D replaced the random `uuid7()` UDF with the
+-- deterministic `ulid_to_uuid7(legacy_id)` mapping so that re-running this
+-- script on the same legacy database produces the same UUID7 ids. This
+-- preserves the legacy_id -> uuid7_id mapping across re-runs, which solves
+-- the S2 stale-identity-mapping problem (a re-run would otherwise mint a
+-- fresh random UUID7 for each row, leaving every existing FK and external
+-- reference pointing at the previous run's id).
+--
+-- Site 1 — conv_id_map (lines 263-264):
+--   Source column: `conversations.id` (the legacy pre-007 PK).
+--   Statement: SELECT id AS legacy_id,
+--                    ulid_to_uuid7(conversations.id) AS uuid7_id
+--             FROM conversations;
+--   Loaded into the connection-scoped TEMP TABLE `conv_id_map` and JOINed by
+--   the conversations rebuild (Table 1) so the new `id` is the same UUID7
+--   the memory_access_log rebuild (Table 5) will look up.
+--
+-- Site 2 — reflections rebuild (lines 418-419):
+--   Source column: `reflections.id` (the legacy pre-007 PK).
+--   Statement: SELECT ..., ulid_to_uuid7(reflections.id) AS id, ... FROM reflections;
+--   Direct in-line transformation in the reflections_new INSERT SELECT.
+--
+-- Site 3 — code_graphs rebuild (lines 475-476):
+--   Source column: `code_graphs.id` (the legacy pre-007 PK).
+--   Statement: SELECT ulid_to_uuid7(code_graphs.id) AS id, repo_path, ... FROM code_graphs;
+--   Direct in-line transformation in the code_graphs_new INSERT SELECT.
+--
+-- Site 4 — session_windows rebuild (lines 510-511):
+--   Source column: `session_windows.id` (the legacy pre-007 PK).
+--   Statement: SELECT ulid_to_uuid7(session_windows.id) AS id,
+--                     working_directory, project, ... FROM session_windows;
+--   Direct in-line transformation in the session_windows_new INSERT SELECT.
+--
+-- Site 5 — memory_access_log rebuild (lines 559-560):
+--   Source column: `memory_access_log_backup.id` (the legacy pre-007 PK).
+--   Statement: SELECT ulid_to_uuid7(mal.id) AS id,
+--                     (SELECT m.uuid7_id FROM conv_id_map m
+--                      WHERE m.legacy_id = mal.memory_id) AS memory_id,
+--                     ... FROM memory_access_log_backup mal;
+--   Note: `memory_id` is translated separately via the Site 1 conv_id_map
+--   subquery; the FK memory_access_log.memory_id -> conversations(id) is
+--   satisfied only for rows whose legacy memory_id resolved in conv_id_map.
+--
+-- Rationale: deterministic UUID7 mapping preserves legacy_id across re-runs
+-- (solves S2 stale-identity-mapping). A fresh `uuid7()` per run would mint
+-- new random ids every time, orphaning every existing FK and breaking any
+-- downstream reference. `ulid_to_uuid7(legacy_id)` is a pure function of
+-- the legacy id, so repeat invocations are idempotent at the row level.
+-- =============================================================================
+
 -- =====================================================================
 -- Migration 007: ID swap for load-bearing tables (DuckDB-native)
 -- Plan: ~/Projects/mahavishnu/docs/plans/2026-10-11-uuid7-only-migration.md

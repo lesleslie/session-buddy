@@ -1,3 +1,18 @@
+-- =============================================================================
+-- S1 from section 11: This file declares zero FOREIGN KEY constraints.
+-- The original PRAGMA foreign_keys=OFF/ON sandwich was removed because no FK
+-- relationship is involved. Adding it back would be defense-in-depth without
+-- active risk.
+--
+-- Verification (canonical): `grep -nc "FOREIGN KEY" 008_id_swap_dormant_active.sql`
+-- returns 0 across the 28 CTAS blocks below. The schema definitions are pure
+-- column lists with no referential integrity declarations; references between
+-- tables (e.g. cross_repo_work_v2.conversation_id, memory_provenance.memory_id)
+-- are application-layer FKs documented in the per-table comment headers and
+-- are not enforced by DuckDB at the SQL level. Therefore a PRAGMA sandwich
+-- would be a no-op ceremony with no observable effect on the migration.
+-- =============================================================================
+
 -- UUID7 Consolidation Migration - Script 008: ID-Swap Dormant and Active Tables
 -- Migration: 008_id_swap_dormant_active
 -- Plan: docs/plans/2026-10-11-uuid7-only-migration.md (Phase 0, script 8 of 10)
