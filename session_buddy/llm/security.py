@@ -39,9 +39,7 @@ def get_masked_api_key(provider: str = "openai") -> str:
     # pattern (Phase 3b dedupe: 4 sites collapsed to direct reads).
     configured = getattr(settings.llm.api_keys, provider, None)
     if isinstance(configured, str) and configured.strip():
-        return settings.get_masked_key(
-            key_name=f"api_keys.{provider}", visible_chars=4
-        )
+        return settings.get_masked_key(key_name=f"api_keys.{provider}", visible_chars=4)
 
     api_key = None
 

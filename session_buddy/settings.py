@@ -21,7 +21,7 @@ from pathlib import Path
 
 from oneiric.core.config import OneiricMCPConfig
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
+from pydantic_settings import SettingsConfigDict
 
 # ============================================================================
 # Oneiric-shaped schema (SessionBuddySettings) — nested *Config groups
@@ -57,9 +57,7 @@ class LLMApiKeysConfig(_BaseConfig):
     """
 
     openai: str | None = Field(default=None, description="OpenAI API key")
-    anthropic: str | None = Field(
-        default=None, description="Anthropic API key"
-    )
+    anthropic: str | None = Field(default=None, description="Anthropic API key")
     gemini: str | None = Field(default=None, description="Google Gemini API key")
     qwen: str | None = Field(default=None, description="Qwen API key")
     minimax: str | None = Field(
@@ -208,9 +206,7 @@ class PathsConfig(_BaseConfig):
         description="Log file path",
     )
 
-    @field_validator(
-        "data_dir", "log_dir", "global_workspace_path", "log_file_path"
-    )
+    @field_validator("data_dir", "log_dir", "global_workspace_path", "log_file_path")
     @classmethod
     def _expand_user_paths(cls, v: Path | str) -> Path:
         """Expand ``~`` to home directory."""
@@ -835,7 +831,6 @@ class BodaiEventsConfig(_BaseConfig):
     )
 
 
-
 class SessionBuddySettings(OneiricMCPConfig):
     """Oneiric-shaped session-buddy settings.
 
@@ -849,7 +844,7 @@ class SessionBuddySettings(OneiricMCPConfig):
     Oneiric's nested-key syntax for env overrides.
     """
 
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         env_prefix="SESSION_BUDDY_",
         env_nested_delimiter="__",
         extra="allow",
@@ -1098,9 +1093,7 @@ class SessionBuddySettings(OneiricMCPConfig):
 _settings: SessionBuddySettings | None = None
 
 
-def _filter_model_dump(
-    data: dict[str, t.Any], model_cls: t.Any
-) -> dict[str, t.Any]:
+def _filter_model_dump(data: dict[str, t.Any], model_cls: t.Any) -> dict[str, t.Any]:
     """Recursively filter a model_dump() dict to fields each declared
     BaseModel knows about. Drops unknown keys at every level so
     nested-dict collisions between Oneiric's framework groups and
@@ -1159,7 +1152,7 @@ def _apply_session_buddy_env_overrides(dump: dict[str, t.Any]) -> None:
     for env_name, raw_value in os.environ.items():
         if not env_name.startswith(prefix):
             continue
-        parts = [p.lower() for p in env_name[len(prefix):].split(delim)]
+        parts = [p.lower() for p in env_name[len(prefix) :].split(delim)]
         if not parts:
             continue
         # Walk the dump dict, creating intermediate dicts as needed.
@@ -1274,30 +1267,30 @@ def get_llm_api_key(provider: str) -> str | None:
 
 
 __all__ = [
-    "SessionBuddySettings",
-    "ServerIdentityConfig",
-    "MCPTransportConfig",
-    "PathsConfig",
-    "DatabaseConfig",
-    "MultiProjectConfig",
-    "SearchConfig",
-    "TokensConfig",
-    "SessionConfig",
+    "AkoshaSyncConfig",
+    "BodaiEventsConfig",
     "ConversationStorageConfig",
-    "ReflectionAutoStoreConfig",
-    "IntegrationsConfig",
-    "GitMaintenanceConfig",
-    "PrometheusConfig",
+    "DatabaseConfig",
     "DevelopmentConfig",
-    "LoggingConfig",
-    "SecurityConfig",
-    "LLMConfig",
-    "LLMApiKeysConfig",
     "EntityExtractionConfig",
     "FeatureFlagsConfig",
     "FilesystemExtractionConfig",
-    "AkoshaSyncConfig",
-    "BodaiEventsConfig",
+    "GitMaintenanceConfig",
+    "IntegrationsConfig",
+    "LLMApiKeysConfig",
+    "LLMConfig",
+    "LoggingConfig",
+    "MCPTransportConfig",
+    "MultiProjectConfig",
+    "PathsConfig",
+    "PrometheusConfig",
+    "ReflectionAutoStoreConfig",
+    "SearchConfig",
+    "SecurityConfig",
+    "ServerIdentityConfig",
+    "SessionBuddySettings",
+    "SessionConfig",
+    "TokensConfig",
     "get_database_path",
     "get_llm_api_key",
     "get_log_file_path",

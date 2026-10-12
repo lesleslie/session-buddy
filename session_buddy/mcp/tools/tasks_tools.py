@@ -320,6 +320,7 @@ async def _read_reflection(reflection_id: str) -> dict[str, Any] | None:
     from session_buddy.reflection_tools import get_reflection_database
 
     db = await get_reflection_database()
+    assert db is not None  # get_reflection_database() never returns None
     return await db.get_reflection_by_id(reflection_id)
 
 
@@ -462,6 +463,7 @@ async def _query_legacy_reflections(
     from session_buddy.reflection_tools import get_reflection_database
 
     db = await get_reflection_database()
+    assert db is not None  # get_reflection_database() never returns None
     rows = await db.search_reflections(query="", limit=1000, use_embeddings=False)
     out: list[tuple[str, dict[str, Any]]] = []
     for row in rows:
@@ -696,6 +698,7 @@ async def _update_reflection(
     from session_buddy.reflection_tools import get_reflection_database
 
     db = await get_reflection_database()
+    assert db is not None  # get_reflection_database() never returns None
     updated = await db.update_reflection(
         reflection_id,
         content=content,

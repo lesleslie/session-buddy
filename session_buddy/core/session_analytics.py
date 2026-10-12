@@ -183,9 +183,9 @@ class SessionAnalytics:
 
         if db_path is None:
             # Lazy import to avoid circular dependency with session_buddy.settings
-            from session_buddy.settings import get_settings
+            from session_buddy.settings import get_database_path
 
-            settings_db_path = get_settings().database_path
+            settings_db_path = get_database_path()
             db_path = str(settings_db_path.parent / "workflow_metrics.db")
         self.db_path = os.path.expanduser(db_path)
         self.logger = logger or logging.getLogger(__name__)

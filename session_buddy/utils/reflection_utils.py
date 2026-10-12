@@ -77,7 +77,7 @@ def should_auto_store_checkpoint(
     config = get_settings()
 
     # Check if auto-store is globally enabled
-    if not config.enable_auto_store_reflections:
+    if not config.reflection_auto_store.enable_auto_store_reflections:
         return AutoStoreDecision(
             should_store=False,
             reason=CheckpointReason.ROUTINE_SKIP,
@@ -85,7 +85,7 @@ def should_auto_store_checkpoint(
         )
 
     # Always store manual checkpoints
-    if is_manual and config.auto_store_manual_checkpoints:
+    if is_manual and config.reflection_auto_store.auto_store_manual_checkpoints:
         return AutoStoreDecision(
             should_store=True,
             reason=CheckpointReason.MANUAL_CHECKPOINT,
@@ -96,7 +96,7 @@ def should_auto_store_checkpoint(
         )
 
     # Always store session end
-    if session_phase == "end" and config.auto_store_session_end:
+    if session_phase == "end" and config.reflection_auto_store.auto_store_session_end:
         return AutoStoreDecision(
             should_store=True,
             reason=CheckpointReason.SESSION_END,
@@ -107,7 +107,10 @@ def should_auto_store_checkpoint(
         )
 
     # Store exceptional quality sessions
-    if quality_score >= config.reflection_auto_store.auto_store_exceptional_quality_threshold:
+    if (
+        quality_score
+        >= config.reflection_auto_store.auto_store_exceptional_quality_threshold
+    ):
         return AutoStoreDecision(
             should_store=True,
             reason=CheckpointReason.EXCEPTIONAL_QUALITY,

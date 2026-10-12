@@ -298,9 +298,7 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
             publisher.last_updated_timestamp = __import__("time").time()
         tasks_events_mod._publisher = publisher
         logger.info(
-            "bodai_events publisher installed pre-yield stream=%s enabled=%s",
-            settings.bodai_events.stream,
-            settings.bodai_events.enabled,
+            f"bodai_events publisher installed pre-yield stream={settings.bodai_events.stream} enabled={settings.bodai_events.enabled}",
         )
     except Exception as exc:  # noqa: BLE001 - publisher init must not block startup
         logger.warning(

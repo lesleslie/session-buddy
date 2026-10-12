@@ -44,7 +44,7 @@ import os
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -149,7 +149,7 @@ def install_cache_lock(
     *,
     timeout_seconds: float = 30.0,
     poll_seconds: float = 0.1,
-) -> Iterator[None]:
+) -> Generator[None]:
     """Acquire an exclusive ``fcntl``-based lock on the cache file.
 
     The lock is implemented via ``flock`` on an adjacent ``.lock`` file

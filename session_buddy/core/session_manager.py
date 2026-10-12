@@ -651,8 +651,9 @@ class SessionLifecycleManager:
                 return
 
             # Check if we should only run when git is clean
-            if settings.git_maintenance.git_gc_only_when_clean and await asyncio.to_thread(
-                is_git_operation_in_progress, directory
+            if (
+                settings.git_maintenance.git_gc_only_when_clean
+                and await asyncio.to_thread(is_git_operation_in_progress, directory)
             ):
                 output.append("\n🔄 Git operation in progress - skipping gc")
                 self.logger.info(

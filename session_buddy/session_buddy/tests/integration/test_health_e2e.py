@@ -22,20 +22,20 @@ from __future__ import annotations
 
 import json
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 import pytest
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Generator
 
     from mcp_common.health.feed import HealthFeedState
 
 
-def _json_body(response: object) -> dict[str, object]:
+def _json_body(response: Any) -> dict[str, object]:
     """Decode a Starlette ``JSONResponse.body`` into a dict."""
-    raw = response.body  # type: ignore[attr-defined]
+    raw = response.body
     if isinstance(raw, (bytes, bytearray, memoryview)):
         return json.loads(bytes(raw))
     if isinstance(raw, str):
@@ -51,7 +51,7 @@ def _install_signer_snapshot(
     cycles_total: int,
     errors_total: int,
     ingester_running: bool = True,
-) -> MagicMock:
+) -> Any:
     """Install a synthetic SignerFeedState on the module singleton.
 
     Bypasses :func:`init_signer_feed_state` (which writes to disk)
@@ -86,7 +86,7 @@ def _install_publisher_snapshot(
     enabled: bool = True,
     init_ok: bool = True,
     entities_count: int = 1,
-) -> MagicMock:
+) -> Any:
     """Install a synthetic BodaiEventsPublisher-shaped mock on tasks_events._publisher.
 
     The mock is built with ``spec=BodaiEventsPublisher`` so attribute
@@ -127,7 +127,7 @@ def _clear_publisher() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _reset_singletons() -> None:
+def _reset_singletons() -> Generator[None, None, None]:
     """Each test starts with both feed slots empty so the snapshot is deterministic."""
     _clear_signer()
     _clear_publisher()
@@ -137,7 +137,7 @@ def _reset_singletons() -> None:
 
 
 @pytest.fixture()
-def halflife() -> int:
+def halflife() -> Generator[int, None, None]:
     """Pin the halflife to 60s for the test suite.
 
     The Phase 1.3 default is 60s; the env-var override

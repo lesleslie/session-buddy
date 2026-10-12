@@ -387,7 +387,6 @@ class GCSStorageOneiric:
             self._adapters[gcs_bucket] = GCSStorageAdapter(
                 settings=GCSStorageSettings(
                     bucket=gcs_bucket,
-                    endpoint_url=self.settings.gcs_endpoint_url,
                     project=self.settings.gcs_project,
                     credentials_file=Path(credentials_file)
                     if credentials_file

@@ -214,6 +214,7 @@ async def check_auto_capture_recent(db_path: Path | None = None) -> ComponentHea
         )
 
     try:
+        resolved_db_path: Path | None = db_path
         if db_path is None:
             from session_buddy.settings import get_settings
 
@@ -222,14 +223,17 @@ async def check_auto_capture_recent(db_path: Path | None = None) -> ComponentHea
             # fallback (the getattr returned None on every invocation
             # before the refactor). Drop it; ``settings.database.path``
             # is the single source of truth.
-            db_path = Path(settings.database.path) or ":memory:"
-        if str(db_path) == ":memory:":
+            db_path_str = str(settings.database.path)
+            if db_path_str and db_path_str != ":memory:":
+                resolved_db_path = Path(db_path_str)
+        if resolved_db_path is None or str(resolved_db_path) == ":memory:":
             # In-memory means no real production data to inspect.
             return ComponentHealth(
                 name=name,
                 status=HealthStatus.DEGRADED,
                 message="Reflection DB is :memory:; cannot inspect auto-capture data",
             )
+        db_path = resolved_db_path
         adapter_settings = ReflectionAdapterSettings.from_settings()
         db = ReflectionDatabaseAdapterOneiric(
             collection_name="default",

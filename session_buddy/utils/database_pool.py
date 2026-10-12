@@ -9,7 +9,7 @@ import asyncio
 import atexit
 import threading
 import typing as t
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -124,7 +124,7 @@ class DatabaseConnectionPool:
                         _get_logger().warning(f"Error closing excess connection: {e}")
 
     @asynccontextmanager
-    async def get_async_connection(self) -> AsyncIterator[Any]:
+    async def get_async_connection(self) -> AsyncGenerator[Any]:
         """Async context manager for getting database connections."""
         conn = None
         try:

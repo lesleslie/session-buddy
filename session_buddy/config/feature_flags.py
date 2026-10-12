@@ -84,7 +84,7 @@ def get_feature_flags() -> FeatureFlags:
         (``obj.enable_anthropic`` — the last name only) so tests
         that pass a SimpleNamespace with the old flat shape still
         work.
-    """
+        """
         cur = obj
         for name in names:
             cur = getattr(cur, name, default)
@@ -97,12 +97,8 @@ def get_feature_flags() -> FeatureFlags:
         enable_llm_entity_extraction=_read_attr(
             settings, "entity_extraction", "enable"
         ),
-        enable_anthropic=_read_attr(
-            settings, "feature_flags", "enable_anthropic"
-        ),
-        enable_ollama=_read_attr(
-            settings, "feature_flags", "enable_ollama"
-        ),
+        enable_anthropic=_read_attr(settings, "feature_flags", "enable_anthropic"),
+        enable_ollama=_read_attr(settings, "feature_flags", "enable_ollama"),
         enable_conscious_agent=_read_attr(
             settings, "feature_flags", "enable_conscious_agent"
         ),

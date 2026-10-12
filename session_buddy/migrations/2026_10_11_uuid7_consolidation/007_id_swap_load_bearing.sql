@@ -207,8 +207,9 @@ CREATE TEMP TABLE IF NOT EXISTS conv_id_map (
     uuid7_id  TEXT NOT NULL
 );
 
+-- PR-D: deterministic UUID7, preserves legacy_id mapping across re-runs
 INSERT INTO conv_id_map (legacy_id, uuid7_id)
-SELECT id AS legacy_id, uuid7() AS uuid7_id FROM conversations;
+SELECT id AS legacy_id, ulid_to_uuid7(conversations.id) AS uuid7_id FROM conversations;
 
 -- ============================================================================
 -- Table 1: conversations
@@ -362,7 +363,8 @@ INSERT INTO reflections_new (
     insight_type
 )
 SELECT
-    uuid7()              AS id,
+    -- PR-D: deterministic UUID7, preserves legacy_id mapping across re-runs
+    ulid_to_uuid7(reflections.id) AS id,
     content,
     embedding,
     category,
@@ -418,7 +420,8 @@ CREATE TABLE code_graphs_new (
 );
 
 INSERT INTO code_graphs_new (id, repo_path, commit_hash, indexed_at, nodes_count, graph_data)
-SELECT uuid7() AS id, repo_path, commit_hash, indexed_at, nodes_count, graph_data
+-- PR-D: deterministic UUID7, preserves legacy_id mapping across re-runs
+SELECT ulid_to_uuid7(code_graphs.id) AS id, repo_path, commit_hash, indexed_at, nodes_count, graph_data
 FROM code_graphs;
 
 DROP TABLE code_graphs;
@@ -452,7 +455,8 @@ CREATE TABLE session_windows_new (
 );
 
 INSERT INTO session_windows_new (id, working_directory, project, started_at, ended_at, session_metadata)
-SELECT uuid7() AS id, working_directory, project, started_at, ended_at,
+-- PR-D: deterministic UUID7, preserves legacy_id mapping across re-runs
+SELECT ulid_to_uuid7(session_windows.id) AS id, working_directory, project, started_at, ended_at,
        COALESCE(session_metadata, '{}')
 FROM session_windows;
 
@@ -500,7 +504,8 @@ CREATE TABLE memory_access_log_new (
 
 INSERT INTO memory_access_log_new (id, memory_id, access_type, query_text, timestamp)
 SELECT
-    uuid7()                                              AS id,
+    -- PR-D: deterministic UUID7, preserves legacy_id mapping across re-runs
+    ulid_to_uuid7(mal.id)                                            AS id,
     (SELECT m.uuid7_id FROM conv_id_map m
         WHERE m.legacy_id = mal.memory_id)               AS memory_id,
     mal.access_type,

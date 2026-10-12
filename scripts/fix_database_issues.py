@@ -86,7 +86,9 @@ def fix_database_schema() -> bool:
         # startup script doesn't bring it back. If a downstream consumer
         # still expects access_log_v2, that consumer needs to migrate to
         # memory_access_log too.
-        print("⏭️  access_log_v2 intentionally not recreated (vestigial; dropped by 006)")
+        print(
+            "⏭️  access_log_v2 intentionally not recreated (vestigial; dropped by 006)"
+        )
 
         if "code_graphs" not in existing_tables:
             print("🔨 Creating code_graphs table...")

@@ -354,6 +354,8 @@ class SessionBuddyCLI(OneiricCLIBase):
           from :mod:`session_buddy.cli.checkpoint_cli`.
         - ``analytics {sessions,duration,components,errors,active,report,sql}``
           from :mod:`session_buddy.analytics.cli`.
+        - ``migrate {run,status,rollback,reset-stuck}``
+          from :mod:`session_buddy.cli.migrate_cli`.
         """
         from session_buddy.cli.checkpoint_cli import register_checkpoint_command
 
@@ -362,6 +364,10 @@ class SessionBuddyCLI(OneiricCLIBase):
         from session_buddy.analytics.cli import app as analytics_app
 
         self.add_typer(analytics_app, name="analytics")
+
+        from session_buddy.cli.migrate_cli import register_migrate_command
+
+        register_migrate_command(self)
 
     # ------------------------------------------------------------------
     # Backward compatibility shim.
@@ -378,8 +384,8 @@ class SessionBuddyCLI(OneiricCLIBase):
 
 
 __all__ = [
-    "SessionBuddyCLI",
     "CLILaunchSettings",
+    "SessionBuddyCLI",
     "_doctor_checks_dict",
     "_port_holder",
     "_read_running_pid",
