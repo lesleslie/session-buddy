@@ -526,8 +526,12 @@ def _build_health_snapshot() -> dict[str, object]:
             "ok": verdict["healthy"],
             "status": verdict["status"].value,
             "reason_codes": [c.value for c in verdict["reason_codes"]],
-            "feed_entities_count": signer_state_snapshot.entities_count,
-            "feed_last_updated_timestamp": signer_state_snapshot.last_updated_timestamp,
+            # Plan 2 Phase E2 §6.5 — 4 canonical fields per feed on
+            # the wire (mcp-backend-wiring-discipline.md §3). Renamed
+            # from the legacy ``feed_*`` prefix to match the canonical
+            # contract; pre-1.0 replace, not extend.
+            "entities_count": signer_state_snapshot.entities_count,
+            "last_updated_timestamp": signer_state_snapshot.last_updated_timestamp,
             "cycles_total": signer_state_snapshot.cycles_total,
             "errors_total": signer_state_snapshot.errors_total,
         },
@@ -535,8 +539,8 @@ def _build_health_snapshot() -> dict[str, object]:
             "ok": publisher_verdict["healthy"],
             "status": publisher_verdict["status"].value,
             "reason_codes": [c.value for c in publisher_verdict["reason_codes"]],
-            "feed_entities_count": publisher_state_snapshot.entities_count,
-            "feed_last_updated_timestamp": publisher_state_snapshot.last_updated_timestamp,
+            "entities_count": publisher_state_snapshot.entities_count,
+            "last_updated_timestamp": publisher_state_snapshot.last_updated_timestamp,
             "cycles_total": publisher_state_snapshot.cycles_total,
             "errors_total": publisher_state_snapshot.errors_total,
         },
