@@ -296,7 +296,7 @@ CREATE TABLE conversations_new (
     searchable_content  TEXT,
     reasoning           TEXT,
     metadata            VARCHAR,
-    source_type         TEXT,
+    source_type         TEXT CHECK (source_type IN ('conversation', 'reflection', 'code_graph', 'session_window', 'memory_access', 'imported')),
     turn_parent_id      TEXT,
     causal_parent_id    TEXT
 );
@@ -493,7 +493,7 @@ CREATE INDEX IF NOT EXISTS idx_code_graphs_indexed_at
 -- INSERT SELECT is a no-op cast.
 -- Columns: id TEXT PK (UUID7); working_directory TEXT NOT NULL;
 --   project TEXT; started_at TIMESTAMP NOT NULL DEFAULT
---   CURRENT_TIMESTAMP; ended_at TIMESTAMP; session_metadata TEXT NOT
+--   CURRENT_TIMESTAMP; ended_at TIMESTAMP; session_metadata JSON NOT
 --   NULL DEFAULT '{}'.
 -- ============================================================================
 
@@ -503,7 +503,7 @@ CREATE TABLE session_windows_new (
     project            TEXT,
     started_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ended_at           TIMESTAMP,
-    session_metadata   TEXT NOT NULL DEFAULT '{}'
+    session_metadata   JSON NOT NULL DEFAULT '{}'
 );
 
 INSERT INTO session_windows_new (id, working_directory, project, started_at, ended_at, session_metadata)

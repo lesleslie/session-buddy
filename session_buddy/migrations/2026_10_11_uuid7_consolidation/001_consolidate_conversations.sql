@@ -225,7 +225,6 @@ CREATE TABLE IF NOT EXISTS default_conversations (
     content TEXT,
     embedding FLOAT[384],
     subcategory TEXT,
-    fingerprint TEXT,
     metadata VARCHAR,
     created_at TIMESTAMP
 );
@@ -242,8 +241,12 @@ SELECT
     legacy.content,
     legacy.embedding,
     CASE
-        WHEN legacy.content LIKE '%prefer%' THEN 'preferences'
-        WHEN legacy.content LIKE '%error%' OR legacy.content LIKE '%bug%' THEN 'context'
+        -- LOWER() makes the keyword match case-insensitive so 'Prefer', 'PREFER',
+        -- 'prefer', and 'PreFer' all bucket into the same category. Without
+        -- LOWER, mixed-case content silently lands in 'facts' and the downstream
+        -- category-stats dashboards undercount 'preferences' / 'context'.
+        WHEN LOWER(legacy.content) LIKE '%prefer%' THEN 'preferences'
+        WHEN LOWER(legacy.content) LIKE '%error%' OR LOWER(legacy.content) LIKE '%bug%' THEN 'context'
         ELSE 'facts'
     END                                                    AS category,
     NULL                                                   AS subcategory,
