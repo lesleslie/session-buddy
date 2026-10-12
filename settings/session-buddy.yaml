@@ -71,7 +71,9 @@ search:
   search_index_update_interval: 3600
   max_search_results: 100
   enable_semantic_search: true
-  embedding_model: "all-MiniLM-L6-v2"
+  # embedding_model: substrate-resolved via OneiricSettings.substrate.embedding__model
+  # (Phase E2 Plan 2 Task 2 — atomic per-file rule). Default value
+  # is "nomic-embed-text". Override with ONEIRIC__SUBSTRATE__EMBEDDING__MODEL.
   embedding_cache_size: 1000
   enable_faceted_search: true
   max_facet_values: 50

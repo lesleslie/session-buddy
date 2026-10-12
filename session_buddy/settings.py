@@ -19,9 +19,43 @@ import os
 import typing as t
 from pathlib import Path
 
-from oneiric.core.config import OneiricMCPConfig
+from oneiric.core.config import OneiricMCPConfig, OneiricSettings
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
+
+if t.TYPE_CHECKING:
+    from oneiric.core.substrate_settings import SubstrateSettings
+
+
+# ============================================================================
+# Phase E2 (Plan 2) substrate resolver — shared ``OneiricSettings.substrate``
+# bound into ``SearchConfig.embedding_model`` and the new top-level
+# ``SessionBuddySettings.auth_enabled`` / ``auth_loopback_trusted`` fields.
+#
+# Atomic-per-file rule: any key the substrate owns MUST be deleted from the
+# local declaration AND its default replaced with a ``default_factory``
+# reading from ``OneiricSettings.substrate.<double-underscore-field>`` in the
+# same commit. The cache is reset by ``reload_settings()`` so a mid-process
+# env-var change (e.g. ``monkeypatch.setenv`` in tests) takes effect on the
+# next ``SessionBuddySettings.load()``.
+# ============================================================================
+_substrate_cache: SubstrateSettings | None = None
+
+
+def _get_substrate() -> SubstrateSettings:
+    """Return the cached ``OneiricSettings.substrate`` instance.
+
+    Constructing ``OneiricSettings`` runs the full layered loader
+    (env + YAML + manifest sources) which is not free, so we cache
+    per process. ``reload_settings()`` (and the substrate test
+    fixture) clears the cache to force a fresh resolution against
+    any env changes that landed after the first load.
+    """
+    global _substrate_cache
+    if _substrate_cache is None:
+        _substrate_cache = OneiricSettings().substrate
+    return _substrate_cache
+
 
 # ============================================================================
 # Oneiric-shaped schema (SessionBuddySettings) — nested *Config groups
@@ -264,7 +298,18 @@ class MultiProjectConfig(_BaseConfig):
 
 
 class SearchConfig(_BaseConfig):
-    """Database search and embedding settings."""
+    """Database search and embedding settings.
+
+    ``embedding_model`` defaults from ``OneiricSettings.substrate.
+    embedding__model`` (Phase E2 atomic per-file migration). The legacy
+    hardcoded default ``"all-MiniLM-L6-v2"`` was deleted from this
+    declaration in the same commit that introduced the
+    ``default_factory`` resolver, per spec §5.3 + §6.6. Operators that
+    want the old local default must set
+    ``SESSION_BUDDY_SEARCH__EMBEDDING_MODEL=all-MiniLM-L6-v2`` (still
+    wins over the substrate). Substrate has no equivalent for
+    ``embedding_cache_size`` so it stays local.
+    """
 
     enable_full_text_search: bool = Field(
         default=True,
@@ -287,14 +332,14 @@ class SearchConfig(_BaseConfig):
         description="Enable semantic search capabilities",
     )
     embedding_model: str = Field(
-        default="all-MiniLM-L6-v2",
-        description="Sentence-transformers embedding model",
+        default_factory=lambda: _get_substrate().embedding__model,
+        description="Sentence-transformers embedding model (substrate-resolved: ONEIRIC__SUBSTRATE__EMBEDDING__MODEL)",
     )
     embedding_cache_size: int = Field(
         default=1000,
         ge=10,
         le=100000,
-        description="Embedding cache size",
+        description="Embedding cache size (no substrate equivalent; stays local)",
     )
     enable_faceted_search: bool = Field(
         default=True,
@@ -940,6 +985,28 @@ class SessionBuddySettings(OneiricMCPConfig):
         description="Bodai task-system event bus",
     )
 
+    # ---- Phase E2 (Plan 2 Task 2) substrate-derived auth fields ----
+    # These are NEW top-level fields — there is no prior local
+    # declaration to remove (auth was never on SessionBuddySettings
+    # before this commit). The atomic-per-file rule still holds: the
+    # defaults come from ``OneiricSettings.substrate.auth__enabled``
+    # / ``auth__loopback_trusted`` via ``default_factory`` (no local
+    # hardcoded value). Auth short-circuit (per
+    # ``feedback-bodai-localhost-no-auth.md``): ``auth__enabled``
+    # defaults to ``False`` on the substrate, so loopback callers
+    # continue to bypass the gate. The ``auth_loopback_trusted``
+    # default (``True``) keeps the loopback escape hatch. Spec:
+    # ``docs/plans/2026-09-27-shared-bodai-substrate-phase-e2.md``
+    # §2 / §5 / REQ-OSUB-E2-004.
+    auth_enabled: bool = Field(
+        default_factory=lambda: _get_substrate().auth__enabled,
+        description="Substrate auth gate (ONEIRIC__SUBSTRATE__AUTH__ENABLED; default false → loopback bypass)",
+    )
+    auth_loopback_trusted: bool = Field(
+        default_factory=lambda: _get_substrate().auth__loopback_trusted,
+        description="Substrate loopback-trusted flag (ONEIRIC__SUBSTRATE__AUTH__LOOPBACK_TRUSTED; default true)",
+    )
+
     @model_validator(mode="before")
     @classmethod
     def _map_legacy_debug_flag(cls, data: t.Any) -> t.Any:
@@ -1187,6 +1254,13 @@ def get_settings(reload: bool = False) -> SessionBuddySettings:
     global _settings
 
     if _settings is None or reload:
+        # Phase E2 (Plan 2): substrate cache may be stale when env
+        # vars change between loads (test monkeypatch, operator
+        # rolling restart). Wipe the cache before the load so
+        # ``default_factory`` resolvers re-query
+        # ``OneiricSettings.substrate`` for fresh defaults.
+        global _substrate_cache
+        _substrate_cache = None
         # Delegates to SessionBuddySettings.load which uses Oneiric's
         # layered loader. The legacy SessionMgmtSettings.load is kept
         # for direct test callers and removed in Phase 6.
