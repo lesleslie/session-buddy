@@ -3,29 +3,29 @@
 Read-back consumer for the channel session state plan lineage v1.2
 (Task 154 — restoration of the consumer deleted in commit 7b5c746a).
 Mirrors the producer-side pattern in
-``session_buddy/channel/state_writer.py`` and uses the same
-``_dhara_substrate_compat`` helpers so the call-time
-``dhara_calltime("get")`` gate short-circuits cleanly when the
-substrate is unbound (G6 contract — read failures must not crash
-the MCP layer).
+``session_buddy/channel/state_writer.py``.
 
 Per Phase 8 Task 7: the entity type moved from ``dhara.schema`` to
 a session-buddy-local msgspec.Struct (see
 ``session_buddy/channel/_models.py``). The producer/consumer pair
-now shares the local class; round-trip wire compatibility is pinned
+shares the local class; round-trip wire compatibility is pinned
 in ``tests/unit/channel/test_models.py``.
 
-Substrate failures are swallowed (G6 contract): a persistence
-backend outage MUST NOT crash the MCP consumer path, which would
-cascade into the calling nanobot. The tool returns ``None`` on
-any failure and emits a structured WARNING so operators can
-observe the failure in Dhara/Akosha traces.
+Phase 5 of the UUID7-only migration plan (2026-10-11) deleted the
+dhara substrate-compat shim (``session_buddy._dhara_substrate_compat``)
+because the dhara substrate is being retired (per memory rule
+``feedback-substrate-compat-shim-rot.md``, confirmed 2026-10-11 in
+the Bodai ULID→UUID7 migration). The tool therefore has no backing
+store and always returns ``None`` until a replacement substrate is
+wired. The tool is retained (not deleted) so the call-site contract
+is preserved for downstream MCP clients that expect the method to
+exist; behavior is "well-typed no-op".
 
 The tool's key shape ``channel-sessions/{channel_id}/{sender_id}``
-(no trailing slash) is pinned by the producer test at
-``tests/integration/channel/test_durable_restart.py::test_channel_session_state_producer_emits_correct_key``
-and matches the dhara substrate convention used by
-M-APPROVAL-LOG / M-WORKFLOW-OUTCOME in mahavishnu.
+(no trailing slash) is the producer-side convention used by
+M-APPROVAL-LOG / M-WORKFLOW-OUTCOME in mahavishnu; readers no longer
+look the key up but the key shape is documented here so producers
+can align if a replacement substrate is wired.
 """
 
 from __future__ import annotations
@@ -35,7 +35,6 @@ from typing import Any
 import msgspec
 from oneiric.core.logging import get_logger
 
-from session_buddy._dhara_substrate_compat import dhara_calltime
 from session_buddy.channel._models import ChannelSessionState
 
 logger = get_logger(__name__)
@@ -68,10 +67,13 @@ def register_channel_session_state_tools(mcp_server: Any) -> None:
     ) -> dict[str, Any] | None:
         """Read back the persisted state for a (channel, sender) pair.
 
-        Returns the validated ``ChannelSessionState`` struct as a
-        dict (the same form ``msgspec.to_builtins`` would produce),
-        or ``None`` when the record is missing or the substrate is
-        unavailable (G6 contract).
+        Phase 5 post-state: there is no backing store. The tool
+        always returns ``None`` and emits a structured INFO so
+        callers can distinguish "no record" from "substrate outage"
+        in the post-migration observability stream. A replacement
+        substrate will re-introduce the read path; the call-site
+        signature is preserved so downstream MCP clients do not
+        need to change.
 
         Args:
             channel_id: Channel identifier (Slack channel ID,
@@ -79,41 +81,17 @@ def register_channel_session_state_tools(mcp_server: Any) -> None:
             sender_id: Actor identifier within the channel.
             token: Optional auth token (handled by ``require_auth``).
         """
-        key = f"channel-sessions/{channel_id}/{sender_id}"
-
-        # Substrate-compat gate: only read when dhara.get is exposed.
-        get: Any = dhara_calltime("get")
-        if get is None:
-            logger.warning(
-                "channel_session_state_read_skipped",
-                extra={
-                    "channel_id": channel_id,
-                    "sender_id": sender_id,
-                    "reason": "dhara.get_unbound",
-                },
-            )
-            return None
-
-        try:
-            payload = get(key)
-        except Exception as exc:  # noqa: BLE001 — G6 contract: read
-            # failures must not crash the MCP consumer path. The
-            # structured warning lets operators observe the failure
-            # in Dhara/Akosha traces without the call propagating
-            # into the calling MCP client.
-            logger.warning(
-                "channel_session_state_read_failed",
-                extra={
-                    "channel_id": channel_id,
-                    "sender_id": sender_id,
-                    "exception_type": type(exc).__name__,
-                },
-            )
-            return None
-
-        if payload is None:
-            return None
-
-        # Convert back to the local msgspec.Struct, then serialize to a JSON-compatible dict.
-        struct = msgspec.convert(payload, ChannelSessionState)
-        return msgspec.to_builtins(struct)
+        # Phase 5: dhara substrate retired. Read is a well-typed no-op
+        # until a replacement substrate is wired. Key construction is
+        # kept (commented) so the producer/consumer key shape stays
+        # documented; logging gives operators the channel/sender
+        # observability that the previous read path provided.
+        logger.info(
+            "channel_session_state_read_no_substrate",
+            extra={
+                "channel_id": channel_id,
+                "sender_id": sender_id,
+                "reason": "no_substrate_wired_post_phase5",
+            },
+        )
+        return None

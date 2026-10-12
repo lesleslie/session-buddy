@@ -4,26 +4,28 @@ Producer for the S-CHANNEL-DURABLE plan. Channel event handlers
 (Slack/Signal/terminal) call :func:`record_channel_session_state`
 with the actor/context observed from a channel event; this module
 validates the payload against the locally-owned
-:class:`session_buddy.channel._models.ChannelSessionState` schema
-and persists the typed struct via ``dhara.put``.
+:class:`session_buddy.channel._models.ChannelSessionState` schema.
 
 Per Phase 8 Task 7: the entity type moved from ``dhara.schema``
 to a session-buddy-local msgspec.Struct (mirrors the architectural
 decision made for mahavishnu's WorkflowOutcome/ApprovalLog/
 WebhookIngress — see plan Task 2 for the rationale).
 
-Substrate failures are swallowed (G6 contract): a persistence
-backend outage MUST NOT crash the channel tracking path, which
-would drop the event handler's heartbeat and (worse) cascade into
-the calling nanobot. Validation failures DO propagate — those
-indicate a programming error in the caller.
+Phase 5 of the UUID7-only migration plan (2026-10-11) deleted the
+dhara substrate-compat shim (``session_buddy._dhara_substrate_compat``)
+because the dhara substrate is being retired (per memory rule
+``feedback-substrate-compat-shim-rot.md``, confirmed 2026-10-11 in
+the Bodai ULID→UUID7 migration). Channel session state
+persistence is therefore a no-op until a replacement substrate is
+wired. The validation path remains — invalid payloads still raise
+:class:`msgspec.ValidationError` so caller-side bugs surface.
 
 The feature flag (``CHANNEL_SESSION_STATE_V1_ENABLED``) is
 consulted at the *call site* — see
 ``session_buddy/mcp/tools/session/channel_tracking_tools.py:track_channel_session``.
 The producer itself does not read the env var; this keeps the
-producer a pure validate-and-persist function whose only side
-effect is the substrate write.
+producer a pure validate function whose only side effects are the
+counter increment and the structured log line.
 """
 
 from __future__ import annotations
@@ -34,7 +36,6 @@ from typing import Any
 import msgspec
 from oneiric.core.logging import get_logger
 
-from session_buddy._dhara_substrate_compat import dhara_calltime
 from session_buddy._producer_metrics import COUNTERS
 from session_buddy.channel._models import ChannelSessionState
 
@@ -69,18 +70,19 @@ def record_channel_session_state(
     last_event_at: datetime,
     metadata: dict[str, Any] | None = None,
 ) -> ChannelSessionState:
-    """Validate the channel session state payload and persist via dhara.put.
+    """Validate the channel session state payload; persistence is a no-op.
 
     Returns the validated :class:`ChannelSessionState` struct. The
     caller (``channel_tracking_tools.py:track_channel_session``)
     owns the feature-flag gate; this function unconditionally
-    validates and (best-effort) persists.
+    validates.
 
-    Persistence errors are logged and swallowed (G6 contract);
-    validation errors propagate as :class:`msgspec.ValidationError`.
-    When ``dhara.put`` is unbound (no persistence backend wired),
-    a structured warning is emitted so operators can observe the
-    no-op in Dhara/Akosha traces without the call crashing.
+    Phase 5 post-state: there is no substrate wired (dhara retired).
+    The function still validates the payload (so caller bugs
+    surface as :class:`msgspec.ValidationError`) and increments the
+    ``attempted`` + ``skipped`` Prometheus counters. The structured
+    log line keeps operator observability continuous with the
+    pre-Phase-5 unbound-skip branch.
     """
     payload: dict[str, Any] = {
         "channel_type": channel_type,
@@ -91,38 +93,20 @@ def record_channel_session_state(
     }
     validated: ChannelSessionState = msgspec.convert(payload, ChannelSessionState)  # ty: ignore[invalid-assignment]
 
-    # Substrate-compat gate: only persist when dhara.put is exposed.
-    put: Any = dhara_calltime("put")
+    # Phase 5: no substrate wired. Counter + log are the only side effects
+    # until a replacement substrate is wired. The pre-Phase-5 "dhara.put
+    # unbound" branch is structurally identical to this one — what
+    # changed is that the unbound state is now permanent.
     COUNTERS.attempted.labels(producer=_PRODUCER_NAME).inc()
-    if put is not None:
-        key = f"channel-sessions/{channel_id}/{sender_id}"
-        try:
-            put(key, validated)
-            COUNTERS.succeeded.labels(producer=_PRODUCER_NAME).inc()
-        except Exception as exc:  # noqa: BLE001 — G6 contract: substrate
-            # failures must not crash the channel tracking path.
-            # NOTE: swallowed substrate failures are not represented in the
-            # 3-counter shape (attempted/succeeded/skipped) — only the
-            # unbound skip branch increments skipped. A 4th "failed" counter
-            # is a future-work item.
-            logger.warning(
-                "channel_session_state_persistence_failed",
-                extra={
-                    "channel_type": channel_type,
-                    "channel_id": channel_id,
-                    "sender_id": sender_id,
-                    "exception_type": type(exc).__name__,
-                },
-            )
-    else:
-        COUNTERS.skipped.labels(producer=_PRODUCER_NAME).inc()
-        logger.warning(
-            "channel_session_state_persistence_skipped",
-            extra={
-                "channel_id": channel_id,
-                "sender_id": sender_id,
-                "reason": "dhara.put_unbound",
-            },
-        )
+    COUNTERS.skipped.labels(producer=_PRODUCER_NAME).inc()
+    logger.warning(
+        "channel_session_state_persistence_skipped",
+        extra={
+            "channel_type": channel_type,
+            "channel_id": channel_id,
+            "sender_id": sender_id,
+            "reason": "no_substrate_wired_post_phase5",
+        },
+    )
 
     return validated
