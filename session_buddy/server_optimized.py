@@ -81,6 +81,9 @@ logger = get_session_logger()
 
 from session_buddy.core import SessionLifecycleManager
 from session_buddy.di import configure
+from session_buddy.mcp.oneiric_runtime import (
+    report_runtime_to_oneiric as _report_runtime_to_oneiric,
+)
 from session_buddy.mcp.telemetry import attach_otel_middleware, configure_otel_tracing
 from session_buddy.utils.git_worktrees import get_git_root, is_git_repository
 
@@ -325,6 +328,15 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     # Fire expensive initialization in background AFTER yield
     # This prevents MCP handshake blocking when multiple clients connect
     asyncio.create_task(_delayed_session_init(current_dir))
+
+    # Phase 3: push a single runtime fact (keyed ``__main__``) to Oneiric.
+    # Mirrors the Dhara registration pattern above: fire-and-forget task,
+    # Oneiric unavailability MUST NOT block SB boot — the helper itself
+    # catches all exceptions and logs status=fail.
+    try:
+        asyncio.create_task(_report_runtime_to_oneiric())
+    except (RuntimeError, OSError, ValueError) as e:
+        logger.warning(f"Oneiric runtime-push task failed (non-critical): {e}")
 
     # On disconnect - cleanup for git repos only. Note: pending marker drain
     # moved to drain_pending_markers() at startup; end_session no longer does
