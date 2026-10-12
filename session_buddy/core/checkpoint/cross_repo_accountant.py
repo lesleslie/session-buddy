@@ -19,7 +19,7 @@ from oneiric.core.logging import get_logger
 from session_buddy.core.checkpoint.ambient_puller import AmbientPuller
 from session_buddy.core.checkpoint.manifest_resolver import resolve_manifest_path
 from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
-from session_buddy.core.ulid_generator import generate_ulid
+from uuid import uuid7
 from session_buddy.memory.cross_repo_work import (
     CrossRepoWorkRowCreate,
     UlidStr,
@@ -101,7 +101,7 @@ class CheckpointCrossRepoAccountant:
             work_entries: list[WorkEntry] = cast("list[WorkEntry]", entries)
             rows.append(
                 CrossRepoWorkRowCreate(
-                    id=generate_ulid(),
+                    id=uuid7().hex,
                     conversation_id=conversation_id,
                     repo_name=repo_name,
                     repo_path=entry.get("path", ""),

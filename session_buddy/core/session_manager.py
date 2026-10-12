@@ -21,7 +21,7 @@ from session_buddy.core.hooks import HooksManager
 from session_buddy.core.quality_scoring import QualityScorer
 
 # Use ULID generator for reliable ID generation
-from session_buddy.core.ulid_generator import generate_ulid
+from uuid import uuid7
 from session_buddy.utils.git_operations import (
     create_checkpoint_commit,
     is_git_operation_in_progress,
@@ -1156,7 +1156,7 @@ class SessionLifecycleManager:
             # ``session_windows``. Task 2 adds the table; until then
             # the INSERT is expected to fail and the WARNING below is
             # the canonical signal that the G6 sentinel was honored.
-            conversation_id = generate_ulid()
+            conversation_id = uuid7().hex
             try:
                 # The helper lives in session_buddy.utils.database_tools,
                 # not the adapter module.  The brief's import path
@@ -1280,7 +1280,7 @@ class SessionLifecycleManager:
                 os.chdir(current_dir)
 
             # Generate session ID for this checkpoint
-            session_id = generate_ulid()
+            session_id = uuid7().hex
 
             # Get hooks manager for checkpoint automation
             hooks_manager: HooksManager | None = None

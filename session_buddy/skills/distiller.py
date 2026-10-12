@@ -40,7 +40,7 @@ import typing as t
 if t.TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
 
-from ulid import ULID
+from uuid import uuid7
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +182,7 @@ def distill_skills(
             500,
         )
 
-        skill_id = str(ULID())
+        skill_id = uuid7().hex
         source_ids_json = json.dumps(list(memory_ids))
 
         conn.execute(

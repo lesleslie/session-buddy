@@ -33,7 +33,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 
 import pytest
-from ulid import ULID
+from uuid import uuid7
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +103,7 @@ async def test_delete_cascades_to_memory_entities(
     )
 
     # Manually insert an entity referencing this memory.
-    entity_id = str(ULID())
+    entity_id = uuid7().hex
     db.conn.execute(
         """
         INSERT INTO memory_entities
@@ -147,7 +147,7 @@ async def test_delete_cascades_to_memory_promotions(
         source_type="manual",
     )
 
-    promotion_id = str(ULID())
+    promotion_id = uuid7().hex
     db.conn.execute(
         """
         INSERT INTO memory_promotions
@@ -212,7 +212,7 @@ async def test_delete_cascades_to_memory_access_log(
                 (id, memory_id, access_type, query_text)
             VALUES (?, ?, ?, ?)
             """,
-            [str(ULID()), memory_id, access_type, "test query"],
+            [uuid7().hex, memory_id, access_type, "test query"],
         )
 
     pre = db.conn.execute(
@@ -254,7 +254,7 @@ async def test_delete_cascades_to_relationships_via_entities(
         source_type="manual",
     )
 
-    entity_id = str(ULID())
+    entity_id = uuid7().hex
     db.conn.execute(
         """
         INSERT INTO memory_entities
@@ -264,7 +264,7 @@ async def test_delete_cascades_to_relationships_via_entities(
         [entity_id, memory_id, "concept", "self_ref", 1.0],
     )
 
-    relationship_id = str(ULID())
+    relationship_id = uuid7().hex
     db.conn.execute(
         """
         INSERT INTO memory_relationships

@@ -21,7 +21,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 
 import pytest
-from ulid import ULID
+from uuid import uuid7
 
 
 # ---------------------------------------------------------------------------

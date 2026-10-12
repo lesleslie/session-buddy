@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
-from ulid import ULID
+from uuid import UUID, uuid7
 
 from session_buddy.memory.causal import (
     DEFAULT_MAX_DEPTH,
@@ -286,7 +286,7 @@ class TestRecordObservedLink:
         count = duck_conn.execute("SELECT COUNT(*) FROM causal_links").fetchone()[0]
         assert count == 2
 
-    def test_returns_ulid_format(self, duck_conn) -> None:
+    def test_returns_uuid7_format(self, duck_conn) -> None:
         link_id = record_observed_link(
             duck_conn,
             from_id="a",
@@ -294,10 +294,12 @@ class TestRecordObservedLink:
             link_type="led_to",
             evidence=0.7,
         )
-        # Crockford base32 ULIDs are 26 chars.
-        assert len(link_id) == 26
-        # Parses cleanly back to ULID object.
-        assert isinstance(ULID.from_str(link_id), ULID)
+        # Phase 5: UUID7 hex is 32 lowercase hex chars (RFC 9562 §5.7).
+        assert len(link_id) == 32
+        assert all(c in "0123456789abcdef" for c in link_id)
+        # Parses cleanly back to a v7 UUID.
+        parsed = UUID(hex=link_id)
+        assert parsed.version == 7
 
 
 # ------------------------------------------------------------------

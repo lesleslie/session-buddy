@@ -42,7 +42,7 @@ import typing as t
 if t.TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
 
-from ulid import ULID
+from uuid import uuid7
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +155,7 @@ def record_observed_link(
         )
         return link_id
 
-    link_id = str(ULID())
+    link_id = uuid7().hex
     conn.execute(
         """
         INSERT INTO causal_links
@@ -227,7 +227,7 @@ def infer_causal_links_for(
         if weight <= EVIDENCE_FLOOR:
             continue
 
-        link_id = str(ULID())
+        link_id = uuid7().hex
         conn.execute(
             """
             INSERT INTO causal_links

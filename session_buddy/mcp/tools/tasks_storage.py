@@ -57,10 +57,12 @@ class ReflectionMetadata(SQLModel, table=True):
 
     __tablename__ = "reflections"
 
-    # VARCHAR PK mirrors the reflection_id (a ULID string) written by
-    # the existing reflection adapter. The brief's illustrative code used
-    # ``id: int``; we use ``str`` because the production adapter emits
-    # ``str(ULID())`` and the tests use the same shape.
+    # VARCHAR PK mirrors the reflection_id (a UUID7 hex string) written
+    # by the existing reflection adapter. The brief's illustrative code
+    # used ``id: int``; we use ``str`` because the production adapter
+    # emits ``uuid7().hex`` and the tests use the same shape. Phase 5
+    # of the UUID7-only migration plan (2026-10-11) flipped this from
+    # ULID (26-char Crockford base32) to UUID7 (32-char lowercase hex).
     id: str = Field(primary_key=True)
     metadata_json: dict[str, Any] | None = Field(
         default=None,

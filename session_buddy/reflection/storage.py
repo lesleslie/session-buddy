@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Import ULID generator for conversation IDs
-from session_buddy.core.ulid_generator import generate_ulid
+from uuid import uuid7
 
 # Text encoding constants for Unicode support
 _SURROGATE_PREFIX = "__SB64__"
@@ -166,7 +166,7 @@ async def store_conversation(
     ).hexdigest()
 
     # Generate conversation ULID (new format)
-    conversation_ulid = generate_ulid()
+    conversation_ulid = uuid7().hex
 
     # Encode content for database
     db_content = _encode_text_for_db(content)

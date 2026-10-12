@@ -227,9 +227,9 @@ class TestBackfillProvenance:
         This is exactly what the existing pool-encoded rows look like
         before the backfill runs.
         """
-        from ulid import ULID
+        from uuid import uuid7
 
-        rid = str(ULID())
+        rid = uuid7().hex
         db.conn.execute(
             f"""
             INSERT INTO {db._table("reflections")}

@@ -20,7 +20,7 @@ from oneiric.core.logging import get_logger
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
-from session_buddy.core.ulid_generator import generate_ulid
+from uuid import uuid7
 from session_buddy.memory.cross_repo_work import (
     CrossRepoWorkRowCreate,
     UlidStr,
@@ -168,7 +168,7 @@ async def store_cross_repo_work(
             continue
         rows_to_write.append(
             CrossRepoWorkRowCreate(
-                id=generate_ulid(),
+                id=uuid7().hex,
                 conversation_id=request.conversation_id,
                 repo_name=resolved.repo_name,
                 repo_path=resolved.path,

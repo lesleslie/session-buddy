@@ -43,17 +43,23 @@ from session_buddy.mcp.tools.tasks_events import (
     TaskCompletedPayload,
     TaskCreatedPayload,
     TaskUpdatedPayload,
+    _CONTROL_CHARS,
     publish_task_event,
 )
 from session_buddy.mcp.tools.tasks_identity import derive_caller_identity
 
-# Re-export from the dedicated module (T10 extraction). The legacy coercion
-# path is owned by ``tasks_legacy``; ``tasks_tools`` keeps a private alias
-# so the existing ``tasks_list`` call site (``row = _coerce_legacy_row(reflection)``)
-# continues to work without modification.
-from session_buddy.mcp.tools.tasks_legacy import (
-    coerce_legacy_reflection as _coerce_legacy_row,
-)
+# Phase 5 of the UUID7-only migration plan (2026-10-11) deleted
+# ``session_buddy.mcp.tools.tasks_legacy`` (the legacy-ULID-vs-UUID7 split
+# exists only because ULID existed; with UUID7 only, ``tasks_models`` is
+# the single path per plan §5 task 4). The ``_coerce_legacy_row`` helper
+# is the legacy coercion path for backwards-compatible
+# ``tags=["todo"]`` rows surfaced by ``tasks_list(include_legacy=True)``.
+# It is inlined here (its only call site) and uses the same validation
+# rules as new tasks (length cap, control chars) so malformed legacy
+# rows are silently dropped. Per spec §Migration & Backwards
+# Compatibility line 696-706: ``id`` is the reflection ID (NOT a
+# synthetic ``t-{32hex}``; legacy rows predate UUID7) and ``coerced``
+# marker is set by the ``LegacyTaskRow`` default.
 from session_buddy.mcp.tools.tasks_models import (
     TASK_ID_PATTERN,
     FieldDiff,
@@ -511,6 +517,49 @@ def _passes_post_filters(
     if tag is not None and tag not in task.tags:
         return False
     return parent_task_id is None or task.parent_task_id == parent_task_id
+
+
+def _coerce_legacy_row(reflection: dict[str, Any]) -> LegacyTaskRow | None:
+    """Coerce a legacy ``store_reflection(tags=["todo"])`` row to ``LegacyTaskRow``.
+
+    Phase 5 inlined this from the deleted ``session_buddy.mcp.tools.tasks_legacy``
+    module. The function is the only call site for the legacy
+    backwards-compat coercion path; ``tasks_legacy`` was deleted per
+    plan §5 task 4 because the legacy-ULID-vs-UUID7 split existed
+    only because ULID existed (with UUID7 only, ``tasks_models`` is
+    the single path).
+
+    Returns ``None`` when the row is malformed (missing ``id`` /
+    ``content``) or when the content fails the same validation as new
+    tasks (length cap, control chars). Rejected rows are silently
+    dropped — they do NOT appear in any list output. The spec
+    documents this exclusion policy.
+
+    Per spec §Migration & Backwards Compatibility line 696-706:
+    - ``id`` = reflection ID (NOT a synthetic ``t-{32hex}``; legacy
+      rows predate UUID7)
+    - ``content`` = as-is (must pass validation)
+    - ``tags`` = as-is
+    - ``coerced`` marker = True (set by ``LegacyTaskRow`` default)
+    """
+    reflection_id = reflection.get("id")
+    content = reflection.get("content")
+    if not isinstance(reflection_id, str) or not reflection_id:
+        return None
+    if not isinstance(content, str):
+        return None
+
+    # Reject content failing same validation as new tasks (spec §Migration).
+    if len(content) > MAX_CONTENT_BYTES:
+        return None
+    if _CONTROL_CHARS.search(content):
+        return None
+
+    return LegacyTaskRow(
+        id=reflection_id,
+        content=content,
+        tags=list(reflection.get("tags") or []),
+    )
 
 
 async def tasks_list(

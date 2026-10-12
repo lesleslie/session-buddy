@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from operator import itemgetter
 from pathlib import Path
 
-from ulid import ULID
+from uuid import uuid7
 
 if t.TYPE_CHECKING:
     from types import TracebackType
@@ -414,7 +414,7 @@ class ReflectionDatabaseAdapterOneiric:
                 )
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """,
-                [str(ULID()), memory_id, access_type, query_text],
+                [uuid7().hex, memory_id, access_type, query_text],
             )
         except Exception:
             # Instrumentation must NEVER break the read path.
@@ -1411,7 +1411,7 @@ class ReflectionDatabaseAdapterOneiric:
                 [conv_id],
             ).fetchone()
             if existing_row:
-                conv_id = str(ULID())
+                conv_id = uuid7().hex
         now = datetime.now(UTC)
         metadata_json = json.dumps(redacted_metadata)
         # Extract the project from the (redacted) metadata dict; v2 has a
@@ -1524,7 +1524,7 @@ class ReflectionDatabaseAdapterOneiric:
                 (id, memory_id, source_type, source_ref, model)
             VALUES (?, ?, ?, ?, ?)
             """,
-            [str(ULID()), memory_id, source_type, source_ref, model],
+            [uuid7().hex, memory_id, source_type, source_ref, model],
         )
 
     async def memory_lineage(self, memory_id: str) -> list[dict[str, t.Any]]:
@@ -2126,7 +2126,7 @@ class ReflectionDatabaseAdapterOneiric:
                 existing_id: str = duplicates[0]["id"]
                 return existing_id  # Return ID of most similar duplicate
 
-        reflection_id = str(ULID())
+        reflection_id = uuid7().hex
         now = datetime.now(tz=UTC)
 
         # Track C (2026-09-25): extract source_session_id / source_artifact_uri

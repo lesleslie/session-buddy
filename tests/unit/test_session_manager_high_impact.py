@@ -562,14 +562,14 @@ async def test_checkpoint_session_returns_failure_on_outer_exception(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(
-        "session_buddy.core.session_manager.generate_ulid",
-        Mock(side_effect=RuntimeError("ulid boom")),
+        "session_buddy.core.session_manager.uuid7",
+        Mock(side_effect=RuntimeError("uuid7 boom")),
     )
     _install_reflection_utils(monkeypatch)
 
     result = await manager.checkpoint_session(str(tmp_path))
 
-    assert result == {"success": False, "error": "RuntimeError: ulid boom"}
+    assert result == {"success": False, "error": "RuntimeError: uuid7 boom"}
     manager.logger.exception.assert_called_once()
 
 

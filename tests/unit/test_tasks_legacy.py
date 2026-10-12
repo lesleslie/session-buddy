@@ -1,4 +1,14 @@
-"""Unit tests for ``session_buddy.mcp.tools.tasks_legacy``.
+"""Unit tests for the inlined ``_coerce_legacy_row`` helper (was tasks_legacy).
+
+Phase 5 of the UUID7-only migration plan (2026-10-11) deletes
+``session_buddy.mcp.tools.tasks_legacy`` (the legacy-ULID-vs-UUID7
+split exists only because ULID existed; with UUID7 only,
+``tasks_models`` is the single path per plan §5 task 4). The
+``coerce_legacy_reflection`` function is inlined into
+``session_buddy.mcp.tools.tasks_tools`` as the private
+``_coerce_legacy_row`` helper. The tests in this file are
+preserved verbatim and re-import the function from its new
+location so the coercion contract is still pinned.
 
 Pins the legacy coercion contract per spec §Migration & Backwards
 Compatibility (line 696-706):
@@ -15,8 +25,10 @@ from __future__ import annotations
 
 import re
 
-from session_buddy.mcp.tools.tasks_legacy import coerce_legacy_reflection
 from session_buddy.mcp.tools.tasks_models import LegacyTaskRow
+from session_buddy.mcp.tools.tasks_tools import (
+    _coerce_legacy_row as coerce_legacy_reflection,
+)
 
 # ---------------------------------------------------------------------------
 # Happy path

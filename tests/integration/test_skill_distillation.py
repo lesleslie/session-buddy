@@ -105,7 +105,7 @@ def test_check_constraint_rejects_low_importance() -> None:
         ReflectionDatabaseAdapterOneiric,
     )
     from session_buddy.adapters.settings import ReflectionAdapterSettings
-    from ulid import ULID
+    from uuid import uuid7
 
     async def go() -> None:
         with tempfile.NamedTemporaryFile(suffix=".duckdb", delete=False) as f:
@@ -128,7 +128,7 @@ def test_check_constraint_rejects_low_importance() -> None:
                      importance_score, model)
                 VALUES (?, 'x', 'y', 'z', 0.5, 'heuristic')
                 """,
-                [str(ULID())],
+                [uuid7().hex],
             )
         # The CHECK constraint surfaces as a DuckDB ConstraintException;
         # the test accepts any exception family and just checks that
