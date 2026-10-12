@@ -1,0 +1,129 @@
+-- UUID7 Consolidation Migration - Script 010: Drop akosha warm and mahavishnu outbox.duckdb
+-- Migration: 010_drop_akosha_warm_mahavishnu_outbox
+-- Plan: docs/plans/2026-10-11-uuid7-only-migration.md (Phase 0, script 10 of 10)
+-- Description: Document the filesystem-level removal of two storage surfaces
+--              that are not session-buddy tables but are part of the cross-
+--              component UUID7 consolidation window: the dead akosha warm
+--              directory and the mahavishnu outbox.duckdb file. Both are
+--              vestigial (no live read/write path post-Phase-5 substrate
+--              swap) and consolidating the UUID7-only storage surface
+--              means removing the old ULID-backed locations entirely.
+--
+-- FILE REMOVAL (rm), NOT a SQL DDL DROP. This script is a documentation
+-- marker. The actual removal is a filesystem-level operation executed in
+-- Phase 0.5 (offline maintenance window):
+--
+--   Step 7: rm -rf "/Users/les/Library/Application Support/akosha/warm"
+--   Step 8: rm -f  /Users/les/.mahavishnu/outbox.duckdb*
+--
+-- The two files / directories removed here are:
+--
+--   * /Users/les/Library/Application Support/akosha/warm
+--       The dead akosha warm directory. Its contents are untracked (no
+--       live writer since `dhara` was removed from all six core
+--       component pyproject.toml manifests, per Phase 1 findings). The
+--       canonical akosha storage is /Users/les/Projects/akosha/data/, not
+--       the ~/Library/Application Support/warm scratchpad. Per Phase 0.5
+--       step 7, the directory itself (not just the file inside) is
+--       removed — there is no live writer that could resurrect it.
+--
+--   * /Users/les/.mahavishnu/outbox.duckdb (and .duckdb.wal siblings)
+--       The mahavishnu outbox DuckDB file. The trailing glob in the
+--       `rm -f` covers outbox.duckdb itself plus any auxiliary DuckDB
+--       write-ahead-log files (outbox.duckdb.wal) and any temporary
+--       spill files DuckDB may have created. Per Phase 0.5 step 8.
+--
+-- Why no SQL DDL here:
+--   * DuckDB stores the entire database in a single .duckdb file (the
+--     mahavishnu outbox). There is no DROP DATABASE statement. The
+--     canonical removal path is filesystem-level rm.
+--   * DuckDB's DETACH <name> closes a connection but does NOT delete the
+--     underlying file, so it is not equivalent to the desired outcome.
+--   * The akosha warm directory holds SQLite .db files, again without
+--     a DROP DATABASE equivalent for the directory itself.
+--   * Neither the outbox nor the warm scratchpad is attached to the
+--     canonical session-buddy schema, and neither is in scope for the
+--     per-table UUID7 swap in scripts 007 / 008. They are removed as
+--     units because their content (where present) is vestigial ULID-
+--     shaped scaffolding that the production hot path no longer
+--     touches after Phase 4 (akosha knowledge_graph make_ulid ->
+--     uuid7().hex) and Phase 6 (mahavishnu workflow_models
+--     _generate_ulid -> generate_id) rewrite the substrate callers.
+--
+--   Note: the live akosha hot store at
+--   /Users/les/Projects/akosha/data/warm/warm.db is NOT touched by this
+--   script. Phase 4 implements the lazy dual-write migration against
+--   that file (it is the canonical akosha warm store and is load-
+--   bearing for in-flight queries). It is preserved across Phase 0.5
+--   and only its ULID columns are transitioned to UUID7 — see the plan's
+--   Phase 4 + Phase 0.5 step 5 "Do NOT wipe" list.
+--
+-- Phase 0.5 commands (verbatim):
+--   Step 7: rm -rf "/Users/les/Library/Application Support/akosha/warm"
+--   Step 8: rm -f  /Users/les/.mahavishnu/outbox.duckdb*
+--
+-- Pre-wipe archive (Phase 1 step 3, already complete per the plan):
+--   Both targets are included in the
+--   ~/.local/state/bodai/db-archive/2026-10-11-uuid7-migration/
+--   per-component tarballs with their sha256 recorded in MANIFEST.json.
+--   The archive is the rollback surface for this removal, not this SQL
+--   file. The akosha ~/Library warm tree was archived as a tarball
+--   preserving the absolute path inside the archive root; the mahavishnu
+--   outbox.duckdb was archived likewise. Restoring is `tar -xzf <tar> -C
+--   /` to put the file back exactly where Phase 0.5 removed it.
+--
+-- Pre-conditions (enforced by the migration runner, not this SQL file):
+--   1. The akosha MCP server (and any other process holding a file
+--      lock on ~/Library/Application Support/akosha/warm/warm.db) MUST
+--      be stopped before the Phase 0.5 step 7 `rm -rf` runs. The plan's
+--      Phase 0.5 step 1 enumerates the pids.
+--   2. The mahavishnu MCP server (and any pool worker holding a file
+--      lock on ~/.mahavishnu/outbox.duckdb) MUST be stopped before the
+--      Phase 0.5 step 8 `rm -f` runs. The plan's Phase 0.5 step 1
+--      enumerates the pids.
+--   3. The canonical akosha store at
+--      /Users/les/Projects/akosha/data/warm/warm.db is the post-
+--      migration read/write target and is NOT removed by this script
+--      (see the Phase 4 lazy dual-write migration which preserves the
+--      legacy entity_id column).
+--   4. The canonical mahavishnu workflow store is the in-DB
+--      `workflow_models` records table (UUID7 PKs, post-Phase 6). No
+--      production code path may re-open outbox.duckdb after Phase 0.5
+--      step 8 returns.
+--
+-- Idempotency: N/A on the SQL side. This script is a no-op marker — the
+--              migration runner parses it, finds no DDL, and advances.
+--              The Phase 0.5 `rm -f` and `rm -rf` are naturally
+--              idempotent (a missing file or directory is a no-op).
+--
+-- Atomicity: N/A on the SQL side. There are no DDL statements to wrap in
+--            a transaction. The Phase 0.5 `rm` commands are executed
+--            after MCP servers holding the files are stopped, so no live
+--            writer can resurrect the file mid-removal.
+--
+-- Why this script is the last of the ten:
+--   * Scripts 001–006 (conversations / reflections consolidation + drop
+--     legacy and vestigial tables in the canonical reflection.duckdb
+--     file) finish the per-table UUID7 swap for session-buddy content.
+--   * Script 007 (id_swap_load_bearing) and 008 (id_swap_dormant_active)
+--     backfill UUID7 PKs in the surviving load-bearing tables and create
+--     the UUID7 shape of dormant (0-row) tables for the next writer.
+--   * Script 009 (drop_sessions_duckdb) and THIS script (010) are the
+--     file-removal pair that collapses the cross-component storage
+--     surface to one DuckDB file per concern (reflection.duckdb for
+--     session-buddy, /Users/les/Projects/akosha/data/warm/warm.db for
+--     akosha, with the dead /Users/les/Library/Application
+--     Support/akosha/warm scratchpad and the deprecated
+--     ~/.mahavishnu/outbox.duckdb file removed wholesale).
+--
+-- This script is the canonical file-removal step from Option B
+-- (Strict-UUID7 offline migration with consolidation) per the plan. No
+-- UUID7 PK columns or TEXT id columns are created here (file removal
+-- is by definition not a schema migration). The companion file removal
+-- step for /Users/les/.claude/data/sessions.duckdb is script 009.
+
+BEGIN;
+-- No DDL: this script is a documentation marker for the Phase 0.5
+-- filesystem-level `rm -rf` / `rm -f` of the two vestigial storage
+-- targets. The migration runner treats this script as a no-op pass.
+COMMIT;

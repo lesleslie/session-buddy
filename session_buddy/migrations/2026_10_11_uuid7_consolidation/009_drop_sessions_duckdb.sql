@@ -1,0 +1,76 @@
+-- UUID7 Consolidation Migration - Script 009: Drop sessions.duckdb
+-- Migration: 009_drop_sessions_duckdb
+-- Plan: docs/plans/2026-10-11-uuid7-only-migration.md (Phase 0, script 9 of 10)
+-- Description: Document the filesystem-level removal of the duplicate /
+--              vestigial session-buddy DuckDB file at
+--              /Users/les/.claude/data/sessions.duckdb. The canonical
+--              session-buddy store is reflection.duckdb; sessions.duckdb
+--              was a parallel database that the session-buddy hot path
+--              no longer reads or writes. The UUID7 consolidation
+--              collapses the store surface to one DuckDB file.
+--
+-- FILE REMOVAL (rm), NOT a SQL DDL DROP. This script is a documentation
+-- marker. The actual removal is a filesystem-level operation executed in
+-- Phase 0.5 (offline maintenance window) step 6:
+--
+--   rm -f /Users/les/.claude/data/sessions.duckdb*
+--
+-- The trailing glob covers sessions.duckdb itself plus any auxiliary
+-- DuckDB write-ahead-log files (sessions.duckdb.wal) and any temporary
+-- spill files DuckDB may have created.
+--
+-- Why no SQL DDL here:
+--   * DuckDB stores the entire database in a single .duckdb file. There
+--     is no DROP DATABASE statement. The canonical removal path is
+--     filesystem-level rm.
+--   * DuckDB's DETACH <name> closes a connection but does NOT delete the
+--     underlying file, so it is not equivalent to the desired outcome.
+--   * sessions.duckdb is not attached to the canonical session-buddy
+--     schema and is not in scope for the per-table UUID7 swap in scripts
+--     007 / 008. It is removed as a unit because its table content
+--     (if any) is vestigial scaffolding that the production hot path
+--     never touches.
+--   * Per the plan, the file is removed wholesale rather than having its
+--     (likely-empty or vestigial) tables converted; the duplicate file
+--     itself is the problem.
+--
+-- Phase 0.5 step 6 command (verbatim):
+--   rm -f /Users/les/.claude/data/sessions.duckdb*
+--
+-- Pre-wipe archive (Phase 1 step 3, already complete per the plan):
+--   sessions.duckdb is included in the
+--   ~/.local/state/bodai/db-archive/2026-10-11-uuid7-migration/session-buddy/
+--   tarball with its sha256 recorded in MANIFEST.json. The archive is
+--   the rollback surface for this removal, not this SQL file.
+--
+-- Pre-conditions (enforced by the migration runner, not this SQL file):
+--   1. The session-buddy MCP server (and any other process holding a
+--      file lock on sessions.duckdb) MUST be stopped before the Phase 0.5
+--      `rm -f` runs. The plan's Phase 0.5 step 1 enumerates the pids.
+--   2. The canonical reflection.duckdb is the post-migration read/write
+--      target; no production code path may open sessions.duckdb after
+--      Phase 0.5 step 6 returns. Session-buddy's connection-string change
+--      (Phase 5 step 6 / Phase 8 smoke) is what enforces this going
+--      forward.
+--
+-- Idempotency: N/A on the SQL side. This script is a no-op marker — the
+--              migration runner parses it, finds no DDL, and advances.
+--              The Phase 0.5 `rm -f` is naturally idempotent (a missing
+--              file is a no-op).
+--
+-- Atomicity: N/A on the SQL side. There are no DDL statements to wrap in
+--            a transaction. The Phase 0.5 `rm -f` is executed after MCP
+--            servers holding the file are stopped, so no live writer can
+--            resurrect the file mid-removal.
+--
+-- This script is the canonical file-removal step from Option B
+-- (Strict-UUID7 offline migration with consolidation) per the plan. No
+-- UUID7 PK columns or TEXT id columns are created here (file removal
+-- is by definition not a schema migration). The companion file removal
+-- step for /Users/les/.mahavishnu/outbox.duckdb is script 010.
+
+BEGIN;
+-- No DDL: this script is a documentation marker for the Phase 0.5
+-- filesystem-level `rm -f /Users/les/.claude/data/sessions.duckdb*`.
+-- The migration runner treats this script as a no-op pass.
+COMMIT;

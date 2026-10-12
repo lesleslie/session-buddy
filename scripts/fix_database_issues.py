@@ -75,21 +75,18 @@ def fix_database_schema() -> bool:
         existing_tables = {row[0] for row in conn.execute("SHOW TABLES").fetchall()}
         print(f"📊 Existing tables: {existing_tables}")
 
-        # Create missing tables
-        if "access_log_v2" not in existing_tables:
-            print("🔨 Creating access_log_v2 table...")
-            conn.execute(
-                """
-                CREATE TABLE access_log_v2 (
-                    reflection_id VARCHAR PRIMARY KEY,
-                    access_timestamp TIMESTAMP,
-                    access_count INTEGER DEFAULT 0
-                )
-            """
-            )
-            print("✅ Created access_log_v2 table")
-        else:
-            print("✅ access_log_v2 table already exists")
+        # access_log_v2 was removed by the UUID7 consolidation migration
+        # (2026_10_11_uuid7_consolidation/006_drop_vestigial.sql). It is
+        # vestigial: superseded by memory_access_log (rebuilt with UUID7 PKs
+        # by 007). The previous b-step patch tried to gate the recreate on a
+        # __uuid7_migration_done marker, but the marker is only created when
+        # the 2026_10_11 bundle runs -- and a fresh DB has no marker yet, so
+        # the gate was dormant and the table came back. The semantic fix is
+        # simpler: don't recreate it. Period. The migration drops it; the
+        # startup script doesn't bring it back. If a downstream consumer
+        # still expects access_log_v2, that consumer needs to migrate to
+        # memory_access_log too.
+        print("⏭️  access_log_v2 intentionally not recreated (vestigial; dropped by 006)")
 
         if "code_graphs" not in existing_tables:
             print("🔨 Creating code_graphs table...")
