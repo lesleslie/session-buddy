@@ -9,6 +9,28 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.34.0] - 2026-10-12
+
+### Added
+
+- migrations: PR-A 008 FK-doc memo + 007 site map annotation
+- migrations: PR-B SQL cleanups (F1, F2, F7, F8)
+- migrations: PR-C tests + observability (F3, F4, F5)
+- migrations: PR-D runner + deterministic UUID7 UDF + 7 down-scripts
+- session-buddy: Phase 3 — single-fact runtime push to Oneiric (Plan 1)
+- session-buddy: Surface canonical 4-field shape on /health + integration test (Plan 2 Phase E2 Task 5)
+
+### Changed
+
+- Phase 0 UUID7 Migration Scripts [migration/2026-10-11-uuid7-phase-0]
+- Phase 5 PR-A retire dhara substrate-compat shim [migration/2026-10-12-uuid7-phase5]
+- Phase 5 PR-B retire ULID generator + tasks_legacy [migration/2026-10-12-uuid7-phase5]
+- session-buddy: Adopt OneiricSettings.substrate for embedding/auth
+
+### Internal
+
+- session-buddy: Archive obsolete ULID-to-UUID7 migration UDFs
+
 ## [0.33.1] - 2026-10-10
 
 ### Added
