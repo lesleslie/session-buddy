@@ -20,7 +20,8 @@ Session management and conversation tracking
 
 - Use current root docs for maintained operator and developer guidance.
 - Use [plans/PLAN_INDEX.md](plans/PLAN_INDEX.md) for active and historical plans.
-- Use [archive/README.md](archive/README.md) for historical, non-authoritative material.
+- Historical non-authoritative material lives under `docs/archive/`
+  (untracked 2026-10-14 in `b69080ea`; consult on-disk for reference).
 
 ## Maintenance Rules
 

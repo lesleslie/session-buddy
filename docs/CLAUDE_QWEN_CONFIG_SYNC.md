@@ -13,10 +13,11 @@ topic: oneiric-config
 # Claude/Qwen Config Sync
 
 > **Archived on 2026-09-09.** The full documentation previously at this
-> path has been moved to
-> [docs/archive/CLAUDE_QWEN_CONFIG_SYNC.md](./archive/CLAUDE_QWEN_CONFIG_SYNC.md).
-> The body content was 7 months stale (last refresh 2026-02-06); the
-> archived copy is preserved as historical reference.
+> path has been moved to `docs/archive/CLAUDE_QWEN_CONFIG_SYNC.md`
+> (untracked 2026-10-14 in `b69080ea`; historical copy preserved on disk
+> but no longer tracked in git). The body content was 7 months stale
+> (last refresh 2026-02-06); the archived copy is preserved as
+> historical reference.
 
 ## The feature is still active
 
