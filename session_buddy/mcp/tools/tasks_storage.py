@@ -149,7 +149,7 @@ def persist_task_metadata(
     """
     ensure_metadata_schema(engine)
     with Session(engine) as session:
-        existing = session.exec(
+        existing: ReflectionMetadata | None = session.exec(
             select(ReflectionMetadata).where(ReflectionMetadata.id == reflection_id),
         ).first()
         if existing is None:
@@ -174,7 +174,7 @@ def read_task_metadata(
     """Return the metadata JSON blob for ``reflection_id`` or ``None``."""
     ensure_metadata_schema(engine)
     with Session(engine) as session:
-        row = session.exec(
+        row: ReflectionMetadata | None = session.exec(
             select(ReflectionMetadata).where(ReflectionMetadata.id == reflection_id),
         ).first()
         return dict(row.metadata_json) if row and row.metadata_json else None
@@ -195,7 +195,9 @@ def find_tasks_by_metadata(
     """
     ensure_metadata_schema(engine)
     with Session(engine) as session:
-        rows = session.exec(select(ReflectionMetadata)).all()
+        rows: list[ReflectionMetadata] = list(
+            session.exec(select(ReflectionMetadata)).all(),
+        )
         matching: list[str] = []
         for row in rows:
             md = dict(row.metadata_json) if row.metadata_json else {}

@@ -45,7 +45,7 @@ PLAN_EXPECTED_FIELDS = (
 )
 
 
-def _probe_aggregator_shape() -> dict[str, object] | None:
+def _probe_aggregator_shape() -> "object | None":
     """Probe the installed ``mcp_common`` aggregator for the 4-field shape.
 
     Returns the per-feed check dict if the installed wheel has the

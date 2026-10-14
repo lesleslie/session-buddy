@@ -22,12 +22,13 @@ into the substrate defaults is deterministic.
 from __future__ import annotations
 
 import importlib
+from collections.abc import Iterator
 
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def _reset_settings_and_substrate_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+def _reset_settings_and_substrate_cache(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Clear module-level cache + force reload between tests.
 
     Phase E2 atomic rule: a substrate override must produce a fresh
