@@ -22,12 +22,13 @@ boot — mirrors the Dhara registration pattern at
 ``_register_component_to_dhara`` call is wrapped in
 ``asyncio.create_task`` and protected by a narrow except.
 """
+
 from __future__ import annotations
 
 import uuid
 from typing import Any
 
-import httpx
+import httpx2 as httpx
 
 from session_buddy.utils.logging import get_session_logger
 
@@ -57,15 +58,19 @@ def _build_capabilities(settings: Any) -> list[str]:
         capabilities.append(f"llm:fallback:{provider}")
     capabilities.append("storage:duckdb")
     if settings.bodai_events.enabled:
-        capabilities.append("events:bodai_events")
-        capabilities.append(
-            f"events:bodai_stream:{settings.bodai_events.stream}",
+        capabilities.extend(
+            (
+                "events:bodai_events",
+                f"events:bodai_stream:{settings.bodai_events.stream}",
+                f"events:bodai_group:{settings.bodai_events.consumer_group}",
+            ),
         )
-        capabilities.append(
-            f"events:bodai_group:{settings.bodai_events.consumer_group}",
-        )
-    capabilities.append(f"http:{settings.http_port}")
-    capabilities.append(f"ws:{settings.websocket_port}")
+    capabilities.extend(
+        (
+            f"http:{settings.http_port}",
+            f"ws:{settings.websocket_port}",
+        ),
+    )
     return capabilities
 
 
@@ -154,6 +159,5 @@ async def report_runtime_to_oneiric() -> None:
         )
         return
     logger.info(
-        f"runtime-push component={CALLER_COMPONENT} "
-        f"adapter={FACT_KEY} status={status}",
+        f"runtime-push component={CALLER_COMPONENT} adapter={FACT_KEY} status={status}",
     )
