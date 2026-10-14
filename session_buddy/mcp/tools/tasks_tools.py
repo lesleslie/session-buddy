@@ -40,10 +40,10 @@ from sqlalchemy.engine import Engine
 # through ``session_buddy.mcp.tools.tasks_storage``.
 from session_buddy.mcp.tools import tasks_storage
 from session_buddy.mcp.tools.tasks_events import (
+    _CONTROL_CHARS,
     TaskCompletedPayload,
     TaskCreatedPayload,
     TaskUpdatedPayload,
-    _CONTROL_CHARS,
     publish_task_event,
 )
 from session_buddy.mcp.tools.tasks_identity import derive_caller_identity

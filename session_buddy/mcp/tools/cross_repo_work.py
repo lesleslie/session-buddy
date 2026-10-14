@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Annotated, Literal, TypedDict
+from uuid import uuid7
 
 import duckdb
 import yaml
@@ -20,7 +21,6 @@ from oneiric.core.logging import get_logger
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from session_buddy.core.checkpoint.merge_primitive import MergePrimitive
-from uuid import uuid7
 from session_buddy.memory.cross_repo_work import (
     CrossRepoWorkRowCreate,
     UlidStr,

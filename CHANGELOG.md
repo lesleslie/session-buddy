@@ -9,6 +9,26 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.34.1] - 2026-10-14
+
+### Fixed
+
+- session-buddy: Narrow SQLModel/pytest type annotations for ty
+- session-buddy: Restore archived ULID-to-UUID7 migration runner + UDF
+- session-buddy: Revert .scalars() — ty infers ScalarResult directly
+- session-buddy: Unwrap SQLAlchemy Row with .scalars() in tasks_storage
+
+### Documentation
+
+- Fix 7 broken local links (files untracked in b69080ea)
+
+### Internal
+
+- session-buddy: Drop dead python-ulid dep + surgical uv.lock edit
+- session-buddy: Move root utility scripts to scripts/ + drop unused pyright
+- session-buddy: Tidy oneiric_runtime — httpx alias + refurb
+- Untrack 226 historical archive files
+
 ## [0.34.0] - 2026-10-12
 
 ### Added

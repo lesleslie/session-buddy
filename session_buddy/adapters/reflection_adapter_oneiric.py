@@ -18,7 +18,6 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from operator import itemgetter
 from pathlib import Path
-
 from uuid import uuid7
 
 if t.TYPE_CHECKING:

@@ -32,10 +32,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import msgspec
 from oneiric.core.logging import get_logger
-
-from session_buddy.channel._models import ChannelSessionState
 
 logger = get_logger(__name__)
 

@@ -17,11 +17,11 @@ from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 
-from session_buddy.core.hooks import HooksManager
-from session_buddy.core.quality_scoring import QualityScorer
-
 # Use ULID generator for reliable ID generation
 from uuid import uuid7
+
+from session_buddy.core.hooks import HooksManager
+from session_buddy.core.quality_scoring import QualityScorer
 from session_buddy.utils.git_operations import (
     create_checkpoint_commit,
     is_git_operation_in_progress,
