@@ -3493,15 +3493,6 @@ wheels = [
 ]
 
 [[package]]
-name = "python-ulid"
-version = "4.0.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d6/41/65079023c81491a21799c0120bce5925366b6913596bf797806f19973290/python_ulid-4.0.1.tar.gz", hash = "sha256:bbeec02556190bb9dc3401faa7268696acbfbe7b6db9908c155dc3548629f20c", size = 101683, upload-time = "2026-07-20T15:21:41.256Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b4/15/8b39b36f55b6618ec4ca9b55134dcfd9c04cecbc72709f5d8e6bdebed9cd/python_ulid-4.0.1-py3-none-any.whl", hash = "sha256:6f1d69ceb97e99fe542df8476ebcd7a668284bf53ee14b3106bcc6a341a95ed9", size = 14609, upload-time = "2026-07-20T15:21:40.214Z" },
-]
-
-[[package]]
 name = "pytz"
 version = "2026.4"
 source = { registry = "https://pypi.org/simple" }
@@ -4056,7 +4047,6 @@ dependencies = [
     { name = "oneiric" },
     { name = "prometheus-client" },
     { name = "pydantic" },
-    { name = "python-ulid" },
     { name = "pytz" },
     { name = "rich" },
     { name = "scikit-learn" },
@@ -4113,7 +4103,6 @@ requires-dist = [
     { name = "oneiric", specifier = ">=0.20" },
     { name = "prometheus-client", specifier = ">=0.25.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
-    { name = "python-ulid", specifier = ">=2.0.0" },
     { name = "pytz", specifier = ">=2024.1" },
     { name = "rich", specifier = ">=15.0.0" },
     { name = "scikit-learn", specifier = ">=1.9.0" },
