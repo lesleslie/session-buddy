@@ -3,7 +3,7 @@ status: active
 role: canonical
 date: 2026-08-10
 last_reviewed: 2026-08-10
-topic: cross-repo-work-vs-eventbridge
+topic: observability
 ---
 
 # Cross-Repo Work (`cross_repo_work_v2`) vs EventBridge
