@@ -365,9 +365,6 @@ def _llama_server_health_url() -> str:
     return f"{base}/embeddings"
 
 
-def _ollama_health_url() -> str:
-    """Build Ollama health check URL."""
-    return f"{os.environ.get('MAHAVISHNU__OLLAMA_URL', 'http://localhost:11434')}/api/embed"
 
 
 async def _check_provider(
@@ -385,7 +382,7 @@ async def _check_provider(
     * ``"{name}"`` — HTTP 200 (running and responsive)
     * ``"{name} ({status_code})"`` — responded but rejected the request
     * ``"{name} (timeout)"`` — service is unreachable within the timeout
-      (often: ollama is alive on the port but the model is loading)
+      (often: the model is still loading on the local server)
     * ``"{name} (connection refused)"`` — nothing is listening on the port
     * ``"{name} (error)"`` — anything else (DNS failure, TLS error, etc.)
     * ``"{name} (SSRF blocked — set SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS=1)"``
@@ -412,43 +409,20 @@ async def _check_provider(
 async def _check_embedding_providers(
     client: httpx.AsyncClient,
 ) -> tuple[list[str], list[str]]:
-    """Check llama-server and Ollama, return (available, unavailable) lists.
+    """Check llama-server, return (available, unavailable) lists.
 
-    Both providers are probed concurrently so a slow or unreachable endpoint
-    cannot double the wall-clock cost of the dependency health check. With the
-    default 5 s ``httpx.AsyncClient`` timeout, sequential probing could push
-    ``get_all_health_checks()`` past the 1 s budget asserted by the
-    concurrent-execution integration test when both providers are down.
+    Ollama was removed in REQ-OLLAMA-014. Only llama-server is
+    probed; the local-tier responsibility consolidated there.
     """
-    available: list[str] = []
-    unavailable: list[str] = []
-
-    llama_result, ollama_result = await asyncio.gather(
-        _check_provider(
-            client,
-            _llama_server_health_url(),
-            "llama-server",
-            {"input": ["health-check"]},
-        ),
-        _check_provider(
-            client,
-            _ollama_health_url(),
-            "ollama",
-            {"model": "nomic-embed-text", "input": ["health-check"]},
-        ),
+    llama_result = await _check_provider(
+        client,
+        _llama_server_health_url(),
+        "llama-server",
+        {"input": ["health-check"]},
     )
-
     if llama_result == "llama-server":
-        available.append(llama_result)
-    else:
-        unavailable.append(llama_result)
-
-    if ollama_result == "ollama":
-        available.append(ollama_result)
-    else:
-        unavailable.append(ollama_result)
-
-    return available, unavailable
+        return [llama_result], []
+    return [], [llama_result]
 
 
 async def _check_crackerjack_and_embedding_providers() -> tuple[list[str], list[str]]:
@@ -463,7 +437,7 @@ async def _check_crackerjack_and_embedding_providers() -> tuple[list[str], list[
             available.extend(ep_available)
             unavailable.extend(ep_unavailable)
     except ImportError:
-        unavailable.extend(["llama-server", "ollama"])
+        unavailable.append("llama-server")
 
     return available, unavailable
 
@@ -476,7 +450,7 @@ async def check_dependencies_health() -> ComponentHealth:
 
     Checks:
         - Crackerjack integration availability
-        - HTTP embedding providers (llama-server/Ollama)
+        - HTTP embedding providers (llama-server)
         - Other optional features
 
     """

@@ -391,7 +391,7 @@ def get_masked_api_key(provider: str = "openai") -> str:
         api_key = os.getenv("MINIMAX_API_KEY")
     elif provider == "zai":
         api_key = os.getenv("ZAI_API_KEY")
-    elif provider == "ollama":
+    elif provider == "llama_server":
         return "N/A (local service)"
 
     if not api_key:
@@ -538,22 +538,8 @@ class LLMManager:
                     },
                     "timeout_seconds": 120,
                 },
-                "ollama": {
-                    "name": "ollama",
-                    "base_url": os.environ.get(
-                        "OLLAMA_BASE_URL", "http://localhost:11434/v1"
-                    ),
-                    "require_auth": False,
-                    "task_routing": {
-                        "chat": "qwen2.5-coder:7b",
-                        "code_generation": "qwen2.5-coder:7b",
-                        "analysis": "qwen2.5-coder:7b",
-                        "summarization": "qwen2.5-coder:7b",
-                    },
-                    "timeout_seconds": 120,
-                },
             },
-            fallback_chain=["minimax", "llama_server", "ollama"],
+            fallback_chain=["minimax", "llama_server"],
         )
         try:
             return FallbackChain.from_settings(settings)

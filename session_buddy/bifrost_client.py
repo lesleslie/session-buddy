@@ -6,7 +6,7 @@ returns an OpenAI-style completion dict.
 
 Per the CLAUDE.md model-routing config, model names use the canonical
 provider prefix (e.g. ``minimax/MiniMax-M3``) so Bifrost can route to the
-right backend (cloud, ollama, llama_server).
+right backend (cloud, llama_server).
 
 Credential resolution (Track A-ext1 of the serverless-tiering plan):
 ``BIFROST_API_KEY`` is read via the Oneiric secrets adapter wrapper

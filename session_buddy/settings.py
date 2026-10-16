@@ -110,21 +110,11 @@ class LLMConfig(_BaseConfig):
 
     # Primary + fallback chain
     default_provider: t.Literal[
-        "minimax", "zai", "openai", "gemini", "ollama", "llama_server"
+        "minimax", "zai", "openai", "gemini", "llama_server"
     ] = Field(default="minimax", description="Primary LLM provider")
     fallback_providers: list[str] = Field(
-        default_factory=lambda: ["minimax", "llama_server", "ollama"],
+        default_factory=lambda: ["minimax", "llama_server"],
         description="Ordered fallback chain",
-    )
-
-    # Provider endpoints and default models
-    ollama_base_url: str = Field(
-        default="http://localhost:11434",
-        description="Ollama server base URL",
-    )
-    ollama_default_model: str = Field(
-        default="qwen2.5-coder:7b",
-        description="Default Ollama model",
     )
     # NOTE (2026-09-27 audit): ``llama_server_base_url`` had no consumer in
     # the Bodai ecosystem — the actual llama.cpp URL is read via the
@@ -757,7 +747,6 @@ class FeatureFlagsConfig(_BaseConfig):
     """
 
     enable_anthropic: bool = Field(default=False)
-    enable_ollama: bool = Field(default=False)
     enable_conscious_agent: bool = Field(default=False)
     enable_filesystem_extraction: bool = Field(default=False)
     enable_crackerjack_fallback: bool = Field(

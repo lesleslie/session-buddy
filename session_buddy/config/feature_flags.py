@@ -27,7 +27,6 @@ class FeatureFlags:
     # Extraction cascade
     enable_llm_entity_extraction: bool = False
     enable_anthropic: bool = False
-    enable_ollama: bool = False
 
     # Background optimization
     enable_conscious_agent: bool = False
@@ -98,7 +97,6 @@ def get_feature_flags() -> FeatureFlags:
             settings, "entity_extraction", "enable"
         ),
         enable_anthropic=_read_attr(settings, "feature_flags", "enable_anthropic"),
-        enable_ollama=_read_attr(settings, "feature_flags", "enable_ollama"),
         enable_conscious_agent=_read_attr(
             settings, "feature_flags", "enable_conscious_agent"
         ),
@@ -119,7 +117,6 @@ def get_feature_flags() -> FeatureFlags:
         enable_anthropic=_get_env_bool(
             "SESSION_BUDDY_ENABLE_ANTHROPIC", base.enable_anthropic
         ),
-        enable_ollama=_get_env_bool("SESSION_BUDDY_ENABLE_OLLAMA", base.enable_ollama),
         enable_conscious_agent=_get_env_bool(
             "SESSION_BUDDY_ENABLE_CONSCIOUS_AGENT", base.enable_conscious_agent
         ),

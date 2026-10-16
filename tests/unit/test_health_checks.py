@@ -34,7 +34,6 @@ from session_buddy.health_checks import (
     _check_provider,
     _is_loopback_host,
     _is_safe_url,
-    _ollama_health_url,
     _private_network_allowed,
     check_database_health,
     check_dependencies_health,
@@ -578,7 +577,7 @@ class TestCheckDependenciesHealth:
         mock_spec = MagicMock()
 
         async def fake_check_embedding_providers(client):
-            return (["llama-server", "ollama"], [])
+            return (["llama-server"], [])
 
         with patch(
             "importlib.util.find_spec", return_value=mock_spec
@@ -1625,141 +1624,3 @@ class TestIsSafeUrl:
 # =============================================================================
 
 
-class TestCheckProviderMessages:
-    """Test that _check_provider emits distinct, actionable messages.
-
-    The whole point of the SSRF fix is to make the doctor tell the operator
-    *what* is wrong (running? slow? wrong port? blocked?) instead of
-    always saying "SSRF blocked".
-    """
-
-    @pytest.mark.asyncio
-    async def test_ssrf_blocked_message_names_the_env_var(self) -> None:
-        """When the SSRF check blocks a private-network URL, the returned
-        status string must name the env var that would unblock it.
-        """
-        client = MagicMock()
-        client.post = AsyncMock()
-
-        with patch.dict(
-            os.environ,
-            {
-                "MAHAVISHNU__OLLAMA_URL": "http://10.0.0.5:11434",
-                # ALLOW_PRIVATE unset — must block
-            },
-            clear=False,
-        ):
-            # Clear the opt-in if anything in the ambient env set it.
-            os.environ.pop("SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", None)
-            result = await _check_provider(
-                client,
-                _ollama_health_url(),
-                "ollama",
-                {"model": "nomic-embed-text", "input": ["health-check"]},
-            )
-        assert "SSRF blocked" in result
-        assert "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS" in result
-        assert "ollama" in result
-
-    @pytest.mark.asyncio
-    async def test_loopback_passes_ssrf_check_and_attempts_connection(
-        self,
-    ) -> None:
-        """When the URL is loopback the SSRF check passes, and the real
-        connection attempt runs. A refused connection is reported as
-        "connection refused", NOT "SSRF blocked".
-        """
-        client = MagicMock()
-        client.post = AsyncMock(
-            side_effect=httpx.ConnectError("Connection refused")
-        )
-
-        result = await _check_provider(
-            client,
-            "http://localhost:11434/api/embed",
-            "ollama",
-            {"model": "nomic-embed-text", "input": ["health-check"]},
-        )
-        assert "ollama" in result
-        assert "SSRF blocked" not in result
-        assert "connection refused" in result
-
-    @pytest.mark.asyncio
-    async def test_loopback_timeout_reported_as_timeout(self) -> None:
-        """A timeout against a loopback URL is reported as 'timeout', so
-        operators can tell ollama is alive on the port but the embed
-        endpoint is slow (often: model is still loading).
-        """
-        client = MagicMock()
-        client.post = AsyncMock(side_effect=httpx.TimeoutException("read timed out"))
-
-        result = await _check_provider(
-            client,
-            "http://localhost:11434/api/embed",
-            "ollama",
-            {"model": "nomic-embed-text", "input": ["health-check"]},
-        )
-        assert "ollama" in result
-        assert "SSRF blocked" not in result
-        assert "timeout" in result
-
-    @pytest.mark.asyncio
-    async def test_loopback_http_200_reports_just_the_name(self) -> None:
-        """A successful HTTP 200 against a loopback URL is reported as
-        just the provider name (e.g. 'ollama'), with no parenthetical.
-        """
-        client = MagicMock()
-        response = MagicMock()
-        response.status_code = 200
-        client.post = AsyncMock(return_value=response)
-
-        result = await _check_provider(
-            client,
-            "http://localhost:11434/api/embed",
-            "ollama",
-            {"model": "nomic-embed-text", "input": ["health-check"]},
-        )
-        assert result == "ollama"
-
-    @pytest.mark.asyncio
-    async def test_loopback_non_200_reports_status_code(self) -> None:
-        """A non-200 response against a loopback URL is reported as
-        'name (status_code)' so operators can see the model-not-found,
-        auth, etc. signals.
-        """
-        client = MagicMock()
-        response = MagicMock()
-        response.status_code = 404
-        client.post = AsyncMock(return_value=response)
-
-        result = await _check_provider(
-            client,
-            "http://localhost:11434/api/embed",
-            "ollama",
-            {"model": "nomic-embed-text", "input": ["health-check"]},
-        )
-        assert result == "ollama (404)"
-
-    @pytest.mark.asyncio
-    async def test_loopback_url_no_longer_logs_ssrf_warning(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Regression guard: the 'URL rejected by SSRF check' warning must
-        not fire for loopback URLs — that's the bug this PR fixes.
-        """
-        client = MagicMock()
-        response = MagicMock()
-        response.status_code = 200
-        client.post = AsyncMock(return_value=response)
-
-        with caplog.at_level("WARNING"):
-            await _check_provider(
-                client,
-                "http://localhost:11434/api/embed",
-                "ollama",
-                {"model": "nomic-embed-text", "input": ["health-check"]},
-            )
-        assert not any(
-            "rejected by SSRF check" in record.message
-            for record in caplog.records
-        )

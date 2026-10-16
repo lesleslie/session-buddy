@@ -6,7 +6,7 @@ session_storage) and a single LLM provider slot. So we push one fact
 keyed ``__main__`` to Oneiric with the configuration snapshot that
 operators care about:
 
-- LLM provider: default + fallback chain + Ollama endpoint + default model
+- LLM provider: default + fallback chain
 - Storage backend: DuckDB (SB's only built-in store; "postgres" tag only
   appears if a non-default storage provider is configured — SB does not
   expose one today, but the capability tag is reserved for future use)
@@ -51,8 +51,6 @@ def _build_capabilities(settings: Any) -> list[str]:
     """
     capabilities: list[str] = [
         f"llm:{settings.llm.default_provider}",
-        f"llm:ollama_url:{settings.llm.ollama_base_url}",
-        f"llm:ollama_model:{settings.llm.ollama_default_model}",
     ]
     for provider in settings.llm.fallback_providers or ():
         capabilities.append(f"llm:fallback:{provider}")
@@ -97,8 +95,6 @@ def _build_runtime_facts(settings: Any) -> dict[str, Any]:
                 "fallback_providers": list(
                     settings.llm.fallback_providers or (),
                 ),
-                "ollama_base_url": settings.llm.ollama_base_url,
-                "ollama_default_model": settings.llm.ollama_default_model,
             },
             "storage": {"backend": "duckdb"},
             "bodai_events": {

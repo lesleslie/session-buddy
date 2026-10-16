@@ -1,9 +1,10 @@
 """Embedding generation for semantic search via HTTP providers.
 
-Provides async embedding generation using llama-server (preferred) or Ollama
-with graceful degradation when no providers are available.
+Provides async embedding generation using llama-server with
+graceful degradation when no providers are available.
 
-Phase 5: ONNX path removed — HTTP-only embedding via llama-server → Ollama → None.
+Phase 5: ONNX path removed. Phase 6: Ollama fallback removed
+(REQ-OLLAMA-014) — llama-server is the sole local HTTP provider.
 """
 
 from __future__ import annotations
@@ -14,11 +15,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# HTTP provider URLs
+# HTTP provider URL
 _LLAMA_SERVER_BASE = os.environ.get(
     "MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8080/v1"
 )
-OLLAMA_URL = os.environ.get("MAHAVISHNU__OLLAMA_URL", "http://localhost:11434")
 
 
 def _get_llama_server_url() -> str:
@@ -65,51 +65,13 @@ async def _try_llama_server(text: str) -> list[float] | None:
     return None
 
 
-async def _try_ollama(text: str) -> list[float] | None:
-    """Try Ollama embedding, return embedding or None."""
-    import httpx2 as httpx
-
-    try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(30.0, connect=5.0)
-        ) as client:
-            resp = await client.post(
-                f"{OLLAMA_URL}/api/embed",
-                json={"model": "nomic-embed-text", "input": [text]},
-            )
-            if resp.status_code != 200:
-                return None
-            data = resp.json()
-            embeddings = data.get("embeddings")
-            if isinstance(embeddings, list) and embeddings:
-                embedding = embeddings[0]
-            else:
-                embedding = data.get("embedding", [])
-            if (
-                embedding
-                and isinstance(embedding, list)
-                and len(embedding) == 384
-                and all(isinstance(x, (int, float)) for x in embedding)
-            ):
-                return embedding
-    except Exception as e:  # noqa: BLE001 - embedding probe: any HTTP/JSON/network failure is logged and yields None so the next provider can be tried
-        logger.debug(f"Ollama embedding failed: {e}")
-    return None
-
-
 async def _try_http_embedding_providers(text: str) -> list[float] | None:
-    """Try llama-server first, then Ollama, return embedding or None.
+    """Try llama-server, return embedding or None.
 
     llama-server: OpenAI-compatible /v1/embeddings endpoint.
-    Ollama: /api/embed endpoint with nomic-embed-text model.
-
-    Both providers return pre-normalized 384d vectors.
+    Returns pre-normalized 384d vectors.
     """
-    if (embedding := await _try_llama_server(text)) is not None:
-        return embedding
-    if (embedding := await _try_ollama(text)) is not None:
-        return embedding
-    return None
+    return await _try_llama_server(text)
 
 
 # Thread-safe embedding cache (simple dict + lock)
@@ -144,7 +106,7 @@ def _embedding_cache_put(text: str, embedding: list[float]) -> None:
 async def generate_embedding(text: str) -> list[float] | None:
     """Generate embedding for text asynchronously via HTTP providers.
 
-    Tries llama-server first, then Ollama. Both return pre-normalized
+    Tries llama-server. Returns pre-normalized
     384d vectors. Results are cached.
 
     Args:
@@ -188,7 +150,7 @@ def get_embedding_system_info() -> dict[str, Any]:
         - initialized: Always True (HTTP is stateless)
         - model_dim: Embedding dimension (384)
         - cache_size: Current cache size
-        - http_providers: Dict with llama_server and ollama URLs
+        - http_providers: Dict with llama_server URL
     """
     with _embedding_cache_lock:
         cache_size = len(_embedding_cache)
@@ -199,7 +161,6 @@ def get_embedding_system_info() -> dict[str, Any]:
         "cache_size": cache_size,
         "http_providers": {
             "llama_server": _get_llama_server_url(),
-            "ollama": OLLAMA_URL,
         },
     }
 
@@ -213,7 +174,7 @@ def initialize_embedding_system(
 ) -> None:
     """No-op. ONNX embedding removed in Phase 5.
 
-    HTTP providers (llama-server/Ollama) handle embeddings.
+    HTTP providers (llama-server) handle embeddings.
     Kept for backward compatibility — safe to ignore.
     """
     logger.debug("initialize_embedding_system: ONNX removed, HTTP providers used")

@@ -35,7 +35,7 @@ except ImportError:
     NUMPY_AVAILABLE = False
 
 # HTTP-based embedding — no local ONNX model needed.
-# Providers (llama-server/Ollama) return pre-normalized 384d vectors.
+# Providers (llama-server) return pre-normalized 384d vectors.
 ONNX_AVAILABLE = False  # Always False — using HTTP providers
 ort = None
 AutoTokenizer: type | None = None  # Not needed for HTTP
@@ -1109,7 +1109,7 @@ class ReflectionDatabaseAdapterOneiric:
         """Initialize embedding model.
 
         After migration to HTTP: no local model loading needed.
-        HTTP providers (llama-server/Ollama) are called directly.
+        HTTP providers (llama-server) are called directly.
         Kept as no-op for backward compatibility.
         """
         # HTTP embedding is stateless — no initialization needed

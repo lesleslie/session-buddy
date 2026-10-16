@@ -1,7 +1,7 @@
 """LLM provider system for session management.
 
 This package provides a unified interface for working with multiple LLM providers
-including OpenAI, Google Gemini, and Ollama. It includes:
+including OpenAI, Google Gemini, and llama-server. It includes:
 - Standardized data models for messages and responses
 - Abstract base class for provider implementations
 - Individual provider implementations
@@ -18,7 +18,6 @@ from session_buddy.llm.models import (
 )
 from session_buddy.llm.providers import (
     GeminiProvider,
-    OllamaProvider,
     OpenAIProvider,
 )
 from session_buddy.llm.security import (
@@ -33,7 +32,6 @@ __all__ = [
     # Base classes
     "LLMProvider",
     "LLMResponse",
-    "OllamaProvider",
     # Provider implementations
     "OpenAIProvider",
     "StreamChunk",

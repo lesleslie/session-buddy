@@ -26,7 +26,7 @@ try:
 except ImportError:
     DUCKDB_AVAILABLE = False
 
-# HTTP embedding providers (llama-server/Ollama) handle embeddings
+# HTTP embedding providers (llama-server) handle embeddings
 # No local ONNX runtime needed
 ONNX_AVAILABLE = False  # Kept for compatibility but always False
 

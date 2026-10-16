@@ -115,7 +115,7 @@ lazy_loader = LazyLoader()
 
 # REMOVED: transformers and onnxruntime lazy imports
 # These were used for local ONNX embedding models which have been replaced
-# by HTTP-based embedding providers (llama-server/Ollama)
+# by HTTP-based embedding providers (llama-server)
 # Keeping tiktoken, duckdb, numpy which are still needed
 
 tiktoken = lazy_loader.add_import(
@@ -253,7 +253,7 @@ def get_dependency_status() -> dict[str, dict[str, Any]]:
 
     # Overall status
     core_available = all(status[dep]["available"] for dep in core_deps)
-    # embeddings now served via HTTP (llama-server/Ollama) — always "available"
+    # embeddings now served via HTTP (llama-server) — always "available"
     embeddings_available = True
 
     status["_summary"] = {

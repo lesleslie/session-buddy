@@ -27,7 +27,7 @@ def get_masked_api_key(provider: str = "openai") -> str:
     """Get masked API key for safe logging.
 
     Args:
-        provider: Provider name ('openai', 'gemini', 'ollama')
+        provider: Provider name ('openai', 'gemini', 'llama_server')
 
     Returns:
         Masked API key string (e.g., "sk-...abc1") for safe display in logs
@@ -53,8 +53,8 @@ def get_masked_api_key(provider: str = "openai") -> str:
         api_key = os.getenv("MINIMAX_API_KEY")
     elif provider == "zai":
         api_key = os.getenv("ZAI_API_KEY")
-    elif provider in ("ollama", "llama_server"):
-        # Local services, no API key needed
+    elif provider == "llama_server":
+        # Local service, no API key needed
         return "N/A (local service)"
 
     if not api_key:
@@ -129,7 +129,7 @@ def _get_configured_providers() -> list[str]:
     providers: set[str] = set()
 
     # Local providers are always "configured" (no API key required)
-    providers.update(("ollama", "llama_server"))
+    providers.update(("llama_server",))
 
     # Check settings-based API keys for cloud providers
     for provider in ("minimax", "zai", "openai", "gemini", "anthropic", "qwen"):
@@ -158,7 +158,7 @@ def validate_llm_api_keys_at_startup() -> dict[str, str]:
     """Validate LLM provider API keys at server startup (Phase 3 Security Hardening).
 
     Validates API keys for all configured LLM providers (OpenAI, Gemini).
-    Ollama is skipped as it's a local service without API key requirements.
+    llama-server is the only local service without API key requirements.
 
     Returns:
         Dictionary mapping provider names to validation status messages
@@ -172,7 +172,7 @@ def validate_llm_api_keys_at_startup() -> dict[str, str]:
     validated_providers: dict[str, str] = {}
     providers_configured = _get_configured_providers()
 
-    # If no providers configured, warn but allow startup (Ollama might be used)
+    # If no providers configured, warn but allow startup (llama-server may be used)
     if not providers_configured:
         return validated_providers
 

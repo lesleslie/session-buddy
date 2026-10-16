@@ -12,10 +12,7 @@ llm:
   fallback_providers:
     - "minimax"
     - "llama_server"
-    - "ollama"
 
-  ollama_base_url: "http://localhost:11434"
-  ollama_default_model: "Qwen3-8B-8.2B-Q4_K_M"
   llama_server_default_model: "qwen3.5"
   llama_server_model: "qwen3.5"  # canonical: llama_server_default_model
 
@@ -178,7 +175,6 @@ entity_extraction:
 # === Feature flags (per-toggle opt-ins) ===
 feature_flags:
   enable_anthropic: true
-  enable_ollama: false
   enable_conscious_agent: true
   enable_filesystem_extraction: true
   enable_crackerjack_fallback: false
