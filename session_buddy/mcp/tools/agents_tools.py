@@ -1,49 +1,64 @@
-"""Phase 3 server-published agents tools (Phase 3 of bodai-skill-agent-distribution).
+"""Phase 3 server-published agents tools for Session-Buddy.
 
 Exposes the ``mcp__session_buddy__session_buddy_list_agents`` and
-``mcp__session_buddy__session_buddy_get_agent`` tools that advertise the
-server-defined agents to Phase 2's installer and the Claude Code picker.
-Agents live as markdown bodies under
-``session_buddy/mcp/agents/<name>.md``; this module reads them at request
-time and signs the metadata via the lifespan-owned
-:class:`SkillsSigner`.
+``mcp__session_buddy__session_buddy_get_agent`` MCP tools that
+advertise the server-defined agents to the Phase 3 installer and
+the Claude Code picker. Agents live as markdown bodies (with
+YAML frontmatter) under
+``session_buddy/mcp/agents/<name>.md``.
+
+This module is a thin server-specific wrapper around
+:func:`mcp_common.agents_tools.build_register_agents_tools`. The
+factory owns the mechanism — the B-4 allowlist, B-6 body
+normalization + content-hash, the wire shape, the success/error
+envelope, and the tool registration plumbing. Session-Buddy owns
+the policy: the catalog, where bodies live, the tool name prefix
+(``"session_buddy_"``), how the signer is acquired (lifespan via
+``signer_feed.get_signer_feed_state()``), and the signing function
+(canonicalization via session-buddy's local
+``canonical_payload_for_signing``).
 
 Security gates (per plan §11):
 
-- **B-1** — every ``get_agent`` response carries an ed25519 signature over
-  the canonicalized metadata (the Phase 2 installer verifies this before
-  any write to ``~/.claude/agents/session-buddy-<name>.md``).
-- **B-4** — path-traversal allowlist ``^[a-z0-9][a-z0-9._-]{0,62}$`` is
-  enforced on the ``name`` parameter at the API boundary, BEFORE the
-  metadata model re-validates it. Defense-in-depth: an unknown /
-  forbidden ``name`` returns an error envelope rather than raising past
-  the MCP boundary.
-- **B-7** — each successful tool call bumps ``SignerFeedState.cycles_total``
-  via :meth:`record_cycle` so the four mandatory feed signals stay
+- **B-1** — every ``get_agent`` response carries an ed25519 signature
+  over the canonicalized metadata. The Phase 3 installer verifies
+  this before any write to ``~/.claude/agents/session-buddy-<name>.md``.
+- **B-4** — the path-traversal allowlist
+  ``^[a-z0-9][a-z0-9._-]{0,62}$`` lives in
+  ``mcp_common.canonical_schemas._validators.NAME_OR_SERVER_RE``;
+  the factory enforces it at the API boundary. The per-server
+  regex copy that used to live here is gone.
+- **B-6** — ``get_agent`` returns ``body == system_prompt``. The
+  factory computes ``content_hash`` from the stripped body and
+  the schema's body-integrity model_validator asserts the hash
+  matches the system_prompt bytes.
+- **B-7** — each successful tool call invokes ``on_call``, which
+  bumps ``SignerFeedState.cycles_total`` via
+  :meth:`record_cycle` so the four mandatory feed signals stay
   accurate.
+
+Body shape note: the body is the FULL markdown file (YAML
+frontmatter + markdown body), which Claude Code reads verbatim
+as the system prompt. Per Phase 3 task #2: ``body ==
+metadata.system_prompt`` — both fields carry the same bytes.
 
 Non-goals:
 
-- Body content is loaded at request time (L-6). No session-start pre-load.
+- Body content is loaded at request time (L-6). No session-start
+  pre-load.
 - The 3 starter agents ship as static markdown files in
-  ``agents/``; Phase 4's federation layer
-  (``mcp__akosha__list_ecosystem_skills``) is what exposes them alongside
-  the other 4 servers' catalogs.
+  ``session_buddy/mcp/agents/``; Phase 4's federation layer
+  (``mcp__akosha__list_ecosystem_agents``) is what exposes them
+  alongside the other 4 servers' catalogs.
 """
-
 from __future__ import annotations
 
-import hashlib
 import logging
-import re
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from pydantic import ValidationError
-
-from session_buddy.mcp.agent_schema import AgentMetadata
-from session_buddy.skills_signer import canonical_payload_for_signing
+from mcp_common.agents_tools import build_register_agents_tools
+from mcp_common.canonical_schemas.agent import AgentCanonicalSchema
 
 if TYPE_CHECKING:
     from fastmcp import FastMCP
@@ -51,28 +66,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# Allowlist mirror — see B-4 / plan §5 task #1. Duplicated here so the
-# API boundary rejects forbidden ``name`` values BEFORE constructing the
-# Pydantic model (avoids letting a path-traversal payload reach the
-# validator, which would surface as a different error class).
-_NAME_ALLOWLIST_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,62}$")
-
-
-# Catalog lives next to this module so deployment paths stay self-contained.
-# The catalog is static — new agents are added by dropping a new ``.md``
-# file under ``agents/`` and adding an entry to ``_STATIC_AGENTS``.
+# Catalog lives next to this module so deployment paths stay self-
+# contained. The catalog is static — new agents are added by
+# dropping a new ``.md`` file under ``agents/`` AND adding an entry
+# to ``_STATIC_AGENTS``.
 _CATALOG_DIR = Path(__file__).parent.parent / "agents"
 
 
-# Phase 3: 3 starter agents with real session-buddy content. Each tuple
-# is the body's filename (relative to ``agents/``), the semantic
-# version, the description that goes in the AgentMetadata, the model,
-# the list of MCP tool names the agent may invoke, dependencies, and
-# metadata fields (title, category, owner, status, last_reviewed, scope).
+# Phase 3: 3 starter agents with real session-buddy content. Each
+# dict is the body's filename (relative to ``agents/``), the
+# semantic version, the description that goes in the
+# AgentMetadata, the model, the list of MCP tool names the agent
+# may invoke, dependencies, and the optional governance metadata
+# (title, category, owner, status, last_reviewed, scope).
 #
 # Adding a new server-published agent: drop ``<name>.md`` under
-# ``agents/`` AND add an entry below. The validator runs at module
-# load — a missing file or mismatched hash fails fast.
+# ``agents/`` AND add an entry below. The factory's catalog
+# validation runs at module load — a missing file or duplicate
+# name fails fast.
 _STATIC_AGENTS: list[dict[str, Any]] = [
     {
         "name": "session-buddy-specialist",
@@ -194,27 +205,29 @@ _STATIC_AGENTS: list[dict[str, Any]] = [
 ]
 
 
-_SERVER_NAME = "session_buddy"
+# Note: server_key uses underscore ("session_buddy"), not hyphen.
+# The MCP tool name prefix is "session_buddy_" to match the
+# existing wire names (mcp__session_buddy__session_buddy_*).
+_SERVER_KEY = "session_buddy"
 
 
-# Name-indexed view of the static catalog — built once at module load so
-# the tool handlers can do O(1) lookups instead of scanning the list.
-# This MUST stay below ``_STATIC_AGENTS`` so the dict comprehension sees
-# the full list (Python's module body executes top-to-bottom; this lookup
-# is never called before the module finishes loading).
+# Name-indexed view of the static catalog — built once at module
+# load so the body loader can do O(1) lookups instead of scanning
+# the list.
 _STATIC_AGENTS_BY_NAME: dict[str, dict[str, Any]] = {
     entry["name"]: entry for entry in _STATIC_AGENTS
 }
 
 
+# --- Body source (server-specific) ------------------------------------
+
+
 def _read_body(filename: str) -> str:
     """Load an agent body from the catalog, asserting the file exists.
 
-    The validator at module load time catches missing files before any
-    MCP request reaches the runtime path. Returns the body as UTF-8 text.
-    For agents, this is the full markdown file (YAML frontmatter +
-    markdown body) which Claude Code reads verbatim as the system
-    prompt (per Phase 3 task #2: ``body == system_prompt``).
+    The body is the FULL markdown file (YAML frontmatter + markdown
+    body) which Claude Code reads verbatim as the system prompt
+    (per Phase 3 task #2: ``body == system_prompt``).
     """
     path = _CATALOG_DIR / filename
     if not path.is_file():
@@ -224,59 +237,46 @@ def _read_body(filename: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _build_unsigned_metadata(name: str) -> AgentMetadata:
-    """Build an :class:`AgentMetadata` for the named static agent.
+def _body_loader(name: str) -> str:
+    """Factory's body source: read the file from disk.
 
-    The metadata has ``signature=None`` and ``server_pubkey_id=None``;
-    those fields are populated by :func:`_sign_metadata` after signing.
-    The ``system_prompt`` field carries the FULL markdown body
-    (YAML frontmatter + markdown body) — equal to what ``get_agent``
-    returns in its ``body`` field per Phase 3 task #2.
-    ``content_hash`` is the lowercase hex SHA-256 of those body bytes.
-    Raises :class:`KeyError` if ``name`` is not a known static agent.
+    The factory's ``_build_unsigned_metadata`` calls this on demand
+    for any catalog entry that doesn't carry ``system_prompt``
+    inline. The factory strips the returned string and computes
+    the B-6 content_hash from the stripped bytes.
     """
-    for entry in _STATIC_AGENTS:
-        if entry["name"] != name:
-            continue
-        body = _read_body(entry["body_filename"])
-        body_bytes = body.encode("utf-8")
-        content_hash = hashlib.sha256(body_bytes).hexdigest()
-        version = entry["version"]
-        return AgentMetadata(
-            id=f"{_SERVER_NAME}:{name}:{version}",
-            server_key=_SERVER_NAME,
-            name=name,
-            title=entry.get("title"),
-            description=entry["description"],
-            version=version,
-            model=entry["model"],
-            tools=list(entry["tools"]),
-            system_prompt=body,
-            dependencies=list(entry["dependencies"]),
-            tool_refs=list(entry["tool_refs"]),
-            category=entry.get("category"),
-            owner=entry.get("owner"),
-            status=entry.get("status"),
-            last_reviewed=entry.get("last_reviewed"),
-            scope=entry.get("scope", "user-global"),
-            content_hash=content_hash,
-            timestamp=datetime.now(UTC).timestamp(),
+    return _read_body(_STATIC_AGENTS_BY_NAME[name]["body_filename"])
+
+
+# --- Signing policy (server-specific) ---------------------------------
+
+
+def _sign(metadata: AgentCanonicalSchema) -> AgentCanonicalSchema:
+    """Apply an ed25519 signature using the lifespan-owned signer.
+
+    The factory hands the unsigned metadata to this callable and
+    receives the signed copy. Acquires the signer via
+    :func:`session_buddy.mcp.signer_feed.get_signer_feed_state`
+    (lifespan-owned), canonicalizes via session-buddy's local
+    :func:`canonical_payload_for_signing` (which strips the
+    ``signature`` + ``server_pubkey_id`` fields before signing so
+    the signature doesn't cover itself), and attaches the result.
+
+    Raises if the signer feed state isn't initialized (server
+    still starting up, or pre-Phase-1.5 lite mode). The factory
+    converts the exception into the standard error envelope.
+    """
+    from session_buddy.mcp.signer_feed import get_signer_feed_state
+    from session_buddy.skills_signer import canonical_payload_for_signing
+
+    state = get_signer_feed_state()
+    if state is None:
+        raise RuntimeError(
+            "signer not initialized (server may still be starting up)"
         )
-    msg = f"unknown agent {name!r}"
-    raise KeyError(msg)
 
-
-def _sign_metadata(metadata: AgentMetadata, signer: Any) -> AgentMetadata:
-    """Apply an ed25519 signature to a copy of ``metadata``.
-
-    The canonical payload strips ``signature`` and ``server_pubkey_id``
-    BEFORE canonicalization so the signature doesn't cover itself (per
-    ``canonical_payload_for_signing`` docstring + plan §10.1.3). The
-    returned copy has both signing fields populated.
-    """
-    unsigned_dict = metadata.model_dump(mode="json")
-    canonical = canonical_payload_for_signing(unsigned_dict)
-    signed = signer.sign(canonical)
+    canonical = canonical_payload_for_signing(metadata.to_dict())
+    signed = state.signer.sign(canonical)
     return metadata.model_copy(
         update={
             "signature": signed.signature_b64,
@@ -285,128 +285,57 @@ def _sign_metadata(metadata: AgentMetadata, signer: Any) -> AgentMetadata:
     )
 
 
-def _is_allowlisted(name: str) -> bool:
-    """B-4 API-boundary check on the ``name`` parameter.
+# --- B-7 cycle bump (server-specific) ---------------------------------
 
-    Forbids ``/``, ``..``, leading ``.``, uppercase, length > 63, and any
-    character outside ``[a-z0-9._-]``. Mirrors the AgentMetadata
-    validator so failures at the API boundary return a uniform
-    ``{"success": False, "error": ...}`` envelope.
+
+def _on_call() -> None:
+    """B-7: bump ``SignerFeedState.cycles_total`` on every tool call.
+
+    The factory invokes this at the start of every list_agents and
+    get_agent call so the four mandatory feed signals stay
+    accurate. No-op if the signer feed state isn't initialized
+    yet (matches the pre-refactor behavior).
     """
-    return bool(_NAME_ALLOWLIST_RE.fullmatch(name)) and ".." not in name
+    from session_buddy.mcp.signer_feed import get_signer_feed_state
+
+    state = get_signer_feed_state()
+    if state is not None:
+        state.record_cycle()
+
+
+# --- Tool registration ------------------------------------------------
 
 
 def register_agents_tools(app: FastMCP) -> None:
-    """Register ``session_buddy_list_agents`` and ``session_buddy_get_agent`` MCP tools.
+    """Register ``session_buddy_list_agents`` and ``session_buddy_get_agent``.
 
-    Idempotent at module level (the static catalog is loaded once at
-    import). Calling this twice is safe — FastMCP's ``@app.tool``
-    decorator is idempotent within a single ``app`` instance.
+    Idempotent at module level (the static catalog is loaded once
+    at import). Calling this twice is safe — FastMCP's
+    ``@app.tool`` decorator is idempotent within a single
+    ``app`` instance.
 
-    The tools access the lifespan-owned :class:`SkillsSigner` via
-    ``get_signer_feed_state()``; if the server is running without the
-    Phase 1.5 wiring (lite mode / pre-startup), both tools return an
-    error envelope rather than raising.
+    Delegates to :func:`mcp_common.agents_tools.build_register_agents_tools`
+    with session-buddy's catalog, body source, signing policy,
+    cycle-bump hook, and tool name prefix. The wire shape,
+    allowlist enforcement, and envelope contract all live in
+    the factory; session-buddy only owns the data, the signer,
+    and the prefix.
+
+    The call site is profile-gated (see
+    ``session_buddy/mcp/tools/profiles.py``) so the tool
+    registration respects the active ``SESSION_BUDDY_TOOL_PROFILE``
+    environment variable.
     """
-
-    @app.tool(name="session_buddy_list_agents")
-    async def session_buddy_list_agents() -> list[dict[str, Any]]:
-        """Return metadata for agents this server publishes.
-
-        Returns at least 3 entries (one per static agent in
-        ``_STATIC_AGENTS``). The ``signature`` and ``server_pubkey_id``
-        fields are ``None`` here — those are populated by
-        ``session_buddy_get_agent`` since the signature is over the
-        canonical payload WITHOUT the signing fields themselves.
-
-        Per Phase 3 task #1, each entry includes ``system_prompt`` (the
-        full markdown body) and ``content_hash`` (sha256 of those bytes)
-        so the installer can write the agent file verbatim after signature
-        verification.
-        """
-        from session_buddy.mcp.signer_feed import (
-            get_signer_feed_state,
-        )
-
-        state = get_signer_feed_state()
-        if state is not None:
-            state.record_cycle()
-
-        out: list[dict[str, Any]] = []
-        for entry in _STATIC_AGENTS:
-            try:
-                metadata = _build_unsigned_metadata(entry["name"])
-            except FileNotFoundError, ValidationError, KeyError:
-                logger.exception(
-                    "list_agents: failed to build metadata for %s",
-                    entry["name"],
-                )
-                continue
-            out.append(metadata.model_dump(mode="json"))
-        return out
-
-    @app.tool(name="session_buddy_get_agent")
-    async def session_buddy_get_agent(name: str) -> dict[str, Any]:
-        """Return the signed metadata + body for one agent.
-
-        Validates ``name`` against the B-4 allowlist BEFORE constructing
-        the metadata. Signs the metadata via the lifespan-owned
-        :class:`SkillsSigner`. The body is the raw markdown text from
-        ``agents/<name>.md`` — the client (Phase 2 installer) writes
-        this verbatim to ``~/.claude/agents/session-buddy-<name>.md``
-        so Claude Code can read the YAML frontmatter (name, description,
-        model, allowed-tools) at agent-invocation time.
-
-        Per Phase 3 task #2: ``body == metadata.system_prompt`` (both
-        are the full markdown file content, frontmatter + body).
-        """
-        from session_buddy.mcp.signer_feed import (
-            get_signer_feed_state,
-        )
-
-        if not _is_allowlisted(name):
-            return {
-                "success": False,
-                "error": (
-                    f"name {name!r} violates path-traversal allowlist "
-                    "(B-4): must match ^[a-z0-9][a-z0-9._-]{0,62}$ "
-                    "with no '..' substring"
-                ),
-            }
-
-        state = get_signer_feed_state()
-        if state is None:
-            return {
-                "success": False,
-                "error": "signer not initialized (server may still be starting up)",
-            }
-        state.record_cycle()
-
-        try:
-            unsigned = _build_unsigned_metadata(name)
-        except KeyError:
-            return {
-                "success": False,
-                "error": f"agent {name!r} not found on this server",
-            }
-        except FileNotFoundError as exc:
-            return {"success": False, "error": str(exc)}
-        except ValidationError as exc:
-            return {"success": False, "error": f"metadata validation failed: {exc}"}
-
-        signed = _sign_metadata(unsigned, state.signer)
-        body = _read_body(_STATIC_AGENTS_BY_NAME[name]["body_filename"])
-        return {
-            "success": True,
-            "metadata": signed.model_dump(mode="json"),
-            "body": body,
-        }
+    build_register_agents_tools(
+        server_key=_SERVER_KEY,
+        catalog=_STATIC_AGENTS,
+        body_loader=_body_loader,
+        sign=_sign,
+        on_call=_on_call,
+        tool_name_prefix=f"{_SERVER_KEY}_",
+        # The hook and any in-flight clients expect the
+        # "session_buddy_" prefix on both tool names.
+    )(app)
 
 
-# Build a {name: entry} index for O(1) lookup in the tool handlers. Done
-# at module load; ``_STATIC_AGENTS`` is a static list so this is safe.
-# (declared above; this comment is a navigation aid for readers — the
-# dict comprehension lives just below the ``_STATIC_AGENTS`` list above.)
-
-
-__all__ = ["register_agents_tools"]
+__all__ = ["register_agents_tools", "AgentCanonicalSchema"]
