@@ -360,7 +360,6 @@ EXCLUDED_DIRS = {
 
 EXCLUDED_PATHS = {
     "docs/schemas/document-frontmatter-v1.md",
-    "docs/schemas/topic-vocabulary-v1.md",
     "docs/plans/PLAN_INDEX.md",
     "CLAUDE.md",
     "AGENTS.md",
