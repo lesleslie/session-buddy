@@ -3,7 +3,7 @@ status: active
 role: canonical
 date: 2026-08-24
 last_reviewed: 2026-08-24
-topic: decisions-index
+topic: decision-index
 ---
 
 # Decisions Index

@@ -4,7 +4,7 @@ date: 2026-07-27
 last_reviewed: 2026-07-27
 status: draft
 role: canonical
-topic: quality-scoring
+topic: convergence-control-plane
 scope: wide
 followups:
   - N6 per-file coverage summary (separate spec)

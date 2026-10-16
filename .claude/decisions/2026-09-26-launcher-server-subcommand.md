@@ -5,7 +5,7 @@ kind: decision
 date: 2026-09-26
 last_reviewed: 2026-09-26
 superseded_by: null
-topic: mcp-launcher-migration
+topic: mcp-design
 related_plan: /Users/les/Projects/mahavishnu/docs/plans/2026-09-26-mcp-launcher-standardization.md
 related_reqs: [REQ-013, REQ-014, REQ-007]
 ---

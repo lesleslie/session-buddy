@@ -4,7 +4,7 @@ date: 2026-07-27
 last_reviewed: 2026-07-27
 status: draft
 role: canonical
-topic: ruff-016-source-remediation
+topic: convergence-control-plane
 scope: wide
 followups:
   - Adopt Ruff 0.16's complete recommended rule set as a separate policy review

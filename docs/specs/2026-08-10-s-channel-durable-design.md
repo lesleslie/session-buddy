@@ -3,7 +3,7 @@ status: draft
 date: 2026-08-10
 last_reviewed: 2026-08-10
 role: canonical
-topic: s-channel-durable
+topic: persistence
 entity: channel_session_state
 owner_repo: session-buddy
 subscribes_to: dhara.schema.channel_session_state
