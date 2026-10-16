@@ -47,7 +47,11 @@ coverage-batch*.json
 nosetests.xml
 coverage.xml
 coverage.json
-docs/archive/test-artifacts/coverage__*.json
+# coverage*.json catches filenames like coverage__20261014-104911.json
+# (double-underscore date-stamped test artifacts) that `coverage.json`
+# (exact) misses. The 2026-10-14 oneiric fast hook failure was caused by
+# a coverage JSON in docs/archive/test-artifacts/ escaping this ignore.
+coverage*.json
 *.cover
 *.py,cover
 .hypothesis/
@@ -193,6 +197,14 @@ tests/archived/
 .archives/
 .backup/
 .backups/
+# Defensive: docs/archive/ (no leading dot) is the LEGACY archive
+# path. The 2026-10-14 oneiric fast hook failure was caused by
+# test artifacts re-staging under this name; the migration untracked
+# the legacy dir (files now live under docs/.archive/, which is
+# itself gitignored). This rule prevents a regression — if anyone
+# re-introduces docs/archive/X, the same check-added-large-files
+# hook would flag large files there.
+docs/archive/
 
 .coverage
 .coverage*
