@@ -44,6 +44,7 @@ from session_buddy.adapters.settings import ReflectionAdapterSettings
 from session_buddy.cache.query_cache import (
     MemoryCacheAdapter,
     MemoryCacheSettings,
+    TrackedCacheAdapter,
     compute_cache_key,
     normalize_query,
 )
@@ -535,11 +536,12 @@ class ReflectionDatabaseAdapterOneiric:
         self._create_tables()
 
         # Initialize query cache (Phase 1: Query Cache). Substrate-adoption
-        # cleanup: QueryCacheManager was deleted; MemoryCacheAdapter is
-        # constructed directly with substrate-shaped settings (1000-entry
-        # cap, 7-day default TTL — the historical L1/L2 budget consolidated
-        # onto a single in-process adapter).
-        self._query_cache = MemoryCacheAdapter(
+        # cleanup: QueryCacheManager was deleted; the substrate's
+        # MemoryCacheAdapter is wrapped in TrackedCacheAdapter to add the
+        # hit-rate observability surface that operators depended on
+        # (1000-entry cap, 7-day default TTL — the historical L1/L2 budget
+        # consolidated onto a single in-process adapter).
+        self._query_cache = TrackedCacheAdapter(
             MemoryCacheSettings(max_entries=1000, default_ttl=7 * 86400.0)
         )
 

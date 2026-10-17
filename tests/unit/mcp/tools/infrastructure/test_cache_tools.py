@@ -4,11 +4,13 @@ Substrate-adoption cleanup: the L1/L2 distinction and the
 ``get_stats``/``_clear_l2``/``cleanup_expired`` features were tied to
 the deleted ``QueryCacheManager`` wrapper. These tests now drive the
 substrate-shaped adapter (``MemoryCacheAdapter``) — a single in-process
-``_store`` with ``clear()`` and ``delete(key)``.
+``_store`` with ``clear()`` and ``delete(key)`` — and the
+``TrackedCacheAdapter`` shim that wraps it for hit-rate metrics.
 
-Covers the four remaining MCP tools: ``query_cache_stats``,
-``clear_query_cache``, ``warm_cache``, ``invalidate_cache`` plus
-``register_cache_tools`` and the internal ``_resolve_db`` helper.
+Covers the five MCP tools: ``query_cache_stats``,
+``clear_query_cache``, ``warm_cache``, ``invalidate_cache``,
+``optimize_cache`` plus ``register_cache_tools`` and the internal
+``_resolve_db`` helper.
 
 Pattern: monkeypatch ``_resolve_db`` (or the ``depends.get_sync`` symbol
 it uses) so we can drive both the success path and the "no DB
@@ -55,7 +57,10 @@ def _make_db(*, cache_present: bool = True) -> MagicMock:
 
     Post-cleanup shape: the substrate adapter exposes ``clear()``,
     ``delete(key)``, ``_store`` (live entry dict) and ``_settings``
-    (with ``max_entries`` and ``default_ttl``).
+    (with ``max_entries`` and ``default_ttl``). The ``TrackedCacheAdapter``
+    shim adds ``get_stats()`` (returns the substrate-shaped stats dict
+    plus hit-rate fields) and ``cleanup_expired()`` (returns 0; no-op
+    for the substrate's TTL-on-write model).
     """
     db = MagicMock()
     if cache_present:
@@ -64,6 +69,18 @@ def _make_db(*, cache_present: bool = True) -> MagicMock:
         cache._store = {"a": ["hit1"], "b": ["hit2"]}
         cache.clear = AsyncMock()
         cache.delete = AsyncMock()
+        cache.get_stats = MagicMock(
+            return_value={
+                "max_entries": 100,
+                "default_ttl_seconds": 86400.0,
+                "current_entries": 2,
+                "hits": 0,
+                "misses": 0,
+                "hit_rate": 0.0,
+                "backend": "oneiric.MemoryCacheAdapter",
+            }
+        )
+        cache.cleanup_expired = MagicMock(return_value=0)
         db._query_cache = cache
     else:
         db._query_cache = None
@@ -143,8 +160,13 @@ def test_resolve_db_returns_none_when_adapter_lookup_raises(
 # ---------------------------------------------------------------------------
 
 
-def test_register_cache_tools_registers_all_four() -> None:
-    """register_cache_tools registers four MCP tools (L2-aware ``optimize_cache`` was deleted)."""
+def test_register_cache_tools_registers_all_five() -> None:
+    """register_cache_tools registers five MCP tools.
+
+    The substrate-adoption cleanup pass had dropped ``optimize_cache``;
+    the shim restoration (TrackedCacheAdapter + no-op cleanup_expired)
+    brings it back as a "is the cache healthy" probe.
+    """
     mcp = _FakeMCP()
     cache_mod.register_cache_tools(mcp)
     assert set(mcp.tools) == {
@@ -152,6 +174,7 @@ def test_register_cache_tools_registers_all_four() -> None:
         "clear_query_cache",
         "warm_cache",
         "invalidate_cache",
+        "optimize_cache",
     }
 
 
@@ -177,15 +200,20 @@ async def test_query_cache_stats_no_cache_attribute(db_no_cache) -> None:
 
 
 async def test_query_cache_stats_success(db_with_cache) -> None:
-    """Returns configured adapter limits + live store size."""
+    """Returns configured adapter limits + live store size + hit-rate metrics."""
     out = await cache_mod.query_cache_stats(_DummyCtx())
     parsed = json.loads(out)
     assert parsed["success"] is True
     stats = parsed["stats"]
+    # Substrate-shaped stats
     assert stats["max_entries"] == 100
     assert stats["default_ttl_seconds"] == 86400.0
     assert stats["current_entries"] == 2  # seeded via _make_db
     assert stats["backend"] == "oneiric.MemoryCacheAdapter"
+    # Hit-rate surface added by the TrackedCacheAdapter shim
+    assert stats["hits"] == 0
+    assert stats["misses"] == 0
+    assert stats["hit_rate"] == 0.0
 
 
 async def test_query_cache_stats_handles_exception(
@@ -364,6 +392,54 @@ async def test_invalidate_cache_handles_exception(
 
 
 # ---------------------------------------------------------------------------
+# optimize_cache
+# ---------------------------------------------------------------------------
+
+
+async def test_optimize_cache_no_db(no_db) -> None:
+    """Returns not-initialized when no adapter registered."""
+    parsed = json.loads(await cache_mod.optimize_cache(_DummyCtx()))
+    assert parsed["success"] is False
+    assert "not initialized" in parsed["error"]
+
+
+async def test_optimize_cache_no_cache(db_no_cache) -> None:
+    """Returns not-initialized when _query_cache is None."""
+    parsed = json.loads(await cache_mod.optimize_cache(_DummyCtx()))
+    assert parsed["success"] is False
+    assert "not initialized" in parsed["error"]
+
+
+async def test_optimize_cache_success(db_with_cache) -> None:
+    """Success path: cleanup_expired() runs (returns 0) and stats surface is included."""
+    out = await cache_mod.optimize_cache(_DummyCtx())
+    parsed = json.loads(out)
+    assert parsed["success"] is True
+    assert parsed["entries_cleaned"] == 0
+    # Shim's get_stats() should have been called for the stats surface
+    db_with_cache._query_cache.cleanup_expired.assert_called_once()
+    db_with_cache._query_cache.get_stats.assert_called_once()
+    # Stats are surfaced in the same envelope as query_cache_stats
+    stats = parsed["stats"]
+    assert stats["max_entries"] == 100
+    assert stats["current_entries"] == 2
+    assert stats["backend"] == "oneiric.MemoryCacheAdapter"
+    assert "hit_rate" in stats  # shim field
+
+
+async def test_optimize_cache_handles_exception(
+    db_with_cache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Failure in cleanup_expired() surfaces as success=False."""
+    db_with_cache._query_cache.cleanup_expired.side_effect = RuntimeError(
+        "evict fail"
+    )
+    parsed = json.loads(await cache_mod.optimize_cache(_DummyCtx()))
+    assert parsed["success"] is False
+    assert "evict fail" in parsed["error"]
+
+
+# ---------------------------------------------------------------------------
 # Round-trip: register + invoke each tool
 # ---------------------------------------------------------------------------
 
@@ -380,6 +456,11 @@ async def test_registered_tools_round_trip(db_with_cache) -> None:
     assert "results" in json.loads(out)
     out = await mcp.tools["invalidate_cache"](_DummyCtx(), query="x")
     assert "cache_key" in json.loads(out)
+    out = await mcp.tools["optimize_cache"](_DummyCtx())
+    parsed = json.loads(out)
+    assert parsed["success"] is True
+    assert "stats" in parsed
+    assert parsed["entries_cleaned"] == 0
 
 
 async def test_registered_tools_when_no_db(no_db) -> None:
@@ -393,4 +474,6 @@ async def test_registered_tools_when_no_db(no_db) -> None:
     out = await mcp.tools["warm_cache"](_DummyCtx(), ["x"])
     assert json.loads(out)["success"] is False
     out = await mcp.tools["invalidate_cache"](_DummyCtx(), query="x")
+    assert json.loads(out)["success"] is False
+    out = await mcp.tools["optimize_cache"](_DummyCtx())
     assert json.loads(out)["success"] is False

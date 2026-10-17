@@ -2,10 +2,13 @@
 
 Substrate-adoption cleanup: the legacy two-tier cache wrapper
 (``QueryCacheManager``) was deleted; the substrate's
-``MemoryCacheAdapter`` is used directly. The L1/L2 distinction is
-gone, so the tools no longer expose ``cache_level``-based clearing
-or expired-entry cleanup — those features depended on a two-tier
-cache that no longer exists.
+``MemoryCacheAdapter`` is used inside the ``TrackedCacheAdapter``
+shim, which adds the hit-rate metrics surface operators depended
+on from the prior wrapper. The L1/L2 distinction is gone, so the
+tools no longer expose ``cache_level``-based clearing — those
+features depended on a two-tier cache that no longer exists. The
+``optimize_cache`` tool is preserved as a no-op-cleanup-plus-stats
+report (the substrate's TTL-on-write model has nothing to lazy-evict).
 """
 
 from __future__ import annotations
@@ -61,18 +64,19 @@ def register_cache_tools(mcp: Any) -> None:
     mcp.tool()(clear_query_cache)
     mcp.tool()(warm_cache)
     mcp.tool()(invalidate_cache)
+    mcp.tool()(optimize_cache)
 
 
 async def query_cache_stats(
     ctx: Context,
 ) -> str:
-    """View query cache configuration and current size.
+    """View query cache configuration, current size, and hit-rate metrics.
 
     Returns the substrate adapter's configured limits (max entries,
-    default TTL) and the live entry count from the in-process store.
-    Historical L1/L2 hit-rate reporting is gone — the two-tier cache
-    was replaced by a single substrate adapter (per the substrate-
-    adoption cleanup wave).
+    default TTL), the live entry count from the in-process store, and
+    the hit-rate metrics (``hits``, ``misses``, ``hit_rate``) tracked by
+    the ``TrackedCacheAdapter`` shim. The hit-rate surface replaces the
+    L1/L2 reporting that ``QueryCacheManager`` used to provide.
     """
     try:
         db = _resolve_db()
@@ -86,18 +90,25 @@ async def query_cache_stats(
             )
 
         cache = db._query_cache
-        # Read live store size without disturbing the lock.
-        store_size = len(getattr(cache, "_store", {}) or {})
+        # Use the shim's get_stats() when available (substrate-shaped
+        # stats + hit-rate fields); fall back to bare attribute reads
+        # for tests that substitute a fake that doesn't expose the
+        # shim surface.
+        if hasattr(cache, "get_stats") and callable(cache.get_stats):
+            stats = cache.get_stats()
+        else:
+            store_size = len(getattr(cache, "_store", {}) or {})
+            stats = {
+                "max_entries": cache._settings.max_entries,
+                "default_ttl_seconds": cache._settings.default_ttl,
+                "current_entries": store_size,
+                "backend": "oneiric.MemoryCacheAdapter",
+            }
 
         return json.dumps(
             {
                 "success": True,
-                "stats": {
-                    "max_entries": cache._settings.max_entries,
-                    "default_ttl_seconds": cache._settings.default_ttl,
-                    "current_entries": store_size,
-                    "backend": "oneiric.MemoryCacheAdapter",
-                },
+                "stats": stats,
             },
             indent=2,
         )
@@ -301,4 +312,70 @@ __all__ = [
     "clear_query_cache",
     "warm_cache",
     "invalidate_cache",
+    "optimize_cache",
 ]
+
+
+async def optimize_cache(
+    ctx: Context,
+) -> str:
+    """Run a no-op cleanup pass and report current cache health.
+
+    Pre-substrate this tool ran a lazy-eviction sweep over the L1/L2
+    tiers of ``QueryCacheManager``. The substrate's
+    ``MemoryCacheAdapter`` uses TTL-on-write, so there is nothing to
+    lazily evict. The tool is preserved as a "is the cache healthy"
+    probe — it surfaces the current stats (max_entries,
+    current_entries, hits, misses, hit_rate) without trying to
+    recreate the L1/L2 lazy-eviction semantic. Returns the same
+    envelope as :func:`query_cache_stats` for tool symmetry, plus
+    ``entries_cleaned`` (always 0) for legacy clients that expect it.
+    """
+    try:
+        db = _resolve_db()
+        if not db or not db._query_cache:
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": "Query cache not initialized. Start a session first.",
+                },
+                indent=2,
+            )
+
+        cache = db._query_cache
+        # Shim path: TrackedCacheAdapter exposes cleanup_expired().
+        # Fallback for fake caches: 0 (no-op).
+        entries_cleaned = (
+            cache.cleanup_expired()
+            if hasattr(cache, "cleanup_expired") and callable(cache.cleanup_expired)
+            else 0
+        )
+        if hasattr(cache, "get_stats") and callable(cache.get_stats):
+            stats = cache.get_stats()
+        else:
+            store_size = len(getattr(cache, "_store", {}) or {})
+            stats = {
+                "max_entries": cache._settings.max_entries,
+                "default_ttl_seconds": cache._settings.default_ttl,
+                "current_entries": store_size,
+                "backend": "oneiric.MemoryCacheAdapter",
+            }
+
+        return json.dumps(
+            {
+                "success": True,
+                "entries_cleaned": entries_cleaned,
+                "stats": stats,
+            },
+            indent=2,
+        )
+
+    except Exception as e:
+        logger.exception("Failed to optimize cache")
+        return json.dumps(
+            {
+                "success": False,
+                "error": f"Failed to optimize cache: {e}",
+            },
+            indent=2,
+        )

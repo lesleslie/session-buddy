@@ -19,10 +19,14 @@ class DummyMCP:
 
 
 class DummyCache:
-    """Post-substrate-cleanup shape: MemoryCacheAdapter-like.
+    """Post-substrate-cleanup shape: MemoryCacheAdapter-like with the
+    ``TrackedCacheAdapter`` shim surface.
 
     The historical L1/L2 split is gone; the substrate adapter exposes
     a single store, ``clear()``, ``delete(key)``, and ``_settings``.
+    The shim adds ``get_stats()`` (returns the substrate-shaped stats
+    plus hit-rate fields) and ``cleanup_expired()`` (returns 0; no-op
+    for the substrate's TTL-on-write model).
     """
 
     def __init__(self) -> None:
@@ -30,6 +34,7 @@ class DummyCache:
         self._settings = SimpleNamespace(max_entries=100, default_ttl=86400.0)
         self.cleared = False
         self.deleted: list[str] = []
+        self.cleanup_called = False
 
     async def clear(self) -> None:
         self._store.clear()
@@ -38,6 +43,21 @@ class DummyCache:
     async def delete(self, key: str) -> None:
         self._store.pop(key, None)
         self.deleted.append(key)
+
+    def get_stats(self) -> dict:
+        return {
+            "max_entries": self._settings.max_entries,
+            "default_ttl_seconds": self._settings.default_ttl,
+            "current_entries": len(self._store),
+            "hits": 0,
+            "misses": 0,
+            "hit_rate": 0.0,
+            "backend": "oneiric.MemoryCacheAdapter",
+        }
+
+    def cleanup_expired(self) -> int:
+        self.cleanup_called = True
+        return 0
 
 
 class DummyDb:
@@ -67,6 +87,7 @@ def test_register_cache_tools_registers_expected_tools(cache_tools_module) -> No
         "clear_query_cache",
         "warm_cache",
         "invalidate_cache",
+        "optimize_cache",
     }.issubset(mcp.tools)
 
 
@@ -138,3 +159,9 @@ async def test_warm_and_invalidate_cache_paths(
     )
     assert invalidated["success"] is True
     assert cache.deleted[-1] == invalidated["cache_key"]
+
+    optimized = json.loads(await cache_tools_module.optimize_cache(None))
+    assert optimized["success"] is True
+    assert optimized["entries_cleaned"] == 0
+    assert cache.cleanup_called is True
+    assert "hit_rate" in optimized["stats"]
