@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Tests for the QueryCacheManager -> MemoryCacheAdapter substitution (Phase A, Task 1).
+"""Tests for the query_cache substrate-adoption cleanup (Phase B, Task 1).
 
-Per spec §6.1 "pure substitution": QueryCacheManager delegates to
-oneiric.adapters.cache.memory.MemoryCacheAdapter. The L2 DuckDB
-``query_cache_l2`` infrastructure is dead (spec §10 risk #1) and deleted.
+After the substrate-adoption cleanup the file ships two module-level
+helpers (``normalize_query``, ``compute_cache_key``) and a re-export of
+the substrate ``MemoryCacheAdapter`` — the legacy ``QueryCacheManager``
+wrapper was deleted.
 
-REQ traceability: REQ-OSUB-A-001 (substitution), REQ-OSUB-A-002 (L2 removal).
+REQ traceability: REQ-OSUB-B-001 (delete wrapper), REQ-OSUB-B-002
+(re-export adapter).
 """
 
 from __future__ import annotations
@@ -14,39 +16,81 @@ import pytest
 
 from oneiric.adapters.cache.memory import MemoryCacheAdapter
 
-from session_buddy.cache.query_cache import QueryCacheManager
+from session_buddy.cache.query_cache import (
+    MemoryCacheSettings,
+    compute_cache_key,
+    normalize_query,
+)
 
 
-@pytest.mark.req(["REQ-OSUB-A-001"])
-async def test_query_cache_delegates_to_memory_adapter() -> None:
-    qc = QueryCacheManager(l1_max_size=10)  # NOTE: l1_max_size (NOT max_size — pure substitution)
-    await qc.put("k", ["v"], normalized_query="q", project=None)
-    assert await qc.get("k") == ["v"]
-    assert isinstance(qc._cache, MemoryCacheAdapter)
-
-
-@pytest.mark.req(["REQ-OSUB-A-001"])
-def test_query_cache_constructor_signature_preserved() -> None:
-    """Per spec §6.1 pure substitution — constructor arg names unchanged."""
-    qc = QueryCacheManager(l1_max_size=42, l2_ttl_days=3)
-    assert qc.l1_max_size == 42
-    assert qc.l2_ttl_seconds == 3 * 86400
-
-
-@pytest.mark.req(["REQ-OSUB-A-001"])
-async def test_query_cache_async_api_works_in_event_loop() -> None:
-    """The async API works in a running event loop (no running-loop guard)."""
-    qc = QueryCacheManager(l1_max_size=10)
-    await qc.put("k", ["v"], normalized_query="q", project=None)
-    assert await qc.get("k") == ["v"]
-
-
-@pytest.mark.req(["REQ-OSUB-A-001", "REQ-OSUB-A-002"])
-def test_query_cache_l2_table_block_deleted() -> None:
-    """The runtime CREATE TABLE query_cache_l2 block in query_cache.py is gone."""
-    import subprocess
-    result = subprocess.run(
-        ["grep", "-n", "query_cache_l2", "session_buddy/cache/query_cache.py"],
-        capture_output=True, text=True,
+@pytest.mark.req(["REQ-OSUB-B-001"])
+def test_normalize_query_lowercases_and_strips_punctuation() -> None:
+    """Module-level helper preserves the historical normalize_query contract."""
+    assert normalize_query("What did I  learn about  async?") == (
+        "what did i learn about async"
     )
-    assert result.stdout == "", f"query_cache_l2 still in query_cache.py:\n{result.stdout}"
+    assert normalize_query("  Find insights on authentication  ") == (
+        "find insights on authentication"
+    )
+
+
+@pytest.mark.req(["REQ-OSUB-B-001"])
+def test_compute_cache_key_is_deterministic() -> None:
+    """Same inputs -> same SHA256 hex digest."""
+    k1 = compute_cache_key("async patterns", project="myapp", limit=10)
+    k2 = compute_cache_key("async patterns", project="myapp", limit=10)
+    assert k1 == k2
+    assert len(k1) == 64  # SHA256 hex digest length
+
+
+@pytest.mark.req(["REQ-OSUB-B-001"])
+def test_compute_cache_key_differs_with_kwargs() -> None:
+    """Different kwargs -> different keys (kwargs are part of the hash)."""
+    base = compute_cache_key("auth", limit=10)
+    with_min_score = compute_cache_key("auth", limit=10, min_score=0.8)
+    assert base != with_min_score
+
+
+@pytest.mark.req(["REQ-OSUB-B-001"])
+def test_compute_cache_key_includes_project() -> None:
+    """Project filter changes the cache key."""
+    no_project = compute_cache_key("auth", limit=10)
+    with_project = compute_cache_key("auth", limit=10, project="myapp")
+    assert no_project != with_project
+
+
+@pytest.mark.req(["REQ-OSUB-B-002"])
+def test_memory_cache_adapter_re_export() -> None:
+    """The substrate adapter is reachable from session_buddy.cache.query_cache."""
+    settings = MemoryCacheSettings(max_entries=10, default_ttl=60.0)
+    adapter = MemoryCacheAdapter(settings)
+    assert adapter._settings.max_entries == 10
+    assert adapter._settings.default_ttl == 60.0
+
+
+@pytest.mark.req(["REQ-OSUB-B-002"])
+async def test_memory_cache_adapter_set_get_round_trip() -> None:
+    """The re-exported adapter behaves like the substrate one — round-trips."""
+    adapter = MemoryCacheAdapter(MemoryCacheSettings(max_entries=10))
+    await adapter.set("k", ["v1", "v2"])
+    assert await adapter.get("k") == ["v1", "v2"]
+
+
+@pytest.mark.req(["REQ-OSUB-B-002"])
+async def test_memory_cache_adapter_clear_empties_store() -> None:
+    """``clear()`` is the L1/L2-consolidated eviction path."""
+    adapter = MemoryCacheAdapter(MemoryCacheSettings(max_entries=10))
+    await adapter.set("a", [1])
+    await adapter.set("b", [2])
+    await adapter.clear()
+    assert await adapter.get("a") is None
+    assert await adapter.get("b") is None
+
+
+@pytest.mark.req(["REQ-OSUB-B-001"])
+def test_query_cache_manager_class_deleted() -> None:
+    """The legacy ``QueryCacheManager`` wrapper was deleted (pre-1.0
+    replace-not-extend)."""
+    with pytest.raises(ImportError):
+        # runtime guard: importing the symbol must fail now.
+        from session_buddy.cache.query_cache import QueryCacheManager  # noqa: F401

@@ -41,7 +41,12 @@ ort = None
 AutoTokenizer: type | None = None  # Not needed for HTTP
 
 from session_buddy.adapters.settings import ReflectionAdapterSettings
-from session_buddy.cache.query_cache import QueryCacheManager
+from session_buddy.cache.query_cache import (
+    MemoryCacheAdapter,
+    MemoryCacheSettings,
+    compute_cache_key,
+    normalize_query,
+)
 from session_buddy.ingesters.redaction import (
     ALLOWED_METADATA_KEYS,
     RedactionSizeError,
@@ -285,8 +290,10 @@ class ReflectionDatabaseAdapterOneiric:
         self._cache_misses: int = 0
         self._hnsw_available: bool = False
 
-        # Query cache for performance optimization (Phase 1: Query Cache)
-        self._query_cache: QueryCacheManager | None = None
+        # Query cache for performance optimization (Phase 1: Query Cache).
+        # Substrate-adoption cleanup: the legacy QueryCacheManager wrapper
+        # is gone; the substrate's MemoryCacheAdapter is used directly.
+        self._query_cache: MemoryCacheAdapter | None = None
 
     def __enter__(self) -> t.Self:
         """Sync context manager entry (not recommended - use async)."""
@@ -527,14 +534,13 @@ class ReflectionDatabaseAdapterOneiric:
         # Create tables if they don't exist
         self._create_tables()
 
-        # Initialize query cache (Phase 1: Query Cache). QueryCacheManager
-        # is now a pure MemoryCacheAdapter substitute; its __init__ already
-        # constructs the in-process cache, so no explicit initialize() call
-        # is needed (a1b30b1d deleted the L2 DuckDB setup that previously
-        # required initialize(conn=...)).
-        self._query_cache = QueryCacheManager(
-            l1_max_size=1000,
-            l2_ttl_days=7,
+        # Initialize query cache (Phase 1: Query Cache). Substrate-adoption
+        # cleanup: QueryCacheManager was deleted; MemoryCacheAdapter is
+        # constructed directly with substrate-shaped settings (1000-entry
+        # cap, 7-day default TTL — the historical L1/L2 budget consolidated
+        # onto a single in-process adapter).
+        self._query_cache = MemoryCacheAdapter(
+            MemoryCacheSettings(max_entries=1000, default_ttl=7 * 86400.0)
         )
 
         # Initialize category evolution engine (Phase 5)
@@ -1799,7 +1805,7 @@ class ReflectionDatabaseAdapterOneiric:
         if not (use_cache and self._query_cache):
             return None
 
-        cache_key = QueryCacheManager.compute_cache_key(
+        cache_key = compute_cache_key(
             query=query,
             project=project,
             limit=limit,
@@ -1999,20 +2005,14 @@ class ReflectionDatabaseAdapterOneiric:
         if not (use_cache and self._query_cache and results):
             return
 
-        cache_key = QueryCacheManager.compute_cache_key(
+        cache_key = compute_cache_key(
             query=query,
             project=project,
             limit=limit,
         )
         result_ids = [r["id"] for r in results]
-        normalized_query = QueryCacheManager.normalize_query(query)
 
-        await self._query_cache.put(
-            cache_key=cache_key,
-            result_ids=result_ids,
-            normalized_query=normalized_query,
-            project=project,
-        )
+        await self._query_cache.set(cache_key, result_ids.copy())
 
     async def get_stats(self) -> dict[str, t.Any]:
         """Get database statistics.
@@ -2331,7 +2331,7 @@ class ReflectionDatabaseAdapterOneiric:
         if not (use_cache and self._query_cache):
             return None
 
-        cache_key = QueryCacheManager.compute_cache_key(
+        cache_key = compute_cache_key(
             query=query,
             project=None,  # reflections don't have project filter
             limit=limit,
@@ -2419,20 +2419,14 @@ class ReflectionDatabaseAdapterOneiric:
         if not (use_cache and self._query_cache and results):
             return
 
-        cache_key = QueryCacheManager.compute_cache_key(
+        cache_key = compute_cache_key(
             query=query,
             project=None,
             limit=limit,
         )
         result_ids = [r["id"] for r in results]
-        normalized_query = QueryCacheManager.normalize_query(query)
 
-        await self._query_cache.put(
-            cache_key=cache_key,
-            result_ids=result_ids,
-            normalized_query=normalized_query,
-            project=None,
-        )
+        await self._query_cache.set(cache_key, result_ids.copy())
 
     async def _semantic_search_reflections(
         self,

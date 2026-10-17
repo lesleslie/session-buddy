@@ -19,30 +19,25 @@ class DummyMCP:
 
 
 class DummyCache:
+    """Post-substrate-cleanup shape: MemoryCacheAdapter-like.
+
+    The historical L1/L2 split is gone; the substrate adapter exposes
+    a single store, ``clear()``, ``delete(key)``, and ``_settings``.
+    """
+
     def __init__(self) -> None:
-        self.l1_max_size = 100
-        self.l2_ttl_seconds = 86400
-        self._initialized = True
-        self.invalidated: list[str | None] = []
-        self.l2_cleared = False
-        self.cleaned = False
+        self._store: dict[str, list[str]] = {}
+        self._settings = SimpleNamespace(max_entries=100, default_ttl=86400.0)
+        self.cleared = False
+        self.deleted: list[str] = []
 
-    def get_stats(self) -> dict[str, float]:
-        return {
-            "l1_hit_rate": 0.6,
-            "l2_hit_rate": 0.4,
-            "l1_size": 3,
-        }
+    async def clear(self) -> None:
+        self._store.clear()
+        self.cleared = True
 
-    async def invalidate(self, cache_key: str | None = None) -> None:
-        self.invalidated.append(cache_key)
-
-    def _clear_l2(self) -> None:
-        self.l2_cleared = True
-
-    async def cleanup_expired(self) -> int:
-        self.cleaned = True
-        return 2
+    async def delete(self, key: str) -> None:
+        self._store.pop(key, None)
+        self.deleted.append(key)
 
 
 class DummyDb:
@@ -72,7 +67,6 @@ def test_register_cache_tools_registers_expected_tools(cache_tools_module) -> No
         "clear_query_cache",
         "warm_cache",
         "invalidate_cache",
-        "optimize_cache",
     }.issubset(mcp.tools)
 
 
@@ -90,13 +84,12 @@ async def test_query_cache_stats_and_clear_cache_paths(
 
     stats = json.loads(await cache_tools_module.query_cache_stats(None))
     assert stats["success"] is True
-    assert stats["stats"]["l1_max_size"] == 100
-    assert stats["interpretation"]["l1_hit_rate_category"] == "Excellent"
+    assert stats["stats"]["max_entries"] == 100
+    assert stats["stats"]["backend"] == "oneiric.MemoryCacheAdapter"
 
-    cleared = json.loads(await cache_tools_module.clear_query_cache(None, "all"))
+    cleared = json.loads(await cache_tools_module.clear_query_cache(None))
     assert cleared["success"] is True
-    assert cache.l2_cleared is True
-    assert cache.invalidated == [None]
+    assert cache.cleared is True
 
 
 @pytest.mark.asyncio
@@ -119,7 +112,7 @@ async def test_query_cache_stats_and_clear_cache_without_cache(
 
 
 @pytest.mark.asyncio
-async def test_warm_invalidate_and_optimize_cache_paths(
+async def test_warm_and_invalidate_cache_paths(
     monkeypatch: pytest.MonkeyPatch,
     cache_tools_module,
 ) -> None:
@@ -144,12 +137,4 @@ async def test_warm_invalidate_and_optimize_cache_paths(
         await cache_tools_module.invalidate_cache(None, "alpha", project="p1")
     )
     assert invalidated["success"] is True
-    assert cache.invalidated[-1] == invalidated["cache_key"]
-
-    optimized = json.loads(
-        await cache_tools_module.optimize_cache(None, compact_l2=True, cleanup_expired=True)
-    )
-    assert optimized["success"] is True
-    assert optimized["results"]["expired_entries_removed"] == 2
-    assert optimized["results"]["l2_compacted"] is True
-    assert cache.cleaned is True
+    assert cache.deleted[-1] == invalidated["cache_key"]
