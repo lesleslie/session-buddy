@@ -42,11 +42,9 @@ AutoTokenizer: type | None = None  # Not needed for HTTP
 
 from session_buddy.adapters.settings import ReflectionAdapterSettings
 from session_buddy.cache.query_cache import (
-    MemoryCacheAdapter,
     MemoryCacheSettings,
     TrackedCacheAdapter,
     compute_cache_key,
-    normalize_query,
 )
 from session_buddy.ingesters.redaction import (
     ALLOWED_METADATA_KEYS,
@@ -292,9 +290,12 @@ class ReflectionDatabaseAdapterOneiric:
         self._hnsw_available: bool = False
 
         # Query cache for performance optimization (Phase 1: Query Cache).
-        # Substrate-adoption cleanup: the legacy QueryCacheManager wrapper
-        # is gone; the substrate's MemoryCacheAdapter is used directly.
-        self._query_cache: MemoryCacheAdapter | None = None
+        # Substrate-adoption cleanup: QueryCacheManager was deleted; the
+        # substrate's MemoryCacheAdapter is wrapped in TrackedCacheAdapter
+        # to add the hit-rate observability surface that operators depended
+        # on (invalidate alias, get_stats, cleanup_expired — the historical
+        # L1/L2 wrapper API the shutdown path and MCP cache tools still call).
+        self._query_cache: TrackedCacheAdapter | None = None
 
     def __enter__(self) -> t.Self:
         """Sync context manager entry (not recommended - use async)."""

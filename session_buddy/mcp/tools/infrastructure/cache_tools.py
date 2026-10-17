@@ -307,12 +307,12 @@ async def invalidate_cache(
 
 __all__ = [
     "MemoryCacheAdapter",
-    "register_cache_tools",
-    "query_cache_stats",
     "clear_query_cache",
-    "warm_cache",
     "invalidate_cache",
     "optimize_cache",
+    "query_cache_stats",
+    "register_cache_tools",
+    "warm_cache",
 ]
 
 

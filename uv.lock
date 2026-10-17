@@ -416,11 +416,11 @@ wheels = [
 
 [[package]]
 name = "cachetools"
-version = "7.2.2"
+version = "7.2.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/85/e0/27b467a38de29583a68973edbf99eeeee5b105567bdbd7d208e5b07525a7/cachetools-7.2.2.tar.gz", hash = "sha256:d521dc98d501ba9efd8d2b1663bbf88163509c0c0a090eea6dc154b421ec5410", size = 42916, upload-time = "2026-10-15T20:46:15.833Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/09/88/27fe0785c7a9aa285c753db0b4ea967adbf76128fede66379c35a4b8d054/cachetools-7.2.3.tar.gz", hash = "sha256:e6fafd06de4a5bd915ff7d247588ea497e28c9a568c62db8678d9a5f11515a9a", size = 43727, upload-time = "2026-10-17T11:41:25.471Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/d1/15cc3b3c07cfe11bf6fbe81a4a92ebb9d202d7d903aaa36b713c8f6eabda/cachetools-7.2.2-py3-none-any.whl", hash = "sha256:39b6c9291adde28c5de6622d25329375fadf3e8a678226e7872e2e72854e4549", size = 17819, upload-time = "2026-10-15T20:46:14.069Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/dd/044062b61d94c59c29ad0da6918e6a21106f5b115096e9c87081cdd96167/cachetools-7.2.3-py3-none-any.whl", hash = "sha256:85ef9d2703918bedf7f88caa0b06bb3bb7a71360eb0b05c20796b89fede6e30c", size = 18352, upload-time = "2026-10-17T11:41:24.161Z" },
 ]
 
 [[package]]
@@ -2615,7 +2615,7 @@ wheels = [
 
 [[package]]
 name = "oneiric"
-version = "0.30.0"
+version = "0.31.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiobreaker" },
@@ -2638,9 +2638,9 @@ dependencies = [
     { name = "typer" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/cd/e2acdb1f29bdb058c69ce32ef488f2f629bda5e175900349f263cb566c4a/oneiric-0.30.0.tar.gz", hash = "sha256:85f478b36f2da57eefd303691fb5b8b211a2fc6a350d31c220d2fbd18cdf587b", size = 1748869, upload-time = "2026-10-17T05:40:43.617Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/cb/89451d52bcf234515d9aed6958799489bdee3fceb0702fce5e7b2d12ee7b/oneiric-0.31.0.tar.gz", hash = "sha256:fc4f555b86ec96cf00eea8381127a49f7bf655fa95abc11b85c79817c8d79f38", size = 1755691, upload-time = "2026-10-17T12:30:17.652Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/74/3b/4ec55c95cb8cee804c988d114c053769100e479b19e254aac1ff2af24fce/oneiric-0.30.0-py3-none-any.whl", hash = "sha256:dc7431aeac44a090891302aa3a4c19af4674e1c417aad3aa873d1c24efbbb015", size = 483199, upload-time = "2026-10-17T05:40:41.589Z" },
+    { url = "https://files.pythonhosted.org/packages/25/6e/eddb7f8152cc1ec0d99d1e2f25aa2987682ca0a15e3146b9f3fd12584919/oneiric-0.31.0-py3-none-any.whl", hash = "sha256:aff06ac481027205f317fdc10d51b5cb4593c756628607bf4edb1fd1d3d4dd91", size = 483452, upload-time = "2026-10-17T12:30:15.46Z" },
 ]
 
 [[package]]
@@ -3976,7 +3976,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.34.1"
+version = "0.34.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

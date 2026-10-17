@@ -27,8 +27,8 @@ __all__ = [
     "MemoryCacheAdapter",
     "MemoryCacheSettings",
     "TrackedCacheAdapter",
-    "normalize_query",
     "compute_cache_key",
+    "normalize_query",
 ]
 
 

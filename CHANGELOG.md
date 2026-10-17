@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.35.0] - 2026-10-17
+
+### Added
+
+- Add TrackedCacheAdapter shim, restore optimize_cache tool
+
+### Changed
+
+- session-buddy: Delete QueryCacheManager, use MemoryCacheAdapter directly
+
 ## [0.34.2] - 2026-10-16
 
 ### Changed
