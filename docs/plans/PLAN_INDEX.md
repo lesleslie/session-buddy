@@ -1,6 +1,6 @@
 # Plan Index
 
-_Regenerated 2026-10-14 by `crackerjack.tools.plan_index_sync` (fast-hook)._
+_Regenerated 2026-10-17 by `crackerjack.tools.plan_index_sync` (fast-hook)._
 
 ### Docs: adr
 
@@ -18,9 +18,9 @@ _Regenerated 2026-10-14 by `crackerjack.tools.plan_index_sync` (fast-hook)._
 
 | Path | Date | Status | Role | Topic | Title |
 |---|---|---|---|---|---|
-| [`docs/specs/2026-07-27-quality-scoring-field-audit-design.md`](../specs/2026-07-27-quality-scoring-field-audit-design.md) | 2026-07-27 | `draft` | `canonical` | `quality-scoring` | Quality-Scoring Field Audit — Design |
-| [`docs/specs/2026-07-27-ruff16-source-remediation-design.md`](../specs/2026-07-27-ruff16-source-remediation-design.md) | 2026-07-27 | `draft` | `canonical` | `ruff-016-source-remediation` | Ruff 0.16 Source Remediation — Design |
-| [`docs/specs/2026-08-10-s-channel-durable-design.md`](../specs/2026-08-10-s-channel-durable-design.md) | 2026-08-10 | `draft` | `canonical` | `s-channel-durable` | S-CHANNEL-DURABLE Design Spec |
+| [`docs/specs/2026-07-27-quality-scoring-field-audit-design.md`](../specs/2026-07-27-quality-scoring-field-audit-design.md) | 2026-07-27 | `draft` | `canonical` | `convergence-control-plane` | Quality-Scoring Field Audit — Design |
+| [`docs/specs/2026-07-27-ruff16-source-remediation-design.md`](../specs/2026-07-27-ruff16-source-remediation-design.md) | 2026-07-27 | `draft` | `canonical` | `convergence-control-plane` | Ruff 0.16 Source Remediation — Design |
+| [`docs/specs/2026-08-10-s-channel-durable-design.md`](../specs/2026-08-10-s-channel-durable-design.md) | 2026-08-10 | `draft` | `canonical` | `persistence` | S-CHANNEL-DURABLE Design Spec |
 
 ### Docs: plans
 
@@ -32,9 +32,9 @@ _Regenerated 2026-10-14 by `crackerjack.tools.plan_index_sync` (fast-hook)._
 
 | Path | Date | Status | Role | Topic | Title |
 |---|---|---|---|---|---|
-| [`.claude/decisions/2026-09-26-launcher-server-subcommand.md`](../../.claude/decisions/2026-09-26-launcher-server-subcommand.md) | 2026-09-26 | `active` | `implementation` | `mcp-launcher-migration` | Session-Buddy `server start` Launcher Migration Discovery |
-| [`.claude/decisions/README.md`](../../.claude/decisions/README.md) | 2026-08-24 | `active` | `canonical` | `decisions-index` | Decisions Index |
-| [`.claude/decisions/cross-repo-work-vs-eventbridge.md`](../../.claude/decisions/cross-repo-work-vs-eventbridge.md) | 2026-08-10 | `active` | `canonical` | `cross-repo-work-vs-eventbridge` | Cross-Repo Work (`cross_repo_work_v2`) vs EventBridge |
+| [`.claude/decisions/2026-09-26-launcher-server-subcommand.md`](../../.claude/decisions/2026-09-26-launcher-server-subcommand.md) | 2026-09-26 | `active` | `implementation` | `mcp-design` | Session-Buddy `server start` Launcher Migration Discovery |
+| [`.claude/decisions/README.md`](../../.claude/decisions/README.md) | 2026-08-24 | `active` | `canonical` | `decision-index` | Decisions Index |
+| [`.claude/decisions/cross-repo-work-vs-eventbridge.md`](../../.claude/decisions/cross-repo-work-vs-eventbridge.md) | 2026-08-10 | `active` | `canonical` | `observability` | Cross-Repo Work (`cross_repo_work_v2`) vs EventBridge |
 | [`.claude/decisions/deployability-discipline.md`](../../.claude/decisions/deployability-discipline.md) | 2026-09-26 | `active` | `canonical` | `deployability-discipline` | deployability discipline |
 
 ### Docs: followups

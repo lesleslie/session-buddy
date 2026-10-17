@@ -225,7 +225,7 @@ ______________________________________________________________________
 
 ## Need Help?
 
-- 📖 [Full Documentation](docs/)
+- 📖 [Full Documentation](docs/README.md)
 - 🌐 [Architecture Overview](ARCHITECTURE.md)
 - 💬 Community Discussions
 - 🐛 Report Issues

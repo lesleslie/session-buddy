@@ -82,8 +82,8 @@ print("\n".join(output))
 
 ## Documentation
 
-- [Complete Guide](../../docs/SESSION_ANALYTICS.md)
-- [Quick Reference](../../docs/SESSION_ANALYTICS_QUICKREF.md)
+- [Complete Guide](../../docs/.archive/analysis/SESSION_ANALYTICS.md)
+- [Quick Reference](../../docs/.archive/analysis/SESSION_ANALYTICS_QUICKREF.md)
 - [Example Usage](../../examples/analytics_example.py)
 
 ## Data Dictionary

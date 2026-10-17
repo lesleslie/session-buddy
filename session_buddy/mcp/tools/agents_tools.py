@@ -51,6 +51,7 @@ Non-goals:
   (``mcp__akosha__list_ecosystem_agents``) is what exposes them
   alongside the other 4 servers' catalogs.
 """
+
 from __future__ import annotations
 
 import logging
@@ -271,9 +272,7 @@ def _sign(metadata: AgentCanonicalSchema) -> AgentCanonicalSchema:
 
     state = get_signer_feed_state()
     if state is None:
-        raise RuntimeError(
-            "signer not initialized (server may still be starting up)"
-        )
+        raise RuntimeError("signer not initialized (server may still be starting up)")
 
     canonical = canonical_payload_for_signing(metadata.to_dict())
     signed = state.signer.sign(canonical)
@@ -338,4 +337,4 @@ def register_agents_tools(app: FastMCP) -> None:
     )(app)
 
 
-__all__ = ["register_agents_tools", "AgentCanonicalSchema"]
+__all__ = ["AgentCanonicalSchema", "register_agents_tools"]

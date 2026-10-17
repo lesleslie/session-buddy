@@ -9,6 +9,35 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.34.2] - 2026-10-16
+
+### Changed
+
+- session-buddy: Use mcp_common agents_tools factory
+
+### Fixed
+
+- /Users/les/Projects/session-buddy/docs: Remove stale archive reference
+- /Users/les/Projects/session-buddy/docs: Remove stale archive reference
+- session-buddy/docs: Point topic-vocabulary references at oneiric package source
+- session-buddy: Bump cycles_total on init so /health reports HEALTHY
+- session-buddy: Drop ollama from LLM stack
+
+### Removed
+
+- Revert "chore(mahavishnu): drop redundant topic-vocabulary-v1.md"
+- Revert "chore(session-buddy): drop dead topic-vocabulary EXCLUDED_PATHS entry"
+
+### Internal
+
+- mahavishnu: Drop redundant topic-vocabulary-v1.md
+- session-buddy: Drop dead topic-vocabulary EXCLUDED_PATHS entry
+- session-buddy: Drop dead topic-vocabulary EXCLUDED_PATHS entry
+- session-buddy: Drop redundant topic-vocabulary-v1.md
+- session-buddy: Reconcile topic slugs against canonical seed
+- session-buddy: Retopic cross-repo-work-vs-eventbridge decision
+- session-buddy: Untrack docs/archive/, evict test-artifacts, keep historical on disk in docs/.archive/
+
 ## [0.34.1] - 2026-10-14
 
 ### Fixed

@@ -365,8 +365,6 @@ def _llama_server_health_url() -> str:
     return f"{base}/embeddings"
 
 
-
-
 async def _check_provider(
     client: httpx.AsyncClient,
     url: str,
