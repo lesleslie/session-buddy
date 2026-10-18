@@ -274,13 +274,13 @@ class AkoshaSyncConfig:
 
     @classmethod
     def from_settings(cls, settings: Any) -> AkoshaSyncConfig:
-        """Create config from SessionMgmtSettings instance.
+        """Create config from SessionBuddySettings instance.
 
         Extracts Akosha-related fields from settings and creates a frozen
         dataclass for type-safe access and computed properties.
 
         Args:
-            settings: SessionMgmtSettings instance
+            settings: SessionBuddySettings instance
 
         Returns:
             Frozen AkoshaSyncConfig dataclass

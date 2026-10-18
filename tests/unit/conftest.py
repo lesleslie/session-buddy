@@ -169,24 +169,31 @@ def unmock_settings():
 
 @pytest.fixture
 def real_settings(tmp_path):
-    """Provide real SessionMgmtSettings instance for testing.
+    """Provide real SessionBuddySettings instance for testing.
 
     Uses tmp_path to provide unique data/log directories per test
-    to avoid conflicts.
+    to avoid conflicts. Migrated from the legacy flat-shape
+    SessionMgmtSettings fixture per the oneiric-substrate umbrella
+    Phase 2 (2026-10-18): the new schema nests these fields under
+    paths (data_dir, log_dir, log_file_path) and database (path).
     """
     from pathlib import Path
-    from session_buddy.settings import SessionMgmtSettings
+    from session_buddy.settings import SessionBuddySettings, PathsConfig, DatabaseConfig
 
     test_data_dir = tmp_path / "data"
     test_data_dir.mkdir(exist_ok=True)
     test_log_dir = tmp_path / "logs"
     test_log_dir.mkdir(exist_ok=True)
 
-    return SessionMgmtSettings(
-        data_dir=test_data_dir,
-        log_dir=test_log_dir,
-        database_path=test_data_dir / "test.duckdb",
-        log_file_path=test_log_dir / "test.log",
+    return SessionBuddySettings(
+        paths=PathsConfig(
+            data_dir=test_data_dir,
+            log_dir=test_log_dir,
+            log_file_path=test_log_dir / "test.log",
+        ),
+        database=DatabaseConfig(
+            path=test_data_dir / "test.duckdb",
+        ),
     )
 
 
