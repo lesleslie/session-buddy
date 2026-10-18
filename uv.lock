@@ -3976,7 +3976,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.34.2"
+version = "0.35.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -4037,7 +4037,7 @@ treesitter = [
 requires-dist = [
     { name = "aiofiles", specifier = ">=25.1.0" },
     { name = "coredis", specifier = ">=6.9.0" },
-    { name = "crackerjack", specifier = ">=0.70.0" },
+    { name = "crackerjack", specifier = ">=0.89.2" },
     { name = "cryptography", specifier = ">=50.0.0" },
     { name = "duckdb", specifier = ">=1.5.3" },
     { name = "fastmcp", specifier = ">=3.4.0,<5" },
@@ -4060,7 +4060,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "crackerjack", specifier = ">=0.70.0" },
+    { name = "crackerjack", specifier = ">=0.89.2" },
     { name = "deadcode", specifier = ">=2.4.1" },
     { name = "factory-boy", specifier = ">=3.3.3" },
     { name = "faker", specifier = ">=40.20.0" },
