@@ -159,6 +159,13 @@ def start_server_handler() -> None:
     # ``mcp`` is the module-level FastMCP instance (server_optimized.py:287)
     # with the ``session_lifecycle`` lifespan already wired. The launcher
     # handles transport="http", uvicorn grace timeout, and secrets loading.
+    # Phase 3 component-boot hook per the oneiric-substrate umbrella
+    # (2026-10-15): fire-and-forget push of runtime facts to Oneiric before
+    # the server starts. Helper swallows all exceptions; never blocks boot.
+    from session_buddy.mcp.oneiric_runtime import report_runtime_to_oneiric
+
+    asyncio.run(report_runtime_to_oneiric())
+
     asyncio.run(
         launch(
             build_server=lambda: mcp,
