@@ -16,7 +16,7 @@ ruin. Common cases:
 - "What calls `init_signer_feed_state` in session-buddy?"
 - "Show me all callers of `SkillsSigner.sign` across the Bodai
   ecosystem."
-- "What's the blast radius if I rename `_lifespan_with_dhara_cleanup`?"
+- "What calls `init_signer_feed_state` across the codebase?"
 - "Trace the call graph from `register_skill_tools` to the FastMCP
   app constructor."
 - "Is `search_by_concept` safe to refactor — does anything depend on

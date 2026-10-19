@@ -847,8 +847,8 @@ class BodaiEventsConfig(_BaseConfig):
     ``extra="forbid"`` policy applies here too. The legacy
     BodaiEventsConfig used ``BaseModel`` directly.
 
-    Consumed by ``_lifespan_with_dhara_cleanup`` (session_buddy/mcp/server.py)
-    to construct the singleton ``BodaiEventsPublisher``.
+    Consumed by ``session_lifecycle`` (session_buddy/server_optimized.py)
+    to construct the singleton ``BodaiEventsPublisher`` at server start.
     """
 
     enabled: bool = Field(

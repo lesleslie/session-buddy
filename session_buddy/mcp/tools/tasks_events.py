@@ -148,9 +148,9 @@ _ENVELOPE_BY_EVENT_TYPE: dict[str, type[BaseModel]] = {
     "task.handoff_orphan": TaskHandoffOrphanPayload,
 }
 
-# Module-level slot for the singleton publisher. Task 4 wires a real
-# ``BodaiEventsPublisher`` into this slot from
-# ``_lifespan_with_dhara_cleanup``; until then ``publish_task_event`` and
+# Module-level slot for the singleton publisher. ``session_lifecycle``
+# (session_buddy/server_optimized.py) wires a real ``BodaiEventsPublisher``
+# into this slot at server start; until then ``publish_task_event`` and
 # ``publish_task_event_raw`` are typed no-ops.
 _publisher: BodaiEventsPublisher | None = None
 

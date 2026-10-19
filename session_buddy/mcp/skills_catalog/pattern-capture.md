@@ -112,10 +112,10 @@ The `pattern_type` must be one of `["solution", "workaround",
 
 ## Example flow
 
-User: "I just fixed the redundant-init issue in
-`_lifespan_with_dhara_cleanup`. Capture that pattern so other
-async-lifespan wrappers in the Bodai ecosystem don't repeat the
-mistake."
+User: "I just fixed the redundant-init issue where `session_lifecycle`
+was being invoked twice during startup. Capture that pattern so
+other async-lifespan wrappers in the Bodai ecosystem don't repeat
+the mistake."
 
 Skill action:
 
