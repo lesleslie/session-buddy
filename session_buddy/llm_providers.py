@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from mcp_common.llm import FallbackChain, LLMSettings
+from oneiric.adapters.llm.bifrost import get_router
+from oneiric.adapters.llm.llm_interface import LLMProvider
 
 from session_buddy.llm.models import LLMMessage, LLMResponse
 from session_buddy.settings import get_settings
@@ -507,13 +509,29 @@ class LLMManager:
         self._chain = self._build_chain()
 
     def _build_chain(self) -> FallbackChain:
+        # Phase 4 (REQ-BIFROST-009, bifrost plan §5): the OPENAI-
+        # compatible ``minimax`` provider's ``base_url`` comes from the
+        # oneiric ``BifrostLLMRouter`` singleton. When the router is
+        # enabled and routes OPENAI, the provider transparently hits
+        # the local Bifrost gateway (which forwards to the upstream
+        # cloud); when the router returns ``None`` the provider falls
+        # back to the direct cloud URL (``MINIMAX_BASE_URL`` env or
+        # the public ``api.minimax.io`` default). The ``api_key_env``
+        # stays ``MINIMAX_API_KEY`` because Bifrost is a transparent
+        # proxy — clients keep using their existing cloud auth.
+        # ``llama_server`` is local-only (no Bifrost routing) and keeps
+        # its env-var-only ``LLAMA_SERVER_URL`` resolution.
+        bifrost_openai_url = get_router().resolve(LLMProvider.OPENAI)
         llama_url = os.environ.get("LLAMA_SERVER_URL", "http://localhost:8081")
         settings = LLMSettings(
             providers={
                 "minimax": {
                     "name": "minimax",
-                    "base_url": os.environ.get(
-                        "MINIMAX_BASE_URL", "https://api.minimax.io/v1"
+                    "base_url": (
+                        bifrost_openai_url
+                        or os.environ.get(
+                            "MINIMAX_BASE_URL", "https://api.minimax.io/v1"
+                        )
                     ),
                     "api_key_env": "MINIMAX_API_KEY",
                     "api_key": "${MINIMAX_API_KEY}",

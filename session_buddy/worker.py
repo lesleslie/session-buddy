@@ -8,10 +8,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from .bifrost_client import BifrostClient
+import httpx2 as httpx
+from oneiric.adapters.llm.bifrost import get_router
+from oneiric.adapters.llm.llm_interface import LLMProvider
+
+from .secrets_oneiric import get_secret
 
 logger = logging.getLogger(__name__)
 
@@ -48,32 +53,138 @@ class PlaceholderBackend:
         }
 
 
+async def _post_bifrost_chat(
+    prompt: str,
+    *,
+    model: str,
+    base_url: str,
+    system: str | None = None,
+    timeout: float = 30.0,
+    api_key: str | None = None,
+) -> dict[str, Any]:
+    """POST to the Bifrost gateway ``/chat/completions`` endpoint.
+
+    Public test seam (per REQ-BIFROST-009, bifrost plan §5 Phase 4):
+    the legacy ``BifrostClient`` is gone and the URL comes from the
+    oneiric ``BifrostLLMRouter`` singleton via ``get_router()``. The
+    function is module-level so tests can monkeypatch
+    ``session_buddy.worker._post_bifrost_chat`` to capture call args
+    without going through the httpx layer (matches the pre-Phase-4
+    ``monkeypatch.setattr(worker_mod, "BifrostClient", ...)`` pattern
+    at ``tests/unit/test_worker_backends.py``).
+
+    The ``base_url`` parameter is mandatory — the router-resolved URL
+    is passed in by the caller (``LLMBackend.execute``), which keeps
+    this function trivially testable and free of any process-cached
+    state. The API key, when not explicitly passed, is resolved via
+    the oneiric secrets adapter (``session_buddy.secrets_oneiric.
+    get_secret``), which honors ``ONEIRIC_SECRET_BIFROST_API_KEY``
+    with a legacy ``BIFROST_API_KEY`` env-var fallback. Operators
+    who store the key in Vault / AWS Secrets Manager via the
+    oneiric secrets adapter pick up that resolution path; env-only
+    deployments still work via the adapter's env backend.
+    """
+    if api_key is None:
+        api_key = await get_secret("BIFROST_API_KEY")
+
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    messages: list[dict[str, str]] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    payload: dict[str, Any] = {"model": model, "messages": messages}
+    post_url = base_url.rstrip("/") + "/chat/completions"
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(post_url, json=payload, headers=headers)
+        resp.raise_for_status()
+        body = resp.json()
+
+    choice = body["choices"][0]
+    return {
+        "content": choice["message"]["content"],
+        "usage": body.get("usage", {}),
+        "model": body.get("model", model),
+        "raw": body,
+    }
+
+
+def _resolve_bifrost_base_url() -> str:
+    """Resolve the gateway base URL via the oneiric ``BifrostLLMRouter``.
+
+    Returns the bare base URL (e.g. ``http://127.0.0.1:8471``); callers
+    append ``/chat/completions`` (or any other path) themselves.
+
+    Raises :class:`RuntimeError` when the router is disabled (returns
+    ``None``) or the OPENAI route is not configured. The error
+    surfaces to ``LLMBackend.execute``'s envelope-error path so the
+    worker never blocks on a misconfigured gateway.
+    """
+    base_url = get_router().resolve(LLMProvider.OPENAI)
+    if base_url is None:
+        raise RuntimeError(
+            "BifrostLLMRouter returns None for OPENAI — gateway disabled "
+            "or the QWEN_ROUTE not in settings.routes. Set "
+            "ONEIRIC_BIFROST_ENABLED=true and include 'qwen_route' in "
+            "ONEIRIC_BIFROST_ROUTES to enable the gateway.",
+        )
+    return base_url
+
+
+def _redact_httpx_url(text: str) -> str:
+    """Redact ``httpx``-style ``for url '<URL>'`` substrings from
+    exception text before logging into the worker envelope.
+
+    Scope is narrow by design: the function only handles the
+    ``httpx.HTTPStatusError`` and ``httpx.ConnectError`` form of
+    ``For more information check: <url>`` and ``Client error '<code> <reason>' for url '<URL>'``.
+    Bare URLs (e.g. a hostname in a custom ``RuntimeError``) and
+    ``Authorization: Bearer <token>`` headers are out of scope —
+    callers that surface those paths should pre-process the
+    exception text first. The bifrost gateway URL came from the
+    oneiric-validated router (loopback + IMDS/RFC1918 blocklist),
+    so the leak is low-risk, but operator logs are easier to scan
+    when the URL is not embedded.
+    """
+    return re.sub(r"for url '[^']*'", "for url '<redacted>'", text)
+
+
 class LLMBackend:
     """Bifrost-backed LLM completion backend.
 
-    Calls the Bifrost LLM gateway via ``BifrostClient``. Failures are
-    surfaced as envelope errors rather than raised, so the pool never
-    blocks on a single bad task.
+    Resolves the gateway URL from the oneiric ``BifrostLLMRouter``
+    singleton (per REQ-BIFROST-009, bifrost plan §5 Phase 4). The
+    legacy ``BifrostClient`` shim is gone — the URL comes from the
+    router, the HTTP transport goes through a module-level helper
+    (:func:`_post_bifrost_chat`) that's the public test seam. Failures
+    are surfaced as envelope errors rather than raised, so the pool
+    never blocks on a single bad task.
     """
 
     def __init__(
         self,
         *,
         model: str = "minimax/MiniMax-M3",
-        base_url: str | None = None,
         timeout: float = 30.0,
         system: str | None = None,
     ) -> None:
         self.model = model
         self.system = system
-        self._client = BifrostClient(base_url=base_url, timeout=timeout)
+        self.timeout = timeout
 
     async def execute(self, worker_id: str, pool_id: str, task: Task) -> dict[str, Any]:
         try:
-            completion = await self._client.chat(
+            base_url = _resolve_bifrost_base_url()
+            completion = await _post_bifrost_chat(
                 task.prompt,
                 model=task.context.get("model", self.model),
                 system=self.system or task.context.get("system"),
+                timeout=self.timeout,
+                base_url=base_url,
             )
             return {
                 "worker_id": worker_id,
@@ -93,11 +204,8 @@ class LLMBackend:
                 "prompt": task.prompt,
                 "response": None,
                 "context": task.context,
-                "error": f"bifrost_error: {type(e).__name__}: {e}",
+                "error": f"bifrost_error: {type(e).__name__}: {_redact_httpx_url(str(e))}",
             }
-
-    async def aclose(self) -> None:
-        await self._client.aclose()
 
 
 class Task:

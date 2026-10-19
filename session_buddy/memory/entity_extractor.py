@@ -13,6 +13,8 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+from oneiric.adapters.llm.bifrost import get_router
+from oneiric.adapters.llm.llm_interface import LLMProvider
 from pydantic import BaseModel, Field
 
 from session_buddy.utils.time import utc_now
@@ -129,18 +131,51 @@ class LLMEntityExtractor:
             api_key: Optional API key (uses environment variable if not provided)
 
         """
-        bifrost_openai_base = os.getenv("BIFROST_OPENAI_BASE_URL")
+        # Phase 4 (REQ-BIFROST-009): the Bifrost base URL comes from
+        # the oneiric BifrostLLMRouter singleton — not from a raw
+        # ``BIFROST_OPENAI_BASE_URL`` env-var read. The router returns
+        # ``None`` when the gateway is disabled or the OPENAI route is
+        # not configured; in that case the constructor falls through
+        # to the OpenAI-direct env-var path (``OPENAI_BASE_URL``).
+        # ``rstrip("/")`` is defensive — the router's ``resolve()``
+        # returns ``str(http_url)`` (oneiric
+        # ``BifrostLLMRouter.resolve``), which the legacy
+        # ``BifrostClient`` also stripped. Preserved here for
+        # byte-identical compat with the pre-Phase-4 contract that
+        # downstream ``base_url`` consumers (e.g.
+        # ``AsyncOpenAI(base_url=...)``) saw a trailing-slash-free URL.
+        bifrost_openai_base = get_router().resolve(LLMProvider.OPENAI)
+        if isinstance(bifrost_openai_base, str):
+            bifrost_openai_base = bifrost_openai_base.rstrip("/")
         self.llm_provider = llm_provider
         self.model = os.getenv("OPENAI_DEFAULT_MODEL") or (
             "zai-openai/glm-5-turbo"
             if bifrost_openai_base and model == "gpt-4o-mini"
             else model
         )
+        # Phase 4 (REQ-BIFROST-009): ``__init__`` is sync so the
+        # oneiric secrets adapter's async ``get_secret`` is not
+        # available here. Mirror the env backend's resolution order
+        # (``ONEIRIC_SECRET_<KEY>`` first, then bare ``<KEY>``) with a
+        # two-key env-var lookup so operators who store the key with
+        # the canonical oneiric prefix still get it. The aws/
+        # file/keyring/infisical/gcp backends are not reachable from
+        # this sync path — callers that need those should construct
+        # ``LLMEntityExtractor`` and call ``.initialize()`` after
+        # resolving the key through the async adapter. The
+        # ``"local-bifrost"`` literal fallback is preserved from
+        # pre-Phase-4 byte-identical behavior; if a Bifrost deployment
+        # accepts any bearer (e.g. dev mode), calls succeed silently
+        # with no operator awareness. Out of scope for Phase 4.
         self.api_key = (
             api_key
             or os.getenv("OPENAI_API_KEY")
             or (
-                (os.getenv("BIFROST_API_KEY") or "local-bifrost")
+                (
+                    os.getenv("ONEIRIC_SECRET_BIFROST_API_KEY")
+                    or os.getenv("BIFROST_API_KEY")
+                    or "local-bifrost"
+                )
                 if bifrost_openai_base
                 else None
             )

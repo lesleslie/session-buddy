@@ -4,17 +4,42 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from oneiric.adapters.llm.bifrost import reset_router_for_tests
 from pydantic import ValidationError
 
 from session_buddy.memory.entity_extractor import (
     EntityExtractionEngine,
     EntityExtractionResult,
     EntityRelationship,
+    ExtractedEntity,
     LLMEntityExtractor,
     PatternBasedExtractor,
     ProcessedMemory,
-    ExtractedEntity,
 )
+
+
+# Per-test router-singleton reset. The oneiric ``BifrostLLMRouter``
+# is a process-cached singleton; without this fixture, an earlier
+# test that enabled the router would leak its state into later
+# tests. The fixture also clears the oneiric env-var surface so
+# tests are not coupled to operator-shell state.
+@pytest.fixture(autouse=True)
+def _reset_bifrost_router(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Note: pydantic-settings with ``env_prefix="ONEIRIC_BIFROST_"``
+    # uses single underscores for top-level fields, not double —
+    # see oneiric's tests/adapters/llm/test_bifrost_env_compat.py:99.
+    for env_key in (
+        "ONEIRIC_BIFROST_ENABLED",
+        "ONEIRIC_BIFROST_BASE_URL",
+        "ONEIRIC_BIFROST_ROUTES",
+        "BIFROST_BASE_URL",
+        "BIFROST_OPENAI_BASE_URL",
+        "BIFROST_API_KEY",
+    ):
+        monkeypatch.delenv(env_key, raising=False)
+    reset_router_for_tests()
+    yield
+    reset_router_for_tests()
 
 
 # ------------------------------------------------------------------
@@ -231,17 +256,33 @@ class TestLLMEntityExtractorInit:
         assert ext.api_key is None
 
     def test_bifrost_url_triggers_default_model_replacement(self, monkeypatch) -> None:
-        monkeypatch.setenv("BIFROST_OPENAI_BASE_URL", "http://localhost:9999")
+        # Phase 4 (REQ-BIFROST-009): the Bifrost base URL now comes
+        # from the oneiric ``BifrostLLMRouter`` singleton, not the
+        # legacy ``BIFROST_OPENAI_BASE_URL`` env var. Enable the
+        # router with the same URL the legacy test used to assert
+        # byte-identical post-Phase-4 behavior.
+        # Note: pydantic-settings with ``env_prefix="ONEIRIC_BIFROST_"``
+        # maps top-level fields to ``ONEIRIC_BIFROST_<NAME>`` (single
+        # underscore before the field name) — the double-underscore
+        # form is reserved for nested fields via the env nested
+        # delimiter ``__`` (see oneiric's tests/adapters/llm/
+        # test_bifrost_env_compat.py:99).
+        monkeypatch.setenv("ONEIRIC_BIFROST_ENABLED", "true")
+        monkeypatch.setenv("ONEIRIC_BIFROST_ROUTES", "qwen_route")
+        monkeypatch.setenv("ONEIRIC_BIFROST_BASE_URL", "http://127.0.0.1:9999")
         monkeypatch.setenv("BIFROST_API_KEY", "test-key")
         monkeypatch.delenv("OPENAI_DEFAULT_MODEL", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+        # The autouse fixture cleared the singleton; this re-resolves
+        # it now that the env vars are in place.
+        reset_router_for_tests()
 
         ext = LLMEntityExtractor()
-        # When BIFROST_OPENAI_BASE_URL is set, the default model is replaced.
+        # When the router resolves OPENAI, the default model is replaced.
         assert ext.model == "zai-openai/glm-5-turbo"
         assert ext.api_key == "test-key"
-        assert ext.base_url == "http://localhost:9999"
+        assert ext.base_url == "http://127.0.0.1:9999"
 
     def test_openai_default_model_env_wins(self, monkeypatch) -> None:
         monkeypatch.delenv("BIFROST_OPENAI_BASE_URL", raising=False)
@@ -415,7 +456,7 @@ class TestEntityExtractionEngineCascade:
 
         fake_response = FakeResponse(fake_pm.model_dump_json())
 
-        async def fake_generate(messages, provider, temperature):  # noqa: ARG001
+        async def fake_generate(messages, provider, temperature):
             return fake_response
 
         engine.manager = MagicMock()
@@ -433,7 +474,7 @@ class TestEntityExtractionEngineCascade:
         engine.timeout_s = 0.1
         engine.retries = 0
 
-        async def fake_generate(messages, provider, temperature):  # noqa: ARG001
+        async def fake_generate(messages, provider, temperature):
             raise RuntimeError("provider unavailable")
 
         engine.manager = MagicMock()
@@ -454,7 +495,7 @@ class TestEntityExtractionEngineCascade:
         engine.retries = 2
         call_count = 0
 
-        async def fake_generate(messages, provider, temperature):  # noqa: ARG001
+        async def fake_generate(messages, provider, temperature):
             nonlocal call_count
             call_count += 1
             raise RuntimeError("always fail")
