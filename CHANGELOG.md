@@ -9,6 +9,32 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.36.0] - 2026-10-19
+
+### Added
+
+- session-buddy: Replace BifrostClient with oneiric BifrostLLMRouter (plan 6, phase 4)
+- session-buddy: Wire AutoCheckpointLoop into session_lifecycle (plan 4b)
+- session-buddy: Wire oneiric_report_runtime component-boot hook per oneiric-substrate umbrella Phase 3 (2026-10-18)
+
+### Changed
+
+- session-buddy: Delete _lifespan_with_dhara_cleanup wrapper (oneiric-substrate cleanup)
+
+### Fixed
+
+- session-buddy/analytics: Drop dead links to gitignored docs
+
+### Testing
+
+- session-buddy: Migrate conftest fixture + akosha_config type hint from SessionMgmtSettings to SessionBuddySettings (oneiric-substrate umbrella Phase 2, 2026-10-18)
+
+### Internal
+
+- deps: Bump crackerjack pin to >=0.89.2
+- deps: Bump fastmcp pin to >=4.0.0,<5 (operator correction 2026-10-18)
+- Session-buddy slice — B-list ollama cleanup (plan 5)
+
 ## [0.35.0] - 2026-10-17
 
 ### Added

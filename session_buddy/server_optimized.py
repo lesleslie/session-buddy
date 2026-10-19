@@ -327,9 +327,19 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
 
     _auto_loop = None
     try:
+        # Deferred import: keeps ``session_buddy.mcp.autocheckpoint_lifespan``
+        # off the cold-import path until lifespan startup actually runs, and
+        # bundles with the other pre-yield side-effect imports (signer feed,
+        # BodaiEventsPublisher, settings) under the same defensive try/except
+        # so a missing/disabled auto-checkpoint path never blocks server bring-up.
+        # The test ``tests/unit/mcp/test_session_lifespan_autoloop.py`` patches
+        # this exact module path, so the import must match.
+        from session_buddy.mcp.autocheckpoint_lifespan import (
+            start_autocheckpoint_loop as _start_autocheckpoint_loop,
+        )
         from session_buddy.settings import get_settings as _get_settings
 
-        _auto_loop = await start_autocheckpoint_loop(_get_settings())
+        _auto_loop = await _start_autocheckpoint_loop(_get_settings())
         if _auto_loop is not None:
             logger.info("auto_checkpoint_loop_started")
     except Exception as exc:  # noqa: BLE001 - loop start must not block startup
