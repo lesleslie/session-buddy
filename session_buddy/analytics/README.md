@@ -82,9 +82,17 @@ print("\n".join(output))
 
 ## Documentation
 
-- [Complete Guide](../../docs/.archive/analysis/SESSION_ANALYTICS.md)
-- [Quick Reference](../../docs/.archive/analysis/SESSION_ANALYTICS_QUICKREF.md)
 - [Example Usage](../../examples/analytics_example.py)
+- Complete Guide and Quick Reference: the original
+  `docs/.archive/analysis/SESSION_ANALYTICS.md` and
+  `SESSION_ANALYTICS_QUICKREF.md` are kept out of git
+  (the `**/.archive/` catchall in `.gitignore`); the
+  authoritative reference is the source code in
+  `session_buddy/analytics/` plus the test fixtures in
+  `tests/`. Operators who want the original design notes
+  can copy them from the upstream archive into a local
+  `docs/.archive/analysis/` and the links above will
+  resolve.
 
 ## Data Dictionary
 
