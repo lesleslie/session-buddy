@@ -35,9 +35,6 @@ from session_buddy.llm.security import (
 class TestGetMaskedApiKey:
     """Exercise every branch in :func:`get_masked_api_key`."""
 
-    def test_ollama_local_no_key(self) -> None:
-        assert get_masked_api_key("ollama") == "N/A (local service)"
-
     def test_llama_server_local_no_key(self) -> None:
         assert get_masked_api_key("llama_server") == "N/A (local service)"
 
@@ -317,7 +314,6 @@ class TestGetConfiguredProviders:
         with patch("session_buddy.llm.security.get_llm_api_key", return_value=""):
             with patch.dict(os.environ, {}, clear=True):
                 providers = _get_configured_providers()
-        assert "ollama" in providers
         assert "llama_server" in providers
 
     def test_includes_minimax_via_settings(self) -> None:

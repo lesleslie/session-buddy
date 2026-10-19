@@ -56,14 +56,6 @@ class TestLLMConfig:
         settings = SessionBuddySettings()
         assert settings.llm.default_provider == "minimax"
 
-    def test_ollama_url_default(self) -> None:
-        settings = SessionBuddySettings()
-        assert settings.llm.ollama_base_url == "http://localhost:11434"
-
-    def test_ollama_model_default(self) -> None:
-        settings = SessionBuddySettings()
-        assert settings.llm.ollama_default_model == "qwen2.5-coder:7b"
-
     def test_llama_server_model_default(self) -> None:
         settings = SessionBuddySettings()
         assert settings.llm.llama_server_default_model == "qwen3.5"
@@ -77,7 +69,6 @@ class TestLLMConfig:
         assert settings.llm.fallback_providers == [
             "minimax",
             "llama_server",
-            "ollama",
         ]
 
     def test_minimax_base_url_default(self) -> None:
@@ -98,24 +89,18 @@ class TestLLMConfig:
 
     def test_custom_provider(self) -> None:
         settings = SessionBuddySettings(
-            llm=LLMConfig(default_provider="ollama"),
+            llm=LLMConfig(default_provider="llama_server"),
         )
-        assert settings.llm.default_provider == "ollama"
+        assert settings.llm.default_provider == "llama_server"
 
     def test_custom_fallback_chain(self) -> None:
         settings = SessionBuddySettings(
-            llm=LLMConfig(fallback_providers=["ollama", "minimax"]),
+            llm=LLMConfig(fallback_providers=["minimax", "llama_server"]),
         )
-        assert settings.llm.fallback_providers == ["ollama", "minimax"]
-
-    def test_custom_ollama_url(self) -> None:
-        settings = SessionBuddySettings(
-            llm=LLMConfig(ollama_base_url="http://custom:11434"),
-        )
-        assert settings.llm.ollama_base_url == "http://custom:11434"
+        assert settings.llm.fallback_providers == ["minimax", "llama_server"]
 
     def test_valid_provider_values(self) -> None:
-        providers = ["minimax", "zai", "openai", "gemini", "ollama", "llama_server"]
+        providers = ["minimax", "zai", "openai", "gemini", "llama_server"]
         for provider in providers:
             settings = SessionBuddySettings(
                 llm=LLMConfig(default_provider=provider),

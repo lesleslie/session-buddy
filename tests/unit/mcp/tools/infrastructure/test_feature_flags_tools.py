@@ -48,7 +48,6 @@ class _FakeMCP:
 class _FakeFlags:
     enable_llm_entity_extraction: bool = False
     enable_anthropic: bool = False
-    enable_ollama: bool = False
     enable_conscious_agent: bool = False
     enable_filesystem_extraction: bool = False
     enable_crackerjack_fallback: bool = False
@@ -102,7 +101,7 @@ class TestRegisterFeatureFlagsTools:
 
 
 class TestFeatureFlagsStatus:
-    def test_returns_all_six_flags(
+    def test_returns_all_flags(
         self,
         registered,
         patched_flags: _FakeFlags,
@@ -112,7 +111,6 @@ class TestFeatureFlagsStatus:
         assert result == {
             "enable_llm_entity_extraction": False,
             "enable_anthropic": False,
-            "enable_ollama": False,
             "enable_conscious_agent": False,
             "enable_filesystem_extraction": False,
         }
@@ -138,7 +136,6 @@ class TestFeatureFlagsStatus:
         _mcp, tools = registered
         result = asyncio_check(tools.tools["feature_flags_status"])
         assert result["enable_anthropic"] is True
-        assert result["enable_ollama"] is False
 
     def test_all_flags_true(
         self,
@@ -148,7 +145,6 @@ class TestFeatureFlagsStatus:
         for fname in (
             "enable_llm_entity_extraction",
             "enable_anthropic",
-            "enable_ollama",
             "enable_conscious_agent",
             "enable_filesystem_extraction",
         ):

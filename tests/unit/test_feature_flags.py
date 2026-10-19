@@ -28,7 +28,6 @@ class TestFeatureFlags:
         flags = FeatureFlags()
         assert flags.enable_llm_entity_extraction is False
         assert flags.enable_anthropic is False
-        assert flags.enable_ollama is False
         assert flags.enable_conscious_agent is False
         assert flags.enable_filesystem_extraction is False
 
@@ -37,13 +36,11 @@ class TestFeatureFlags:
         flags = FeatureFlags(
             enable_llm_entity_extraction=True,
             enable_anthropic=True,
-            enable_ollama=True,
             enable_conscious_agent=True,
             enable_filesystem_extraction=True,
         )
         assert flags.enable_llm_entity_extraction is True
         assert flags.enable_anthropic is True
-        assert flags.enable_ollama is True
         assert flags.enable_conscious_agent is True
         assert flags.enable_filesystem_extraction is True
 
@@ -166,7 +163,6 @@ class TestGetFeatureFlags:
         assert result.enable_conscious_agent is True
         assert result.enable_llm_entity_extraction is False
         assert result.enable_anthropic is False
-        assert result.enable_ollama is False
         assert result.enable_filesystem_extraction is False
 
     def test_default_flags_reflect_settings_or_env(self, unmock_settings):
@@ -178,7 +174,6 @@ class TestGetFeatureFlags:
         env_vars_to_clear = [
             "SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION",
             "SESSION_BUDDY_ENABLE_ANTHROPIC",
-            "SESSION_BUDDY_ENABLE_OLLAMA",
             "SESSION_BUDDY_ENABLE_CONSCIOUS_AGENT",
             "SESSION_BUDDY_ENABLE_FILESYSTEM_EXTRACTION",
         ]
@@ -194,7 +189,6 @@ class TestGetFeatureFlags:
             # Verify all flags are boolean
             assert isinstance(result.enable_llm_entity_extraction, bool)
             assert isinstance(result.enable_anthropic, bool)
-            assert isinstance(result.enable_ollama, bool)
             assert isinstance(result.enable_conscious_agent, bool)
             assert isinstance(result.enable_filesystem_extraction, bool)
         finally:
@@ -210,7 +204,6 @@ class TestGetFeatureFlags:
         env_vars_to_clear = [
             "SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION",
             "SESSION_BUDDY_ENABLE_ANTHROPIC",
-            "SESSION_BUDDY_ENABLE_OLLAMA",
             "SESSION_BUDDY_ENABLE_CONSCIOUS_AGENT",
             "SESSION_BUDDY_ENABLE_FILESYSTEM_EXTRACTION",
         ]
@@ -234,7 +227,6 @@ class TestGetFeatureFlags:
         env_vars_to_clear = [
             "SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION",
             "SESSION_BUDDY_ENABLE_ANTHROPIC",
-            "SESSION_BUDDY_ENABLE_OLLAMA",
             "SESSION_BUDDY_ENABLE_CONSCIOUS_AGENT",
             "SESSION_BUDDY_ENABLE_FILESYSTEM_EXTRACTION",
         ]
@@ -253,36 +245,11 @@ class TestGetFeatureFlags:
                 else:
                     os.environ[k] = v
 
-    def test_env_override_enable_ollama(self, unmock_settings):
-        """Test env override for enable_ollama."""
-        env_vars_to_clear = [
-            "SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION",
-            "SESSION_BUDDY_ENABLE_ANTHROPIC",
-            "SESSION_BUDDY_ENABLE_OLLAMA",
-            "SESSION_BUDDY_ENABLE_CONSCIOUS_AGENT",
-            "SESSION_BUDDY_ENABLE_FILESYSTEM_EXTRACTION",
-        ]
-        original_env = {k: os.environ.get(k) for k in env_vars_to_clear}
-        try:
-            for k in env_vars_to_clear:
-                os.environ.pop(k, None)
-
-            os.environ["SESSION_BUDDY_ENABLE_OLLAMA"] = "on"
-            result = get_feature_flags()
-            assert result.enable_ollama is True
-        finally:
-            for k, v in original_env.items():
-                if v is None:
-                    os.environ.pop(k, None)
-                else:
-                    os.environ[k] = v
-
     def test_env_override_enable_conscious_agent(self, unmock_settings):
         """Test env override for enable_conscious_agent."""
         env_vars_to_clear = [
             "SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION",
             "SESSION_BUDDY_ENABLE_ANTHROPIC",
-            "SESSION_BUDDY_ENABLE_OLLAMA",
             "SESSION_BUDDY_ENABLE_CONSCIOUS_AGENT",
             "SESSION_BUDDY_ENABLE_FILESYSTEM_EXTRACTION",
         ]
@@ -306,7 +273,6 @@ class TestGetFeatureFlags:
         env_vars_to_clear = [
             "SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION",
             "SESSION_BUDDY_ENABLE_ANTHROPIC",
-            "SESSION_BUDDY_ENABLE_OLLAMA",
             "SESSION_BUDDY_ENABLE_CONSCIOUS_AGENT",
             "SESSION_BUDDY_ENABLE_FILESYSTEM_EXTRACTION",
         ]
@@ -330,7 +296,6 @@ class TestGetFeatureFlags:
         env_vars_to_clear = [
             "SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION",
             "SESSION_BUDDY_ENABLE_ANTHROPIC",
-            "SESSION_BUDDY_ENABLE_OLLAMA",
             "SESSION_BUDDY_ENABLE_CONSCIOUS_AGENT",
             "SESSION_BUDDY_ENABLE_FILESYSTEM_EXTRACTION",
         ]
@@ -354,7 +319,6 @@ class TestGetFeatureFlags:
         env_vars_to_clear = [
             "SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION",
             "SESSION_BUDDY_ENABLE_ANTHROPIC",
-            "SESSION_BUDDY_ENABLE_OLLAMA",
             "SESSION_BUDDY_ENABLE_CONSCIOUS_AGENT",
             "SESSION_BUDDY_ENABLE_FILESYSTEM_EXTRACTION",
         ]
@@ -365,14 +329,12 @@ class TestGetFeatureFlags:
 
             os.environ["SESSION_BUDDY_ENABLE_LLM_ENTITY_EXTRACTION"] = "true"
             os.environ["SESSION_BUDDY_ENABLE_ANTHROPIC"] = "true"
-            os.environ["SESSION_BUDDY_ENABLE_OLLAMA"] = "true"
             os.environ["SESSION_BUDDY_ENABLE_CONSCIOUS_AGENT"] = "true"
             os.environ["SESSION_BUDDY_ENABLE_FILESYSTEM_EXTRACTION"] = "true"
 
             result = get_feature_flags()
             assert result.enable_llm_entity_extraction is True
             assert result.enable_anthropic is True
-            assert result.enable_ollama is True
             assert result.enable_conscious_agent is True
             assert result.enable_filesystem_extraction is True
         finally:

@@ -82,11 +82,11 @@ class TestGetProviderApiKeyAndEnv:
         assert api_key is None
         assert env_var is None
 
-    def test_get_ollama_provider(self) -> None:
-        """Should return None for Ollama (local service, no API key)."""
+    def test_get_llama_server_provider(self) -> None:
+        """Should return None for llama-server (local service, no API key)."""
         from session_buddy.llm_providers import _get_provider_api_key_and_env
 
-        api_key, env_var = _get_provider_api_key_and_env("ollama")
+        api_key, env_var = _get_provider_api_key_and_env("llama_server")
 
         assert api_key is None
         assert env_var is None
@@ -382,11 +382,11 @@ class TestGetMaskedApiKey:
 
             assert result == "...2345"
 
-    def test_get_masked_api_key_for_ollama(self) -> None:
-        """Should return N/A for Ollama (local service)."""
+    def test_get_masked_api_key_for_llama_server(self) -> None:
+        """Should return N/A for llama-server (local service)."""
         from session_buddy.llm_providers import get_masked_api_key
 
-        result = get_masked_api_key("ollama")
+        result = get_masked_api_key("llama_server")
 
         assert result == "N/A (local service)"
 
@@ -410,162 +410,3 @@ class TestGetMaskedApiKey:
             result = get_masked_api_key("openai")
 
             assert result == "***"
-
-
-class TestOllamaProviderHelperFunctions:
-    """Test Ollama provider helper functions for streaming and availability.
-
-    Phase 2: Core Coverage - llm_providers.py (30% → 70%)
-    """
-
-    @pytest.mark.asyncio
-    async def test_check_with_aiohttp_success(self) -> None:
-        """Should check availability using aiohttp and return True on success."""
-        from session_buddy.llm.providers import OllamaProvider
-
-        provider = OllamaProvider({"base_url": "http://localhost:11434"})
-
-        # Mock aiohttp response
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        mock_response.json = AsyncMock(
-            return_value={"models": [{"name": "llama2"}, {"name": "mistral"}]}
-        )
-
-        # Create async context manager for session.get()
-        mock_get_cm = AsyncMock()
-        mock_get_cm.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_get_cm.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_get_cm)
-
-        # Wrap mock_session in async context manager for ClientSession()
-        mock_session_cm = AsyncMock()
-        mock_session_cm.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_cm.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("aiohttp.ClientSession", return_value=mock_session_cm):
-            result = await provider._check_with_aiohttp(
-                "http://localhost:11434/api/tags"
-            )
-
-            assert result is True
-            assert provider._available_models == ["llama2", "mistral"]
-
-    @pytest.mark.asyncio
-    async def test_check_with_aiohttp_failure(self) -> None:
-        """Should check availability using aiohttp and return False on failure."""
-        from session_buddy.llm.providers import OllamaProvider
-
-        provider = OllamaProvider({"base_url": "http://localhost:11434"})
-
-        # Mock aiohttp response with 500 error
-        mock_response = AsyncMock()
-        mock_response.status = 500
-
-        # Create async context manager for session.get()
-        mock_get_cm = AsyncMock()
-        mock_get_cm.__aenter__ = AsyncMock(return_value=mock_response)
-        mock_get_cm.__aexit__ = AsyncMock(return_value=None)
-
-        mock_session = AsyncMock()
-        mock_session.get = MagicMock(return_value=mock_get_cm)
-
-        # Wrap mock_session in async context manager for ClientSession()
-        mock_session_cm = AsyncMock()
-        mock_session_cm.__aenter__ = AsyncMock(return_value=mock_session)
-        mock_session_cm.__aexit__ = AsyncMock(return_value=None)
-
-        with patch("aiohttp.ClientSession", return_value=mock_session_cm):
-            result = await provider._check_with_aiohttp(
-                "http://localhost:11434/api/tags"
-            )
-
-            assert result is False
-
-    @pytest.mark.asyncio
-    async def test_check_with_aiohttp_connection_error(self) -> None:
-        """Should return False when connection fails."""
-        from session_buddy.llm.providers import OllamaProvider
-
-        provider = OllamaProvider({"base_url": "http://localhost:11434"})
-
-        with patch(
-            "aiohttp.ClientSession", side_effect=Exception("Connection refused")
-        ):
-            result = await provider._check_with_aiohttp(
-                "http://localhost:11434/api/tags"
-            )
-
-            assert result is False
-
-    def test_extract_chunk_content_valid_json(self) -> None:
-        """Should extract content from valid JSON chunk."""
-        from session_buddy.llm.providers import OllamaProvider
-
-        provider = OllamaProvider({"base_url": "http://localhost:11434"})
-
-        chunk_line = b'{"message": {"content": "Hello world"}}'
-
-        result = provider._extract_chunk_content(chunk_line)
-
-        assert result == "Hello world"
-
-    def test_extract_chunk_content_empty_line(self) -> None:
-        """Should return None for empty line."""
-        from session_buddy.llm.providers import OllamaProvider
-
-        provider = OllamaProvider({"base_url": "http://localhost:11434"})
-
-        result = provider._extract_chunk_content(b"")
-
-        assert result is None
-
-    def test_extract_chunk_content_invalid_json(self) -> None:
-        """Should return None for invalid JSON."""
-        from session_buddy.llm.providers import OllamaProvider
-
-        provider = OllamaProvider({"base_url": "http://localhost:11434"})
-
-        result = provider._extract_chunk_content(b"not valid json")
-
-        assert result is None
-
-    def test_extract_chunk_content_missing_message(self) -> None:
-        """Should return None when message field is missing."""
-        from session_buddy.llm.providers import OllamaProvider
-
-        provider = OllamaProvider({"base_url": "http://localhost:11434"})
-
-        result = provider._extract_chunk_content(b'{"data": "test"}')
-
-        assert result is None
-
-    def test_prepare_stream_data_basic(self) -> None:
-        """Should prepare streaming data with basic options."""
-        from session_buddy.llm.models import LLMMessage
-        from session_buddy.llm.providers import OllamaProvider
-
-        provider = OllamaProvider({"base_url": "http://localhost:11434"})
-        messages = [LLMMessage(role="user", content="Hello")]
-
-        data = provider._prepare_stream_data("llama2", messages, 0.7, None)
-
-        assert data["model"] == "llama2"
-        assert data["stream"] is True
-        assert data["options"]["temperature"] == 0.7
-        assert "num_predict" not in data["options"]
-
-    def test_prepare_stream_data_with_max_tokens(self) -> None:
-        """Should include num_predict when max_tokens provided."""
-        from session_buddy.llm.models import LLMMessage
-        from session_buddy.llm.providers import OllamaProvider
-
-        provider = OllamaProvider({"base_url": "http://localhost:11434"})
-        messages = [LLMMessage(role="user", content="Hello")]
-
-        data = provider._prepare_stream_data("llama2", messages, 0.8, 100)
-
-        assert data["options"]["num_predict"] == 100
-        assert data["options"]["temperature"] == 0.8

@@ -20,7 +20,6 @@ def register_feature_flags_tools(mcp: FastMCP) -> None:
         return {
             "enable_llm_entity_extraction": flags.enable_llm_entity_extraction,
             "enable_anthropic": flags.enable_anthropic,
-            # "enable_ollama" removed in REQ-OLLAMA-013; no shim.
             "enable_conscious_agent": flags.enable_conscious_agent,
             "enable_filesystem_extraction": flags.enable_filesystem_extraction,
         }

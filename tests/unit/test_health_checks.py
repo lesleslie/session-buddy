@@ -554,8 +554,8 @@ class TestCheckDependenciesHealth:
         """Test DEGRADED when no optional features are available.
 
         The exact ``message`` string is not asserted because the embedding
-        provider check pings live HTTP endpoints (ollama/llama-server); on
-        developer machines one of them may actually be running. The
+        provider check pings live HTTP endpoints (llama-server); on
+        developer machines it may actually be running. The
         contract is: when no optional Python deps are importable, the
         status is DEGRADED and every Crackerjack/multi_project flag is
         in the ``unavailable`` metadata list.
@@ -1482,7 +1482,7 @@ class TestIsSafeUrl:
     def test_localhost_url_is_safe(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The literal default URL from MAHAVISHNU__OLLAMA_URL must be safe."""
+        """The literal default URL from MAHAVISHNU__LLAMA_SERVER_URL must be safe."""
         monkeypatch.delenv(
             "SESSION_BUDDY__ALLOW_PRIVATE_NETWORK_PROVIDERS", raising=False
         )

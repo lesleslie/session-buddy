@@ -305,8 +305,8 @@ class TestCheckDependenciesHealth:
         """Test when no optional dependencies are available.
 
         The exact ``message`` string is not asserted because the embedding
-        provider check pings live HTTP endpoints (ollama/llama-server);
-        on developer machines one of them may actually be running. The
+        provider check pings live HTTP endpoints (llama-server);
+        on developer machines it may actually be running. The
         contract is: when no optional Python deps are importable, the
         status is DEGRADED and every Crackerjack/multi_project flag is
         in the ``unavailable`` metadata list.
@@ -328,7 +328,7 @@ class TestCheckDependenciesHealth:
         mock_spec = MagicMock()
 
         async def fake_check_embedding_providers(client):
-            return (["llama-server", "ollama"], [])
+            return (["llama-server"], [])
 
         with patch(
             "importlib.util.find_spec", return_value=mock_spec
@@ -375,7 +375,7 @@ class TestCheckDependenciesHealth:
         fake_quality_utils.CRACKERJACK_AVAILABLE = True
 
         async def fake_check_embedding_providers(client):
-            return (["llama-server", "ollama"], [])
+            return (["llama-server"], [])
 
         with patch.dict(
             sys.modules,

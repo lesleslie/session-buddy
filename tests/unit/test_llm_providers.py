@@ -52,7 +52,7 @@ def _make_mock_chain(
     providers: list[str] | None = None,
     execute_result: dict | None = None,
 ) -> MagicMock:
-    names = providers or ["minimax", "llama_server", "ollama"]
+    names = providers or ["minimax", "llama_server"]
     chain = MagicMock()
     chain._providers = [_make_mock_provider(n) for n in names]
     chain.execute = AsyncMock(
@@ -324,8 +324,8 @@ class TestGetMaskedApiKey:
             result = get_masked_api_key("minimax")
             assert "****" in result or "..." in result
 
-    def test_returns_n_a_for_ollama(self):
-        result = get_masked_api_key("ollama")
+    def test_returns_n_a_for_llama_server(self):
+        result = get_masked_api_key("llama_server")
         assert result == "N/A (local service)"
 
     def test_returns_masked_key_from_env(self):
@@ -499,7 +499,7 @@ class TestLLMManagerInitialization:
 
     def test_list_providers_returns_chain_names(self, llm_manager):
         providers = llm_manager.list_providers()
-        assert providers == ["minimax", "llama_server", "ollama"]
+        assert providers == ["minimax", "llama_server"]
 
     def test_is_valid_provider_true(self, llm_manager):
         assert llm_manager._is_valid_provider("minimax") is True
@@ -523,17 +523,15 @@ class TestGetAvailableProviders:
     async def test_returns_healthy_providers(self, mock_chain):
         mock_chain._providers[0].health_check = AsyncMock(return_value=True)
         mock_chain._providers[1].health_check = AsyncMock(return_value=False)
-        mock_chain._providers[2].health_check = AsyncMock(return_value=True)
         with patch("session_buddy.llm_providers.FallbackChain.from_settings", return_value=mock_chain):
             manager = LLMManager()
         available = await manager.get_available_providers()
-        assert available == ["minimax", "ollama"]
+        assert available == ["minimax"]
 
     @pytest.mark.asyncio
     async def test_excludes_providers_that_raise(self, mock_chain):
         mock_chain._providers[0].health_check = AsyncMock(side_effect=RuntimeError("down"))
         mock_chain._providers[1].health_check = AsyncMock(return_value=True)
-        mock_chain._providers[2].health_check = AsyncMock(return_value=True)
         with patch("session_buddy.llm_providers.FallbackChain.from_settings", return_value=mock_chain):
             manager = LLMManager()
         available = await manager.get_available_providers()
@@ -589,7 +587,7 @@ class TestGenerate:
     async def test_provider_param_is_accepted(self, llm_manager):
         """provider param is accepted for compat but ignored."""
         messages = [LLMMessage(role="user", content="hi")]
-        response = await llm_manager.generate(messages, provider="ollama")
+        response = await llm_manager.generate(messages, provider="llama_server")
         assert isinstance(response, LLMResponse)
 
 
@@ -681,9 +679,6 @@ class TestTestAllProviders:
         mock_chain._providers[1].execute = AsyncMock(
             return_value={"content": "ok", "provider": "llama_server", "model": "qwen3.5", "usage": {}}
         )
-        mock_chain._providers[2].execute = AsyncMock(
-            return_value={"content": "ok", "provider": "ollama", "model": "qwen2.5-coder:7b", "usage": {}}
-        )
         with patch("session_buddy.llm_providers.FallbackChain.from_settings", return_value=mock_chain):
             manager = LLMManager()
         results = await manager.test_all_providers()
@@ -706,7 +701,7 @@ class TestGetProviderInfo:
         info = llm_manager.get_provider_info()
         assert "fallback_chain" in info
         assert "providers" in info
-        assert info["fallback_chain"] == ["minimax", "llama_server", "ollama"]
+        assert info["fallback_chain"] == ["minimax", "llama_server"]
 
     def test_provider_info_does_not_expose_api_keys(self, llm_manager):
         info = llm_manager.get_provider_info()

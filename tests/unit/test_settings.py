@@ -59,14 +59,6 @@ class TestLLMConfig:
         settings = SessionBuddySettings()
         assert settings.llm.default_provider == "minimax"
 
-    def test_ollama_base_url_default(self) -> None:
-        settings = SessionBuddySettings()
-        assert settings.llm.ollama_base_url == "http://localhost:11434"
-
-    def test_ollama_default_model_default(self) -> None:
-        settings = SessionBuddySettings()
-        assert settings.llm.ollama_default_model == "qwen2.5-coder:7b"
-
     def test_llama_server_default_model_default(self) -> None:
         settings = SessionBuddySettings()
         assert settings.llm.llama_server_default_model == "qwen3.5"
@@ -76,7 +68,6 @@ class TestLLMConfig:
         assert settings.llm.fallback_providers == [
             "minimax",
             "llama_server",
-            "ollama",
         ]
 
     def test_minimax_base_url_default(self) -> None:
@@ -100,7 +91,7 @@ class TestLLMConfig:
         assert settings.llm.llama_server_model == "qwen3.5"
 
     def test_valid_provider_literals(self) -> None:
-        valid_providers = ["minimax", "zai", "openai", "gemini", "ollama", "llama_server"]
+        valid_providers = ["minimax", "zai", "openai", "gemini", "llama_server"]
         for provider in valid_providers:
             settings = SessionBuddySettings(
                 llm=LLMConfig(default_provider=provider),
@@ -109,22 +100,16 @@ class TestLLMConfig:
 
     def test_custom_provider(self) -> None:
         settings = SessionBuddySettings(
-            llm=LLMConfig(default_provider="ollama"),
+            llm=LLMConfig(default_provider="llama_server"),
         )
-        assert settings.llm.default_provider == "ollama"
+        assert settings.llm.default_provider == "llama_server"
 
     def test_custom_fallback_chain(self) -> None:
-        custom_chain = ["ollama", "minimax"]
+        custom_chain = ["minimax", "llama_server"]
         settings = SessionBuddySettings(
             llm=LLMConfig(fallback_providers=custom_chain),
         )
         assert settings.llm.fallback_providers == custom_chain
-
-    def test_custom_urls(self) -> None:
-        settings = SessionBuddySettings(
-            llm=LLMConfig(ollama_base_url="http://custom:11434"),
-        )
-        assert settings.llm.ollama_base_url == "http://custom:11434"
 
 
 # ===========================================================================
@@ -864,10 +849,6 @@ class TestFeatureFlagsConfig:
     def test_enable_anthropic_default_false(self) -> None:
         settings = SessionBuddySettings()
         assert settings.feature_flags.enable_anthropic is False
-
-    def test_enable_ollama_default_false(self) -> None:
-        settings = SessionBuddySettings()
-        assert settings.feature_flags.enable_ollama is False
 
     def test_enable_conscious_agent_default_false(self) -> None:
         settings = SessionBuddySettings()

@@ -1346,7 +1346,6 @@ def mock_settings(tmp_path):
         database=DatabaseConfig(path=test_data_dir / "reflection.duckdb"),
         feature_flags=FeatureFlagsConfig(
             enable_anthropic=True,
-            enable_ollama=False,
             enable_conscious_agent=True,
             enable_filesystem_extraction=True,
         ),

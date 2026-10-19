@@ -58,11 +58,6 @@ class TestGetMaskedApiKey:
             result = get_masked_api_key("gemini")
         assert isinstance(result, str)
 
-    def test_ollama_returns_na(self) -> None:
-        """Ollama is a local service with no key."""
-        result = get_masked_api_key("ollama")
-        assert result == "N/A (local service)"
-
     def test_llama_server_returns_na(self) -> None:
         result = get_masked_api_key("llama_server")
         assert result == "N/A (local service)"
@@ -290,8 +285,7 @@ class TestGetConfiguredProviders:
         with patch("session_buddy.llm.security.get_llm_api_key", return_value=""):
             with patch.dict(os.environ, {}, clear=True):
                 providers = _get_configured_providers()
-        # Ollama and llama_server are always present (local)
-        assert "ollama" in providers
+        # llama_server is always present (local)
         assert "llama_server" in providers
 
     def test_includes_settings_provider(self) -> None:

@@ -223,7 +223,7 @@ class ReflectionDatabaseAdapterOneiric:
 
     This adapter replaces ACB's Vector adapter with direct DuckDB operations while maintaining
     the original ReflectionDatabase API for backward compatibility. It handles:
-    - HTTP-based embedding generation (llama-server/Ollama, 384 dimensions)
+    - HTTP-based embedding generation (llama-server, 384 dimensions)
     - Vector storage and retrieval via native DuckDB
     - Graceful fallback to text search when embeddings unavailable
     - Async/await patterns consistent with existing code
@@ -1127,8 +1127,8 @@ class ReflectionDatabaseAdapterOneiric:
         """Generate embedding for text via HTTP provider chain.
 
         Delegates to generate_embedding() from embeddings.py which calls
-        llama-server → Ollama → None. HTTP providers return pre-normalized
-        384d vectors, so no mean-pooling or normalization needed.
+        llama-server. HTTP providers return pre-normalized 384d vectors,
+        so no mean-pooling or normalization needed.
 
         Cache is handled by generate_embedding()'s thread-safe dict cache.
         """

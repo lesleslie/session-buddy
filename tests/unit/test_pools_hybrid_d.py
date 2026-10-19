@@ -241,9 +241,9 @@ async def test_execute_passes_context_to_backend():
             worker._execute_task_logic = patched  # type: ignore[method-assign]
 
         await pool.execute(
-            "with context", context={"model": "ollama/qwen3.5", "system": "be terse"}
+            "with context", context={"model": "llama_server/qwen3.5", "system": "be terse"}
         )
-        assert captured["context"]["model"] == "ollama/qwen3.5"
+        assert captured["context"]["model"] == "llama_server/qwen3.5"
         assert captured["context"]["system"] == "be terse"
     finally:
         await pool.shutdown()

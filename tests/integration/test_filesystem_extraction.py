@@ -52,7 +52,6 @@ async def test_file_change_extraction_persists_with_activity_weight(
     flags = ff.FeatureFlags(
         enable_llm_entity_extraction=True,
         enable_anthropic=False,
-        enable_ollama=False,
         enable_conscious_agent=False,
         enable_filesystem_extraction=True,
     )

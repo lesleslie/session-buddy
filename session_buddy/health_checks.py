@@ -265,8 +265,8 @@ def _private_network_allowed() -> bool:
 def _is_safe_url(url: str) -> bool:
     """Return True if the URL's host is safe to probe.
 
-    SSRF defense policy (matches the defaults of MAHAVISHNU__OLLAMA_URL and
-    MAHAVISHNU__LLAMA_SERVER_URL, which both point at loopback):
+    SSRF defense policy (matches the defaults of
+    MAHAVISHNU__LLAMA_SERVER_URL, which points at loopback):
 
     * ``localhost`` / ``127.0.0.0/8`` / ``::1`` — ALWAYS allowed. Loopback
       cannot reach an external attacker, and the two provider URLs default
@@ -409,8 +409,8 @@ async def _check_embedding_providers(
 ) -> tuple[list[str], list[str]]:
     """Check llama-server, return (available, unavailable) lists.
 
-    Ollama was removed in REQ-OLLAMA-014. Only llama-server is
-    probed; the local-tier responsibility consolidated there.
+    Only llama-server is probed; the local-tier responsibility
+    consolidated there.
     """
     llama_result = await _check_provider(
         client,

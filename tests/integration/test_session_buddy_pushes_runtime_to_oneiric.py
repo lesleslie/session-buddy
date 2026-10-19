@@ -151,9 +151,6 @@ async def test_session_buddy_boot_pushes_runtime_to_oneiric() -> None:
             config = runtime.get("config") or {}
             llm_config = config.get("llm") or {}
             assert llm_config.get("default_provider") == settings.llm.default_provider
-            assert (
-                llm_config.get("ollama_base_url") == settings.llm.ollama_base_url
-            )
             return
         await asyncio.sleep(PUSH_POLL_INTERVAL_SECONDS)
 

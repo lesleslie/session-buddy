@@ -28,7 +28,6 @@ async def test_register_feature_flags_tools_uses_current_flag_values(
     flags = SimpleNamespace(
         enable_llm_entity_extraction=False,
         enable_anthropic=True,
-        enable_ollama=False,
         enable_conscious_agent=True,
         enable_filesystem_extraction=False,
     )
@@ -45,7 +44,6 @@ async def test_register_feature_flags_tools_uses_current_flag_values(
     assert status == {
         "enable_llm_entity_extraction": False,
         "enable_anthropic": True,
-        "enable_ollama": False,
         "enable_conscious_agent": True,
         "enable_filesystem_extraction": False,
     }

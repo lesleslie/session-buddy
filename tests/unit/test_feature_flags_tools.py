@@ -28,7 +28,6 @@ async def test_feature_flags_status_shape(monkeypatch: t.Any) -> None:
     keys = {
         "enable_llm_entity_extraction",
         "enable_anthropic",
-        "enable_ollama",
         "enable_conscious_agent",
         "enable_filesystem_extraction",
     }

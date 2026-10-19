@@ -1,6 +1,6 @@
 """Integration tests for LLMManager FallbackChain routing.
 
-Validates the three-tier fallback: MiniMax (primary) → llama-server → Ollama.
+Validates the two-tier fallback: MiniMax (primary) → llama-server.
 Exercises the real LLMManager routing logic end-to-end with mocked FallbackChain.
 """
 
@@ -44,7 +44,7 @@ def _make_chain(
     execute_result: dict | None = None,
     execute_error: Exception | None = None,
 ) -> MagicMock:
-    names = providers or ["minimax", "llama_server", "ollama"]
+    names = providers or ["minimax", "llama_server"]
     chain = MagicMock()
     chain._providers = [_make_provider(n) for n in names]
     if execute_error:
@@ -86,12 +86,6 @@ class TestDefaultProviderIsMiniMax:
             manager = LLMManager()
         assert "llama_server" in manager.list_providers()
 
-    def test_fallback_chain_includes_ollama(self):
-        chain = _make_chain()
-        with patch("session_buddy.llm_providers.FallbackChain.from_settings", return_value=chain):
-            manager = LLMManager()
-        assert "ollama" in manager.list_providers()
-
     def test_minimax_config_base_url(self):
         """Verify _build_chain passes the correct minimax base URL to LLMSettings."""
         with patch("session_buddy.llm_providers.FallbackChain.from_settings") as mock_fs:
@@ -113,18 +107,6 @@ class TestDefaultProviderIsMiniMax:
             llm_settings_arg = mock_fs.call_args[0][0]
         llama_raw = llm_settings_arg.providers.get("llama_server", {})
         assert llama_raw.get("base_url") == "http://myserver:9000"
-
-    def test_ollama_url_from_env(self):
-        """OLLAMA_BASE_URL env var is picked up by _build_chain."""
-        chain = _make_chain()
-        with (
-            patch.dict(os.environ, {"OLLAMA_BASE_URL": "http://mymac:11434/v1"}),
-            patch("session_buddy.llm_providers.FallbackChain.from_settings") as mock_fs,
-        ):
-            mock_fs.return_value = chain
-            LLMManager()
-            settings_arg = mock_fs.call_args[0][0]
-        assert settings_arg.providers["ollama"]["base_url"] == "http://mymac:11434/v1"
 
 
 # ============================================================================
@@ -217,7 +199,6 @@ class TestAvailableProviders:
         available = await manager.get_available_providers()
         assert "minimax" in available
         assert "llama_server" not in available
-        assert "ollama" in available
 
     @pytest.mark.asyncio
     async def test_no_providers_available(self):
@@ -241,7 +222,7 @@ class TestProviderInfo:
         with patch("session_buddy.llm_providers.FallbackChain.from_settings", return_value=chain):
             manager = LLMManager()
         info = manager.get_provider_info()
-        assert info["fallback_chain"] == ["minimax", "llama_server", "ollama"]
+        assert info["fallback_chain"] == ["minimax", "llama_server"]
 
     def test_provider_info_has_all_providers(self):
         chain = _make_chain()
@@ -250,7 +231,6 @@ class TestProviderInfo:
         info = manager.get_provider_info()
         assert "minimax" in info["providers"]
         assert "llama_server" in info["providers"]
-        assert "ollama" in info["providers"]
 
     def test_provider_info_does_not_expose_api_keys(self):
         chain = _make_chain()

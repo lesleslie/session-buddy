@@ -229,7 +229,7 @@ def test_dependency_status_and_logging(monkeypatch: pytest.MonkeyPatch, _isolate
     status = lazy_imports.get_dependency_status()
 
     # transformers/onnxruntime were removed in favour of HTTP embedding
-    # providers (llama-server / Ollama); get_dependency_status() no longer
+    # providers (llama-server); get_dependency_status() no longer
     # surfaces them. Embedding functionality is now always reported as
     # available.
     assert status["duckdb"]["available"] is True

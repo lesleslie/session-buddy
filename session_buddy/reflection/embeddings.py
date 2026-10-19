@@ -3,8 +3,8 @@
 Provides async embedding generation using llama-server with
 graceful degradation when no providers are available.
 
-Phase 5: ONNX path removed. Phase 6: Ollama fallback removed
-(REQ-OLLAMA-014) — llama-server is the sole local HTTP provider.
+Phase 5: ONNX path removed. llama-server is the sole local
+HTTP provider.
 """
 
 from __future__ import annotations
