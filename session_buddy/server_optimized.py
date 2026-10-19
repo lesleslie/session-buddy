@@ -316,7 +316,40 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     # left over from a hard exit are simply picked up on the next startup.
     asyncio.create_task(lifecycle_manager.drain_pending_markers())
 
-    yield  # Server starts - MCP handshakes can complete immediately
+    # Plan 4b (2026-10-18): start the AutoCheckpointLoop in the canonical
+    # ``session_lifecycle`` (extracted from the dead ``_lifespan_with_dhara_cleanup``
+    # wrapper, commit c820d210). Best-effort: a start failure (e.g.
+    # cwd validation, mode off, missing settings) MUST NOT block startup.
+    # The returned loop is tracked on ``_auto_loop`` so the try/finally
+    # below can ``stop()`` it on lifespan exit — even if the yield or
+    # the post-yield cleanup raises. The loop's own stop() failures are
+    # swallowed with a warning so a stop blip never breaks lifespan exit.
+
+    _auto_loop = None
+    try:
+        from session_buddy.settings import get_settings as _get_settings
+
+        _auto_loop = await start_autocheckpoint_loop(_get_settings())
+        if _auto_loop is not None:
+            logger.info("auto_checkpoint_loop_started")
+    except Exception as exc:  # noqa: BLE001 - loop start must not block startup
+        logger.warning(
+            f"auto_checkpoint_loop_start_failed error={exc!s}",
+        )
+
+    try:
+        yield  # Server starts - MCP handshakes can complete immediately
+    finally:
+        # Plan 4b: stop the AutoCheckpointLoop on lifespan exit. Best-effort
+        # so a stop blip never breaks the lifespan exit path.
+        if _auto_loop is not None:
+            try:
+                await _auto_loop.stop()
+                logger.info("auto_checkpoint_loop_stopped")
+            except Exception as exc:  # noqa: BLE001 - stop blip must not break exit
+                logger.warning(
+                    f"auto_checkpoint_loop_stop_failed error={exc!s}",
+                )
 
     # Register to Dhara AFTER yield as fire-and-forget task
     # Registration needs server to be UP (HTTP POST to self), so it must come after yield
