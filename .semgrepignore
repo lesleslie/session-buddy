@@ -1,9 +1,15 @@
 # Semgrep ignore file
-# Temporarily ignore files with match/case until Semgrep installation is fixed
-
-# Known false positives (Semgrep parser issues with match/case)
-session_mgmt_mcp/serverless_mode.py
-session_mgmt_mcp/llm_providers.py
+#
+# The match/case parser workaround that used to live here has been removed.
+# It named session_mgmt_mcp/serverless_mode.py and
+# session_mgmt_mcp/llm_providers.py -- paths that stopped existing when the
+# package was renamed to session_buddy in 6956bc66 -- so the exclusion
+# matched nothing and the files were scanned anyway.
+#
+# The exclusion is also no longer needed: Semgrep parses both files cleanly
+# (verified 2026-10-27, "Parsed lines: ~100.0%", 0 parse errors), so the
+# original "temporarily ignore until Semgrep installation is fixed"
+# workaround has served its purpose. They are scanned like any other file.
 
 # Standard ignores
 .venv/
