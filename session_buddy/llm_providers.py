@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import tempfile
 import time
 from collections.abc import AsyncGenerator
 from functools import partial
@@ -53,10 +54,32 @@ def _load_json_safely_impl(path: Path, *, self: Any = None) -> dict[str, Any]:
 def _save_json_atomically_impl(
     path: Path, data: dict[str, Any], *, self: Any = None
 ) -> None:
-    """Save JSON file atomically to prevent corruption."""
-    temp_path = path.with_suffix(".tmp")
-    temp_path.write_text(json.dumps(data, indent=2))
-    temp_path.replace(path)
+    """Save JSON file atomically to prevent corruption.
+
+    The temp file is created with a unique name and owner-only permissions
+    rather than a fixed ``.tmp`` name. MCP server configs can carry API keys
+    in their ``env`` blocks, and a fixed name is not enough on its own: the
+    mode passed to ``os.open`` only applies when the file is *created*, so a
+    stale temp file left behind by an older write would keep whatever mode
+    it had -- including the world-readable 0644 -- and receive credential
+    data. ``mkstemp`` creates a fresh file at 0600 every time, and refuses
+    to follow an existing path.
+    """
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    try:
+        with os.fdopen(fd, "w") as handle:
+            handle.write(json.dumps(data, indent=2))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, path)
+    except BaseException:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
     if self:
         self.logger.debug(f"Saved {path} atomically")
 
