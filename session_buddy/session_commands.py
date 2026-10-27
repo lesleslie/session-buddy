@@ -17,7 +17,7 @@ Initialize Claude session with comprehensive setup and intelligent lifecycle man
 This command will:
 - **Set up Claude directory structure** (~/.claude/ for logs, data, cache)
 - **Initialize ACB storage adapters** (file, S3, Azure, GCS support)
-- **Configure vector database** (DuckDB with FLOAT[384] embeddings)
+- **Configure vector database** (DuckDB with fixed-width vector embeddings)
 - **Set up knowledge graph** (DuckPGQ for entity/relationship queries)
 - **Initialize quality scoring V2** (filesystem-based assessment)
 - **Configure dependency injection** (ACB lifecycle management)
@@ -126,7 +126,7 @@ This command provides:
 **Storage Adapters (ACB-Based):**
 - Current backend: file, S3, Azure, or GCS
 - Connection status and health check
-- Vector database: DuckDB with FLOAT[384] embeddings
+- Vector database: DuckDB with fixed-width vector embeddings
 - Knowledge graph: DuckPGQ entity/relationship queries
 
 **Quality Metrics:**

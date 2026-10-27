@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
@@ -163,7 +164,7 @@ class CausalChainTracker:
 
         # Error events table with vector embeddings
         await self.db.conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS causal_error_events (
                 id TEXT PRIMARY KEY,
                 error_message TEXT,
@@ -171,7 +172,7 @@ class CausalChainTracker:
                 context JSON,
                 timestamp TIMESTAMP,
                 session_id TEXT,
-                embedding FLOAT[384]
+                embedding FLOAT[{DEFAULT_EMBEDDING_DIM}]
             )
         """
         )
@@ -411,7 +412,7 @@ class CausalChainTracker:
 
         # Semantic search on past errors
         results = await self.db.conn.execute(
-            """
+            f"""
             SELECT
                 e.id,
                 e.error_message,
@@ -420,7 +421,7 @@ class CausalChainTracker:
                 f.action_taken,
                 f.code_changes,
                 c.resolution_time_minutes,
-                array_cosine_similarity(e.embedding, ?::FLOAT[384]) as similarity
+                array_cosine_similarity(e.embedding, ?::FLOAT[{DEFAULT_EMBEDDING_DIM}]) as similarity
             FROM causal_error_events e
             JOIN causal_chains c ON e.id = c.error_id
             JOIN causal_fix_attempts f ON c.successful_fix_id = f.id

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import duckdb
 import pytest
-from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
+from session_buddy.memory.schema_v2 import schema_v2_sql
 from session_buddy.tools.entity_extraction_tools import register_extraction_tools
 
 
@@ -31,7 +31,7 @@ async def test_file_change_extraction_persists_with_activity_weight(
     # Set up temp DB with v2 schema
     db_path = tmp_path / "fs.duckdb"
     conn = duckdb.connect(str(db_path), config={"allow_unsigned_extensions": True})
-    conn.execute(SCHEMA_V2_SQL)
+    conn.execute(schema_v2_sql())
     conn.close()
 
     # Monkeypatch settings for DB path

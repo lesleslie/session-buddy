@@ -6,6 +6,8 @@ Combines Memori's superior categorization with session-mgmt's ONNX vector search
 
 from enum import StrEnum
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 
 class MemoryCategory(StrEnum):
     """
@@ -37,12 +39,16 @@ class MemoryTier(StrEnum):
 
 
 # DuckDB schema migration SQL
-SCHEMA_V2_SQL = """
+#
+# ``__EMBEDDING_DIM__`` is substituted by ``schema_v2_sql()``. It is a
+# literal placeholder rather than a ``str.format`` field because the DDL
+# contains braces that are not format fields.
+_SCHEMA_V2_TEMPLATE = """
 -- Enhanced conversations table with Memori-inspired categorization
 CREATE TABLE IF NOT EXISTS conversations_v2 (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
-    embedding FLOAT[384],  -- ONNX vector (session-mgmt's superior approach)
+    embedding FLOAT[__EMBEDDING_DIM__],  -- provider vector width
 
     -- Memori-inspired categorization
     category TEXT NOT NULL,  -- facts, preferences, skills, rules, context
@@ -80,7 +86,7 @@ CREATE TABLE IF NOT EXISTS conversations_v2 (
 CREATE TABLE IF NOT EXISTS reflections_v2 (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
-    embedding FLOAT[384],
+    embedding FLOAT[__EMBEDDING_DIM__],
 
     -- Memori-inspired structure
     category TEXT NOT NULL,
@@ -389,11 +395,27 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cross_repo_work_v2_conv_repo
     ON cross_repo_work_v2 (conversation_id, repo_name);
 """
 
-# Append the v2.1 DDL to the canonical SCHEMA_V2_SQL so the
-# read-side ``require_reflection_database()`` adapter emits the new
-# tables on a fresh DB. V1 was retired 2026-10-04 — there is no
+# The v2.1 DDL (cross-repo checkpoint tables) is appended to the canonical
+# v2 SQL so the read-side ``require_reflection_database()`` adapter emits
+# the new tables on a fresh DB. V1 was retired 2026-10-04 — there is no
 # migration path from a V1 database; greenfield V2 only.
-SCHEMA_V2_SQL = SCHEMA_V2_SQL + CROSS_REPO_CHECKPOINT_V2_1_DDL
+
+
+def schema_v2_sql(embedding_dim: int = DEFAULT_EMBEDDING_DIM) -> str:
+    """Return the V2 DDL for the given embedding dimension.
+
+    Args:
+        embedding_dim: Width of the ``FLOAT[N]`` embedding columns. Must
+            match the embedding provider's output width — see
+            ``session_buddy.memory.embedding_dim``.
+
+    Returns:
+        The complete V2 schema DDL, ready to execute.
+    """
+    return (
+        _SCHEMA_V2_TEMPLATE.replace("__EMBEDDING_DIM__", str(embedding_dim))
+        + CROSS_REPO_CHECKPOINT_V2_1_DDL
+    )
 
 
 # Migration from v1 to v2

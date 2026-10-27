@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import duckdb
 import pytest
-from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
+from session_buddy.memory.schema_v2 import schema_v2_sql
 from session_buddy.tools.access_log_tools import register_access_log_tools
 
 
@@ -37,7 +37,7 @@ async def test_access_log_stats_reports_top_and_provider(
 
     # Setup v2 schema
     conn = duckdb.connect(str(db_path), config={"allow_unsigned_extensions": True})
-    conn.execute(SCHEMA_V2_SQL)
+    conn.execute(schema_v2_sql())
     # Insert a memory row
     conn.execute(
         """

@@ -27,6 +27,7 @@ from session_buddy.adapters.knowledge_graph_adapter_phase3 import (
     Phase3RelationshipMixin,
 )
 from session_buddy.adapters.settings import KnowledgeGraphAdapterSettings
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -286,7 +287,7 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         conn = self._get_conn()
 
         # Create entities table (nodes/vertices)
-        conn.execute("""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS kg_entities (
                 id VARCHAR PRIMARY KEY,
                 name VARCHAR NOT NULL,
@@ -296,7 +297,7 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 metadata JSON,
-                embedding FLOAT[384]
+                embedding FLOAT[{DEFAULT_EMBEDDING_DIM}]
             )
         """)
 
@@ -331,7 +332,9 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             for row in conn.execute("PRAGMA table_info('kg_entities')").fetchall()
         }
         if "embedding" not in entity_columns:
-            conn.execute("ALTER TABLE kg_entities ADD COLUMN embedding FLOAT[384]")
+            conn.execute(
+                f"ALTER TABLE kg_entities ADD COLUMN embedding FLOAT[{DEFAULT_EMBEDDING_DIM}]"
+            )
 
         # Create indexes for performance
         conn.execute(

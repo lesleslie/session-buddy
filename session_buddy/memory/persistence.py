@@ -11,6 +11,7 @@ try:
 except ImportError:
     duckdb: t.Any = None
 
+from session_buddy.memory.embedding_dim import coerce_embedding
 from session_buddy.memory.entity_extractor import (
     EntityRelationship,
     ExtractedEntity,
@@ -116,6 +117,7 @@ def _insert_conversation(
     user_id: str | None,
 ) -> None:
     """Insert main conversation record."""
+    embedding = coerce_embedding(embedding)
     conn.execute(
         """
         INSERT INTO conversations_v2 (

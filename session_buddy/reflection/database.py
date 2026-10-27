@@ -42,6 +42,8 @@ class DatabaseLockedError(RuntimeError):
     """
 
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 # Import schema initialization
 # Import embedding generation
 from session_buddy.reflection.embeddings import (
@@ -117,7 +119,7 @@ class ReflectionDatabase:
         self.lock = threading.RLock()  # Re-entrant for nested access in temp DB
 
         # Embedding system — HTTP providers are stateless, no initialization needed
-        self.embedding_dim = 384  # all-MiniLM-L6-v2 / nomic-embed-text dimension
+        self.embedding_dim = DEFAULT_EMBEDDING_DIM  # provider vector width
         self._initialized = False
 
     @property
@@ -188,8 +190,19 @@ class ReflectionDatabase:
         unchanged. Uncommitted writes in the stale WAL are intentionally discarded.
         """
         err_msg = str(first_exc)
-        is_wal_error = self.db_path != ":memory:" and (
-            "replaying WAL" in err_msg or "GetDefaultDatabase" in err_msg
+        # A DuckDB *fatal* error (e.g. a failed checkpoint) invalidates the
+        # entire database instance, and the invalidation is persisted in the
+        # WAL. Every later open replays the poison, so the database is dead
+        # on arrival and the error text names the invalidation rather than
+        # the WAL directly. Recovery means discarding the stale WAL and
+        # reopening at the last good checkpoint.
+        wal_error_signatures = (
+            "replaying WAL",
+            "GetDefaultDatabase",
+            "has been invalidated because of a previous fatal error",
+        )
+        is_wal_error = self.db_path != ":memory:" and any(
+            signature in err_msg for signature in wal_error_signatures
         )
         if not is_wal_error:
             msg = f"Database connection error (directory/permission): {first_exc}"
@@ -242,7 +255,7 @@ class ReflectionDatabase:
 
         try:
             # Initialize schema using schema module
-            initialize_schema(temp_conn)
+            initialize_schema(temp_conn, self.embedding_dim)
         finally:
             temp_conn.close()
 
@@ -256,7 +269,7 @@ class ReflectionDatabase:
                 self._shared_conn = duckdb.connect(
                     self.db_path, config={"allow_unsigned_extensions": True}
                 )
-                initialize_schema(self._shared_conn)
+                initialize_schema(self._shared_conn, self.embedding_dim)
                 self.local.conn = self._shared_conn
         else:
             # For non-temporary DBs, create a connection in the local storage
@@ -277,7 +290,7 @@ class ReflectionDatabase:
             await self.initialize()
             return
 
-        initialize_schema(self.conn)
+        initialize_schema(self.conn, self.embedding_dim)
         self._initialized = True
 
     def _get_conn(self) -> duckdb.DuckDBPyConnection:
@@ -297,7 +310,7 @@ class ReflectionDatabase:
                     self._shared_conn = duckdb.connect(
                         self.db_path, config={"allow_unsigned_extensions": True}
                     )
-                    initialize_schema(self._shared_conn)
+                    initialize_schema(self._shared_conn, self.embedding_dim)
                 self.local.conn = self._shared_conn
             return self._shared_conn
 

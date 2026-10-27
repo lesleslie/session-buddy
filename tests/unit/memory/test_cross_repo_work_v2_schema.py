@@ -15,7 +15,7 @@ to the reflection DB schema:
   CrossRepoPusher.
 
 These tests verify the DDL is registered in the canonical
-``session_buddy.memory.schema_v2.SCHEMA_V2_SQL`` constant so every
+``session_buddy.memory.schema_v2.schema_v2_sql()`` helper so every
 schema-init path emits the new tables.
 
 Note: the v2.1 amendment (commit ``e307fc68``) added ``session_windows``
@@ -29,13 +29,13 @@ from pathlib import Path
 
 import duckdb
 
-from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
+from session_buddy.memory.schema_v2 import schema_v2_sql
 
 
 def test_cross_repo_work_v2_table_present(tmp_path: Path) -> None:
     db_path = tmp_path / "test.duckdb"
     conn = duckdb.connect(str(db_path))
-    conn.execute(SCHEMA_V2_SQL)
+    conn.execute(schema_v2_sql())
     rows = conn.execute(
         "SELECT column_name FROM information_schema.columns "
         "WHERE table_name = 'cross_repo_work_v2'"
@@ -60,7 +60,7 @@ def test_cross_repo_work_v2_table_present(tmp_path: Path) -> None:
 def test_cross_repo_work_v2_unique_constraint(tmp_path: Path) -> None:
     db_path = tmp_path / "test.duckdb"
     conn = duckdb.connect(str(db_path))
-    conn.execute(SCHEMA_V2_SQL)
+    conn.execute(schema_v2_sql())
     indexes = conn.execute(
         "SELECT index_name FROM duckdb_indexes() "
         "WHERE table_name = 'cross_repo_work_v2'"
@@ -80,7 +80,7 @@ def test_session_windows_table_present(tmp_path: Path) -> None:
     """v2.1 amendment: session_windows holds conversation identity."""
     db_path = tmp_path / "test.duckdb"
     conn = duckdb.connect(str(db_path))
-    conn.execute(SCHEMA_V2_SQL)
+    conn.execute(schema_v2_sql())
     rows = conn.execute(
         "SELECT column_name FROM information_schema.columns "
         "WHERE table_name = 'session_windows'"

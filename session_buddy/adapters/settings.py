@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.settings import get_settings
 
 
@@ -27,7 +28,7 @@ def default_session_buckets(data_dir: Path) -> dict[str, str]:
 class ReflectionAdapterSettings:
     database_path: Path
     collection_name: str = "default"
-    embedding_dim: int = 384
+    embedding_dim: int = DEFAULT_EMBEDDING_DIM
     distance_metric: str = "cosine"
     enable_vss: bool = True
     threads: int = 4

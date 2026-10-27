@@ -76,9 +76,9 @@ def patched_db_path(tmp_db: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _seed_db_with_schema(db_path: Path) -> duckdb.DuckDBPyConnection:
     """Open a tmp DuckDB and apply v2 schema; return the connection."""
     conn = duckdb.connect(str(db_path))
-    from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
+    from session_buddy.memory.schema_v2 import schema_v2_sql
 
-    conn.execute(SCHEMA_V2_SQL)
+    conn.execute(schema_v2_sql())
     return conn
 
 

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Import encoding/decoding utilities
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.reflection.storage import _decode_text_from_db
 
 
@@ -30,6 +31,7 @@ async def search_conversations(
     project: str | None = None,
     is_temp_db: bool = False,
     lock: Any = None,
+    embedding_dim: int = DEFAULT_EMBEDDING_DIM,
 ) -> list[dict[str, Any]]:
     """Search conversations by semantic similarity or text match.
 
@@ -59,7 +61,15 @@ async def search_conversations(
     # Use semantic search if embedding available
     if query_embedding is not None:
         return await _semantic_search_conversations(
-            conn, query, query_embedding, limit, min_score, project, is_temp_db, lock
+            conn,
+            query,
+            query_embedding,
+            limit,
+            min_score,
+            project,
+            is_temp_db,
+            lock,
+            embedding_dim,
         )
 
     # Fallback to text search
@@ -77,6 +87,7 @@ async def _semantic_search_conversations(
     project: str | None,
     is_temp_db: bool,
     lock: Any,
+    embedding_dim: int = DEFAULT_EMBEDDING_DIM,
 ) -> list[dict[str, Any]]:
     """Semantic search using vector cosine similarity.
 
@@ -94,10 +105,10 @@ async def _semantic_search_conversations(
         Filtered list of search results above min_score threshold
     """
     try:
-        sql = """
+        sql = f"""
             SELECT
                 id, content, embedding, project, timestamp, metadata,
-                array_cosine_similarity(embedding, CAST(? AS FLOAT[384])) as score
+                array_cosine_similarity(embedding, CAST(? AS FLOAT[{embedding_dim}])) as score
             FROM conversations
             WHERE embedding IS NOT NULL
         """
@@ -239,6 +250,7 @@ async def search_reflections(
     project: str | None = None,
     is_temp_db: bool = False,
     lock: Any = None,
+    embedding_dim: int = DEFAULT_EMBEDDING_DIM,
 ) -> list[dict[str, Any]]:
     """Search reflections by semantic similarity or text match.
 
@@ -268,7 +280,15 @@ async def search_reflections(
     # Use semantic search if embedding available
     if query_embedding is not None:
         return await _semantic_search_reflections(
-            conn, query, query_embedding, limit, min_score, project, is_temp_db, lock
+            conn,
+            query,
+            query_embedding,
+            limit,
+            min_score,
+            project,
+            is_temp_db,
+            lock,
+            embedding_dim,
         )
 
     # Fallback to text search
@@ -284,6 +304,7 @@ async def _semantic_search_reflections(
     project: str | None,
     is_temp_db: bool,
     lock: Any,
+    embedding_dim: int = DEFAULT_EMBEDDING_DIM,
 ) -> list[dict[str, Any]]:
     """Semantic search for reflections using vector cosine similarity.
 
@@ -301,10 +322,10 @@ async def _semantic_search_reflections(
         Filtered list of search results above min_score threshold
     """
     try:
-        sql = """
+        sql = f"""
             SELECT
                 id, content, embedding, project, tags, timestamp, metadata,
-                array_cosine_similarity(embedding, CAST(? AS FLOAT[384])) as score
+                array_cosine_similarity(embedding, CAST(? AS FLOAT[{embedding_dim}])) as score
             FROM reflections
             WHERE embedding IS NOT NULL
         """

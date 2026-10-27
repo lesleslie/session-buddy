@@ -120,12 +120,13 @@ from session_buddy.memory.causal import (
 from session_buddy.memory.causal import (
     walk_causal_chain as _walk_causal_chain,
 )
+from session_buddy.memory.embedding_dim import coerce_embedding
 from session_buddy.memory.peer_modeling import (
     build_peer_context,
     get_peer_model,
     upsert_peer_model,
 )
-from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
+from session_buddy.memory.schema_v2 import schema_v2_sql
 from session_buddy.skills.distiller import (
     DEFAULT_EVIDENCE_THRESHOLD as _DEFAULT_EVIDENCE_THRESHOLD,
 )
@@ -280,7 +281,11 @@ class ReflectionDatabaseAdapterOneiric:
             else:
                 self.db_path = str(settings_db_path)
         self.conn: t.Any = None  # DuckDB connection (sync)
-        self.embedding_dim = self.settings.embedding_dim  # all-MiniLM-L6-v2 dimension
+        # int() coerces the dataclass field: type annotations are not enforced
+        # at runtime, and this value is interpolated into DDL type widths
+        # (DuckDB cannot parameterize an array size), so it must be provably
+        # numeric. A non-numeric value raises here rather than reaching SQL.
+        self.embedding_dim = int(self.settings.embedding_dim)  # provider vector width
         self._initialized = False
 
         # Category evolution engine (Phase 5)
@@ -617,7 +622,7 @@ class ReflectionDatabaseAdapterOneiric:
         """Create database tables if they don't exist."""
         # ========================================================================
         # v2 SCHEMA (Phase 0 v2 rewire) — Memori-inspired global tables.
-        # Runs the SCHEMA_V2_SQL constant first so the conversations_v2 /
+        # Runs the v2 schema DDL first so the conversations_v2 /
         # reflections_v2 tables exist with the v2 column set. The legacy
         # CREATE TABLE IF NOT EXISTS below is then a no-op for conversations_v2.
         # ========================================================================
@@ -644,7 +649,7 @@ class ReflectionDatabaseAdapterOneiric:
         # index build below. Earlier this block only carried the legacy column
         # subset, which left ``reflections_v2`` missing ``timestamp`` /
         # ``memory_tier`` / ``category`` whenever the malformed
-        # ``SCHEMA_V2_SQL`` split skipped the v2 CREATE TABLE — every index
+        # v2 schema split skipped the v2 CREATE TABLE — every index
         # and INSERT that touched a v2 column then failed with BinderException.
         # By making the legacy block a complete superset of the v2 column
         # set, either schema-source path produces a compatible table.
@@ -838,13 +843,13 @@ class ReflectionDatabaseAdapterOneiric:
 
         # Create subcategories table
         self.conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS memory_subcategories (
                 id TEXT PRIMARY KEY,
                 parent_category TEXT NOT NULL,
                 name TEXT NOT NULL,
                 keywords TEXT[],
-                centroid FLOAT[384],
+                centroid FLOAT[{self.embedding_dim}],
                 centroid_fingerprint BLOB,
                 memory_count INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -917,13 +922,13 @@ class ReflectionDatabaseAdapterOneiric:
 
         # Create archived subcategories table (for decayed subcategories)
         self.conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS archived_subcategories (
                 id TEXT PRIMARY KEY,
                 parent_category TEXT NOT NULL,
                 name TEXT NOT NULL,
                 keywords TEXT[],
-                centroid FLOAT[384],
+                centroid FLOAT[{self.embedding_dim}],
                 centroid_fingerprint BLOB,
                 memory_count INTEGER DEFAULT 0,
                 created_at TIMESTAMP NOT NULL,
@@ -1007,7 +1012,7 @@ class ReflectionDatabaseAdapterOneiric:
         self._create_hnsw_indexes()
 
     def _create_v2_schema(self) -> None:
-        """Run the v2 DDL (SCHEMA_V2_SQL) against the current connection.
+        """Run the v2 DDL (``schema_v2_sql()``) against the current connection.
 
         Executes the multi-statement v2 SQL string. DuckDB's ``execute()`` is
         statement-atomic but accepts multi-statement strings separated by
@@ -1017,7 +1022,7 @@ class ReflectionDatabaseAdapterOneiric:
         The v2 schema is global (not collection-scoped), so it is created
         once per database file and shared by every adapter instance.
         """
-        statements = [stmt.strip() for stmt in SCHEMA_V2_SQL.split(";") if stmt.strip()]
+        statements = [stmt.strip() for stmt in schema_v2_sql(self.embedding_dim).split(";") if stmt.strip()]
         for stmt in statements:
             try:
                 self.conn.execute(stmt)
@@ -1127,8 +1132,16 @@ class ReflectionDatabaseAdapterOneiric:
         """Generate embedding for text via HTTP provider chain.
 
         Delegates to generate_embedding() from embeddings.py which calls
-        llama-server. HTTP providers return pre-normalized 384d vectors,
-        so no mean-pooling or normalization needed.
+        llama-server. HTTP providers return pre-normalized vectors, so no
+        mean-pooling or normalization needed.
+
+        The returned vector width is validated against ``embedding_dim``
+        before it leaves this method. A provider/model swap can silently
+        change the vector width; binding a wrong-width vector into the
+        ``FLOAT[N]`` column corrupts the column's child vector and later
+        fails DuckDB's checkpoint fatally, which invalidates the whole
+        database instance and is persisted in the WAL. Dropping the
+        embedding here degrades that row to "no vector" instead.
 
         Cache is handled by generate_embedding()'s thread-safe dict cache.
         """
@@ -1138,10 +1151,15 @@ class ReflectionDatabaseAdapterOneiric:
         )
 
         try:
-            return await http_generate_embedding(text)
+            embedding = await http_generate_embedding(text)
         except Exception:
             logger.exception("HTTP embedding failed")
             return None
+
+        if embedding is None:
+            return None
+
+        return coerce_embedding(embedding, self.embedding_dim)
 
     def _quantize_embedding(self, embedding: list[float]) -> list[int] | None:
         """Quantize embedding from float32 to uint8 for 4x memory compression.
@@ -2458,7 +2476,8 @@ class ReflectionDatabaseAdapterOneiric:
 
         project_clause = "AND project = ?" if project is not None else ""
         min_score_clause = (
-            "AND array_cosine_similarity(embedding::FLOAT[384], ?::FLOAT[384]) >= ?"
+            f"AND array_cosine_similarity(embedding::FLOAT[{self.embedding_dim}], "
+            f"?::FLOAT[{self.embedding_dim}]) >= ?"
             if min_score is not None
             else ""
         )
@@ -2474,7 +2493,7 @@ class ReflectionDatabaseAdapterOneiric:
         results = self.conn.execute(
             f"""
             SELECT id, content, tags, created_at, updated_at, project,
-                   array_cosine_similarity(embedding::FLOAT[384], ?::FLOAT[384]) as similarity
+                   array_cosine_similarity(embedding::FLOAT[{self.embedding_dim}], ?::FLOAT[{self.embedding_dim}]) as similarity
             FROM {self._table("reflections")}
             WHERE embedding IS NOT NULL
                 {project_clause}

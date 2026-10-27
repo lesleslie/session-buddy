@@ -24,6 +24,7 @@ import duckdb
 import pytest
 
 from session_buddy.memory import persistence
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.memory.entity_extractor import (
     EntityRelationship,
     ExtractedEntity,
@@ -54,9 +55,9 @@ def memory_conn(
     """
     db_file = tmp_path / "test_persistence.duckdb"
     conn = duckdb.connect(str(db_file))
-    from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
+    from session_buddy.memory.schema_v2 import schema_v2_sql
 
-    conn.execute(SCHEMA_V2_SQL)
+    conn.execute(schema_v2_sql())
 
     @contextmanager
     def fake_connect():
@@ -186,8 +187,8 @@ class TestInsertProcessedMemory:
 
     def test_persists_embedding(self, memory_conn) -> None:
         pm = _make_memory()
-        # Embedding column is FLOAT[384]; use a 384-dim vector.
-        embedding = [0.01 * i for i in range(384)]
+        # Embedding column width follows the configured provider dimension.
+        embedding = [0.01 * i for i in range(DEFAULT_EMBEDDING_DIM)]
         result = insert_processed_memory(pm, "content", embedding=embedding)
 
         stored = memory_conn.execute(

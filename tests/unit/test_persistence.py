@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import duckdb
 from session_buddy.memory.entity_extractor import ProcessedMemory
 from session_buddy.memory.persistence import insert_processed_memory
-from session_buddy.memory.schema_v2 import SCHEMA_V2_SQL
+from session_buddy.memory.schema_v2 import schema_v2_sql
 
 
 def test_insert_processed_memory_inserts_all(
@@ -26,7 +26,7 @@ def test_insert_processed_memory_inserts_all(
 
     # Create v2 schema tables
     conn = duckdb.connect(str(db_path), config={"allow_unsigned_extensions": True})
-    conn.execute(SCHEMA_V2_SQL)
+    conn.execute(schema_v2_sql())
     conn.close()
 
     # Build a minimal ProcessedMemory with one entity and one relationship
