@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 pytestmark = [pytest.mark.integration, pytest.mark.slow]
