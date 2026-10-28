@@ -30,7 +30,9 @@ def initialize_schema(conn, embedding_dim: int = DEFAULT_EMBEDDING_DIM) -> None:
     conn.execute(schema_v2_sql(embedding_dim))
 
 
-def create_conversations_table(conn, embedding_dim: int = DEFAULT_EMBEDDING_DIM) -> None:
+def create_conversations_table(
+    conn, embedding_dim: int = DEFAULT_EMBEDDING_DIM
+) -> None:
     """No-op shim — V2 ``conversations_v2`` is created by ``schema_v2_sql()``."""
     conn.execute(schema_v2_sql(embedding_dim))
 

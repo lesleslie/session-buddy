@@ -1022,7 +1022,11 @@ class ReflectionDatabaseAdapterOneiric:
         The v2 schema is global (not collection-scoped), so it is created
         once per database file and shared by every adapter instance.
         """
-        statements = [stmt.strip() for stmt in schema_v2_sql(self.embedding_dim).split(";") if stmt.strip()]
+        statements = [
+            stmt.strip()
+            for stmt in schema_v2_sql(self.embedding_dim).split(";")
+            if stmt.strip()
+        ]
         for stmt in statements:
             try:
                 self.conn.execute(stmt)
