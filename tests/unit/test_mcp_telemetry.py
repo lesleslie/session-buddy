@@ -109,48 +109,18 @@ class TestConfigureOtelTracing:
         monkeypatch.setattr(telemetry, "_SHUTDOWN_REGISTERED", True)
         monkeypatch.setattr(telemetry, "_OTEL_AVAILABLE", True)
 
-        # Mock the OTel classes
-        mock_provider = MagicMock()
-        mock_resource = MagicMock()
-        mock_exporter = MagicMock()
-        mock_span_processor = MagicMock()
-
-        class MockResource:
-            @staticmethod
-            def create(attrs):
-                return mock_resource
-
-        class MockTracerProvider:
-            def __init__(self, resource):
-                pass
-
-            def add_span_processor(self, processor):
-                pass
-
-            @property
-            def shutdown(self):
-                return MagicMock()
-
-        class MockHTTPSpanExporter:
-            def __init__(self, endpoint):
-                pass
-
-        class MockBatchSpanProcessor:
-            def __init__(self, exporter):
-                pass
-
-        # Apply patches
-        monkeypatch.setattr(telemetry, "Resource", MockResource)
-        monkeypatch.setattr(telemetry, "TracerProvider", MockTracerProvider)
-        monkeypatch.setattr(telemetry, "OTLPHTTPSpanExporter", MockHTTPSpanExporter)
-        monkeypatch.setattr(telemetry, "BatchSpanProcessor", MockBatchSpanProcessor)
+        # The provider is built by mcp-common's shared producer telemetry
+        # helper, so this test pins the delegation rather than the
+        # provider construction -- which mcp-common's own suite covers.
+        helper = MagicMock(return_value=True)
+        monkeypatch.setattr(telemetry, "configure_producer_tracing", helper)
 
         # ``telemetry.trace`` may be ``None`` when the OTel import failed
         # at module-load time (the production module guards with a
         # try/except and assigns ``trace = None`` on failure). Replace
         # it with a Mock so the production code can call
-        # ``trace.set_tracer_provider(...)`` without raising
-        # ``AttributeError: NoneType has no attribute 'set_tracer_provider'``.
+        # ``trace.get_tracer_provider()`` without raising
+        # ``AttributeError: NoneType has no attribute 'get_tracer_provider'``.
         mock_trace = MagicMock()
         monkeypatch.setattr(telemetry, "trace", mock_trace)
 
@@ -163,10 +133,12 @@ class TestConfigureOtelTracing:
         )
 
         assert result is True
+        assert helper.call_args.args[0] == "test-service"
+        assert helper.call_args.kwargs["service_namespace"] == "test-ns"
         assert telemetry._TRACING_CONFIGURED is True
-        # ``set_tracer_provider`` should have been called once with the
-        # provider produced by ``TracerProvider(resource)``.
-        mock_trace.set_tracer_provider.assert_called_once()
+        # The shared helper installs the provider; Session-Buddy reads it
+        # back so its shutdown path has something to shut down.
+        mock_trace.get_tracer_provider.assert_called_once()
 
 
 class TestShutdownOtelTracing:

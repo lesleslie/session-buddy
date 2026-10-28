@@ -9,6 +9,25 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- session-buddy: the span exporter pointed at the collector's base URL
+  instead of its traces path. The OTLP/HTTP exporter treats an explicit
+  endpoint as the COMPLETE URL including the signal path, so
+  `http://127.0.0.1:4318` posted to the port's root rather than to
+  `/v1/traces`, and every batch came back `404 Not Found`. The receiver
+  never saw the spans, and no metric showed it — a rejected request and a
+  request that was never made look the same from the sender's side. The
+  provider is now built by mcp-common's shared producer telemetry, which
+  resolves the endpoint the way the exporter expects.
+- session-buddy: the reported namespace is `bodai`, not `session-buddy`.
+  The receiver's allowlist is a fixed set of NAMESPACES (`bodai`,
+  `cli-tools`); `session-buddy` is a service NAME, and a span carrying it
+  as its namespace would have been quarantined as namespace drift even
+  once the endpoint was right.
+
 ## [0.36.0] - 2026-10-19
 
 ### Added

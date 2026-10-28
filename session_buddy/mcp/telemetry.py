@@ -7,32 +7,20 @@ import logging
 import os
 import sys
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from mcp_common.server.producer_telemetry import configure_producer_tracing
 from mcp_common.server.telemetry import FastMCPOpenTelemetryMiddleware
+
+if TYPE_CHECKING:
+    from opentelemetry.sdk.trace import TracerProvider
 
 try:
     from opentelemetry import trace
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # ty: ignore[unresolved-import]
-        OTLPSpanExporter as OTLPGrpcSpanExporter,
-    )
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (  # ty: ignore[unresolved-import]
-        OTLPSpanExporter as OTLPHTTPSpanExporter,
-    )
-    from opentelemetry.sdk.resources import Resource  # ty: ignore[unresolved-import]
-    from opentelemetry.sdk.trace import TracerProvider  # ty: ignore[unresolved-import]
-    from opentelemetry.sdk.trace.export import (  # ty: ignore[unresolved-import]
-        BatchSpanProcessor,
-    )
 
     _OTEL_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional runtime dependency
     trace: Any = None
-    OTLPGrpcSpanExporter: Any = None
-    OTLPHTTPSpanExporter: Any = None
-    Resource: Any = None
-    TracerProvider: Any = None
-    BatchSpanProcessor: Any = None
     _OTEL_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -46,7 +34,7 @@ def attach_otel_middleware(
     *,
     service_name: str,
     environment: str = "production",
-    service_namespace: str = "session-buddy",
+    service_namespace: str = "bodai",
 ) -> bool:
     """Attach shared MCP OpenTelemetry middleware to a FastMCP server."""
     if not hasattr(mcp, "add_middleware"):
@@ -73,12 +61,32 @@ def configure_otel_tracing(
     *,
     service_name: str,
     environment: str = "production",
-    service_namespace: str = "session-buddy",
+    service_namespace: str = "bodai",
     endpoint: str | None = None,
     protocol: str | None = None,
     resource_attributes: Mapping[str, str] | None = None,
 ) -> bool:
-    """Configure the OpenTelemetry tracer provider for Session-Buddy."""
+    """Configure the OpenTelemetry tracer provider for Session-Buddy.
+
+    The provider itself is built by mcp-common's shared producer
+    telemetry helper, so Session-Buddy's exporter resolves the collector
+    the same way every other core service's does.
+
+    That resolution used to be done here, and it was wrong in a way that
+    looked healthy: the endpoint was handed to the exporter verbatim,
+    but the exporter treats an explicit endpoint as the COMPLETE URL
+    including the signal path. Pointing it at ``http://127.0.0.1:4318``
+    therefore posted to the port's root rather than to
+    ``/v1/traces``, and every batch came back ``404 Not Found``. The
+    receiver never saw the spans, and no metric showed it -- a rejected
+    request and a request that was never made look the same from here.
+
+    The namespace default was wrong too, in the quieter way. The
+    receiver's allowlist is a fixed set of NAMESPACES (``bodai``,
+    ``cli-tools``), and ``session-buddy`` is a service NAME. A span
+    carrying it would have been quarantined as namespace drift even
+    once the path was right.
+    """
     global _TRACING_CONFIGURED, _TRACER_PROVIDER, _SHUTDOWN_REGISTERED
     if _TRACING_CONFIGURED:
         return True
@@ -91,37 +99,28 @@ def configure_otel_tracing(
         logger.debug("Pytest detected without explicit OTEL endpoint; skipping")
         return False
 
-    otel_protocol = (
-        protocol or os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL") or "grpc"
-    ).lower()
-    otel_endpoint = endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-    if not otel_endpoint:
+    extra_attributes: dict[str, str] = {
+        "telemetry.source": "session-buddy",
+        "telemetry.source.type": "mcp_server",
+    }
+    if resource_attributes:
+        extra_attributes.update(resource_attributes)
+
+    configured = configure_producer_tracing(
+        service_name,
+        service_namespace=service_namespace,
+        environment=environment,
+        endpoint=endpoint,
+        protocol=protocol,
+        resource_attributes=extra_attributes,
+    )
+    if not configured:
         logger.debug(
             "OpenTelemetry endpoint not configured; skipping tracing setup",
         )
         return False
 
-    resource_data: dict[str, str] = {
-        "service.name": service_name,
-        "service.namespace": service_namespace,
-        "deployment.environment": environment,
-        "telemetry.source": "session-buddy",
-        "telemetry.source.type": "mcp_server",
-    }
-    if resource_attributes:
-        resource_data.update(resource_attributes)
-
-    resource = Resource.create(resource_data)
-    provider = TracerProvider(resource=resource)
-
-    if otel_protocol.startswith("http"):
-        exporter: Any = OTLPHTTPSpanExporter(endpoint=otel_endpoint)
-    else:
-        exporter = OTLPGrpcSpanExporter(endpoint=otel_endpoint, insecure=True)
-
-    provider.add_span_processor(BatchSpanProcessor(exporter))
-    trace.set_tracer_provider(provider)
-    _TRACER_PROVIDER = provider
+    _TRACER_PROVIDER = trace.get_tracer_provider()
     if not _SHUTDOWN_REGISTERED:
         atexit.register(shutdown_otel_tracing)
         _SHUTDOWN_REGISTERED = True
@@ -131,8 +130,8 @@ def configure_otel_tracing(
             "service_name": service_name,
             "service_namespace": service_namespace,
             "environment": environment,
-            "endpoint": otel_endpoint,
-            "protocol": otel_protocol,
+            "endpoint": endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+            "protocol": protocol or os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL"),
         },
     )
     _TRACING_CONFIGURED = True

@@ -11,19 +11,25 @@ from session_buddy.mcp import telemetry
 from session_buddy.mcp.telemetry import attach_otel_middleware, configure_otel_tracing
 
 
-def test_configure_otel_tracing_sets_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_configure_otel_tracing_delegates_to_the_shared_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The provider is built by mcp-common's shared producer telemetry.
+
+    Session-Buddy used to build its own, and got the collector endpoint
+    wrong: the exporter treats an explicit endpoint as the COMPLETE URL
+    including the signal path, so pointing it at the port's root posted
+    to the wrong place and every batch came back 404. The receiver never
+    saw the spans, and no metric showed it -- a rejected request and a
+    request that was never made look the same from here.
+    """
     monkeypatch.setattr("session_buddy.mcp.telemetry._TRACING_CONFIGURED", False)
     monkeypatch.setattr("session_buddy.mcp.telemetry._TRACER_PROVIDER", None)
     monkeypatch.setattr("session_buddy.mcp.telemetry._SHUTDOWN_REGISTERED", False)
     monkeypatch.setattr("session_buddy.mcp.telemetry._OTEL_AVAILABLE", True)
-    provider = MagicMock()
-    exporter = MagicMock()
-    monkeypatch.setattr(telemetry, "TracerProvider", lambda resource=None: provider)
-    monkeypatch.setattr(telemetry, "BatchSpanProcessor", lambda exp: ("processor", exp))
-    monkeypatch.setattr(telemetry, "Resource", SimpleNamespace(create=lambda data: data))
-    monkeypatch.setattr(telemetry, "trace", SimpleNamespace(set_tracer_provider=MagicMock()))
-    monkeypatch.setattr(telemetry, "OTLPGrpcSpanExporter", lambda endpoint, insecure=True: exporter)
-    monkeypatch.setattr(telemetry, "OTLPHTTPSpanExporter", lambda endpoint: exporter)
+    helper = MagicMock(return_value=True)
+    monkeypatch.setattr(telemetry, "configure_producer_tracing", helper)
+    monkeypatch.setattr(telemetry, "trace", SimpleNamespace(get_tracer_provider=MagicMock()))
 
     assert configure_otel_tracing(
         service_name="session-buddy",
@@ -31,7 +37,35 @@ def test_configure_otel_tracing_sets_provider(monkeypatch: pytest.MonkeyPatch) -
         endpoint="http://localhost:4317",
         protocol="grpc",
     )
-    assert provider.add_span_processor.called
+    helper.assert_called_once()
+    assert helper.call_args.args[0] == "session-buddy"
+
+
+def test_configure_otel_tracing_reports_the_fleet_namespace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The namespace is "bodai", not the service name.
+
+    The receiver's allowlist is a fixed set of NAMESPACES ("bodai",
+    "cli-tools"). "session-buddy" is a service NAME, and a span
+    carrying it as its namespace would have been quarantined as
+    namespace drift even once the endpoint was right.
+    """
+    monkeypatch.setattr("session_buddy.mcp.telemetry._TRACING_CONFIGURED", False)
+    monkeypatch.setattr("session_buddy.mcp.telemetry._TRACER_PROVIDER", None)
+    monkeypatch.setattr("session_buddy.mcp.telemetry._SHUTDOWN_REGISTERED", False)
+    monkeypatch.setattr("session_buddy.mcp.telemetry._OTEL_AVAILABLE", True)
+    helper = MagicMock(return_value=True)
+    monkeypatch.setattr(telemetry, "configure_producer_tracing", helper)
+    monkeypatch.setattr(telemetry, "trace", SimpleNamespace(get_tracer_provider=MagicMock()))
+
+    configure_otel_tracing(
+        service_name="session-buddy",
+        environment="test",
+        endpoint="http://127.0.0.1:4318",
+    )
+
+    assert helper.call_args.kwargs["service_namespace"] == "bodai"
 
 
 def test_configure_otel_tracing_second_call_is_noop(
@@ -99,6 +133,8 @@ def test_configure_otel_tracing_missing_endpoint_outside_pytest_is_noop(
     monkeypatch.setattr("session_buddy.mcp.telemetry._OTEL_AVAILABLE", True)
     monkeypatch.delitem(sys.modules, "pytest", raising=False)
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.setattr(telemetry, "configure_producer_tracing", MagicMock(return_value=False))
+    monkeypatch.setattr(telemetry, "trace", SimpleNamespace(get_tracer_provider=MagicMock()))
 
     assert (
         configure_otel_tracing(
@@ -118,16 +154,9 @@ def test_configure_otel_tracing_http_protocol_and_resource_attrs(
     monkeypatch.setattr("session_buddy.mcp.telemetry._TRACER_PROVIDER", None)
     monkeypatch.setattr("session_buddy.mcp.telemetry._SHUTDOWN_REGISTERED", False)
     monkeypatch.setattr("session_buddy.mcp.telemetry._OTEL_AVAILABLE", True)
-    provider = MagicMock()
-    exporter = MagicMock()
-    resource_data = {}
-
-    monkeypatch.setattr(telemetry, "TracerProvider", lambda resource=None: provider)
-    monkeypatch.setattr(telemetry, "BatchSpanProcessor", lambda exp: ("processor", exp))
-    monkeypatch.setattr(telemetry, "Resource", SimpleNamespace(create=lambda data: resource_data.update(data) or data))
-    monkeypatch.setattr(telemetry, "trace", SimpleNamespace(set_tracer_provider=MagicMock()))
-    monkeypatch.setattr(telemetry, "OTLPGrpcSpanExporter", lambda endpoint, insecure=True: exporter)
-    monkeypatch.setattr(telemetry, "OTLPHTTPSpanExporter", lambda endpoint: exporter)
+    helper = MagicMock(return_value=True)
+    monkeypatch.setattr(telemetry, "configure_producer_tracing", helper)
+    monkeypatch.setattr(telemetry, "trace", SimpleNamespace(get_tracer_provider=MagicMock()))
 
     assert configure_otel_tracing(
         service_name="session-buddy",
@@ -136,9 +165,11 @@ def test_configure_otel_tracing_http_protocol_and_resource_attrs(
         protocol="http/protobuf",
         resource_attributes={"custom.attr": "value"},
     )
-    assert provider.add_span_processor.called
-    assert resource_data["custom.attr"] == "value"
-    assert resource_data["service.name"] == "session-buddy"
+    assert helper.call_args.kwargs["protocol"] == "http/protobuf"
+    assert helper.call_args.kwargs["endpoint"] == "http://localhost:4318"
+    attributes = helper.call_args.kwargs["resource_attributes"]
+    assert attributes["custom.attr"] == "value"
+    assert attributes["telemetry.source"] == "session-buddy"
 
 
 def test_configure_otel_tracing_does_not_reregister_shutdown(
@@ -148,15 +179,10 @@ def test_configure_otel_tracing_does_not_reregister_shutdown(
     monkeypatch.setattr("session_buddy.mcp.telemetry._TRACER_PROVIDER", None)
     monkeypatch.setattr("session_buddy.mcp.telemetry._SHUTDOWN_REGISTERED", True)
     monkeypatch.setattr("session_buddy.mcp.telemetry._OTEL_AVAILABLE", True)
-    provider = MagicMock()
-    monkeypatch.setattr(telemetry, "TracerProvider", lambda resource=None: provider)
-    monkeypatch.setattr(telemetry, "BatchSpanProcessor", lambda exp: ("processor", exp))
-    monkeypatch.setattr(telemetry, "Resource", SimpleNamespace(create=lambda data: data))
+    monkeypatch.setattr(telemetry, "configure_producer_tracing", MagicMock(return_value=True))
     register_mock = MagicMock()
     monkeypatch.setattr("session_buddy.mcp.telemetry.atexit.register", register_mock)
-    monkeypatch.setattr(telemetry, "trace", SimpleNamespace(set_tracer_provider=MagicMock()))
-    monkeypatch.setattr(telemetry, "OTLPGrpcSpanExporter", lambda endpoint, insecure=True: MagicMock())
-    monkeypatch.setattr(telemetry, "OTLPHTTPSpanExporter", lambda endpoint: MagicMock())
+    monkeypatch.setattr(telemetry, "trace", SimpleNamespace(get_tracer_provider=MagicMock()))
 
     assert configure_otel_tracing(
         service_name="session-buddy",
