@@ -25,6 +25,12 @@ INVALIDATION = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _clear_probe_cache() -> None:
+    """The probe memo is process-wide; each test starts from a clean slate."""
+    duckdb_open._probed_paths.clear()
+
+
 def test_is_wal_poison_matches_the_known_signatures() -> None:
     """The signatures that mean "the WAL is the problem" are recognised."""
     assert duckdb_open.is_wal_poison(RuntimeError(INVALIDATION))
@@ -196,3 +202,34 @@ def test_open_healthy_duckdb_keeps_the_wal_when_an_index_type_is_unknown(
 
     assert conn is not None
     assert wal.exists(), "a missing extension must not discard the WAL"
+
+
+def test_open_healthy_duckdb_probes_each_path_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The probe costs a checkpoint, so it runs once per path per process.
+
+    The service opens several connections to the same file, and the
+    sidecar is on disk -- every connection replays it, so one probe
+    catches the poison for all of them.
+    """
+    db = tmp_path / "reflection.duckdb"
+    db.write_bytes(b"not really a database")
+    calls: list[str] = []
+
+    recording = Mock()
+
+    def execute(sql: str, *args: object, **kw: object) -> None:
+        calls.append(sql.strip().split()[0].upper())
+
+    recording.execute.side_effect = execute
+
+    monkeypatch.setattr(duckdb_open.duckdb, "connect", Mock(return_value=recording))
+
+    duckdb_open.open_healthy_duckdb(str(db))
+    duckdb_open.open_healthy_duckdb(str(db))
+    duckdb_open.open_healthy_duckdb(str(db))
+
+    assert calls.count("CHECKPOINT") == 1, (
+        f"the probe must run once per path; calls were {calls}"
+    )

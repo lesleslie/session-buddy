@@ -41,6 +41,11 @@ WAL_ERROR_SIGNATURES = (
     "Operation requires a flat or constant vector",
 )
 
+#: Database paths already probed in this process. The probe costs a
+#: checkpoint, and the service opens several connections to the same
+#: file.
+_probed_paths: set[str] = set()
+
 __all__ = [
     "WAL_ERROR_SIGNATURES",
     "is_wal_poison",
@@ -123,6 +128,11 @@ def open_healthy_duckdb(
     sidecar is discarded and the database is reopened at the last good
     checkpoint.
 
+    The probe runs once per database path per process. The service opens
+    several connections to the same file, and a checkpoint is not free on
+    a large database; one probe is enough to catch a poisoned sidecar,
+    because the sidecar lives on disk and every connection replays it.
+
     Args:
         db_path: Path to the DuckDB database, or ``":memory:"``.
         config: Optional DuckDB configuration.
@@ -151,8 +161,9 @@ def open_healthy_duckdb(
         )
     else:
         load_vector_extensions(conn)
-        if db_path == ":memory:":
+        if db_path == ":memory:" or db_path in _probed_paths:
             return conn
+        _probed_paths.add(db_path)
         try:
             conn.execute("CHECKPOINT")
             return conn
