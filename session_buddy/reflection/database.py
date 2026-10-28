@@ -42,7 +42,7 @@ class DatabaseLockedError(RuntimeError):
     """
 
 
-from session_buddy.memory.duckdb_wal import (
+from session_buddy.memory.duckdb_open import (
     is_wal_poison,
     open_healthy_duckdb,
     purge_wal,

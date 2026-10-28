@@ -120,7 +120,7 @@ from session_buddy.memory.causal import (
 from session_buddy.memory.causal import (
     walk_causal_chain as _walk_causal_chain,
 )
-from session_buddy.memory.duckdb_wal import open_healthy_duckdb
+from session_buddy.memory.duckdb_open import open_healthy_duckdb
 from session_buddy.memory.embedding_dim import coerce_embedding
 from session_buddy.memory.peer_modeling import (
     build_peer_context,
