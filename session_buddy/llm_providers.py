@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import tempfile
 import time
 from collections.abc import AsyncGenerator
 from functools import partial
@@ -14,6 +13,7 @@ from oneiric.adapters.llm.llm_interface import LLMProvider
 
 from session_buddy.llm.models import LLMMessage, LLMResponse
 from session_buddy.settings import get_settings
+from session_buddy.utils.atomic_write import atomic_write_text
 from session_buddy.utils.time import utc_now
 
 try:
@@ -56,30 +56,14 @@ def _save_json_atomically_impl(
 ) -> None:
     """Save JSON file atomically to prevent corruption.
 
-    The temp file is created with a unique name and owner-only permissions
-    rather than a fixed ``.tmp`` name. MCP server configs can carry API keys
-    in their ``env`` blocks, and a fixed name is not enough on its own: the
-    mode passed to ``os.open`` only applies when the file is *created*, so a
-    stale temp file left behind by an older write would keep whatever mode
-    it had -- including the world-readable 0644 -- and receive credential
-    data. ``mkstemp`` creates a fresh file at 0600 every time, and refuses
-    to follow an existing path.
+    MCP server configs routinely carry API keys in their ``env`` blocks, so
+    the file must never be readable by other local users -- not even for
+    the window between writing it and renaming it into place. The write
+    goes through :func:`session_buddy.utils.atomic_write.atomic_write_text`,
+    which uses a uniquely named temp file created at 0600 and refuses to
+    follow an existing path.
     """
-    fd, temp_name = tempfile.mkstemp(
-        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
-    )
-    try:
-        with os.fdopen(fd, "w") as handle:
-            handle.write(json.dumps(data, indent=2))
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temp_name, path)
-    except BaseException:
-        try:
-            os.unlink(temp_name)
-        except OSError:
-            pass
-        raise
+    atomic_write_text(path, json.dumps(data, indent=2))
     if self:
         self.logger.debug(f"Saved {path} atomically")
 
