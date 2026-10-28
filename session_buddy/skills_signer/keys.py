@@ -29,6 +29,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,  # runtime arg in _derive_key_id()
 )
 
+from session_buddy.utils.atomic_write import atomic_write_bytes
+
 # Number of bytes of the SHA-256 hash used as the key_id. 8 bytes =
 # 16 hex chars. A collision-resistant 64-bit identifier is sufficient
 # for a single-server key namespace; cross-server uniqueness is
@@ -115,10 +117,10 @@ def load_or_create_keypair(path: Path) -> Keypair:
     1.5 ships infrastructure to prevent.
 
     The parent directory is created with ``0o700`` and the key file with
-    ``0o600``. The file is written atomically (write then chmod); an
-    attacker reading the process's file descriptors between write and
-    chmod would still see ``0o644``, but the window is small and the
-    ``chmod`` happens in the same syscall as the function return.
+    ``0o600``. The key is written through
+    :func:`session_buddy.utils.atomic_write.atomic_write_bytes`, so the
+    file is created at ``0o600`` and never exists at a wider mode -- not
+    even briefly, as it would with a write-then-chmod sequence.
 
     Args:
         path: PEM file path. Will be created (with parents) at ``0o600``
@@ -160,6 +162,8 @@ def load_or_create_keypair(path: Path) -> Keypair:
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption(),
     )
-    path.write_bytes(pem)
-    Path.chmod(path, 0o600)
+    # Written through the atomic writer so the key is never briefly
+    # world-readable. ``Path.write_bytes`` would create the file at the
+    # ambient umask (0644) and only narrow it to 0600 afterwards.
+    atomic_write_bytes(path, pem)
     return keypair

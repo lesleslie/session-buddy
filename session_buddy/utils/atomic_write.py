@@ -29,11 +29,11 @@ import os
 import tempfile
 from pathlib import Path
 
-__all__ = ["atomic_write_text"]
+__all__ = ["atomic_write_bytes", "atomic_write_text"]
 
 
-def atomic_write_text(path: Path, text: str, *, mode: int = 0o600) -> None:
-    """Write ``text`` to ``path`` atomically, with owner-only permissions.
+def atomic_write_bytes(path: Path, data: bytes, *, mode: int = 0o600) -> None:
+    """Write ``data`` to ``path`` atomically, with owner-only permissions.
 
     The content is written to a uniquely named temp file in the
     destination directory, flushed and fsynced, then renamed over
@@ -43,11 +43,15 @@ def atomic_write_text(path: Path, text: str, *, mode: int = 0o600) -> None:
 
     The published file's mode is set with ``fchmod`` on the open
     descriptor rather than ``chmod`` on the path, so the file is never
-    observable at a wider mode than requested, even momentarily.
+    observable at a wider mode than requested, even momentarily. This
+    matters for secrets: a file created by ``Path.write_bytes`` takes
+    the ambient umask (0644 under the default 022) and only narrows
+    when a later ``chmod`` runs, so its contents are readable by other
+    local users in between.
 
     Args:
         path: Destination path. Its parent directory must already exist.
-        text: The content to write.
+        data: The bytes to write.
         mode: Permission bits for the published file.
 
     Raises:
@@ -57,9 +61,9 @@ def atomic_write_text(path: Path, text: str, *, mode: int = 0o600) -> None:
         prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
     )
     try:
-        with os.fdopen(fd, "w") as handle:
+        with os.fdopen(fd, "wb") as handle:
             os.fchmod(handle.fileno(), mode)
-            handle.write(text)
+            handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, path)
@@ -69,3 +73,11 @@ def atomic_write_text(path: Path, text: str, *, mode: int = 0o600) -> None:
         except OSError:
             pass
         raise
+
+
+def atomic_write_text(path: Path, text: str, *, mode: int = 0o600) -> None:
+    """Write ``text`` to ``path`` atomically, with owner-only permissions.
+
+    See :func:`atomic_write_bytes` for the guarantees this provides.
+    """
+    atomic_write_bytes(path, text.encode("utf-8"), mode=mode)

@@ -253,6 +253,40 @@ class TestLoadOrCreateKeypair:
         parent_mode = path.parent.stat().st_mode & 0o777
         assert parent_mode == 0o700, f"got {oct(parent_mode)}"
 
+    def test_private_key_is_never_written_through_a_umask_derived_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The PEM must never exist in a file another local user can read.
+
+        ``Path.write_bytes`` creates the file with the ambient umask (0644
+        under the default 022) and only then chmods it to 0600, so the
+        private key is world-readable in between. Record the mode of the
+        file at the moment it is written; every observation must be
+        owner-only.
+        """
+        path = tmp_path / "skills_signer" / "private_key.pem"
+        observed: list[int] = []
+
+        real_write_bytes = Path.write_bytes
+
+        def recording_write_bytes(self: Path, data: bytes) -> int:
+            written = real_write_bytes(self, data)
+            observed.append(self.stat().st_mode & 0o777)
+            return written
+
+        monkeypatch.setattr(Path, "write_bytes", recording_write_bytes)
+
+        load_or_create_keypair(path)
+
+        assert all(mode & 0o077 == 0 for mode in observed), (
+            "the private key was written through Path.write_bytes, which "
+            "creates the file at the ambient umask before any chmod can "
+            f"narrow it; observed modes: {[oct(m) for m in observed]}"
+        )
+        # The key must still round-trip: the fix must not skip the write.
+        reloaded = load_or_create_keypair(path)
+        assert reloaded.key_id == load_or_create_keypair(path).key_id
+
     def test_loads_existing_keypair_with_same_key_id(self, tmp_path: Path) -> None:
         """Second call returns the same keypair (key_id stable across calls)."""
         path = tmp_path / "private_key.pem"
