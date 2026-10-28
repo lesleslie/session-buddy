@@ -42,6 +42,11 @@ class DatabaseLockedError(RuntimeError):
     """
 
 
+from session_buddy.memory.duckdb_wal import (
+    is_wal_poison,
+    open_healthy_duckdb,
+    purge_wal,
+)
 from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 
 # Import schema initialization
@@ -171,7 +176,10 @@ class ReflectionDatabase:
     def _raw_connect(self) -> duckdb.DuckDBPyConnection:
         """Open a DuckDB connection, converting lock conflicts to DatabaseLockedError."""
         try:
-            return duckdb.connect(
+            # Probed with a CHECKPOINT so a poisoned WAL sidecar is
+            # discarded here, instead of leaving the instance invalid on
+            # arrival for the rest of the process's life.
+            return open_healthy_duckdb(
                 self.db_path, config={"allow_unsigned_extensions": True}
             )
         except Exception as e:
@@ -189,28 +197,16 @@ class ReflectionDatabase:
         Raises RuntimeError for non-WAL failures. Re-raises DatabaseLockedError
         unchanged. Uncommitted writes in the stale WAL are intentionally discarded.
         """
-        err_msg = str(first_exc)
         # A DuckDB *fatal* error (e.g. a failed checkpoint) invalidates the
         # entire database instance, and the invalidation is persisted in the
         # WAL. Every later open replays the poison, so the database is dead
         # on arrival and the error text names the invalidation rather than
         # the WAL directly. Recovery means discarding the stale WAL and
         # reopening at the last good checkpoint.
-        wal_error_signatures = (
-            "replaying WAL",
-            "GetDefaultDatabase",
-            "has been invalidated because of a previous fatal error",
-        )
-        is_wal_error = self.db_path != ":memory:" and any(
-            signature in err_msg for signature in wal_error_signatures
-        )
-        if not is_wal_error:
+        if self.db_path == ":memory:" or not is_wal_poison(first_exc):
             msg = f"Database connection error (directory/permission): {first_exc}"
             raise RuntimeError(msg) from first_exc
-        wal_file = Path(self.db_path + ".wal")
-        if wal_file.exists():
-            with suppress(Exception):
-                wal_file.unlink()
+        purge_wal(self.db_path)
         try:
             return self._raw_connect()
         except DatabaseLockedError:
@@ -266,14 +262,14 @@ class ReflectionDatabase:
         if self.is_temp_db:
             # For temp DBs, create a shared connection
             with self.lock:
-                self._shared_conn = duckdb.connect(
+                self._shared_conn = open_healthy_duckdb(
                     self.db_path, config={"allow_unsigned_extensions": True}
                 )
                 initialize_schema(self._shared_conn, self.embedding_dim)
                 self.local.conn = self._shared_conn
         else:
             # For non-temporary DBs, create a connection in the local storage
-            self.local.conn = duckdb.connect(
+            self.local.conn = open_healthy_duckdb(
                 self.db_path, config={"allow_unsigned_extensions": True}
             )
 
@@ -307,7 +303,7 @@ class ReflectionDatabase:
         if self.is_temp_db:
             with self.lock:
                 if not hasattr(self, "_shared_conn"):
-                    self._shared_conn = duckdb.connect(
+                    self._shared_conn = open_healthy_duckdb(
                         self.db_path, config={"allow_unsigned_extensions": True}
                     )
                     initialize_schema(self._shared_conn, self.embedding_dim)
@@ -316,7 +312,7 @@ class ReflectionDatabase:
 
         # For normal environments, use thread-local storage
         if not hasattr(self.local, "conn") or self.local.conn is None:
-            self.local.conn = duckdb.connect(
+            self.local.conn = open_healthy_duckdb(
                 self.db_path, config={"allow_unsigned_extensions": True}
             )
         return self.local.conn

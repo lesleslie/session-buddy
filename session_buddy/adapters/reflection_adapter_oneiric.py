@@ -120,6 +120,7 @@ from session_buddy.memory.causal import (
 from session_buddy.memory.causal import (
     walk_causal_chain as _walk_causal_chain,
 )
+from session_buddy.memory.duckdb_wal import open_healthy_duckdb
 from session_buddy.memory.embedding_dim import coerce_embedding
 from session_buddy.memory.peer_modeling import (
     build_peer_context,
@@ -588,28 +589,15 @@ class ReflectionDatabaseAdapterOneiric:
                     cached.release()
                     _typed_connection_cache.pop(cache_key, None)
 
-        try:
-            conn = duckdb.connect(
-                database=self.db_path,
-                read_only=False,
-                config={"allow_unsigned_extensions": True},
-            )
-        except Exception as e:
-            msg = str(e)
-            if self.db_path != ":memory:" and (
-                "replaying WAL" in msg or "GetDefaultDatabase" in msg
-            ):
-                wal_file = Path(self.db_path + ".wal")
-                if wal_file.exists():
-                    with suppress(Exception):
-                        wal_file.unlink()
-                conn = duckdb.connect(
-                    database=self.db_path,
-                    read_only=False,
-                    config={"allow_unsigned_extensions": True},
-                )
-            else:
-                raise
+        # open_healthy_duckdb probes the instance after connecting and
+        # discards a poisoned WAL sidecar, reopening at the last good
+        # checkpoint. A poisoned WAL does not make the connect fail -- it
+        # leaves the instance invalid on arrival -- so the recovery has to
+        # happen here rather than in an except branch.
+        conn = open_healthy_duckdb(
+            self.db_path,
+            config={"allow_unsigned_extensions": True},
+        )
 
         # Only cache file-based connections, not :memory:
         if self.db_path != ":memory:":
