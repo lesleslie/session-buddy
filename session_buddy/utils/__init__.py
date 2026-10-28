@@ -2,6 +2,7 @@
 
 import logging as _stdlib_logging
 
+from .atomic_write import atomic_write_text
 from .database_pool import DatabaseConnectionPool, get_database_pool
 from .filesystem import (
     _cleanup_session_logs,
@@ -107,6 +108,7 @@ __all__ = [
     "_optimize_git_repository",
     "_parse_git_status",
     "_stage_and_commit_files",
+    "atomic_write_text",
     "create_checkpoint_commit",
     "create_commit",
     "format_auto_store_summary",

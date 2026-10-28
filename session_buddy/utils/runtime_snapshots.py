@@ -14,6 +14,8 @@ from mcp_common.cli.health import (
 )
 from oneiric.core.config import OneiricMCPConfig
 
+from session_buddy.utils.atomic_write import atomic_write_text
+
 # Promote ``MCPServerSettings`` to a subclass of ``OneiricMCPConfig`` so
 # that ``isinstance(manager.settings, OneiricMCPConfig)`` holds for the
 # real loader in tests/unit/test_runtime_snapshots.py. The upstream
@@ -138,14 +140,7 @@ def write_runtime_telemetry(path: Path, snapshot: RuntimeTelemetrySnapshot) -> N
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     snapshot.updated_at = datetime.now(UTC).isoformat()
 
-    tmp = path.with_suffix(".tmp")
-    try:
-        tmp.write_text(json.dumps(snapshot.as_dict(), indent=2))
-        tmp.chmod(0o600)
-        tmp.replace(path)
-    except OSError:
-        tmp.unlink(missing_ok=True)
-        raise
+    atomic_write_text(path, json.dumps(snapshot.as_dict(), indent=2))
 
 
 def update_telemetry_counter(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -68,24 +69,103 @@ def test_write_runtime_telemetry_updates_timestamp_and_persists(tmp_path: Path) 
     assert persisted["updated_at"] == snapshot.updated_at
 
 
+def test_write_runtime_telemetry_does_not_reuse_a_stale_temp_file(
+    tmp_path: Path,
+) -> None:
+    """A leftover temp file must never be reused for the new write.
+
+    Reusing a fixed-name temp file means the snapshot content lands in a
+    file whose mode was decided by an earlier (possibly crashed) write,
+    and a symlink planted at that path is followed -- so the write can
+    clobber an arbitrary file. The write must use a fresh, uniquely named
+    temp file instead.
+    """
+    path = tmp_path / "telemetry.json"
+    stale = path.with_suffix(".tmp")
+    stale.write_text("stale payload")
+    stale.chmod(0o644)
+
+    write_runtime_telemetry(path, RuntimeTelemetrySnapshot(orchestrator_pid=7))
+
+    assert stale.exists(), "the write consumed the pre-existing temp file"
+    assert stale.read_text() == "stale payload"
+    assert json.loads(path.read_text())["orchestrator_pid"] == 7
+
+
+def test_write_runtime_telemetry_does_not_follow_a_symlinked_temp_file(
+    tmp_path: Path,
+) -> None:
+    """A symlink planted at the temp path must not be written through."""
+    victim = tmp_path / "victim.txt"
+    victim.write_text("do not touch")
+    path = tmp_path / "telemetry.json"
+    path.with_suffix(".tmp").symlink_to(victim)
+
+    write_runtime_telemetry(path, RuntimeTelemetrySnapshot(orchestrator_pid=7))
+
+    assert victim.read_text() == "do not touch"
+    assert json.loads(path.read_text())["orchestrator_pid"] == 7
+
+
+def test_overlapping_writers_do_not_corrupt_the_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two writers overlapping on one path must neither crash nor mix.
+
+    The server's snapshot loop and the CLI health probe write the same
+    file from separate processes. A shared fixed-name temp file lets the
+    second writer rename the temp out from under the first, which then
+    fails on rename -- and can publish the other writer's bytes.
+    """
+    path = tmp_path / "telemetry.json"
+    real_replace = os.replace
+    state = {"nested": False}
+
+    def replace_with_nested_writer(src: object, dst: object) -> None:
+        if not state["nested"]:
+            state["nested"] = True
+            # A second writer publishes while the first is mid-flight.
+            write_runtime_telemetry(
+                path,
+                RuntimeTelemetrySnapshot(orchestrator_pid=99, counters={"b": 2}),
+            )
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace_with_nested_writer)
+
+    try:
+        write_runtime_telemetry(
+            path,
+            RuntimeTelemetrySnapshot(orchestrator_pid=7, counters={"a": 1}),
+        )
+    except FileNotFoundError as exc:
+        pytest.fail(f"overlapping writers raced on a shared temp file: {exc}")
+
+    persisted = json.loads(path.read_text())
+    # The published file must be exactly one writer's snapshot -- never a
+    # mix of the two and never a truncated blend.
+    assert persisted["orchestrator_pid"] in {7, 99}
+    assert persisted["counters"] in ({"a": 1}, {"b": 2})
+
+
 def test_write_runtime_telemetry_cleans_up_temp_file_on_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A failed publish must leave no temp file behind."""
     path = tmp_path / "telemetry.json"
     snapshot = RuntimeTelemetrySnapshot(orchestrator_pid=7)
-    temp_path = path.with_suffix(".tmp")
-    temp_path.write_text("stale")
 
-    write_text_mock = Mock(side_effect=OSError("disk full"))
-    unlink_mock = Mock(wraps=temp_path.unlink)
-    monkeypatch.setattr(Path, "write_text", write_text_mock)
-    monkeypatch.setattr(Path, "unlink", unlink_mock)
+    def failing_replace(src: object, dst: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", failing_replace)
 
     with pytest.raises(OSError, match="disk full"):
         write_runtime_telemetry(path, snapshot)
 
-    assert unlink_mock.called
+    assert [p for p in tmp_path.iterdir() if p.is_file()] == []
     assert snapshot.updated_at is not None
 
 
