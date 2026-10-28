@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -12,6 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from oneiric.core.logging import get_logger
+
+from session_buddy.utils.atomic_write import atomic_write_text
 
 if TYPE_CHECKING:
     # Imported only for the type hint on ``consume_pending_marker``;
@@ -44,13 +45,20 @@ class PendingCheckpoint:
 def save_pending(p: PendingCheckpoint) -> Path:
     """Atomically persist a pending checkpoint marker.
 
-    Writes to <marker_path>.tmp then ``os.replace`` for crash-safety: a
-    crash mid-write leaves either the previous marker intact (no .tmp) or
-    the new marker in place — never a half-written JSON file.
+    The payload is written to a uniquely named temp file in the pending
+    directory and then renamed over the marker, so a crash mid-write
+    leaves either the previous marker intact or the new marker in place
+    -- never a half-written JSON file.
+
+    The temp file is uniquely named rather than a fixed ``<marker>.tmp``:
+    a fixed name is shared by every writer of the same marker, so
+    concurrent writers collide (the first to rename moves the file away
+    from the rest, whose rename then fails), a temp file left by a
+    crashed write is reused rather than recreated, and a symlink planted
+    at that predictable path would have its target overwritten.
     """
     PENDING_DIR.mkdir(parents=True, exist_ok=True)
     marker_path = p.marker_path
-    tmp_path = marker_path.with_name(marker_path.name + ".tmp")
 
     payload = json.dumps(
         {
@@ -61,16 +69,7 @@ def save_pending(p: PendingCheckpoint) -> Path:
         sort_keys=True,
     )
 
-    # Write to .tmp first, then atomic rename. If os.replace raises, the
-    # marker does not exist at its final path — callers can retry.
-    tmp_path.write_text(payload, encoding="utf-8")
-    try:
-        os.replace(tmp_path, marker_path)
-    except OSError:
-        # Clean up the orphan .tmp on rename failure so we don't leak it.
-        with suppress(OSError):
-            tmp_path.unlink()
-        raise
+    atomic_write_text(marker_path, payload)
     return marker_path
 
 

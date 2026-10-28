@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 import os
+import stat
+import threading
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -67,7 +70,9 @@ def test_consume_pending_removes_file(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-def test_save_pending_writes_atomically(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_save_pending_writes_atomically(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """C-6: save_pending MUST use a .tmp + os.replace atomic rename.
 
     Verifies observable filesystem behavior: ``os.replace`` is called
@@ -79,26 +84,39 @@ def test_save_pending_writes_atomically(tmp_path: Path, monkeypatch: pytest.Monk
     replace_calls: list[tuple[Path, Path]] = []
     real_replace = os.replace
 
-    def tracking_replace(src: str | bytes | os.PathLike[str], dst: str | bytes | os.PathLike[str]) -> None:
+    def tracking_replace(
+        src: str | bytes | os.PathLike[str], dst: str | bytes | os.PathLike[str]
+    ) -> None:
         replace_calls.append((Path(os.fspath(src)), Path(os.fspath(dst))))
         real_replace(src, dst)
 
-    monkeypatch.setattr("session_buddy.checkpoint.pending.os.replace", tracking_replace)
+    monkeypatch.setattr("session_buddy.utils.atomic_write.os.replace", tracking_replace)
 
     marker = save_pending(pending)
 
     # os.replace was called exactly once with a .tmp src → marker dst.
-    assert len(replace_calls) == 1, f"expected 1 os.replace call, got {len(replace_calls)}"
+    assert len(replace_calls) == 1, (
+        f"expected 1 os.replace call, got {len(replace_calls)}"
+    )
     src, dst = replace_calls[0]
-    assert src.suffix == ".tmp" or src.name.endswith(".tmp"), f"unexpected tmp suffix: {src}"
+    assert src.suffix == ".tmp" or src.name.endswith(".tmp"), (
+        f"unexpected tmp suffix: {src}"
+    )
     assert dst == marker
+    # The temp name is unique, not the old fixed "<marker>.json.tmp" that
+    # every writer of a marker shared.
+    assert src != marker.with_name(marker.name + ".tmp")
     # Final marker exists, no stray .tmp file remains.
     assert marker.exists()
     assert not src.exists()
 
 
 @pytest.mark.unit
-def test_save_pending_atomic_failure_does_not_leave_marker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_save_pending_atomic_failure_does_not_leave_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    pending_dir: Path,
+) -> None:
     """If os.replace fails, the marker MUST NOT exist (atomic guarantee).
 
     The OSError propagates so callers can retry; only the partial .tmp
@@ -106,16 +124,20 @@ def test_save_pending_atomic_failure_does_not_leave_marker(tmp_path: Path, monke
     """
     pending = PendingCheckpoint(working_dir=tmp_path, reason="atomic-fail")
 
-    def boom_replace(src: str | bytes | os.PathLike[str], dst: str | bytes | os.PathLike[str]) -> None:
+    def boom_replace(
+        src: str | bytes | os.PathLike[str], dst: str | bytes | os.PathLike[str]
+    ) -> None:
         raise OSError("simulated replace failure")
 
-    monkeypatch.setattr("session_buddy.checkpoint.pending.os.replace", boom_replace)
+    monkeypatch.setattr("session_buddy.utils.atomic_write.os.replace", boom_replace)
 
     marker_path = pending.marker_path
     with pytest.raises(OSError, match="simulated replace failure"):
         save_pending(pending)
     # Marker does NOT exist at its final path (atomic guarantee).
     assert not marker_path.exists()
+    # The orphaned temp file is cleaned up, not left behind.
+    assert list(pending_dir.iterdir()) == []
 
 
 # --- C-6: oversize marker cap -------------------------------------------------
@@ -297,7 +319,10 @@ async def test_consume_pending_marker_keeps_marker_on_failure(tmp_path: Path) ->
 
     # The exception bubbles up — caller (auto_checkpoint_loop / end_session)
     # is responsible for catching it. The marker MUST remain for retry.
-    with patch.object(pending_mod, "_log"), pytest.raises(RuntimeError, match="orchestrator failure"):
+    with (
+        patch.object(pending_mod, "_log"),
+        pytest.raises(RuntimeError, match="orchestrator failure"),
+    ):
         await consume_pending_marker(marker, build_orchestrator=_build)
 
     assert marker.exists(), "marker must remain on disk for next tick to retry"
@@ -316,3 +341,108 @@ def test_metrics_inc_failure_counts_by_reason() -> None:
     m.inc_failure("forward_transient_retry_exhausted")
     assert m.failures["subagent_idle_timeout"] == 2
     assert m.failures["forward_transient_retry_exhausted"] == 1
+
+
+# --- atomic, owner-only marker publication -------------------------------------
+#
+# ``save_pending`` used to write through a *fixed-name* temp file
+# (``<marker>.json.tmp``) and then ``os.replace`` it into place. That
+# shares one temp file between every writer of the same marker, reuses
+# whatever a crashed earlier write left behind, and follows a symlink
+# planted at the predictable temp path.
+
+
+@pytest.fixture
+def pending_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Redirect the module-level PENDING_DIR into the test's tmp_path."""
+    from session_buddy.checkpoint import pending as pending_mod
+
+    target = tmp_path / "pending"
+    monkeypatch.setattr(pending_mod, "PENDING_DIR", target)
+    return target
+
+
+@pytest.mark.unit
+def test_save_pending_publishes_the_marker_owner_only(pending_dir: Path) -> None:
+    pending = PendingCheckpoint(working_dir=Path("/tmp/proj"), reason="timeout")
+    marker = save_pending(pending)
+
+    assert stat.S_IMODE(marker.stat().st_mode) == 0o600
+
+
+@pytest.mark.unit
+def test_save_pending_leaves_no_temp_file_behind(pending_dir: Path) -> None:
+    pending = PendingCheckpoint(working_dir=Path("/tmp/proj"), reason="timeout")
+    marker = save_pending(pending)
+
+    leftovers = [p.name for p in marker.parent.iterdir() if p != marker]
+    assert not leftovers, f"the writer left files behind: {leftovers}"
+
+
+@pytest.mark.unit
+def test_a_stale_temp_file_cannot_leak_its_permissions(pending_dir: Path) -> None:
+    """A leftover temp file from a crashed write must not be reused.
+
+    ``Path.write_text`` truncates an existing file *in place* and keeps
+    its mode, so a stale temp left at 0644 would publish the marker at
+    0644 no matter what the writer intended.
+    """
+    pending = PendingCheckpoint(working_dir=Path("/tmp/proj"), reason="timeout")
+    stale = pending.marker_path.with_name(pending.marker_path.name + ".tmp")
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_text("poison")
+    stale.chmod(0o644)
+
+    marker = save_pending(pending)
+
+    assert "poison" not in marker.read_text()
+    assert stat.S_IMODE(marker.stat().st_mode) == 0o600
+
+
+@pytest.mark.unit
+def test_a_symlinked_temp_path_is_not_written_through(pending_dir: Path) -> None:
+    """The old temp name was ``<marker>.json.tmp``; it must not be reused.
+
+    ``Path.write_text`` opens with ``O_CREAT | O_TRUNC``, which follows
+    a symlink -- so a planted link would have its target overwritten.
+    """
+    pending = PendingCheckpoint(working_dir=Path("/tmp/proj"), reason="timeout")
+    victim = pending_dir / "victim.txt"
+    victim.parent.mkdir(parents=True, exist_ok=True)
+    victim.write_text("precious")
+    pending.marker_path.with_name(pending.marker_path.name + ".tmp").symlink_to(victim)
+
+    marker = save_pending(pending)
+
+    assert victim.read_text() == "precious"
+    assert json.loads(marker.read_text())["reason"] == "timeout"
+
+
+@pytest.mark.unit
+def test_concurrent_saves_all_succeed(pending_dir: Path) -> None:
+    """Every writer of one marker must survive.
+
+    With a fixed temp name the first writer to rename moves the file
+    away from the others, whose rename then raises
+    ``FileNotFoundError``.
+    """
+    errors: list[BaseException] = []
+    barrier = threading.Barrier(8)
+
+    def writer() -> None:
+        try:
+            barrier.wait()
+            for _ in range(25):
+                save_pending(
+                    PendingCheckpoint(working_dir=Path("/tmp/proj"), reason="timeout")
+                )
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=writer) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors, f"concurrent saves raised: {errors[:3]}"
