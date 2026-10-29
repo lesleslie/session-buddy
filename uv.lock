@@ -2268,7 +2268,7 @@ wheels = [
 
 [[package]]
 name = "mcp-common"
-version = "0.33.1"
+version = "0.34.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -2289,9 +2289,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/36/05/103e08e9e99452f3f88b52142a8147eb2cf3fb80a1d60edc238866924895/mcp_common-0.33.1.tar.gz", hash = "sha256:babdd18b1361a8df3ca6f54209a7343f1876344b04014529465878f0253f4650", size = 1070552, upload-time = "2026-10-29T02:27:30.709Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4b/8a/f7b69fe8c34e024b67a40a90b2167529fb4cbab0261d52c6958cd73eacf0/mcp_common-0.34.0.tar.gz", hash = "sha256:62c6a8e714057f4d5af2772c135a01b705f21392d5dade3c71989ac164f4eb80", size = 1071655, upload-time = "2026-10-29T12:03:29.853Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/f2/6681313ebda50df7848441f269f79db32f9729d359243b06025d96c4f232/mcp_common-0.33.1-py3-none-any.whl", hash = "sha256:c20d75b8a8184a55f7d267c46db9f30582d6a7cdef27c0801ff9916ccde5df9f", size = 489360, upload-time = "2026-10-29T02:27:28.72Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/b3/2ea15efece5175a240c4f9b3aee50ddc98c59d58526684ded70fbe0b7889/mcp_common-0.34.0-py3-none-any.whl", hash = "sha256:b0c0cd6b6d59f825b48bf056679a8f378514c42d6c395bd8f4a1a6e965e09705", size = 489930, upload-time = "2026-10-29T12:03:28.383Z" },
 ]
 
 [[package]]
@@ -3534,11 +3534,11 @@ wheels = [
 
 [[package]]
 name = "pytz"
-version = "2026.5"
+version = "2026.6"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/14/21/d83d6ef28c4c912c4bb4d1dcf591f7b8c6bde87b9c66f9f454677314e16d/pytz-2026.5.tar.gz", hash = "sha256:fa23724b9c486543b9ff54a327ee7569ac83ade54bb9afd0fc18676620401c86", size = 318572, upload-time = "2026-10-04T02:37:58.719Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/b0/168030b0bfcc334cf09fa3313afdb888d892c8a0027324683d1de0ec277e/pytz-2026.6.tar.gz", hash = "sha256:3b0fc2727707663d6e517936f444fd8a8b240f1fc32f4bf7ee03274245945284", size = 318520, upload-time = "2026-10-29T09:05:47.011Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/ef/c66110d46fb800dda0bf33164182dfadabe26a90e4476844d502a23dca8e/pytz-2026.5-py2.py3-none-any.whl", hash = "sha256:e658af3757f9e26a9d25dd2aff38335acd92bc9104f890a894b2c1ba28311b03", size = 506342, upload-time = "2026-10-04T02:37:56.814Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/25/564f3fc5b70c1398d706c51f2b1470d0ea0b1b2f96fee67877b6f5bdf3b6/pytz-2026.6-py2.py3-none-any.whl", hash = "sha256:7fed3fee8fd6bd4a2b7b75a8d56021d0624127bf69bd5691f115db929ac570b3", size = 506321, upload-time = "2026-10-29T09:05:45.14Z" },
 ]
 
 [[package]]
@@ -4038,7 +4038,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.37.0"
+version = "0.37.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -4582,7 +4582,7 @@ wheels = [
 
 [[package]]
 name = "transformers"
-version = "5.21.0"
+version = "5.21.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "huggingface-hub" },
@@ -4595,9 +4595,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f6/9d/59e6232df8761e2c82d52e0bef5382e830d1cd65f02f648712ccd7675e7b/transformers-5.21.0.tar.gz", hash = "sha256:43c971a3eb9ab68dc9dfff430f8ab8a0fba09af2f68b608fd70c6245d2ddb8e7", size = 10321727, upload-time = "2026-10-26T18:17:26.892Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/56/142f54fb87a4880fdfe37f8fe776a9045177165182bf1383dc0732c59ae3/transformers-5.21.1.tar.gz", hash = "sha256:65e82dfbe8d0d0d6d09d402dca28e60b3f483beadbb7bdd259ea0e33a04e2efa", size = 10321725, upload-time = "2026-10-29T08:34:30.466Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/73/fa/fb638d54bffff44700c8d487608c1f2872823e606fbd043b3c29c93236cf/transformers-5.21.0-py3-none-any.whl", hash = "sha256:8803a8712932aa3441c1e8bb340e66d5e3eca079fe65d9b717ede2f3ead01c79", size = 12978463, upload-time = "2026-10-26T18:17:23.647Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/83/7983b6002977982929657c4e7473fc1dc8b329259ff864f0c97d1d218f4e/transformers-5.21.1-py3-none-any.whl", hash = "sha256:53b5fd825d009cb7700285acbb4e36e745c7f7df859202ba1a4f21a10eda8e3a", size = 12978536, upload-time = "2026-10-29T08:34:26.151Z" },
 ]
 
 [[package]]
