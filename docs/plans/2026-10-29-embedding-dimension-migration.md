@@ -64,7 +64,9 @@ the gate.
 | `health_checks.py` | llama-server probe URL default → `:8081` |
 | `adapters/reflection_adapter_oneiric.py` | calibration arrays → `(self.embedding_dim,)` |
 | `utils/lazy_imports.py` | mock vectors → canonical width; `create_embedding_mock()` deleted (dead) |
-| `reflection/database.py`, `core/causal_chains.py`, `storage/skills_storage.py`, `adapters/knowledge_graph_adapter_oneiric.py`, `session_commands.py` | stale width references in docstrings |
+| `reflection/database.py` | the dead `onnx_session` gate → `self.enable_embeddings`; the compat property removed |
+| `reflection/embeddings.py` | embedding requests serialised client-side; failures logged at WARNING instead of DEBUG |
+| `core/causal_chains.py`, `storage/skills_storage.py`, `adapters/knowledge_graph_adapter_oneiric.py`, `session_commands.py` | stale width references in docstrings |
 
 Test fixtures in `tests/test_skills_semantic.py`,
 `tests/test_skills_workflow.py`, `tests/unit/test_embedding_cache.py` and
@@ -240,12 +242,23 @@ would have made the quantization-broadcast bug above invisible to the suite.
   `tests/security/test_input_validation.py`. All reproduce identically at
   pristine HEAD (`cebc6a79`, 2026-10-04, retired v1).
 - **Embedding generation costs ~8–10 s per call** on this host — the
-  llama-server is CPU-only and serves 4096-dim vectors from an 8B model.
-  The HTTP read timeout in `reflection/embeddings.py` is 30 s, so a
-  request under load can exceed it and the embedding is silently dropped
-  (the `except Exception` path degrades to "no vector"). Storing a
-  conversation now blocks on that call. A backfill of the ~3 600 cleared
-  rows would have taken roughly 8–10 hours, which is why it was declined.
+  llama-server is CPU-only and serves 4096-dim vectors from an 8B model,
+  and it runs with **one slot** (`n_parallel` defaults to 1). Concurrent
+  requests therefore queued *server-side*: a 10-way burst measured 42 s
+  for the requests that completed and 60 s timeouts for the rest, while
+  the client's read timeout was 30 s. Every queued request past that
+  point was dropped, and the drop was invisible — `_try_llama_server`
+  caught the timeout and logged it at **DEBUG**.
+
+  The requests are now serialised client-side by a per-event-loop
+  semaphore, so each request is served immediately instead of queueing
+  past the timeout, and the read timeout is 60 s. Measured: a 6-way
+  concurrent burst went from **0 of 6** returning a vector to **6 of 6**.
+  A failed request is now logged at WARNING.
+
+  The remaining cost is throughput, not correctness: N concurrent callers
+  take N × ~10 s. A backfill of the ~3 600 cleared rows would have taken
+  roughly 8–10 hours, which is why it was declined.
 - **Per-dimension calibration.** The fixed `±0.5` fallback is correct for
   the current model and must be re-derived whenever the model changes.
   `_update_calibration_data` already computes calibration from stored

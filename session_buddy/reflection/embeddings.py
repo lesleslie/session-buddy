@@ -9,6 +9,7 @@ HTTP provider.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any
@@ -39,26 +40,60 @@ def _get_llama_server_url() -> str:
 # fatally (see ``session_buddy.memory.embedding_dim``).
 EMBEDDING_DIM = DEFAULT_EMBEDDING_DIM
 
+# Read timeout for a single embedding request. With the request serialised by
+# the semaphore below, the server serves it immediately, so this only has to
+# cover one request's actual service time.
+EMBEDDING_HTTP_TIMEOUT_S = 60.0
+
+# The llama-server runs with a single slot (``n_parallel`` defaults to 1), so
+# concurrent requests queue *server-side* and each one waits behind the
+# previous. A client-side semaphore serialises them instead: every request is
+# served promptly rather than queueing past the read timeout, which used to
+# drop the vector silently.
+#
+# The semaphore is per event loop: the server entry point uses one
+# ``asyncio.run`` for the whole process, but a few standalone call sites spin
+# their own loop, and an ``asyncio.Semaphore`` is bound to the loop it was
+# first awaited on.
+_EMBEDDING_SEMAPHORES: dict[asyncio.AbstractEventLoop, asyncio.Semaphore] = {}
+
+
+def _embedding_semaphore() -> asyncio.Semaphore:
+    """Return the semaphore that serialises embedding requests for this loop."""
+    loop = asyncio.get_running_loop()
+    semaphore = _EMBEDDING_SEMAPHORES.get(loop)
+    if semaphore is None:
+        semaphore = asyncio.Semaphore(1)
+        _EMBEDDING_SEMAPHORES[loop] = semaphore
+    return semaphore
+
 
 async def _try_llama_server(text: str) -> list[float] | None:
     """Try llama-server embedding, return embedding or None."""
     import httpx2 as httpx
 
     try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(30.0, connect=5.0)
+        async with _embedding_semaphore(), httpx.AsyncClient(
+            timeout=httpx.Timeout(EMBEDDING_HTTP_TIMEOUT_S, connect=5.0)
         ) as client:
             resp = await client.post(
                 _get_llama_server_url(),
                 json={"input": [text]},
             )
             if resp.status_code != 200:
+                logger.warning(
+                    "llama-server embedding returned HTTP %s (%d chars)",
+                    resp.status_code,
+                    len(text),
+                )
                 return None
             data = resp.json()
             if not isinstance(data, dict) or "data" not in data:
+                logger.warning("llama-server embedding response had no 'data'")
                 return None
             embedding_data = data["data"]
             if not isinstance(embedding_data, list) or not embedding_data:
+                logger.warning("llama-server embedding response had empty 'data'")
                 return None
             embedding = embedding_data[0].get("embedding")
             if (
@@ -68,8 +103,13 @@ async def _try_llama_server(text: str) -> list[float] | None:
                 and all(isinstance(x, (int, float)) for x in embedding)
             ):
                 return embedding
+            logger.warning(
+                "llama-server embedding had unexpected shape (expected %d dims)",
+                EMBEDDING_DIM,
+            )
+            return None
     except Exception as e:  # noqa: BLE001 - embedding probe: any HTTP/JSON/network failure is logged and yields None so the next provider can be tried
-        logger.debug(f"llama-server embedding failed: {e}")
+        logger.warning(f"llama-server embedding failed: {e}")
     return None
 
 
