@@ -11,6 +11,22 @@ and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- session-buddy: the OpenTelemetry SDK and the OTLP exporters are no
+  longer declared here. mcp-common imports them, and mcp-common 0.33.0
+  made them runtime dependencies of its own, so they arrive transitively
+  and this project does not repeat them — the producer API it calls is
+  what needs them. The `mcp-common` floor moves to `>=0.33.0` accordingly.
+- session-buddy: the OpenTelemetry API and SDK moved from the `telemetry`
+  dependency group to `[project.dependencies]`. This project imports both
+  by name — `mcp/telemetry.py` imports the API at runtime and the SDK for
+  typing — and a direct import is a direct dependency. A dependency group
+  is never installed for a consumer, so a published session-buddy wheel
+  imported both without declaring either. The `telemetry` group is now
+  empty; it is kept so that an existing `uv sync --group telemetry` in an
+  operator's script does not fail on a group that no longer exists.
+
 ### Fixed
 
 - session-buddy: the span exporter pointed at the collector's base URL

@@ -55,7 +55,7 @@ dependencies = [
     "scikit-learn>=1.9.0",
     "scipy>=1.17.1",
     "websockets>=16.0",
-    "mcp-common>=0.28.0",
+    "mcp-common>=0.33.0",
     # Wave 3 (W3): oneiric listed as a *direct* dependency even though
     # mcp-common transitively pulls it in. Action kits (``SecuritySignatureAction``,
     # ``DataSanitizeAction``, etc.) are part of oneiric's public API surface,
@@ -67,6 +67,18 @@ dependencies = [
     # call ``get_router().resolve(LLMProvider.OPENAI)`` to source the
     # gateway URL; both call sites land in Phase 4.
     "oneiric>=0.33",
+    # Producer telemetry. mcp-common 0.33.0 moved the OpenTelemetry SDK and
+    # the OTLP exporters into its own runtime dependencies, so they now
+    # arrive transitively and this project does not repeat them: this one
+    # calls mcp-common's producer API, which is what needs them.
+    # The two below are different. Session-buddy imports them by name --
+    # mcp/telemetry.py imports the API at runtime and the SDK for typing --
+    # and a direct import is a direct dependency. They sat in the
+    # `telemetry` dependency group until now, and a dependency group is
+    # never installed for a consumer, so a published session-buddy wheel
+    # imported both without declaring either.
+    "opentelemetry-api>=1.45.1",
+    "opentelemetry-sdk>=1.45.1",
 ]
 
 [project.scripts]
@@ -330,10 +342,14 @@ llm = [
     "tiktoken>=0.7.0",
 ]
 telemetry = [
-    "opentelemetry-api>=1.20.0",
-    "opentelemetry-sdk>=1.20.0",
-    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
-    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    # The group is empty. The OpenTelemetry SDK and the OTLP exporters
+    # were here and are now runtime dependencies of mcp-common (0.33.0+),
+    # which this project depends on -- so they are installed whether or
+    # not this group is synced, and there is nothing left to install.
+    # The API and the SDK moved to [project.dependencies], where the
+    # imports they back actually live. The group is kept (empty) so that
+    # an existing `uv sync --group telemetry` in an operator's script
+    # does not fail on a group that no longer exists.
 ]
 
 [tool.uv.sources]
