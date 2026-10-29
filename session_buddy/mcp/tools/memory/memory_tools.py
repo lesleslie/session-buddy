@@ -917,15 +917,44 @@ async def _delete_reflection_operation(
     # the memory surface does not. Deleting a task-backed reflection here
     # would destroy the task's row and its sidecar with no ownership check,
     # so refuse it and point at the task lifecycle instead.
-    metadata: dict[str, t.Any] | None = None
+    #
+    # Residual race, stated rather than hidden: the check reads the
+    # sidecar and the delete writes DuckDB, so there is no single
+    # transaction spanning the two. A task created concurrently for this
+    # exact id could slip in between the read and the delete. The window
+    # is narrow because task creation mints a fresh uuid7 id and never
+    # reuses one, so the only reachable interleaving is
+    # tasks_create writing the reflection row and a concurrent
+    # delete_reflection removing it before the sidecar row lands -- which
+    # orphans a sidecar row, not an unauthorized deletion. Closing it
+    # fully would need a transaction across two database engines, which
+    # SQLite and DuckDB do not offer.
+    metadata: dict[str, t.Any] | None
     try:
         metadata = tasks_storage.read_task_metadata(
             tasks_storage.get_engine(),
             reflection_id,
         )
-    except Exception:  # noqa: BLE001 - an unreadable sidecar must not block the delete
+    except Exception:  # noqa: BLE001 - fail closed; see below
+        # Fail closed. An unreadable sidecar means the task-ownership
+        # check below cannot be made, and "cannot check" is not the same
+        # as "not a task". Proceeding would delete a task-backed
+        # reflection -- another owner's private task -- with no ownership
+        # check, which is exactly what this guard exists to prevent. The
+        # sidecar self-heals its schema, so a read failure here means the
+        # store is genuinely broken rather than merely uninitialised;
+        # refusing the delete and naming the reason is the recoverable
+        # outcome.
         _get_logger().exception(
-            f"Failed to read task-metadata sidecar for reflection {reflection_id}"
+            f"Failed to read task-metadata sidecar for reflection {reflection_id}; "
+            "refusing the delete because task ownership cannot be established"
+        )
+        return ToolMessages.operation_failed(
+            "Delete reflection",
+            f"Could not verify whether reflection {reflection_id} backs a task, "
+            f"so the delete was refused. This is a fail-closed guard: the "
+            f"task-metadata sidecar must be readable before a reflection can "
+            f"be deleted. Retry once it is healthy.",
         )
 
     if metadata and metadata.get("kind") == "task":

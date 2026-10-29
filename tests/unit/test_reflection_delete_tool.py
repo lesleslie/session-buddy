@@ -245,6 +245,33 @@ class TestDeleteReflectionTool:
         assert "backs a task" in result
         assert await adapter.get_reflection_by_id(reflection_id) is not None
 
+    async def test_refuses_to_delete_when_the_sidecar_cannot_be_read(
+        self,
+        adapter: ReflectionDatabaseAdapter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An unreadable sidecar fails closed -- "cannot check" is not "not a task".
+
+        The ownership guard is the only thing standing between this tool
+        and another owner's private task. If the sidecar cannot be read,
+        the guard cannot fire, so proceeding would delete exactly the row
+        it exists to protect.
+        """
+        monkeypatch.setattr(memory_tools, "_reflection_db", adapter)
+        reflection_id = await adapter.store_reflection("A reflection to protect.")
+
+        def _boom(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError("sidecar store is broken")
+
+        monkeypatch.setattr(tasks_storage, "read_task_metadata", _boom)
+
+        result = await memory_tools._delete_reflection_impl(reflection_id)
+
+        assert "refused" in result
+        # The reflection must survive: the guard refused, it did not fail
+        # open.
+        assert await adapter.get_reflection_by_id(reflection_id) is not None
+
     async def test_rejects_empty_id(
         self,
         adapter: ReflectionDatabaseAdapter,
