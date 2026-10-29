@@ -230,23 +230,39 @@ would have made the quantization-broadcast bug above invisible to the suite.
   `memory/duckdb-fixed-size-array-dim-mismatch.md` (the prior incident on
   this database) and in `memory/duckdb_open.py::open_healthy_duckdb`.
 
-  The trigger was **not** isolated. Ruled out by experiment: a wrong-width
-  binding into a `FLOAT[4096]` column (DuckDB raises a clean
-  `ConversionException`); HNSW + `FLOAT[4096]` + a 4096-dim vector in
-  isolation; the adapter's own `store_conversation` / `store_reflection`
-  writes (both checkpoint cleanly on a copy of the live database); the
-  legacy `ReflectionDatabase` opening the same file; and touching
-  `default_conversations` (whose HNSW index survived the bulk delete).
-  Reproduced only through the live server, which does more than the
-  adapter — including a second opener that DuckDB rejects with *"Can't open
-  a connection to same database file with a different configuration"* (the
-  vss extension is bound to the database *instance*, not the file).
+  The trigger was **not** isolated, but it was **localised**: a snapshot of
+  the database taken **immediately after a server restart, with no writes
+  from the caller**, already fails its checkpoint. So the server's
+  *startup* poisons the WAL — this is pre-existing and independent of the
+  embedding gate. Enabling the gate merely makes it visible, because
+  writes now carry vectors and so exercise the corrupted state.
 
-  **Next step:** capture the failing checkpoint under a debugger or with
-  `duckdb`'s `SET threads=1` and a fresh WAL, on a copy of the live file,
-  with the server's full write path exercised — the MCP tool path
-  (OWASP memory guard + category evolution + fingerprinting) rather than
-  the adapter directly.
+  Ruled out by experiment: a wrong-width binding into a `FLOAT[4096]`
+  column (DuckDB raises a clean `ConversionException`); HNSW +
+  `FLOAT[4096]` + a 4096-dim vector in isolation; the adapter's own
+  `store_conversation` / `store_reflection` writes (both checkpoint
+  cleanly on a copy of the live database); the legacy `ReflectionDatabase`
+  opening the same file; a *rejected* second connection (the vss
+  extension is bound to the database *instance*, not the file); and
+  touching `default_conversations` (whose HNSW index survived the bulk
+  delete).
+
+  Leading suspect: the category-evolution engine, which persists a
+  **centroid** — a running average of embeddings — into the
+  `FLOAT[4096]` columns `memory_subcategories.centroid` and
+  `archived_subcategories.centroid`
+  (`memory/category_evolution.py:1210`). `_update_centroid`
+  (`:462`) assigns `new_embedding.copy()` on first sight and otherwise
+  averages `subcategory.centroid * count + new_embedding`; if the
+  centroid is persisted as a numpy array rather than a flat list, DuckDB
+  binds it in dictionary form — which is precisely the state the fatal
+  error reports. The engine initialises at startup, which fits the
+  "startup alone poisons it" observation.
+
+  **Next step:** exercise the category-evolution path against a copy of the
+  live file with the WAL present — categorise a reflection so a centroid is
+  written — and inspect the shape of the value bound into
+  `memory_subcategories.centroid`.
 - **The legacy write path still targets the retired V1 tables.**
   `reflection/schema.py` creates the V2 tables (`conversations_v2`,
   `reflections_v2`), but `reflection/storage.py` and `reflection/search.py`
