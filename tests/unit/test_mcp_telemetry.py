@@ -9,9 +9,10 @@ Tests:
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
+from mcp_common.server.producer_telemetry import ProducerTracingResult
 
 
 class TestAttachOtelMiddleware:
@@ -112,7 +113,7 @@ class TestConfigureOtelTracing:
         # The provider is built by mcp-common's shared producer telemetry
         # helper, so this test pins the delegation rather than the
         # provider construction -- which mcp-common's own suite covers.
-        helper = MagicMock(return_value=True)
+        helper = MagicMock(return_value=ProducerTracingResult(MagicMock(), True))
         monkeypatch.setattr(telemetry, "configure_producer_tracing", helper)
 
         # ``telemetry.trace`` may be ``None`` when the OTel import failed

@@ -112,7 +112,7 @@ def configure_otel_tracing(
     if resource_attributes:
         extra_attributes.update(resource_attributes)
 
-    configured = configure_producer_tracing(
+    tracing = configure_producer_tracing(
         service_name,
         service_namespace=service_namespace,
         environment=environment,
@@ -120,12 +120,25 @@ def configure_otel_tracing(
         protocol=protocol,
         resource_attributes=extra_attributes,
     )
-    if not configured:
+    if not tracing.export_spans:
         logger.debug(
             "OpenTelemetry endpoint not configured; skipping tracing setup",
         )
         return False
 
+    if tracing.provider is None:
+        # A provider was already installed and it is not ours. Spans will
+        # export through it, but it belongs to whoever installed it:
+        # closing it at exit would be us reaching into another
+        # component's exporter and flushing its spans into the void.
+        # Take no ownership of it, and register no shutdown for it.
+        logger.info(
+            "A tracer provider is already installed; not claiming ownership",
+        )
+        _TRACING_CONFIGURED = True
+        return True
+
+    # We installed it, so the global provider is ours to close at exit.
     _TRACER_PROVIDER = trace.get_tracer_provider()
     if not _SHUTDOWN_REGISTERED:
         atexit.register(shutdown_otel_tracing)

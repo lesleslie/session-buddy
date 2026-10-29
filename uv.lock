@@ -2268,7 +2268,7 @@ wheels = [
 
 [[package]]
 name = "mcp-common"
-version = "0.33.0"
+version = "0.33.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -2289,9 +2289,9 @@ dependencies = [
     { name = "typer" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/18/6c/1ba63d5c6868ea83abbcc7d1f515ee8ecf2d0113baec265137c09ad52afb/mcp_common-0.33.0.tar.gz", hash = "sha256:e5898b2df2de6ddcfd7e9657ecb8d31e5d95503d530305e47fe05339469be84a", size = 1069742, upload-time = "2026-10-29T00:23:16.922Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/05/103e08e9e99452f3f88b52142a8147eb2cf3fb80a1d60edc238866924895/mcp_common-0.33.1.tar.gz", hash = "sha256:babdd18b1361a8df3ca6f54209a7343f1876344b04014529465878f0253f4650", size = 1070552, upload-time = "2026-10-29T02:27:30.709Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/59/c3/8a3fcc4c1dae984481e17fc19fbae0a8ab78dfab808bc866801f5bc70020/mcp_common-0.33.0-py3-none-any.whl", hash = "sha256:99ad96872b75672ea49d49f153db027166a0c1b16a72c85c5e67198eebfb9578", size = 488787, upload-time = "2026-10-29T00:23:15.35Z" },
+    { url = "https://files.pythonhosted.org/packages/44/f2/6681313ebda50df7848441f269f79db32f9729d359243b06025d96c4f232/mcp_common-0.33.1-py3-none-any.whl", hash = "sha256:c20d75b8a8184a55f7d267c46db9f30582d6a7cdef27c0801ff9916ccde5df9f", size = 489360, upload-time = "2026-10-29T02:27:28.72Z" },
 ]
 
 [[package]]
@@ -2679,7 +2679,7 @@ wheels = [
 
 [[package]]
 name = "oneiric"
-version = "0.33.4"
+version = "0.33.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aioboto3" },
@@ -2703,9 +2703,9 @@ dependencies = [
     { name = "typer" },
     { name = "watchfiles" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/39/ec/702ff5929bead2128ddc7021a39697e011185ab8a323d0d98003b225eaa8/oneiric-0.33.4.tar.gz", hash = "sha256:a3e7602e004547e6f0d6a6b503f41e17b3e5e579c059ed49e2478b2e4d0dbdd7", size = 1801540, upload-time = "2026-10-28T22:09:05.488Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e2/7d/f927805025e64984104e9f1e8707aed3859b996fed364e6e74a9a1eb5e68/oneiric-0.33.5.tar.gz", hash = "sha256:5819dc7072d18ddc5e9f40deaaf44cc30ab973021dfef9c7df085c1bc79744fc", size = 1801793, upload-time = "2026-10-29T03:19:18.697Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/58/2ceeda9f955f036ab095b7a796d429da11ed471cfdb2695d07e399bb79af/oneiric-0.33.4-py3-none-any.whl", hash = "sha256:fb4b6fcdd3db19a4722a2f7bb5cc79e79debbf5cc4b58f7b29c88ac069fc661f", size = 514278, upload-time = "2026-10-28T22:09:03.33Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/ec/ec3a51901fa61a68b9e634ffbee31c03225efeed41d35455df4dae415573/oneiric-0.33.5-py3-none-any.whl", hash = "sha256:dc715af532c208db36384fe24d375c44a7c64b83491f21180c47a573c5e50cff", size = 514277, upload-time = "2026-10-29T03:19:16.936Z" },
 ]
 
 [[package]]
@@ -4038,7 +4038,7 @@ wheels = [
 
 [[package]]
 name = "session-buddy"
-version = "0.36.0"
+version = "0.37.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -4102,7 +4102,7 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=4.0.0,<5" },
     { name = "hatchling", specifier = ">=1.30.1" },
     { name = "httpx2", specifier = ">=0.28.1" },
-    { name = "mcp-common", specifier = ">=0.33.0" },
+    { name = "mcp-common", specifier = ">=0.33.1" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "oneiric", specifier = ">=0.33" },
     { name = "opentelemetry-api", specifier = ">=1.45.1" },

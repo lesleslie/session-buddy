@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from mcp_common.server.producer_telemetry import ProducerTracingResult
 from mcp_common.server.telemetry import FastMCPOpenTelemetryMiddleware
 
 from session_buddy.mcp import telemetry
@@ -27,7 +28,7 @@ def test_configure_otel_tracing_delegates_to_the_shared_helper(
     monkeypatch.setattr("session_buddy.mcp.telemetry._TRACER_PROVIDER", None)
     monkeypatch.setattr("session_buddy.mcp.telemetry._SHUTDOWN_REGISTERED", False)
     monkeypatch.setattr("session_buddy.mcp.telemetry._OTEL_AVAILABLE", True)
-    helper = MagicMock(return_value=True)
+    helper = MagicMock(return_value=ProducerTracingResult(MagicMock(), True))
     monkeypatch.setattr(telemetry, "configure_producer_tracing", helper)
     monkeypatch.setattr(telemetry, "trace", SimpleNamespace(get_tracer_provider=MagicMock()))
 
@@ -55,7 +56,7 @@ def test_configure_otel_tracing_reports_the_fleet_namespace(
     monkeypatch.setattr("session_buddy.mcp.telemetry._TRACER_PROVIDER", None)
     monkeypatch.setattr("session_buddy.mcp.telemetry._SHUTDOWN_REGISTERED", False)
     monkeypatch.setattr("session_buddy.mcp.telemetry._OTEL_AVAILABLE", True)
-    helper = MagicMock(return_value=True)
+    helper = MagicMock(return_value=ProducerTracingResult(MagicMock(), True))
     monkeypatch.setattr(telemetry, "configure_producer_tracing", helper)
     monkeypatch.setattr(telemetry, "trace", SimpleNamespace(get_tracer_provider=MagicMock()))
 
@@ -133,7 +134,11 @@ def test_configure_otel_tracing_missing_endpoint_outside_pytest_is_noop(
     monkeypatch.setattr("session_buddy.mcp.telemetry._OTEL_AVAILABLE", True)
     monkeypatch.delitem(sys.modules, "pytest", raising=False)
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
-    monkeypatch.setattr(telemetry, "configure_producer_tracing", MagicMock(return_value=False))
+    monkeypatch.setattr(
+        telemetry,
+        "configure_producer_tracing",
+        MagicMock(return_value=ProducerTracingResult(None, False)),
+    )
     monkeypatch.setattr(telemetry, "trace", SimpleNamespace(get_tracer_provider=MagicMock()))
 
     assert (
@@ -154,7 +159,7 @@ def test_configure_otel_tracing_http_protocol_and_resource_attrs(
     monkeypatch.setattr("session_buddy.mcp.telemetry._TRACER_PROVIDER", None)
     monkeypatch.setattr("session_buddy.mcp.telemetry._SHUTDOWN_REGISTERED", False)
     monkeypatch.setattr("session_buddy.mcp.telemetry._OTEL_AVAILABLE", True)
-    helper = MagicMock(return_value=True)
+    helper = MagicMock(return_value=ProducerTracingResult(MagicMock(), True))
     monkeypatch.setattr(telemetry, "configure_producer_tracing", helper)
     monkeypatch.setattr(telemetry, "trace", SimpleNamespace(get_tracer_provider=MagicMock()))
 
@@ -179,7 +184,11 @@ def test_configure_otel_tracing_does_not_reregister_shutdown(
     monkeypatch.setattr("session_buddy.mcp.telemetry._TRACER_PROVIDER", None)
     monkeypatch.setattr("session_buddy.mcp.telemetry._SHUTDOWN_REGISTERED", True)
     monkeypatch.setattr("session_buddy.mcp.telemetry._OTEL_AVAILABLE", True)
-    monkeypatch.setattr(telemetry, "configure_producer_tracing", MagicMock(return_value=True))
+    monkeypatch.setattr(
+        telemetry,
+        "configure_producer_tracing",
+        MagicMock(return_value=ProducerTracingResult(MagicMock(), True)),
+    )
     register_mock = MagicMock()
     monkeypatch.setattr("session_buddy.mcp.telemetry.atexit.register", register_mock)
     monkeypatch.setattr(telemetry, "trace", SimpleNamespace(get_tracer_provider=MagicMock()))
@@ -252,3 +261,99 @@ def test_server_registers_shared_otel_middleware() -> None:
 
     assert hasattr(mcp, "middleware")
     assert any(isinstance(middleware, FastMCPOpenTelemetryMiddleware) for middleware in mcp.middleware)
+
+
+class TestProviderOwnership:
+    """Session-Buddy closes only the provider it installed.
+
+    The shared helper reports two separate facts: whether spans will
+    export, and whether the provider is OURS. A provider somebody else
+    installed still exports spans -- but closing it at exit would be us
+    reaching into another component's exporter and flushing its spans
+    into the void.
+    """
+
+    def _reset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from session_buddy.mcp import telemetry
+
+        monkeypatch.setattr(telemetry, "_TRACING_CONFIGURED", False)
+        monkeypatch.setattr(telemetry, "_TRACER_PROVIDER", None)
+        monkeypatch.setattr(telemetry, "_SHUTDOWN_REGISTERED", False)
+        monkeypatch.setattr(telemetry, "_OTEL_AVAILABLE", True)
+
+    def test_the_provider_we_installed_is_captured_and_shut_down(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from session_buddy.mcp import telemetry
+
+        self._reset(monkeypatch)
+
+        provider = MagicMock()
+        monkeypatch.setattr(
+            telemetry,
+            "configure_producer_tracing",
+            MagicMock(return_value=ProducerTracingResult(provider, True)),
+        )
+        monkeypatch.setattr(
+            telemetry,
+            "trace",
+            SimpleNamespace(get_tracer_provider=MagicMock(return_value=provider)),
+        )
+        register_mock = MagicMock()
+        monkeypatch.setattr("session_buddy.mcp.telemetry.atexit.register", register_mock)
+
+        assert (
+            configure_otel_tracing(
+                service_name="session-buddy",
+                environment="test",
+                endpoint="http://127.0.0.1:4318",
+            )
+            is True
+        )
+
+        assert telemetry._TRACER_PROVIDER is provider
+        register_mock.assert_called_once()
+
+        # And it is ours to close.
+        assert telemetry.shutdown_otel_tracing() is True
+        provider.shutdown.assert_called_once()
+
+    def test_a_provider_installed_by_someone_else_is_never_closed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from session_buddy.mcp import telemetry
+
+        self._reset(monkeypatch)
+
+        foreign = MagicMock()
+        monkeypatch.setattr(
+            telemetry,
+            "configure_producer_tracing",
+            MagicMock(return_value=ProducerTracingResult(None, True)),
+        )
+        monkeypatch.setattr(
+            telemetry,
+            "trace",
+            SimpleNamespace(get_tracer_provider=MagicMock(return_value=foreign)),
+        )
+        register_mock = MagicMock()
+        monkeypatch.setattr("session_buddy.mcp.telemetry.atexit.register", register_mock)
+
+        # Tracing IS active -- the incumbent's provider exports spans --
+        # so this call still reports success.
+        assert (
+            configure_otel_tracing(
+                service_name="session-buddy",
+                environment="test",
+                endpoint="http://127.0.0.1:4318",
+            )
+            is True
+        )
+
+        # But the incumbent's provider is not captured, and no shutdown
+        # is registered for it: it is not ours to close.
+        assert telemetry._TRACER_PROVIDER is None
+        register_mock.assert_not_called()
+
+        assert telemetry.shutdown_otel_tracing() is False
+        foreign.shutdown.assert_not_called()

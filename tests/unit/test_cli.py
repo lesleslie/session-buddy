@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Test suite for session_buddy.cli module.
 
 Tests CLI commands using the MCPServerCLIFactory-based implementation.
@@ -12,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
+
 from session_buddy.cli import create_session_buddy_cli
 
 
@@ -204,11 +204,16 @@ class TestCliInternals:
         assert kwargs["port"] == 1234
         # build_server is a zero-arg callable (variadic per REQ-003).
         assert kwargs["build_server"]() is fake_mcp
-        mock_asyncio_run.assert_called_once()
+        # TWO asyncio.run calls: the Phase-3 component-boot hook's
+        # fire-and-forget push of runtime facts to Oneiric, then the
+        # launcher's run. The single-call assertion was written before
+        # the boot hook existed and outlived it.
+        assert mock_asyncio_run.call_count == 2
 
     def test_read_running_pid_missing_file(self, tmp_path: Path) -> None:
-        from session_buddy.cli import _read_running_pid
         from mcp_common import MCPServerSettings
+
+        from session_buddy.cli import _read_running_pid
 
         settings = MCPServerSettings(server_name="session-buddy", cache_root=tmp_path)
 
@@ -218,8 +223,9 @@ class TestCliInternals:
         self,
         tmp_path: Path,
     ) -> None:
-        from session_buddy.cli import _read_running_pid
         from mcp_common import MCPServerSettings
+
+        from session_buddy.cli import _read_running_pid
 
         settings = MCPServerSettings(server_name="session-buddy", cache_root=tmp_path)
         pid_path = settings.pid_path()
@@ -240,6 +246,7 @@ class TestCliInternals:
         tmp_path: Path,
     ) -> None:
         from mcp_common import MCPServerSettings
+
         from session_buddy.cli import _run_health_probe
 
         settings = MCPServerSettings(server_name="session-buddy", cache_root=tmp_path)

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "session-buddy"
-version = "0.37.0"
+version = "0.37.1"
 description = "A Session Management MCP Server for Claude Code"
 readme = "README.md"
 authors = [{name = "Les Leslie", email = "les@wedgwoodwebworks.com"}]
@@ -55,7 +55,17 @@ dependencies = [
     "scikit-learn>=1.9.0",
     "scipy>=1.17.1",
     "websockets>=16.0",
-    "mcp-common>=0.33.0",
+    # mcp-common 0.33.1 is the floor for the producer-telemetry
+    # ownership API. ``configure_producer_tracing`` used to return a
+    # bool that meant "we installed the provider" in one branch and
+    # "someone else installed it and we declined" in another, so a
+    # caller could not tell whether it was allowed to close the
+    # provider. 0.33.1 returns ``ProducerTracingResult`` with the
+    # provider and the export decision as separate facts; this
+    # project's ``mcp/telemetry.py`` registers an ``atexit`` shutdown
+    # for the provider it installed, and that shutdown is only safe
+    # when the provider is known to be ours.
+    "mcp-common>=0.33.1",
     # Wave 3 (W3): oneiric listed as a *direct* dependency even though
     # mcp-common transitively pulls it in. Action kits (``SecuritySignatureAction``,
     # ``DataSanitizeAction``, etc.) are part of oneiric's public API surface,

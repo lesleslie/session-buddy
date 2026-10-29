@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Tests for ``session_buddy.cli.base.start_server_handler`` after the
 mcp-common launcher migration (Phase 4d, REQ-013).
 
@@ -23,7 +22,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -91,7 +89,11 @@ def test_start_server_handler_calls_launch_with_lambda_mcp(
 
         start_server_handler()
 
-    mock_asyncio_run.assert_called_once()
+    # TWO asyncio.run calls, in this order: the Phase-3 component-boot
+    # hook's fire-and-forget push of runtime facts to Oneiric, then the
+    # launcher's run. The single-call assertion was written before the
+    # boot hook existed and outlived it.
+    assert mock_asyncio_run.call_count == 2
     mock_launch.assert_called_once()
 
     # The single positional arg to asyncio.run is the coroutine from
