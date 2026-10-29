@@ -13,7 +13,13 @@ from mcp_common.server.producer_telemetry import configure_producer_tracing
 from mcp_common.server.telemetry import FastMCPOpenTelemetryMiddleware
 
 if TYPE_CHECKING:
-    from opentelemetry.sdk.trace import TracerProvider
+    # The API type, not the SDK one. ``trace.get_tracer_provider()``
+    # returns the API base class; the SDK provider is a *subclass* of it,
+    # so declaring the API type is the honest widening. The SDK-only
+    # ``shutdown`` is reached through ``getattr`` in
+    # :func:`shutdown_otel_tracing` precisely because the API base has no
+    # such method.
+    from opentelemetry.trace import TracerProvider
 
 try:
     from opentelemetry import trace

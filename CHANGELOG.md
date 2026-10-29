@@ -9,6 +9,41 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.37.0] - 2026-10-28
+
+### Changed
+
+- llm: Route the MCP config write through the shared atomic writer
+- memory: Wrap two over-long lines from the embedding migration
+
+### Fixed
+
+- checkpoint: Write pending markers through a uniquely named temp file
+- deps: Uv 0.13.3 -> 0.13.5 (PYSEC-2026-4321)
+- Drop the obsolete match/case exclusion from .semgrepignore
+- llm: Create the atomic-merge temp file with a unique name and 0600
+- memory: Load the vector extension before checkpointing the database
+- memory: Migrate embedding columns to FLOAT[4096] and guard vector writes
+- memory: Recover the reflection database from a poisoned WAL sidecar
+- signer: Never leave the private key world-readable, even briefly
+- telemetry: The exporter was posting to the collector's root
+- tests: Use the httpx2 import alias in the oneiric push test
+- utils: Write runtime snapshots through a unique, owner-only temp file
+
+### Performance
+
+- memory: Probe each database path once per process
+
+### Build
+
+- deps: Take the OTel exporters from mcp-common, keep the imports
+
+### Internal
+
+- deps: Bump oneiric>= to 0.33 (plan_index library floor)
+- deps: Re-resolve uv.lock
+- memory: Finish the rename to duckdb_open
+
 ## [Unreleased]
 
 ### Changed

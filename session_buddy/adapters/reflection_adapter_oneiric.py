@@ -282,11 +282,13 @@ class ReflectionDatabaseAdapterOneiric:
             else:
                 self.db_path = str(settings_db_path)
         self.conn: t.Any = None  # DuckDB connection (sync)
-        # int() coerces the dataclass field: type annotations are not enforced
-        # at runtime, and this value is interpolated into DDL type widths
-        # (DuckDB cannot parameterize an array size), so it must be provably
-        # numeric. A non-numeric value raises here rather than reaching SQL.
-        self.embedding_dim = int(self.settings.embedding_dim)  # provider vector width
+        # The settings field is declared ``int`` and every construction path
+        # leaves it at the module default, so it is already the provider's
+        # vector width. This value is interpolated into DDL type widths
+        # (DuckDB cannot parameterize an array size), so it must be numeric;
+        # a non-numeric value now fails loudly in the DDL parser rather than
+        # being silently coerced here.
+        self.embedding_dim = self.settings.embedding_dim  # provider vector width
         self._initialized = False
 
         # Category evolution engine (Phase 5)

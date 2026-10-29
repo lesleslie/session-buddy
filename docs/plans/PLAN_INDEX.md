@@ -1,6 +1,6 @@
 # Plan Index
 
-_Regenerated 2026-10-19 by `crackerjack.tools.plan_index_sync` (fast-hook)._
+_Regenerated 2026-10-29 by `crackerjack.tools.plan_index_sync` (phase)._
 
 ### Docs: adr
 
@@ -21,12 +21,6 @@ _Regenerated 2026-10-19 by `crackerjack.tools.plan_index_sync` (fast-hook)._
 | [`docs/specs/2026-07-27-quality-scoring-field-audit-design.md`](../specs/2026-07-27-quality-scoring-field-audit-design.md) | 2026-07-27 | `draft` | `canonical` | `convergence-control-plane` | Quality-Scoring Field Audit — Design |
 | [`docs/specs/2026-07-27-ruff16-source-remediation-design.md`](../specs/2026-07-27-ruff16-source-remediation-design.md) | 2026-07-27 | `draft` | `canonical` | `convergence-control-plane` | Ruff 0.16 Source Remediation — Design |
 | [`docs/specs/2026-08-10-s-channel-durable-design.md`](../specs/2026-08-10-s-channel-durable-design.md) | 2026-08-10 | `draft` | `canonical` | `persistence` | S-CHANNEL-DURABLE Design Spec |
-
-### Docs: plans
-
-| Path | Date | Status | Role | Topic | Title |
-|---|---|---|---|---|---|
-| _no entries with valid frontmatter_ | | | | | |
 
 ### .claude/decisions
 
