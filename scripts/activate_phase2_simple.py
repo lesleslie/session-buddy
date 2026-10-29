@@ -96,7 +96,12 @@ def generate_embeddings_sync() -> dict[str, int]:
             # Convert to DuckDB format
             embedding_str = f"[{','.join(str(x) for x in embedding_vector)}]"
 
-            # Update entity
+            # Update entity. DuckDB cannot parameterize a fixed-size array
+            # width ("FLOAT[?]" raises "Expected a constant number as array
+            # size"), so the width has to be a literal in the SQL text. The
+            # interpolated value is derived from an int constant, not input,
+            # so there is no injection surface here.
+            # nosemgrep: sqlalchemy-execute-raw-query
             conn.execute(
                 f"""
                 UPDATE kg_entities

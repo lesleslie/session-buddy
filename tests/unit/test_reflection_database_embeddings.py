@@ -52,7 +52,14 @@ def _create_v1_tables(db: Any) -> None:
     """Create the V1 tables the legacy write path targets."""
     conn = db.conn
     assert conn is not None
+    # DuckDB cannot parameterize a fixed-size array width -- "FLOAT[?]"
+    # raises "Expected a constant number as array size" -- so the width has
+    # to be a literal in the DDL text. The interpolated value is
+    # DEFAULT_EMBEDDING_DIM, an int constant rather than input, so there is
+    # no injection surface here.
+    # nosemgrep: formatted-sql-query, sqlalchemy-execute-raw-query
     conn.execute(V1_CONVERSATIONS_DDL.format(dim=DEFAULT_EMBEDDING_DIM))
+    # nosemgrep: formatted-sql-query, sqlalchemy-execute-raw-query
     conn.execute(V1_REFLECTIONS_DDL.format(dim=DEFAULT_EMBEDDING_DIM))
 
 
@@ -141,9 +148,7 @@ class TestEmbeddingGate:
 
         conn = legacy_db.conn
         assert conn is not None
-        row = conn.execute(
-            "SELECT content, embedding FROM conversations"
-        ).fetchone()
+        row = conn.execute("SELECT content, embedding FROM conversations").fetchone()
         assert row is not None
         assert row[0] == "still stored"
         assert row[1] is None, "a failed provider must not store a partial vector"
