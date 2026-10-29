@@ -14,6 +14,8 @@ from pathlib import Path
 import pytest
 from unittest.mock import MagicMock, patch
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 
 class TestIDEContext:
     """Tests for IDEContext dataclass."""
@@ -1237,8 +1239,8 @@ def _make_invocation(skill_name: str, *, completed: bool = True):
     return invocation
 
 
-# ``pack_embedding`` rejects anything that is not a 384-dim float32 vector.
-_VALID_EMBEDDING = [0.01] * 384
+# ``pack_embedding`` rejects anything that is not a canonical-width float32 vector.
+_VALID_EMBEDDING = [0.01] * DEFAULT_EMBEDDING_DIM
 
 
 def _embedding_service(embedding):

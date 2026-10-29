@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Example unit tests showing how to use the test infrastructure."""
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from tests.helpers import AssertionHelper, MockingHelper, TestDataFactory
 
 
@@ -22,24 +23,6 @@ class TestExampleUnit:
         assert conversation["content"] == "Unit test conversation"
         assert conversation["project"] == "unit-test-project"
 
-    def test_mock_embedding_system(self):
-        """Example of testing with mocked embedding system."""
-        embedding_mocks = MockingHelper.mock_embedding_system()
-
-        # Test the mock system directly
-        assert embedding_mocks["onnx_session"] is not None
-        assert embedding_mocks["tokenizer"] is not None
-
-        # Test ONNX mock returns expected format
-        onnx_result = embedding_mocks["onnx_session"].run.return_value
-        assert len(onnx_result) == 1
-        assert onnx_result[0].shape == (1, 384)
-
-        # Test tokenizer mock returns expected format
-        tokenizer_result = embedding_mocks["tokenizer"].return_value
-        assert "input_ids" in tokenizer_result
-        assert "attention_mask" in tokenizer_result
-
     def test_assertion_helpers_validation(self):
         """Example of using assertion helpers."""
         import uuid
@@ -57,7 +40,7 @@ class TestExampleUnit:
 
         # Test embedding shape validation
         rng = np.random.default_rng(42)
-        test_embedding = rng.random((384,)).astype(np.float32)
+        test_embedding = rng.random((DEFAULT_EMBEDDING_DIM,)).astype(np.float32)
         AssertionHelper.assert_embedding_shape(test_embedding)
 
         # Test similarity score validation

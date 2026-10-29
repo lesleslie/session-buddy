@@ -13,6 +13,7 @@ from session_buddy.core.causal_chains import (
     ErrorEvent,
     FixAttempt,
 )
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 
 
 class TestErrorEvent:
@@ -38,7 +39,7 @@ class TestErrorEvent:
 
     def test_error_event_with_embedding(self) -> None:
         """Test ErrorEvent can include embedding vector."""
-        embedding = [0.1] * 384
+        embedding = [0.1] * DEFAULT_EMBEDDING_DIM
         event = ErrorEvent(
             id="err-abcdefgh",
             error_message="TypeError",
@@ -50,7 +51,7 @@ class TestErrorEvent:
         )
 
         assert event.embedding is not None
-        assert len(event.embedding) == 384
+        assert len(event.embedding) == DEFAULT_EMBEDDING_DIM
 
 
 class TestFixAttempt:

@@ -19,7 +19,7 @@ class ModeConfig:
         name: Mode name (lite, standard, etc.)
         database_path: Path to database (:memory: for lite mode)
         storage_backend: Storage backend (memory, file, s3, etc.)
-        enable_embeddings: Whether to enable ONNX embeddings
+        enable_embeddings: Whether to enable embeddings (HTTP provider)
         enable_multi_project: Whether to enable multi-project coordination
         enable_token_optimization: Whether to enable token optimization
         enable_auto_checkpoint: Whether to enable auto-checkpoint

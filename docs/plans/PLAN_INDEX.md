@@ -12,7 +12,7 @@ _Regenerated 2026-10-29 by `crackerjack.tools.plan_index_sync` (phase)._
 
 | Path | Date | Status | Role | Topic | Title |
 |---|---|---|---|---|---|
-| _no entries with valid frontmatter_ | | | | | |
+| [`docs/plans/2026-10-29-embedding-dimension-migration.md`](2026-10-29-embedding-dimension-migration.md) | 2026-10-29 | `shipped` | `implementation` | `embeddings` | Embedding Dimension Migration — 2026-10-29 |
 
 ### Docs: specs
 
@@ -42,8 +42,8 @@ _Regenerated 2026-10-29 by `crackerjack.tools.plan_index_sync` (phase)._
 | Role \\ Lifecycle | draft | active | partial | shipped | complete | Total |
 |---|---|---|---|---|---|---|
 | `canonical` | 3 | 3 | · | · | · | **6** |
-| `implementation` | · | 1 | · | · | · | **1** |
+| `implementation` | · | 1 | · | 1 | · | **2** |
 | `umbrella` | · | · | · | · | · | **0** |
 | `historical` | · | · | · | · | · | **0** |
 | `superseded` | · | · | · | · | · | **0** |
-| **Total** | **3** | **4** | **·** | **·** | **·** | **7** |
+| **Total** | **3** | **4** | **·** | **1** | **·** | **8** |

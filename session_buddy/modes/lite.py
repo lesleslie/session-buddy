@@ -63,7 +63,7 @@ class LiteMode(OperationMode):
             database_path=":memory:",  # In-memory database
             storage_backend="memory",  # In-memory storage
             # Disable heavy features for fast startup
-            enable_embeddings=False,  # No ONNX model loading
+            enable_embeddings=False,  # No embedding provider
             enable_multi_project=False,  # No cross-project coordination
             enable_token_optimization=False,  # No token optimization
             enable_auto_checkpoint=False,  # No auto-checkpoint

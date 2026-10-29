@@ -35,7 +35,7 @@ except ImportError:
     NUMPY_AVAILABLE = False
 
 # HTTP-based embedding — no local ONNX model needed.
-# Providers (llama-server) return pre-normalized 384d vectors.
+# Providers (llama-server) return pre-normalized canonical-width vectors.
 ONNX_AVAILABLE = False  # Always False — using HTTP providers
 ort = None
 AutoTokenizer: type | None = None  # Not needed for HTTP
@@ -225,7 +225,7 @@ class ReflectionDatabaseAdapterOneiric:
 
     This adapter replaces ACB's Vector adapter with direct DuckDB operations while maintaining
     the original ReflectionDatabase API for backward compatibility. It handles:
-    - HTTP-based embedding generation (llama-server, 384 dimensions)
+    - HTTP-based embedding generation (llama-server, canonical dimensions)
     - Vector storage and retrieval via native DuckDB
     - Graceful fallback to text search when embeddings unavailable
     - Async/await patterns consistent with existing code
@@ -1162,7 +1162,7 @@ class ReflectionDatabaseAdapterOneiric:
         to ensure consistent quantization across the dataset.
 
         Args:
-            embedding: Float32 embedding vector (384 dimensions)
+            embedding: Float32 embedding vector (canonical dimensions)
 
         Returns:
             Quantized embedding as uint8 values [0-255], or None if quantization disabled
@@ -1191,7 +1191,7 @@ class ReflectionDatabaseAdapterOneiric:
         )
 
         result: list[int] = quantized.tolist()
-        return result  # [384] uint8 values
+        return result  # canonical-width uint8 values
 
     def _dequantize_embedding(self, quantized: list[int]) -> list[float] | None:
         """Dequantize embedding from uint8 back to float32.
@@ -1241,10 +1241,31 @@ class ReflectionDatabaseAdapterOneiric:
             In production, you would compute this from all embeddings in the database.
         """
         if not hasattr(self, "_calibration_min"):
-            # Use fixed calibration data for all-MiniLM-L6-v2 model
-            # These values represent typical min/max across the embedding space
-            self._calibration_min: np.ndarray = np.full((384,), -0.15, dtype=np.float32)
-            self._calibration_max: np.ndarray = np.full((384,), 0.15, dtype=np.float32)
+            # Fixed calibration data for the configured embedding model.
+            #
+            # These values must be re-derived whenever the embedding model
+            # changes -- they are a property of the model's output
+            # distribution, not a constant. The width must also match the
+            # provider's vector width, or the broadcast in
+            # _quantize_embedding raises on shape mismatch.
+            #
+            # Measured against the served Qwen3-8B embeddings (4096-dim,
+            # L2-normalised): component magnitudes run to ~0.55 in the tail
+            # with a median of ~0.003. Scalar quantisation maps this range
+            # onto 256 levels, so a range that clips the tail loses more
+            # cosine similarity than a wider range costs in step size.
+            # Measured minimum cosine similarity over sampled embeddings:
+            #   +/-0.15 -> 0.893 (below the 0.95 accuracy threshold)
+            #   +/-0.25 -> 0.951
+            #   +/-0.50 -> 0.988
+            #   +/-1.00 -> 0.959
+            # See _update_calibration_data for the data-derived alternative.
+            self._calibration_min: np.ndarray = np.full(
+                (self.embedding_dim,), -0.5, dtype=np.float32
+            )
+            self._calibration_max: np.ndarray = np.full(
+                (self.embedding_dim,), 0.5, dtype=np.float32
+            )
 
         return self._calibration_min, self._calibration_max
 
@@ -1258,11 +1279,11 @@ class ReflectionDatabaseAdapterOneiric:
             return
 
         # Stack all embeddings and compute min/max per dimension
-        stacked = np.array(all_embeddings, dtype=np.float32)  # Shape: [N, 384]
+        stacked = np.array(all_embeddings, dtype=np.float32)  # Shape: [N, D]
 
         # Compute min/max across all embeddings for each dimension
-        self._calibration_min = np.min(stacked, axis=0)  # Shape: [384]
-        self._calibration_max = np.max(stacked, axis=0)  # Shape: [384]
+        self._calibration_min = np.min(stacked, axis=0)  # Shape: [D]
+        self._calibration_max = np.max(stacked, axis=0)  # Shape: [D]
 
         logger.debug(f"Updated calibration data from {len(all_embeddings)} embeddings")
 

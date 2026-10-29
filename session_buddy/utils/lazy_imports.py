@@ -197,33 +197,6 @@ class MockModule:
         return mock_function
 
 
-def create_embedding_mock() -> Any:
-    """Create a mock for embedding functionality."""
-
-    class MockEmbedding:
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            pass
-
-        def encode(
-            self,
-            texts: str | list[str],
-            *args: Any,
-            **kwargs: Any,
-        ) -> list[list[float]]:
-            # Return random-like embeddings for testing (using secrets for security)
-            import secrets
-
-            def _random_float() -> float:
-                """Generate a secure random float between 0 and 1."""
-                return secrets.randbelow(1000000) / 1000000.0
-
-            if isinstance(texts, str):
-                return [[_random_float() for _ in range(384)]]
-            return [[_random_float() for _ in range(384)] for _ in texts]
-
-    return MockEmbedding
-
-
 def get_dependency_status() -> dict[str, dict[str, Any]]:
     """Get comprehensive status of all dependencies."""
     status: dict[str, dict[str, Any]] = {}

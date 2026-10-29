@@ -358,7 +358,7 @@ def _check_crackerjack() -> tuple[list[str], list[str]]:
 def _llama_server_health_url() -> str:
     """Build llama-server health check URL."""
     base = os.environ.get(
-        "MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8080/v1"
+        "MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8081/v1"
     ).rstrip("/")
     if base.endswith(("/embeddings", "/v1/embeddings")):
         base = base.rsplit("/embeddings", 1)[0]

@@ -13,11 +13,15 @@ import logging
 import os
 from typing import Any
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 logger = logging.getLogger(__name__)
 
-# HTTP provider URL
+# HTTP provider URL. Port 8081 is where the llama-server actually listens;
+# 8080 was a stale default that answered nothing, which silently disabled
+# every embedding in the reflection pipeline.
 _LLAMA_SERVER_BASE = os.environ.get(
-    "MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8080/v1"
+    "MAHAVISHNU__LLAMA_SERVER_URL", "http://localhost:8081/v1"
 )
 
 
@@ -29,7 +33,11 @@ def _get_llama_server_url() -> str:
     return f"{base}/embeddings"
 
 
-EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 / nomic-embed-text dimension
+# The provider's vector width. This must track the canonical dimension: the
+# DuckDB ``FLOAT[N]`` columns and the adapter's ``embedding_dim`` are bound
+# to it, and binding a wrong-width vector corrupts the DuckDB instance
+# fatally (see ``session_buddy.memory.embedding_dim``).
+EMBEDDING_DIM = DEFAULT_EMBEDDING_DIM
 
 
 async def _try_llama_server(text: str) -> list[float] | None:
@@ -56,7 +64,7 @@ async def _try_llama_server(text: str) -> list[float] | None:
             if (
                 embedding
                 and isinstance(embedding, list)
-                and len(embedding) == 384
+                and len(embedding) == EMBEDDING_DIM
                 and all(isinstance(x, (int, float)) for x in embedding)
             ):
                 return embedding
@@ -69,7 +77,7 @@ async def _try_http_embedding_providers(text: str) -> list[float] | None:
     """Try llama-server, return embedding or None.
 
     llama-server: OpenAI-compatible /v1/embeddings endpoint.
-    Returns pre-normalized 384d vectors.
+    Returns pre-normalized vectors of the canonical width.
     """
     return await _try_llama_server(text)
 
@@ -106,14 +114,15 @@ def _embedding_cache_put(text: str, embedding: list[float]) -> None:
 async def generate_embedding(text: str) -> list[float] | None:
     """Generate embedding for text asynchronously via HTTP providers.
 
-    Tries llama-server. Returns pre-normalized
-    384d vectors. Results are cached.
+    Tries llama-server. Returns pre-normalized vectors of the canonical
+    width. Results are cached.
 
     Args:
         text: Input text to embed
 
     Returns:
-        Float vector of dimension 384, or None if all providers fail
+        Float vector of dimension ``EMBEDDING_DIM``, or None if all
+        providers fail
 
     Example:
         >>> embedding = await generate_embedding("Hello world")
@@ -148,7 +157,7 @@ def get_embedding_system_info() -> dict[str, Any]:
         Dict with keys:
         - available: Always True (HTTP providers handle failures gracefully)
         - initialized: Always True (HTTP is stateless)
-        - model_dim: Embedding dimension (384)
+        - model_dim: Embedding dimension (``EMBEDDING_DIM``)
         - cache_size: Current cache size
         - http_providers: Dict with llama_server URL
     """

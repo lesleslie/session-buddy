@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.reflection_tools import ReflectionDatabase
 
 
@@ -105,21 +106,6 @@ class TestInfrastructureValidation:
         assert len(results) == 3
         assert results == ["item_0", "item_1", "item_2"]
 
-    def test_helper_mocking_utilities(self):
-        """Test mocking helper utilities work."""
-        from tests.helpers import MockingHelper
-
-        # Test embedding system mock
-        embedding_mocks = MockingHelper.mock_embedding_system()
-        assert "onnx_session" in embedding_mocks
-        assert "tokenizer" in embedding_mocks
-
-        # Test ONNX mock returns expected shape
-        onnx_mock = embedding_mocks["onnx_session"]
-        result = onnx_mock.run.return_value
-        assert len(result) == 1  # Should return list with one array
-        assert result[0].shape == (1, 384)  # Should be 384-dimensional
-
     def test_assertion_helpers(self):
         """Test assertion helper utilities work."""
         import uuid
@@ -141,7 +127,7 @@ class TestInfrastructureValidation:
 
         # Test embedding shape validation
         rng = np.random.default_rng(42)
-        valid_embedding = rng.random((384,)).astype(np.float32)
+        valid_embedding = rng.random((DEFAULT_EMBEDDING_DIM,)).astype(np.float32)
         AssertionHelper.assert_embedding_shape(valid_embedding)
 
         # Test similarity score validation

@@ -2,8 +2,7 @@
 
 Covers the lazy import helpers: ``LazyImport``, ``LazyLoader``,
 ``MockModule``, the ``require_dependency``/``optional_dependency``
-decorators, ``create_embedding_mock``, and the dependency status
-reporters.
+decorators, and the dependency status reporters.
 """
 
 from __future__ import annotations
@@ -18,7 +17,6 @@ from session_buddy.utils.lazy_imports import (
     LazyImport,
     LazyLoader,
     MockModule,
-    create_embedding_mock,
     get_dependency_status,
     log_dependency_status,
     optional_dependency,
@@ -398,50 +396,6 @@ class TestOptionalDependencyDecorator:
 
         assert compute.__name__ == "compute"
         assert compute.__doc__ == "Run the compute."
-
-
-# ---------------------------------------------------------------------------
-# create_embedding_mock
-# ---------------------------------------------------------------------------
-
-
-class TestCreateEmbeddingMock:
-    """``create_embedding_mock`` returns a class with a working ``encode``."""
-
-    def test_returns_callable_class(self) -> None:
-        cls = create_embedding_mock()
-        assert isinstance(cls, type)
-
-    def test_instantiate_accepts_arbitrary_args(self) -> None:
-        cls = create_embedding_mock()
-        instance = cls(model_name="anything", dim=384, foo=1)
-        assert instance is not None
-
-    def test_encode_single_string_returns_one_vector(self) -> None:
-        cls = create_embedding_mock()
-        instance = cls()
-        result = instance.encode("hello world")
-        assert isinstance(result, list)
-        assert len(result) == 1
-        vector = result[0]
-        assert isinstance(vector, list)
-        assert len(vector) == 384
-        assert all(isinstance(v, float) for v in vector)
-
-    def test_encode_list_returns_one_vector_per_item(self) -> None:
-        cls = create_embedding_mock()
-        instance = cls()
-        result = instance.encode(["alpha", "beta", "gamma"])
-        assert isinstance(result, list)
-        assert len(result) == 3
-        for vector in result:
-            assert len(vector) == 384
-
-    def test_encode_produces_values_in_unit_range(self) -> None:
-        cls = create_embedding_mock()
-        instance = cls()
-        vector = instance.encode("anything")[0]
-        assert all(0.0 <= v < 1.0 for v in vector)
 
 
 # ---------------------------------------------------------------------------

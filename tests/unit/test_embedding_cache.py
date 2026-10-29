@@ -20,6 +20,7 @@ from session_buddy.adapters.reflection_adapter_oneiric import (
     ReflectionDatabaseAdapterOneiric,
     ReflectionAdapterSettings,
 )
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.reflection import embeddings as embeddings_module
 from session_buddy.reflection.embeddings import (
     clear_embedding_cache,
@@ -28,14 +29,15 @@ from session_buddy.reflection.embeddings import (
 
 
 def _deterministic_embedding(text: str) -> list[float]:
-    """Generate a deterministic 384-dimensional vector from text.
+    """Generate a deterministic canonical-width vector from text.
 
-    Hashes the text and expands the digest into a 384-dim vector with values
-    in [-1, 1]. Same input always produces the same vector.
+    Hashes the text and expands the digest into a vector with values in
+    [-1, 1]. Same input always produces the same vector.
     """
     digest = hashlib.sha384(text.encode("utf-8")).digest()  # 48 bytes
-    # Expand to 384 dims by repeating and offsetting
-    raw = (digest * 8)[:384]
+    # Expand to the canonical width by repeating and offsetting
+    repeats = DEFAULT_EMBEDDING_DIM // len(digest) + 1
+    raw = (digest * repeats)[:DEFAULT_EMBEDDING_DIM]
     return [(b - 128) / 128.0 for b in raw]
 
 
@@ -43,9 +45,9 @@ def _deterministic_embedding(text: str) -> list[float]:
 def stub_embedding_provider(monkeypatch: pytest.MonkeyPatch) -> Any:
     """Stub the HTTP embedding providers so tests don't need a live service.
 
-    The stub returns a deterministic 384-dim vector for any input. Tests that
-    need real embeddings can rely on this; tests that need to assert the
-    "no providers" path should clear the monkeypatch.
+    The stub returns a deterministic canonical-width vector for any input.
+    Tests that need real embeddings can rely on this; tests that need to
+    assert the "no providers" path should clear the monkeypatch.
     """
     async def fake_try(text: str) -> list[float] | None:
         return _deterministic_embedding(text)
@@ -85,7 +87,7 @@ class TestEmbeddingCache:
         result = await db._generate_embedding(query)
 
         assert result is not None, "Should generate embedding"
-        assert len(result) == 384, "Should return 384-dimensional vector"
+        assert len(result) == DEFAULT_EMBEDDING_DIM, "Should return canonical width"
         # Cache should now have 1 entry
         assert get_embedding_system_info()["cache_size"] == 1
 

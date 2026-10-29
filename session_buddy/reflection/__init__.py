@@ -2,13 +2,13 @@
 
 This module provides the core reflection database functionality with:
 - ReflectionDatabase: Main database interface
-- Semantic search using local ONNX embeddings
+- Semantic search using local embeddings (llama-server over HTTP)
 - CRUD operations for conversations and reflections
 - Thread-safe async operations
 
 Module Structure:
     - database.py: Core ReflectionDatabase class
-    - embeddings.py: Embedding generation (ONNX, local)
+    - embeddings.py: Embedding generation (HTTP provider)
     - search.py: Semantic and text search operations
     - storage.py: CRUD operations
     - schema.py: Database schema definitions

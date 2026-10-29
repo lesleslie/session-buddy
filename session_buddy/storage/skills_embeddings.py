@@ -4,10 +4,11 @@ This module provides embedding generation and similarity search for skill
 invocations, enabling semantic skill recommendations based on user queries.
 
 Features:
-    - Generate 384-dimensional embeddings using all-MiniLM-L6-v2
+    - Generate embeddings at the canonical width (see
+      ``session_buddy.memory.embedding_dim``)
     - Embedding cache to avoid regenerating identical queries
     - Batch embedding generation for multiple invocations
-    - Graceful degradation when ONNX unavailable
+    - Graceful degradation when the embedding provider is unreachable
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
+
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +43,7 @@ except ImportError:
 # Constants
 # ============================================================================
 
-EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 dimension
+EMBEDDING_DIM = DEFAULT_EMBEDDING_DIM
 EMBEDDING_BYTES = EMBEDDING_DIM * 4  # float32 = 4 bytes
 
 
@@ -53,16 +56,16 @@ def pack_embedding(embedding: list[float] | np.ndarray) -> bytes:
     """Pack embedding into bytes for storage.
 
     Args:
-        embedding: 384-dimensional vector as list or numpy array
+        embedding: Canonical-width vector as list or numpy array
 
     Returns:
-        Packed bytes (1536 bytes for 384-dim float32)
+        Packed bytes (``EMBEDDING_BYTES`` for a canonical-width float32 vector)
 
     Example:
-        >>> embedding = [0.1, -0.2, 0.3, ...]  # 384 dimensions
+        >>> embedding = [0.1, -0.2, 0.3, ...]  # EMBEDDING_DIM dimensions
         >>> packed = pack_embedding(embedding)
         >>> len(packed)
-        1536
+        16384
     """
     if isinstance(embedding, list):
         embedding = np.array(embedding, dtype=np.float32)
@@ -81,16 +84,16 @@ def unpack_embedding(blob: bytes) -> np.ndarray:
     """Unpack embedding from database bytes.
 
     Args:
-        blob: Packed embedding bytes (1536 bytes)
+        blob: Packed embedding bytes (``EMBEDDING_BYTES``)
 
     Returns:
-        Numpy array of shape (384,)
+        Numpy array of shape (``EMBEDDING_DIM``,)
 
     Example:
         >>> blob = bytes_from_db
         >>> embedding = unpack_embedding(blob)
         >>> embedding.shape
-        (384,)
+        (4096,)
     """
     if len(blob) != EMBEDDING_BYTES:
         raise ValueError(f"Expected {EMBEDDING_BYTES} bytes, got {len(blob)}")
@@ -105,8 +108,8 @@ def cosine_similarity(
     """Calculate cosine similarity between two embeddings.
 
     Args:
-        embedding1: First embedding (384-dim vector)
-        embedding2: Second embedding (384-dim vector)
+        embedding1: First embedding (canonical-width vector)
+        embedding2: Second embedding (canonical-width vector)
 
     Returns:
         Similarity score between -1 and 1, where:
@@ -145,7 +148,7 @@ class SkillsEmbeddingService:
     """Embedding generation service for skill invocations.
 
     Provides thread-safe embedding generation with caching and fallback
-    support for when the ONNX model is unavailable.
+    support for when the embedding provider is unreachable.
 
     Attributes:
         cache_enabled: Whether to cache embeddings (default: True)
@@ -222,14 +225,14 @@ class SkillsEmbeddingService:
             use_cache: Use LRU cache if enabled (default: True)
 
         Returns:
-            384-dimensional numpy array, or None if embeddings unavailable
+            Canonical-width numpy array, or None if embeddings unavailable
 
         Example:
             >>> service = SkillsEmbeddingService()
             >>> service.initialize()
             >>> embedding = service.generate_embedding("fix race condition")
             >>> embedding.shape
-            (384,)
+            (4096,)
         """
         if not self._initialized and not self.initialize():
             return None
@@ -317,7 +320,7 @@ class SkillsEmbeddingService:
         if not texts:
             return []
 
-        # Generate embeddings in parallel
+        # Generate embeddings one at a time
         embeddings = [self.generate_embedding(text) for text in texts]
 
         return embeddings

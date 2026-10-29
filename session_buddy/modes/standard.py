@@ -9,7 +9,7 @@ Standard mode is designed for:
 Features:
 - File-based database (~/.claude/data/reflection.duckdb)
 - File-based storage
-- ONNX embeddings (semantic search)
+- Embeddings via the local HTTP provider (semantic search)
 - Multi-project coordination
 - Token optimization
 - Auto-checkpoint
@@ -73,7 +73,7 @@ class StandardMode(OperationMode):
             database_path=database_path,  # File-based database
             storage_backend="file",  # File-based storage
             # Enable all features
-            enable_embeddings=True,  # ONNX embeddings
+            enable_embeddings=True,  # embeddings via the HTTP provider
             enable_multi_project=True,  # Cross-project coordination
             enable_token_optimization=True,  # Token optimization
             enable_auto_checkpoint=True,  # Auto-checkpoint

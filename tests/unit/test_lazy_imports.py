@@ -182,22 +182,12 @@ def test_lazy_loader_and_decorators(monkeypatch: pytest.MonkeyPatch, _isolated_l
         broken()
 
 
-def test_mock_module_and_embedding_mock(monkeypatch: pytest.MonkeyPatch, _isolated_lazy_imports) -> None:
+def test_mock_module(monkeypatch: pytest.MonkeyPatch, _isolated_lazy_imports) -> None:
     lazy_imports = _isolated_lazy_imports
 
     module = lazy_imports.MockModule("demo")
     with pytest.raises(ImportError, match="Mock function encode called"):
         module.encode()
-
-    embedding_factory = lazy_imports.create_embedding_mock()
-    embedding = embedding_factory()
-    one = embedding.encode("hello")
-    many = embedding.encode(["a", "b"])
-
-    assert len(one) == 1
-    assert len(one[0]) == 384
-    assert len(many) == 2
-    assert all(len(row) == 384 for row in many)
 
 
 def test_dependency_status_and_logging(monkeypatch: pytest.MonkeyPatch, _isolated_lazy_imports) -> None:

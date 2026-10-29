@@ -1,7 +1,7 @@
 """
 Enhanced Memory Schema v2 - Memori-inspired categorization with DuckDB.
 
-Combines Memori's superior categorization with session-mgmt's ONNX vector search.
+Combines Memori's superior categorization with session-mgmt's vector search.
 """
 
 from enum import StrEnum
@@ -222,7 +222,7 @@ CREATE INDEX IF NOT EXISTS idx_relationships_to ON memory_relationships(to_entit
 
 CREATE INDEX IF NOT EXISTS idx_access_log_memory ON memory_access_log(memory_id, timestamp DESC);
 
--- Full-text search (fallback when ONNX unavailable)
+-- Full-text search (fallback when embeddings are unavailable)
 CREATE INDEX IF NOT EXISTS idx_conversations_fts ON conversations_v2(searchable_content);
 
 -- Index for source_type lookups (most reads filter by project + recency).

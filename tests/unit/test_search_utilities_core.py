@@ -9,6 +9,8 @@ Tests cover:
 import pytest
 from unittest.mock import Mock, patch
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 
 @pytest.mark.unit
 class TestSearchUtilities:
@@ -72,8 +74,8 @@ class TestSemanticSearch:
 
     def test_embedding_representation(self):
         """Test embedding vector representation."""
-        embedding = [0.1] * 384  # Standard embedding dimension
-        assert len(embedding) == 384
+        embedding = [0.1] * DEFAULT_EMBEDDING_DIM  # canonical embedding dimension
+        assert len(embedding) == DEFAULT_EMBEDDING_DIM
         assert all(-1 <= x <= 1 for x in embedding)
 
     def test_search_result_deduplication(self):

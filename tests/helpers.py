@@ -650,41 +650,6 @@ class MockingHelper:
     """Helper utilities for mocking in tests."""
 
     @staticmethod
-    def mock_embedding_system():
-        """Create comprehensive mock for embedding system."""
-        import numpy as np
-
-        mocks = {}
-
-        # Mock ONNX session
-        mock_onnx = Mock()
-        rng = np.random.default_rng(42)
-        mock_onnx.run.return_value = [rng.random((1, 384)).astype(np.float32)]
-        mocks["onnx_session"] = mock_onnx
-
-        # Mock tokenizer
-        mock_tokenizer = Mock()
-        mock_tokenizer.return_value = {
-            "input_ids": [[1, 2, 3, 4, 5]],
-            "attention_mask": [[1, 1, 1, 1, 1]],
-        }
-        mocks["tokenizer"] = mock_tokenizer
-
-        return mocks
-
-    @staticmethod
-    def mock_onnx_session_with_specific_return(return_value: Any | None = None):
-        """Create ONNX session mock with specific return value."""
-        import numpy as np
-
-        mock_onnx = Mock()
-        if return_value is None:
-            rng = np.random.default_rng(42)
-            return_value = rng.random((1, 384)).astype(np.float32)
-        mock_onnx.run.return_value = [return_value]
-        return mock_onnx
-
-    @staticmethod
     @asynccontextmanager
     async def mock_mcp_server():
         """Create mock MCP server context manager."""
@@ -821,10 +786,16 @@ class AssertionHelper:
             raise AssertionError(msg)
 
     @staticmethod
-    def assert_embedding_shape(embedding: Any, expected_dim: int = 384) -> None:
+    def assert_embedding_shape(
+        embedding: Any, expected_dim: int | None = None
+    ) -> None:
         """Assert embedding has correct shape."""
         import numpy as np
 
+        from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
+        if expected_dim is None:
+            expected_dim = DEFAULT_EMBEDDING_DIM
         assert embedding.shape == (expected_dim,), (
             f"Expected shape ({expected_dim},), got {embedding.shape}"
         )

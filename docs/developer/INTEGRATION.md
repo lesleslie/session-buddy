@@ -428,7 +428,7 @@ class PostgreSQLMemoryBackend:
             CREATE TABLE IF NOT EXISTS conversations (
                 id TEXT PRIMARY KEY,
                 content TEXT NOT NULL,
-                embedding vector(384),  -- pgvector extension
+                embedding vector(4096),  -- pgvector extension
                 project TEXT NOT NULL,
                 timestamp TIMESTAMP NOT NULL
             );
@@ -511,7 +511,7 @@ class RedisMemoryBackend:
                     VectorField(
                         "embedding",
                         "FLAT",
-                        {"TYPE": "FLOAT32", "DIM": 384, "DISTANCE_METRIC": "COSINE"},
+                        {"TYPE": "FLOAT32", "DIM": 4096, "DISTANCE_METRIC": "COSINE"},
                     ),
                 ]
             )

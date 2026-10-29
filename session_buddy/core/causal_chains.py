@@ -40,7 +40,7 @@ class ErrorEvent:
         context: Additional context (file, line number, code snippet, etc.)
         timestamp: When the error occurred
         session_id: Session where error occurred
-        embedding: Semantic vector for similarity search (384-dim)
+        embedding: Semantic vector for similarity search (canonical width)
     """
 
     id: str
@@ -541,7 +541,7 @@ class CausalChainTracker:
             text: Text to embed
 
         Returns:
-            384-dimensional embedding vector
+            canonical-width embedding vector
         """
         # Check cache first
         if text in self._embedding_cache:

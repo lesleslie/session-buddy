@@ -765,29 +765,6 @@ async def shared_reflection_db() -> AsyncGenerator[ReflectionDatabase]:
 
 
 @pytest.fixture
-def mock_onnx_session() -> Mock:
-    """Provide mock ONNX session for embedding tests."""
-    import numpy as np
-
-    mock_session = Mock()
-    # Mock returns a 384-dimensional vector
-    rng = np.random.default_rng(42)
-    mock_session.run.return_value = [rng.random((1, 384)).astype(np.float32)]
-    return mock_session
-
-
-@pytest.fixture
-def mock_tokenizer() -> Mock:
-    """Provide mock tokenizer for embedding tests."""
-    mock_tokenizer = Mock()
-    mock_tokenizer.return_value = {
-        "input_ids": [[1, 2, 3, 4, 5]],
-        "attention_mask": [[1, 1, 1, 1, 1]],
-    }
-    return mock_tokenizer
-
-
-@pytest.fixture
 async def mock_mcp_server() -> AsyncGenerator[Mock]:
     """Provide mock MCP server for testing."""
     mock_server = Mock()

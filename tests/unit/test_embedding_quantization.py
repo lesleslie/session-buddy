@@ -18,6 +18,7 @@ from session_buddy.adapters.reflection_adapter_oneiric import (
     ReflectionAdapterSettings,
 )
 from session_buddy.adapters.settings import _resolve_data_dir
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 
 
 @pytest.fixture
@@ -46,7 +47,7 @@ class TestEmbeddingQuantization:
     def test_quantize_embedding_disabled(self, normal_settings: ReflectionAdapterSettings) -> None:
         """Test that quantization returns None when disabled."""
         adapter = ReflectionDatabaseAdapterOneiric(settings=normal_settings)
-        embedding = [0.1, -0.2, 0.3, 0.4] * 96  # 384-dim
+        embedding = [0.1, -0.2, 0.3, 0.4] * (DEFAULT_EMBEDDING_DIM // 4)
 
         result = adapter._quantize_embedding(embedding)
 
@@ -55,18 +56,18 @@ class TestEmbeddingQuantization:
     def test_quantize_embedding_enabled(self, quantized_settings: ReflectionAdapterSettings) -> None:
         """Test that quantization returns uint8 values when enabled."""
         adapter = ReflectionDatabaseAdapterOneiric(settings=quantized_settings)
-        embedding = [0.1, -0.2, 0.3, 0.4] * 96  # 384-dim
+        embedding = [0.1, -0.2, 0.3, 0.4] * (DEFAULT_EMBEDDING_DIM // 4)
 
         result = adapter._quantize_embedding(embedding)
 
         assert result is not None, "Should return quantized embedding"
-        assert len(result) == 384, "Should return 384 uint8 values"
+        assert len(result) == DEFAULT_EMBEDDING_DIM, "Should return uint8 values"
         assert all(isinstance(x, int) and 0 <= x <= 255 for x in result), "All values should be uint8"
 
     def test_dequantize_embedding(self, quantized_settings: ReflectionAdapterSettings) -> None:
         """Test that dequantization reconstructs original embedding."""
         adapter = ReflectionDatabaseAdapterOneiric(settings=quantized_settings)
-        original = [0.1, -0.2, 0.3, 0.4] * 96  # 384-dim
+        original = [0.1, -0.2, 0.3, 0.4] * (DEFAULT_EMBEDDING_DIM // 4)
 
         # Quantize
         quantized = adapter._quantize_embedding(original)
@@ -95,17 +96,17 @@ class TestEmbeddingQuantization:
         """Test quantization accuracy with random embeddings."""
         adapter = ReflectionDatabaseAdapterOneiric(settings=quantized_settings)
 
-        # Generate realistic embeddings (L2-normalized, like all-MiniLM-L6-v2)
+        # Generate realistic embeddings (L2-normalized, like the served model)
         np.random.seed(42)
         n_test_embeddings = 100
         embeddings = []
         for _ in range(n_test_embeddings):
             # Generate random vector and normalize to unit length (like real embeddings)
-            vec = np.random.randn(384).astype(np.float32)
+            vec = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
+            # The provider returns L2-normalised vectors (unit norm), so the
+            # synthetic data must match that scale -- quantisation accuracy
+            # depends on the ratio of the signal to the calibration range.
             vec = vec / np.linalg.norm(vec)  # L2-normalize
-            # Scale to typical all-MiniLM-L6-v2 range (not all dims are ±0.15, but most are within)
-            # Real embeddings are unit-normalized, so individual dimensions are typically smaller
-            vec = vec * 0.1  # Scale to have typical magnitude
             embeddings.append(vec.tolist())
 
         # Test accuracy for each embedding
@@ -143,8 +144,8 @@ class TestEmbeddingQuantization:
     def test_quantization_memory_savings(self, quantized_settings: ReflectionAdapterSettings) -> None:
         """Test that quantization achieves 4x memory reduction."""
         # Calculate memory sizes
-        embedding_float32_size = 384 * 4  # 384 floats × 4 bytes each
-        embedding_uint8_size = 384 * 1  # 384 uint8 × 1 byte each
+        embedding_float32_size = DEFAULT_EMBEDDING_DIM * 4  # float32 × 4 bytes each
+        embedding_uint8_size = DEFAULT_EMBEDDING_DIM * 1  # uint8 × 1 byte each
 
         compression_ratio = embedding_float32_size / embedding_uint8_size
 
@@ -166,7 +167,7 @@ class TestEmbeddingQuantization:
 
         # Simulate cache interaction: cache stores the original embedding
         query = "test query"
-        embedding = [0.1, -0.2, 0.3, 0.4] * 96  # 384-dim
+        embedding = [0.1, -0.2, 0.3, 0.4] * (DEFAULT_EMBEDDING_DIM // 4)
 
         # The cache is now module-level (production moved it from instance
         # attribute to module scope). Use the module-level cache API.
@@ -185,18 +186,21 @@ class TestEmbeddingQuantization:
         adapter = ReflectionDatabaseAdapterOneiric(settings=quantized_settings)
 
         # Create test embeddings with known similarities
-        base_embedding = np.random.randn(384).tolist()
+        base_embedding = np.random.randn(DEFAULT_EMBEDDING_DIM).tolist()
 
         # Create embeddings with varying similarity to base
         # Higher values = more similar
         embedding_95_similar = (
-            np.array(base_embedding) * 0.95 + np.random.randn(384) * 0.05
+            np.array(base_embedding) * 0.95
+            + np.random.randn(DEFAULT_EMBEDDING_DIM) * 0.05
         ).tolist()
         embedding_90_similar = (
-            np.array(base_embedding) * 0.90 + np.random.randn(384) * 0.10
+            np.array(base_embedding) * 0.90
+            + np.random.randn(DEFAULT_EMBEDDING_DIM) * 0.10
         ).tolist()
         embedding_85_similar = (
-            np.array(base_embedding) * 0.85 + np.random.randn(384) * 0.15
+            np.array(base_embedding) * 0.85
+            + np.random.randn(DEFAULT_EMBEDDING_DIM) * 0.15
         ).tolist()
 
         # Quantize all
@@ -243,8 +247,8 @@ class TestEmbeddingQuantization:
 
         min_vals, max_vals = calibration_data
 
-        assert len(min_vals) == 384, "Min values should be 384-dimensional"
-        assert len(max_vals) == 384, "Max values should be 384-dimensional"
+        assert len(min_vals) == DEFAULT_EMBEDDING_DIM, "Min values should be canonical"
+        assert len(max_vals) == DEFAULT_EMBEDDING_DIM, "Max values should be canonical"
 
         # Check that calibration data is reasonable (not all zeros, not identical)
         assert not np.allclose(min_vals, max_vals), "Min and max should be different"

@@ -477,7 +477,7 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             observations: List of observations
 
         Returns:
-            Float vector of dimension 384, or None if embedding unavailable
+            Float vector of the canonical dimension, or None if embedding unavailable
 
         """
         if not EMBEDDING_AVAILABLE:

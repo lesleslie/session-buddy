@@ -324,7 +324,7 @@ class ReflectionDatabase:
             text: Input text to embed
 
         Returns:
-            Float vector of dimension 384
+            Float vector of the canonical dimension
 
         Raises:
             RuntimeError: If embedding model not available

@@ -78,7 +78,7 @@ class StoredInvocation:
     selection_rank: int | None = None
     follow_up_actions: str | None = None  # JSON string
     error_type: str | None = None
-    embedding: bytes | None = None  # Packed 384-dim float32 array (1536 bytes)
+    embedding: bytes | None = None  # Packed canonical-width float32 array
     workflow_phase: str | None = None  # Oneiric workflow phase
     workflow_step_id: str | None = None  # Oneiric step identifier
 
@@ -233,7 +233,7 @@ class SkillsStorage:
             selection_rank: Position in recommendation list
             follow_up_actions: Actions taken after skill
             error_type: Type of error if failed
-            embedding: Optional packed 384-dim embedding (1536 bytes)
+            embedding: Optional packed canonical-width embedding
             workflow_phase: Optional Oneiric workflow phase (e.g., "setup", "execution")
             workflow_step_id: Optional Oneiric step identifier
 
@@ -788,7 +788,7 @@ class SkillsStorage:
         """Search for semantically similar skill invocations.
 
         Args:
-            query_embedding: Packed 384-dim query embedding (1536 bytes)
+            query_embedding: Packed canonical-width query embedding
             limit: Maximum number of results to return
             session_id: Optional session filter
             min_similarity: Minimum cosine similarity threshold (0.0 to 1.0)
@@ -801,7 +801,7 @@ class SkillsStorage:
             >>> storage = SkillsStorage(Path("skills.db"))
             >>>
             >>> # Search for similar invocations
-            >>> query_emb = pack_embedding([0.1, -0.2, ...])  # 384 dimensions
+            >>> query_emb = pack_embedding([0.1, -0.2, ...])  # canonical width
             >>> results = storage.search_by_query(query_emb, limit=5)
             >>> for invocation, score in results:
             ...     print(f"{invocation.skill_name}: {score:.3f}")

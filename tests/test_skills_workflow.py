@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 
 from session_buddy.core.skills_tracker import SkillsTracker
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.storage.skills_embeddings import pack_embedding
 from session_buddy.storage.skills_storage import SkillsStorage
 from session_buddy.storage.migrations.base import MigrationManager, MigrationLoader
@@ -68,11 +69,12 @@ def storage_with_workflow_data(migrated_db):
     storage = SkillsStorage(db_path=migrated_db)
 
     # Create sample embeddings
+    dim = DEFAULT_EMBEDDING_DIM
     embeddings = {
-        "setup": np.random.RandomState(42).randn(384).astype(np.float32),
-        "execution": np.random.RandomState(43).randn(384).astype(np.float32),
-        "verification": np.random.RandomState(44).randn(384).astype(np.float32),
-        "deployment": np.random.RandomState(45).randn(384).astype(np.float32),
+        "setup": np.random.RandomState(42).randn(dim).astype(np.float32),
+        "execution": np.random.RandomState(43).randn(dim).astype(np.float32),
+        "verification": np.random.RandomState(44).randn(dim).astype(np.float32),
+        "deployment": np.random.RandomState(45).randn(dim).astype(np.float32),
     }
 
     # Store invocations across different phases
@@ -460,7 +462,7 @@ class TestWorkflowIntegration:
         tracker = SkillsTracker(session_id="integration_test")
 
         # 1. Store workflow-phase-tagged invocations
-        embedding = np.random.randn(384).astype(np.float32)
+        embedding = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
 
         storage.store_invocation(
             skill_name="build-tool",
@@ -506,7 +508,7 @@ class TestWorkflowIntegration:
         storage = SkillsStorage(db_path=migrated_db)
 
         # Store data with workflow context
-        embedding = np.random.randn(384).astype(np.float32)
+        embedding = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
 
         storage.store_invocation(
             skill_name="example-skill",

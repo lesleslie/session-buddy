@@ -22,17 +22,16 @@ This command will:
 - **Initialize quality scoring V2** (filesystem-based assessment)
 - **Configure dependency injection** (ACB lifecycle management)
 - **Enable auto-session management** (git repos: automatic init/cleanup)
-- **Set up conversation memory** (local ONNX embeddings, no external APIs)
+- **Set up conversation memory** (local embeddings via llama-server, no external APIs)
 - **Configure Crackerjack integration** (quality metrics tracking)
 - **Create slash command shortcuts** (/start, /checkpoint, /end)
 
 **Key Features:**
 - 🚀 **Automatic for git repos**: Zero manual intervention required
-- 🔒 **Local-first privacy**: All embeddings generated locally via ONNX
+- 🔒 **Local-first privacy**: All embeddings generated locally via llama-server
 - 📊 **Quality monitoring**: V2 scoring with project health metrics
-- 🧠 **Semantic search**: 384-dimensional vector similarity
+- 🧠 **Semantic search**: canonical-width vector similarity
 - 🔄 **Auto-cleanup**: Crash-resilient session management
-- 📦 **ACB integration**: Modern async component lifecycle
 
 **Storage Options** (configurable in settings/session-buddy.yaml):
 - `file` - Local file storage (default)

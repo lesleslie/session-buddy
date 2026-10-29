@@ -18,6 +18,7 @@ import pytest
 # Import the module under test
 from session_buddy.adapters import reflection_adapter_oneiric as reflection_module
 from session_buddy.adapters.settings import ReflectionAdapterSettings
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 
 # Skip all tests if duckdb is not available
 duckdb = pytest.importorskip("duckdb")
@@ -1090,7 +1091,7 @@ class TestQuantizationUncovered:
             settings=settings,
         )
         # Not initialized, but quantization check runs first.
-        assert adapter._quantize_embedding([0.1] * 384) is None
+        assert adapter._quantize_embedding([0.1] * DEFAULT_EMBEDDING_DIM) is None
 
     async def test_dequantize_returns_none_when_disabled(
         self, tmp_path: Path,
@@ -1103,7 +1104,7 @@ class TestQuantizationUncovered:
         adapter = reflection_module.ReflectionDatabaseAdapterOneiric(
             settings=settings,
         )
-        assert adapter._dequantize_embedding([128] * 384) is None
+        assert adapter._dequantize_embedding([128] * DEFAULT_EMBEDDING_DIM) is None
 
     async def test_update_calibration_empty_input_is_noop(
         self, tmp_path: Path,

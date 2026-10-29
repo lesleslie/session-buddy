@@ -196,7 +196,7 @@ for result in similar:
 
 ### How It Works
 
-1. **Embedding Generation**: Error messages are converted to 384-dimensional vectors
+1. **Embedding Generation**: Error messages are converted to 4096-dimensional vectors
 1. **Cosine Similarity**: Compare current error with historical errors
 1. **Ranking**: Sort by similarity and resolution time
 1. **Return**: Top N most similar successful fixes
@@ -234,7 +234,7 @@ CREATE TABLE causal_error_events (
     context TEXT,  -- JSON
     session_id TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    embedding FLOAT[384],
+    embedding FLOAT[4096],
     resolved BOOLEAN DEFAULT FALSE
 );
 ```

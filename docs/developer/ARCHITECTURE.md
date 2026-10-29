@@ -258,7 +258,7 @@ class QualityMetrics:
 CREATE TABLE conversations (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
-    embedding FLOAT[384],        -- all-MiniLM-L6-v2 vectors
+    embedding FLOAT[4096],        -- canonical-width vectors
     project TEXT NOT NULL,
     timestamp TIMESTAMP NOT NULL,
     user_id TEXT DEFAULT 'default',
@@ -274,7 +274,7 @@ ON conversations USING ivfflat (embedding vector_cosine_ops);
 CREATE TABLE reflections (
     id TEXT PRIMARY KEY,
     content TEXT NOT NULL,
-    embedding FLOAT[384],
+    embedding FLOAT[4096],
     tags TEXT[],
     project TEXT,
     created_at TIMESTAMP NOT NULL,
@@ -307,7 +307,7 @@ erDiagram
     conversations {
         text id PK
         text content
-        float[384] embedding
+        float[4096] embedding
         text project
         timestamp timestamp
         text user_id
@@ -318,7 +318,7 @@ erDiagram
     reflections {
         text id PK
         text content
-        float[384] embedding
+        float[4096] embedding
         text[] tags
         text project
         timestamp created_at

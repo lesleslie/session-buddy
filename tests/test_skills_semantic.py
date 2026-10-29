@@ -1,7 +1,7 @@
 """Tests for skills semantic search and embedding functionality.
 
 Tests embedding generation, similarity search, and skill recommendations
-using the all-MiniLM-L6-v2 model for semantic understanding.
+using the canonical embedding width for semantic understanding.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.storage.migrations.base import MigrationManager
 from session_buddy.storage.skills_embeddings import (
     SkillsEmbeddingService,
@@ -81,11 +82,12 @@ def storage_with_embeddings(migrated_db):
 
     # Create sample embeddings for different types of queries
     # Using deterministic patterns for testing
+    dim = DEFAULT_EMBEDDING_DIM
     embeddings = {
-        "database": np.random.RandomState(42).randn(384).astype(np.float32),
-        "authentication": np.random.RandomState(43).randn(384).astype(np.float32),
-        "testing": np.random.RandomState(44).randn(384).astype(np.float32),
-        "deployment": np.random.RandomState(45).randn(384).astype(np.float32),
+        "database": np.random.RandomState(42).randn(dim).astype(np.float32),
+        "authentication": np.random.RandomState(43).randn(dim).astype(np.float32),
+        "testing": np.random.RandomState(44).randn(dim).astype(np.float32),
+        "deployment": np.random.RandomState(45).randn(dim).astype(np.float32),
     }
 
     # Store sample invocations
@@ -148,45 +150,46 @@ class TestEmbeddingUtilities:
 
     def test_pack_embedding_shape(self):
         """Test that packing produces correct byte size."""
-        embedding = np.random.randn(384).astype(np.float32)
+        embedding = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
         packed = pack_embedding(embedding)
 
-        assert len(packed) == 1536  # 384 dims × 4 bytes
+        assert len(packed) == DEFAULT_EMBEDDING_DIM * 4  # canonical width × 4 bytes
 
     def test_pack_embedding_wrong_shape(self):
         """Test that wrong shape raises error."""
         embedding = np.random.randn(100).astype(np.float32)
 
-        with pytest.raises(ValueError, match="Expected 384-dim"):
+        with pytest.raises(ValueError, match=f"Expected {DEFAULT_EMBEDDING_DIM}-dim"):
             pack_embedding(embedding)
 
     def test_pack_embedding_from_list(self):
         """Test packing from list."""
-        embedding = [0.1] * 384
+        embedding = [0.1] * DEFAULT_EMBEDDING_DIM
         packed = pack_embedding(embedding)
 
-        assert len(packed) == 1536
+        assert len(packed) == DEFAULT_EMBEDDING_DIM * 4
 
     def test_unpack_embedding(self):
         """Test unpacking produces correct shape."""
-        embedding = np.random.randn(384).astype(np.float32)
+        embedding = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
         packed = pack_embedding(embedding)
 
         unpacked = unpack_embedding(packed)
 
-        assert unpacked.shape == (384,)
+        assert unpacked.shape == (DEFAULT_EMBEDDING_DIM,)
         np.testing.assert_array_almost_equal(unpacked, embedding)
 
     def test_unpack_embedding_wrong_size(self):
         """Test that wrong size raises error."""
         wrong_blob = bytes(100)  # Wrong size
 
-        with pytest.raises(ValueError, match="Expected 1536 bytes"):
+        expected = DEFAULT_EMBEDDING_DIM * 4
+        with pytest.raises(ValueError, match=f"Expected {expected} bytes"):
             unpack_embedding(wrong_blob)
 
     def test_roundtrip_embedding(self):
         """Test that pack/unpack preserves data."""
-        original = np.random.randn(384).astype(np.float32)
+        original = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
         packed = pack_embedding(original)
         unpacked = unpack_embedding(packed)
 
@@ -198,15 +201,15 @@ class TestCosineSimilarity:
 
     def test_identical_vectors(self):
         """Test that identical vectors have similarity 1.0."""
-        vec = np.random.randn(384).astype(np.float32)
+        vec = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
         similarity = cosine_similarity(vec, vec)
 
         assert similarity == pytest.approx(1.0)
 
     def test_orthogonal_vectors(self):
         """Test that orthogonal vectors have similarity near 0.0."""
-        vec1 = np.array([1.0] + [0.0] * 383, dtype=np.float32)
-        vec2 = np.array([0.0] * 383 + [1.0], dtype=np.float32)
+        vec1 = np.array([1.0] + [0.0] * (DEFAULT_EMBEDDING_DIM - 1), dtype=np.float32)
+        vec2 = np.array([0.0] * (DEFAULT_EMBEDDING_DIM - 1) + [1.0], dtype=np.float32)
 
         similarity = cosine_similarity(vec1, vec2)
 
@@ -214,7 +217,7 @@ class TestCosineSimilarity:
 
     def test_opposite_vectors(self):
         """Test that opposite vectors have similarity -1.0."""
-        vec = np.random.randn(384).astype(np.float32)
+        vec = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
         opposite = -vec
 
         similarity = cosine_similarity(vec, opposite)
@@ -223,8 +226,8 @@ class TestCosineSimilarity:
 
     def test_from_list(self):
         """Test similarity calculation from lists."""
-        vec1 = [0.5] * 384
-        vec2 = [0.5] * 384
+        vec1 = [0.5] * DEFAULT_EMBEDDING_DIM
+        vec2 = [0.5] * DEFAULT_EMBEDDING_DIM
 
         similarity = cosine_similarity(vec1, vec2)
 
@@ -232,8 +235,8 @@ class TestCosineSimilarity:
 
     def test_zero_vectors(self):
         """Test that zero vectors return 0.0."""
-        vec1 = np.zeros(384, dtype=np.float32)
-        vec2 = np.random.randn(384).astype(np.float32)
+        vec1 = np.zeros(DEFAULT_EMBEDDING_DIM, dtype=np.float32)
+        vec2 = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
 
         similarity = cosine_similarity(vec1, vec2)
 
@@ -469,7 +472,7 @@ class TestIntegration:
 
         # Store invocation with embedding
         query_text = "how to fix database connection timeout"
-        embedding = np.random.randn(384).astype(np.float32)
+        embedding = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
 
         inv_id = storage.store_invocation(
             skill_name="db-fix",
@@ -499,7 +502,7 @@ class TestIntegration:
 
         # Store multiple related invocations
         embeddings = [
-            np.random.RandomState(i).randn(384).astype(np.float32)
+            np.random.RandomState(i).randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
             for i in range(5)
         ]
 
@@ -540,7 +543,7 @@ class TestIntegration:
         )
 
         # Store new record with embedding
-        embedding = np.random.randn(384).astype(np.float32)
+        embedding = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
         storage.store_invocation(
             skill_name="new-skill",
             invoked_at="2025-02-10T12:00:00",
@@ -573,7 +576,7 @@ class TestPerformance:
 
         # Store 100 invocations with embeddings
         for i in range(100):
-            embedding = np.random.randn(384).astype(np.float32)
+            embedding = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
             storage.store_invocation(
                 skill_name=f"skill-{i}",
                 invoked_at=f"2025-02-10T12:{i:02d}:00",
@@ -586,7 +589,7 @@ class TestPerformance:
         # Search should still be fast
         import time
 
-        query_emb = np.random.randn(384).astype(np.float32)
+        query_emb = np.random.randn(DEFAULT_EMBEDDING_DIM).astype(np.float32)
         start = time.time()
         results = storage.search_by_query(pack_embedding(query_emb), limit=10)
         duration = time.time() - start
@@ -595,6 +598,8 @@ class TestPerformance:
         assert duration < 1.0
         assert len(results) <= 10
 
+    @pytest.mark.slow
+    @pytest.mark.external
     def test_batch_embedding_generation(self, migrated_db):
         """Test batch embedding generation performance."""
         service = SkillsEmbeddingService(batch_size=16)
@@ -613,6 +618,7 @@ class TestPerformance:
         # Should generate all embeddings (may be None if ONNX unavailable)
         assert len(embeddings) == 32
 
-        # Should complete in reasonable time
-        # (may be slower if using fallback mock embeddings)
-        assert duration < 10.0
+        # Should complete in reasonable time. The provider serves 4096-dim
+        # vectors from a CPU-only llama-server, where a batch of 32 takes
+        # ~150s. This is a hang/regression guard, not a latency target.
+        assert duration < 300.0
