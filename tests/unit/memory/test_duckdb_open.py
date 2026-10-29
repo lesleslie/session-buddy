@@ -46,7 +46,10 @@ except Exception:
     print("VSS_MISSING")
     sys.exit(3)
 conn.execute("CREATE TABLE t (id VARCHAR, embedding FLOAT[4096])")
-conn.execute("CREATE INDEX idx ON t USING HNSW (embedding)")
+conn.execute(
+    "CREATE INDEX idx ON t USING HNSW (embedding) "
+    "WITH (metric = 'cosine', M = 16, ef_construction = 200)"
+)
 real = "[" + ",".join(["0.5"] * 4096) + "]"
 conn.execute("INSERT INTO t VALUES ('a', " + real + ")")
 print("VSS_OK")
@@ -314,9 +317,14 @@ def test_open_healthy_duckdb_keeps_the_writes_a_poisoned_wal_holds(
         "the row that lived only in the WAL must survive the recovery"
     )
     indexes = conn.execute(
-        "SELECT index_name FROM duckdb_indexes() WHERE sql ILIKE '%USING HNSW%'"
+        "SELECT index_name, sql FROM duckdb_indexes() WHERE sql ILIKE '%USING HNSW%'"
     ).fetchall()
     assert indexes, "the HNSW index must be rebuilt"
+    # The rebuild has to keep the index's tuning: an HNSW index rebuilt
+    # with the default M and ef_construction is a different index.
+    assert "metric = 'cosine'" in indexes[0][1]
+    assert "M = 16" in indexes[0][1]
+    assert "ef_construction = 200" in indexes[0][1]
     conn.close()
 
 
@@ -335,3 +343,69 @@ def test_flush_poisoned_wal_declines_when_there_is_no_hnsw_index(
     conn.close()
 
     assert duckdb_open.flush_poisoned_wal(str(db)) is None
+
+
+# ============================================================================
+# The recovery never executes text read out of the database
+# ============================================================================
+
+
+def _create_hnsw_db(db: Path, table_sql: str, index_sql: str) -> None:
+    """Create a database with one HNSW index and a table to protect."""
+    conn = duckdb.connect(str(db))
+    conn.execute("LOAD 'vss'")
+    conn.execute("SET hnsw_enable_experimental_persistence=true")
+    conn.execute(table_sql)
+    conn.execute("CREATE TABLE marker (x INTEGER)")
+    conn.execute(index_sql)
+    conn.close()
+
+
+def test_flush_poisoned_wal_refuses_an_index_with_a_hostile_name(
+    tmp_path: Path,
+) -> None:
+    """A name the recovery cannot vouch for means it declines, not escapes.
+
+    The catalog's SQL text is read to find the index and its options,
+    but it is never executed: the statement is composed from validated
+    identifiers and options. A name that is not a plain identifier
+    cannot be composed, so the recovery declines -- and the schema is
+    left untouched rather than rebuilt from unvetted text.
+    """
+    db = tmp_path / "reflection.duckdb"
+    _create_hnsw_db(
+        db,
+        "CREATE TABLE t (id VARCHAR, embedding FLOAT[4096])",
+        'CREATE INDEX "evil; DROP TABLE marker; --" ON t USING HNSW (embedding)',
+    )
+
+    assert duckdb_open.flush_poisoned_wal(str(db)) is None
+
+    conn = duckdb.connect(str(db))
+    # The marker table still exists: nothing was dropped, so nothing ran.
+    assert conn.execute("SELECT count(*) FROM marker").fetchone()[0] == 0
+    assert (
+        conn.execute(
+            "SELECT count(*) FROM duckdb_indexes() WHERE sql ILIKE '%USING HNSW%'"
+        ).fetchone()[0]
+        == 1
+    ), "the index must be left in place"
+    conn.close()
+
+
+def test_flush_poisoned_wal_refuses_an_index_with_a_hostile_column(
+    tmp_path: Path,
+) -> None:
+    """The same rule applies to the indexed column."""
+    db = tmp_path / "reflection.duckdb"
+    _create_hnsw_db(
+        db,
+        'CREATE TABLE t (id VARCHAR, "embedding; DROP TABLE marker" FLOAT[4096])',
+        'CREATE INDEX evil_idx ON t USING HNSW ("embedding; DROP TABLE marker")',
+    )
+
+    assert duckdb_open.flush_poisoned_wal(str(db)) is None
+
+    conn = duckdb.connect(str(db))
+    assert conn.execute("SELECT count(*) FROM marker").fetchone()[0] == 0
+    conn.close()

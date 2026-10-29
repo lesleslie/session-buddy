@@ -28,6 +28,7 @@ failure is one of the known WAL signatures.
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -123,26 +124,171 @@ def purge_wal(db_path: str) -> bool:
     return True
 
 
+#: A plain SQL identifier: a letter or underscore followed by letters,
+#: digits, underscores or ``$``. The recovery composes the statements it
+#: executes from catalog fields, so a name it cannot vouch for is a
+#: reason to decline the recovery rather than to escape it.
+_PLAIN_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
+
+#: The body of a string literal the recovery is willing to re-quote.
+_SAFE_LITERAL = re.compile(r"^[A-Za-z0-9_]+$")
+
+#: One ``key = value`` pair from an index's ``WITH`` clause. The value is
+#: either an integer or a single-quoted literal with a safe body --
+#: anything else is refused.
+_HNSW_OPTION = re.compile(
+    r"^(?P<key>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<value>-?\d+|'[A-Za-z0-9_]*')$"
+)
+
+#: The ``WITH (...)`` clause at the end of an index definition.
+_HNSW_WITH_CLAUSE = re.compile(
+    r"WITH\s*\((?P<options>[^()]*)\)\s*;?\s*$", re.IGNORECASE
+)
+
+
 def _quote_identifier(name: str) -> str:
     """Quote a SQL identifier so it is safe to use in DDL."""
     return '"' + name.replace('"', '""') + '"'
 
 
-def _hnsw_index_definitions(conn: duckdb.DuckDBPyConnection) -> list[tuple[str, str]]:
+def _safe_identifier(name: str) -> str | None:
+    """Quote a plain SQL identifier, or ``None`` when it is not plain.
+
+    The recovery composes the statements it executes from catalog
+    fields, so every name it uses has to be one it can vouch for. A
+    name that is not a plain identifier is refused rather than escaped,
+    and the recovery declines.
+    """
+    if not _PLAIN_IDENTIFIER.match(name):
+        return None
+    return _quote_identifier(name)
+
+
+def _parse_indexed_columns(expressions: str) -> list[str] | None:
+    """Parse the catalog's ``expressions`` rendering into column names.
+
+    ``duckdb_indexes()`` renders the key list as text (``[embedding]``).
+    The rendering is split and each part is validated as a plain
+    identifier; the caller quotes them itself.
+    """
+    text = (expressions or "").strip()
+    if not (text.startswith("[") and text.endswith("]")):
+        return None
+    parts = [part.strip() for part in text[1:-1].split(",")]
+    if not parts or any(not _PLAIN_IDENTIFIER.match(part) for part in parts):
+        return None
+    return parts
+
+
+def _parse_hnsw_options(sql: str) -> list[str] | None:
+    """Parse an index definition's ``WITH`` clause into validated pairs.
+
+    Only ``key = <integer>`` and ``key = '<safe literal>'`` are accepted.
+    Each pair is re-rendered from the parsed values, so the statement
+    the recovery executes is built from validated data rather than from
+    text read out of the database.
+    """
+    match = _HNSW_WITH_CLAUSE.search(sql or "")
+    if match is None:
+        return []
+    rendered: list[str] = []
+    for part in match.group("options").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        option = _HNSW_OPTION.match(part)
+        if option is None:
+            return None
+        value = option.group("value")
+        if value.startswith("'") and not _SAFE_LITERAL.match(value[1:-1]):
+            return None
+        rendered.append(f"{option.group('key')} = {value}")
+    return rendered
+
+
+def _build_hnsw_create(
+    schema_name: str,
+    table_name: str,
+    index_name: str,
+    expressions: str,
+    sql: str,
+) -> str | None:
+    """Compose an HNSW index's ``CREATE INDEX`` statement.
+
+    Every part comes from the catalog's structured fields and is
+    validated here: the schema, table, index and column names have to
+    be plain identifiers, and the ``WITH`` options have to be integers
+    or safe literals. The statement is assembled from those validated
+    parts -- the catalog's own SQL text is never executed, because text
+    read back out of a data store is not a trusted source for a
+    statement to run, and DuckDB's ``execute`` runs every statement in
+    the string it is given.
+
+    Returns:
+        The statement, or ``None`` when a part cannot be validated.
+    """
+    quoted_index = _safe_identifier(index_name)
+    quoted_table = _safe_identifier(table_name)
+    quoted_schema = _safe_identifier(schema_name)
+    if quoted_index is None or quoted_table is None or quoted_schema is None:
+        return None
+    columns = _parse_indexed_columns(expressions)
+    if columns is None:
+        return None
+    options = _parse_hnsw_options(sql)
+    if options is None:
+        return None
+    statement = (
+        f"CREATE INDEX {quoted_index} ON {quoted_schema}.{quoted_table} "
+        f"USING HNSW ({', '.join(_quote_identifier(column) for column in columns)})"
+    )
+    if options:
+        statement += f" WITH ({', '.join(options)})"
+    return statement
+
+
+def _hnsw_index_definitions(
+    conn: duckdb.DuckDBPyConnection,
+) -> list[tuple[str, str]] | None:
     """Return ``(index_name, create_statement)`` for every HNSW index.
 
-    The statement is the index's own ``CREATE INDEX`` text, which is what
-    the flush re-runs to rebuild the index.
+    The statements are composed from the catalog's structured fields --
+    see :func:`_build_hnsw_create`. The ``sql`` column is read only to
+    find the candidates and their options; it is never executed.
+
+    Returns:
+        The definitions; an empty list when the database has no HNSW
+        index; or ``None`` when an index cannot be composed safely, in
+        which case the caller must not touch the schema.
     """
     try:
         rows = conn.execute(
-            "SELECT index_name, sql FROM duckdb_indexes() WHERE sql ILIKE ?",
+            "SELECT schema_name, table_name, index_name, expressions, sql "
+            "FROM duckdb_indexes() WHERE sql ILIKE ?",
             ["%USING HNSW%"],
         ).fetchall()
     except Exception:
         logger.exception("Could not list the HNSW indexes of the database")
-        return []
-    return [(str(name), str(sql)) for name, sql in rows if name and sql]
+        return None
+    definitions: list[tuple[str, str]] = []
+    for schema_name, table_name, index_name, expressions, sql in rows:
+        statement = _build_hnsw_create(
+            str(schema_name),
+            str(table_name),
+            str(index_name),
+            str(expressions or ""),
+            str(sql or ""),
+        )
+        if statement is None:
+            logger.error(
+                "Refusing to rebuild the HNSW index %r: its definition does "
+                "not consist of validated identifiers and options, so the "
+                "statement cannot be composed safely.",
+                index_name,
+            )
+            return None
+        definitions.append((str(index_name), statement))
+    return definitions
 
 
 def _recreate_indexes(
@@ -190,8 +336,12 @@ def flush_poisoned_wal(
         load_vector_extensions(conn)
         definitions = _hnsw_index_definitions(conn)
         if not definitions:
-            # The poison is not an HNSW index, so this recovery cannot
-            # help; the caller falls back to discarding the WAL.
+            # Either the database has no HNSW index, or one of them
+            # cannot be composed into a statement this module is willing
+            # to execute. Neither case is something this recovery can
+            # fix, and touching the schema on a guess is worse than not
+            # touching it, so the caller falls back to discarding the
+            # WAL.
             conn.close()
             return None
         for index_name, _ in definitions:

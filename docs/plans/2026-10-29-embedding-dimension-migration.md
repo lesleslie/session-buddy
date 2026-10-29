@@ -284,16 +284,26 @@ with a single synthetic row and no category evolution at all.
 
 `session_buddy/memory/duckdb_open.py` now recovers in two tiers. The
 first tier keeps the writes: the HNSW indexes are dropped, the database
-is checkpointed, and the indexes are rebuilt from their own
-`CREATE INDEX` statements (captured from `duckdb_indexes().sql` before
-the drop). The second tier — used when the first does not apply — is the
-old behaviour: discard the sidecar and reopen at the last good
-checkpoint.
+is checkpointed, and the indexes are rebuilt. The second tier — used
+when the first does not apply — is the old behaviour: discard the
+sidecar and reopen at the last good checkpoint.
 
-Verified against a copy of the live database: 7 rows in, 7 rows out, both
-HNSW indexes rebuilt, and the WAL flushed to zero. Re-opening the
-recovered database is clean — the WAL is empty, so the probe's checkpoint
-succeeds and the recovery does not repeat.
+The rebuild statement is **composed**, not copied. `duckdb_indexes()` is
+read for the schema, table, index and column names and for the `WITH`
+options, but its `sql` column is never executed: text read back out of a
+data store is not a trusted source for a statement to run, and DuckDB's
+`execute` runs *every* statement in the string it is given. Each name
+must be a plain identifier and each option must be an integer or a safe
+literal; anything else makes the recovery decline rather than guess.
+The options are what make this faithful — an HNSW index rebuilt with
+the default `M` and `ef_construction` is a different index — and the
+rebuilt index's option set is verified equal to the original's.
+
+Verified against a copy of the live database: 8 rows in, 8 rows out, both
+HNSW indexes rebuilt with their `metric`, `M` and `ef_construction`
+intact, and the WAL flushed to zero. Re-opening the recovered database
+is clean — the WAL is empty, so the probe's checkpoint succeeds and the
+recovery does not repeat.
 
 Cost: ~3.4 s at startup when the WAL holds HNSW rows (1.75 s for the
 failing checkpoint, 1.66 s for the successful one, 0.01 s to rebuild the
