@@ -219,6 +219,34 @@ would have made the quantization-broadcast bug above invisible to the suite.
 
 ## Still open
 
+- **The live database's WAL is being poisoned, and the recovery costs
+  writes.** After the embedding gate was opened, the server's WAL sidecar
+  began failing its checkpoint with DuckDB's fatal
+  *"Operation requires a flat or constant vector but a non-flat/non-constant
+  vector was encountered"*. The server's built-in recovery detects this and
+  discards the WAL, reopening at the last good checkpoint — so the
+  database survives, but **un-checkpointed writes are lost**. The same
+  class of failure is already recorded in
+  `memory/duckdb-fixed-size-array-dim-mismatch.md` (the prior incident on
+  this database) and in `memory/duckdb_open.py::open_healthy_duckdb`.
+
+  The trigger was **not** isolated. Ruled out by experiment: a wrong-width
+  binding into a `FLOAT[4096]` column (DuckDB raises a clean
+  `ConversionException`); HNSW + `FLOAT[4096]` + a 4096-dim vector in
+  isolation; the adapter's own `store_conversation` / `store_reflection`
+  writes (both checkpoint cleanly on a copy of the live database); the
+  legacy `ReflectionDatabase` opening the same file; and touching
+  `default_conversations` (whose HNSW index survived the bulk delete).
+  Reproduced only through the live server, which does more than the
+  adapter — including a second opener that DuckDB rejects with *"Can't open
+  a connection to same database file with a different configuration"* (the
+  vss extension is bound to the database *instance*, not the file).
+
+  **Next step:** capture the failing checkpoint under a debugger or with
+  `duckdb`'s `SET threads=1` and a fresh WAL, on a copy of the live file,
+  with the server's full write path exercised — the MCP tool path
+  (OWASP memory guard + category evolution + fingerprinting) rather than
+  the adapter directly.
 - **The legacy write path still targets the retired V1 tables.**
   `reflection/schema.py` creates the V2 tables (`conversations_v2`,
   `reflections_v2`), but `reflection/storage.py` and `reflection/search.py`
