@@ -1165,7 +1165,7 @@ class TestResetReflectionDatabaseImpl:
 
 
 class TestRegisterMemoryTools:
-    def test_registers_seven_tools(self) -> None:
+    def test_registers_all_memory_tools(self) -> None:
         mcp = _FakeMCP()
         register_memory_tools(mcp)
         assert set(mcp.tools.keys()) == {
@@ -1174,8 +1174,10 @@ class TestRegisterMemoryTools:
             "search_summary",
             "search_by_file",
             "search_by_concept",
+            "search_by_source_session",
             "reflection_stats",
             "reset_reflection_database",
+            "delete_reflection",
         }
 
     async def test_store_reflection_tool_delegates(

@@ -32,6 +32,7 @@ import session_buddy.tools.memory_tools as memory_tools
 def test_module_reexports_expected_names() -> None:
     """The public surface documented in ``__all__`` is fully populated."""
     expected = {
+        "delete_reflection",
         "quick_search",
         "reflection_stats",
         "register_memory_tools",

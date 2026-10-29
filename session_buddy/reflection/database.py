@@ -775,7 +775,9 @@ class ReflectionDatabase:
             projects = [row[0] for row in projects_rows if row and row[0] is not None]
 
             provider = (
-                "http-embedding-providers" if self.enable_embeddings else "text-search-only"
+                "http-embedding-providers"
+                if self.enable_embeddings
+                else "text-search-only"
             )
             return {
                 "conversations_count": conv_count,

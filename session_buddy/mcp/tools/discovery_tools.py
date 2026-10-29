@@ -169,6 +169,7 @@ ALL_TOOLS_REGISTRY: dict[str, str] = {
     "lint_memory": "Lint a reflection for OWASP memory-guard false-negatives (homoglyphs, base64 payloads).",
     "vote_on_reflection": "Upvote/downvote a reflection for relevance.",
     "reset_reflection_database": "Reset the reflection database.",
+    "delete_reflection": "Delete a single reflection by ID.",
     "deduplicate_content": "Find and remove duplicate reflections.",
     "deduplication_stats": "Statistics on duplicate content.",
     "find_duplicates": "Find duplicate entries in the database.",

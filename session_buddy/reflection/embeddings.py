@@ -73,9 +73,12 @@ async def _try_llama_server(text: str) -> list[float] | None:
     import httpx2 as httpx
 
     try:
-        async with _embedding_semaphore(), httpx.AsyncClient(
-            timeout=httpx.Timeout(EMBEDDING_HTTP_TIMEOUT_S, connect=5.0)
-        ) as client:
+        async with (
+            _embedding_semaphore(),
+            httpx.AsyncClient(
+                timeout=httpx.Timeout(EMBEDDING_HTTP_TIMEOUT_S, connect=5.0)
+            ) as client,
+        ):
             resp = await client.post(
                 _get_llama_server_url(),
                 json={"input": [text]},

@@ -766,10 +766,9 @@ async def _delete_duplicate_content(
                     [item_id],
                 )
             else:  # reflection
-                db.conn.execute(
-                    f"DELETE FROM {db._table('reflections')} WHERE id = ?",
-                    [item_id],
-                )
+                # Route through the adapter so the derived state is cleaned
+                # the same way the delete_reflection MCP tool cleans it.
+                await db.delete_reflection(item_id)
 
             duplicates_removed += 1
             ids_removed.append(item_id)

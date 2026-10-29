@@ -900,6 +900,87 @@ async def _search_by_source_session_impl(
 # ============================================================================
 
 
+# ============================================================================
+# Delete Reflection Tool
+# ============================================================================
+
+
+async def _delete_reflection_operation(
+    db: ReflectionDatabaseAdapter,
+    reflection_id: str,
+) -> str:
+    """Delete one reflection by ID and report the outcome."""
+    from session_buddy.mcp.tools import tasks_storage
+
+    # A task is a reflection row plus a sidecar row. The task surface
+    # enforces per-owner visibility (tasks_security.enforce_visibility_filter);
+    # the memory surface does not. Deleting a task-backed reflection here
+    # would destroy the task's row and its sidecar with no ownership check,
+    # so refuse it and point at the task lifecycle instead.
+    metadata: dict[str, t.Any] | None = None
+    try:
+        metadata = tasks_storage.read_task_metadata(
+            tasks_storage.get_engine(),
+            reflection_id,
+        )
+    except Exception:  # noqa: BLE001 - an unreadable sidecar must not block the delete
+        _get_logger().exception(
+            f"Failed to read task-metadata sidecar for reflection {reflection_id}"
+        )
+
+    if metadata and metadata.get("kind") == "task":
+        return ToolMessages.operation_failed(
+            "Delete reflection",
+            f"Reflection {reflection_id} backs a task owned by "
+            f"{metadata.get('owner', 'an unknown owner')}. Remove the task "
+            f"through the task lifecycle tools instead.",
+        )
+
+    deleted = await db.delete_reflection(reflection_id)
+
+    # The task-metadata sidecar lives in a separate SQLite database, so the
+    # DuckDB delete cannot cascade into it. Drop the row here or it becomes
+    # an orphan — ignored by find_tasks_by_metadata, but still stale state.
+    sidecar_removed = False
+    try:
+        sidecar_removed = tasks_storage.delete_task_metadata(
+            tasks_storage.get_engine(),
+            reflection_id,
+        )
+    except Exception:  # noqa: BLE001 - sidecar cleanup must not fail the delete
+        _get_logger().exception(
+            f"Failed to clean task-metadata sidecar for reflection {reflection_id}"
+        )
+
+    if not deleted:
+        return ToolMessages.empty_results(
+            "delete_reflection",
+            f"No reflection with ID '{reflection_id}' exists.",
+        )
+
+    details: dict[str, t.Any] = {"reflection_id": reflection_id}
+    if sidecar_removed:
+        details["task_metadata_removed"] = True
+    return ToolMessages.success(f"Deleted reflection {reflection_id}", details)
+
+
+async def _delete_reflection_impl(reflection_id: str) -> str:
+    """Implementation for the delete_reflection tool."""
+    if not _check_reflection_tools_available():
+        return "Reflection tools not available. Install dependencies: uv sync --extra embeddings"
+
+    if not reflection_id or not reflection_id.strip():
+        return ToolMessages.validation_error(
+            "reflection_id",
+            "reflection_id cannot be empty",
+        )
+
+    async def operation(db: ReflectionDatabaseAdapter) -> str:
+        return await _delete_reflection_operation(db, reflection_id.strip())
+
+    return await _execute_simple_database_tool(operation, "Delete reflection")
+
+
 async def _close_db_connection(conn: t.Any) -> None:
     """Close database connection, handling both async and sync cases."""
     close_method = getattr(conn, "close", None)
@@ -1076,6 +1157,20 @@ def _register_core_memory_tools(mcp: Any) -> None:
         scanning every reflection.
         """
         return await _search_by_source_session_impl(session_id, limit)
+
+    @mcp.tool()  # type: ignore[untyped-decorator]
+    async def delete_reflection(reflection_id: str) -> str:
+        """Delete a reflection by its ID.
+
+        Removes the reflection and everything derived from it — its semantic
+        embedding, its MinHash duplicate-detection fingerprint and its tags
+        all live on the same row, so one delete clears them together.
+
+        Idempotent: an unknown ID is reported as "not found" rather than an
+        error. This is the surgical counterpart to
+        ``reset_reflection_database``, which drops the whole collection.
+        """
+        return await _delete_reflection_impl(reflection_id)
 
     @mcp.tool()  # type: ignore[untyped-decorator]
     async def reset_reflection_database() -> str:

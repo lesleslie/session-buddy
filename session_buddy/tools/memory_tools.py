@@ -20,6 +20,7 @@ from __future__ import annotations
 # name. We import the *impls* and call them — the public-name wrappers
 # at the bottom of this file are what external callers (and tests) use.
 from session_buddy.mcp.tools.memory.memory_tools import (
+    _delete_reflection_impl,
     _quick_search_impl,
     _reflection_stats_impl,
     _search_by_concept_impl,
@@ -98,7 +99,20 @@ async def search_reflections(
     )
 
 
+async def delete_reflection(reflection_id: str) -> str:
+    """Delete a reflection by its ID.
+
+    Thin wrapper over the MCP implementation so the name resolves from the
+    conventional ``session_buddy.tools.memory_tools`` path. Removes the
+    reflection and everything derived from it (semantic embedding,
+    duplicate-detection fingerprint, tags). Idempotent: an unknown ID
+    reports "not found" rather than raising.
+    """
+    return await _delete_reflection_impl(reflection_id)
+
+
 __all__ = [
+    "delete_reflection",
     "quick_search",
     "reflection_stats",
     "register_memory_tools",

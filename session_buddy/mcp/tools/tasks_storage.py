@@ -185,6 +185,33 @@ def read_task_metadata(
         return dict(row.metadata_json) if row and row.metadata_json else None
 
 
+def delete_task_metadata(
+    engine: Engine,
+    reflection_id: str,
+) -> bool:
+    """Delete the task-metadata sidecar row for ``reflection_id``.
+
+    The sidecar lives in a separate SQLite database from the DuckDB
+    ``reflections_v2`` table, so deleting the reflection cannot cascade
+    into it. Callers that remove a reflection should call this too, or the
+    sidecar row is orphaned — ignored by ``find_tasks_by_metadata``, but
+    still stale state on disk.
+
+    Returns:
+        True if a row was removed, False if none existed.
+    """
+    ensure_metadata_schema(engine)
+    with Session(engine) as session:
+        row: ReflectionMetadata | None = session.exec(  # ty: ignore[invalid-assignment]
+            select(ReflectionMetadata).where(ReflectionMetadata.id == reflection_id),
+        ).first()
+        if row is None:
+            return False
+        session.delete(row)
+        session.commit()
+        return True
+
+
 def find_tasks_by_metadata(
     engine: Engine,
     metadata_filter: dict[str, Any],
@@ -216,6 +243,7 @@ def find_tasks_by_metadata(
 __all__ = [
     "ReflectionMetadata",
     "create_metadata_engine",
+    "delete_task_metadata",
     "ensure_metadata_schema",
     "find_tasks_by_metadata",
     "get_engine",

@@ -13,6 +13,7 @@ _Regenerated 2026-10-29 by `crackerjack.tools.plan_index_sync` (phase)._
 | Path | Date | Status | Role | Topic | Title |
 |---|---|---|---|---|---|
 | [`docs/plans/2026-10-29-embedding-dimension-migration.md`](2026-10-29-embedding-dimension-migration.md) | 2026-10-29 | `shipped` | `implementation` | `embeddings` | Embedding Dimension Migration — 2026-10-29 |
+| [`docs/plans/2026-10-29-reflection-delete-tool.md`](2026-10-29-reflection-delete-tool.md) | 2026-10-29 | `active` | `implementation` | `memory-architecture` | Per-Reflection Delete Tool |
 
 ### Docs: specs
 
@@ -42,8 +43,8 @@ _Regenerated 2026-10-29 by `crackerjack.tools.plan_index_sync` (phase)._
 | Role \\ Lifecycle | draft | active | partial | shipped | complete | Total |
 |---|---|---|---|---|---|---|
 | `canonical` | 3 | 3 | · | · | · | **6** |
-| `implementation` | · | 1 | · | 1 | · | **2** |
+| `implementation` | · | 2 | · | 1 | · | **3** |
 | `umbrella` | · | · | · | · | · | **0** |
 | `historical` | · | · | · | · | · | **0** |
 | `superseded` | · | · | · | · | · | **0** |
-| **Total** | **3** | **4** | **·** | **1** | **·** | **8** |
+| **Total** | **3** | **5** | **·** | **1** | **·** | **9** |

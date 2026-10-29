@@ -326,4 +326,3 @@ class TestScalability:
             assert growth_rate < expected_max_growth, (
                 f"Performance growth too high: {growth_rate}x vs expected <{expected_max_growth}x"
             )
-

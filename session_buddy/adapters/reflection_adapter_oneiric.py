@@ -2699,6 +2699,59 @@ class ReflectionDatabaseAdapterOneiric:
         cur = self.conn.execute(sql, params)
         return cur.rowcount > 0
 
+    async def delete_reflection(self, reflection_id: str) -> bool:
+        """Delete a reflection by ID.
+
+        The v2 schema keeps content, embedding, fingerprint and tags on a
+        single ``reflections_v2`` row, so removing that row removes every
+        derived artifact with it: the semantic-search embedding, the MinHash
+        fingerprint used for duplicate detection, and the tag JSON.
+
+        There is no child table keyed on ``reflections_v2.id`` to cascade
+        into — the ``memory_*`` tables that carry FOREIGN KEYs all reference
+        ``conversations_v2(id)``. ``memory_provenance.memory_id`` is
+        unconstrained, so it is cleaned defensively here rather than relying
+        on a constraint that does not exist.
+
+        The query cache stores result *IDs* and re-reads the rows on a hit
+        (``_get_cached_reflections``), so a deleted reflection drops out of
+        cached searches on the next query without a cache purge.
+
+        Args:
+            reflection_id: ID of the reflection to delete.
+
+        Returns:
+            True if a row was removed, False if no reflection with that ID
+            exists. Idempotent: deleting an unknown ID is not an error.
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        if not reflection_id:
+            return False
+
+        table = self._table("reflections")
+        cur = self.conn.execute(
+            f"DELETE FROM {table} WHERE id = ?",
+            [reflection_id],
+        )
+        deleted = cur.rowcount > 0
+
+        # Only clean provenance for a reflection that actually existed.
+        # memory_provenance.memory_id shares its id space with conversations
+        # (store_conversation writes it, store_reflection does not), so an
+        # unconditional delete would destroy a conversation's lineage rows
+        # when the caller passes a conversation id -- and report "no
+        # reflection with that ID exists" while doing it.
+        if deleted:
+            with suppress(Exception):
+                self.conn.execute(
+                    "DELETE FROM memory_provenance WHERE memory_id = ?",
+                    [reflection_id],
+                )
+
+        return deleted
+
     async def similarity_search(
         self, query: str, limit: int = 10
     ) -> list[dict[str, t.Any]]:
