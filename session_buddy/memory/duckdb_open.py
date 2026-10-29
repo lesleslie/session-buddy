@@ -6,10 +6,15 @@ the whole database instance, and the invalidation is persisted in the
 poison, so the database is dead on arrival and restarting the process
 does not clear it: the poison is on disk.
 
-The data file itself is fine. Recovery is to discard the WAL sidecar and
-reopen at the last good checkpoint. The writes that were in the WAL but
-never checkpointed are lost, which is the right trade for a database
-that cannot otherwise be opened at all.
+The data file itself is fine. Recovery comes in two tiers. The first
+tier flushes the WAL *without* losing the writes it holds: DuckDB cannot
+rebuild an HNSW index over rows that were replayed from the WAL, so the
+index -- and only the index -- is dropped, checkpointed around, and
+rebuilt from its own ``CREATE INDEX`` statement. The second tier, used
+when the first does not apply, discards the WAL sidecar and reopens at
+the last good checkpoint. That loses the writes that were in the WAL but
+never checkpointed, which is the right trade for a database that cannot
+otherwise be opened at all.
 
 The important detail is *when* to look. A poisoned WAL does not make
 ``duckdb.connect()`` fail -- the instance is simply invalid on arrival,
@@ -48,6 +53,7 @@ _probed_paths: set[str] = set()
 
 __all__ = [
     "WAL_ERROR_SIGNATURES",
+    "flush_poisoned_wal",
     "is_wal_poison",
     "load_vector_extensions",
     "open_healthy_duckdb",
@@ -117,6 +123,109 @@ def purge_wal(db_path: str) -> bool:
     return True
 
 
+def _quote_identifier(name: str) -> str:
+    """Quote a SQL identifier so it is safe to use in DDL."""
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _hnsw_index_definitions(conn: duckdb.DuckDBPyConnection) -> list[tuple[str, str]]:
+    """Return ``(index_name, create_statement)`` for every HNSW index.
+
+    The statement is the index's own ``CREATE INDEX`` text, which is what
+    the flush re-runs to rebuild the index.
+    """
+    try:
+        rows = conn.execute(
+            "SELECT index_name, sql FROM duckdb_indexes() WHERE sql ILIKE ?",
+            ["%USING HNSW%"],
+        ).fetchall()
+    except Exception:
+        logger.exception("Could not list the HNSW indexes of the database")
+        return []
+    return [(str(name), str(sql)) for name, sql in rows if name and sql]
+
+
+def _recreate_indexes(
+    conn: duckdb.DuckDBPyConnection, definitions: list[tuple[str, str]]
+) -> bool:
+    """Rebuild the HNSW indexes that were dropped for the flush.
+
+    Returns:
+        True when every index was rebuilt.
+    """
+    rebuilt = True
+    for index_name, statement in definitions:
+        try:
+            conn.execute(statement)
+        except Exception:
+            logger.exception("Could not rebuild the HNSW index %s", index_name)
+            rebuilt = False
+    return rebuilt
+
+
+def flush_poisoned_wal(
+    db_path: str, *, config: dict[str, Any] | None = None
+) -> duckdb.DuckDBPyConnection | None:
+    """Flush a poisoned WAL *without* losing the writes it holds.
+
+    DuckDB cannot reconstruct an HNSW index over rows that were replayed
+    from the WAL, so the checkpoint that would persist them fails and the
+    instance is invalidated. The index is the only thing that cannot be
+    rebuilt -- the data itself is fine. Dropping the index, checkpointing,
+    and recreating the index from its own ``CREATE INDEX`` statement
+    flushes the WAL *and* keeps every un-checkpointed write.
+
+    Returns:
+        A live connection with the WAL flushed, or ``None`` when the
+        recovery does not apply (no HNSW index, or the flush failed).
+    """
+    connect_kwargs: dict[str, Any] = {} if config is None else {"config": config}
+    try:
+        conn = duckdb.connect(db_path, **connect_kwargs)
+    except Exception:
+        logger.exception("Could not reopen %s to flush its WAL", db_path)
+        return None
+
+    try:
+        load_vector_extensions(conn)
+        definitions = _hnsw_index_definitions(conn)
+        if not definitions:
+            # The poison is not an HNSW index, so this recovery cannot
+            # help; the caller falls back to discarding the WAL.
+            conn.close()
+            return None
+        for index_name, _ in definitions:
+            conn.execute(f"DROP INDEX IF EXISTS {_quote_identifier(index_name)}")
+        try:
+            conn.execute("CHECKPOINT")
+        except Exception:
+            # The flush failed. Put the indexes back before giving up, so
+            # the database is not left without them.
+            _recreate_indexes(conn, definitions)
+            raise
+    except Exception:
+        logger.exception("Could not flush the poisoned WAL of %s", db_path)
+        with suppress(Exception):
+            conn.close()
+        return None
+
+    if _recreate_indexes(conn, definitions):
+        logger.warning(
+            "Flushed the poisoned DuckDB WAL of %s without losing its writes.", db_path
+        )
+    else:
+        # The data is flushed either way. A missing index costs recall,
+        # not rows, so this is worth shouting about -- but it is not a
+        # reason to fail the open.
+        logger.error(
+            "The WAL of %s was flushed, but some HNSW indexes could not be "
+            "rebuilt. Vector search over those tables will be degraded until "
+            "they are recreated.",
+            db_path,
+        )
+    return conn
+
+
 def open_healthy_duckdb(
     db_path: str, *, config: dict[str, Any] | None = None
 ) -> duckdb.DuckDBPyConnection:
@@ -184,12 +293,19 @@ def open_healthy_duckdb(
                 raise
             logger.warning(
                 "DuckDB instance for %s is poisoned by its WAL sidecar (%s); "
-                "discarding the WAL and reopening at the last good checkpoint.",
+                "recovering the WAL without discarding its writes.",
                 db_path,
                 e,
             )
             with suppress(Exception):
                 conn.close()
+
+    # The WAL holds writes that were never checkpointed. Flushing it keeps
+    # them; discarding the sidecar throws them away. Flush first, and only
+    # discard when the flush does not apply.
+    flushed = flush_poisoned_wal(db_path, config=config)
+    if flushed is not None:
+        return flushed
 
     purge_wal(db_path)
     conn = duckdb.connect(db_path, **connect_kwargs)

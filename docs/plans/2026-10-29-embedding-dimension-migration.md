@@ -217,52 +217,97 @@ would have made the quantization-broadcast bug above invisible to the suite.
 - **Observability added** — the `coerce_embedding` width-mismatch warning
   now fires on the real dimension, which is how the drift was detected.
 
+## The WAL poison — root cause found
+
+The server's WAL sidecar began failing its checkpoint with DuckDB's fatal
+*"Operation requires a flat or constant vector but a non-flat/non-constant
+vector was encountered"*, and the recovery — which discarded the sidecar —
+lost every un-checkpointed write. The trigger is now **isolated**.
+
+### It is a DuckDB 2.0.0 regression in the `vss` HNSW index
+
+DuckDB's HNSW index lives in the `vss` extension, not in core. Its
+`HNSWIndex::Construct` (`duckdb-vss/src/hnsw/hnsw_index.cpp:450`) does:
+
+```cpp
+auto count = input.size();
+input.Flatten();
+
+auto &vec_vec = input.data[0];
+auto &vec_child_vec = ArrayVector::GetChild(vec_vec);   // the FLOAT[N] child
+auto vec_child_data = FlatVector::GetData<float>(vec_child_vec);
+```
+
+`input.Flatten()` flattens the chunk's *parent* vector. For a `FLOAT[N]`
+column the vector is an ARRAY and the data lives in its child, which
+`Flatten()` does not flatten. `FlatVector::GetData` then calls
+`FlatVector::VerifyFlatOrConst`, which accepts only a flat or constant
+vector and otherwise raises exactly the observed fatal error.
+
+After a **WAL replay** the array's child is dictionary-encoded, so the
+assertion fires. Rows appended in the same session are stored flat, so a
+checkpoint over them succeeds — which is why the failure looks
+unreproducible until the process is restarted.
+
+### The evidence
+
+| scenario | DuckDB 1.5.6 | DuckDB 2.0.0 |
+|---|---|---|
+| HNSW row in the WAL, reopened, `CHECKPOINT` | **OK** | **fails** |
+| the same row checkpointed in-session, no WAL | OK | OK |
+| HNSW row in the WAL, `DROP INDEX` then `CHECKPOINT` | OK | OK |
+| no HNSW index at all, row in the WAL | OK | OK |
+| auto-checkpoint (in-session), row in the WAL | OK | OK |
+
+The live database bisects the same way: dropping
+`idx_default_refl_embeddings_hnsw` (on `reflections_v2`) makes the
+checkpoint succeed, while dropping `idx_default_conv_embeddings_hnsw`
+(on the empty `default_conversations`) does not. The database file alone
+checkpoints fine — the WAL carries the poison, not the data.
+
+### The version that introduced it
+
+`session-buddy`'s `uv.lock` resolved `duckdb` to 2.0.0 in `f7a3942f`
+(2026-10-27, *"chore(deps): re-resolve uv.lock"*). The `vss` extension
+for v2.0.0 was installed at 02:06 that day; the first preserved poisoned
+WAL is timestamped 02:28 — 22 minutes later. 2.0.0 is also the **latest**
+stable release, so there is no version to upgrade to. Downgrading is not
+an option either: 2.0.0 writes storage format v69, which 1.5.6 refuses
+to read (*"Trying to read a database file with version number 69"*).
+
+The leading suspect from the previous revision of this plan — the
+category-evolution centroid being bound as a numpy array — was **wrong**.
+The centroid columns are not HNSW-indexed, and the failure reproduces
+with a single synthetic row and no category evolution at all.
+
+### The fix: flush the WAL instead of discarding it
+
+`session_buddy/memory/duckdb_open.py` now recovers in two tiers. The
+first tier keeps the writes: the HNSW indexes are dropped, the database
+is checkpointed, and the indexes are rebuilt from their own
+`CREATE INDEX` statements (captured from `duckdb_indexes().sql` before
+the drop). The second tier — used when the first does not apply — is the
+old behaviour: discard the sidecar and reopen at the last good
+checkpoint.
+
+Verified against a copy of the live database: 7 rows in, 7 rows out, both
+HNSW indexes rebuilt, and the WAL flushed to zero. Re-opening the
+recovered database is clean — the WAL is empty, so the probe's checkpoint
+succeeds and the recovery does not repeat.
+
+Cost: ~3.4 s at startup when the WAL holds HNSW rows (1.75 s for the
+failing checkpoint, 1.66 s for the successful one, 0.01 s to rebuild the
+indexes).
+
 ## Still open
 
-- **The live database's WAL is being poisoned, and the recovery costs
-  writes.** After the embedding gate was opened, the server's WAL sidecar
-  began failing its checkpoint with DuckDB's fatal
-  *"Operation requires a flat or constant vector but a non-flat/non-constant
-  vector was encountered"*. The server's built-in recovery detects this and
-  discards the WAL, reopening at the last good checkpoint — so the
-  database survives, but **un-checkpointed writes are lost**. The same
-  class of failure is already recorded in
-  `memory/duckdb-fixed-size-array-dim-mismatch.md` (the prior incident on
-  this database) and in `memory/duckdb_open.py::open_healthy_duckdb`.
-
-  The trigger was **not** isolated, but it was **localised**: a snapshot of
-  the database taken **immediately after a server restart, with no writes
-  from the caller**, already fails its checkpoint. So the server's
-  *startup* poisons the WAL — this is pre-existing and independent of the
-  embedding gate. Enabling the gate merely makes it visible, because
-  writes now carry vectors and so exercise the corrupted state.
-
-  Ruled out by experiment: a wrong-width binding into a `FLOAT[4096]`
-  column (DuckDB raises a clean `ConversionException`); HNSW +
-  `FLOAT[4096]` + a 4096-dim vector in isolation; the adapter's own
-  `store_conversation` / `store_reflection` writes (both checkpoint
-  cleanly on a copy of the live database); the legacy `ReflectionDatabase`
-  opening the same file; a *rejected* second connection (the vss
-  extension is bound to the database *instance*, not the file); and
-  touching `default_conversations` (whose HNSW index survived the bulk
-  delete).
-
-  Leading suspect: the category-evolution engine, which persists a
-  **centroid** — a running average of embeddings — into the
-  `FLOAT[4096]` columns `memory_subcategories.centroid` and
-  `archived_subcategories.centroid`
-  (`memory/category_evolution.py:1210`). `_update_centroid`
-  (`:462`) assigns `new_embedding.copy()` on first sight and otherwise
-  averages `subcategory.centroid * count + new_embedding`; if the
-  centroid is persisted as a numpy array rather than a flat list, DuckDB
-  binds it in dictionary form — which is precisely the state the fatal
-  error reports. The engine initialises at startup, which fits the
-  "startup alone poisons it" observation.
-
-  **Next step:** exercise the category-evolution path against a copy of the
-  live file with the WAL present — categorise a reflection so a centroid is
-  written — and inspect the shape of the value bound into
-  `memory_subcategories.centroid`.
+- **The upstream DuckDB bug is unfixed.** The WAL poison is a DuckDB
+  2.0.0 regression in the `vss` HNSW index (see *The WAL poison — root
+  cause found*), and 2.0.0 is the latest stable release. The workaround
+  keeps the writes, but every restart still pays a failing checkpoint
+  first. Worth an upstream issue against `duckdb/duckdb-vss`: the fix is
+  to flatten the ARRAY's child before `FlatVector::GetData`, not to
+  require the child to already be flat.
 - **The legacy write path still targets the retired V1 tables.**
   `reflection/schema.py` creates the V2 tables (`conversations_v2`,
   `reflections_v2`), but `reflection/storage.py` and `reflection/search.py`

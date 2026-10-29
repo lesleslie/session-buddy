@@ -10,6 +10,8 @@ clear it, because the poison is on disk.
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -23,6 +25,52 @@ INVALIDATION = (
     "previous fatal error. The database must be restarted prior to being "
     "used again."
 )
+
+#: Builds a database whose HNSW-indexed row exists only in the WAL.
+#:
+#: The process exits without closing the connection, which is what an
+#: unclean shutdown looks like to the next open: the row was written, but
+#: never checkpointed, so it lives in the WAL sidecar. That is the state
+#: DuckDB cannot rebuild an HNSW index over.
+_WAL_BEARING_HNSW_SCRIPT = """
+import os
+import sys
+
+import duckdb
+
+conn = duckdb.connect(sys.argv[1])
+try:
+    conn.execute("LOAD 'vss'")
+    conn.execute("SET hnsw_enable_experimental_persistence=true")
+except Exception:
+    print("VSS_MISSING")
+    sys.exit(3)
+conn.execute("CREATE TABLE t (id VARCHAR, embedding FLOAT[4096])")
+conn.execute("CREATE INDEX idx ON t USING HNSW (embedding)")
+real = "[" + ",".join(["0.5"] * 4096) + "]"
+conn.execute("INSERT INTO t VALUES ('a', " + real + ")")
+print("VSS_OK")
+# Leave without checkpointing: os._exit skips the checkpoint-on-close, so
+# the WAL sidecar survives with the row in it.
+os._exit(0)
+"""
+
+
+def _make_wal_bearing_hnsw_db(db: Path) -> None:
+    """Build a database whose HNSW-indexed row lives only in the WAL.
+
+    Skips the test when the ``vss`` extension is not installed -- the
+    HNSW index type needs it.
+    """
+    result = subprocess.run(
+        [sys.executable, "-c", _WAL_BEARING_HNSW_SCRIPT, str(db)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 3 or "VSS_MISSING" in result.stdout:
+        pytest.skip("the vss extension is not installed")
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.fixture(autouse=True)
@@ -111,7 +159,10 @@ def test_open_healthy_duckdb_discards_a_poisoned_wal_and_reopens(
 
     conn = duckdb_open.open_healthy_duckdb(str(db))
 
-    assert len(attempts) == 2, "the helper must retry once after purging the WAL"
+    # Three connects: the probe, the data-preserving flush (which declines
+    # here -- the fixture has no HNSW index), and the reopen after the
+    # sidecar was purged.
+    assert len(attempts) == 3, "the helper must retry after purging the WAL"
     assert not wal.exists(), "the poisoned sidecar must be discarded"
     assert conn.execute("SELECT count(*) FROM t").fetchone()[0] == 1
 
@@ -233,3 +284,54 @@ def test_open_healthy_duckdb_probes_each_path_once(
     assert calls.count("CHECKPOINT") == 1, (
         f"the probe must run once per path; calls were {calls}"
     )
+
+
+# ============================================================================
+# The data-preserving flush
+# ============================================================================
+
+
+def test_open_healthy_duckdb_keeps_the_writes_a_poisoned_wal_holds(
+    tmp_path: Path,
+) -> None:
+    """The un-checkpointed writes must survive the recovery.
+
+    DuckDB cannot rebuild an HNSW index over rows that were replayed from
+    the WAL, so the probe's checkpoint fails and the instance is
+    invalidated. The index is the only thing that cannot be rebuilt -- the
+    data is fine. Discarding the WAL therefore throws away writes that
+    were perfectly good; dropping the index, checkpointing, and recreating
+    the index keeps them.
+    """
+    db = tmp_path / "reflection.duckdb"
+    _make_wal_bearing_hnsw_db(db)
+    wal = Path(f"{db}.wal")
+    assert wal.exists(), "the fixture must leave a WAL behind"
+
+    conn = duckdb_open.open_healthy_duckdb(str(db))
+
+    assert conn.execute("SELECT count(*) FROM t").fetchone()[0] == 1, (
+        "the row that lived only in the WAL must survive the recovery"
+    )
+    indexes = conn.execute(
+        "SELECT index_name FROM duckdb_indexes() WHERE sql ILIKE '%USING HNSW%'"
+    ).fetchall()
+    assert indexes, "the HNSW index must be rebuilt"
+    conn.close()
+
+
+def test_flush_poisoned_wal_declines_when_there_is_no_hnsw_index(
+    tmp_path: Path,
+) -> None:
+    """Without an HNSW index there is nothing to drop, so the flush declines.
+
+    The caller then falls back to discarding the sidecar, which is the
+    right trade for a poison this recovery cannot explain.
+    """
+    db = tmp_path / "reflection.duckdb"
+    conn = duckdb.connect(str(db))
+    conn.execute("CREATE TABLE t (i INTEGER)")
+    conn.execute("INSERT INTO t VALUES (1)")
+    conn.close()
+
+    assert duckdb_open.flush_poisoned_wal(str(db)) is None
