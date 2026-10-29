@@ -127,6 +127,68 @@ right long-term answer, and it removes the model-specific constant entirely.
   the test is now marked `@pytest.mark.slow` + `@pytest.mark.external` with
   a 300 s hang/regression budget.
 
+## The dead embedding gate in `ReflectionDatabase`
+
+The width fix alone did not make the legacy class work, because a second
+ONNX-era gate sat in front of every embedding call:
+
+```python
+if self.onnx_session:   # a backward-compat stub that always returns None
+    embedding = await self.get_embedding(content)
+```
+
+`get_embedding()` itself was fine — it calls the HTTP provider — so the
+gate was the only thing blocking it. The consequence was measurable: the
+live database held **2 696 rows** across `conversations`,
+`default_conversations` and `reflections` with **no embedding at all**,
+and `get_stats()` always reported `"text-search-only"`.
+
+The gate is now `self.enable_embeddings`, a constructor argument
+(`ReflectionDatabase(db_path=..., enable_embeddings=False)`) that mirrors
+the modern adapter's `settings.enable_embeddings`. The `onnx_session`
+property is gone.
+
+Both search paths are **vector-**or**-text**, never a merge of the two:
+the vector query filters `WHERE embedding IS NOT NULL`, so any row
+without an embedding is invisible to semantic search. Enabling the gate
+therefore hides the un-embedded rows rather than improving them.
+
+### Clearing the live database
+
+The rows were cleared rather than backfilled: a backfill at ~8–10 s per
+embedding would have taken 8–10 hours for ~3 600 rows, and the content was
+overwhelmingly test pollution (`test_checkpoint_session_create0`,
+`test-project`, `project = NULL` auto-checkpoints) plus Crackerjack
+check-execution noise.
+
+| Table | Rows cleared |
+|---|---|
+| `conversations` (v1) | 1 196 |
+| `reflections` (v1) | 1 495 |
+| `default_conversations` | 5 |
+| `conversations_v2` | 935 |
+| `reflections_v2` | 32 |
+| `memory_access_log` (FK to `conversations_v2`) | 3 |
+
+**Backup:** every cleared table was exported to Parquet and verified
+row-for-row before the delete, at
+`~/.claude/data/reflection-backup-20261029-083144/`.
+
+Two DuckDB hazards were hit on the way, both already recorded in
+`memory/duckdb-fixed-size-array-dim-mismatch.md`:
+
+- **`Cannot bind index ... unknown index type 'HNSW'`.** An extension
+  binds to a database *instance*, not a file, so `vss` must be loaded on
+  the modifying connection before any indexed table can be changed.
+- **`Operation requires a flat or constant vector but a non-flat/non-constant
+  vector was encountered`** — a fatal `InternalException` raised by the
+  HNSW index rebuild during `DELETE FROM reflections_v2`. Dropping the
+  HNSW index first (the adapter recreates it at startup with
+  `CREATE INDEX IF NOT EXISTS`) avoids it.
+
+The database was checkpointed afterwards and the WAL sidecar was
+consumed, so no poison was persisted.
+
 ## Deliberately out of scope
 
 `tests/conftest.py` and `tests/unit/conftest.py` configure
@@ -155,26 +217,35 @@ would have made the quantization-broadcast bug above invisible to the suite.
 
 ## Still open
 
-- **`ReflectionDatabase` never generates an embedding.**
-  `session_buddy/reflection/database.py` gates every embedding call on
-  `if self.onnx_session:` — a backward-compat stub that always returns
-  `None`, left over from the ONNX removal. `get_embedding()` itself works
-  (it calls the HTTP provider), so the gate is the only thing blocking it.
-  The consequence is measurable in the live database: **2696 stored rows**
-  across `conversations`, `default_conversations` and `reflections` have
-  **no embedding at all**, and `get_stats()` always reports
-  `"text-search-only"`.
+- **The legacy write path still targets the retired V1 tables.**
+  `reflection/schema.py` creates the V2 tables (`conversations_v2`,
+  `reflections_v2`), but `reflection/storage.py` and `reflection/search.py`
+  still write and query the V1 names (`conversations`, `reflections`).
+  On a fresh database the legacy class therefore fails with *"Table with
+  name conversations does not exist! Did you mean conversations_v2?"*.
+  It only works against a database that still carries the retired V1
+  tables — which is exactly what the live database was, until this change
+  cleared them.
 
-  Flipping the gate is width-safe — every embedding column in the live
-  database is already `FLOAT[4096]` — but the vector query filters
-  `WHERE embedding IS NOT NULL` and there is no hybrid merge with the text
-  path. So enabling it *without* a backfill would hide those 2696 existing
-  rows from semantic search; enabling it *with* a backfill is a
-  migration against a live database. Both are decisions, not a mechanical
-  fix, so neither was taken here. The modern adapter
-  (`adapters/reflection_adapter_oneiric.py`) shows the intended pattern:
-  gate on `settings.enable_embeddings`, call the HTTP provider, and fall
-  back to text search when it returns `None`.
+  Porting the legacy path to V2 is the real fix, and it is not mechanical:
+  V2's `category` is `NOT NULL` with no default, V2 has no
+  `conversation_ulid` column, and `reflections_v2` uses `created_at` /
+  `updated_at` where V1 used `timestamp`. `reflection/schema.py` also
+  keeps `create_conversations_table` / `create_reflections_table` as
+  no-op shims, so there is no V1 bootstrap to fall back on.
+
+  This accounts for **62 pre-existing test failures** in
+  `tests/unit/test_reflection_database_{comprehensive,edge_cases,error_handling,property_based}.py`
+  and 6 in `tests/functional/test_simple_validation.py` /
+  `tests/security/test_input_validation.py`. All reproduce identically at
+  pristine HEAD (`cebc6a79`, 2026-10-04, retired v1).
+- **Embedding generation costs ~8–10 s per call** on this host — the
+  llama-server is CPU-only and serves 4096-dim vectors from an 8B model.
+  The HTTP read timeout in `reflection/embeddings.py` is 30 s, so a
+  request under load can exceed it and the embedding is silently dropped
+  (the `except Exception` path degrades to "no vector"). Storing a
+  conversation now blocks on that call. A backfill of the ~3 600 cleared
+  rows would have taken roughly 8–10 hours, which is why it was declined.
 - **Per-dimension calibration.** The fixed `±0.5` fallback is correct for
   the current model and must be re-derived whenever the model changes.
   `_update_calibration_data` already computes calibration from stored
@@ -184,8 +255,3 @@ would have made the quantization-broadcast bug above invisible to the suite.
   invisible. A fixture that parameterises the width would close that gap.
 - **`tests/conftest.py::sample_embedding`** returns a 384-dim vector and is
   dead code — no test references it.
-- **Six pre-existing test failures** in `tests/functional/test_simple_validation.py`
-  and `tests/security/test_input_validation.py` fail with *"Table with name
-  conversations does not exist! Did you mean conversations_v2?"*. v1 was
-  retired in `cebc6a79` (schema v2 promotion, 2026-10-04) and these tests
-  still expect the v1 table. Reproduces identically at pristine HEAD.

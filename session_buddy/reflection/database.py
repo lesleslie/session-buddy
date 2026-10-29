@@ -94,11 +94,18 @@ class ReflectionDatabase:
         ...     results = await db.search_conversations("hello")
     """
 
-    def __init__(self, db_path: str | None | object = _DB_PATH_UNSET) -> None:
+    def __init__(
+        self,
+        db_path: str | None | object = _DB_PATH_UNSET,
+        enable_embeddings: bool = True,
+    ) -> None:
         """Initialize database instance.
 
         Args:
             db_path: Path to database file (uses default if None)
+            enable_embeddings: Generate embeddings for stored conversations and
+                reflections, and search them by vector similarity. Disable to
+                fall back to text-only search.
         """
         if db_path is None:
             msg = "db_path cannot be None"
@@ -125,12 +132,8 @@ class ReflectionDatabase:
 
         # Embedding system — HTTP providers are stateless, no initialization needed
         self.embedding_dim = DEFAULT_EMBEDDING_DIM  # provider vector width
+        self.enable_embeddings = enable_embeddings
         self._initialized = False
-
-    @property
-    def onnx_session(self) -> Any:
-        """Backward-compat stub. HTTP embedding needs no session."""
-        return None
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection | None:
@@ -358,7 +361,7 @@ class ReflectionDatabase:
         """
         # Generate embedding if available
         embedding: list[float] | None = None
-        if self.onnx_session:
+        if self.enable_embeddings:
             try:
                 embedding = await self.get_embedding(content)
             except Exception:
@@ -409,7 +412,7 @@ class ReflectionDatabase:
 
         # Generate embedding if available
         embedding: list[float] | None = None
-        if self.onnx_session:
+        if self.enable_embeddings:
             try:
                 embedding = await self.get_embedding(content)
             except Exception:
@@ -459,7 +462,7 @@ class ReflectionDatabase:
         """
         # Generate query embedding if available
         query_embedding = None
-        if self.onnx_session:
+        if self.enable_embeddings:
             try:
                 query_embedding = await self.get_embedding(query)
             except Exception:
@@ -515,7 +518,7 @@ class ReflectionDatabase:
 
         # Generate query embedding if available
         query_embedding = None
-        if self.onnx_session:
+        if self.enable_embeddings:
             try:
                 query_embedding = await self.get_embedding(query)
             except Exception:
@@ -772,7 +775,7 @@ class ReflectionDatabase:
             projects = [row[0] for row in projects_rows if row and row[0] is not None]
 
             provider = (
-                "http-embedding-providers" if self.onnx_session else "text-search-only"
+                "http-embedding-providers" if self.enable_embeddings else "text-search-only"
             )
             return {
                 "conversations_count": conv_count,

@@ -678,14 +678,6 @@ class MockingHelper:
             unlink=Mock(),
         )
 
-    @staticmethod
-    def patch_system_dependencies():
-        """Create patches for system dependencies that might not be available."""
-        return patch.multiple(
-            "session_buddy.reflection_tools",
-            ONNX_AVAILABLE=True,  # Default to True for tests
-        )
-
 
 class ChaosTestHelper:
     """Helper utilities for chaos engineering tests."""
@@ -1065,14 +1057,6 @@ def perf_helper():
 
 
 # Common test decorators
-def requires_embeddings(test_func):
-    """Decorator to skip test if embeddings not available."""
-    return pytest.mark.skipif(
-        not hasattr(test_func, "__module__") or "ONNX_AVAILABLE" not in dir(),
-        reason="Embeddings not available",
-    )(test_func)
-
-
 def async_timeout(seconds: float = 30.0):
     """Decorator to add timeout to async test."""
 

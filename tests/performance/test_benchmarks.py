@@ -219,20 +219,19 @@ class TestPerformanceRegression:
         with tempfile.NamedTemporaryFile(suffix=".duckdb", delete=False) as tmp:
             db_path = tmp.name
 
-            with patch("session_buddy.reflection_tools.ONNX_AVAILABLE", False):
-                db = ReflectionDatabase(db_path=db_path)
-                await db.initialize()
+            db = ReflectionDatabase(db_path=db_path, enable_embeddings=False)
+            await db.initialize()
 
-                # Measure time for operations that would use embeddings if available
-                async with perf_helper.measure_time() as measurements:
-                    await db.store_conversation(
-                        "Embedding perf test", {"project": "embedding-perf-test"}
-                    )
+            # Measure time for operations that would use embeddings if available
+            async with perf_helper.measure_time() as measurements:
+                await db.store_conversation(
+                    "Embedding perf test", {"project": "embedding-perf-test"}
+                )
 
-                duration = measurements["duration"]
-                assert duration < 1.0  # Should be fast without embeddings
+            duration = measurements["duration"]
+            assert duration < 1.0  # Should be fast without embeddings
 
-                db.close()
+            db.close()
 
     @pytest.mark.performance
     async def test_session_lifecycle_performance(self):
@@ -328,5 +327,3 @@ class TestScalability:
                 f"Performance growth too high: {growth_rate}x vs expected <{expected_max_growth}x"
             )
 
-
-from unittest.mock import patch

@@ -15,8 +15,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import duckdb
 
-from session_buddy.reflection.database import ReflectionDatabase
-
 
 def get_db_path() -> str:
     """Get knowledge graph database path."""
@@ -57,38 +55,40 @@ def generate_embeddings_sync() -> dict[str, int]:
         conn.close()
         return {"generated": 0, "skipped": 0}
 
-    # Initialize reflection database for embeddings
-    refl_db = ReflectionDatabase()
+    # The provider serves canonical-width vectors; the column must agree or
+    # the CAST below fails with a confusing width error.
+    from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 
-    try:
-        asyncio.run(refl_db.initialize())
-    except RuntimeError as e:
-        print(f"⚠️  Could not initialize embedding system: {e}")
+    column_type = conn.execute(
+        "SELECT data_type FROM information_schema.columns "
+        "WHERE table_name = 'kg_entities' AND column_name = 'embedding'"
+    ).fetchone()
+    expected_type = f"FLOAT[{DEFAULT_EMBEDDING_DIM}]"
+    if column_type and column_type[0] != expected_type:
         print(
-            "   Skipping embedding generation (can discover relationships without them)"
+            f"⚠️  kg_entities.embedding is {column_type[0]}, but the provider "
+            f"returns {DEFAULT_EMBEDDING_DIM}-dim vectors."
         )
+        print(f"   Migrate the column to {expected_type} before activating.")
         conn.close()
         return {"generated": 0, "skipped": entities_without}
+
+    # Generate every embedding in a single event loop.
+    from session_buddy.reflection.embeddings import generate_embedding
+
+    async def _generate_all() -> list[list[float] | None]:
+        return [
+            await generate_embedding(f"{name} {entity_type}")
+            for _, name, entity_type in result
+        ]
+
+    vectors = asyncio.run(_generate_all())
 
     generated = 0
     skipped = 0
 
-    for entity_id, name, entity_type in result:
+    for (entity_id, name, entity_type), embedding_vector in zip(result, vectors):
         try:
-            # Generate embedding using reflection system
-            embedding = refl_db.onnx_session
-            if embedding is None:
-                skipped += 1
-                continue
-
-            # Generate simple embedding from name + type
-            text = f"{name} {entity_type}"
-            from session_buddy.reflection.embeddings import generate_embedding
-
-            embedding_vector = asyncio.get_event_loop().run_until_complete(
-                generate_embedding(text, refl_db.onnx_session, refl_db.tokenizer)
-            )
-
             if embedding_vector is None:
                 skipped += 1
                 continue
@@ -98,9 +98,9 @@ def generate_embeddings_sync() -> dict[str, int]:
 
             # Update entity
             conn.execute(
-                """
+                f"""
                 UPDATE kg_entities
-                SET embedding = CAST($1 AS FLOAT[384])
+                SET embedding = CAST($1 AS {expected_type})
                 WHERE id = $2
                 """,
                 [embedding_str, entity_id],
@@ -118,7 +118,6 @@ def generate_embeddings_sync() -> dict[str, int]:
             continue
 
     conn.close()
-    refl_db.close()
 
     print(f"\n✅ Generated: {generated}")
     print(f"⚠️  Skipped: {skipped}")

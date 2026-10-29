@@ -836,13 +836,6 @@ def sample_embedding() -> Any:
 
 
 @pytest.fixture
-def mock_embeddings_disabled():
-    """Fixture to disable embeddings for testing fallback behavior."""
-    with patch("session_buddy.reflection_tools.ONNX_AVAILABLE", False):
-        yield
-
-
-@pytest.fixture
 async def duckdb_connection() -> AsyncGenerator[duckdb.DuckDBPyConnection]:
     """Provide in-memory DuckDB connection for testing."""
     try:
