@@ -149,12 +149,9 @@ def persist_task_metadata(
     """
     ensure_metadata_schema(engine)
     with Session(engine) as session:
-        # ``Session.exec`` is typed as TupleResult | ScalarResult | CursorResult
-        # but for a single-entity ``select`` the runtime always returns a
-        # ScalarResult; ``.first()`` therefore yields the entity, not a Row.
-        # The annotation drives the local type; the ``ty: ignore`` covers
-        # the (overly) strict SQLModel stub.
-        existing: ReflectionMetadata | None = session.exec(  # ty: ignore[invalid-assignment]
+        # ``select`` is SQLModel's, so it returns a ``SelectOfScalar`` and
+        # ``exec(...).first()`` yields the entity itself, not a Row.
+        existing: ReflectionMetadata | None = session.exec(
             select(ReflectionMetadata).where(ReflectionMetadata.id == reflection_id),
         ).first()
         if existing is None:
@@ -179,7 +176,7 @@ def read_task_metadata(
     """Return the metadata JSON blob for ``reflection_id`` or ``None``."""
     ensure_metadata_schema(engine)
     with Session(engine) as session:
-        row: ReflectionMetadata | None = session.exec(  # ty: ignore[invalid-assignment]
+        row: ReflectionMetadata | None = session.exec(
             select(ReflectionMetadata).where(ReflectionMetadata.id == reflection_id),
         ).first()
         return dict(row.metadata_json) if row and row.metadata_json else None
@@ -202,7 +199,7 @@ def delete_task_metadata(
     """
     ensure_metadata_schema(engine)
     with Session(engine) as session:
-        row: ReflectionMetadata | None = session.exec(  # ty: ignore[invalid-assignment]
+        row: ReflectionMetadata | None = session.exec(
             select(ReflectionMetadata).where(ReflectionMetadata.id == reflection_id),
         ).first()
         if row is None:
@@ -227,7 +224,7 @@ def find_tasks_by_metadata(
     """
     ensure_metadata_schema(engine)
     with Session(engine) as session:
-        rows: list[ReflectionMetadata] = list(  # ty: ignore[invalid-assignment]
+        rows: list[ReflectionMetadata] = list(
             session.exec(select(ReflectionMetadata)).all(),
         )
         matching: list[str] = []
