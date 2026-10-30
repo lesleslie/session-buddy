@@ -35,6 +35,7 @@ from session_buddy import paths as xdg
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = REPO_ROOT / "session_buddy"
 SCRIPTS_ROOT = REPO_ROOT / "scripts"
+EXAMPLES_ROOT = REPO_ROOT / "examples"
 
 LEGACY_FRAGMENT = ".claude/data"
 APP_NAME = "session-buddy"
@@ -46,9 +47,17 @@ APP_NAME = "session-buddy"
 
 
 def _python_files() -> list[Path]:
-    """Return every Python file the guard scans."""
+    """Return every Python file the guard scans.
+
+    ``examples/`` is included because it holds runnable example code: the
+    first version of this guard scanned only the package and the top level
+    of ``scripts/``, and ``examples/acb_storage_adapter_usage.py`` kept a
+    hardcoded ``Path.home() / ".claude" / "data"`` because the join
+    spelling never produces the contiguous ``.claude/data`` substring.
+    """
     files = sorted(PACKAGE_ROOT.rglob("*.py"))
     files.extend(sorted(SCRIPTS_ROOT.glob("*.py")))
+    files.extend(sorted(EXAMPLES_ROOT.rglob("*.py")))
     return files
 
 
