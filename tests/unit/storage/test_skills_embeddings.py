@@ -8,12 +8,12 @@ with edge cases beyond what tests/test_skills_semantic.py covers.
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import patch
 
 import numpy as np
 import pytest
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.storage.skills_embeddings import (
     EMBEDDING_BYTES,
     EMBEDDING_DIM,
@@ -24,22 +24,24 @@ from session_buddy.storage.skills_embeddings import (
     unpack_embedding,
 )
 
-
 # ============================================================================
 # Constant sanity
 # ============================================================================
 
 
 class TestModuleConstants:
-    """Constants must match the documented MiniLM model spec."""
+    """Constants must match the canonical width and each other."""
 
-    def test_embedding_dim_is_384(self) -> None:
-        # all-MiniLM-L6-v2 produces 384-dim vectors
-        assert EMBEDDING_DIM == 384
+    def test_embedding_dim_is_the_canonical_width(self) -> None:
+        # The width is whatever the configured provider serves, so it
+        # comes from the one place that decides it. Pinning a literal
+        # here pinned a width the code had already moved past twice --
+        # the assertion was failing before this test was touched.
+        assert EMBEDDING_DIM == DEFAULT_EMBEDDING_DIM
 
     def test_embedding_bytes_is_dim_times_4(self) -> None:
         # float32 = 4 bytes
-        assert EMBEDDING_BYTES == 384 * 4 == 1536
+        assert EMBEDDING_BYTES == EMBEDDING_DIM * 4
 
 
 # ============================================================================
@@ -55,8 +57,8 @@ class TestPackEmbeddingEdges:
             pack_embedding("not a list")  # type: ignore[arg-type]
 
     def test_wrong_shape_2d_raises(self) -> None:
-        too_many = np.zeros((2, 384), dtype=np.float32)
-        with pytest.raises(ValueError, match="Expected 384-dim"):
+        too_many = np.zeros((2, EMBEDDING_DIM), dtype=np.float32)
+        with pytest.raises(ValueError, match=f"Expected {EMBEDDING_DIM}-dim"):
             pack_embedding(too_many)
 
     def test_list_input_accepted(self) -> None:
@@ -90,7 +92,7 @@ class TestUnpackEmbeddingEdges:
         assert out.dtype == np.float32
 
     def test_zero_length_blob_raises(self) -> None:
-        with pytest.raises(ValueError, match="Expected 1536 bytes"):
+        with pytest.raises(ValueError, match=f"Expected {EMBEDDING_BYTES} bytes"):
             unpack_embedding(b"")
 
 
