@@ -152,6 +152,10 @@ Event types under the `task.*` namespace:
 - `task.cancelled` — task cancelled (reuses `task.completed` payload for v1)
 - `task.handoff_started` / `task.handoff_completed` / `task.handoff_orphan` — emitted by `tasks_handoff_to_workflow` (mahavishnu, T17)
 
+One non-task event shares the stream:
+
+- `session_buddy.publisher.heartbeat` — a liveness marker written once at server start. It is **not** a task event and carries no `task_id`; it exists so the publisher-shaped `bodai_events` health feed is populated at boot instead of reading `warming_up` until the first task event happens to be published. Consumers that filter on an exact channel ignore it.
+
 v1.1 adds the `TaskOrphanSweeper` in mahavishnu that re-links tasks on `task.handoff_orphan` events.
 
 Akosha indexes these; reindex lag is ~30s. Read-side analytics via `mcp__akosha__tasks_*` tools will reflect writes within that window.

@@ -12,6 +12,7 @@ import itertools
 import os
 import subprocess  # nosec B404
 import sys
+import time
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
 from importlib.metadata import version as pkg_version
@@ -262,13 +263,11 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     # process → launchd KeepAlive.Crashed restart loop (Bug
     # 2026-10-10, 23 MB error log of repeated startup banners).
     #
-    # Mirror of session_buddy/mcp/server.py:434-436 — that lifespan
-    # wraps the publisher install but is not the one wired into the
-    # running ``mcp`` instance (see ``FastMCP(...,
-    # lifespan=session_lifecycle)`` above). ``publisher.init()``
-    # swallows transport errors so a Redis outage never blocks
-    # startup; the publisher still goes into the slot and /health
-    # surfaces the outage status instead of the silent restart
+    # This lifespan is the one wired into the running ``mcp`` instance
+    # (see ``FastMCP(..., lifespan=session_lifecycle)`` above).
+    # ``publisher.init()`` swallows transport errors so a Redis outage
+    # never blocks startup; the publisher still goes into the slot and
+    # /health surfaces the outage status instead of the silent restart
     # loop.
     try:
         from session_buddy.mcp.events.bodai_events_publisher import (
@@ -284,6 +283,10 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
             enabled=settings.bodai_events.enabled,
         )
         await publisher.init()
+        # Install the publisher in the slot BEFORE the heartbeat: a
+        # heartbeat that raises must not un-install a working publisher
+        # and take /health down with it.
+        tasks_events_mod._publisher = publisher
         # Mark the init round-trip as the publisher's first cycle so the
         # aggregator's HNSW hardening branch
         # (``mcp-common/health/feed.py:206``,
@@ -298,8 +301,16 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
         # (the Redis transport ping), so we credit it.
         if publisher._init_ok:
             publisher.cycles_total = 1
-            publisher.last_updated_timestamp = __import__("time").time()
-        tasks_events_mod._publisher = publisher
+            publisher.last_updated_timestamp = time.time()
+            # Publish a liveness marker so the feed is populated at
+            # boot. The feed is publisher-shaped — ``entities_count``
+            # counts successful enqueues — so with no event published
+            # yet it reads ``warming_up`` (empty + running + cycled ≥1)
+            # and the counter resets on every restart. The heartbeat is
+            # a real enqueue, so the count is truthful rather than
+            # asserted, and it proves the whole write path rather than
+            # only the transport handshake credited above.
+            await publisher.publish_heartbeat()
         logger.info(
             f"bodai_events publisher installed pre-yield stream={settings.bodai_events.stream} enabled={settings.bodai_events.enabled}",
         )

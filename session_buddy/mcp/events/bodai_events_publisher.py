@@ -3,17 +3,47 @@
 from __future__ import annotations
 
 import logging
+import os
+import socket
 import time
+from datetime import UTC, datetime
 
 from oneiric.adapters.queue.redis_streams import (
     RedisStreamsQueueAdapter,
     RedisStreamsQueueSettings,
 )
 from opentelemetry import trace
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 logger = logging.getLogger(__name__)
 _tracer = trace.get_tracer(__name__)
+
+#: Channel the publisher's boot-time liveness marker is written under.
+#:
+#: Deliberately NOT under the ``task.*`` namespace: that namespace is
+#: reserved for the task system's envelopes (see
+#: ``session_buddy.mcp.tools.tasks_events``), and a consumer that keys
+#: off ``task.*`` must not see a non-task event. Consumers that filter
+#: on an exact channel ignore it — the task orphan sweeper filters on
+#: ``task.handoff_orphan``, akosha's indexer on
+#: ``websocket_tool_invocation``.
+HEARTBEAT_CHANNEL = "session_buddy.publisher.heartbeat"
+
+
+class PublisherHeartbeat(BaseModel):
+    """Liveness marker written when the publisher comes up.
+
+    Not a task event — it carries the publisher's own identity so an
+    operator reading ``bodai:events`` can see which component last
+    started and when.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    component: str
+    hostname: str
+    pid: int
+    started_at: datetime
 
 
 class BodaiEventsPublisher:
@@ -23,6 +53,10 @@ class BodaiEventsPublisher:
 
     Lifecycle: ``init()`` on FastMCP startup, ``cleanup()`` on shutdown,
     ``health()`` called by ``/health``.
+
+    ``init()`` is followed by ``publish_heartbeat()`` so the feed is
+    populated before the first ``/health`` probe — see that method for
+    why an empty publisher feed reads ``warming_up``.
 
     Failure semantics: ``_init_transport()`` exceptions are LOGGED + SWALLOWED.
     Server starts anyway and ``publish`` no-ops. Mutation path MUST NOT block
@@ -117,3 +151,45 @@ class BodaiEventsPublisher:
             self.entities_count += 1
             self.last_updated_timestamp = time.time()
             return message_id
+
+    async def publish_heartbeat(
+        self,
+        *,
+        component: str = "session-buddy",
+    ) -> str | None:
+        """Publish a liveness marker so the feed is populated at boot.
+
+        Why this exists
+        ---------------
+        The ``bodai_events`` feed is *publisher*-shaped: ``entities_count``
+        counts successful enqueues, not records read. A publisher that has
+        published nothing is idle rather than broken, but the feed model
+        has no way to express "idle" — an empty feed with a running
+        ingester reads ``warming_up`` forever. The counter also resets to
+        zero on every restart, so the feed went amber after each boot
+        and only turned green once the first task event happened to be
+        published.
+
+        The heartbeat is a *real* enqueue, so it makes the counter
+        truthful rather than papering over it: there is exactly one
+        event on the stream because one event was really written. It
+        also proves the whole write path (adapter -> Redis -> XADD)
+        rather than only the transport handshake that ``init()`` performs.
+
+        Consumers that filter on ``channel`` ignore it (see
+        ``HEARTBEAT_CHANNEL``).
+
+        Returns:
+            The Redis message id, or ``None`` if the publisher is
+            disabled or the enqueue failed. Failure is counted in
+            ``errors_total`` by ``publish()``, which makes the feed read
+            ``degraded`` — a publisher that cannot write is genuinely
+            degraded, so the failure is not swallowed here.
+        """
+        payload = PublisherHeartbeat(
+            component=component,
+            hostname=socket.gethostname(),
+            pid=os.getpid(),
+            started_at=datetime.now(UTC),
+        )
+        return await self.publish(HEARTBEAT_CHANNEL, payload)
