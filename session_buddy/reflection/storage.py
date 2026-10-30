@@ -8,10 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import hashlib
 import json
 import logging
-import time
 import typing
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -26,6 +24,29 @@ from uuid import uuid7
 
 # Text encoding constants for Unicode support
 _SURROGATE_PREFIX = "__SB64__"
+
+# The table that holds reflections.
+#
+# The v2 schema promotion (commit cebc6a79) moved reflection storage to
+# ``reflections_v2``. The legacy ``reflections`` table still exists in the
+# schema -- and still carries its indexes -- but nothing writes to it, so a
+# legacy read of that name returns an empty set rather than raising. That
+# made a hard-coded table name a live trap: a legacy search for a row that
+# demonstrably existed returned "no results" with nothing to indicate why.
+#
+# Every legacy read and write resolves the table through this constant, so
+# the two halves of the legacy module cannot drift apart again. The
+# Oneiric adapter does the same thing through its own ``_table()`` helper.
+REFLECTIONS_TABLE = "reflections_v2"
+
+# Same story for conversations. ``schema.py`` creates only the v2 tables --
+# its ``create_conversations_table``/``create_reflections_table`` helpers are
+# no-op shims that defer to ``schema_v2_sql()`` -- so the legacy table names
+# do not even exist on a freshly initialised database. A legacy write to
+# ``conversations`` therefore failed outright with
+# "Table with name conversations does not exist! Did you mean
+# conversations_v2?" rather than silently doing nothing.
+CONVERSATIONS_TABLE = "conversations_v2"
 
 
 class SupportsGetConn(Protocol):
@@ -148,67 +169,58 @@ async def store_conversation(
         lock: Optional lock for thread-safe temp DB access
 
     Returns:
-        Conversation ID (MD5 hash) and ULID
+        Conversation ID
 
     Example:
         >>> from session_buddy.reflection import ReflectionDatabase
         >>> db = ReflectionDatabase()
         >>> await db.initialize()
-        >>> result = await store_conversation(
+        >>> conv_id = await store_conversation(
         ...     db, "Hello world", {"project": "test"}, None
         ... )
-        >>> # Returns: {"conversation_id": "...", "conversation_ulid": "..."}
     """
-    # Generate conversation ID (MD5 hash - legacy)
-    conversation_id = hashlib.md5(
-        f"{content}_{time.time()}".encode("utf-8", "surrogatepass"),
-        usedforsecurity=False,
-    ).hexdigest()
-
-    # Generate conversation ULID (new format)
-    conversation_ulid = uuid7().hex
+    # Generate the conversation ID.
+    #
+    # Every load-bearing primary key in this project is a UUID7 rendered as
+    # 32 lowercase hex characters -- see
+    # ``tests/integration/test_uuid7_consolidation.py::test_uuid7_pk_enforced``.
+    # This path used to mint an MD5 digest of the content and a timestamp,
+    # which is the same width but not a UUID7 (and collides when the same
+    # content was stored twice in the same clock tick).
+    conversation_id = uuid7().hex
 
     # Encode content for database
     db_content = _encode_text_for_db(content)
 
     # Get connection if db is ReflectionDatabase instance
     conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
-    conversation_columns = _table_columns(conn, "conversations")
-    include_ulid = "conversation_ulid" in conversation_columns
 
     # Insert into database
+    #
+    # There is no ``conversation_ulid`` column to consider: migration V6
+    # renamed it to ``id`` and the UUID7 consolidation replaced the ULID
+    # contract outright, so the old "does this schema still have the ULID
+    # column" branch could never be taken on any migrated schema.
+    #
+    # ``category`` is the one NOT NULL column in the v2 schema that has no
+    # DEFAULT, so it has to be supplied. The adapter writes the same
+    # fallback value for it.
     def _store() -> None:
-        if include_ulid:
-            conn.execute(
-                """
-                INSERT INTO conversations (id, content, embedding, project, timestamp, metadata, conversation_ulid)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    conversation_id,
-                    db_content,
-                    embedding,
-                    metadata.get("project") if metadata else None,
-                    datetime.now(UTC),
-                    _serialize_metadata(metadata),
-                    conversation_ulid,
-                ],
-            )
-        else:
-            conn.execute(
-                """
-                INSERT INTO conversations (id, content, embedding, project, timestamp, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    conversation_id,
-                    db_content,
-                    embedding,
-                    metadata.get("project") if metadata else None,
-                    datetime.now(UTC),
-                    _serialize_metadata(metadata),
-                ],
-            )
+        conn.execute(
+            f"""
+            INSERT INTO {CONVERSATIONS_TABLE} (id, content, embedding, category, project, timestamp, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                conversation_id,
+                db_content,
+                embedding,
+                "context",
+                metadata.get("project") if metadata else None,
+                datetime.now(UTC),
+                _serialize_metadata(metadata),
+            ],
+        )
 
     if is_temp_db and lock:
         # For temp DB, use lock to protect database operations
@@ -218,7 +230,7 @@ async def store_conversation(
         # For normal file-based DB, run in executor for thread safety
         await asyncio.get_event_loop().run_in_executor(None, _store)
 
-    return conversation_id  # Return legacy ID for compatibility
+    return conversation_id
 
 
 async def store_reflection(
@@ -259,11 +271,14 @@ async def store_reflection(
         msg = "content cannot be None"
         raise TypeError(msg)
 
-    # Generate reflection ID
-    reflection_id = hashlib.md5(
-        f"reflection_{content}_{time.time()}".encode("utf-8", "surrogatepass"),
-        usedforsecurity=False,
-    ).hexdigest()
+    # Generate reflection ID.
+    #
+    # The project consolidated on UUID7 for every load-bearing primary key
+    # (see ``tests/integration/test_uuid7_consolidation.py::test_uuid7_pk_enforced``):
+    # 32 lowercase hex chars, never a 26-character ULID. The adapter mints
+    # ``uuid7().hex``; this path used to mint an MD5 digest, which is the
+    # same width but not a UUID7.
+    reflection_id = uuid7().hex
 
     # Encode content for database
     db_content = _encode_text_for_db(content)
@@ -272,44 +287,29 @@ async def store_reflection(
 
     # Get connection if db is ReflectionDatabase instance
     conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
-    reflection_columns = _table_columns(conn, "reflections")
-    include_ulid = "reflection_ulid" in reflection_columns
 
     # Insert into database
+    #
+    # There is no ``reflection_ulid`` column to consider: migration V6
+    # renamed it to ``id``, and the UUID7 consolidation replaced the ULID
+    # contract outright. The old "does this schema still have the ULID
+    # column" branch could therefore never be taken on any migrated schema.
     def _store() -> None:
-        if include_ulid:
-            conn.execute(
-                """
-                INSERT INTO reflections (id, content, embedding, project, tags, timestamp, metadata, reflection_ulid)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    reflection_id,
-                    db_content,
-                    embedding,
-                    metadata.get("project") if metadata else None,
-                    tags_list,
-                    datetime.now(UTC),
-                    _serialize_metadata(metadata),
-                    reflection_id,
-                ],
-            )
-        else:
-            conn.execute(
-                """
-                INSERT INTO reflections (id, content, embedding, project, tags, timestamp, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    reflection_id,
-                    db_content,
-                    embedding,
-                    metadata.get("project") if metadata else None,
-                    tags_list,
-                    datetime.now(UTC),
-                    _serialize_metadata(metadata),
-                ],
-            )
+        conn.execute(
+            f"""
+            INSERT INTO {REFLECTIONS_TABLE} (id, content, embedding, project, tags, timestamp, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                reflection_id,
+                db_content,
+                embedding,
+                metadata.get("project") if metadata else None,
+                tags_list,
+                datetime.now(UTC),
+                _serialize_metadata(metadata),
+            ],
+        )
 
     if is_temp_db and lock:
         # For temp DB, use lock to protect database operations
@@ -349,9 +349,9 @@ async def get_conversation(
 
     def _get() -> dict[str, Any] | None:
         result = conn.execute(
-            """
+            f"""
             SELECT id, content, embedding, project, timestamp, metadata
-            FROM conversations
+            FROM {CONVERSATIONS_TABLE}
             WHERE id = ?
             """,
             [conv_id],
@@ -367,7 +367,6 @@ async def get_conversation(
             "project": result[3],
             "timestamp": result[4],
             "metadata": _parse_metadata(result[5]),
-            "reflection_ulid": result[6] if len(result) > 6 else None,
         }
 
     if is_temp_db and lock:
@@ -399,38 +398,22 @@ async def get_reflection(
         >>> from session_buddy.reflection import ReflectionDatabase
         >>> db = ReflectionDatabase()
         >>> await db.initialize()
-        >>> # Query by MD5 ID
-        >>> refl = await get_reflection(db, "abc123")
-        >>> # Query by ULID
-        >>> refl_ulid = await get_reflection_by_ulid(db, "01ARZ3NDEKTS6PQRYF")
+        >>> # Query by the reflection's UUID7 id
+        >>> refl = await get_reflection(db, "0198f0a1b2c3d4e5f60718293a4b5c6d")
 
     """
     # Get connection if db is ReflectionDatabase instance
     conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
 
     def _get() -> dict[str, Any] | None:
-        # Check available columns to handle schemas with/without reflection_ulid
-        columns = _table_columns(conn, "reflections")
-        has_ulid = "reflection_ulid" in columns
-
-        if has_ulid:
-            result = conn.execute(
-                """
-                SELECT id, content, embedding, project, tags, timestamp, metadata, reflection_ulid
-                FROM reflections
-                WHERE id = ?
-                """,
-                [refl_id],
-            ).fetchone()
-        else:
-            result = conn.execute(
-                """
-                SELECT id, content, embedding, project, tags, timestamp, metadata
-                FROM reflections
-                WHERE id = ?
-                """,
-                [refl_id],
-            ).fetchone()
+        result = conn.execute(
+            f"""
+            SELECT id, content, embedding, project, tags, timestamp, metadata
+            FROM {REFLECTIONS_TABLE}
+            WHERE id = ?
+            """,
+            [refl_id],
+        ).fetchone()
 
         if not result:
             return None
@@ -443,7 +426,6 @@ async def get_reflection(
             "tags": result[4] or [],
             "timestamp": result[5],
             "metadata": _parse_metadata(result[6]),
-            "reflection_ulid": result[7] if has_ulid and len(result) > 7 else None,
         }
 
     if is_temp_db and lock:

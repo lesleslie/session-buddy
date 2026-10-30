@@ -14,6 +14,7 @@ from typing import Any
 
 from session_buddy.utils.time import utc_now
 
+from .reflection.storage import CONVERSATIONS_TABLE
 from .reflection_tools import ReflectionDatabase
 from .utils.regex_patterns import SAFE_PATTERNS
 
@@ -570,8 +571,8 @@ class MemoryOptimizer:
             return []
 
         cursor = self.reflection_db.conn.execute(
-            "SELECT id, content, project, timestamp, metadata FROM conversations "
-            "ORDER BY timestamp DESC",
+            f"SELECT id, content, project, timestamp, metadata "
+            f"FROM {CONVERSATIONS_TABLE} ORDER BY timestamp DESC",
         )
 
         return [
@@ -756,11 +757,16 @@ class MemoryOptimizer:
         # Insert consolidated conversation
         if self.reflection_db.conn:
             self.reflection_db.conn.execute(
-                """INSERT INTO conversations (id, content, project, timestamp, metadata)
-               VALUES (?, ?, ?, ?, ?)""",
+                f"""INSERT INTO {CONVERSATIONS_TABLE}
+               (id, content, category, project, timestamp, metadata)
+               VALUES (?, ?, ?, ?, ?, ?)""",
                 (
                     consolidated_id,
                     consolidated_conv.summary,
+                    # ``category`` is the one NOT NULL column in the v2
+                    # schema that has no DEFAULT, so it has to be
+                    # supplied. The adapter writes the same fallback.
+                    "context",
                     ", ".join(consolidated_conv.projects)
                     if consolidated_conv.projects
                     else "multiple",
@@ -774,7 +780,9 @@ class MemoryOptimizer:
         if original_ids and self.reflection_db.conn:
             placeholders = ",".join(["?" for _ in original_ids])
             # Build SQL safely - placeholders generated from list length, not user input
-            query = "DELETE FROM conversations WHERE id IN (" + placeholders + ")"
+            query = (
+                f"DELETE FROM {CONVERSATIONS_TABLE} WHERE id IN (" + placeholders + ")"
+            )
             self.reflection_db.conn.execute(query, original_ids)
 
         # Commit changes

@@ -15,6 +15,7 @@ from typing import Any
 
 from session_buddy.utils.time import utc_now
 
+from .reflection.storage import CONVERSATIONS_TABLE
 from .reflection_tools import ReflectionDatabase
 from .utils.git_worktrees import get_worktree_info, list_worktrees
 
@@ -514,7 +515,7 @@ class AutoContextLoader:
 
         if hasattr(self.reflection_db, "conn") and self.reflection_db.conn:
             cursor = self.reflection_db.conn.execute(
-                "SELECT id, content, project, timestamp, metadata FROM conversations",
+                f"SELECT id, content, project, timestamp, metadata FROM {CONVERSATIONS_TABLE}",
             )
             conversations = cursor.fetchall()
 

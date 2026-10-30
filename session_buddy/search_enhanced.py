@@ -27,6 +27,7 @@ except ImportError:
 
 import operator
 
+from .reflection.storage import CONVERSATIONS_TABLE
 from .reflection_tools import ReflectionDatabase
 from .session_types import TimeRange
 from .utils.regex_patterns import SAFE_PATTERNS
@@ -364,7 +365,7 @@ class EnhancedSearchEngine:
             return []
 
         cursor = self.reflection_db.conn.execute(
-            "SELECT id, content, project, timestamp, metadata FROM conversations",
+            f"SELECT id, content, project, timestamp, metadata FROM {CONVERSATIONS_TABLE}",
         )
         return cast("list[tuple[str, str, str, str, str]]", cursor.fetchall())
 
@@ -487,9 +488,9 @@ class EnhancedSearchEngine:
             start_iso = start_time.isoformat()
             end_iso = end_time.isoformat()
 
-            sql_query = """
+            sql_query = f"""
                 SELECT id, content, project, timestamp, metadata
-                FROM conversations
+                FROM {CONVERSATIONS_TABLE}
                 WHERE timestamp BETWEEN ? AND ?
                 ORDER BY timestamp DESC
             """

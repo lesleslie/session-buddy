@@ -19,6 +19,8 @@ from typing import Any
 
 import duckdb
 
+from session_buddy.reflection.storage import REFLECTIONS_TABLE
+
 logger = logging.getLogger(__name__)
 
 
@@ -200,7 +202,9 @@ class MemoryHealthAnalyzer:
             )
 
         # Total reflections
-        total_result = conn.execute("SELECT COUNT(*) FROM reflections").fetchone()
+        total_result = conn.execute(
+            f"SELECT COUNT(*) FROM {REFLECTIONS_TABLE}"
+        ).fetchone()
         total_reflections = total_result[0] if total_result else 0
 
         if total_reflections == 0:
@@ -217,7 +221,7 @@ class MemoryHealthAnalyzer:
 
         # Timestamp range
         timestamps = conn.execute(
-            "SELECT MIN(timestamp), MAX(timestamp) FROM reflections"
+            f"SELECT MIN(timestamp), MAX(timestamp) FROM {REFLECTIONS_TABLE}"
         ).fetchone()
 
         first_timestamp, last_timestamp = timestamps
@@ -225,9 +229,9 @@ class MemoryHealthAnalyzer:
         # Calculate stale reflections
         stale_cutoff = datetime.now(UTC) - timedelta(days=stale_threshold_days)
         stale_result = conn.execute(
-            """
+            f"""
             SELECT COUNT(*)
-            FROM reflections
+            FROM {REFLECTIONS_TABLE}
             WHERE timestamp < ?
         """,
             [stale_cutoff],
@@ -236,9 +240,9 @@ class MemoryHealthAnalyzer:
 
         # Average age
         avg_age_result = conn.execute(
-            """
+            f"""
             SELECT AVG(DATEDIFF('day', timestamp, CURRENT_TIMESTAMP))
-            FROM reflections
+            FROM {REFLECTIONS_TABLE}
         """
         ).fetchone()
         avg_age = (
@@ -250,11 +254,11 @@ class MemoryHealthAnalyzer:
         # `tag` is a reserved word in DuckDB, hence the quoted alias.
         try:
             tags_result = conn.execute(
-                """
+                f"""
                 SELECT "tag", COUNT(*) AS count
                 FROM (
                     SELECT unnest(tags) AS "tag"
-                    FROM reflections
+                    FROM {REFLECTIONS_TABLE}
                     WHERE tags IS NOT NULL
                 )
                 GROUP BY "tag"

@@ -1599,9 +1599,13 @@ class TestMemoryOptimizerDeepCoverage:
                        if c[0] and "INSERT" in str(c[0][0])]
         assert insert_calls
         # Verify project arg is 'multiple'
-        # args are positional: (query, params_tuple)
+        # args are positional:
+        # (id, content, category, project, timestamp, metadata)
         insert_args = insert_calls[0][0][1]
-        assert insert_args[2] == "multiple"
+        # ``category`` is NOT NULL without a DEFAULT in the v2 schema, so
+        # the insert has to supply it.
+        assert insert_args[2] == "context"
+        assert insert_args[3] == "multiple"
 
     @pytest.mark.asyncio
     async def test_compress_memory_returns_no_conversations(self) -> None:

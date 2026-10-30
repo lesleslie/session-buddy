@@ -61,14 +61,16 @@ from session_buddy.reflection.search import (
     search_conversations,
     search_reflections,
 )
+from session_buddy.reflection.storage import (
+    CONVERSATIONS_TABLE,
+    REFLECTIONS_TABLE,
+    store_conversation,
+    store_reflection,
+)
 
 # Import storage operations
 from session_buddy.reflection.storage import (
     get_reflection as _get_reflection_storage,
-)
-from session_buddy.reflection.storage import (
-    store_conversation,
-    store_reflection,
 )
 
 _DB_PATH_UNSET = object()
@@ -610,7 +612,7 @@ class ReflectionDatabase:
         def _update() -> bool:
             # Check if reflection exists
             result = conn.execute(
-                "SELECT id FROM reflections WHERE id = ?",
+                f"SELECT id FROM {REFLECTIONS_TABLE} WHERE id = ?",
                 [reflection_id],
             ).fetchone()
             if not result:
@@ -623,13 +625,13 @@ class ReflectionDatabase:
 
             if tags is not None:
                 conn.execute(
-                    "UPDATE reflections SET content = ?, tags = ?, timestamp = NOW() WHERE id = ?",
+                    f"UPDATE {REFLECTIONS_TABLE} SET content = ?, tags = ?, timestamp = NOW() WHERE id = ?",
                     [db_content, tags, reflection_id],
                 )
             else:
                 # tags=None means clear tags to empty list
                 conn.execute(
-                    "UPDATE reflections SET content = ?, tags = ?, timestamp = NOW() WHERE id = ?",
+                    f"UPDATE {REFLECTIONS_TABLE} SET content = ?, tags = ?, timestamp = NOW() WHERE id = ?",
                     [db_content, [], reflection_id],
                 )
             return True
@@ -665,13 +667,15 @@ class ReflectionDatabase:
         def _delete() -> bool:
             # Check if reflection exists
             result = conn.execute(
-                "SELECT id FROM reflections WHERE id = ?",
+                f"SELECT id FROM {REFLECTIONS_TABLE} WHERE id = ?",
                 [reflection_id],
             ).fetchone()
             if not result:
                 return False
 
-            conn.execute("DELETE FROM reflections WHERE id = ?", [reflection_id])
+            conn.execute(
+                f"DELETE FROM {REFLECTIONS_TABLE} WHERE id = ?", [reflection_id]
+            )
 
             # Also clean up reflection_tags
             with suppress(Exception):
@@ -770,7 +774,7 @@ class ReflectionDatabase:
             refl_count = await self._get_reflection_count()
 
             projects_rows = await self._execute_query(
-                "SELECT DISTINCT project FROM reflections WHERE project IS NOT NULL",
+                f"SELECT DISTINCT project FROM {REFLECTIONS_TABLE} WHERE project IS NOT NULL",
             )
             projects = [row[0] for row in projects_rows if row and row[0] is not None]
 
@@ -805,7 +809,7 @@ class ReflectionDatabase:
                 result = (
                     self._get_conn()
                     .execute(
-                        "SELECT COUNT(*) FROM conversations",
+                        f"SELECT COUNT(*) FROM {CONVERSATIONS_TABLE}",
                     )
                     .fetchone()
                 )
@@ -815,7 +819,7 @@ class ReflectionDatabase:
                 None,
                 lambda: (
                     self._get_conn()
-                    .execute("SELECT COUNT(*) FROM conversations")
+                    .execute(f"SELECT COUNT(*) FROM {CONVERSATIONS_TABLE}")
                     .fetchone()
                 ),
             )
@@ -832,7 +836,7 @@ class ReflectionDatabase:
                 result = (
                     self._get_conn()
                     .execute(
-                        "SELECT COUNT(*) FROM reflections",
+                        f"SELECT COUNT(*) FROM {REFLECTIONS_TABLE}",
                     )
                     .fetchone()
                 )
@@ -842,7 +846,7 @@ class ReflectionDatabase:
                 None,
                 lambda: (
                     self._get_conn()
-                    .execute("SELECT COUNT(*) FROM reflections")
+                    .execute(f"SELECT COUNT(*) FROM {REFLECTIONS_TABLE}")
                     .fetchone()
                 ),
             )

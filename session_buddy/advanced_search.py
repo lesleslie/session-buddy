@@ -15,6 +15,7 @@ from typing import Any
 
 import duckdb
 
+from .reflection.storage import CONVERSATIONS_TABLE, REFLECTIONS_TABLE
 from .reflection_tools import ReflectionDatabase
 from .search_enhanced import EnhancedSearchEngine
 from .session_types import SQLCondition
@@ -475,7 +476,7 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return []
 
-        sql = "SELECT id, content, project, timestamp, metadata FROM conversations"
+        sql = f"SELECT id, content, project, timestamp, metadata FROM {CONVERSATIONS_TABLE}"
         return self.reflection_db.conn.execute(sql).fetchall()
 
     async def _process_conversation_for_index(self, row: tuple[Any, ...]) -> None:
@@ -586,7 +587,7 @@ class AdvancedSearchEngine:
         if not self.reflection_db.conn:
             return
 
-        sql = "SELECT id, content, tags, timestamp, metadata FROM reflections"
+        sql = f"SELECT id, content, tags, timestamp, metadata FROM {REFLECTIONS_TABLE}"
         results = self.reflection_db.conn.execute(sql).fetchall()
 
         for row in results:

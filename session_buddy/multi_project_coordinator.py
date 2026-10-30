@@ -15,6 +15,8 @@ from typing import Any, Literal, Protocol, TypeVar
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
+from session_buddy.reflection.storage import CONVERSATIONS_TABLE
+
 _DB_RESULT = TypeVar("_DB_RESULT")
 
 
@@ -594,11 +596,11 @@ class MultiProjectCoordinator:
         since_date: datetime,
     ) -> dict[str, Any] | None:
         """Get statistics for a single project."""
-        sql = """
+        sql = f"""
             SELECT COUNT(*) as conversation_count,
                    MAX(timestamp) as last_activity,
                    AVG(LENGTH(content)) as avg_content_length
-            FROM conversations
+            FROM {CONVERSATIONS_TABLE}
             WHERE project = ? AND timestamp >= ?
         """
 
@@ -630,9 +632,9 @@ class MultiProjectCoordinator:
         since_date: datetime,
     ) -> list[tuple[str, str]]:
         """Get conversation data for pattern analysis."""
-        sql = """
+        sql = f"""
             SELECT project, content
-            FROM conversations
+            FROM {CONVERSATIONS_TABLE}
             WHERE project = ANY(?) AND timestamp >= ?
         """
 

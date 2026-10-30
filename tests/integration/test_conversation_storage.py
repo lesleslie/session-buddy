@@ -15,6 +15,8 @@ import asyncio
 import sys
 from pathlib import Path
 
+from session_buddy.reflection.storage import CONVERSATIONS_TABLE
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -82,14 +84,16 @@ async def test_conversation_storage(tmp_path) -> None:
         if db.is_temp_db:
             with db.lock:
                 result = db._get_conn().execute(
-                    "SELECT COUNT(*) FROM conversations WHERE embedding IS NOT NULL"
+                    f"SELECT COUNT(*) FROM {CONVERSATIONS_TABLE} WHERE embedding IS NOT NULL"
                 ).fetchone()
                 with_embeddings = result[0] if result else 0
         else:
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: db._get_conn()
-                .execute("SELECT COUNT(*) FROM conversations WHERE embedding IS NOT NULL")
+                .execute(
+                    f"SELECT COUNT(*) FROM {CONVERSATIONS_TABLE} WHERE embedding IS NOT NULL"
+                )
                 .fetchone(),
             )
             with_embeddings = result[0] if result else 0

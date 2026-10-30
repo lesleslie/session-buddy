@@ -10,6 +10,7 @@ import logging
 import typing as t
 
 from session_buddy.core.session_manager import SessionLifecycleManager
+from session_buddy.reflection.storage import CONVERSATIONS_TABLE
 from session_buddy.utils.time import utc_now
 
 
@@ -291,7 +292,7 @@ async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]
                         result = (
                             db._get_conn()
                             .execute(
-                                "SELECT COUNT(*) FROM conversations WHERE embedding IS NOT NULL"
+                                f"SELECT COUNT(*) FROM {CONVERSATIONS_TABLE} WHERE embedding IS NOT NULL"
                             )
                             .fetchone()
                         )
@@ -304,7 +305,7 @@ async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]
                         lambda: (
                             db._get_conn()
                             .execute(
-                                "SELECT COUNT(*) FROM conversations WHERE embedding IS NOT NULL"
+                                f"SELECT COUNT(*) FROM {CONVERSATIONS_TABLE} WHERE embedding IS NOT NULL"
                             )
                             .fetchone()
                         ),
@@ -324,7 +325,7 @@ async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]
                         result = (
                             db._get_conn()
                             .execute(
-                                """SELECT COUNT(*) FROM conversations
+                                f"""SELECT COUNT(*) FROM {CONVERSATIONS_TABLE}
                             WHERE timestamp > NOW() - INTERVAL '7 days'"""
                             )
                             .fetchone()
@@ -336,7 +337,7 @@ async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]
                         lambda: (
                             db._get_conn()
                             .execute(
-                                """SELECT COUNT(*) FROM conversations
+                                f"""SELECT COUNT(*) FROM {CONVERSATIONS_TABLE}
                             WHERE timestamp > NOW() - INTERVAL '7 days'"""
                             )
                             .fetchone()
@@ -346,7 +347,7 @@ async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]
 
                 # Get unique projects
                 projects_result = await db._execute_query(
-                    "SELECT DISTINCT project FROM conversations WHERE project IS NOT NULL"
+                    f"SELECT DISTINCT project FROM {CONVERSATIONS_TABLE} WHERE project IS NOT NULL"
                 )
                 stats["projects"] = [
                     row[0] for row in projects_result if row and row[0]

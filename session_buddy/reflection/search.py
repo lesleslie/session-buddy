@@ -19,7 +19,11 @@ logger = logging.getLogger(__name__)
 
 # Import encoding/decoding utilities
 from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
-from session_buddy.reflection.storage import _decode_text_from_db
+from session_buddy.reflection.storage import (
+    CONVERSATIONS_TABLE,
+    REFLECTIONS_TABLE,
+    _decode_text_from_db,
+)
 
 
 async def search_conversations(
@@ -109,7 +113,7 @@ async def _semantic_search_conversations(
             SELECT
                 id, content, embedding, project, timestamp, metadata,
                 array_cosine_similarity(embedding, CAST(? AS FLOAT[{embedding_dim}])) as score
-            FROM conversations
+            FROM {CONVERSATIONS_TABLE}
             WHERE embedding IS NOT NULL
         """
         params: list[Any] = [query_embedding]
@@ -190,7 +194,7 @@ async def _text_search_conversations(
     if not search_terms:
         return []
 
-    sql = "SELECT id, content, project, timestamp, metadata FROM conversations"
+    sql = f"SELECT id, content, project, timestamp, metadata FROM {CONVERSATIONS_TABLE}"
     params = []
 
     if project:
@@ -326,7 +330,7 @@ async def _semantic_search_reflections(
             SELECT
                 id, content, embedding, project, tags, timestamp, metadata,
                 array_cosine_similarity(embedding, CAST(? AS FLOAT[{embedding_dim}])) as score
-            FROM reflections
+            FROM {REFLECTIONS_TABLE}
             WHERE embedding IS NOT NULL
         """
         params: list[Any] = [query_embedding]
@@ -403,7 +407,7 @@ async def _text_search_reflections(
     """
     search_terms = query.lower().split()
 
-    sql = "SELECT id, content, project, tags, timestamp, metadata FROM reflections"
+    sql = f"SELECT id, content, project, tags, timestamp, metadata FROM {REFLECTIONS_TABLE}"
     params = []
 
     if project:
