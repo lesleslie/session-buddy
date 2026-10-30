@@ -368,16 +368,23 @@ def test_task_event_all_event_types_accepted() -> None:
 
 
 def test_handoff_params_defaults() -> None:
-    """Defaults: ``pool_selector='least_loaded'``, ``extra_metadata={}``."""
+    """Defaults: ``repo=None``, ``extra_metadata={}``.
+
+    ``pool_selector`` / ``pool_name`` were dropped when the dispatch
+    edge moved from the pool router to the durable-workflow path
+    (contract C7) — a durable workflow has neither.
+    """
     hp = HandoffParams()
-    assert hp.pool_selector == "least_loaded"
+    assert hp.repo is None
+    assert hp.timeout_seconds is None
+    assert hp.idempotency_key is None
     assert hp.extra_metadata == {}
 
 
-def test_handoff_params_rejects_unknown_selector() -> None:
-    """``pool_selector`` is bounded to the three spec literals."""
+def test_handoff_params_rejects_pool_selector() -> None:
+    """``pool_selector`` is gone from the envelope, not merely unused."""
     with pytest.raises(ValidationError):
-        HandoffParams(pool_selector="random")  # type: ignore[arg-type]
+        HandoffParams(pool_selector="random")  # type: ignore[call-arg]
 
 
 def test_handoff_result_round_trips() -> None:
