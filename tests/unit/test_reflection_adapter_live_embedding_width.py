@@ -23,6 +23,7 @@ import pytest
 from session_buddy.adapters import reflection_adapter_oneiric as reflection_module
 from session_buddy.adapters.settings import ReflectionAdapterSettings
 from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+from session_buddy.memory.schema_v2 import schema_v2_sql
 
 duckdb = pytest.importorskip("duckdb")
 
@@ -113,7 +114,12 @@ async def test_the_width_comes_from_this_database_not_an_attached_one(tmp_path: 
 
     other = duckdb.connect(str(other_path))
     try:
-        other.execute(f"CREATE TABLE reflections_v2 (embedding FLOAT[{DEFAULT_EMBEDDING_DIM}])")
+        # The attached database is given the real v2 schema rather than a
+        # hand-written CREATE TABLE. DuckDB binds no parameters into a
+        # type width, so the width would otherwise have to be composed
+        # into the statement -- and the schema helper derives it from the
+        # same constant the adapter reads.
+        other.execute(schema_v2_sql(DEFAULT_EMBEDDING_DIM))
     finally:
         other.close()
 
