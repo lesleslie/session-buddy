@@ -229,6 +229,12 @@ required to put it in place, and it backs the original up first.
   has to restore the real function to escape the stub.
 - **The legacy `ReflectionDatabase` write path** still targets the
   retired V1 tables (unchanged by this work; see the sibling plan).
-- **`OPENAI_API_KEY` is absent** from `~/.config/secrets.env` even
-  though it is set in the environment, so a launchd-spawned server does
-  not get the direct cloud leg — only the gateway one.
+- **`OPENAI_API_KEY` and `BIFROST_VIRTUAL_KEY` are both present** in
+  `~/.config/secrets.env`, but the reader that looks them up there
+  could not parse the store's `export KEY=value` convention, so a
+  launchd-spawned server found neither and fell through to the local
+  model. The reader now accepts the optional `export` keyword
+  (2026-10-29), which is what puts the server on the same provider as
+  the corpus. A corpus written by two providers is a corpus whose
+  vectors cannot be compared: the search still returned results, they
+  were just ranked by noise.

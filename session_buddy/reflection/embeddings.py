@@ -38,6 +38,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -113,6 +114,14 @@ _OPENAI_EMBEDDING_MODEL = os.environ.get(
     "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"
 )
 
+#: An assignment in the operator credential store.
+#:
+#: The ``export`` keyword is optional. The store's convention includes it
+#: -- shell rc files source the file, so its assignments are exported
+#: -- and a parser that requires a bare ``KEY=value`` matches nothing
+#: in it.
+_ASSIGNMENT = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$")
+
 
 def _get_llama_server_url() -> str:
     """Compute full llama-server URL, stripping trailing /embeddings if present."""
@@ -147,6 +156,13 @@ def _secret_from_store(name: str) -> str | None:
     credential has to come from ``~/.config/secrets.env`` when it is not
     already in the environment. Only the named key is read.
 
+    The store's convention is ``export KEY=value`` -- shell rc files
+    source it, so the assignments carry the ``export`` keyword. A parser
+    that compares the raw left-hand side therefore never matches any
+    key, and a launchd-spawned process silently finds nothing. The
+    keyword is optional here so both spellings are accepted, the same
+    way the rest of the fleet's store readers accept them.
+
     Args:
         name: The environment-variable name to look up.
 
@@ -161,12 +177,15 @@ def _secret_from_store(name: str) -> str | None:
         return None
     for line in lines:
         stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
+        if not stripped or stripped.startswith("#"):
             continue
-        key, _, value = stripped.partition("=")
-        if key.strip() != name:
+        match = _ASSIGNMENT.match(stripped)
+        if match is None or match.group(1) != name:
             continue
-        return value.strip().strip('"').strip("'") or None
+        value = match.group(2).strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        return value or None
     return None
 
 
