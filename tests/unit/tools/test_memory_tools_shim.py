@@ -78,7 +78,9 @@ async def test_store_reflection_forwards_args(
     result = await memory_tools.store_reflection(content, tags)
 
     assert result == "<stored>"
-    stub.assert_awaited_once_with(content, tags)
+    # ``metadata`` is an optional keyword the shim always forwards; the
+    # caller did not supply one, so it arrives as None.
+    stub.assert_awaited_once_with(content, tags, metadata=None)
 
 
 async def test_store_reflection_is_coroutine(monkeypatch: pytest.MonkeyPatch) -> None:

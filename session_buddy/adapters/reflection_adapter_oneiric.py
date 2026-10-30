@@ -1964,10 +1964,29 @@ class ReflectionDatabaseAdapterOneiric:
             query_embedding = await self._generate_embedding(query)
 
         if query_embedding and self.settings.enable_vss:
-            return self._vector_search_conversations(
+            results = self._vector_search_conversations(
                 query_embedding=query_embedding,
                 limit=limit,
                 threshold=threshold,
+                project=project,
+            )
+            if results:
+                return results
+            # Nothing cleared the threshold. The legacy search path falls
+            # back to the text match here, and the adapter lost that
+            # fallback in the v2 rewire: ``threshold`` became a hard
+            # filter, so a keyword query whose best semantic match scored
+            # below it returned nothing at all.
+            #
+            # The stored conversations are short context snapshots, so the
+            # best match for a keyword query scores far below 0.7 while a
+            # query that reproduces a conversation's full text scores 1.0.
+            # A threshold of 0.7 therefore admitted only near-verbatim
+            # queries and rejected everything else -- which is why
+            # ``quick_search`` reported "no results" for ordinary words.
+            return self._text_search_conversations(
+                query=query,
+                limit=limit,
                 project=project,
             )
         return self._text_search_conversations(
@@ -2053,18 +2072,34 @@ class ReflectionDatabaseAdapterOneiric:
         """
         # The conversations_v2 schema uses ``timestamp`` rather than
         # ``created_at``/``updated_at``.
-        sql = """
-            SELECT id, content, metadata, timestamp, project
-            FROM conversations_v2
-            WHERE content LIKE ?
-        """
+        # Token-aware match, mirroring the reflections text path: the full
+        # phrase is the most specific predicate and is ranked first, and
+        # each token is OR'd in so a multi-word query still finds the row
+        # that names one of its words.
+        tokens = [t for t in query.split() if t]
+        if not tokens:
+            # An empty query matches nothing, rather than everything.
+            return []
+
+        clauses: list[str] = ["content LIKE ?"]
         params: list[t.Any] = [f"%{query}%"]
+        for tok in tokens:
+            clauses.append("content LIKE ?")
+            params.append(f"%{tok}%")
+
+        sql = f"""
+            SELECT id, content, metadata, timestamp, project,
+                   CASE WHEN content LIKE ? THEN 0 ELSE 1 END AS match_rank
+            FROM conversations_v2
+            WHERE ({" OR ".join(clauses)})
+        """
+        rank_params: list[t.Any] = [f"%{query}%"]
         if project is not None:
             sql += " AND project = ?"
             params.append(project)
-        sql += " ORDER BY timestamp DESC LIMIT ?"
+        sql += " ORDER BY match_rank ASC, timestamp DESC LIMIT ?"
         params.append(limit)
-        result = self.conn.execute(sql, params).fetchall()
+        result = self.conn.execute(sql, rank_params + params).fetchall()
 
         return [
             {
@@ -2577,6 +2612,29 @@ class ReflectionDatabaseAdapterOneiric:
             """,
             params,
         ).fetchall()
+
+        if not results:
+            # Nothing cleared the threshold. The legacy search path
+            # (``session_buddy/reflection/search.py``) falls back to the
+            # token-aware text match here, and the adapter lost that
+            # fallback in the v2 rewire: ``min_score`` became an SQL
+            # ``WHERE`` filter, so a keyword query whose best semantic
+            # match scored below the threshold returned nothing at all --
+            # even when the reflection it named was an obvious hit.
+            #
+            # On this corpus that is not an edge case. The stored
+            # reflections are short technical notes, so the best match for
+            # a keyword query scores around 0.35-0.62, while a query that
+            # reproduces a reflection's full text scores 1.0. A threshold
+            # of 0.7 therefore admitted only verbatim queries and rejected
+            # everything else. The text path cannot rank by similarity, so
+            # it ignores ``min_score`` -- which is why it is only reached
+            # when the semantic path is empty: a caller that asked for a
+            # threshold and cleared it keeps the semantic ranking.
+            #
+            # The text path also matches on tags, which the semantic path
+            # never could, so this restores tag search as well.
+            return await self._text_search_reflections(query, limit, project)
 
         return [
             {

@@ -115,6 +115,22 @@ async def _store_reflection_impl(content: str, tags: list[str] | None = None) ->
 # ============================================================================
 
 
+def _result_score(row: dict[str, Any]) -> float:
+    """Best-effort numeric relevance for a search row.
+
+    The conversation search reports ``score``; the reflection search
+    reports ``similarity``. A row that came back through the lexical
+    fallback carries neither, and scores zero.
+    """
+    raw = row.get("similarity")
+    if raw is None:
+        raw = row.get("score")
+    try:
+        return float(raw)  # ty: ignore[invalid-argument-type]
+    except TypeError, ValueError:
+        return 0.0
+
+
 async def _quick_search_operation(
     db: ReflectionDatabase,
     query: str,
@@ -123,8 +139,18 @@ async def _quick_search_operation(
     limit: int = 5,
 ) -> str:
     """Execute quick search and format results."""
-    total_results = await db.search_conversations(
+    conversations = await db.search_conversations(
         query=query, project=project, min_score=min_score, limit=limit
+    )
+    # Reflections are the durable memory store; conversations are session
+    # context. A quick search that only looked at conversations could not
+    # see a stored reflection at all, which is what made this tool look
+    # broken for anyone searching for something they had stored.
+    reflections = await db.search_reflections(
+        query=query, limit=limit, project=project, min_score=min_score
+    )
+    total_results = sorted(
+        [*conversations, *reflections], key=_result_score, reverse=True
     )
 
     if not total_results:
@@ -132,7 +158,8 @@ async def _quick_search_operation(
 
     top_result = total_results[0]
     result = f"🔍 **{len(total_results)} results** for '{query}'\n\n"
-    result += f"**Top Result** (score: {top_result.get('similarity', 'N/A')}):\n"
+    top_score = _result_score(top_result)
+    result += f"**Top Result** (score: {top_score:.2f}):\n"
     result += f"{top_result.get('content', '')[:200]}..."
 
     if len(total_results) > 1:

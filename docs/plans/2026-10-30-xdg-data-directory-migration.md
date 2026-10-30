@@ -451,5 +451,79 @@ one in the Phase 2 section: boot the job out, do not just kill it.
   45 health snapshots × 3 categories = 135. The column is nullable, so
   the rows could be nulled out, but they carry real historical health
   metrics, and the fix belongs in the health writer rather than in the
-  data.
+  data. **Fixed** in crackerjack `c1729abb`: the parent row is written
+  before the metric rows, the connection sets `PRAGMA foreign_keys=ON`
+  so a regression fails loudly, and six tests cover the association.
+
+## Follow-on — the vestigial v1 tables
+
+Moving the files exposed a second layer the migration plan never
+mentioned, because it is about table names rather than paths.
+
+The v2 schema promotion (`cebc6a79`) moved storage to `reflections_v2`
+and `conversations_v2`. `session_buddy/reflection/schema.py` creates
+*only* the v2 tables — its `create_conversations_table` and
+`create_reflections_table` helpers are no-op shims — so the v1 names
+do not exist on a freshly initialised database at all. But a dozen
+places still hard-coded them:
+
+- `session_buddy/reflection/search.py` read `FROM reflections` — a
+  table that exists in the live database but holds **zero rows**, so a
+  legacy search for a reflection that demonstrably existed returned
+  "no results" with nothing to indicate why.
+- The legacy write path inserted into `conversations`, which on a fresh
+  database failed outright: *"Table with name conversations does not
+  exist! Did you mean conversations_v2?"*
+- `core/memory_health.py` counted `reflections`, so the health report
+  said "0 reflections" while the store held 24.
+
+All of them now resolve the table through `REFLECTIONS_TABLE` /
+`CONVERSATIONS_TABLE` in `session_buddy/reflection/storage.py`, which
+is what the Oneiric adapter already did through its own `_table()`
+helper.
+
+**The live data moved with it.** 19 SESSION_END conversation snapshots
+had been written to the v1 `conversations` table after the promotion,
+so they were invisible to every v2 reader. They were migrated with the
+canonical `MIGRATION_SQL` (backup at
+`.reflection.duckdb.pre-v2-conversation-migration.bak`), and the three
+vector indexes were dropped and rebuilt around the checkpoint — a
+checkpoint over a WAL containing HNSW-indexed rows hits the DuckDB
+2.0.0 `vss` bug, so the indexes have to be out of the way first.
+
+The rebuild also fixed a latent name collision: the adapter creates
+`idx_default_conv_embeddings_hnsw` on `conversations_v2`, but an
+index of that name already existed on the vestigial `default_conversations`
+table, so `CREATE INDEX IF NOT EXISTS` was a no-op and the v2 table
+never got a vector index at all.
+
+## Follow-on — why `quick_search` returned nothing
+
+`quick_search` reported "no results" for every query, including exact
+substrings of stored reflections. The cause was a threshold, not a
+missing row.
+
+The corpus is short technical notes, so the best semantic match for a
+keyword query scores around 0.35-0.62, while a query that reproduces a
+reflection's full text scores 1.0. The default `min_score` of 0.7
+therefore admitted only near-verbatim queries. The legacy search path
+falls back to a lexical match when nothing clears the threshold; the
+v2 rewire dropped that fallback, because `min_score` became a hard SQL
+filter instead. It is restored for both stores.
+
+Two further facts the fix exposed:
+
+- The registered `quick_search` searched **conversations**, not
+  reflections. Two tools with that name are registered —
+  `mcp/tools/memory/memory_tools.py` searches reflections and
+  `mcp/tools/memory/search_tools.py` searches conversations — and the
+  latter wins by registration order, so the reflections-searching
+  variant was unreachable. The registered one now searches both.
+- The DuckDB WAL for this database is poisoned on most startups (the
+  `vss` HNSW serialisation bug), and the server recovers by flushing
+  it. That is chronic and predates this migration — it happened nine
+  times between 2026-10-29 13:11 and 2026-10-30 06:31 at the *old*
+  path. It is also why an in-process probe against the same file
+  behaved differently from the running server: the poisoned-WAL
+  recovery path was the thing making the connection healthy.
 
