@@ -93,7 +93,7 @@ def unpack_embedding(blob: bytes) -> np.ndarray:
         >>> blob = bytes_from_db
         >>> embedding = unpack_embedding(blob)
         >>> embedding.shape
-        (4096,)
+        (768,)
     """
     if len(blob) != EMBEDDING_BYTES:
         raise ValueError(f"Expected {EMBEDDING_BYTES} bytes, got {len(blob)}")
@@ -232,7 +232,7 @@ class SkillsEmbeddingService:
             >>> service.initialize()
             >>> embedding = service.generate_embedding("fix race condition")
             >>> embedding.shape
-            (4096,)
+            (768,)
         """
         if not self._initialized and not self.initialize():
             return None

@@ -159,7 +159,7 @@ class TestEmbeddingQuantization:
     def test_quantization_with_cache(self, quantized_settings: ReflectionAdapterSettings) -> None:
         """Test that quantization works correctly with the embedding cache."""
         from session_buddy.reflection.embeddings import (
-            _embedding_cache,
+            _embedding_cache_get,
             _embedding_cache_put,
         )
 
@@ -173,8 +173,10 @@ class TestEmbeddingQuantization:
         # attribute to module scope). Use the module-level cache API.
         _embedding_cache_put(query, embedding)
 
-        # Retrieve from cache (should get original, not quantized)
-        cached = _embedding_cache.get(query)
+        # Retrieve from cache (should get original, not quantized).
+        # The key carries the width, so read it back through the
+        # accessor rather than indexing the dict.
+        cached = _embedding_cache_get(query)
         assert cached == embedding, "Cache should store original embedding"
 
         # Quantization should work on cached embedding
