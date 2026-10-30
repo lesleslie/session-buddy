@@ -55,6 +55,9 @@ import os
 import pwd
 import re
 
+from mcp_common.auth.exceptions import InsufficientPermissionError
+from mcp_common.auth.permissions import Permission
+
 from session_buddy.mcp.tools.tasks_models import OWNER_PATTERN
 
 # Re-exported here so callers can pre-compile and avoid the cost of
@@ -85,7 +88,7 @@ def _local_user() -> str:
     return name or "local"
 
 
-def _identity_from_principal(principal: object) -> str | None:
+def _identity_from_principal(principal: object, required: Permission) -> str | None:
     """Derive an identity from an mcp_common ``Principal`` payload.
 
     The payload is the dict form written by
@@ -95,12 +98,30 @@ def _identity_from_principal(principal: object) -> str | None:
     An email in the claims wins, because ``user:<email>`` is the identity
     form the spec names first and it is what a human recognises. With no
     email the subject stands in as an agent identity.
+
+    The principal must hold ``required``, mirroring the fleet's own
+    ``require_auth`` decorator (``mcp_common.auth.decorator``): a
+    principal without the scope raises ``InsufficientPermissionError``.
+
+    It *raises* rather than returning ``None``. Returning ``None`` would
+    fall through to the legacy keys and then to the local trust domain,
+    whose identity carries full local access -- so an authenticated but
+    under-privileged caller would be silently upgraded instead of
+    refused.
     """
     if not isinstance(principal, dict):
         return None
     subject = principal.get("subject")
     if not subject:
         return None
+
+    granted = {str(p) for p in (principal.get("permissions") or [])}
+    if required.value not in granted:
+        raise InsufficientPermissionError(
+            f"principal {subject!r} lacks the {required.value!r} permission "
+            f"(granted: {sorted(granted) or 'none'})"
+        )
+
     claims = principal.get("raw_claims")
     claims = claims if isinstance(claims, dict) else {}
     email = claims.get("email") or claims.get("preferred_username")
@@ -132,20 +153,32 @@ def _local_trust_domain_allowed() -> bool:
     return bool(settings.auth_loopback_trusted)
 
 
-def derive_caller_identity(mcp_context: dict) -> str:
+def derive_caller_identity(
+    mcp_context: dict,
+    required: Permission = Permission.READ,
+) -> str:
     """Return the caller identity string for this MCP request.
 
     Returns ``user:<email>`` if a user is authenticated, else
     ``agent:<id>`` if an agent is authenticated, else the local
     trust-domain identity when the substrate's auth gate is off.
 
-    Raises ``PermissionError`` when no identity can be derived -- the
-    spec requires anonymous calls to fail closed, and the one exception
-    is the loopback-trusted deployment the substrate describes.
+    Args:
+        mcp_context: The auth block gathered from the MCP request.
+        required: The permission the operation needs. A principal that
+            lacks it raises ``InsufficientPermissionError`` rather than
+            being downgraded to another identity.
+
+    Raises:
+        InsufficientPermissionError: The caller presented a principal
+            without the required scope.
+        PermissionError: No identity can be derived -- the spec requires
+            anonymous calls to fail closed, and the one exception is the
+            loopback-trusted deployment the substrate describes.
     """
     auth = mcp_context.get("auth") or {}
 
-    principal_identity = _identity_from_principal(auth.get("principal"))
+    principal_identity = _identity_from_principal(auth.get("principal"), required)
     if principal_identity is not None:
         return principal_identity
 

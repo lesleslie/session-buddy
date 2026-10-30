@@ -9,6 +9,8 @@ These tests pin:
   is off (or loopback is trusted). With the gate on and loopback
   untrusted, an anonymous call fails closed with ``PermissionError``
   (spec §Authz Model).
+- A principal must hold the permission the operation requires; one that
+  does not is refused rather than downgraded to another identity.
 - ``validate_owner_format`` accepts canonical ``user:`` / ``agent:``
   strings and rejects malformed inputs (missing prefix, missing value,
   no colon at all).
@@ -17,6 +19,8 @@ These tests pin:
 from __future__ import annotations
 
 import pytest
+from mcp_common.auth.exceptions import InsufficientPermissionError
+from mcp_common.auth.permissions import Permission
 
 from session_buddy.mcp.tools.tasks_identity import (
     OWNER_RE,
@@ -67,6 +71,7 @@ def test_caller_identity_reads_the_principal_email_claim() -> None:
             "principal": {
                 "issuer": "anthropic",
                 "subject": "user_abc",
+                "permissions": ["read"],
                 "raw_claims": {"email": "les@wedgwoodwebworks.com"},
             },
         },
@@ -81,6 +86,7 @@ def test_caller_identity_falls_back_to_the_principal_subject() -> None:
             "principal": {
                 "issuer": "anthropic",
                 "subject": "svc-account-7",
+                "permissions": ["read"],
                 "raw_claims": {},
             },
         },
@@ -94,6 +100,7 @@ def test_caller_identity_prefers_the_principal_over_the_legacy_keys() -> None:
             "principal": {
                 "issuer": "anthropic",
                 "subject": "user_abc",
+                "permissions": ["read"],
                 "raw_claims": {"email": "principal@example.com"},
             },
             "user_email": "legacy@example.com",
@@ -172,6 +179,64 @@ def test_local_user_matches_the_owner_pattern() -> None:
     local = _local_user()
     assert local, "the local user name must not be empty"
     assert OWNER_RE.match(f"user:{local}") is not None
+
+
+# ---------------------------------------------------------------------------
+# Permission scope — an authenticated principal is not automatically
+# authorized.
+# ---------------------------------------------------------------------------
+
+
+def _principal_ctx(*permissions: str) -> dict:
+    return {
+        "auth": {
+            "principal": {
+                "issuer": "anthropic",
+                "subject": "user_abc",
+                "permissions": list(permissions),
+                "raw_claims": {"email": "les@wedgwoodwebworks.com"},
+            },
+        },
+    }
+
+
+def test_a_principal_holding_the_scope_is_accepted() -> None:
+    ctx = _principal_ctx("read", "write")
+    identity = derive_caller_identity(ctx, Permission.WRITE)
+    assert identity == "user:les@wedgwoodwebworks.com"
+
+
+def test_a_principal_missing_the_scope_is_refused() -> None:
+    # Authenticated, but only a reader -- a write operation must not be
+    # authorized.
+    ctx = _principal_ctx("read")
+    with pytest.raises(InsufficientPermissionError):
+        derive_caller_identity(ctx, Permission.WRITE)
+
+
+def test_a_refused_principal_is_not_downgraded_to_the_local_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The refusal must not fall through to the legacy keys or to the
+    # local trust domain -- the local identity carries full local access,
+    # so falling through would silently upgrade the caller.
+    _set_gate(monkeypatch, enabled=False, loopback_trusted=True)
+    ctx = _principal_ctx("read")
+    with pytest.raises(InsufficientPermissionError):
+        derive_caller_identity(ctx, Permission.WRITE)
+
+
+def test_a_principal_with_no_permissions_is_refused() -> None:
+    ctx = _principal_ctx()
+    with pytest.raises(InsufficientPermissionError):
+        derive_caller_identity(ctx, Permission.READ)
+
+
+def test_a_read_principal_may_read() -> None:
+    ctx = _principal_ctx("read")
+    assert derive_caller_identity(ctx, Permission.READ) == (
+        "user:les@wedgwoodwebworks.com"
+    )
 
 
 # ---------------------------------------------------------------------------

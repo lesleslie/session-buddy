@@ -22,6 +22,8 @@ import re
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal, cast
 
+from mcp_common.auth.permissions import Permission
+
 # ``Context`` is imported at module level (not behind ``TYPE_CHECKING``)
 # so FastMCP can resolve the forward reference ``ctx: Context`` when
 # introspecting the tool signature for parameter-schema generation. With
@@ -203,7 +205,7 @@ async def tasks_create(
     or oversize content propagates so the MCP layer surfaces a 400-class
     response to the caller.
     """
-    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx), Permission.WRITE)
 
     try:
         limiter = _get_create_limiter()
@@ -607,7 +609,7 @@ async def tasks_list(
     - ``include_legacy=True`` is the only way to surface legacy
       ``tags=["todo"]`` rows (default ``False`` per §Migration).
     """
-    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx), Permission.READ)
 
     # Security boundary: caller cannot filter by another user's owner. The
     # brief pins the empty-result behaviour; the spec is more nuanced
@@ -949,7 +951,7 @@ async def tasks_get(
     task_id: Annotated[str, Field(pattern=TASK_ID_PATTERN)],
 ) -> Task | dict[str, Any]:
     """Fetch a single task by id. Returns 404 (not 403) on visibility failure."""
-    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx), Permission.READ)
 
     # Explicit pattern validation (the Annotated[...] hint is documentation-only
     # on a plain async function; the spec §Error Handling Matrix pins an
@@ -1008,7 +1010,7 @@ async def tasks_update(
     request: UpdateTaskRequest,
 ) -> Task | dict[str, Any]:
     """Update mutable fields on a task. Server rejects owner mutation; 120/min per caller."""
-    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx), Permission.WRITE)
 
     # Defense in depth: even if a future UpdateTaskRequest change re-exposes
     # owner/created_by/completed_by, we still reject at the tool body so the
@@ -1151,7 +1153,7 @@ async def tasks_complete(
     Returns the updated :class:`Task`, or an error envelope on rate
     limit / pattern mismatch / not_found / not_visible.
     """
-    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx), Permission.WRITE)
 
     if not re.match(TASK_ID_PATTERN, task_id):
         return {
@@ -1281,7 +1283,7 @@ async def tasks_search(
     ``min_score``, and ``k`` forward to or post-filter the underlying
     ``search_reflections`` call.
     """
-    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx), Permission.READ)
 
     raw_results = await search_reflections(
         query=query,
@@ -1381,7 +1383,7 @@ async def tasks_history(
     — NOT an error envelope. Visibility filter is enforced: missing or
     invisible tasks return 404 (not 403) to avoid leaking existence.
     """
-    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx), Permission.READ)
 
     # Explicit pattern validation (the Annotated[..., Field(pattern=...)]
     # signature hint is documentation-only on a plain async function;
