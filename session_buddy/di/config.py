@@ -13,6 +13,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from session_buddy.paths import data_dir, data_dir_under, state_dir, state_dir_under
+
 
 @dataclass(frozen=True)
 class SessionPaths:
@@ -22,11 +24,16 @@ class SessionPaths:
     a proper type-based configuration object that works correctly with Bevy's
     type checking system.
 
+    ``claude_dir`` and ``commands_dir`` stay under ``~/.claude`` — those
+    really are Claude-Code-specific. ``data_dir`` and ``logs_dir`` are
+    owned by Session-Buddy and resolve through the XDG Base Directory
+    layout (see :mod:`session_buddy.paths`).
+
     Attributes:
         claude_dir: Root directory for Claude session data (~/.claude)
-        logs_dir: Directory for session logs (~/.claude/logs)
+        logs_dir: Directory for session logs (XDG state dir)
         commands_dir: Directory for slash commands (~/.claude/commands)
-        data_dir: Directory for database storage (~/.claude/data)
+        data_dir: Directory for database storage (XDG data dir)
 
     Example:
         >>> paths = SessionPaths.from_home()
@@ -51,7 +58,9 @@ class SessionPaths:
         Args:
             home: Optional home directory path. If None, uses current user's home
                   directory via os.path.expanduser("~"). This method respects the
-                  HOME environment variable, making it test-friendly.
+                  HOME environment variable, making it test-friendly. When given,
+                  the XDG data and state roots are anchored beneath it so the
+                  whole tree stays isolated.
 
         Returns:
             SessionPaths instance with directories based on the home path.
@@ -69,14 +78,19 @@ class SessionPaths:
             # Use os.path.expanduser to respect HOME environment variable
             # This is test-friendly, unlike Path.home() which uses system APIs
             home = Path(os.path.expanduser("~"))
+            logs_dir = state_dir()
+            data_root = data_dir()
+        else:
+            logs_dir = state_dir_under(home)
+            data_root = data_dir_under(home)
 
         claude_dir = home / ".claude"
 
         return cls(
             claude_dir=claude_dir,
-            logs_dir=claude_dir / "logs",
+            logs_dir=logs_dir,
             commands_dir=claude_dir / "commands",
-            data_dir=claude_dir / "data",
+            data_dir=data_root,
         )
 
     def ensure_directories(self) -> None:

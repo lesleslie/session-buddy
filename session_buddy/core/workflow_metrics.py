@@ -23,6 +23,7 @@ from typing import Any
 import duckdb
 
 from session_buddy.di import depends
+from session_buddy.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -114,15 +115,17 @@ class WorkflowMetricsStore:
     Uses DuckDB for efficient analytics queries with time-series support.
     """
 
-    def __init__(self, db_path: str = "~/.claude/data/workflow_metrics.db") -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         """Initialize metrics store with database path.
 
         Args:
-            db_path: Path to DuckDB database file (expanded for ~)
+            db_path: Path to DuckDB database file (expanded for ~). Defaults
+                to ``workflow_metrics.db`` inside the XDG data directory.
         """
         import os
 
-        self.db_path = os.path.expanduser(db_path)
+        resolved = db_path or str(data_dir() / "workflow_metrics.db")
+        self.db_path = os.path.expanduser(resolved)
         self._conn: Any = None
 
     def _get_conn(self) -> Any:

@@ -23,6 +23,9 @@ from oneiric.core.config import OneiricMCPConfig, OneiricSettings
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
 
+from session_buddy.paths import data_dir as resolve_data_dir
+from session_buddy.paths import state_dir as resolve_state_dir
+
 if t.TYPE_CHECKING:
     from oneiric.core.substrate_settings import SubstrateSettings
 
@@ -211,14 +214,20 @@ class PathsConfig(_BaseConfig):
     Expands ``~`` on load via ``@field_validator``. ``data_dir`` and
     ``log_dir`` are the parent directories that ``database.path`` and
     ``log_file_path`` may resolve relative to.
+
+    The defaults resolve through the XDG Base Directory layout (see
+    :mod:`session_buddy.paths`): data lives under the XDG data root and
+    logs under the XDG state root. The YAML layer still pins the legacy
+    ``~/.claude`` locations, so the effective value only changes when the
+    operator flips that override alongside the data move.
     """
 
     data_dir: Path = Field(
-        default=Path("~/.claude/data"),
+        default_factory=resolve_data_dir,
         description="Base data directory",
     )
     log_dir: Path = Field(
-        default=Path("~/.claude/logs"),
+        default_factory=resolve_state_dir,
         description="Base log directory",
     )
     global_workspace_path: Path = Field(
@@ -226,7 +235,7 @@ class PathsConfig(_BaseConfig):
         description="Global workspace path",
     )
     log_file_path: Path = Field(
-        default=Path("~/.claude/logs/session-buddy.log"),
+        default_factory=lambda: resolve_state_dir() / "session-buddy.log",
         description="Log file path",
     )
 
@@ -242,7 +251,7 @@ class DatabaseConfig(_BaseConfig):
     """DuckDB connection settings."""
 
     path: Path = Field(
-        default=Path("~/.claude/data/reflection.duckdb"),
+        default_factory=lambda: resolve_data_dir() / "reflection.duckdb",
         description="Path to the DuckDB database file",
     )
     connection_timeout: int = Field(

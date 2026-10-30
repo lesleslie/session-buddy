@@ -143,25 +143,15 @@ class TestStandardModePublicSurface:
             assert getattr(cfg, flag) is True, flag
 
     def test_validate_environment_on_writable_dir(self, tmp_path: Path) -> None:
-        """Replacing ~/.claude/data with a writable tmp dir yields no errors."""
-        with patch.dict(
-            os.environ, {"HOME": str(tmp_path)}, clear=False
+        """Pointing the data dir at a writable tmp dir yields no errors."""
+        target = tmp_path / "session-buddy-data"
+        target.mkdir(parents=True, exist_ok=True)
+        with patch(
+            "session_buddy.modes.standard.data_dir",
+            return_value=target,
         ):
-            # Point to a writable subdir under tmp
-            target = tmp_path / "claude_data"
-            target.mkdir(parents=True, exist_ok=True)
-            with patch(
-                "session_buddy.modes.standard.Path",
-                side_effect=lambda p: Path(str(p).replace(
-                    os.path.expanduser("~/.claude/data"), str(target)
-                ))
-                if "~/.claude/data" in str(p)
-                else Path(p),
-            ):
-                errors = StandardMode().validate_environment()
-        # We accept either zero errors (if patch succeeded) or an empty
-        # result. The contract under tmp_path is that the dir is writable.
-        assert isinstance(errors, list)
+            errors = StandardMode().validate_environment()
+        assert errors == []
 
     def test_startup_message_mentions_persistence_and_features(self) -> None:
         msg = StandardMode().get_startup_message()

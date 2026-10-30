@@ -145,12 +145,20 @@ class TestReminderSchedulerInit:
             return_value=mock_parser,
         ):
             with patch("session_buddy.natural_scheduler.Path") as mock_path:
-                mock_path.home.return_value = Path("/home/user")
                 mock_path.return_value.mkdir = MagicMock()
-                with patch("sqlite3.connect"):
-                    sched = ReminderScheduler()
-                    expected_path = str(Path("/home/user/.claude/data/natural_scheduler.db"))
-                    assert sched.db_path == expected_path
+                with patch(
+                    "session_buddy.natural_scheduler.data_dir",
+                    return_value=Path("/home/user/.local/share/session-buddy"),
+                ):
+                    with patch("sqlite3.connect"):
+                        sched = ReminderScheduler()
+                        expected_path = str(
+                            Path(
+                                "/home/user/.local/share/session-buddy"
+                                "/natural_scheduler.db",
+                            ),
+                        )
+                        assert sched.db_path == expected_path
 
     def test_init_creates_lock(self, mock_parser):
         """Test that __init__ creates threading lock."""

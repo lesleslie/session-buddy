@@ -21,6 +21,7 @@ from pathlib import Path
 
 import httpx2 as httpx
 
+from session_buddy.paths import data_dir, state_dir
 from session_buddy.utils import logger
 
 
@@ -159,7 +160,7 @@ async def check_file_system_health() -> ComponentHealth:
 
     Checks:
         - ~/.claude directory exists and writable
-        - Data directories accessible
+        - XDG data and state directories accessible
         - Sufficient disk space (basic check)
 
     """
@@ -189,13 +190,13 @@ async def check_file_system_health() -> ComponentHealth:
             )
 
         # Check critical subdirectories
-        logs_dir = claude_dir / "logs"
-        data_dir = claude_dir / "data"
+        logs_dir = state_dir()
+        data_root = data_dir()
 
         missing_dirs = []
         if not logs_dir.exists():
             missing_dirs.append("logs")
-        if not data_dir.exists():
+        if not data_root.exists():
             missing_dirs.append("data")
 
         latency_ms = (time.perf_counter() - start_time) * 1000

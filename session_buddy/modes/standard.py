@@ -7,7 +7,7 @@ Standard mode is designed for:
 - Full feature set
 
 Features:
-- File-based database (~/.claude/data/reflection.duckdb)
+- File-based database (XDG data dir / reflection.duckdb)
 - File-based storage
 - Embeddings via the local HTTP provider (semantic search)
 - Multi-project coordination
@@ -21,10 +21,8 @@ Setup Time: ~ 5 minutes
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
 from session_buddy.modes.base import ModeConfig, OperationMode
+from session_buddy.paths import data_dir
 
 
 class StandardMode(OperationMode):
@@ -38,7 +36,7 @@ class StandardMode(OperationMode):
         >>>
         >>> mode = StandardMode()
         >>> config = mode.get_config()
-        >>> print(config.database_path)  # ~/.claude/data/reflection.duckdb
+        >>> print(config.database_path)  # <xdg data dir>/reflection.duckdb
         >>> print(config.enable_embeddings)  # True
     """
 
@@ -60,13 +58,13 @@ class StandardMode(OperationMode):
         Example:
             >>> mode = StandardMode()
             >>> config = mode.get_config()
-            >>> print(config.database_path)  # ~/.claude/data/reflection.duckdb
+            >>> print(config.database_path)  # <xdg data dir>/reflection.duckdb
             >>> print(config.storage_backend)  # file
             >>> print(config.enable_embeddings)  # True
         """
         # Use default database path
-        data_dir = Path(os.path.expanduser("~/.claude/data"))
-        database_path = str(data_dir / "reflection.duckdb")
+        data_root = data_dir()
+        database_path = str(data_root / "reflection.duckdb")
 
         return ModeConfig(
             name="standard",
@@ -104,16 +102,16 @@ class StandardMode(OperationMode):
         errors = []
 
         # Check data directory is writable
-        data_dir = Path(os.path.expanduser("~/.claude/data"))
+        data_root = data_dir()
         try:
-            data_dir.mkdir(parents=True, exist_ok=True)
+            data_root.mkdir(parents=True, exist_ok=True)
             # Test write access
-            test_file = data_dir / ".write_test"
+            test_file = data_root / ".write_test"
             test_file.touch()
             test_file.unlink()
         except PermissionError:
             errors.append(
-                f"Data directory {data_dir} is not writable. Check permissions."
+                f"Data directory {data_root} is not writable. Check permissions."
             )
         except OSError as e:
             errors.append(f"Failed to access data directory: {e}")
@@ -131,12 +129,13 @@ class StandardMode(OperationMode):
             >>> message = mode.get_startup_message()
             >>> print(message)
             🚀 Starting Session-Buddy in standard mode...
-            💾 Persistent database (~/.claude/data/reflection.duckdb)
+            💾 Persistent database (<xdg data dir>/reflection.duckdb)
             📦 Full feature set
             🧠 Semantic search enabled
         """
-        return """🚀 Starting Session-Buddy in standard mode...
-💾 Persistent database (~/.claude/data/reflection.duckdb)
+        database_path = str(data_dir() / "reflection.duckdb")
+        return f"""🚀 Starting Session-Buddy in standard mode...
+💾 Persistent database ({database_path})
 📦 Full feature set
 🧠 Semantic search enabled
 🌐 Multi-project coordination enabled
@@ -154,7 +153,7 @@ class StandardMode(OperationMode):
             >>> mode = StandardMode()
             >>> config_dict = mode.to_dict()
             >>> print(config_dict['mode'])  # standard
-            >>> print(config_dict['database_path'])  # ~/.claude/data/reflection.duckdb
+            >>> print(config_dict['database_path'])  # <xdg data dir>/reflection.duckdb
         """
         config = self.get_config()
         return config.to_dict()

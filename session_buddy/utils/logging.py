@@ -14,6 +14,7 @@ from pathlib import Path
 
 from session_buddy.di import get_sync_typed
 from session_buddy.di.container import depends
+from session_buddy.paths import state_dir
 from session_buddy.utils.time import utc_now
 
 
@@ -127,7 +128,7 @@ def _resolve_logs_dir() -> Path:
             return paths.logs_dir
 
     # Fallback: create default logs directory
-    logs_dir = Path.home() / ".claude" / "logs"
+    logs_dir = state_dir()
     try:
         logs_dir.mkdir(parents=True, exist_ok=True)
         return logs_dir

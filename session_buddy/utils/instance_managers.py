@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from session_buddy.di import SessionPaths, get_sync_typed
 from session_buddy.di.container import depends
+from session_buddy.paths import config_dir, data_dir
 
 if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter import (
@@ -44,11 +45,11 @@ async def get_app_monitor() -> ApplicationMonitor | None:
         if isinstance(monitor, ApplicationMonitor):
             return monitor
 
-    data_dir = _resolve_claude_dir() / "data" / "app_monitoring"
+    data_root = _resolve_data_dir() / "app_monitoring"
     working_dir = Path(os.environ.get("PWD", str(Path.cwd())))
     project_paths = [str(working_dir)] if working_dir.exists() else []
 
-    monitor = ApplicationMonitor(str(data_dir), project_paths)
+    monitor = ApplicationMonitor(str(data_root), project_paths)
     depends.set(ApplicationMonitor, monitor)
     return monitor
 
@@ -70,7 +71,7 @@ async def get_llm_manager() -> LLMManager | None:
         if isinstance(manager, LLMManager):
             return manager
 
-    config_path = _resolve_claude_dir() / "data" / "llm_config.json"
+    config_path = config_dir() / "llm_config.json"
     manager = LLMManager(str(config_path) if config_path.exists() else None)
     depends.set(LLMManager, manager)
     return manager
@@ -119,8 +120,7 @@ async def get_serverless_manager() -> ServerlessSessionManager | None:
         if isinstance(manager, ServerlessSessionManager):
             return manager
 
-    claude_dir = _resolve_claude_dir()
-    config_path = claude_dir / "data" / "serverless_config.json"
+    config_path = config_dir() / "serverless_config.json"
     config = ServerlessConfigManager.load_config(
         str(config_path) if config_path.exists() else None,
     )
@@ -216,6 +216,23 @@ def _resolve_claude_dir() -> Path:
     default_dir = Path(os.path.expanduser("~")) / ".claude"
     default_dir.mkdir(parents=True, exist_ok=True)
     return default_dir
+
+
+def _resolve_data_dir() -> Path:
+    """Resolve the Session-Buddy data directory via type-safe DI.
+
+    Returns:
+        Path to the XDG data directory, using SessionPaths from the DI
+        container or falling back to the environment-resolved XDG root.
+
+    """
+    with suppress(KeyError, AttributeError, RuntimeError, TypeError):
+        paths = depends.get_sync(SessionPaths)
+        if isinstance(paths, SessionPaths):
+            paths.data_dir.mkdir(parents=True, exist_ok=True)
+            return paths.data_dir
+
+    return data_dir()
 
 
 def _iter_dependencies() -> list[type[Any]]:

@@ -10,6 +10,7 @@ import pytest
 
 from session_buddy.modes.standard import StandardMode
 from session_buddy.modes.base import ModeConfig, OperationMode
+from session_buddy.paths import data_dir
 
 
 class TestStandardMode:
@@ -37,12 +38,11 @@ class TestStandardMode:
         assert config.name == "standard"
 
     def test_get_config_database_path_uses_expanded_path(self):
-        """Test that database_path points to ~/.claude/data/reflection.duckdb."""
+        """Test that database_path points to the XDG data directory."""
         mode = StandardMode()
         config = mode.get_config()
-        assert "reflection.duckdb" in config.database_path
-        assert ".claude" in config.database_path
-        assert "data" in config.database_path
+        assert config.database_path == str(data_dir() / "reflection.duckdb")
+        assert "~" not in config.database_path
 
     def test_get_config_storage_backend_is_file(self):
         """Test that storage_backend is file for standard mode."""

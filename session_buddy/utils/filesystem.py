@@ -16,14 +16,16 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from session_buddy.paths import data_dir, state_dir
+
 
 def _cleanup_session_logs() -> str:
     """Clean up old session log files, keeping recent ones."""
-    claude_dir = Path.home() / ".claude" / "logs"
-    if not claude_dir.exists():
+    logs_dir = state_dir()
+    if not logs_dir.exists():
         return "📝 No log directory found"
 
-    log_files = list(claude_dir.glob("session_management_*.log"))
+    log_files = list(logs_dir.glob("session_management_*.log"))
     if not log_files:
         return "📝 No session log files found"
 
@@ -44,7 +46,7 @@ def _cleanup_session_logs() -> str:
             # Skip files with invalid names or permission issues
             continue
 
-    remaining_count = len(list(claude_dir.glob("session_management_*.log")))
+    remaining_count = len(list(logs_dir.glob("session_management_*.log")))
     return f"📝 Cleaned {cleaned_count} old log files, {remaining_count} retained"
 
 
@@ -218,11 +220,20 @@ def _setup_main_directory(claude_dir: Path, results: dict[str, Any]) -> None:
 
 
 def _setup_subdirectories(claude_dir: Path, results: dict[str, Any]) -> None:
-    """Set up Claude subdirectories."""
-    subdirs = ["logs", "data", "temp", "backups"]
-    for subdir in subdirs:
-        subdir_path = claude_dir / subdir
-        subdir_path.mkdir(exist_ok=True)
+    """Set up the session directories.
+
+    Session-Buddy's own data and logs live under the XDG Base Directory
+    layout (see :mod:`session_buddy.paths`); only scratch directories
+    remain on the Claude side.
+    """
+    subdirs = {
+        "logs": state_dir(),
+        "data": data_dir(),
+        "temp": claude_dir / "temp",
+        "backups": claude_dir / "backups",
+    }
+    for subdir, subdir_path in subdirs.items():
+        subdir_path.mkdir(parents=True, exist_ok=True)
         results["structure"][subdir] = {
             "exists": True,
             "writable": os.access(subdir_path, os.W_OK),

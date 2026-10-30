@@ -14,6 +14,8 @@ import builtins
 import sys
 import tempfile
 import types
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -216,6 +218,16 @@ class TestCheckDatabaseHealth:
             assert health.metadata["conversations"] == 7
 
 
+@contextmanager
+def _isolated_xdg(root: Path) -> Iterator[None]:
+    """Point the health check's XDG resolvers at an isolated root."""
+    with (
+        patch("session_buddy.health_checks.state_dir", return_value=root / "state"),
+        patch("session_buddy.health_checks.data_dir", return_value=root / "data"),
+    ):
+        yield
+
+
 class TestCheckFileSystemHealth:
     """Test check_file_system_health function."""
 
@@ -257,10 +269,12 @@ class TestCheckFileSystemHealth:
             mock_home = Path(tmpdir)
             claude_dir = mock_home / ".claude"
             claude_dir.mkdir()
-            # Create only logs dir, not data dir
+            # Create only the XDG state dir, not the XDG data dir
 
-            with patch("pathlib.Path.home", return_value=mock_home):
-                (claude_dir / "logs").mkdir()
+            with patch(
+                "pathlib.Path.home", return_value=mock_home
+            ), _isolated_xdg(mock_home):
+                (mock_home / "state").mkdir()
                 health = await check_file_system_health()
                 assert health.name == "file_system"
                 assert health.status == HealthStatus.DEGRADED
@@ -273,10 +287,12 @@ class TestCheckFileSystemHealth:
             mock_home = Path(tmpdir)
             claude_dir = mock_home / ".claude"
             claude_dir.mkdir()
-            (claude_dir / "logs").mkdir()
-            (claude_dir / "data").mkdir()
+            (mock_home / "state").mkdir()
+            (mock_home / "data").mkdir()
 
-            with patch("pathlib.Path.home", return_value=mock_home):
+            with patch(
+                "pathlib.Path.home", return_value=mock_home
+            ), _isolated_xdg(mock_home):
                 health = await check_file_system_health()
                 assert health.name == "file_system"
                 assert health.status == HealthStatus.HEALTHY

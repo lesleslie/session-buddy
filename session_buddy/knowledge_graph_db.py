@@ -80,9 +80,7 @@ class KnowledgeGraphDatabase:
             Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         except OSError:
             fallback_base = Path(tempfile.gettempdir()) / "session-buddy-home"
-            fallback_path = (
-                fallback_base / ".claude" / "data" / "knowledge_graph.duckdb"
-            )
+            fallback_path = fallback_base / "session-buddy" / "knowledge_graph.duckdb"
             fallback_path.parent.mkdir(parents=True, exist_ok=True)
             self.db_path = str(fallback_path)
 

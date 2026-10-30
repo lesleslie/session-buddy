@@ -139,7 +139,7 @@ class TestResolveLogsDir:
             "get_sync",
             lambda _typ: SimpleNamespace(other_dir=fake_home / "other"),
         )
-        monkeypatch.setattr(logging_module.Path, "home", lambda: fake_home)
+        monkeypatch.setattr(logging_module, "state_dir", lambda: fake_home)
         monkeypatch.setattr(
             logging_module.Path,
             "mkdir",
@@ -158,10 +158,11 @@ class TestResolveLogsDir:
     ) -> None:
         fake_paths = SimpleNamespace(other_dir=tmp_path / "other")
         monkeypatch.setattr(logging_module.depends, "get_sync", lambda _typ: fake_paths)
-        monkeypatch.setattr(logging_module.Path, "home", lambda: tmp_path)
+        expected = tmp_path / ".local" / "state" / "session-buddy"
+        monkeypatch.setattr(logging_module, "state_dir", lambda: expected)
 
         result = logging_module._resolve_logs_dir()
-        assert result == tmp_path / ".claude" / "logs"
+        assert result == expected
 
 
 # ---------------------------------------------------------------------------

@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from session_buddy.paths import data_dir
 from session_buddy.utils.time import utc_now
 
 DATEUTIL_AVAILABLE = importlib.util.find_spec("dateutil") is not None
@@ -44,9 +45,7 @@ class ReminderScheduler:
 
     def __init__(self, db_path: str | None = None) -> None:
         """Initialize reminder scheduler."""
-        self.db_path = db_path or str(
-            Path.home() / ".claude" / "data" / "natural_scheduler.db",
-        )
+        self.db_path = db_path or str(data_dir() / "natural_scheduler.db")
         self.parser = NaturalLanguageParser()
         self._lock = threading.Lock()
         self._running = False

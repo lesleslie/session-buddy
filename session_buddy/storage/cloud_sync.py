@@ -29,6 +29,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from session_buddy.paths import data_dir
 from session_buddy.storage.akosha_config import AkoshaSyncConfig
 from session_buddy.storage.sync_protocol import CloudUploadError, SyncMethod
 from session_buddy.utils.error_management import _get_logger
@@ -109,10 +110,8 @@ class CloudSyncMethod(SyncMethod):
         self._s3_adapter: Any = None
 
         # Database paths
-        self.reflection_db_path = Path.home() / ".claude" / "data" / "reflection.duckdb"
-        self.knowledge_graph_db_path = (
-            Path.home() / ".claude" / "data" / "knowledge_graph.duckdb"
-        )
+        self.reflection_db_path = data_dir() / "reflection.duckdb"
+        self.knowledge_graph_db_path = data_dir() / "knowledge_graph.duckdb"
 
         logger.info(
             f"CloudSyncMethod initialized: bucket={config.cloud_bucket}, "

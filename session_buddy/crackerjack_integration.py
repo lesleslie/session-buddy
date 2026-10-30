@@ -22,6 +22,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from session_buddy.paths import data_dir
 from session_buddy.utils.crackerjack import (
     CrackerjackOutputParser,
 )
@@ -187,9 +188,7 @@ class CrackerjackIntegration:
 
     def __init__(self, db_path: str | None = None) -> None:
         """Initialize Crackerjack integration."""
-        self.db_path = db_path or str(
-            Path.home() / ".claude" / "data" / "crackerjack_integration.db",
-        )
+        self.db_path = db_path or str(data_dir() / "crackerjack_integration.db")
         self.parser = CrackerjackOutputParser()
         try:
             self._init_database()

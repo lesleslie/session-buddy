@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 from session_buddy.di.config import SessionPaths
+from session_buddy.paths import APP_NAME, data_dir, state_dir
 
 
 class TestSessionPathsCreation:
@@ -46,8 +47,9 @@ class TestSessionPathsCreation:
         expected_claude_dir = expected_home / ".claude"
 
         assert paths.claude_dir == expected_claude_dir
-        assert paths.logs_dir == expected_claude_dir / "logs"
+        assert paths.logs_dir == state_dir()
         assert paths.commands_dir == expected_claude_dir / "commands"
+        assert paths.data_dir == data_dir()
 
     def test_from_home_with_explicit_path(self, tmp_path: Path) -> None:
         """Should create paths from explicit home directory."""
@@ -55,15 +57,19 @@ class TestSessionPathsCreation:
 
         expected_claude_dir = tmp_path / ".claude"
         assert paths.claude_dir == expected_claude_dir
-        assert paths.logs_dir == expected_claude_dir / "logs"
+        assert paths.logs_dir == tmp_path / ".local" / "state" / APP_NAME
         assert paths.commands_dir == expected_claude_dir / "commands"
+        assert paths.data_dir == tmp_path / ".local" / "share" / APP_NAME
 
     def test_from_home_respects_home_env_var(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Should respect HOME environment variable for test isolation."""
-        # Set HOME to temp directory
+        # Set HOME to temp directory and drop the XDG overrides so the
+        # spec defaults are derived from HOME.
         monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+        monkeypatch.delenv("XDG_DATA_HOME", raising=False)
 
         # Create paths without explicit home argument
         paths = SessionPaths.from_home()
@@ -71,8 +77,9 @@ class TestSessionPathsCreation:
         # Should use the monkeypatched HOME
         expected_claude_dir = tmp_path / ".claude"
         assert paths.claude_dir == expected_claude_dir
-        assert paths.logs_dir == expected_claude_dir / "logs"
+        assert paths.logs_dir == tmp_path / ".local" / "state" / APP_NAME
         assert paths.commands_dir == expected_claude_dir / "commands"
+        assert paths.data_dir == tmp_path / ".local" / "share" / APP_NAME
 
 
 class TestSessionPathsImmutability:
@@ -241,7 +248,8 @@ class TestSessionPathsEdgeCases:
 
         # Should create paths relative to the provided home
         assert paths.claude_dir == relative_home / ".claude"
-        assert paths.logs_dir == relative_home / ".claude" / "logs"
+        assert paths.logs_dir == relative_home / ".local" / "state" / APP_NAME
+        assert paths.data_dir == relative_home / ".local" / "share" / APP_NAME
 
     def test_from_home_with_symlink(self, tmp_path: Path) -> None:
         """Should handle symlinked home directories."""

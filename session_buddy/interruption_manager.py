@@ -44,6 +44,7 @@ except ImportError:
     WATCHDOG_AVAILABLE = False
     Observer: Any = object  # type: ignore[assignment,misc]
 
+from session_buddy.paths import state_dir
 from session_buddy.utils.time import utc_now
 
 # gzip is always available in Python stdlib
@@ -303,9 +304,7 @@ class InterruptionManager:
 
     def __init__(self, db_path: str | None = None) -> None:
         """Initialize interruption manager."""
-        self.db_path = db_path or str(
-            Path.home() / ".claude" / "data" / "interruption_manager.db",
-        )
+        self.db_path = db_path or str(state_dir() / "interruption_manager.db")
         self._lock = threading.Lock()
         self.current_context: SessionContext | None = None
         self.focus_tracker = FocusTracker(callback=self._handle_interruption)

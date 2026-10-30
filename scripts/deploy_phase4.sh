@@ -15,7 +15,8 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-DB_PATH="${DB_PATH:-$HOME/.claude/data/session_buddy.db}"
+SESSION_BUDDY_DATA_DIR="${SESSION_BUDDY_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/session-buddy}"
+DB_PATH="${DB_PATH:-$SESSION_BUDDY_DATA_DIR/session_buddy.db}"
 SESSION_BUDDY_ROOT="${SESSION_BUDDY_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # Step 1: Pre-deployment checks

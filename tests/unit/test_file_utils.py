@@ -109,31 +109,31 @@ class TestCleanupSessionLogs:
 
     def test_cleanup_session_logs_no_directory(self, tmp_path: Path) -> None:
         """Test cleanup when no log directory exists."""
-        # Mock Path.home() to return tmp_path so there's no ~/.claude/logs
-        with patch("pathlib.Path.home", return_value=tmp_path):
+        # Point the XDG state resolver at an empty tmp dir
+        with patch.object(_MODULE, "state_dir", return_value=tmp_path / "missing"):
             result = _cleanup_session_logs()
             assert isinstance(result, str)
             assert "📝" in result
 
     def test_cleanup_session_logs_no_matching_files(self, tmp_path: Path) -> None:
         """Test cleanup when the logs directory exists but no matching files do."""
-        logs_dir = tmp_path / ".claude" / "logs"
+        logs_dir = tmp_path / ".local" / "state" / "session-buddy"
         logs_dir.mkdir(parents=True)
         (logs_dir / "notes.txt").write_text("ignore me")
 
-        with patch("pathlib.Path.home", return_value=tmp_path):
+        with patch.object(_MODULE, "state_dir", return_value=logs_dir):
             result = _cleanup_session_logs()
 
         assert result == "📝 No session log files found"
 
     def test_cleanup_session_logs_ignores_invalid_filename(self, tmp_path: Path) -> None:
         """Test cleanup skips filenames without an 8-digit date suffix."""
-        logs_dir = tmp_path / ".claude" / "logs"
+        logs_dir = tmp_path / ".local" / "state" / "session-buddy"
         logs_dir.mkdir(parents=True)
         bad_log = logs_dir / "session_management_bad.log"
         bad_log.write_text("invalid")
 
-        with patch("pathlib.Path.home", return_value=tmp_path):
+        with patch.object(_MODULE, "state_dir", return_value=logs_dir):
             result = _cleanup_session_logs()
 
         assert "Cleaned 0 old log files" in result
@@ -141,7 +141,7 @@ class TestCleanupSessionLogs:
 
     def test_cleanup_session_logs_removes_old_files(self, tmp_path: Path) -> None:
         """Test cleanup removes logs older than ten days and keeps recent logs."""
-        logs_dir = tmp_path / ".claude" / "logs"
+        logs_dir = tmp_path / ".local" / "state" / "session-buddy"
         logs_dir.mkdir(parents=True)
 
         old_date = (datetime.now(UTC) - timedelta(days=20)).strftime("%Y%m%d")
@@ -153,7 +153,7 @@ class TestCleanupSessionLogs:
         recent_log.write_text("recent")
         invalid_log.write_text("invalid")
 
-        with patch("pathlib.Path.home", return_value=tmp_path):
+        with patch.object(_MODULE, "state_dir", return_value=logs_dir):
             result = _cleanup_session_logs()
 
         assert "Cleaned 1 old log files" in result

@@ -266,17 +266,44 @@ class TestSetupMainDirectory:
 
 
 class TestSetupSubdirectories:
-    """``_setup_subdirectories`` materializes logs/data/temp/backups."""
+    """``_setup_subdirectories`` materializes logs/data/temp/backups.
+
+    Session-Buddy's own logs and data live under the XDG Base Directory
+    layout; only the scratch directories stay on the Claude side.
+    """
+
+    @staticmethod
+    def _setup(tmp_path: Path) -> dict[str, Any]:
+        """Run ``_setup_subdirectories`` against an isolated XDG root."""
+        results: dict[str, Any] = _initialize_validation_results(tmp_path)
+        with (
+            patch(
+                "session_buddy.utils.filesystem.state_dir",
+                return_value=tmp_path / "xdg" / "state",
+            ),
+            patch(
+                "session_buddy.utils.filesystem.data_dir",
+                return_value=tmp_path / "xdg" / "data",
+            ),
+        ):
+            _setup_subdirectories(tmp_path, results)
+        return results
 
     def test_creates_all_four_subdirs(self, tmp_path: Path) -> None:
-        results: dict[str, Any] = _initialize_validation_results(tmp_path)
-        _setup_subdirectories(tmp_path, results)
-        for name in ("logs", "data", "temp", "backups"):
+        self._setup(tmp_path)
+        assert (tmp_path / "xdg" / "state").is_dir()
+        assert (tmp_path / "xdg" / "data").is_dir()
+        for name in ("temp", "backups"):
             assert (tmp_path / name).is_dir()
 
+    def test_does_not_create_legacy_claude_subdirs(self, tmp_path: Path) -> None:
+        """The legacy ``.claude/logs`` and ``.claude/data`` stay untouched."""
+        self._setup(tmp_path)
+        assert not (tmp_path / "logs").exists()
+        assert not (tmp_path / "data").exists()
+
     def test_records_structure_metadata(self, tmp_path: Path) -> None:
-        results: dict[str, Any] = _initialize_validation_results(tmp_path)
-        _setup_subdirectories(tmp_path, results)
+        results = self._setup(tmp_path)
         assert set(results["structure"]) == {"logs", "data", "temp", "backups"}
         for meta in results["structure"].values():
             assert meta["exists"] is True
@@ -284,12 +311,11 @@ class TestSetupSubdirectories:
             assert meta["files"] == 0
 
     def test_counts_existing_files(self, tmp_path: Path) -> None:
-        logs = tmp_path / "logs"
-        logs.mkdir()
+        logs = tmp_path / "xdg" / "state"
+        logs.mkdir(parents=True)
         (logs / "a.log").write_text("a")
         (logs / "b.log").write_text("b")
-        results: dict[str, Any] = _initialize_validation_results(tmp_path)
-        _setup_subdirectories(tmp_path, results)
+        results = self._setup(tmp_path)
         assert results["structure"]["logs"]["files"] == 2
 
 
@@ -335,13 +361,35 @@ class TestValidatePermissions:
 
 
 class TestValidateClaudeDirectory:
-    """``validate_claude_directory`` uses ``Path.home()``; mock it."""
+    """``validate_claude_directory`` uses ``Path.home()``; mock it.
+
+    Session-Buddy's own data and logs live under the XDG Base Directory
+    layout, so only the scratch directories remain on the Claude side.
+    """
+
+    @staticmethod
+    def _xdg_dirs(fake_home: Path) -> dict[str, Path]:
+        """Return the expected location of each reported subdirectory."""
+        return {
+            "logs": fake_home / "state",
+            "data": fake_home / "data",
+            "temp": fake_home / ".claude" / "temp",
+            "backups": fake_home / ".claude" / "backups",
+        }
 
     def test_creates_missing_directory(self, tmp_path: Path) -> None:
         fake_home = tmp_path / "home"
         fake_home.mkdir()
-        with patch(
-            "session_buddy.utils.filesystem.Path.home", return_value=fake_home
+        with (
+            patch("session_buddy.utils.filesystem.Path.home", return_value=fake_home),
+            patch(
+                "session_buddy.utils.filesystem.state_dir",
+                return_value=fake_home / "state",
+            ),
+            patch(
+                "session_buddy.utils.filesystem.data_dir",
+                return_value=fake_home / "data",
+            ),
         ):
             results = validate_claude_directory()
         assert results["success"] is True
@@ -352,8 +400,16 @@ class TestValidateClaudeDirectory:
         fake_home = tmp_path / "home"
         fake_home.mkdir()
         (fake_home / ".claude").mkdir()
-        with patch(
-            "session_buddy.utils.filesystem.Path.home", return_value=fake_home
+        with (
+            patch("session_buddy.utils.filesystem.Path.home", return_value=fake_home),
+            patch(
+                "session_buddy.utils.filesystem.state_dir",
+                return_value=fake_home / "state",
+            ),
+            patch(
+                "session_buddy.utils.filesystem.data_dir",
+                return_value=fake_home / "data",
+            ),
         ):
             results = validate_claude_directory()
         assert results["created"] is False
@@ -362,19 +418,53 @@ class TestValidateClaudeDirectory:
     def test_creates_subdirectories(self, tmp_path: Path) -> None:
         fake_home = tmp_path / "home"
         fake_home.mkdir()
-        with patch(
-            "session_buddy.utils.filesystem.Path.home", return_value=fake_home
+        with (
+            patch("session_buddy.utils.filesystem.Path.home", return_value=fake_home),
+            patch(
+                "session_buddy.utils.filesystem.state_dir",
+                return_value=fake_home / "state",
+            ),
+            patch(
+                "session_buddy.utils.filesystem.data_dir",
+                return_value=fake_home / "data",
+            ),
         ):
             results = validate_claude_directory()
-        for name in ("logs", "data", "temp", "backups"):
-            assert (fake_home / ".claude" / name).is_dir()
+        for name, expected in self._xdg_dirs(fake_home).items():
+            assert expected.is_dir(), name
         assert set(results["structure"]) == {"logs", "data", "temp", "backups"}
+
+    def test_does_not_create_legacy_claude_data_dir(self, tmp_path: Path) -> None:
+        """The legacy ``~/.claude/data`` directory must not be recreated."""
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        with (
+            patch("session_buddy.utils.filesystem.Path.home", return_value=fake_home),
+            patch(
+                "session_buddy.utils.filesystem.state_dir",
+                return_value=fake_home / "state",
+            ),
+            patch(
+                "session_buddy.utils.filesystem.data_dir",
+                return_value=fake_home / "data",
+            ),
+        ):
+            validate_claude_directory()
+        assert not (fake_home / ".claude" / "data").exists()
 
     def test_structure_metadata_has_writable_flag(self, tmp_path: Path) -> None:
         fake_home = tmp_path / "home"
         fake_home.mkdir()
-        with patch(
-            "session_buddy.utils.filesystem.Path.home", return_value=fake_home
+        with (
+            patch("session_buddy.utils.filesystem.Path.home", return_value=fake_home),
+            patch(
+                "session_buddy.utils.filesystem.state_dir",
+                return_value=fake_home / "state",
+            ),
+            patch(
+                "session_buddy.utils.filesystem.data_dir",
+                return_value=fake_home / "data",
+            ),
         ):
             results = validate_claude_directory()
         for meta in results["structure"].values():

@@ -29,10 +29,12 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from session_buddy.paths import data_dir
+
 
 def get_data_dir() -> Path:
     """Get the data directory path."""
-    return Path.home() / ".claude" / "data"
+    return data_dir()
 
 
 def get_old_db_path() -> Path:

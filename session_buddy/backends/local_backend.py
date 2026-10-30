@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from session_buddy.backends.base import SessionState, SessionStorage
+from session_buddy.paths import data_dir
 from session_buddy.utils.time import utc_now
 
 
@@ -44,7 +45,7 @@ class LocalFileStorage(SessionStorage):
         )
         super().__init__(config)
         self.storage_dir = Path(
-            config.get("storage_dir", Path.home() / ".claude" / "data" / "sessions"),
+            config.get("storage_dir", data_dir() / "sessions"),
         )
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 

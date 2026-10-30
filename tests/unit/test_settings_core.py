@@ -47,6 +47,7 @@ from session_buddy.settings import (
     SessionConfig,
     TokensConfig,
 )
+from session_buddy.paths import data_dir, state_dir
 
 
 class TestLLMConfig:
@@ -168,11 +169,11 @@ class TestPathsConfig:
 
     def test_default_data_dir(self) -> None:
         settings = SessionBuddySettings()
-        assert settings.paths.data_dir == Path("~/.claude/data")
+        assert settings.paths.data_dir == data_dir()
 
     def test_default_log_dir(self) -> None:
         settings = SessionBuddySettings()
-        assert settings.paths.log_dir == Path("~/.claude/logs")
+        assert settings.paths.log_dir == state_dir()
 
     def test_default_global_workspace_path(self) -> None:
         settings = SessionBuddySettings()
@@ -180,9 +181,7 @@ class TestPathsConfig:
 
     def test_default_log_file_path(self) -> None:
         settings = SessionBuddySettings()
-        assert settings.paths.log_file_path == Path(
-            "~/.claude/logs/session-buddy.log"
-        )
+        assert settings.paths.log_file_path == state_dir() / "session-buddy.log"
 
     def test_custom_data_dir(self) -> None:
         settings = SessionBuddySettings(
@@ -242,7 +241,7 @@ class TestDatabaseConfig:
 
     def test_default_path(self) -> None:
         settings = SessionBuddySettings()
-        assert settings.database.path == Path("~/.claude/data/reflection.duckdb")
+        assert settings.database.path == data_dir() / "reflection.duckdb"
 
     def test_default_connection_timeout(self) -> None:
         settings = SessionBuddySettings()

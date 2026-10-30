@@ -14,9 +14,9 @@ import asyncio
 import json
 import os
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from session_buddy.paths import data_dir
 from session_buddy.utils.error_management import _get_logger
 from session_buddy.utils.messages import ToolMessages
 
@@ -32,10 +32,10 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 #
 # ReminderScheduler initializes a SQLite database on construction. The
-# default location is ``~/.claude/data/natural_scheduler.db``. For
-# tests we honor ``SESSION_BUDDY_NATURAL_SCHEDULER_DB`` to point at a
-# temporary file; production code uses the default location so existing
-# reminders carry over.
+# default location is ``natural_scheduler.db`` inside the XDG data
+# directory. For tests we honor ``SESSION_BUDDY_NATURAL_SCHEDULER_DB`` to
+# point at a temporary file; production code uses the default location so
+# existing reminders carry over.
 # ---------------------------------------------------------------------------
 
 
@@ -44,7 +44,7 @@ def _scheduler_db_path() -> str:
     override = os.environ.get("SESSION_BUDDY_NATURAL_SCHEDULER_DB")
     if override:
         return override
-    return str(Path.home() / ".claude" / "data" / "natural_scheduler.db")
+    return str(data_dir() / "natural_scheduler.db")
 
 
 def _build_scheduler() -> ReminderScheduler:

@@ -25,11 +25,11 @@ import hashlib
 import json
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, Literal
 
 import httpx2 as httpx
 
+from session_buddy.paths import data_dir, state_dir
 from session_buddy.storage.akosha_config import AkoshaSyncConfig
 from session_buddy.storage.cloud_sync import CloudSyncMethod
 from session_buddy.storage.sync_protocol import (
@@ -78,16 +78,12 @@ class HttpSyncMethod(SyncMethod):
         """
         self.config = config
         self._last_sync_timestamp: dict[str, str] = {}
-        self._sync_state_file = (
-            Path.home() / ".claude" / "data" / "akosha_sync_state.json"
-        )
+        self._sync_state_file = state_dir() / "akosha_sync_state.json"
         self._load_sync_state()
 
         # Database paths (same as CloudSyncMethod)
-        self.reflection_db_path = Path.home() / ".claude" / "data" / "reflection.duckdb"
-        self.knowledge_graph_db_path = (
-            Path.home() / ".claude" / "data" / "knowledge_graph.duckdb"
-        )
+        self.reflection_db_path = data_dir() / "reflection.duckdb"
+        self.knowledge_graph_db_path = data_dir() / "knowledge_graph.duckdb"
 
     def _load_sync_state(self) -> None:
         """Load last sync timestamps from state file."""

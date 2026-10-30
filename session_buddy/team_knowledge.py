@@ -20,6 +20,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from session_buddy.paths import data_dir
 from session_buddy.utils.time import utc_now
 
 DUCKDB_AVAILABLE = importlib.util.find_spec("duckdb") is not None
@@ -97,9 +98,7 @@ class TeamKnowledgeManager:
 
     def __init__(self, db_path: str | None = None) -> None:
         """Initialize team knowledge manager."""
-        self.db_path = db_path or str(
-            Path.home() / ".claude" / "data" / "team_knowledge.db",
-        )
+        self.db_path = db_path or str(data_dir() / "team_knowledge.db")
         self._lock = threading.Lock()
         self._init_database()
 

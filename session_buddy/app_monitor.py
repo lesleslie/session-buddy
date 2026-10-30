@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from session_buddy.paths import data_dir
 from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
@@ -87,7 +88,7 @@ class ProjectActivityMonitor:
 
         self._settings = get_settings()
         self.project_paths = project_paths or []
-        self.db_path = str(Path.home() / ".claude" / "data" / "activity.db")
+        self.db_path = str(data_dir() / "activity.db")
         self.observers: list[Any] = []
         self.activity_buffer: list[ActivityEvent] = []
         self.last_activity: dict[str, Any] = {}

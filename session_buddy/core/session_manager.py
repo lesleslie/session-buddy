@@ -815,6 +815,10 @@ class SessionLifecycleManager:
         Prefer the user's home directory, but fall back to the active project
         directory when the home path is unavailable or not writable in the
         current environment.
+
+        Session-Buddy's own data and logs live under the XDG Base Directory
+        layout (see :mod:`session_buddy.paths`), so they are not created
+        beneath ``.claude``.
         """
         candidate_dirs = [Path.home() / ".claude"]
         if base_dir is not None:
@@ -825,8 +829,6 @@ class SessionLifecycleManager:
         for claude_dir in candidate_dirs:
             try:
                 claude_dir.mkdir(parents=True, exist_ok=True)
-                (claude_dir / "data").mkdir(parents=True, exist_ok=True)
-                (claude_dir / "logs").mkdir(parents=True, exist_ok=True)
                 return claude_dir
             except OSError as exc:
                 last_error = exc

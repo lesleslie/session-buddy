@@ -14,6 +14,7 @@ from typing import Any
 
 from session_buddy.adapters.serverless_storage_adapter import ServerlessStorageAdapter
 from session_buddy.backends import SessionState, SessionStorage
+from session_buddy.paths import data_dir
 from session_buddy.utils.time import utc_now
 
 CONFIG_LOGGER = logging.getLogger("serverless.config")
@@ -154,7 +155,7 @@ class ServerlessConfigManager:
             "cleanup_interval_hours": 6,
             "backends": {
                 "file": {
-                    "storage_dir": str(Path.home() / ".claude" / "data" / "sessions"),
+                    "storage_dir": str(data_dir() / "sessions"),
                 },
                 "memory": {},
             },

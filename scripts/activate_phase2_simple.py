@@ -15,10 +15,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import duckdb
 
+from session_buddy.paths import data_dir
+
 
 def get_db_path() -> str:
     """Get knowledge graph database path."""
-    return str(Path.home() / ".claude" / "data" / "knowledge_graph.duckdb")
+    return str(data_dir() / "knowledge_graph.duckdb")
 
 
 def print_section(title: str) -> None:

@@ -83,13 +83,16 @@ def http_sync(tmp_config: AkoshaSyncConfig, tmp_path: Path, monkeypatch: pytest.
     knowledge_db = tmp_path / "knowledge_graph.duckdb"
     state_file = tmp_path / "akosha_sync_state.json"
 
-    # Monkeypatch Path.home() to redirect default paths.
+    # Monkeypatch the XDG resolvers to redirect the default paths.
     monkeypatch.setattr(
-        akosha_sync.Path, "home", lambda: tmp_path
+        akosha_sync, "data_dir", lambda: tmp_path / "data"
+    )
+    monkeypatch.setattr(
+        akosha_sync, "state_dir", lambda: tmp_path / "state"
     )
 
-    # Build the instance. The constructor uses Path.home() for both the
-    # state file and the DB paths — redirecting Path.home() handles all.
+    # Build the instance. The constructor resolves the state file and the
+    # DB paths through the XDG resolvers — redirecting them handles all.
     instance = HttpSyncMethod(tmp_config)
     # Override the DB paths explicitly to be sure.
     instance.reflection_db_path = reflection_db

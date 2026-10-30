@@ -218,8 +218,8 @@ async def test_get_app_monitor_creates_and_registers(
     monkeypatch.setitem(sys.modules, "session_buddy.app_monitor", module)
     monkeypatch.setattr(
         instance_managers,
-        "_resolve_claude_dir",
-        lambda: tmp_path / ".claude",
+        "_resolve_data_dir",
+        lambda: tmp_path / ".local" / "share" / "session-buddy",
     )
     monkeypatch.setattr(
         instance_managers,
@@ -236,7 +236,7 @@ async def test_get_app_monitor_creates_and_registers(
     result = await instance_managers.get_app_monitor()
 
     assert isinstance(result, DummyMonitor)
-    assert result.data_dir.endswith("data/app_monitoring")
+    assert result.data_dir.endswith("app_monitoring")
     assert calls == [(DummyMonitor, result)]
 
 
@@ -362,6 +362,16 @@ async def test_singleton_fallbacks_when_di_returns_wrong_type(
         lambda key, value: cache.__setitem__(key, value),
     )
     monkeypatch.setattr(instance_managers, "_resolve_claude_dir", lambda: tmp_path / ".claude")
+    monkeypatch.setattr(
+        instance_managers,
+        "_resolve_data_dir",
+        lambda: tmp_path / ".local" / "share" / "session-buddy",
+    )
+    monkeypatch.setattr(
+        instance_managers,
+        "config_dir",
+        lambda: tmp_path / ".config" / "session-buddy",
+    )
 
     monitor = await instance_managers.get_app_monitor()
     llm_manager = await instance_managers.get_llm_manager()

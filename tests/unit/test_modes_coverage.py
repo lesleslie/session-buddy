@@ -37,8 +37,8 @@ def test_standard_mode_configuration_and_environment_checks(
     from session_buddy.modes.standard import StandardMode
 
     monkeypatch.setattr(
-        "session_buddy.modes.standard.os.path.expanduser",
-        lambda _: str(tmp_path / ".claude" / "data"),
+        "session_buddy.modes.standard.data_dir",
+        lambda: tmp_path / ".claude" / "data",
     )
 
     mode = StandardMode()

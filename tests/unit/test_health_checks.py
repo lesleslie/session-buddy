@@ -21,6 +21,8 @@ import sys
 import tempfile
 import time
 import types
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
@@ -386,6 +388,16 @@ class TestCheckDatabaseHealth:
 # =============================================================================
 
 
+@contextmanager
+def _isolated_xdg(root: Path) -> Iterator[None]:
+    """Point the health check's XDG resolvers at an isolated root."""
+    with (
+        patch("session_buddy.health_checks.state_dir", return_value=root / "state"),
+        patch("session_buddy.health_checks.data_dir", return_value=root / "data"),
+    ):
+        yield
+
+
 class TestCheckFileSystemHealth:
     """Test check_file_system_health function - file system access checks."""
 
@@ -436,13 +448,16 @@ class TestCheckFileSystemHealth:
 
     @pytest.mark.asyncio
     async def test_file_system_health_missing_both_subdirs(self) -> None:
-        """Test DEGRADED when both logs and data subdirectories are missing."""
+        """Test DEGRADED when both the XDG state and data dirs are missing."""
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_home = Path(tmpdir)
             claude_dir = mock_home / ".claude"
             claude_dir.mkdir()
 
-            with patch("pathlib.Path.home", return_value=mock_home):
+            with (
+                patch("pathlib.Path.home", return_value=mock_home),
+                _isolated_xdg(mock_home),
+            ):
                 result = await check_file_system_health()
                 assert result.name == "file_system"
                 assert result.status == HealthStatus.DEGRADED
@@ -450,14 +465,17 @@ class TestCheckFileSystemHealth:
 
     @pytest.mark.asyncio
     async def test_file_system_health_missing_only_logs_dir(self) -> None:
-        """Test DEGRADED when only logs directory is missing."""
+        """Test DEGRADED when only the XDG state directory is missing."""
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_home = Path(tmpdir)
             claude_dir = mock_home / ".claude"
             claude_dir.mkdir()
-            (claude_dir / "data").mkdir()
+            (mock_home / "data").mkdir()
 
-            with patch("pathlib.Path.home", return_value=mock_home):
+            with (
+                patch("pathlib.Path.home", return_value=mock_home),
+                _isolated_xdg(mock_home),
+            ):
                 result = await check_file_system_health()
                 assert result.name == "file_system"
                 assert result.status == HealthStatus.DEGRADED
@@ -465,14 +483,17 @@ class TestCheckFileSystemHealth:
 
     @pytest.mark.asyncio
     async def test_file_system_health_missing_only_data_dir(self) -> None:
-        """Test DEGRADED when only data directory is missing."""
+        """Test DEGRADED when only the XDG data directory is missing."""
         with tempfile.TemporaryDirectory() as tmpdir:
             mock_home = Path(tmpdir)
             claude_dir = mock_home / ".claude"
             claude_dir.mkdir()
-            (claude_dir / "logs").mkdir()
+            (mock_home / "state").mkdir()
 
-            with patch("pathlib.Path.home", return_value=mock_home):
+            with (
+                patch("pathlib.Path.home", return_value=mock_home),
+                _isolated_xdg(mock_home),
+            ):
                 result = await check_file_system_health()
                 assert result.name == "file_system"
                 assert result.status == HealthStatus.DEGRADED
@@ -485,10 +506,13 @@ class TestCheckFileSystemHealth:
             mock_home = Path(tmpdir)
             claude_dir = mock_home / ".claude"
             claude_dir.mkdir()
-            (claude_dir / "logs").mkdir()
-            (claude_dir / "data").mkdir()
+            (mock_home / "state").mkdir()
+            (mock_home / "data").mkdir()
 
-            with patch("pathlib.Path.home", return_value=mock_home):
+            with (
+                patch("pathlib.Path.home", return_value=mock_home),
+                _isolated_xdg(mock_home),
+            ):
                 result = await check_file_system_health()
                 assert result.name == "file_system"
                 assert result.status == HealthStatus.HEALTHY
@@ -516,10 +540,13 @@ class TestCheckFileSystemHealth:
             mock_home = Path(tmpdir)
             claude_dir = mock_home / ".claude"
             claude_dir.mkdir()
-            (claude_dir / "logs").mkdir()
-            (claude_dir / "data").mkdir()
+            (mock_home / "state").mkdir()
+            (mock_home / "data").mkdir()
 
-            with patch("pathlib.Path.home", return_value=mock_home):
+            with (
+                patch("pathlib.Path.home", return_value=mock_home),
+                _isolated_xdg(mock_home),
+            ):
                 result = await check_file_system_health()
                 # Verify the health check didn't leave test file behind
                 assert not (claude_dir / ".health_check").exists()
@@ -532,15 +559,16 @@ class TestCheckFileSystemHealth:
             mock_home = Path(tmpdir)
             claude_dir = mock_home / ".claude"
             claude_dir.mkdir()
-            (claude_dir / "logs").mkdir()
-            (claude_dir / "data").mkdir()
+            (mock_home / "state").mkdir()
+            (mock_home / "data").mkdir()
 
-            with patch("pathlib.Path.home", return_value=mock_home):
+            with (
+                patch("pathlib.Path.home", return_value=mock_home),
+                _isolated_xdg(mock_home),
+            ):
                 result = await check_file_system_health()
                 assert result.latency_ms is not None
                 assert result.latency_ms >= 0
-
-
 # =============================================================================
 # Test check_dependencies_health
 # =============================================================================

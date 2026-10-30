@@ -26,6 +26,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from session_buddy.paths import data_dir
+
 
 @dataclass
 class MetricTrend:
@@ -94,12 +99,10 @@ class CrackerjackMetricsMonitor:
         """Initialize the monitor.
 
         Args:
-            db_path: Path to SQLite database (default: ~/.claude/data/crackerjack_integration.db)
+            db_path: Path to SQLite database (default: <xdg data dir>/crackerjack_integration.db)
             alert_threshold: Percentage change to trigger alerts (default: 10%%)
         """
-        self.db_path = db_path or str(
-            Path.home() / ".claude" / "data" / "crackerjack_integration.db"
-        )
+        self.db_path = db_path or str(data_dir() / "crackerjack_integration.db")
         self.alert_threshold = alert_threshold
 
         if not Path(self.db_path).exists():

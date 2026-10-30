@@ -21,6 +21,8 @@ from typing import Any
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from session_buddy.paths import data_dir
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -35,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--db-path",
         type=str,
-        default="~/.claude/data/knowledge_graph.duckdb",
+        default=str(data_dir() / "knowledge_graph.duckdb"),
         help="Path to knowledge graph database",
     )
     parser.add_argument(

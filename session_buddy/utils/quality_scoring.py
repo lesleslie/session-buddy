@@ -26,6 +26,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from session_buddy.paths import data_dir
 from session_buddy.utils.crackerjack.fallback import try_crackerjack_cli
 from session_buddy.utils.time import utc_now
 
@@ -1044,9 +1045,7 @@ async def _persist_unavailable_result(project_dir: Path) -> None:
         try:
             db_path = _get_global_integration().db_path
         except Exception:  # noqa: BLE001 - db_path resolution is best-effort
-            db_path = str(
-                Path.home() / ".claude" / "data" / "crackerjack_integration.db"
-            )
+            db_path = str(data_dir() / "crackerjack_integration.db")
         integration = CrackerjackIntegration(db_path=db_path)
         synthesized = synthesize_unavailable_result(str(project_dir))
         await integration._store_result(

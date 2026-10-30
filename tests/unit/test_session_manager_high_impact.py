@@ -324,8 +324,11 @@ def test_setup_claude_directories_uses_home_then_falls_back(
 
     assert result == project_dir / ".claude"
     assert any(str(home_claude) == call for call in mkdir_calls)
-    assert (project_dir / ".claude" / "data").exists()
-    assert (project_dir / ".claude" / "logs").exists()
+    assert (project_dir / ".claude").is_dir()
+    # Session data and logs moved to the XDG layout, so the legacy
+    # subdirectories are no longer created under .claude.
+    assert not (project_dir / ".claude" / "data").exists()
+    assert not (project_dir / ".claude" / "logs").exists()
 
 
 def test_setup_claude_directories_raises_when_all_candidates_fail(

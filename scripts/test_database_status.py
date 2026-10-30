@@ -20,6 +20,8 @@ from typing import Any
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from session_buddy.paths import data_dir, state_dir
+
 try:
     import duckdb
 
@@ -52,13 +54,13 @@ def print_status(name: str, status: bool, details: str = "") -> None:
 
 def test_reflection_database() -> dict[str, Any]:
     """Test the main reflection database."""
-    print_section("Reflection Database (~/.claude/data/reflection.duckdb)")
+    print_section(f"Reflection Database ({data_dir() / 'reflection.duckdb'})")
 
     if not DUCKDB_AVAILABLE:
         print_status("Reflection DB", False, "DuckDB not available")
         return {"status": "unavailable"}
 
-    db_path = Path.home() / ".claude" / "data" / "reflection.duckdb"
+    db_path = data_dir() / "reflection.duckdb"
 
     if not db_path.exists():
         print_status("Database file", False, "Not found")
@@ -182,13 +184,13 @@ def test_reflection_database() -> dict[str, Any]:
 
 def test_knowledge_graph_database() -> dict[str, Any]:
     """Test the knowledge graph database."""
-    print_section("Knowledge Graph Database (~/.claude/data/knowledge_graph.duckdb)")
+    print_section(f"Knowledge Graph Database ({data_dir() / 'knowledge_graph.duckdb'})")
 
     if not DUCKDB_AVAILABLE:
         print_status("Knowledge Graph DB", False, "DuckDB not available")
         return {"status": "unavailable"}
 
-    db_path = Path.home() / ".claude" / "data" / "knowledge_graph.duckdb"
+    db_path = data_dir() / "knowledge_graph.duckdb"
 
     if not db_path.exists():
         print_status("Database file", False, "Not found")
@@ -272,13 +274,15 @@ def test_knowledge_graph_database() -> dict[str, Any]:
 
 def test_crackerjack_database() -> dict[str, Any]:
     """Test the Crackerjack integration database."""
-    print_section("Crackerjack Integration Database (~/.claude/data/crackerjack_integration.db)")
+    print_section(
+        f"Crackerjack Integration Database ({data_dir() / 'crackerjack_integration.db'})",
+    )
 
     if not SQLITE_AVAILABLE:
         print_status("Crackerjack DB", False, "SQLite not available")
         return {"status": "unavailable"}
 
-    db_path = Path.home() / ".claude" / "data" / "crackerjack_integration.db"
+    db_path = data_dir() / "crackerjack_integration.db"
 
     if not db_path.exists():
         print_status("Database file", False, "Not found")
@@ -334,13 +338,15 @@ def test_crackerjack_database() -> dict[str, Any]:
 
 def test_interruption_database() -> dict[str, Any]:
     """Test the interruption manager database."""
-    print_section("Interruption Manager Database (~/.claude/data/interruption_manager.db)")
+    print_section(
+        f"Interruption Manager Database ({state_dir() / 'interruption_manager.db'})",
+    )
 
     if not SQLITE_AVAILABLE:
         print_status("Interruption DB", False, "SQLite not available")
         return {"status": "unavailable"}
 
-    db_path = Path.home() / ".claude" / "data" / "interruption_manager.db"
+    db_path = state_dir() / "interruption_manager.db"
 
     if not db_path.exists():
         print_status("Database file", False, "Not found")
@@ -511,7 +517,7 @@ def generate_summary_report(all_results: dict[str, Any]) -> None:
             print("   ℹ️  Knowledge graph is empty - entities will be created automatically")
 
     # Export JSON report
-    report_path = Path.home() / ".claude" / "data" / "database_status_report.json"
+    report_path = data_dir() / "database_status_report.json"
     with open(report_path, "w") as f:
         json.dump(all_results, f, indent=2, default=str)
 

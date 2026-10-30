@@ -15,7 +15,7 @@ SESSION_COMMANDS = {
 Initialize Claude session with comprehensive setup and intelligent lifecycle management.
 
 This command will:
-- **Set up Claude directory structure** (~/.claude/ for logs, data, cache)
+- **Set up session directory structure** (~/.claude/ for Claude-side files, XDG dirs for logs, data, cache)
 - **Initialize ACB storage adapters** (file, S3, Azure, GCS support)
 - **Configure vector database** (DuckDB with fixed-width vector embeddings)
 - **Set up knowledge graph** (DuckPGQ for entity/relationship queries)

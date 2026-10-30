@@ -53,6 +53,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+from session_buddy.paths import data_dir
 
 #: A fixed-size ARRAY column in the exported schema.
 _VECTOR_TYPE = re.compile(r"FLOAT\[(?P<width>\d+)\]")
@@ -586,7 +587,7 @@ def main() -> int:
     parser.add_argument(
         "--db",
         type=Path,
-        default=Path.home() / ".claude" / "data" / "reflection.duckdb",
+        default=data_dir() / "reflection.duckdb",
         help="The DuckDB file to migrate.",
     )
     parser.add_argument(

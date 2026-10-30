@@ -16,6 +16,8 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from session_buddy.paths import data_dir
+
 
 def fix_embedding_symlink() -> bool:
     """Create symbolic link for ONNX model to fix embedding system."""
@@ -63,7 +65,7 @@ def fix_database_schema() -> bool:
     try:
         import duckdb
 
-        db_path = Path.home() / ".claude" / "data" / "reflection.duckdb"
+        db_path = data_dir() / "reflection.duckdb"
 
         if not db_path.exists():
             print(f"❌ Database not found: {db_path}")

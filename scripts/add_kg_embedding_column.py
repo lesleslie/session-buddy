@@ -16,12 +16,14 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from session_buddy.paths import data_dir
+
 
 def main() -> int:
     """Add embedding column to knowledge graph."""
     import duckdb
 
-    db_path = Path.home() / ".claude" / "data" / "knowledge_graph.duckdb"
+    db_path = data_dir() / "knowledge_graph.duckdb"
 
     print(f"📊 Connecting to database: {db_path}")
 

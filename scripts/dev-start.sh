@@ -50,7 +50,7 @@ if [[ "$MODE" == "lite" ]]; then
     echo -e "${RED}⚠️  WARNING: Data will not persist across restarts!${NC}"
 else
     echo -e "${GREEN}Mode: Standard${NC}"
-    echo -e "${BLUE}💾 Persistent database (~/.claude/data/reflection.duckdb)${NC}"
+    echo -e "${BLUE}💾 Persistent database (\$XDG_DATA_HOME/session-buddy/reflection.duckdb)${NC}"
     echo -e "${BLUE}📦 Full feature set${NC}"
     echo -e "${BLUE}🧠 Semantic search enabled${NC}"
 fi
