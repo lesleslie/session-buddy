@@ -151,14 +151,27 @@ async def _ctx_to_auth_context(ctx: Context) -> dict[str, Any]:
     owner pattern with a validation error that says nothing about
     authentication.
 
-    Auth middleware populates ``auth_user_email`` and ``auth_agent_id``
-    keys via ``ctx.set_state(...)``. This adapter reads those keys and
-    packs them into the dict shape ``derive_caller_identity`` expects.
-    Keys resolve to ``None`` for unauthenticated callers, which then fail
-    closed in the spec §Authz Model invariant.
+    Auth middleware populates the auth keys via ``ctx.set_state(...)``.
+    This adapter reads them and packs them into the dict shape
+    ``derive_caller_identity`` expects.
+
+    Three sources are read, in the order
+    ``derive_caller_identity`` prefers them:
+
+    * ``principal`` -- the key ``mcp_common.auth.middleware``'s
+      ``BearerTokenMiddleware`` writes. This is the authenticated path
+      and the one the rest of the fleet reads.
+    * ``auth_user_email`` / ``auth_agent_id`` -- the task system's
+      original contract, kept so a middleware that populates those keys
+      directly still works.
+    * Neither -> ``derive_caller_identity`` falls back to the local
+      trust domain when the substrate's auth gate is off.
+
+    All keys resolve to ``None`` for an unauthenticated caller.
     """
     return {
         "auth": {
+            "principal": await ctx.get_state("principal"),
             "user_email": await ctx.get_state("auth_user_email"),
             "agent_id": await ctx.get_state("auth_agent_id"),
         },
