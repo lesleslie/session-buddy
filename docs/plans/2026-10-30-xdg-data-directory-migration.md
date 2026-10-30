@@ -421,8 +421,35 @@ one in the Phase 2 section: boot the job out, do not just kill it.
   (unwritten since April), `correlation_insights.db` (February),
   `team_knowledge.db` (May), `sessions.duckdb` (September) and
   `sessions/` (June) now sit at the XDG roots and can be pruned.
-- 143 rows of pytest-tmp garbage were appended to the live
-  `crackerjack_integration.db` by a test run during the conversion, in
-  a file that already carried 319 such rows from earlier runs. Left in
-  place rather than deleted from a live database.
+- The pytest-tmp rows in the live `crackerjack_integration.db` have
+  since been deleted, under an explicit operator approval of the
+  "all test temp-dir rows" category. The backup was taken and verified
+  byte-identical first
+  (`.crackerjack_integration.db.pre-testrow-cleanup.bak`); the delete
+  ran in FK-safe order, dependents first; `VACUUM` afterwards
+  reclaimed 503,808 bytes (1,114,112 → 610,304). `PRAGMA
+  integrity_check` is `ok`.
+
+  | table | before | deleted | after |
+  |---|---|---|---|
+  | `crackerjack_results` | 896 | 492 | 404 |
+  | `quality_metrics_history` | 1949 | 759 | 1190 |
+  | `progress_snapshots` | 259 | 12 | 247 |
+
+- 135 `quality_metrics_history` rows still point at a `result_id` that
+  does not exist. They are **not** leftovers of that delete. The
+  orphan count went *down* (390 → 135), every survivor was already
+  orphaned beforehand, and all 135 carry
+  `project_path = /Users/les/Projects/crackerjack` rather than a temp
+  directory — outside the approved category.
+
+  The cause is on the writer side, in
+  `crackerjack/cli/handlers/health.py:363`, which mints
+  `health_<uuid>` run ids and writes metric rows against them without
+  ever inserting a parent row into `crackerjack_results`. SQLite does
+  not enforce foreign keys unless asked to, so the violation is silent.
+  45 health snapshots × 3 categories = 135. The column is nullable, so
+  the rows could be nulled out, but they carry real historical health
+  metrics, and the fix belongs in the health writer rather than in the
+  data.
 
