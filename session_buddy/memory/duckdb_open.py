@@ -171,7 +171,7 @@ def _parse_indexed_columns(expressions: str) -> list[str] | None:
     The rendering is split and each part is validated as a plain
     identifier; the caller quotes them itself.
     """
-    text = (expressions or "").strip()
+    text = expressions.strip()
     if not (text.startswith("[") and text.endswith("]")):
         return None
     parts = [part.strip() for part in text[1:-1].split(",")]
@@ -188,7 +188,7 @@ def _parse_hnsw_options(sql: str) -> list[str] | None:
     the recovery executes is built from validated data rather than from
     text read out of the database.
     """
-    match = _HNSW_WITH_CLAUSE.search(sql or "")
+    match = _HNSW_WITH_CLAUSE.search(sql)
     if match is None:
         return []
     rendered: list[str] = []

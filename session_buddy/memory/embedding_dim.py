@@ -28,6 +28,8 @@ parameter) and Google's EmbeddingGemma-300M (native).
 from __future__ import annotations
 
 import logging
+import re
+from typing import Any
 
 # Width of the DuckDB ``FLOAT[N]`` embedding columns. Match this to the
 # embedding provider's output width. The provider chain in
@@ -75,4 +77,51 @@ def coerce_embedding(
     return embedding
 
 
-__all__ = ["DEFAULT_EMBEDDING_DIM", "coerce_embedding"]
+def read_live_embedding_width(
+    conn: Any,
+    table_name: str,
+    column_name: str = "embedding",
+) -> int | None:
+    """Return the ``FLOAT[N]`` width of a live embedding column, or ``None``.
+
+    A DuckDB embedding column is a fixed-size ARRAY, and DuckDB cannot
+    widen one in place. A database created while the canonical width was
+    some other value therefore keeps that width forever, and binding a
+    canonical-width vector into it raises a ``ConversionException``.
+
+    The live schema is the authority on what fits, so a caller that writes
+    vectors reads the width from the column it is about to write to.
+
+    Args:
+        conn: An open DuckDB connection.
+        table_name: The table holding the embedding column.
+        column_name: The embedding column's name.
+
+    Returns:
+        The width, or ``None`` when the column does not exist, its type is
+        not a fixed-size ``FLOAT[N]``, or the catalog cannot be read.
+    """
+    try:
+        row = conn.execute(
+            "SELECT data_type FROM duckdb_columns() "
+            "WHERE database_name = current_database() "
+            "AND table_name = ? "
+            "AND column_name = ?",
+            [table_name, column_name],
+        ).fetchone()
+    except Exception:
+        logger.debug("Could not read the live embedding width", exc_info=True)
+        return None
+    if not row:
+        return None
+    match = re.fullmatch(r"FLOAT\[(\d+)\]", str(row[0]))
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+__all__ = [
+    "DEFAULT_EMBEDDING_DIM",
+    "coerce_embedding",
+    "read_live_embedding_width",
+]

@@ -20,13 +20,70 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+from session_buddy.memory.embedding_dim import (
+    DEFAULT_EMBEDDING_DIM,
+    read_live_embedding_width,
+)
 from session_buddy.utils.time import utc_now
 
 if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter_oneiric import (
         ReflectionDatabaseAdapterOneiric,
     )
+
+
+def _causal_error_events_ddl(embedding_dim: int) -> str:
+    """Return the ``causal_error_events`` DDL for the given ARRAY width.
+
+    DuckDB cannot bind a fixed-size ARRAY width -- ``FLOAT[?]`` is not
+    valid DDL -- so the width has to be spelled out in the statement. It
+    is the one thing this statement interpolates, and it is an ``int``:
+    either the canonical constant or a width read back out of the live
+    schema by :func:`read_live_embedding_width`, which only ever returns
+    the digits of a ``FLOAT[N]`` type. Nothing else reaches the SQL.
+
+    The DDL lives in its own function rather than inline at the call site
+    so that the statement is a named artifact with one documented
+    exception, instead of an interpolation repeated across the module.
+    """
+    return f"""
+        CREATE TABLE IF NOT EXISTS causal_error_events (
+            id TEXT PRIMARY KEY,
+            error_message TEXT,
+            error_type TEXT,
+            context JSON,
+            timestamp TIMESTAMP,
+            session_id TEXT,
+            embedding FLOAT[{embedding_dim}]
+        )
+    """
+
+
+def _similar_failures_sql(embedding_dim: int) -> str:
+    """Return the similarity search SQL for the given ARRAY width.
+
+    The query's values are bound parameters; only the ARRAY width of the
+    cosine-similarity cast is spelled out, because DuckDB has no binding
+    for a fixed-size ARRAY width. The width is an ``int`` for the same
+    reason as in :func:`_causal_error_events_ddl`.
+    """
+    return f"""
+        SELECT
+            e.id,
+            e.error_message,
+            e.context,
+            c.successful_fix_id,
+            f.action_taken,
+            f.code_changes,
+            c.resolution_time_minutes,
+            array_cosine_similarity(e.embedding, ?::FLOAT[{embedding_dim}]) as similarity
+        FROM causal_error_events e
+        JOIN causal_chains c ON e.id = c.error_id
+        JOIN causal_fix_attempts f ON c.successful_fix_id = f.id
+        WHERE similarity > 0.7
+        ORDER BY similarity DESC, c.resolution_time_minutes ASC
+        LIMIT ?
+    """
 
 
 @dataclass
@@ -129,11 +186,49 @@ class CausalChainTracker:
         self.logger = logger or logging.getLogger(__name__)
         self.db: ReflectionDatabaseAdapterOneiric | None = None
         self._embedding_cache: dict[str, list[float]] = {}
+        # Width of the ``causal_error_events.embedding`` ARRAY column. Starts
+        # at the canonical width and is replaced by the LIVE width when the
+        # database already holds a differently-sized column.
+        self.embedding_dim = DEFAULT_EMBEDDING_DIM
+
+    def _adopt_live_embedding_width(self) -> None:
+        """Take the vector width from the live schema when it has one.
+
+        The causal chain tables live in the reflection database, whose
+        embedding columns are fixed-size ARRAY columns that DuckDB cannot
+        widen in place. A database created while the canonical width was
+        some other value keeps that width, so a table created here has to
+        use it -- otherwise the file ends up with two vector spaces and the
+        embeddings are not comparable across them.
+        """
+        if not self.db or not self.db.conn:
+            return
+        live = read_live_embedding_width(self.db.conn, "reflections_v2")
+        if live is None or live == self.embedding_dim:
+            return
+        self.logger.warning(
+            "The reflection database holds FLOAT[%d] embedding columns but "
+            "the canonical width is %d; using the live width. Migrate the "
+            "database to the canonical width with "
+            "scripts/migrate_embedding_dim.py.",
+            live,
+            self.embedding_dim,
+        )
+        self.embedding_dim = live
 
     async def initialize(self) -> None:
         """Initialize causal chain storage.
 
         Creates necessary database tables if they don't exist.
+
+        Note:
+            ``self.db.conn`` is a **synchronous** DuckDB connection (the
+            reflection adapter opens it with ``duckdb.connect``). Its
+            ``execute`` returns a result immediately, so it must NOT be
+            awaited — ``await conn.execute(...)`` raises
+            ``TypeError: object DuckDBPyConnection can't be used in 'await'
+            expression``. The methods that touch the database are still
+            ``async`` because embedding generation is a real network call.
         """
         # Import here to avoid circular dependency
         from session_buddy.adapters.reflection_adapter_oneiric import (
@@ -162,23 +257,18 @@ class CausalChainTracker:
             )
             return
 
+        # DuckDB cannot widen a fixed-size ARRAY column, so a table created
+        # now has to use the same width as the ones already in this file --
+        # otherwise the file ends up with two vector spaces. The causal
+        # tables live in the reflection database, so the width is taken from
+        # the reflection table when it is already there.
+        self._adopt_live_embedding_width()
+
         # Error events table with vector embeddings
-        await self.db.conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS causal_error_events (
-                id TEXT PRIMARY KEY,
-                error_message TEXT,
-                error_type TEXT,
-                context JSON,
-                timestamp TIMESTAMP,
-                session_id TEXT,
-                embedding FLOAT[{DEFAULT_EMBEDDING_DIM}]
-            )
-        """
-        )
+        self.db.conn.execute(_causal_error_events_ddl(self.embedding_dim))
 
         # Fix attempts table
-        await self.db.conn.execute(
+        self.db.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS causal_fix_attempts (
                 id TEXT PRIMARY KEY,
@@ -193,7 +283,7 @@ class CausalChainTracker:
         )
 
         # Completed causal chains table
-        await self.db.conn.execute(
+        self.db.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS causal_chains (
                 id TEXT PRIMARY KEY,
@@ -207,14 +297,32 @@ class CausalChainTracker:
         """
         )
 
-        # Index for semantic search
-        await self.db.conn.execute(
+        # Index for semantic search. The HNSW index type comes from the
+        # DuckDB ``vss`` extension, which the reflection adapter loads only
+        # when HNSW indexing is enabled for it. The tables are the
+        # requirement; the index is an optimization, so a missing extension
+        # must not stop the tracker from working.
+        try:
+            self.db.conn.execute("INSTALL 'vss'")
+            self.db.conn.execute("LOAD 'vss'")
+            # An HNSW index on a file-backed database needs the
+            # experimental persistence option; DuckDB refuses to build one
+            # otherwise.
+            self.db.conn.execute("SET hnsw_enable_experimental_persistence=true")
+        except Exception:
+            self.logger.warning(
+                "The vss extension is not available; the causal chain "
+                "similarity search will fall back to a linear scan.",
+                exc_info=True,
+            )
+        else:
+            self.db.conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_causal_error_events_embeddings
+                ON causal_error_events USING HNSW (embedding)
+                WITH (metric = 'cosine', M = 16, ef_construction = 200)
             """
-            CREATE INDEX IF NOT EXISTS idx_causal_error_events_embeddings
-            ON causal_error_events USING HNSW (embedding)
-            WITH (metric = 'cosine', M = 16, ef_construction = 200)
-        """
-        )
+            )
 
         self.logger.info("Causal chain tables created")
 
@@ -244,7 +352,7 @@ class CausalChainTracker:
 
         # Store in database
         if self.db and self.db.conn:
-            await self.db.conn.execute(
+            self.db.conn.execute(
                 """
                 INSERT INTO causal_error_events
                 (id, error_message, error_type, context, timestamp, session_id, embedding)
@@ -295,7 +403,7 @@ class CausalChainTracker:
 
         # Store in database
         if self.db and self.db.conn:
-            await self.db.conn.execute(
+            self.db.conn.execute(
                 """
                 INSERT INTO causal_fix_attempts
                 (id, error_id, action_taken, code_changes, successful, timestamp)
@@ -340,14 +448,14 @@ class CausalChainTracker:
             return ""
 
         # Get timestamps to calculate resolution time
-        error_result = await self.db.conn.execute(
+        error_result = self.db.conn.execute(
             """
             SELECT timestamp FROM causal_error_events WHERE id = ?
         """,
             (error_id,),
         ).fetchone()
 
-        fix_result = await self.db.conn.execute(
+        fix_result = self.db.conn.execute(
             """
             SELECT timestamp FROM causal_fix_attempts WHERE id = ?
         """,
@@ -367,7 +475,7 @@ class CausalChainTracker:
 
         # Store causal chain
         chain_id = f"chain-{uuid.uuid4().hex[:8]}"
-        await self.db.conn.execute(
+        self.db.conn.execute(
             """
             INSERT INTO causal_chains
             (id, error_id, successful_fix_id, resolution_time_minutes, created_at)
@@ -411,24 +519,8 @@ class CausalChainTracker:
         query_embedding = await self._generate_embedding(current_error)
 
         # Semantic search on past errors
-        results = await self.db.conn.execute(
-            f"""
-            SELECT
-                e.id,
-                e.error_message,
-                e.context,
-                c.successful_fix_id,
-                f.action_taken,
-                f.code_changes,
-                c.resolution_time_minutes,
-                array_cosine_similarity(e.embedding, ?::FLOAT[{DEFAULT_EMBEDDING_DIM}]) as similarity
-            FROM causal_error_events e
-            JOIN causal_chains c ON e.id = c.error_id
-            JOIN causal_fix_attempts f ON c.successful_fix_id = f.id
-            WHERE similarity > 0.7
-            ORDER BY similarity DESC, c.resolution_time_minutes ASC
-            LIMIT ?
-        """,
+        results = self.db.conn.execute(
+            _similar_failures_sql(self.embedding_dim),
             (query_embedding, limit),
         ).fetchall()
 
@@ -469,7 +561,7 @@ class CausalChainTracker:
             return None
 
         # Query error event
-        error_row = await self.db.conn.execute(
+        error_row = self.db.conn.execute(
             """
             SELECT id, error_message, error_type, context, timestamp, session_id
             FROM causal_error_events
@@ -491,7 +583,7 @@ class CausalChainTracker:
         )
 
         # Query all fix attempts
-        attempts_rows = await self.db.conn.execute(
+        attempts_rows = self.db.conn.execute(
             """
             SELECT id, error_id, action_taken, code_changes, successful, timestamp
             FROM causal_fix_attempts
@@ -541,7 +633,7 @@ class CausalChainTracker:
             text: Text to embed
 
         Returns:
-            canonical-width embedding vector
+            Embedding vector of the column's width
         """
         # Check cache first
         if text in self._embedding_cache:
@@ -550,7 +642,10 @@ class CausalChainTracker:
         # Import here to avoid circular dependency
         from session_buddy.reflection_tools import generate_embedding
 
-        embedding = await generate_embedding(text)
+        # Ask for the width the COLUMN holds, not the canonical one: a
+        # database that has not been migrated yet keeps the old width, and
+        # a vector of the wrong width is rejected by the binding.
+        embedding = await generate_embedding(text, width=self.embedding_dim)
         if embedding is None:
             msg = "Embedding generation returned None"
             raise ValueError(msg)

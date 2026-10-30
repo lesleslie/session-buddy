@@ -150,7 +150,7 @@ def _local_trust_domain_allowed() -> bool:
         return False
     if not settings.auth_enabled:
         return True
-    return bool(settings.auth_loopback_trusted)
+    return settings.auth_loopback_trusted
 
 
 def derive_caller_identity(

@@ -119,6 +119,48 @@ def mock_duckdb_connection(mock_duckdb_cursor):
 class TestInitialization:
     """Test adapter initialization and configuration."""
 
+    def test_extension_name_allowlist_accepts_plain_identifiers(self) -> None:
+        """Should accept the extension names DuckDB actually publishes."""
+        from session_buddy.adapters.knowledge_graph_adapter_oneiric import (
+            _validated_extension_name,
+        )
+
+        for name in ("duckpgq", "httpfs", "vss", "postgres_scanner"):
+            assert _validated_extension_name(name) == name
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "",
+            "DuckPGQ",
+            "duck pgq",
+            "duckpgq; DROP TABLE kg_entities",
+            'duckpgq"',
+            "duckpgq'",
+            "1duckpgq",
+            "-duckpgq",
+            "duckpgq--",
+        ],
+    )
+    def test_extension_name_allowlist_refuses_anything_else(self, name: str) -> None:
+        """Should refuse a name that is not a plain identifier."""
+        from session_buddy.adapters.knowledge_graph_adapter_oneiric import (
+            _validated_extension_name,
+        )
+
+        with pytest.raises(ValueError, match="not a plain identifier"):
+            _validated_extension_name(name)
+
+    def test_extension_sql_helpers_quote_nothing(self) -> None:
+        """Should build the statements from an already-validated name."""
+        from session_buddy.adapters.knowledge_graph_adapter_oneiric import (
+            _install_extension_sql,
+            _load_extension_sql,
+        )
+
+        assert _install_extension_sql("duckpgq") == "INSTALL duckpgq FROM community"
+        assert _load_extension_sql("duckpgq") == "LOAD duckpgq"
+
     @pytest.mark.asyncio
     async def test_init_with_explicit_db_path(self, tmp_path: Path) -> None:
         """Should initialize with explicit database path."""

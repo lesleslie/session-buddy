@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -150,7 +150,10 @@ class TestCausalChainTracker:
     def mock_db(self) -> MagicMock:
         """Create a mock ReflectionDatabaseAdapterOneiric."""
         mock = MagicMock()
-        mock.conn = AsyncMock()
+        # The connection is a synchronous DuckDBPyConnection -- it must not
+        # be awaitable, or the mock would hide a regression where the
+        # source awaits ``conn.execute(...)``.
+        mock.conn = MagicMock()
         return mock
 
     @pytest.fixture
@@ -199,9 +202,9 @@ class TestCausalChainTracker:
 
     @pytest.mark.asyncio
     async def test_record_fix_attempt_calls_db_execute(self, tracker: CausalChainTracker, mock_db: MagicMock) -> None:
-        """Test record_fix_attempt calls db execute (even with async mock)."""
+        """Test record_fix_attempt calls db execute."""
         # When successful=True, it also calls _create_causal_chain which uses fetchone
-        # The key assertion is that execute is called - exact call check depends on async behavior
+        # The key assertion is that execute is called on the synchronous connection
         await tracker.record_fix_attempt(
             error_id="err-12345678",
             action_taken="Applied workaround",

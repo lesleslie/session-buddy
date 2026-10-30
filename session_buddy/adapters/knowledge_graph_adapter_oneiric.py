@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import typing as t
 import uuid
 from datetime import UTC, datetime
@@ -27,7 +28,11 @@ from session_buddy.adapters.knowledge_graph_adapter_phase3 import (
     Phase3RelationshipMixin,
 )
 from session_buddy.adapters.settings import KnowledgeGraphAdapterSettings
-from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+from session_buddy.memory.embedding_dim import (
+    DEFAULT_EMBEDDING_DIM,
+    coerce_embedding,
+    read_live_embedding_width,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +63,132 @@ try:
     EMBEDDING_AVAILABLE = True
 except ImportError:
     EMBEDDING_AVAILABLE = False
+
+
+def _kg_entities_ddl(embedding_dim: int) -> str:
+    """Return the ``kg_entities`` DDL for the given embedding ARRAY width.
+
+    DuckDB cannot bind a fixed-size ARRAY width -- ``FLOAT[?]`` is not
+    valid DDL -- so the width has to be spelled out in the statement. It
+    is the one thing this statement interpolates, and it is an ``int``:
+    either the canonical constant or a width read back out of the live
+    schema by :func:`read_live_embedding_width`, which only ever returns
+    the digits of a ``FLOAT[N]`` type. Nothing else reaches the SQL.
+
+    The DDL lives in its own function rather than inline at the call site
+    so that the statement is a named artifact with one documented
+    exception, instead of an interpolation repeated across the adapter.
+    """
+    return f"""
+        CREATE TABLE IF NOT EXISTS kg_entities (
+            id VARCHAR PRIMARY KEY,
+            name VARCHAR NOT NULL,
+            entity_type VARCHAR NOT NULL,
+            observations VARCHAR[],
+            properties JSON,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            metadata JSON,
+            embedding FLOAT[{embedding_dim}]
+        )
+    """
+
+
+def _kg_entities_add_embedding_ddl(embedding_dim: int) -> str:
+    """Return the DDL that adds the embedding column to ``kg_entities``.
+
+    Used when DuckPGQ pre-created the table without the column. The
+    width is an ``int`` for the same reason as in
+    :func:`_kg_entities_ddl`.
+    """
+    return f"ALTER TABLE kg_entities ADD COLUMN embedding FLOAT[{embedding_dim}]"
+
+
+#: A DuckDB extension name is a lowercase identifier (``duckpgq``,
+#: ``httpfs``, ``postgres_scanner``). The name is interpolated into
+#: ``INSTALL``/``LOAD`` -- DuckDB binds neither -- so a name that is not
+#: a plain identifier is refused rather than sanitized.
+_EXTENSION_NAME = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+
+
+def _validated_extension_name(name: str) -> str:
+    """Return the extension name when it is a plain DuckDB identifier.
+
+    Args:
+        name: The configured extension name.
+
+    Returns:
+        The name, unchanged.
+
+    Raises:
+        ValueError: If the name is not a plain identifier.
+    """
+    if _EXTENSION_NAME.match(name) is None:
+        msg = f"Refusing to install extension {name!r}: not a plain identifier"
+        raise ValueError(msg)
+    return name
+
+
+def _install_extension_sql(extension: str) -> str:
+    """Return the statement that installs a DuckDB extension.
+
+    The name must already have been checked by
+    :func:`_validated_extension_name`.
+    """
+    return f"INSTALL {extension} FROM community"
+
+
+def _load_extension_sql(extension: str) -> str:
+    """Return the statement that loads a DuckDB extension.
+
+    The name must already have been checked by
+    :func:`_validated_extension_name`.
+    """
+    return f"LOAD {extension}"
+
+
+def _kg_entities_search_sql(conditions: list[str]) -> str:
+    """Return the ``kg_entities`` search statement.
+
+    ``conditions`` are literal filter fragments written with ``?``
+    placeholders; their values are bound separately, so nothing a caller
+    supplied reaches the statement text.
+    """
+    where = " AND ".join(conditions) if conditions else "1=1"
+    return (
+        "SELECT id, name, entity_type, observations, properties, "
+        "created_at, updated_at, metadata "
+        f"FROM kg_entities WHERE {where} ORDER BY created_at DESC LIMIT ?"
+    )
+
+
+def _kg_relationships_sql(conditions: list[str]) -> str:
+    """Return the ``kg_relationships`` listing statement.
+
+    ``conditions`` are literal filter fragments written with ``?``
+    placeholders; their values are bound separately.
+    """
+    where = " AND ".join(conditions)
+    return (
+        "SELECT id, from_entity, to_entity, relation_type, properties, "
+        "created_at, updated_at, metadata "
+        f"FROM kg_relationships WHERE {where} ORDER BY created_at DESC"
+    )
+
+
+def _kg_entities_missing_embeddings_sql(conditions: list[str]) -> str:
+    """Return the statement that lists the entities needing an embedding."""
+    where = " AND ".join(conditions)
+    return (
+        "SELECT id, name, entity_type, observations "
+        f"FROM kg_entities WHERE {where} LIMIT ?"
+    )
+
+
+def _kg_entities_ids_sql(conditions: list[str]) -> str:
+    """Return the statement that lists the entity ids matching the filters."""
+    where = " AND ".join(conditions)
+    return f"SELECT id FROM kg_entities WHERE {where} LIMIT ?"
 
 
 class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
@@ -132,6 +263,11 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         self._duckpgq_installed = False
         self._initialized = False
         self._embedding_initialized = False
+        # Width of the ``kg_entities.embedding`` ARRAY column. Starts at the
+        # canonical width and is replaced by the LIVE width when the database
+        # already holds a differently-sized column -- see
+        # :meth:`_adopt_live_embedding_width`.
+        self.embedding_dim = DEFAULT_EMBEDDING_DIM
 
         # HTTP embedding providers are stateless — no session initialization needed
         self._embedding_session = None
@@ -216,10 +352,20 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
 
         # Install and load DuckPGQ extension
         try:
-            extensions = self.settings.install_extensions
+            extensions = [
+                _validated_extension_name(name)
+                for name in self.settings.install_extensions
+            ]
+        except ValueError:
+            self._duckpgq_installed = False
+            logger.exception(
+                "Invalid DuckDB extension name in settings; extensions not loaded"
+            )
+            extensions = []
+        try:
             for extension in extensions:
-                self.conn.execute(f"INSTALL {extension} FROM community")
-                self.conn.execute(f"LOAD {extension}")
+                self.conn.execute(_install_extension_sql(extension))
+                self.conn.execute(_load_extension_sql(extension))
             self._duckpgq_installed = True
         except Exception:
             self._duckpgq_installed = False
@@ -244,6 +390,38 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             msg = "Database connection not initialized. Call initialize() first"
             raise RuntimeError(msg)
         return self.conn
+
+    def _adopt_live_embedding_width(self) -> None:
+        """Take the vector width from the live schema when it has one.
+
+        The DuckDB embedding columns are fixed-size ARRAY columns, and
+        DuckDB cannot widen one in place. A database created while the
+        canonical width was some other value therefore keeps that width
+        forever, and binding a canonical-width vector into it raises
+        ``ConversionException: Cannot cast list with length 768 to array
+        with length 384``.
+
+        The live schema is the authority on what fits, so the width is read
+        from the existing column and adopted. The canonical width is only
+        used when the table does not exist yet.
+
+        The same rule is applied by the reflection adapter, which shares
+        this database file: both must agree on the width, because the
+        embeddings live in the same file and the provider is asked for one
+        width.
+        """
+        live = read_live_embedding_width(self.conn, "kg_entities")
+        if live is None or live == self.embedding_dim:
+            return
+        logger.warning(
+            "The knowledge graph holds FLOAT[%d] embedding columns but the "
+            "canonical width is %d; using the live width. Migrate the "
+            "database to the canonical width with "
+            "scripts/migrate_embedding_dim.py.",
+            live,
+            self.embedding_dim,
+        )
+        self.embedding_dim = live
 
     async def _resolve_entity_id(self, identifier: str) -> str:
         """Resolve an entity identifier to its canonical ID."""
@@ -286,20 +464,15 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         """
         conn = self._get_conn()
 
+        # DuckDB cannot widen a fixed-size ARRAY column, so the width of
+        # the embedding column has to match the width the database already
+        # uses -- otherwise a vector written here is rejected by the
+        # column, and a table created now would sit at a different width
+        # from the ones that are already there.
+        self._adopt_live_embedding_width()
+
         # Create entities table (nodes/vertices)
-        conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS kg_entities (
-                id VARCHAR PRIMARY KEY,
-                name VARCHAR NOT NULL,
-                entity_type VARCHAR NOT NULL,
-                observations VARCHAR[],
-                properties JSON,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                metadata JSON,
-                embedding FLOAT[{DEFAULT_EMBEDDING_DIM}]
-            )
-        """)
+        conn.execute(_kg_entities_ddl(self.embedding_dim))
 
         # Create relationships table (edges)
         conn.execute("""
@@ -332,9 +505,7 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             for row in conn.execute("PRAGMA table_info('kg_entities')").fetchall()
         }
         if "embedding" not in entity_columns:
-            conn.execute(
-                f"ALTER TABLE kg_entities ADD COLUMN embedding FLOAT[{DEFAULT_EMBEDDING_DIM}]"
-            )
+            conn.execute(_kg_entities_add_embedding_ddl(self.embedding_dim))
 
         # Create indexes for performance
         conn.execute(
@@ -477,7 +648,7 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             observations: List of observations
 
         Returns:
-            Float vector of the canonical dimension, or None if embedding unavailable
+            Float vector of the column's width, or None if embedding unavailable
 
         """
         if not EMBEDDING_AVAILABLE:
@@ -491,10 +662,17 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
         text = " ".join(text_parts)
 
         try:
-            return await generate_embedding(text)
+            # Ask for the width the COLUMN holds, not the canonical one: a
+            # database that has not been migrated yet keeps the old width,
+            # and a vector of the wrong width is rejected by the binding.
+            embedding = await generate_embedding(text, width=self.embedding_dim)
         except Exception:  # noqa: BLE001 - best-effort optional embedding; any provider failure must yield None so storage proceeds without it
             # Silently fail - embeddings are optional
             return None
+        # Final width gate: a provider that returns a vector of the wrong
+        # width is dropped rather than raising, so the entity is still
+        # stored (without a vector) and the instance stays healthy.
+        return coerce_embedding(embedding, self.embedding_dim)
 
     async def _find_similar_entities(
         self,
@@ -845,15 +1023,8 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             conditions.append("entity_type = ?")
             params.append(entity_type)
 
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
         # Build SQL safely - all user input is parameterized via params list
-        sql = (
-            "SELECT id, name, entity_type, observations, properties, "
-            "created_at, updated_at, metadata "
-            "FROM kg_entities WHERE "
-            + where_clause
-            + " ORDER BY created_at DESC LIMIT ?"
-        )
+        sql = _kg_entities_search_sql(conditions)
         params.append(limit)
 
         result = conn.execute(sql, params).fetchall()
@@ -910,13 +1081,8 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             conditions.append("relation_type = ?")
             params.append(relation_type)
 
-        where_clause = " AND ".join(conditions)
         # Build SQL safely - all user input is parameterized via params list
-        sql = (
-            "SELECT id, from_entity, to_entity, relation_type, properties, "
-            "created_at, updated_at, metadata "
-            "FROM kg_relationships WHERE " + where_clause + " ORDER BY created_at DESC"
-        )
+        sql = _kg_relationships_sql(conditions)
 
         result = conn.execute(sql, params).fetchall()
 
@@ -1114,15 +1280,8 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             conditions.append("entity_type = ?")
             params.append(entity_type)
 
-        where_clause = " AND ".join(conditions)
-
         # Get entities needing embeddings
-        sql = f"""
-            SELECT id, name, entity_type, observations
-            FROM kg_entities
-            WHERE {where_clause}
-            LIMIT ?
-        """
+        sql = _kg_entities_missing_embeddings_sql(conditions)
         params.append(batch_size)
 
         results = conn.execute(sql, params).fetchall()
@@ -1187,15 +1346,8 @@ class KnowledgeGraphDatabaseAdapterOneiric(Phase3RelationshipMixin):
             conditions.append("entity_type = ?")
             params.append(entity_type)
 
-        where_clause = " AND ".join(conditions)
-
         # Get entities to process
-        sql = f"""
-            SELECT id
-            FROM kg_entities
-            WHERE {where_clause}
-            LIMIT ?
-        """
+        sql = _kg_entities_ids_sql(conditions)
         params.append(limit)
 
         results = conn.execute(sql, params).fetchall()

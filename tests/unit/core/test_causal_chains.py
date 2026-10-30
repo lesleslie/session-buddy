@@ -19,21 +19,16 @@ from session_buddy.core.causal_chains import (
 )
 
 
-class AwaitableValue:
-    """Wrap a DB row so the source's await-on-fetch idiom is testable."""
-
-    def __init__(self, value: object) -> None:
-        self.value = value
-
-    def __await__(self):
-        async def resolve() -> object:
-            return self.value
-
-        return resolve().__await__()
-
-
 class Result:
-    """Small result object returned by the synchronous DuckDB connection."""
+    """Small result object returned by the synchronous DuckDB connection.
+
+    Deliberately NOT awaitable. The production connection is a synchronous
+    ``duckdb.DuckDBPyConnection``, so a mock that supports ``await`` would
+    let ``await conn.execute(...)`` pass in the test suite while raising
+    ``TypeError: object DuckDBPyConnection can't be used in 'await'
+    expression`` in production. Keeping the mock non-awaitable makes the
+    suite fail the moment the source awaits the connection again.
+    """
 
     def __init__(
         self,
@@ -43,17 +38,11 @@ class Result:
         self.row = row
         self.rows = rows or []
 
-    def __await__(self):
-        async def resolve() -> Result:
-            return self
+    def fetchone(self) -> tuple[object, ...] | None:
+        return self.row
 
-        return resolve().__await__()
-
-    def fetchone(self) -> AwaitableValue:
-        return AwaitableValue(self.row)
-
-    def fetchall(self) -> AwaitableValue:
-        return AwaitableValue(self.rows)
+    def fetchall(self) -> list[tuple[object, ...]]:
+        return self.rows
 
 
 @pytest.fixture
@@ -89,20 +78,28 @@ def test_dataclasses_expose_defaults_and_values() -> None:
 
 @pytest.mark.asyncio
 async def test_initialize_loads_database_and_creates_all_tables() -> None:
-    connection = AsyncMock()
+    # The connection is synchronous (a real DuckDBPyConnection); only the
+    # adapter's ``initialize()`` is async.
+    connection = MagicMock()
     db = SimpleNamespace(conn=connection, initialize=AsyncMock())
     with patch("session_buddy.di.depends.get_sync", return_value=db):
         tracker = CausalChainTracker()
         await tracker.initialize()
 
     assert tracker.db is db
-    assert connection.execute.await_count == 4
-    statements = [call.args[0] for call in connection.execute.await_args_list]
+    statements = [call.args[0] for call in connection.execute.call_args_list]
     assert any("causal_error_events" in statement for statement in statements)
     assert any("causal_fix_attempts" in statement for statement in statements)
     assert any("causal_chains" in statement for statement in statements)
     assert any(
         "idx_causal_error_events_embeddings" in statement for statement in statements
+    )
+    # The HNSW index needs the vss extension, and a file-backed database
+    # needs experimental persistence to build one.
+    assert any("INSTALL 'vss'" in statement for statement in statements)
+    assert any("LOAD 'vss'" in statement for statement in statements)
+    assert any(
+        "hnsw_enable_experimental_persistence" in statement for statement in statements
     )
 
 
@@ -338,7 +335,7 @@ async def test_embedding_cache_and_none_result(tracker: CausalChainTracker) -> N
     with patch("session_buddy.reflection_tools.generate_embedding", new=generator):
         assert await tracker._generate_embedding("same") == embedding
         assert await tracker._generate_embedding("same") == embedding
-    generator.assert_awaited_once_with("same")
+    generator.assert_awaited_once_with("same", width=tracker.embedding_dim)
 
     with (
         patch(
