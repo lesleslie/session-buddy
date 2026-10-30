@@ -1,5 +1,5 @@
 ---
-status: draft
+status: active
 role: implementation
 date: 2026-10-30
 last_reviewed: 2026-10-30
@@ -62,14 +62,18 @@ that no consumer reaches outside the XDG root — not a search-and-replace.
 
 ### Stale artifacts — worth deleting rather than migrating
 
-| File | mtime | Size | Note |
+An unwritten file is not automatically a dead file: it may still be
+*constructed* by a live code path that recreates it empty at the old
+location. Each candidate was traced to its constructor.
+
+| File | mtime | Size | Verdict |
 |---|---|---|---|
-| `workflow_metrics.db` | 2026-04-21 | 2.0M | unwritten for 6 months |
-| `correlation_insights.db` | 2026-02-11 | 20K | unwritten for 8 months |
-| `team_knowledge.db` | 2026-05-25 | 64K | unwritten for 5 months |
-| `sessions.duckdb` | 2026-09-25 | 1.3M | superseded by `sessions/` |
-| `sessions/` | 2026-06-06 | 212K | last write in June |
-| `legacy_vectors.parquet` | — | 36K | — |
+| `workflow_metrics.db` | 2026-04-21 | 2.0M | **moves, not deleted.** `di/__init__.py:255` constructs `WorkflowMetricsEngine()` → `WorkflowMetricsStore()` during DI setup, and that store's default is the hardcoded `~/.claude/data/workflow_metrics.db`. It is constructed at every startup even though nothing has written it since April. The path must be converted or the file gets recreated empty at the old location — the exact silent failure this audit documents. |
+| `correlation_insights.db` | 2026-02-11 | 20K | **genuinely dormant.** Crackerjack's `create_session_buddy_integration` is its only constructor and has no production caller — only tests call it. Built but not wired. Safe to delete. |
+| `team_knowledge.db` | 2026-05-25 | 64K | unwritten for 5 months; no constructor found. Safe to delete. |
+| `sessions.duckdb` | 2026-09-25 | 1.3M | superseded by the `sessions/` directory. Safe to delete. |
+| `sessions/` | 2026-06-06 | 212K | last write in June. Safe to delete. |
+| `legacy_vectors.parquet` | — | 36K | no reference found. Safe to delete. |
 
 Deleting these shrinks the move from eleven artefacts to five, and
 removes the need to keep crackerjack's two `~/.claude/data` defaults
@@ -157,7 +161,7 @@ rather than two settings that have to be kept in agreement by hand.
 
 | XDG root | Contents |
 |---|---|
-| `~/.local/share/session-buddy/` | `reflection.duckdb`, `knowledge_graph.duckdb`, `crackerjack_integration.db`, `tasks_metadata.sqlite` |
+| `~/.local/share/session-buddy/` | `reflection.duckdb`, `knowledge_graph.duckdb`, `crackerjack_integration.db`, `tasks_metadata.sqlite`, `workflow_metrics.db` |
 | `~/.local/state/session-buddy/` | `interruption_manager.db`, logs, sync state |
 | `~/.cache/session-buddy/` | regenerable caches |
 | `~/.config/session-buddy/` | settings |
@@ -167,28 +171,156 @@ The `~/.local/state/<app>/` convention is already established in this
 fleet — the global `CLAUDE.md` puts worktrees at
 `~/.local/state/mahavishnu/worktrees/`.
 
+## Where the resolver lives
+
+There is already a home-relative path abstraction in the codebase:
+`SessionPaths` in `session_buddy/di/config.py`. It resolves
+`claude_dir` (`~/.claude`), `logs_dir`, `commands_dir` and `data_dir`
+(`claude_dir / "data"`), is registered in the DI container, and has a
+`from_home(home)` classmethod that respects `HOME` for testability.
+It is the existing seam — the migration retargets it rather than
+adding a parallel module beside it.
+
+But `SessionPaths` is not reachable from the other two repos. Two of
+its four roots are genuinely Claude-specific and stay put:
+`claude_dir` (`~/.claude`) and `commands_dir` (`~/.claude/commands`).
+The two that move are `data_dir` and `logs_dir`.
+
+So the resolution splits by ownership:
+
+- **The XDG root primitives** — `xdg_data_home()`,
+  `xdg_state_home()`, `xdg_cache_home()`, `xdg_config_home()` — are a
+  platform-level concern, and oneiric already owns the fleet's XDG
+  convention: it loads settings from `~/.config/{project}/config.yaml`
+  and `~/.config/{project}/local.yaml`, and
+  `oneiric/core/config.py:105` already has a `resolve_cache_dir_path`
+  with the resolve → mkdir → write-probe → temp-fallback shape this
+  should follow. Adding the primitives there avoids three copies.
+- **The app-scoped roots** — `~/.local/share/session-buddy`,
+  `~/.local/state/session-buddy` — are Session-Buddy's decision, and
+  belong in `SessionPaths`.
+
+All three consumer repos already import oneiric directly
+(`oneiric>=0.33.2` in mahavishnu, a sentinel pin in crackerjack, and
+direct imports in session-buddy's `di/container.py` and `shell/adapter.py`),
+so this adds no new dependency edge — it only requires oneiric to ship
+the primitives before the consumers import them.
+
+Two details worth carrying over from the existing code:
+
+- The resolver must follow the fleet's unwritable-home convention:
+  resolve → `mkdir(parents=True, exist_ok=True)` → write probe →
+  fall back to a temp directory. `SessionPaths.from_home()` and
+  oneiric's `resolve_cache_dir_path` both do this, and
+  `session_buddy/knowledge_graph_db.py:84` already falls back to
+  `tempfile.gettempdir() / "session-buddy-home"`.
+- `SessionPaths.from_home()` uses `os.path.expanduser("~")` rather than
+  `Path.home()` specifically so tests can override `HOME`. The XDG
+  resolver should read `XDG_*` the same way, so a test can point them
+  at a temp root without touching the real one.
+
 ## Sequence
 
-1. **Land the resolver.** Add `session_buddy/paths.py` exposing
-   `data_dir()`, `state_dir()`, `cache_dir()`, `config_dir()`,
-   resolving `$XDG_DATA_HOME` / `$XDG_STATE_HOME` / `$XDG_CACHE_HOME` /
-   `$XDG_CONFIG_HOME` with the spec defaults. Point `PathsConfig` and
-   `DatabaseConfig` at it; change the YAML to match.
-2. **Convert every consumer** in the table above to call the resolver.
-   Crackerjack's two defaults and Mahavishnu's `QUEUE_DIR` are
-   cross-repo edits and need their own commits in their own repos.
-3. **Add the guard.** A test that asserts no module under
-   `session_buddy/` constructs a path containing `.claude/data`, plus a
-   matching check in crackerjack and mahavishnu. This is what turns a
-   silent failure into a loud one next time.
-4. **Delete the stale artefacts** listed above rather than migrating
-   them.
-5. **Stop the server, move the live files, start the server.** The
-   DuckDB files are held under an exclusive lock, so this window is
-   required — but it comes *after* the code deploy, not before. The
-   order matters: the running server must already resolve the new paths
-   before the files move, or it will recreate empty databases at the old
-   location on its next write.
+The ordering below is load-bearing. Two facts constrain it:
+
+1. **All three repos must be converted before anything moves.**
+   Converting only Session-Buddy while crackerjack still points at
+   `~/.claude/data` reproduces the exact silent failure this audit
+   documented — crackerjack creates empty databases at the old path
+   while Session-Buddy writes to the new one.
+2. **The default flip and the file move must happen in the same stopped
+   window.** If the code resolves to the new root before the files are
+   there, the first write creates a fresh empty database at the new
+   path and the real data is orphaned at the old one. If the files move
+   before the code resolves to the new root, the old path is recreated
+   empty. There is no safe ordering that separates the two.
+
+### Phase 0 — oneiric ships the XDG root primitives
+
+Add the XDG root primitives to oneiric and publish it. On this host
+`XDG_STATE_HOME` is already set to `/Users/les/.local/state`; the other
+three are unset, so the spec defaults apply (`~/.local/share`,
+`~/.local/state`, `~/.cache`, `~/.config`).
+
+### Phase 1 — resolver, default unchanged (no behaviour change)
+
+Retarget `SessionPaths` so `data_dir` and `logs_dir` resolve through
+the oneiric primitives, while `claude_dir` and `commands_dir` stay
+under `~/.claude`. The resolver's `data_dir()` still returns
+`~/.claude/data` at this phase — it is a pure refactor.
+
+Point `PathsConfig` and `DatabaseConfig` at it, change the YAML to
+match, and convert every consumer in the inventory to call the
+resolver. Add the guard test.
+
+Ship all three repos. **Nothing moves; behaviour is identical.** The
+launchd plist pins no path env vars (only `SESSION_BUDDY_TOOL_PROFILE`),
+so no plist regeneration is needed for the code change.
+
+### Phase 2 — the stopped window
+
+Stop Session-Buddy. Move the live files to the XDG root. Flip the
+resolver's default. Start Session-Buddy. Verify.
+
+The DuckDB files are held under an exclusive lock, so the window is
+required regardless — but it comes *after* the code deploy, not before.
+
+### Phase 3 — cleanup
+
+Delete the legacy `~/.claude/data` and the stale artefacts listed
+above.
+
+## Deliberately out of scope
+
+- **`~/.claude/` itself.** The directory is Claude Code's; this
+  migration only moves Session-Buddy's artefacts out of it.
+- **`~/.claude/settings.json:496-497`.** Two `Bash(rm -f ...)` allowlist
+  entries naming long-dead `mahavishnu-index-queue` files. Stale
+  permission entries, unrelated to the data move — separate cleanup.
+- **The Mahavishnu index queue.** `mahavishnu-index-queue/` is
+  Mahavishnu's own artefact and Mahavishnu's move to make. This plan
+  flags it and converts `QUEUE_DIR` to a resolver; moving the 954M of
+  files is Mahavishnu's call.
+- **A compatibility symlink or a shim that reads the old path.**
+  Session-Buddy is pre-1.0, so the migration replaces rather than
+  extends: no fallback reads, no dual-write, no symlink left behind to
+  mask a half-finished migration.
+- **The stale artefacts listed above.**
+  `correlation_insights.db`, `team_knowledge.db`, `sessions.duckdb` and
+  `sessions/` are unwritten for one to eight months and have no live
+  constructor. They are deleted rather than migrated — but that is a
+  data decision, and the operator may want to keep
+  `correlation_insights.db` for its history.
+  `workflow_metrics.db` is *not* in this group: it moves.
+
+## Integration contract
+
+- **Triggered from** — every Session-Buddy process that resolves its
+  data root; crackerjack's `SessionBuddyIntegration`,
+  `SessionBuddyDirectClient` and `CorrelationStorageSQLite`
+  constructors; mahavishnu's `code_index` indexer when it falls back
+  to the local queue.
+- **Returns to** — callers get the same resolved absolute paths they
+  get today, now rooted under XDG. No signature, return-type, or
+  behavioural change: `settings.paths.data_dir` and
+  `settings.database.path` still hold resolved paths.
+- **Demonstrable by** — a new `tests/unit/test_xdg_paths.py` asserting
+  that no module under `session_buddy/` constructs a path containing
+  `.claude/data`, plus the matching checks in crackerjack and
+  mahavishnu; a live assertion that `settings.paths.data_dir` starts
+  with the XDG data root; and — the check that actually matters —
+  `get_knowledge_graph_stats` returning `Total Entities: 241` and
+  `Embedding Coverage: 100.0%` after the move. A non-empty result is
+  the only proof the data was found rather than a fresh empty database.
+- **Rollback signal** — `get_knowledge_graph_stats` reports
+  `Total Entities: 0` or `Embedding Coverage: 0.0%` where the pre-move
+  counts were non-zero; or `store_reflection` succeeds while
+  `quick_search` finds nothing; or any consumer logs the creation of a
+  new database. All three are the same signal: a consumer resolved to
+  a root that has no data.
+- **Observability added** — the resolver logs the resolved root once
+  per process at startup, so a process running against the wrong root
+  is visible in the log without having to inspect the filesystem.
 
 ## Notes
 
