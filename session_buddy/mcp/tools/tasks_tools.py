@@ -49,6 +49,11 @@ from session_buddy.mcp.tools.tasks_events import (
     publish_task_event,
 )
 from session_buddy.mcp.tools.tasks_identity import derive_caller_identity
+from session_buddy.mcp.tools.tasks_link_storage import (
+    LINK_OUTCOME_ALREADY_LINKED,
+    LINK_OUTCOME_NOT_FOUND,
+    link_task_workflow,
+)
 
 # Phase 5 of the UUID7-only migration plan (2026-10-11) deleted
 # ``session_buddy.mcp.tools.tasks_legacy`` (the legacy-ULID-vs-UUID7 split
@@ -64,6 +69,7 @@ from session_buddy.mcp.tools.tasks_identity import derive_caller_identity
 # marker is set by the ``LegacyTaskRow`` default.
 from session_buddy.mcp.tools.tasks_models import (
     TASK_ID_PATTERN,
+    WORKFLOW_ID_FORBIDDEN_SEGMENTS,
     WORKFLOW_ID_PATTERN,
     FieldDiff,
     JsonValue,
@@ -1339,54 +1345,37 @@ async def tasks_complete(
 # (mahavishnu repo) — C1 (single writer), C2 (owner-scoped), C3
 # (link-once), C4 (provenance), C5 (workflow-id pattern).
 #
-# Authz note: the gate is the VISIBILITY filter, not an owner check, and
-# that is deliberate. The orphan sweeper runs in mahavishnu, not as the
-# task's owner, so an owner-only gate would make the recovery path
-# unreachable on any deployment where the sweeper has its own identity.
-# On a single-host, auth-gate-off deployment every caller is the same
-# principal anyway.
+# Authz: the gate is the task's OWNER, not the visibility filter. A
+# link is a privileged mutation of the task's binding, and the
+# visibility filter lets ANY caller write a PUBLIC task — which would
+# let a stranger bind someone else's public task to a workflow it never
+# dispatched. So the link takes the same owner check ``tasks_complete``
+# uses, with one addition: an explicitly configured service principal
+# (``task_system.link_service_principals``) may also link. That is how
+# mahavishnu's orphan sweeper recovers a task it does not own, without
+# opening the channel to every caller.
 
 
-async def _persist_task_link(
-    reflection_id: str,
-    task: Task,
-    sidecar_meta: dict[str, Any] | None,
-    diff_events: list[FieldDiff],
-    actor: str,
-) -> None:
-    """Persist a workflow link to the task's sidecar metadata.
+def _may_link(caller: str, task: Task) -> bool:
+    """Return whether ``caller`` may bind a workflow to ``task``.
 
-    Writes the top-level ``workflow_id`` key plus the link's provenance
-    (``workflow_linked_at`` / ``workflow_linked_by``) and appends the
-    diff to the task's ``history``. The reflection row is NOT touched: a
-    link changes neither the content nor the tag list.
+    The task's owner always may. A service principal listed in
+    ``task_system.link_service_principals`` may as well — that is how
+    mahavishnu's orphan sweeper recovers a task on behalf of the
+    dispatch edge.
+
+    Fail-closed: if the settings cannot be read, only the owner may
+    link.
     """
-    if sidecar_meta is None:
-        sidecar_meta = dict[str, Any]()
-    # Merge onto the CURRENT row, not the snapshot this tool read at the
-    # top of its body. A concurrent ``tasks_update`` that changed the
-    # task's priority or status is therefore not clobbered by the link.
-    engine = tasks_storage.get_engine()
-    current = tasks_storage.read_task_metadata(
-        engine=engine,
-        reflection_id=reflection_id,
-    )
-    base = dict(current) if isinstance(current, dict) else dict(sidecar_meta)
-    base["workflow_id"] = task.workflow_id
-    base["workflow_linked_at"] = (
-        task.workflow_linked_at.isoformat() if task.workflow_linked_at else None
-    )
-    base["workflow_linked_by"] = task.workflow_linked_by
-    base["updated_at"] = task.updated_at.isoformat()
-    history = list(base.get("history") or [])
-    history.extend(_history_entries(diff_events, actor, datetime.now(UTC).isoformat()))
-    base["history"] = history
+    if task.owner == caller:
+        return True
+    try:
+        from session_buddy.settings import get_settings
 
-    tasks_storage.persist_task_metadata(
-        engine,
-        reflection_id,
-        base,
-    )
+        allowed = get_settings().task_system.link_service_principals
+    except Exception:  # noqa: BLE001 - settings unavailable: fail closed
+        return False
+    return caller in allowed
 
 
 async def tasks_link_workflow(
@@ -1422,13 +1411,18 @@ async def tasks_link_workflow(
     # ``$``, which Python also accepts immediately before a trailing
     # newline. ``"wf_abc\\n"`` would pass ``re.match`` and then be spliced
     # into an MCP key path on the mahavishnu side. ``fullmatch`` rejects it.
-    if not re.fullmatch(WORKFLOW_ID_PATTERN, workflow_id):
+    #
+    # The dot-segments are rejected separately: they match the character
+    # class but are path-traversal segments where the id is consumed.
+    if not re.fullmatch(WORKFLOW_ID_PATTERN, workflow_id) or (
+        workflow_id in WORKFLOW_ID_FORBIDDEN_SEGMENTS
+    ):
         return {
             "status": "error",
             "error_code": "invalid_workflow_id",
             "message": (
                 f"workflow_id {workflow_id!r} does not match WORKFLOW_ID_PATTERN "
-                f"({WORKFLOW_ID_PATTERN})"
+                f"({WORKFLOW_ID_PATTERN}) or is a forbidden path segment"
             ),
         }
 
@@ -1459,31 +1453,35 @@ async def tasks_link_workflow(
     reflection = await _read_reflection(target)
     sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
     task = _build_task(reflection, sidecar_meta)
-    if task is None or not enforce_visibility_filter(caller, task):
+    if task is None:
         return {
             "status": "error",
             "error_code": "not_found",
             "message": f"No task with id {task_id}",
         }
 
-    # Link-once. See the module comment for why the gate is the
-    # visibility filter rather than an owner check.
-    if task.workflow_id is not None:
-        if task.workflow_id == workflow_id:
-            return task
+    # Owner-scoped. A non-owner gets the same 404-shaped envelope as a
+    # task that does not exist, so neither the task nor its existing
+    # binding is disclosed.
+    #
+    # This gate REPLACES the visibility filter rather than adding to it:
+    # the filter lets anyone read (and write) a PUBLIC task, which would
+    # let a stranger bind it to a workflow it never dispatched. An
+    # allow-listed service principal is deliberately able to see and link
+    # a task it does not own — that is the orphan sweeper's recovery
+    # path.
+    if not _may_link(caller, task):
         return {
             "status": "error",
-            "error_code": "workflow_already_linked",
-            "message": (
-                f"Task {task_id} is already linked to workflow "
-                f"{task.workflow_id!r}; a task binds to exactly one workflow."
-            ),
-            "details": {
-                "task_id": task_id,
-                "linked_workflow_id": task.workflow_id,
-                "requested_workflow_id": workflow_id,
-            },
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
         }
+
+    # Idempotent re-link to the SAME workflow: no write, no event. The
+    # caller is authorized at this point, so returning the task (and
+    # therefore its existing link) discloses nothing new.
+    if task.workflow_id == workflow_id:
+        return task
 
     before = task.model_dump()
 
@@ -1496,13 +1494,40 @@ async def tasks_link_workflow(
     after = task.model_dump()
     diff_events = _compute_diff(before, after)
 
-    await _persist_task_link(
-        reflection_id=target,
-        task=task,
-        sidecar_meta=sidecar_meta,
-        diff_events=diff_events,
-        actor=caller,
+    # The history the link appends to. Merge-patch replaces the array,
+    # so the patch must carry the FULL list.
+    history = list(sidecar_meta.get("history") or [])
+    history.extend(_history_entries(diff_events, caller, now.isoformat()))
+
+    outcome = link_task_workflow(
+        engine,
+        target,
+        workflow_id,
+        linked_at=now.isoformat(),
+        linked_by=caller,
+        updated_at=task.updated_at.isoformat(),
+        history=history,
     )
+    if outcome == LINK_OUTCOME_NOT_FOUND:
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+    if outcome == LINK_OUTCOME_ALREADY_LINKED:
+        # A different workflow was linked between our read and our write.
+        # The atomic update refused the write, so the first binding
+        # stands. The existing id is NOT echoed: the caller is
+        # authorized, but the binding is not needed to act on the error.
+        return {
+            "status": "error",
+            "error_code": "workflow_already_linked",
+            "message": (
+                f"Task {task_id} is already linked to a different workflow; "
+                f"a task binds to exactly one workflow."
+            ),
+            "details": {"task_id": task_id},
+        }
 
     await _emit_update_events(task=task, diff_events=diff_events, actor=caller)
 

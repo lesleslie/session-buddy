@@ -26,6 +26,7 @@ newline that ``re.match`` would have let through.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -37,6 +38,7 @@ from session_buddy.mcp.tools.tasks_models import Task, UpdateTaskRequest
 from session_buddy.mcp.tools.tasks_security import RateLimiter
 
 _WORKFLOW_ID = "wf_1a2b3c4d_code_review"
+_NOW = datetime(2026, 10, 30, 7, 0, tzinfo=UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +296,20 @@ async def test_relinking_to_a_different_workflow_is_refused(engine: Any) -> None
     assert isinstance(second, dict)
     assert second.get("status") == "error"
     assert second.get("error_code") == "workflow_already_linked"
-    assert second["details"]["linked_workflow_id"] == _WORKFLOW_ID
+    # The existing binding is NOT echoed back: the envelope says only
+    # that the task is already bound elsewhere. The first link stands.
+    assert "linked_workflow_id" not in second.get("details", {})
+    assert "linked_workflow_id" not in second.get("message", "")
+
+    # The first binding is untouched.
+    with patch.object(
+        tasks_tools,
+        "_read_reflection",
+        new=AsyncMock(side_effect=lambda rid: _reflection_for(rid)),
+    ):
+        fetched = await tasks_tools.tasks_get(ctx, task_id=created.id)
+    assert isinstance(fetched, Task)
+    assert fetched.workflow_id == _WORKFLOW_ID
 
 
 @pytest.mark.unit
@@ -634,3 +649,264 @@ async def test_a_stale_update_does_not_clobber_a_link(engine: Any) -> None:
     assert after["workflow_id"] == _WORKFLOW_ID, (
         "an update must not erase a workflow link it did not write"
     )
+
+
+# ---------------------------------------------------------------------------
+# Authorization — the owner-scoped gate
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+async def test_a_non_owner_cannot_link_someone_elses_public_task(
+    engine: Any,
+) -> None:
+    """A PUBLIC task is still owner-scoped for linking.
+
+    The visibility filter lets anyone READ a public task — and write it,
+    via ``tasks_update``. But ``workflow_id`` is a server-set field: a
+    link asserts "this task is running under that workflow". Letting any
+    caller bind a public task to a workflow it never dispatched would
+    forge that assertion, and the orphan sweeper trusts it.
+    """
+    _reset_limiters()
+    owner_ctx = _make_ctx({"user_email": "les@example.com"})
+    other_ctx = _make_ctx({"user_email": "stranger@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(side_effect=lambda rid: _reflection_for(rid)),
+        ),
+        patch.object(tasks_tools, "_update_reflection", new=AsyncMock()),
+    ):
+        created = await _create_task(owner_ctx)
+        # Make the task public so the visibility filter passes for a
+        # stranger — the owner check is then the only thing standing.
+        await tasks_tools.tasks_update(
+            owner_ctx,
+            task_id=created.id,
+            request=UpdateTaskRequest(visibility="public"),
+        )
+        result = await tasks_tools.tasks_link_workflow(
+            other_ctx,
+            task_id=created.id,
+            workflow_id="wf_99999999_forged",
+        )
+
+    assert isinstance(result, dict)
+    assert result.get("error_code") == "not_found", (
+        "a non-owner must not be able to link a public task"
+    )
+
+    with patch.object(
+        tasks_tools,
+        "_read_reflection",
+        new=AsyncMock(side_effect=lambda rid: _reflection_for(rid)),
+    ):
+        fetched = await tasks_tools.tasks_get(owner_ctx, task_id=created.id)
+    assert isinstance(fetched, Task)
+    assert fetched.workflow_id is None
+
+
+@pytest.mark.unit
+async def test_a_configured_service_principal_may_link(engine: Any) -> None:
+    """An allow-listed service principal may link a task it does not own.
+
+    That is how mahavishnu's orphan sweeper recovers a task on behalf of
+    the dispatch edge without opening the channel to every caller.
+    """
+    _reset_limiters()
+    owner_ctx = _make_ctx({"user_email": "les@example.com"})
+    sweeper_ctx = _make_ctx({"agent_id": "mahavishnu-orphan-sweeper"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(side_effect=lambda rid: _reflection_for(rid)),
+        ),
+        patch.object(
+            tasks_tools,
+            "_may_link",
+            new=lambda caller, _task: caller == "agent:mahavishnu-orphan-sweeper",
+        ),
+    ):
+        created = await _create_task(owner_ctx)
+        result = await tasks_tools.tasks_link_workflow(
+            sweeper_ctx,
+            task_id=created.id,
+            workflow_id=_WORKFLOW_ID,
+        )
+
+    assert isinstance(result, Task)
+    assert result.workflow_id == _WORKFLOW_ID
+    assert result.workflow_linked_by == "agent:mahavishnu-orphan-sweeper"
+
+
+@pytest.mark.unit
+async def test_may_link_is_closed_by_default(engine: Any) -> None:
+    """With no allow-list configured, only the owner may link."""
+    from session_buddy.mcp.tools.tasks_models import Task as TaskModel
+
+    task = TaskModel(
+        id="t-" + "0" * 32,
+        content="a task",
+        owner="user:les@example.com",
+        tags=["task"],
+        created_at=_NOW,
+        updated_at=_NOW,
+    )
+    assert tasks_tools._may_link("user:les@example.com", task) is True
+    assert tasks_tools._may_link("agent:someone-else", task) is False
+
+
+# ---------------------------------------------------------------------------
+# Atomicity — the link-once invariant
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+async def test_a_conflicting_link_is_refused_atomically(engine: Any) -> None:
+    """Two different workflows cannot both win the link.
+
+    The decision is made by a conditional UPDATE in the storage layer,
+    so the second writer matches zero rows and is refused — rather than
+    overwriting the first binding.
+    """
+    from session_buddy.mcp.tools import tasks_link_storage
+
+    _reset_limiters()
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(side_effect=lambda rid: _reflection_for(rid)),
+        ),
+    ):
+        created = await _create_task(ctx)
+        reflection_id = tasks_tools._find_reflection_id_by_task_id(
+            engine=engine,
+            task_id=created.id,
+        )
+        assert reflection_id is not None
+
+        first = tasks_link_storage.link_task_workflow(
+            engine,
+            reflection_id,
+            "wf_first",
+            linked_at="2026-10-30T00:00:00+00:00",
+            linked_by="user:les@example.com",
+            updated_at="2026-10-30T00:00:00+00:00",
+            history=[],
+        )
+        second = tasks_link_storage.link_task_workflow(
+            engine,
+            reflection_id,
+            "wf_second",
+            linked_at="2026-10-30T00:00:01+00:00",
+            linked_by="user:les@example.com",
+            updated_at="2026-10-30T00:00:01+00:00",
+            history=[],
+        )
+        # A re-link to the SAME id is idempotent, not a conflict.
+        same = tasks_link_storage.link_task_workflow(
+            engine,
+            reflection_id,
+            "wf_first",
+            linked_at="2026-10-30T00:00:02+00:00",
+            linked_by="user:les@example.com",
+            updated_at="2026-10-30T00:00:02+00:00",
+            history=[],
+        )
+
+    assert first == tasks_link_storage.LINK_OUTCOME_LINKED
+    assert second == tasks_link_storage.LINK_OUTCOME_ALREADY_LINKED
+    assert same == tasks_link_storage.LINK_OUTCOME_LINKED
+
+    blob = tasks_storage.read_task_metadata(engine=engine, reflection_id=reflection_id)
+    assert blob is not None
+    assert blob["workflow_id"] == "wf_first", "the first link must stand"
+
+
+@pytest.mark.unit
+async def test_linking_a_missing_task_reports_not_found(engine: Any) -> None:
+    from session_buddy.mcp.tools import tasks_link_storage
+
+    outcome = tasks_link_storage.link_task_workflow(
+        engine,
+        "no-such-reflection",
+        "wf_x",
+        linked_at="2026-10-30T00:00:00+00:00",
+        linked_by="user:les@example.com",
+        updated_at="2026-10-30T00:00:00+00:00",
+        history=[],
+    )
+    assert outcome == tasks_link_storage.LINK_OUTCOME_NOT_FOUND
+
+
+# ---------------------------------------------------------------------------
+# C5 — path-safety of the workflow id
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+async def test_dot_segments_are_rejected(engine: Any) -> None:
+    """".", ".." and friends are path-traversal segments.
+
+    The workflow id is spliced into a substrate key path on the
+    mahavishnu side (``workflow-results/{workflow_id}/``). They match the
+    character class, so they need their own rule.
+    """
+    _reset_limiters()
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(side_effect=lambda rid: _reflection_for(rid)),
+        ),
+    ):
+        created = await _create_task(ctx)
+        for bad in (".", ".."):
+            result = await tasks_tools.tasks_link_workflow(
+                ctx,
+                task_id=created.id,
+                workflow_id=bad,
+            )
+            assert isinstance(result, dict), f"{bad!r} should not link"
+            assert result.get("error_code") == "invalid_workflow_id", bad
+
+
+@pytest.mark.unit
+async def test_the_model_rejects_a_malformed_workflow_id(engine: Any) -> None:
+    """``Task.workflow_id`` is validated on read-back, not only on write.
+
+    A value that reached the row by any other route cannot be served as
+    a valid task.
+    """
+    from pydantic import ValidationError
+
+    from session_buddy.mcp.tools.tasks_models import Task as TaskModel
+
+    with pytest.raises(ValidationError):
+        TaskModel(
+            id="t-" + "0" * 32,
+            content="a task",
+            owner="user:les@example.com",
+            tags=["task"],
+            workflow_id="not a valid id",
+            created_at=_NOW,
+            updated_at=_NOW,
+        )

@@ -891,6 +891,33 @@ class TaskMetadataConfig(_BaseConfig):
     )
 
 
+class TaskSystemConfig(_BaseConfig):
+    """Task-system behaviour settings.
+
+    ``link_service_principals`` lists the caller identities that may bind
+    a workflow to a task they do not own.
+
+    The link channel (``tasks_link_workflow``) is OWNER-SCOPED by default:
+    only the task's owner may link it. A service principal — e.g.
+    mahavishnu's orphan sweeper, which recovers tasks on behalf of the
+    dispatch edge and is not the owner — has to be listed here explicitly.
+    Without the allowlist, a recovery agent running under its own
+    identity could never re-link the task it is recovering.
+
+    Identities use the same ``user:<email>`` / ``agent:<id>`` shape the
+    task tools derive from the authenticated caller. The default is an
+    empty list, so the non-owner path is closed until an operator opts a
+    principal in.
+    """
+
+    link_service_principals: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Caller identities allowed to link a workflow to a task they do not own"
+        ),
+    )
+
+
 class SessionBuddySettings(OneiricMCPConfig):
     """Oneiric-shaped session-buddy settings.
 
@@ -1002,6 +1029,10 @@ class SessionBuddySettings(OneiricMCPConfig):
     task_metadata: TaskMetadataConfig = Field(
         default_factory=TaskMetadataConfig,
         description="Task-system metadata sidecar storage",
+    )
+    task_system: TaskSystemConfig = Field(
+        default_factory=TaskSystemConfig,
+        description="Task-system behaviour settings",
     )
 
     # ---- Phase E2 (Plan 2 Task 2) substrate-derived auth fields ----

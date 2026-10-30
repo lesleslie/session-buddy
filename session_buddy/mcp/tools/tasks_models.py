@@ -53,6 +53,17 @@ OWNER_PATTERN = r"^(user:[a-zA-Z0-9._@-]+|agent:[a-zA-Z0-9._:-]+)$"
 # See docs/specs/2026-10-30-task-workflow-backlink-design.md (contract C5).
 WORKFLOW_ID_PATTERN = r"^[A-Za-z0-9._-]{1,128}$"
 
+#: Values that are path-traversal segments. The workflow id is spliced
+#: into a substrate key path on the mahavishnu side
+#: (``workflow-results/{workflow_id}/``), and a dot-segment would
+#: traverse out of it. The character class alone does NOT exclude them —
+#: "." and ".." both match it — so they are rejected separately.
+#:
+#: The same rule is applied on the mahavishnu side, where the id is
+#: produced and consumed. See
+#: ``mahavishnu/mcp/tools/_workflow_id_guard.py``.
+WORKFLOW_ID_FORBIDDEN_SEGMENTS = frozenset({".", ".."})
+
 # Recursive JSON value type. ``dict[str, JsonValue]`` keys must be ``str``;
 # values may be any JSON scalar, list, or nested object. Used for ``metadata``
 # and ``diff`` payloads.
@@ -113,7 +124,7 @@ class Task(BaseModel):
     effort: Literal["xs", "s", "m", "l", "xl"] | None = None
     tags: list[Annotated[str, Field(min_length=1, max_length=64)]]
     parent_task_id: Annotated[str | None, Field(pattern=TASK_ID_PATTERN)] = None
-    workflow_id: str | None = None
+    workflow_id: Annotated[str | None, Field(pattern=WORKFLOW_ID_PATTERN)] = None
     workflow_linked_at: datetime | None = None
     workflow_linked_by: str | None = None
     due_at: datetime | None = None
@@ -300,7 +311,7 @@ class HandoffResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=False)
 
     task_id: Annotated[str, Field(pattern=TASK_ID_PATTERN)]
-    workflow_id: str
+    workflow_id: Annotated[str, Field(pattern=WORKFLOW_ID_PATTERN)]
     adapter: Literal["prefect", "llamaindex", "agno"]
     started_at: datetime
     status: str = "queued"
