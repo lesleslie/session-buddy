@@ -5,7 +5,7 @@
 mode: "standard"
 
 # === Database Settings ===
-database_path: "~/.claude/data/reflection.duckdb"
+database_path: "~/.local/share/session-buddy/reflection.duckdb"
 database_connection_timeout: 30
 database_query_timeout: 120
 database_max_connections: 10
@@ -61,7 +61,7 @@ session_retention_days: 365
 storage:
   default_backend: "file"
   file:
-    local_path: "~/.claude/data/sessions"
+    local_path: "~/.local/share/session-buddy/sessions"
     auto_mkdir: true
   memory:
     max_size_mb: 100
@@ -92,7 +92,7 @@ enable_global_toolkits: true
 log_level: "INFO"
 log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 enable_file_logging: true
-log_file_path: "~/.claude/logs/session-buddy.log"
+log_file_path: "~/.local/state/session-buddy/session-buddy.log"
 log_file_max_size: 10485760  # 10MB
 log_file_backup_count: 5
 enable_performance_logging: false

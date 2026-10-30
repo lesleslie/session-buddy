@@ -44,14 +44,14 @@ mcp_transport:
 
 # === Paths ===
 paths:
-  data_dir: "~/.claude/data"
-  log_dir: "~/.claude/logs"
+  data_dir: "~/.local/share/session-buddy"
+  log_dir: "~/.local/state/session-buddy"
   global_workspace_path: "~/Projects/claude"
-  log_file_path: "~/.claude/logs/session-buddy.log"
+  log_file_path: "~/.local/state/session-buddy/session-buddy.log"
 
 # === Database ===
 database:
-  path: "~/.claude/data/reflection.duckdb"
+  path: "~/.local/share/session-buddy/reflection.duckdb"
   connection_timeout: 30
   query_timeout: 120
   max_connections: 10
@@ -225,7 +225,7 @@ bodai_events:
 # created_at, task_id, the change history). It MUST be a durable file:
 # the default engine is in-memory SQLite, so an unwired server loses
 # every task on restart. A relative path resolves against
-# paths.data_dir (~/.claude/data).
+# paths.data_dir (~/.local/share/session-buddy).
 task_metadata:
   enabled: true
   path: "tasks_metadata.sqlite"
