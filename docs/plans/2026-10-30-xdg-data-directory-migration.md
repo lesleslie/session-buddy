@@ -413,8 +413,9 @@ one in the Phase 2 section: boot the job out, do not just kill it.
 - `scripts/migrate_vector_database.py` still imports `acb.depends` and
   `acb.adapters.vector._base`. The `acb` package is not installed and
   the `vectors.default` schema it migrates to exists nowhere in the
-  tree, so the script cannot run. It is dead ACB-era code; deleting it
-  is the obvious move, but that is a separate decision.
+  tree, so the script cannot run. It was dead ACB-era code and has
+  been deleted; the repo already asserts the ACB-free runtime in
+  `tests/integration/test_phase6_success_criteria.py::test_no_acb_dependencies_import`.
 - The stale artefacts in the "Stale artifacts" table were **moved,
   not deleted** — the move was approved as moves-only. `workflow_metrics.db`
   (unwritten since April), `correlation_insights.db` (February),
