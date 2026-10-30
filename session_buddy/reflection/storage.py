@@ -206,6 +206,9 @@ async def store_conversation(
     # DEFAULT, so it has to be supplied. The adapter writes the same
     # fallback value for it.
     def _store() -> None:
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         conn.execute(
             f"""
             INSERT INTO {CONVERSATIONS_TABLE} (id, content, embedding, category, project, timestamp, metadata)
@@ -295,6 +298,9 @@ async def store_reflection(
     # contract outright. The old "does this schema still have the ULID
     # column" branch could therefore never be taken on any migrated schema.
     def _store() -> None:
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         conn.execute(
             f"""
             INSERT INTO {REFLECTIONS_TABLE} (id, content, embedding, project, tags, timestamp, metadata)
@@ -406,6 +412,9 @@ async def get_reflection(
     conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
 
     def _get() -> dict[str, Any] | None:
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         result = conn.execute(
             f"""
             SELECT id, content, embedding, project, tags, timestamp, metadata

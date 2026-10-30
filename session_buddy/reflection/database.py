@@ -673,6 +673,9 @@ class ReflectionDatabase:
             if not result:
                 return False
 
+            # DuckDB connection, not SQLAlchemy; the only interpolated
+            # value is a module-level table-name constant.
+            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
             conn.execute(
                 f"DELETE FROM {REFLECTIONS_TABLE} WHERE id = ?", [reflection_id]
             )

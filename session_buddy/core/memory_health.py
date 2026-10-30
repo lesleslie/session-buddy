@@ -202,6 +202,9 @@ class MemoryHealthAnalyzer:
             )
 
         # Total reflections
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         total_result = conn.execute(
             f"SELECT COUNT(*) FROM {REFLECTIONS_TABLE}"
         ).fetchone()

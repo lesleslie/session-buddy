@@ -2099,6 +2099,9 @@ class ReflectionDatabaseAdapterOneiric:
             params.append(project)
         sql += " ORDER BY match_rank ASC, timestamp DESC LIMIT ?"
         params.append(limit)
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         result = self.conn.execute(sql, rank_params + params).fetchall()
 
         return [
