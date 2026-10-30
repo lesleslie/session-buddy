@@ -87,6 +87,10 @@ def stubbed_lifespan(monkeypatch: pytest.MonkeyPatch, tmp_path):
         consumer_group = "bodai-default"
         enabled = True
 
+    class _StubTaskMetadata:
+        enabled = False
+        path = tmp_path / "tasks_metadata.sqlite"
+
     class _StubSession:
         auto_checkpoint_interval = 0
         midpoint_commit_interval_s = 0
@@ -95,6 +99,7 @@ def stubbed_lifespan(monkeypatch: pytest.MonkeyPatch, tmp_path):
 
     class _StubSettings:
         bodai_events = _StubBodaiEvents()
+        task_metadata = _StubTaskMetadata()
         session = _StubSession()
 
     monkeypatch.setattr(_settings_mod, "get_settings", lambda: _StubSettings())

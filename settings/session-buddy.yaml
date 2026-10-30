@@ -220,6 +220,16 @@ bodai_events:
   stream: "bodai:events"
   consumer_group: "bodai-default"
 
+# Task-system metadata sidecar. The DuckDB reflection row carries the
+# content and the tags; this sidecar carries the values (owner,
+# created_at, task_id, the change history). It MUST be a durable file:
+# the default engine is in-memory SQLite, so an unwired server loses
+# every task on restart. A relative path resolves against
+# paths.data_dir (~/.claude/data).
+task_metadata:
+  enabled: true
+  path: "tasks_metadata.sqlite"
+
 # === Storage backend (kept flat — StorageAdapterSettings not on
 #     SessionBuddySettings, but operator-tunable via env vars) ===
 # Read by session_buddy/adapters/storage_oneiric.py via

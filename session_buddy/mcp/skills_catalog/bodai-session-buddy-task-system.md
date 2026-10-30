@@ -158,6 +158,15 @@ One non-task event shares the stream:
 
 v1.1 adds the `TaskOrphanSweeper` in mahavishnu that re-links tasks on `task.handoff_orphan` events.
 
+### State storage
+
+Task state lives in **two** places, and the split matters:
+
+- the **reflection row** (DuckDB) carries the content and the `task` / `status:<value>` tags. `status` is recovered from the tags, not from the sidecar.
+- the **metadata sidecar** (SQLite, `~/.claude/data/tasks_metadata.sqlite`) carries the values — `owner`, `created_at`, `task_id`, `completed_at` / `completed_by` / `result_notes`, and the `history` timeline. `tasks_list` and `tasks_get` discover tasks through it.
+
+The sidecar is a **file**, wired at server start (`task_metadata.path` in the settings, resolved against `paths.data_dir`). It must stay durable: an in-memory sidecar loses every task on restart, including one a workflow was dispatched against. Set `task_metadata.enabled = false` only for tests.
+
 Akosha indexes these; reindex lag is ~30s. Read-side analytics via `mcp__akosha__tasks_*` tools will reflect writes within that window.
 
 ## Failure modes

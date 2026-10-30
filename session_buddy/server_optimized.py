@@ -221,6 +221,52 @@ async def _delayed_session_init(current_dir: Path) -> None:
         logger.warning(f"Delayed session init failed: {e}")
 
 
+def _wire_task_metadata_sidecar() -> None:
+    """Point the task-metadata storage module at a durable SQLite file.
+
+    The sidecar is where task metadata LIVES. The DuckDB reflection row
+    carries the content and the tags, but the values -- ``owner``,
+    ``created_at``, ``task_id``, the change history -- are in the
+    sidecar, and ``tasks_list`` / ``tasks_get`` discover tasks through
+    it. ``tasks_storage.get_engine`` defaults to in-memory SQLite, so a
+    server that never wires a file-backed engine starts every boot with
+    an empty sidecar: ``tasks_list`` returns nothing, ``tasks_get``
+    404s, and every task created before the restart is gone -- including
+    one a workflow was dispatched against.
+
+    The module's own docstring states the contract ("Production callers
+    that want persistence should call
+    ``set_engine(create_metadata_engine(db_path))`` at process start");
+    the wiring was simply never done.
+
+    The file is created with owner-only permissions before SQLite opens
+    it: the sidecar holds task content and the owner's identity, and
+    SQLite inherits the mode of a file that already exists rather than
+    applying its own umask -- so creating it first is what makes the
+    mode stick.
+
+    Raises:
+        Exception: Whatever the settings or the storage module raises.
+            The caller logs it and lets startup continue on the
+            in-memory engine, which is the pre-existing behaviour.
+    """
+    from session_buddy.mcp.tools import tasks_storage
+    from session_buddy.settings import get_settings, get_task_metadata_path
+
+    if not get_settings().task_metadata.enabled:
+        return
+
+    sidecar_path = get_task_metadata_path()
+    sidecar_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if not sidecar_path.exists():
+        sidecar_path.touch(mode=0o600)
+    sidecar_path.chmod(0o600)
+    tasks_storage.set_engine(
+        tasks_storage.create_metadata_engine(sidecar_path),
+    )
+    logger.info(f"task_metadata sidecar engine wired path={sidecar_path}")
+
+
 # Lifespan handler for automatic session management
 @asynccontextmanager
 async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
@@ -251,6 +297,17 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
         logger.warning(
             f"Phase 1.5: signer feed state init failed; "
             f"/health will report skills_signer.error={exc!s}",
+        )
+
+    # Task-system metadata sidecar: point the storage module at a
+    # durable SQLite file before anything reads it. See
+    # ``_wire_task_metadata_sidecar`` for why this is load-bearing.
+    try:
+        _wire_task_metadata_sidecar()
+    except Exception as exc:  # noqa: BLE001 - sidecar wiring must not block startup
+        logger.warning(
+            f"task_metadata sidecar engine wiring failed; "
+            f"tasks will not survive a restart: {exc!s}",
         )
 
     # Phase 4 (Bodai task system, plan §5 task 4): install the

@@ -865,6 +865,32 @@ class BodaiEventsConfig(_BaseConfig):
     )
 
 
+class TaskMetadataConfig(_BaseConfig):
+    """Task-system sidecar storage settings.
+
+    The task sidecar is the durable store for task metadata: the DuckDB
+    reflection row carries the content and the tags, but the sidecar
+    carries the *values* -- ``owner``, ``created_at``, ``task_id``, the
+    change history. ``tasks_storage.get_engine`` defaults to in-memory
+    SQLite, so a server that never wires a file-backed engine loses every
+    task on restart: ``tasks_list`` returns nothing and ``tasks_get``
+    404s, because the discovery path reads the sidecar.
+
+    Consumed by ``session_lifecycle``
+    (``session_buddy/server_optimized.py``), which calls
+    ``tasks_storage.set_engine`` at server start.
+    """
+
+    path: Path = Field(
+        default=Path("tasks_metadata.sqlite"),
+        description="Path to the task-metadata sidecar SQLite file",
+    )
+    enabled: bool = Field(
+        default=True,
+        description="Persist task metadata to the sidecar file",
+    )
+
+
 class SessionBuddySettings(OneiricMCPConfig):
     """Oneiric-shaped session-buddy settings.
 
@@ -972,6 +998,10 @@ class SessionBuddySettings(OneiricMCPConfig):
     bodai_events: BodaiEventsConfig = Field(
         default_factory=BodaiEventsConfig,
         description="Bodai task-system event bus",
+    )
+    task_metadata: TaskMetadataConfig = Field(
+        default_factory=TaskMetadataConfig,
+        description="Task-system metadata sidecar storage",
     )
 
     # ---- Phase E2 (Plan 2 Task 2) substrate-derived auth fields ----
@@ -1278,6 +1308,26 @@ def get_database_path() -> Path:
     """
     settings = get_settings()
     raw = settings.database.path
+    path = raw.expanduser() if isinstance(raw, Path) else Path(str(raw)).expanduser()
+    if not path.is_absolute():
+        data_dir_raw = settings.paths.data_dir
+        data_dir = (
+            data_dir_raw.expanduser()
+            if isinstance(data_dir_raw, Path)
+            else Path(str(data_dir_raw)).expanduser()
+        )
+        path = data_dir / path
+    return path
+
+
+def get_task_metadata_path() -> Path:
+    """Resolve the task-metadata sidecar path, joining with data_dir if relative.
+
+    Reads from the nested ``task_metadata.path`` and ``paths.data_dir``
+    fields of SessionBuddySettings.
+    """
+    settings = get_settings()
+    raw = settings.task_metadata.path
     path = raw.expanduser() if isinstance(raw, Path) else Path(str(raw)).expanduser()
     if not path.is_absolute():
         data_dir_raw = settings.paths.data_dir
