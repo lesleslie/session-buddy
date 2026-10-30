@@ -1,5 +1,5 @@
 ---
-status: active
+status: shipped
 role: implementation
 date: 2026-10-30
 last_reviewed: 2026-10-30
@@ -235,35 +235,74 @@ The ordering below is load-bearing. Two facts constrain it:
    before the code resolves to the new root, the old path is recreated
    empty. There is no safe ordering that separates the two.
 
-### Phase 0 — oneiric ships the XDG root primitives
+### Phase 0 — each repo carries its own resolver copy
 
-Add the XDG root primitives to oneiric and publish it. On this host
-`XDG_STATE_HOME` is already set to `/Users/les/.local/state`; the other
-three are unset, so the spec defaults apply (`~/.local/share`,
-`~/.local/state`, `~/.cache`, `~/.config`).
+**As implemented, not as originally planned.** The plan put the XDG
+root primitives in oneiric, which would have been the right home — it
+already owns the fleet's XDG config convention. But oneiric is a
+*released* (non-editable) install in Session-Buddy's venv, and
+Session-Buddy and crackerjack are released installs of each other, so
+a cross-repo import needs a publish first, and publishing is
+operator-gated. Gating a data-layout change on three releases for
+twenty lines of `os.environ.get` was not worth it.
 
-### Phase 1 — resolver, default unchanged (no behaviour change)
+Each repo therefore carries its own copy of the resolver:
+`session_buddy/paths.py`, `crackerjack/utils/xdg_paths.py`,
+`mahavishnu/core/xdg_paths.py`. The semantics are identical across all
+three, and the duplication is documented in each module. Moving the
+primitives into oneiric later is a natural follow-up, once a release
+carrying them can be published.
 
-Retarget `SessionPaths` so `data_dir` and `logs_dir` resolve through
-the oneiric primitives, while `claude_dir` and `commands_dir` stay
-under `~/.claude`. The resolver's `data_dir()` still returns
-`~/.claude/data` at this phase — it is a pure refactor.
+On this host `XDG_STATE_HOME` is already set to
+`/Users/les/.local/state`; the other three are unset, so the spec
+defaults apply (`~/.local/share`, `~/.local/state`, `~/.cache`,
+`~/.config`).
 
-Point `PathsConfig` and `DatabaseConfig` at it, change the YAML to
-match, and convert every consumer in the inventory to call the
-resolver. Add the guard test.
+### Phase 1 — convert the code, leave the YAML as the pin
 
-Ship all three repos. **Nothing moves; behaviour is identical.** The
-launchd plist pins no path env vars (only `SESSION_BUDDY_TOOL_PROFILE`),
-so no plist regeneration is needed for the code change.
+**As implemented, the wording differs from the original plan.** The
+plan said the resolver's `data_dir()` should keep returning
+`~/.claude/data` during Phase 1, so that Phase 1 was a pure refactor
+with no behaviour change at all. The implemented design puts the pin
+one layer up: the **resolver returns the XDG path unconditionally**, and
+the **YAML layer is what still pins the legacy locations** until
+Phase 2 flips it.
+
+That difference matters, and it is the one place where the split-brain
+window is open. Two classes of path exist:
+
+* **YAML-driven** (`paths.data_dir`, `paths.log_dir`, `database.path`)
+  — unchanged through Phase 1, because the YAML still pins them. The
+  reflection, knowledge-graph and task-metadata databases stay put.
+* **Resolver-driven** (`crackerjack_integration.db`,
+  `workflow_metrics.db`, `team_knowledge.db`, `activity.db`,
+  `interruption_manager.db`, `natural_scheduler.db`, the `sessions/`
+  directory, the session logger's directory) — these move to the XDG
+  roots on the very first restart after Phase 1 lands, because nothing
+  gates them. Every one of their constructors creates a fresh empty
+  database when the file is missing rather than raising, so a restart
+  before Phase 2 silently empties them.
+
+That is why Phase 2 has to follow Phase 1 immediately, and why the
+stopped window has to be a real stop rather than the one `mcp-ctl stop`
+gives you (see "The launchd respawn" below).
 
 ### Phase 2 — the stopped window
 
 Stop Session-Buddy. Move the live files to the XDG root. Flip the
-resolver's default. Start Session-Buddy. Verify.
+YAML layer. Start Session-Buddy. Verify.
 
 The DuckDB files are held under an exclusive lock, so the window is
 required regardless — but it comes *after* the code deploy, not before.
+
+The stop has to be a `launchctl bootout`, not `mcp-ctl stop`.
+`mcp-ctl stop` runs `launchctl kill SIGTERM`, which leaves the job
+loaded; the plist's `KeepAlive` is `{SuccessfulExit: False, Crashed:
+True}`, so a SIGTERM'd process counts as a crash and launchd respawns
+it after the 30-second throttle. The respawn lands in the middle of
+the window, before the YAML flip, and creates a fresh empty
+`reflection.duckdb` at the old path. Booting the job *out* removes it
+from launchd so it cannot respawn; `launchctl bootstrap` puts it back.
 
 ### Phase 3 — cleanup
 
@@ -336,3 +375,53 @@ above.
   only pre-migration snapshots; neither was a usable rollback target,
   because the embedding providers serve 768-wide vectors and restoring
   either width would have reintroduced the mismatch.
+
+## Outcome — 2026-10-30
+
+Shipped. Three repos converted and merged, then the data moved.
+
+**Commits.** Session-Buddy `5fc04d43` (49 files), crackerjack
+`9704662f` (5 files), mahavishnu `557fdb16` (7 files); the YAML flip
+`85feec45`; the examples revival `4178faad`. Nothing pushed.
+
+**The move.** 14 paths, verified by row counts read before and after:
+`reflection.duckdb` 705 rows (21 reflections, 1 causal chain, 648 code
+graphs), `knowledge_graph.duckdb` 244 rows, `crackerjack_integration.db`
+3104 rows, `interruption_manager.db` 717 rows,
+`tasks_metadata.sqlite` 2 rows, `activity.db` 12 rows, plus the
+`mahavishnu-index-queue` (697 files) and the session-management logs.
+After the restart the server reports the same counts (242 KG entities,
+2 relationships, 100% embedding coverage, 22 reflections) and holds
+`~/.local/share/session-buddy/reflection.duckdb` open; the old location
+stayed free of databases.
+
+**Three things went differently than planned**, all recorded above:
+the resolver copy is per-repo rather than in oneiric (publish gate);
+the YAML layer is the Phase-2 pin rather than the resolver's default;
+and the stop needed `launchctl bootout` because `mcp-ctl stop` leaves
+the job loaded and launchd respawns it.
+
+**One incident.** The server respawned mid-window (see "The launchd
+respawn" above), before the YAML flip, and created an empty
+`reflection.duckdb` and `knowledge_graph.duckdb` at the old path. No
+data was lost — the real files had already been moved, with all rows
+intact — and the two empty files were quarantined. The lesson is the
+one in the Phase 2 section: boot the job out, do not just kill it.
+
+**Left for a follow-up, not done here:**
+
+- `scripts/migrate_vector_database.py` still imports `acb.depends` and
+  `acb.adapters.vector._base`. The `acb` package is not installed and
+  the `vectors.default` schema it migrates to exists nowhere in the
+  tree, so the script cannot run. It is dead ACB-era code; deleting it
+  is the obvious move, but that is a separate decision.
+- The stale artefacts in the "Stale artifacts" table were **moved,
+  not deleted** — the move was approved as moves-only. `workflow_metrics.db`
+  (unwritten since April), `correlation_insights.db` (February),
+  `team_knowledge.db` (May), `sessions.duckdb` (September) and
+  `sessions/` (June) now sit at the XDG roots and can be pruned.
+- 143 rows of pytest-tmp garbage were appended to the live
+  `crackerjack_integration.db` by a test run during the conversion, in
+  a file that already carried 319 such rows from earlier runs. Left in
+  place rather than deleted from a live database.
+
