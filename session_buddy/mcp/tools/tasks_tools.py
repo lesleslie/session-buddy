@@ -136,7 +136,7 @@ def _get_update_limiter() -> RateLimiter:
 # ---------------------------------------------------------------------------
 
 
-def _ctx_to_auth_context(ctx: Context) -> dict[str, Any]:
+async def _ctx_to_auth_context(ctx: Context) -> dict[str, Any]:
     """Adapt a FastMCP ``Context`` to the dict shape ``derive_caller_identity`` expects.
 
     FastMCP's request state is exposed via ``Context.set_state(key, value)``
@@ -144,17 +144,23 @@ def _ctx_to_auth_context(ctx: Context) -> dict[str, Any]:
     string-typed channel for the SEP-2322 multi-round-trip guard protocol
     and is NOT a middleware-injectable dict.
 
-    Auth middleware (out of scope for T4) populates
-    ``auth_user_email`` and ``auth_agent_id`` keys via ``ctx.set_state(...)``.
-    This adapter reads those keys and packs them into the dict shape
-    ``derive_caller_identity`` expects. Keys resolve to ``None`` for
-    unauthenticated callers, which then fail closed in the spec §Authz
-    Model invariant.
+    ``Context.get_state`` is a coroutine function (FastMCP 4.x), so both
+    reads are awaited. Reading it synchronously yields the coroutine
+    object itself, which is truthy -- so an unauthenticated caller would
+    be handed ``user:<coroutine object ...>`` and fail the ``Task``
+    owner pattern with a validation error that says nothing about
+    authentication.
+
+    Auth middleware populates ``auth_user_email`` and ``auth_agent_id``
+    keys via ``ctx.set_state(...)``. This adapter reads those keys and
+    packs them into the dict shape ``derive_caller_identity`` expects.
+    Keys resolve to ``None`` for unauthenticated callers, which then fail
+    closed in the spec §Authz Model invariant.
     """
     return {
         "auth": {
-            "user_email": ctx.get_state("auth_user_email"),
-            "agent_id": ctx.get_state("auth_agent_id"),
+            "user_email": await ctx.get_state("auth_user_email"),
+            "agent_id": await ctx.get_state("auth_agent_id"),
         },
     }
 
@@ -184,7 +190,7 @@ async def tasks_create(
     or oversize content propagates so the MCP layer surfaces a 400-class
     response to the caller.
     """
-    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
 
     try:
         limiter = _get_create_limiter()
@@ -588,7 +594,7 @@ async def tasks_list(
     - ``include_legacy=True`` is the only way to surface legacy
       ``tags=["todo"]`` rows (default ``False`` per §Migration).
     """
-    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
 
     # Security boundary: caller cannot filter by another user's owner. The
     # brief pins the empty-result behaviour; the spec is more nuanced
@@ -930,7 +936,7 @@ async def tasks_get(
     task_id: Annotated[str, Field(pattern=TASK_ID_PATTERN)],
 ) -> Task | dict[str, Any]:
     """Fetch a single task by id. Returns 404 (not 403) on visibility failure."""
-    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
 
     # Explicit pattern validation (the Annotated[...] hint is documentation-only
     # on a plain async function; the spec §Error Handling Matrix pins an
@@ -989,7 +995,7 @@ async def tasks_update(
     request: UpdateTaskRequest,
 ) -> Task | dict[str, Any]:
     """Update mutable fields on a task. Server rejects owner mutation; 120/min per caller."""
-    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
 
     # Defense in depth: even if a future UpdateTaskRequest change re-exposes
     # owner/created_by/completed_by, we still reject at the tool body so the
@@ -1132,7 +1138,7 @@ async def tasks_complete(
     Returns the updated :class:`Task`, or an error envelope on rate
     limit / pattern mismatch / not_found / not_visible.
     """
-    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
 
     if not re.match(TASK_ID_PATTERN, task_id):
         return {
@@ -1262,7 +1268,7 @@ async def tasks_search(
     ``min_score``, and ``k`` forward to or post-filter the underlying
     ``search_reflections`` call.
     """
-    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
 
     raw_results = await search_reflections(
         query=query,
@@ -1362,7 +1368,7 @@ async def tasks_history(
     — NOT an error envelope. Visibility filter is enforced: missing or
     invisible tasks return 404 (not 403) to avoid leaking existence.
     """
-    caller = derive_caller_identity(_ctx_to_auth_context(ctx))
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx))
 
     # Explicit pattern validation (the Annotated[..., Field(pattern=...)]
     # signature hint is documentation-only on a plain async function;

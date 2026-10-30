@@ -52,10 +52,13 @@ def _make_ctx(auth: dict[str, str]) -> Any:
     API; the task tool reads ``auth_user_email`` and ``auth_agent_id``
     keys from it. The auth dict is split into separate keys here so
     tests mirror the middleware contract that lands with T12+ auth wiring.
+
+    ``get_state`` is a coroutine function in FastMCP 4.x, so the stub is
+    async too -- the task tools await it.
     """
     ctx = MagicMock()
 
-    def _get_state(key: str) -> Any:
+    async def _get_state(key: str) -> Any:
         mapping = {
             "auth_user_email": auth.get("user_email"),
             "auth_agent_id": auth.get("agent_id"),

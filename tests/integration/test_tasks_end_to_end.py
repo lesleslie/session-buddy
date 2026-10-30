@@ -63,10 +63,14 @@ from session_buddy.mcp.tools.tasks_security import (
 
 
 def _make_ctx(auth: dict[str, str]) -> Any:
-    """Build a stub ``Context``-like object whose ``get_state`` exposes auth keys."""
+    """Build a stub ``Context``-like object whose ``get_state`` exposes auth keys.
+
+    ``get_state`` is a coroutine function in FastMCP 4.x, so the stub is
+    async too -- the task tools await it.
+    """
     ctx = MagicMock()
 
-    def _get_state(key: str) -> Any:
+    async def _get_state(key: str) -> Any:
         mapping = {
             "auth_user_email": auth.get("user_email"),
             "auth_agent_id": auth.get("agent_id"),
