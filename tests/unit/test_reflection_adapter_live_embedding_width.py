@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """The adapter takes its vector width from the live schema.
 
 DuckDB's embedding columns are fixed-size ``FLOAT[N]`` ARRAY columns and

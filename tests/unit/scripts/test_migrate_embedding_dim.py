@@ -13,11 +13,10 @@ import sys
 from pathlib import Path
 
 import duckdb
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
-from migrate_embedding_dim import (  # noqa: E402
+from migrate_embedding_dim import (
     _quote_identifier,
     _rewrite_width,
     _vector_columns,
@@ -57,8 +56,8 @@ def _make_database(db_path: Path) -> None:
             f")"
         )
         conn.execute(
-            f"CREATE INDEX idx_default_refl_embeddings_hnsw ON reflections_v2 "
-            f"USING HNSW (embedding) WITH (M = 16, ef_construction = 200)"
+            "CREATE INDEX idx_default_refl_embeddings_hnsw ON reflections_v2 "
+            "USING HNSW (embedding) WITH (M = 16, ef_construction = 200)"
         )
         conn.execute("CREATE INDEX idx_reflections_category ON reflections_v2(content)")
         vector = "[" + ",".join(["0.25"] * OLD_WIDTH) + "]"
