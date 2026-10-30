@@ -1572,12 +1572,14 @@ class TestAllAsyncFunctionsAreAsync:
 
 
 class TestTasksToolsRegistration:
-    """Regression: T12 must register all 7 ``tasks_*`` tools on a FastMCP server.
+    """Regression: T12 must register all 8 ``tasks_*`` tools on a FastMCP server.
 
-    The seven tools (``tasks_create``, ``tasks_list``, ``tasks_get``,
-    ``tasks_update``, ``tasks_complete``, ``tasks_search``,
-    ``tasks_history``) are the v1 surface of the task system (spec at
-    docs/superpowers/specs/2026-09-29-task-system-design.md, v1.1).
+    The eight tools (``tasks_create``, ``tasks_list``, ``tasks_get``,
+    ``tasks_update``, ``tasks_complete``, ``tasks_link_workflow``,
+    ``tasks_search``, ``tasks_history``) are the task-system surface
+    (spec at docs/superpowers/specs/2026-09-29-task-system-design.md,
+    v1.1; the back-link contract at
+    docs/specs/2026-10-30-task-workflow-backlink-design.md).
     Implementations live at module level in
     ``session_buddy.mcp.tools.tasks_tools``; this test pins the
     registration wiring so a future refactor cannot silently drop the
@@ -1585,8 +1587,8 @@ class TestTasksToolsRegistration:
     """
 
     @pytest.mark.asyncio
-    async def test_register_tasks_tools_exposes_all_seven(self) -> None:
-        """``register_tasks_tools(mcp)`` must register all 7 ``tasks_*`` tools."""
+    async def test_register_tasks_tools_exposes_all_eight(self) -> None:
+        """``register_tasks_tools(mcp)`` must register all 8 ``tasks_*`` tools."""
         from mcp_common.fastmcp import FastMCP
 
         from session_buddy.mcp.tools.tasks_tools import register_tasks_tools
@@ -1604,6 +1606,7 @@ class TestTasksToolsRegistration:
             "tasks_get",
             "tasks_update",
             "tasks_complete",
+            "tasks_link_workflow",
             "tasks_search",
             "tasks_history",
         }
@@ -1611,7 +1614,7 @@ class TestTasksToolsRegistration:
         extra = registered - expected
         assert not missing, f"Missing tools: {missing}; got: {registered}"
         # ``register_tasks_tools`` MUST NOT register anything beyond
-        # the seven task tools — assert it is a tight wire so a
+        # the task tools — assert it is a tight wire so a
         # copy/paste regression that double-registers a sibling group
         # fails the test.
         assert not extra, f"Unexpected tools registered: {extra}; got: {registered}"
@@ -1635,14 +1638,15 @@ class TestTasksToolsRegistration:
         register_tasks_tools(mcp)
 
         registered = [t.name for t in await mcp.list_tools()]
-        # Seven unique names, no duplicates.
-        assert len(registered) == len(set(registered)) == 7
+        # Eight unique names, no duplicates.
+        assert len(registered) == len(set(registered)) == 8
         assert set(registered) == {
             "tasks_create",
             "tasks_list",
             "tasks_get",
             "tasks_update",
             "tasks_complete",
+            "tasks_link_workflow",
             "tasks_search",
             "tasks_history",
         }

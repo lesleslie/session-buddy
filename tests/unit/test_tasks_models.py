@@ -381,19 +381,36 @@ def test_handoff_params_rejects_unknown_selector() -> None:
 
 
 def test_handoff_result_round_trips() -> None:
-    """``HandoffResult`` exposes task_id/workflow_id/adapter/started_at/pool_name."""
+    """``HandoffResult`` exposes task_id/workflow_id/adapter/started_at/status."""
     now = datetime.now(UTC)
     hr = HandoffResult(
         task_id=new_task_id(),
         workflow_id="wf-abc",
         adapter="prefect",
         started_at=now,
-        pool_name="local",
+        status="completed",
+        repos_processed=3,
     )
     payload = json.loads(hr.model_dump_json())
     assert payload["workflow_id"] == "wf-abc"
     assert payload["adapter"] == "prefect"
-    assert payload["pool_name"] == "local"
+    assert payload["status"] == "completed"
+    assert payload["repos_processed"] == 3
+    # ``pool_name`` was dropped when the dispatch edge moved to the
+    # durable-workflow path (contract C7) — a durable workflow has no pool.
+    assert "pool_name" not in payload
+
+
+def test_handoff_result_rejects_pool_name() -> None:
+    """``pool_name`` is gone from the envelope, not merely unused."""
+    with pytest.raises(ValidationError):
+        HandoffResult(
+            task_id=new_task_id(),
+            workflow_id="wf-x",
+            adapter="prefect",
+            started_at=datetime.now(UTC),
+            pool_name="local",  # type: ignore[call-arg]
+        )
 
 
 def test_handoff_result_rejects_unknown_adapter() -> None:
@@ -404,7 +421,6 @@ def test_handoff_result_rejects_unknown_adapter() -> None:
             workflow_id="wf-x",
             adapter="kafka",  # type: ignore[arg-type]
             started_at=datetime.now(UTC),
-            pool_name="local",
         )
 
 
@@ -416,7 +432,6 @@ def test_handoff_result_task_id_must_match_pattern() -> None:
             workflow_id="wf-x",
             adapter="prefect",
             started_at=datetime.now(UTC),
-            pool_name="local",
         )
 
 

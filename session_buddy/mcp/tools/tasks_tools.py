@@ -64,6 +64,7 @@ from session_buddy.mcp.tools.tasks_identity import derive_caller_identity
 # marker is set by the ``LegacyTaskRow`` default.
 from session_buddy.mcp.tools.tasks_models import (
     TASK_ID_PATTERN,
+    WORKFLOW_ID_PATTERN,
     FieldDiff,
     JsonValue,
     LegacyTaskRow,
@@ -440,6 +441,11 @@ def _build_task(
     task_metadata = sidecar_meta.get("metadata")
     task_metadata = dict(task_metadata) if isinstance(task_metadata, dict) else {}
     workflow_id = sidecar_meta.get("workflow_id")
+    # Provenance of the link. Written by ``tasks_link_workflow`` only,
+    # alongside the top-level ``workflow_id`` key above — never inside the
+    # caller-supplied ``metadata`` bag, so a caller cannot forge them.
+    workflow_linked_at = _parse_iso_optional(sidecar_meta.get("workflow_linked_at"))
+    workflow_linked_by = sidecar_meta.get("workflow_linked_by")
 
     # ``task_id`` is the full 32-hex id persisted at create time so the
     # list/get/update round-trip recovers the original id. The synthetic
@@ -478,6 +484,10 @@ def _build_task(
             tags=tags_in,
             parent_task_id=str(parent_task_id) if parent_task_id else None,
             workflow_id=str(workflow_id) if workflow_id else None,
+            workflow_linked_at=workflow_linked_at,
+            workflow_linked_by=(
+                str(workflow_linked_by) if workflow_linked_by else None
+            ),
             due_at=due_at,
             created_at=created_at,
             updated_at=updated_at,
@@ -850,12 +860,27 @@ async def _persist_task_update(
     ``sidecar_meta`` is accepted as ``dict[str, Any] | None`` to match
     the optional return of ``tasks_storage.read_task_metadata`` at the
     call site. The body guards with a rebind to ``dict[str, Any]()``
-    if it was ``None`` so the subsequent ``.copy()`` and ``.get()``
-    calls see a non-Optional type.
+    if it was ``None`` so the subsequent ``.get()`` calls see a
+    non-Optional type.
+
+    The blob written here is the CURRENT row merged with this update's
+    own fields — not the snapshot the tool read at the top of its body.
+    There is an ``await`` between that read and this write, so the
+    snapshot can be stale; writing it back wholesale would erase a
+    workflow link written by ``tasks_link_workflow`` while this update
+    was in flight. Re-reading immediately before the write shrinks that
+    window to the gap between two local SQLite calls, and the link keys
+    are carried through from the current row untouched.
     """
     if sidecar_meta is None:
         sidecar_meta = dict[str, Any]()
-    new_meta = sidecar_meta.copy()
+    engine = tasks_storage.get_engine()
+    current = tasks_storage.read_task_metadata(
+        engine=engine,
+        reflection_id=reflection_id,
+    )
+    base = dict(current) if isinstance(current, dict) else dict(sidecar_meta)
+    new_meta = base
     new_meta["priority"] = task.priority
     new_meta["effort"] = task.effort
     if getattr(task, "visibility", None) is not None:
@@ -898,18 +923,11 @@ async def _persist_task_update(
                 synced_tags, "effort", diff.after
             )
 
-    history = list(new_meta.get("history") or [])
-    now_iso = datetime.now(UTC).isoformat()
-    for diff in diff_events:
-        history.append(
-            {
-                "field": diff.field,
-                "before": _jsonify_value(diff.before),
-                "after": _jsonify_value(diff.after),
-                "actor": actor,
-                "at": now_iso,
-            }
-        )
+    # ``history`` is append-only: extend the STORED list with this
+    # update's entries. The base above already carries the stored
+    # history, so the new entries are appended to it.
+    history = list(base.get("history") or [])
+    history.extend(_history_entries(diff_events, actor, datetime.now(UTC).isoformat()))
     new_meta["history"] = history
 
     tasks_storage.persist_task_metadata(
@@ -922,6 +940,30 @@ async def _persist_task_update(
         content=task.content,
         tags=synced_tags,
     )
+
+
+def _history_entries(
+    diff_events: list[FieldDiff],
+    actor: str,
+    now_iso: str,
+) -> list[dict[str, Any]]:
+    """Return one history record per changed field.
+
+    Shared by ``_persist_task_update`` and ``_persist_task_link`` so both
+    write the same record shape into the task's ``history`` list. Values
+    are JSON-ified because the sidecar's JSON column rejects raw
+    ``datetime`` objects.
+    """
+    return [
+        {
+            "field": diff.field,
+            "before": _jsonify_value(diff.before),
+            "after": _jsonify_value(diff.after),
+            "actor": actor,
+            "at": now_iso,
+        }
+        for diff in diff_events
+    ]
 
 
 def _apply_update_request(task: Task, request: UpdateTaskRequest) -> None:
@@ -1285,6 +1327,189 @@ async def tasks_complete(
 
 
 # ---------------------------------------------------------------------------
+# tasks_link_workflow — the back-link channel
+# ---------------------------------------------------------------------------
+#
+# ``Task.workflow_id`` is written by exactly one tool: this one. The
+# caller-supplied ``metadata`` bag on ``tasks_update`` can never reach the
+# field — a metadata dict is caller content whatever key it carries, and
+# the field itself lives in a top-level sidecar key, not inside the bag.
+#
+# Contract: docs/specs/2026-10-30-task-workflow-backlink-design.md
+# (mahavishnu repo) — C1 (single writer), C2 (owner-scoped), C3
+# (link-once), C4 (provenance), C5 (workflow-id pattern).
+#
+# Authz note: the gate is the VISIBILITY filter, not an owner check, and
+# that is deliberate. The orphan sweeper runs in mahavishnu, not as the
+# task's owner, so an owner-only gate would make the recovery path
+# unreachable on any deployment where the sweeper has its own identity.
+# On a single-host, auth-gate-off deployment every caller is the same
+# principal anyway.
+
+
+async def _persist_task_link(
+    reflection_id: str,
+    task: Task,
+    sidecar_meta: dict[str, Any] | None,
+    diff_events: list[FieldDiff],
+    actor: str,
+) -> None:
+    """Persist a workflow link to the task's sidecar metadata.
+
+    Writes the top-level ``workflow_id`` key plus the link's provenance
+    (``workflow_linked_at`` / ``workflow_linked_by``) and appends the
+    diff to the task's ``history``. The reflection row is NOT touched: a
+    link changes neither the content nor the tag list.
+    """
+    if sidecar_meta is None:
+        sidecar_meta = dict[str, Any]()
+    # Merge onto the CURRENT row, not the snapshot this tool read at the
+    # top of its body. A concurrent ``tasks_update`` that changed the
+    # task's priority or status is therefore not clobbered by the link.
+    engine = tasks_storage.get_engine()
+    current = tasks_storage.read_task_metadata(
+        engine=engine,
+        reflection_id=reflection_id,
+    )
+    base = dict(current) if isinstance(current, dict) else dict(sidecar_meta)
+    base["workflow_id"] = task.workflow_id
+    base["workflow_linked_at"] = (
+        task.workflow_linked_at.isoformat() if task.workflow_linked_at else None
+    )
+    base["workflow_linked_by"] = task.workflow_linked_by
+    base["updated_at"] = task.updated_at.isoformat()
+    history = list(base.get("history") or [])
+    history.extend(_history_entries(diff_events, actor, datetime.now(UTC).isoformat()))
+    base["history"] = history
+
+    tasks_storage.persist_task_metadata(
+        engine,
+        reflection_id,
+        base,
+    )
+
+
+async def tasks_link_workflow(
+    ctx: Context,
+    task_id: Annotated[str, Field(pattern=TASK_ID_PATTERN)],
+    workflow_id: Annotated[str, Field(pattern=WORKFLOW_ID_PATTERN)],
+) -> Task | dict[str, Any]:
+    """Bind a task to the workflow it was dispatched to. Link-once.
+
+    The only writer of ``Task.workflow_id``. The caller-supplied
+    ``metadata`` bag on ``tasks_update`` cannot reach the field — server-set
+    fields are never sourced from a caller-supplied container.
+
+    Link-once semantics (contract C3): a task binds to exactly one
+    workflow. Re-linking to the SAME id is an idempotent no-op that returns
+    the task unchanged (the orphan sweeper retries a link after a step-3
+    failure, and a retry must not be an error); re-linking to a DIFFERENT
+    id is refused with ``workflow_already_linked``.
+
+    Returns the updated :class:`Task``, or an error envelope on rate
+    limit / pattern mismatch / not_found / not_visible / already linked.
+    """
+    caller = derive_caller_identity(await _ctx_to_auth_context(ctx), Permission.WRITE)
+
+    if not re.match(TASK_ID_PATTERN, task_id):
+        return {
+            "status": "error",
+            "error_code": "invalid_id_format",
+            "message": f"task_id {task_id!r} does not match TASK_ID_PATTERN",
+        }
+
+    # ``fullmatch`` rather than ``match``: the pattern is anchored with
+    # ``$``, which Python also accepts immediately before a trailing
+    # newline. ``"wf_abc\\n"`` would pass ``re.match`` and then be spliced
+    # into an MCP key path on the mahavishnu side. ``fullmatch`` rejects it.
+    if not re.fullmatch(WORKFLOW_ID_PATTERN, workflow_id):
+        return {
+            "status": "error",
+            "error_code": "invalid_workflow_id",
+            "message": (
+                f"workflow_id {workflow_id!r} does not match WORKFLOW_ID_PATTERN "
+                f"({WORKFLOW_ID_PATTERN})"
+            ),
+        }
+
+    limiter = _get_update_limiter()
+    try:
+        limiter.check(caller)
+    except RateLimitError as exc:
+        return {
+            "status": "error",
+            "error_code": "rate_limited",
+            "message": str(exc),
+            "details": {
+                "limit": limiter.limit,
+                "window_seconds": limiter.window_seconds,
+                "caller": caller,
+            },
+        }
+
+    engine = tasks_storage.get_engine()
+    target = _find_reflection_id_by_task_id(engine=engine, task_id=task_id)
+    if target is None:
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    reflection = await _read_reflection(target)
+    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
+    task = _build_task(reflection, sidecar_meta)
+    if task is None or not enforce_visibility_filter(caller, task):
+        return {
+            "status": "error",
+            "error_code": "not_found",
+            "message": f"No task with id {task_id}",
+        }
+
+    # Link-once. See the module comment for why the gate is the
+    # visibility filter rather than an owner check.
+    if task.workflow_id is not None:
+        if task.workflow_id == workflow_id:
+            return task
+        return {
+            "status": "error",
+            "error_code": "workflow_already_linked",
+            "message": (
+                f"Task {task_id} is already linked to workflow "
+                f"{task.workflow_id!r}; a task binds to exactly one workflow."
+            ),
+            "details": {
+                "task_id": task_id,
+                "linked_workflow_id": task.workflow_id,
+                "requested_workflow_id": workflow_id,
+            },
+        }
+
+    before = task.model_dump()
+
+    now = datetime.now(UTC)
+    task.workflow_id = workflow_id
+    task.workflow_linked_at = now
+    task.workflow_linked_by = caller
+    task.updated_at = now
+
+    after = task.model_dump()
+    diff_events = _compute_diff(before, after)
+
+    await _persist_task_link(
+        reflection_id=target,
+        task=task,
+        sidecar_meta=sidecar_meta,
+        diff_events=diff_events,
+        actor=caller,
+    )
+
+    await _emit_update_events(task=task, diff_events=diff_events, actor=caller)
+
+    return task
+
+
+# ---------------------------------------------------------------------------
 # tasks_search — T8
 # ---------------------------------------------------------------------------
 #
@@ -1533,11 +1758,11 @@ async def tasks_history(
 def register_tasks_tools(mcp: Any) -> None:
     """Register task-system MCP tools. T4-T9 wrote the implementations; T12 wires them.
 
-    Wires the seven ``tasks_*`` MCP tools onto the supplied FastMCP
+    Wires the eight ``tasks_*`` MCP tools onto the supplied FastMCP
     server using ``mcp.tool()(func)`` — the function-call form of
     FastMCP's ``@mcp.tool()`` decorator (FastMCP 3.x ``provider.tool``
     accepts both calling patterns per the ``ToolDecoratorMixin.tool``
-    docstring). The seven tools are:
+    docstring). The eight tools are:
 
     * ``tasks_create`` (T4) — create a task; server-derived ``owner``;
       60/min rate limit; emits ``task.created``.
@@ -1548,6 +1773,9 @@ def register_tasks_tools(mcp: Any) -> None:
       reject owner mutation; 120/min rate limit; emits ``task.updated``.
     * ``tasks_complete`` (T7) — mark a task done; rejects missing
       ``result_notes``; emits ``task.completed``.
+    * ``tasks_link_workflow`` — bind a task to the workflow it was
+      dispatched to; the only writer of ``Task.workflow_id``; link-once;
+      120/min rate limit; emits ``task.updated``.
     * ``tasks_search`` (T8) — semantic search with ``quick_search``
       parity (project, min_score, k); kind=task + visibility gated.
     * ``tasks_history`` (T9) — cursor-paginated change history; 404 on
@@ -1562,9 +1790,11 @@ def register_tasks_tools(mcp: Any) -> None:
     mcp.tool()(tasks_get)
     mcp.tool()(tasks_update)
     mcp.tool()(tasks_complete)
+    mcp.tool()(tasks_link_workflow)
     mcp.tool()(tasks_search)
     mcp.tool()(tasks_history)
     logger.info(
         "Registered task-system tools: tasks_create, tasks_list, tasks_get, "
-        "tasks_update, tasks_complete, tasks_search, tasks_history"
+        "tasks_update, tasks_complete, tasks_link_workflow, tasks_search, "
+        "tasks_history"
     )

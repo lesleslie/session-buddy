@@ -42,6 +42,17 @@ TASK_ID_PATTERN = r"^t-[0-9a-f]{32}$"
 # trusted.
 OWNER_PATTERN = r"^(user:[a-zA-Z0-9._@-]+|agent:[a-zA-Z0-9._:-]+)$"
 
+# Workflow ids are produced by mahavishnu's durable-workflow path and are
+# spliced into MCP key paths on that side (``workflow-results/{workflow_id}/``),
+# so they must be conservative identifiers: 1-128 chars, alphanumeric plus
+# dot, dash, and underscore. This is deliberately the SAME pattern as
+# ``mahavishnu.mcp.tools._workflow_id_guard.WORKFLOW_ID_PATTERN`` — the two
+# repos must agree on what a workflow id is, otherwise a value that one side
+# accepts would be rejected (or, worse, used unsafely) by the other.
+#
+# See docs/specs/2026-10-30-task-workflow-backlink-design.md (contract C5).
+WORKFLOW_ID_PATTERN = r"^[A-Za-z0-9._-]{1,128}$"
+
 # Recursive JSON value type. ``dict[str, JsonValue]`` keys must be ``str``;
 # values may be any JSON scalar, list, or nested object. Used for ``metadata``
 # and ``diff`` payloads.
@@ -82,6 +93,13 @@ class Task(BaseModel):
       scans can filter task rows without parsing ``content``.
     - ``metadata`` serialized size is capped at 1 KiB to bound embedding
       budget and Redis-Stream payload size.
+
+    ``workflow_id`` and its provenance (``workflow_linked_at`` /
+    ``workflow_linked_by``) are server-set by ``tasks_link_workflow``
+    only. They are absent from :class:`UpdateTaskRequest`, and the
+    caller-supplied ``metadata`` bag can never reach them — a metadata
+    dict is caller content whatever key it carries. See
+    ``docs/specs/2026-10-30-task-workflow-backlink-design.md``.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=False)
@@ -96,6 +114,8 @@ class Task(BaseModel):
     tags: list[Annotated[str, Field(min_length=1, max_length=64)]]
     parent_task_id: Annotated[str | None, Field(pattern=TASK_ID_PATTERN)] = None
     workflow_id: str | None = None
+    workflow_linked_at: datetime | None = None
+    workflow_linked_by: str | None = None
     due_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
@@ -263,9 +283,19 @@ class HandoffParams(BaseModel):
 
 class HandoffResult(BaseModel):
     """Result envelope returned by ``tasks_handoff_to_workflow`` after
-    step 2 (dispatch) succeeds. ``workflow_id`` is the upstream
-    ``dispatch_to_pool`` identifier; step 3 (session-buddy update) stores
-    it on the task via ``UpdateTaskRequest(metadata__workflow_id=...)``."""
+    step 2 (dispatch) succeeds.
+
+    ``workflow_id`` is the identifier of the durable mahavishnu workflow
+    the task was dispatched to; step 3 stores it on the task through
+    session-buddy's ``tasks_link_workflow`` tool (the dedicated typed
+    channel — NOT ``UpdateTaskRequest.metadata``).
+
+    ``pool_name`` was dropped when the dispatch edge moved from the pool
+    router to the durable-workflow path: a durable workflow has no pool.
+    ``status`` and ``repos_processed`` are the fields that path actually
+    returns. See
+    ``docs/specs/2026-10-30-task-workflow-backlink-design.md`` (C6/C7).
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=False)
 
@@ -273,7 +303,8 @@ class HandoffResult(BaseModel):
     workflow_id: str
     adapter: Literal["prefect", "llamaindex", "agno"]
     started_at: datetime
-    pool_name: str
+    status: str = "queued"
+    repos_processed: int = 0
 
 
 # ---------------------------------------------------------------------------
