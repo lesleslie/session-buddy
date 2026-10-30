@@ -1,16 +1,29 @@
-"""Verify session_buddy/mcp/server.py calls _apply_tool_profile() + golden fixtures match.
+"""Verify the tool profile dispatch is wired + golden fixtures match.
 
 The W0 helper from mcp-common>=0.18.0 is the canonical way to apply a
 ToolProfile at startup. These tests guard:
 
-1. AST guard: ``session_buddy/mcp/server.py`` actually calls
-   ``_apply_tool_profile`` (or its sync alias ``apply_tool_profile``) so the
+1. AST guard: the profile dispatch actually calls
+   ``_apply_tool_profile`` (or its async alias ``apply_tool_profile``) so the
    profile machinery can't be removed without breaking the build.
 2. Golden fixture comparison at MINIMAL/STANDARD/FULL so a future refactor
    that accidentally drops or duplicates tools is caught.
 3. ``SESSION_BUDDY_MANDATORY_GROUPS`` is a subset of
    ``REGISTRATION_MAP.keys()`` (the W0 helper requires each mandatory key
    to resolve to a callable).
+
+Where the dispatch lives. It used to be applied at import time by
+``session_buddy/mcp/server.py``. That module is only imported by tests, so
+the *running* server never applied a profile -- it served a hard-coded
+subset of the tool groups, and the task-system tools among them were
+absent. The dispatch now lives in
+``session_buddy/mcp/tools/profiles.py`` and is applied by
+``session_buddy.server_optimized.build_live_server()``, which the
+launcher calls when the server is about to serve.
+
+The golden fixtures below are therefore measured against the live
+surface, not against an import side effect -- the surface the running
+server actually serves.
 """
 
 from __future__ import annotations
@@ -25,20 +38,20 @@ from pathlib import Path
 import pytest
 
 
-def _server_path() -> Path:
-    return Path("session_buddy/mcp/server.py")
+def _dispatch_path() -> Path:
+    return Path("session_buddy/mcp/tools/profiles.py")
 
 
-def _read_server_source() -> str:
-    return _server_path().read_text()
+def _read_dispatch_source() -> str:
+    return _dispatch_path().read_text()
 
 
 def _tree() -> ast.AST:
-    return ast.parse(_read_server_source())
+    return ast.parse(_read_dispatch_source())
 
 
-def test_server_calls_apply_tool_profile() -> None:
-    """AST guard: server.py must call _apply_tool_profile or apply_tool_profile.
+def test_profile_dispatch_calls_apply_tool_profile() -> None:
+    """AST guard: the dispatch must call _apply_tool_profile or apply_tool_profile.
 
     The W1.1 mahavishnu review flagged aliasing ``_apply_tool_profile``
     as ``apply_tool_profile`` because the sync wrapper raises in async
@@ -52,8 +65,29 @@ def test_server_calls_apply_tool_profile() -> None:
         for node in ast.walk(tree)
     )
     assert found, (
-        "session_buddy/mcp/server.py must call _apply_tool_profile() or "
+        "session_buddy/mcp/tools/profiles.py must call _apply_tool_profile() or "
         "apply_tool_profile() to wire the W0 profile dispatch helper"
+    )
+
+
+def test_the_live_launch_path_applies_the_dispatch() -> None:
+    """The launch path must apply the dispatch before the server serves.
+
+    This is the guard that would have caught the regression: the profile
+    dispatch existed, but nothing on the path that serves traffic ever
+    called it.
+    """
+    tree = ast.parse(Path("session_buddy/server_optimized.py").read_text())
+    found = any(
+        isinstance(node, ast.Call)
+        and getattr(node.func, "id", "")
+        in {"_apply_tool_profile", "apply_tool_profile", "apply_tool_profile_sync"}
+        for node in ast.walk(tree)
+    )
+    assert found, (
+        "session_buddy/server_optimized.py must apply the tool profile before "
+        "serving -- otherwise the running server exposes only the "
+        "hard-coded tool groups."
     )
 
 
@@ -67,11 +101,11 @@ def _list_tools_in_subprocess(profile: str) -> list[str]:
     """
     script = (
         "import asyncio, json, os, sys\n"
-        "os.environ['SESSION_BUDDY_TOOL_PROFILE'] = %r\n"
-        "from session_buddy.mcp.server import mcp\n"
-        "names = sorted(t.name for t in asyncio.run(mcp.list_tools()))\n"
+        f"os.environ['SESSION_BUDDY_TOOL_PROFILE'] = {profile!r}\n"
+        "from session_buddy.server_optimized import build_live_server\n"
+        "names = sorted(t.name for t in asyncio.run(build_live_server().list_tools()))\n"
         "print(json.dumps(names))\n"
-    ) % profile
+    )
     env = os.environ.copy()
     # Pass the current env (already inherits SESSION_BUDDY_TOOL_PROFILE
     # when invoked via the per-profile shell loop below). Also pin the

@@ -39,9 +39,9 @@ async def test_mcp_tool_count_matches_documented() -> None:
     old_profile = os.environ.get("SESSION_BUDDY_TOOL_PROFILE")
     os.environ["SESSION_BUDDY_TOOL_PROFILE"] = "full"
     try:
-        from session_buddy.mcp.server import mcp
+        from session_buddy.server_optimized import build_live_server
 
-        tools = await mcp.list_tools()
+        tools = await build_live_server().list_tools()
     finally:
         if old_profile is None:
             os.environ.pop("SESSION_BUDDY_TOOL_PROFILE", None)

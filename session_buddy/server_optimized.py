@@ -1232,7 +1232,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8678) -> None:
 
     asyncio.run(
         launch(
-            build_server=lambda: mcp,
+            build_server=build_live_server,
             component_name="session-buddy",
             secrets_path=Path("~/.config/secrets.env"),
             settings_path=None,
@@ -1240,6 +1240,33 @@ def run_server(host: str = "127.0.0.1", port: int = 8678) -> None:
             port=port,
         )
     )
+
+
+def build_live_server() -> Any:
+    """Return the FastMCP instance to serve, with the tool profile applied.
+
+    ``mcp_common.server.launch`` calls this closure when the server is
+    about to serve, which is the last point at which the tool surface
+    can be completed.
+
+    The profile dispatch lives in ``session_buddy/mcp/tools/profiles.py``
+    and is imported lazily. An import-time import would be a cycle:
+    ``profiles`` imports ``session_buddy.mcp.tools``, whose ``__init__``
+    reaches back into this module through
+    ``session_buddy.tools._alias_submodule``. By serve time every module
+    is loaded, so the lazy import resolves cleanly.
+
+    The hard-coded registrations earlier in this module cover ten tool
+    groups. The rest -- the task system among them -- are reachable
+    *only* through this profile dispatch. Without it the seven
+    ``tasks_*`` tools are absent from the running server, and because
+    the ``bodai_events`` health feed counts successful task-event
+    publishes, that feed could never leave ``warming_up``.
+    """
+    from session_buddy.mcp.tools.profiles import apply_tool_profile_sync
+
+    apply_tool_profile_sync(mcp)
+    return mcp
 
 
 if __name__ == "__main__":

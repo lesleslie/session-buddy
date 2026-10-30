@@ -476,7 +476,7 @@ storage:
 
 ## Available MCP Tools
 
-**Total: 199 MCP tools** across 31 tool groups when `SESSION_BUDDY_TOOL_PROFILE=full` (verified 2026-08-19). See [README.md](README.md#available-mcp-tools) for complete list.
+**Total: 224 MCP tools** across 31 tool groups when `SESSION_BUDDY_TOOL_PROFILE=full` (verified 2026-10-29, measured against the live surface via `session_buddy.server_optimized.build_live_server()`). The profile is applied by the launcher when the server starts; see [README.md](README.md#available-mcp-tools) for complete list.
 
 ### Tool Profile System
 

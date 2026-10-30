@@ -136,7 +136,7 @@ def start_server_handler() -> None:
     """
     from mcp_common.server import launch
 
-    from session_buddy.server_optimized import mcp
+    from session_buddy.server_optimized import build_live_server
 
     settings = CLILaunchSettings()
 
@@ -156,9 +156,11 @@ def start_server_handler() -> None:
         )
         raise SystemExit(msg)
 
-    # ``mcp`` is the module-level FastMCP instance (server_optimized.py:287)
-    # with the ``session_lifecycle`` lifespan already wired. The launcher
-    # handles transport="http", uvicorn grace timeout, and secrets loading.
+    # ``build_live_server`` returns the module-level FastMCP instance
+    # (server_optimized.py) with the ``session_lifecycle`` lifespan
+    # already wired, and completes its tool surface by applying the
+    # active tool profile. The launcher handles transport="http", uvicorn
+    # grace timeout, and secrets loading.
     # Phase 3 component-boot hook per the oneiric-substrate umbrella
     # (2026-10-15): fire-and-forget push of runtime facts to Oneiric before
     # the server starts. Helper swallows all exceptions; never blocks boot.
@@ -168,7 +170,7 @@ def start_server_handler() -> None:
 
     asyncio.run(
         launch(
-            build_server=lambda: mcp,
+            build_server=build_live_server,
             component_name="session-buddy",
             secrets_path=Path("~/.config/secrets.env"),
             settings_path=None,

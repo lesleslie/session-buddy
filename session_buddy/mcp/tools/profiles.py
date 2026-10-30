@@ -37,12 +37,14 @@ session-buddy is env-only (no YAML ``tool_profile`` override), so
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import threading
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from mcp_common.tools import ToolProfile
-from mcp_common.tools.dispatch import ALL_TOOLS
+from mcp_common.tools.dispatch import ALL_TOOLS, _apply_tool_profile
 
 logger = logging.getLogger(__name__)
 
@@ -365,3 +367,86 @@ SESSION_BUDDY_MANDATORY_GROUPS: set[str] = {
 def get_active_profile(env_var: str = "SESSION_BUDDY_TOOL_PROFILE") -> ToolProfile:
     """Read the active tool profile from environment."""
     return ToolProfile.from_env(env_var)
+
+
+# ---------------------------------------------------------------------------
+# Profile dispatch
+#
+# The dispatch lives here rather than in ``session_buddy/mcp/server.py`` so
+# that ``server_optimized.py`` can apply it to the ``mcp`` instance it
+# owns. ``server_optimized`` cannot import ``session_buddy.mcp.server``
+# directly: that module imports ``mcp`` back from ``server_optimized``,
+# so the two would form an import cycle.
+# ---------------------------------------------------------------------------
+
+
+def _register_all_tool_groups(server: Any) -> None:
+    """Bulk register every tool group at FULL profile.
+
+    The W0 helper invokes this once when ``PROFILE_REGISTRATIONS[FULL]``
+    is ``ALL_TOOLS``. We skip the mandatory groups because the helper
+    re-registers them in its mandatory_groups pass; running them here
+    would create duplicate tool registration warnings from FastMCP.
+    """
+    for name, fn in REGISTRATION_MAP.items():
+        if name in SESSION_BUDDY_MANDATORY_GROUPS:
+            continue
+        fn(server)
+
+
+async def apply_tool_profile(server: Any) -> None:
+    """Register the active profile's tool surface on ``server``.
+
+    Args:
+        server: The FastMCP instance to register tools onto.
+    """
+    await _apply_tool_profile(
+        server,
+        profile_env_var="SESSION_BUDDY_TOOL_PROFILE",
+        registrations=PROFILE_REGISTRATIONS,
+        registration_map=REGISTRATION_MAP,
+        register_all_fn=_register_all_tool_groups,
+        mandatory_groups=SESSION_BUDDY_MANDATORY_GROUPS,
+        essential_tool_names=set(),
+        yaml_loader=None,
+    )
+
+
+def apply_tool_profile_sync(server: Any) -> None:
+    """Apply the profile from synchronous code.
+
+    ``_apply_tool_profile`` is a coroutine, so calling it needs a loop.
+    Two cases:
+
+    * No loop is running (the normal case -- a module import at server
+      startup). Spin a fresh one with ``asyncio.run``.
+    * A loop is already running (``pytest-asyncio``'s ``asyncio_mode =
+      "auto"`` runs every test inside a loop, and a module import can
+      happen inside one). ``asyncio.run`` raises there, so run the
+      dispatch on a dedicated loop in a worker thread and wait for it.
+
+    The worker-thread case *waits* rather than scheduling and returning.
+    The contract of this function is that the tool surface is complete
+    when it returns; a fire-and-forget task would leave the surface
+    unapplied until the loop next yielded, which is exactly the kind of
+    timing-dependent gap this module exists to close.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(apply_tool_profile(server))
+        return
+
+    failures: list[BaseException] = []
+
+    def _run() -> None:
+        try:
+            asyncio.run(apply_tool_profile(server))
+        except BaseException as exc:  # noqa: BLE001 - re-raised on the calling thread
+            failures.append(exc)
+
+    thread = threading.Thread(target=_run, name="session-buddy-tool-profile")
+    thread.start()
+    thread.join()
+    if failures:
+        raise failures[0]
