@@ -38,9 +38,9 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, inspect, or_, update
 from sqlalchemy.engine import Engine
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from session_buddy.mcp.tools.tasks_storage import (
     ReflectionMetadata,
@@ -101,14 +101,21 @@ def link_task_workflow(
             "history": history,
         },
     )
-    table = ReflectionMetadata.__table__
+    # ``inspect(...).local_table`` rather than ``ReflectionMetadata.__table__``:
+    # the declarative ``__table__`` attribute is injected by the metaclass at
+    # runtime, so a static checker cannot see it on the class.
+    table = inspect(ReflectionMetadata).local_table
     # The column's KEY is "metadata" (the ORM attribute is ``metadata_json``,
     # renamed for the DB via ``sa_column_kwargs``). Index it rather than
     # using ``table.c.metadata`` — on a ``ColumnCollection``, ``.metadata``
     # resolves to the Table's MetaData object, not the column.
     metadata_col = table.c["metadata"]
     with Session(engine) as session:
-        result = session.execute(
+        # ``exec`` (not ``execute``) for the UPDATE: SQLModel's ``exec`` has a
+        # dedicated ``UpdateBase`` overload that returns a ``CursorResult``,
+        # which is the type that carries ``rowcount``. ``Session.execute`` is
+        # deprecated in SQLModel and widens to a plain ``Result``.
+        result = session.exec(
             update(table)
             .where(table.c.id == reflection_id)
             .where(
@@ -138,6 +145,10 @@ def link_task_workflow(
     # "not found" rather than "already linked" for a task that never
     # existed.
     with Session(engine) as session:
+        # ``select`` is SQLModel's, not SQLAlchemy's: SQLModel's returns a
+        # ``SelectOfScalar``, so ``exec(...).first()`` yields the ORM instance
+        # itself. SQLAlchemy's ``select`` returns a Row-producing ``Select``,
+        # and the value below would be a ``Row`` rather than the row's model.
         existing: ReflectionMetadata | None = session.exec(
             select(ReflectionMetadata).where(ReflectionMetadata.id == reflection_id),
         ).first()

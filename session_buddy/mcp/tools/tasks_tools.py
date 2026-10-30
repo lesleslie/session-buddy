@@ -283,7 +283,7 @@ async def tasks_create(
             # survives the round trip -- ``_build_task`` reads it back
             # from here. It was previously accepted by the request model
             # and dropped.
-            "metadata": dict(task.metadata),
+            "metadata": task.metadata.copy(),
         },
         tags=task.tags,
     )
@@ -912,7 +912,7 @@ async def _persist_task_update(
     # level, so it cannot forge a server-set field such as ``kind`` or
     # ``owner``.
     if task.metadata:
-        new_meta["metadata"] = dict(task.metadata)
+        new_meta["metadata"] = task.metadata.copy()
 
     synced_tags = task.tags.copy()
     for diff in diff_events:
@@ -1451,7 +1451,14 @@ async def tasks_link_workflow(
         }
 
     reflection = await _read_reflection(target)
-    sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
+    # ``read_task_metadata`` returns ``None`` when the sidecar row carries no
+    # blob. Normalize it here so the reads below are on a dict: the target row
+    # was located *through* the sidecar, so the row exists, but the blob on it
+    # may not.
+    sidecar_meta = (
+        tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
+        or dict[str, Any]()
+    )
     task = _build_task(reflection, sidecar_meta)
     if task is None:
         return {
