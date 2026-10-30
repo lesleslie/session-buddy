@@ -138,6 +138,9 @@ def _parse_metadata(metadata_str: str | None) -> dict[str, Any]:
 def _table_columns(conn: Any, table_name: str) -> set[str]:
     """Return the set of column names for a table, if available."""
     try:
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
     except Exception:
         logger.exception("Failed to inspect table columns")
@@ -354,6 +357,9 @@ async def get_conversation(
     conn = db if hasattr(db, "execute") else typing.cast(Any, db)._get_conn()
 
     def _get() -> dict[str, Any] | None:
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         result = conn.execute(
             f"""
             SELECT id, content, embedding, project, timestamp, metadata

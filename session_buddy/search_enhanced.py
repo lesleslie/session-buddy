@@ -364,6 +364,9 @@ class EnhancedSearchEngine:
         if not hasattr(self.reflection_db, "conn") or not self.reflection_db.conn:
             return []
 
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         cursor = self.reflection_db.conn.execute(
             f"SELECT id, content, project, timestamp, metadata FROM {CONVERSATIONS_TABLE}",
         )
@@ -495,6 +498,9 @@ class EnhancedSearchEngine:
                 ORDER BY timestamp DESC
             """
 
+            # DuckDB connection, not SQLAlchemy; the only interpolated
+            # value is a module-level table-name constant.
+            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
             cursor = self.reflection_db.conn.execute(sql_query, (start_iso, end_iso))
             conversations = cursor.fetchall()
 

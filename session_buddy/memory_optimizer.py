@@ -756,6 +756,9 @@ class MemoryOptimizer:
 
         # Insert consolidated conversation
         if self.reflection_db.conn:
+            # DuckDB connection, not SQLAlchemy; the only interpolated
+            # value is a module-level table-name constant.
+            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
             self.reflection_db.conn.execute(
                 f"""INSERT INTO {CONVERSATIONS_TABLE}
                (id, content, category, project, timestamp, metadata)
@@ -783,6 +786,9 @@ class MemoryOptimizer:
             query = (
                 f"DELETE FROM {CONVERSATIONS_TABLE} WHERE id IN (" + placeholders + ")"
             )
+            # DuckDB connection, not SQLAlchemy; the only interpolated
+            # value is a module-level table-name constant.
+            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
             self.reflection_db.conn.execute(query, original_ids)
 
         # Commit changes

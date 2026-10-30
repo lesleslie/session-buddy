@@ -290,6 +290,9 @@ async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]
                 if db.is_temp_db:
                     with db.lock:
                         result = (
+                            # DuckDB connection, not SQLAlchemy; the only interpolated
+                            # value is a module-level table-name constant.
+                            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
                             db._get_conn()
                             .execute(
                                 f"SELECT COUNT(*) FROM {CONVERSATIONS_TABLE} WHERE embedding IS NOT NULL"
@@ -303,6 +306,9 @@ async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]
                     result = await asyncio.get_event_loop().run_in_executor(
                         None,
                         lambda: (
+                            # DuckDB connection, not SQLAlchemy; the only interpolated
+                            # value is a module-level table-name constant.
+                            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
                             db._get_conn()
                             .execute(
                                 f"SELECT COUNT(*) FROM {CONVERSATIONS_TABLE} WHERE embedding IS NOT NULL"
@@ -323,6 +329,9 @@ async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]
                 if db.is_temp_db:
                     with db.lock:
                         result = (
+                            # DuckDB connection, not SQLAlchemy; the only interpolated
+                            # value is a module-level table-name constant.
+                            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
                             db._get_conn()
                             .execute(
                                 f"""SELECT COUNT(*) FROM {CONVERSATIONS_TABLE}
@@ -335,6 +344,9 @@ async def get_conversation_stats(db_path: str | None = None) -> dict[str, t.Any]
                     result = await asyncio.get_event_loop().run_in_executor(
                         None,
                         lambda: (
+                            # DuckDB connection, not SQLAlchemy; the only interpolated
+                            # value is a module-level table-name constant.
+                            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
                             db._get_conn()
                             .execute(
                                 f"""SELECT COUNT(*) FROM {CONVERSATIONS_TABLE}

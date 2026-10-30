@@ -223,6 +223,9 @@ class MemoryHealthAnalyzer:
             )
 
         # Timestamp range
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         timestamps = conn.execute(
             f"SELECT MIN(timestamp), MAX(timestamp) FROM {REFLECTIONS_TABLE}"
         ).fetchone()
@@ -231,6 +234,9 @@ class MemoryHealthAnalyzer:
 
         # Calculate stale reflections
         stale_cutoff = datetime.now(UTC) - timedelta(days=stale_threshold_days)
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         stale_result = conn.execute(
             f"""
             SELECT COUNT(*)
@@ -242,6 +248,9 @@ class MemoryHealthAnalyzer:
         stale_reflections = stale_result[0] if stale_result else 0
 
         # Average age
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         avg_age_result = conn.execute(
             f"""
             SELECT AVG(DATEDIFF('day', timestamp, CURRENT_TIMESTAMP))
@@ -256,6 +265,9 @@ class MemoryHealthAnalyzer:
         # the SELECT list of a grouped query, so we wrap it in a subquery.
         # `tag` is a reserved word in DuckDB, hence the quoted alias.
         try:
+            # DuckDB connection, not SQLAlchemy; the only interpolated
+            # value is a module-level table-name constant.
+            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
             tags_result = conn.execute(
                 f"""
                 SELECT "tag", COUNT(*) AS count

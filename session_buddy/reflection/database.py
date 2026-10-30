@@ -611,6 +611,9 @@ class ReflectionDatabase:
 
         def _update() -> bool:
             # Check if reflection exists
+            # DuckDB connection, not SQLAlchemy; the only interpolated
+            # value is a module-level table-name constant.
+            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
             result = conn.execute(
                 f"SELECT id FROM {REFLECTIONS_TABLE} WHERE id = ?",
                 [reflection_id],
@@ -624,12 +627,18 @@ class ReflectionDatabase:
             db_content = _encode_text_for_db(content)
 
             if tags is not None:
+                # DuckDB connection, not SQLAlchemy; the only interpolated
+                # value is a module-level table-name constant.
+                # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
                 conn.execute(
                     f"UPDATE {REFLECTIONS_TABLE} SET content = ?, tags = ?, timestamp = NOW() WHERE id = ?",
                     [db_content, tags, reflection_id],
                 )
             else:
                 # tags=None means clear tags to empty list
+                # DuckDB connection, not SQLAlchemy; the only interpolated
+                # value is a module-level table-name constant.
+                # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
                 conn.execute(
                     f"UPDATE {REFLECTIONS_TABLE} SET content = ?, tags = ?, timestamp = NOW() WHERE id = ?",
                     [db_content, [], reflection_id],
@@ -666,6 +675,9 @@ class ReflectionDatabase:
 
         def _delete() -> bool:
             # Check if reflection exists
+            # DuckDB connection, not SQLAlchemy; the only interpolated
+            # value is a module-level table-name constant.
+            # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
             result = conn.execute(
                 f"SELECT id FROM {REFLECTIONS_TABLE} WHERE id = ?",
                 [reflection_id],
@@ -810,6 +822,9 @@ class ReflectionDatabase:
         if self.is_temp_db:
             with self.lock:
                 result = (
+                    # DuckDB connection, not SQLAlchemy; the only interpolated
+                    # value is a module-level table-name constant.
+                    # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
                     self._get_conn()
                     .execute(
                         f"SELECT COUNT(*) FROM {CONVERSATIONS_TABLE}",
@@ -821,6 +836,9 @@ class ReflectionDatabase:
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: (
+                    # DuckDB connection, not SQLAlchemy; the only interpolated
+                    # value is a module-level table-name constant.
+                    # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
                     self._get_conn()
                     .execute(f"SELECT COUNT(*) FROM {CONVERSATIONS_TABLE}")
                     .fetchone()
@@ -837,6 +855,9 @@ class ReflectionDatabase:
         if self.is_temp_db:
             with self.lock:
                 result = (
+                    # DuckDB connection, not SQLAlchemy; the only interpolated
+                    # value is a module-level table-name constant.
+                    # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
                     self._get_conn()
                     .execute(
                         f"SELECT COUNT(*) FROM {REFLECTIONS_TABLE}",
@@ -848,6 +869,9 @@ class ReflectionDatabase:
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: (
+                    # DuckDB connection, not SQLAlchemy; the only interpolated
+                    # value is a module-level table-name constant.
+                    # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
                     self._get_conn()
                     .execute(f"SELECT COUNT(*) FROM {REFLECTIONS_TABLE}")
                     .fetchone()
