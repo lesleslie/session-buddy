@@ -541,6 +541,13 @@ class ReflectionDatabaseAdapterOneiric:
             self.conn.execute("INSTALL 'httpfs';")
             self.conn.execute("LOAD 'httpfs';")
 
+        # Take the vector width from the live schema *before* the tables
+        # are created. An existing table keeps the width it was created
+        # with -- DuckDB cannot widen a fixed-size ARRAY column -- so any
+        # table created now has to use the same width as the ones that
+        # are already there.
+        self._adopt_live_embedding_width()
+
         # Create tables if they don't exist
         self._create_tables()
 
@@ -1145,7 +1152,10 @@ class ReflectionDatabaseAdapterOneiric:
         )
 
         try:
-            embedding = await http_generate_embedding(text)
+            # Ask for the width the *column* has, not the canonical one:
+            # the schema is the authority on what fits, and it can differ
+            # from the constant while a database is being migrated.
+            embedding = await http_generate_embedding(text, self.embedding_dim)
         except Exception:
             logger.exception("HTTP embedding failed")
             return None
@@ -1154,6 +1164,55 @@ class ReflectionDatabaseAdapterOneiric:
             return None
 
         return coerce_embedding(embedding, self.embedding_dim)
+
+    def _adopt_live_embedding_width(self) -> None:
+        """Take the vector width from the live schema when it has one.
+
+        The DuckDB embedding columns are fixed-size ARRAY columns, and
+        DuckDB cannot widen one in place. So a database written by an
+        older build keeps its old width, and the canonical constant is
+        only what a *new* database is created with.
+
+        Reading the width back from the catalog makes the two agree
+        whichever way they differ: the chain is asked for a vector of
+        the width the column actually has, and the width gate compares
+        against that. A database mid-migration therefore keeps working
+        instead of failing every vector write.
+
+        The query is scoped to ``current_database()`` because
+        ``duckdb_columns()`` spans every database attached to the
+        connection, and an attached database's rows come *first* in
+        catalog order. Without the scope, a connection with another
+        database attached would read that database's width -- and adopt
+        it.
+        """
+        try:
+            row = self.conn.execute(
+                "SELECT data_type FROM duckdb_columns() "
+                "WHERE database_name = current_database() "
+                "AND table_name = 'reflections_v2' "
+                "AND column_name = 'embedding'"
+            ).fetchone()
+        except Exception:
+            logger.debug("Could not read the live embedding width", exc_info=True)
+            return
+        if not row:
+            return
+        match = re.fullmatch(r"FLOAT\[(\d+)\]", str(row[0]))
+        if match is None:
+            return
+        live = int(match.group(1))
+        if live == self.embedding_dim:
+            return
+        logger.warning(
+            "The reflection database holds FLOAT[%d] embedding columns but "
+            "the canonical width is %d; using the live width. Migrate the "
+            "database to the canonical width with "
+            "scripts/migrate_embedding_dim.py.",
+            live,
+            self.embedding_dim,
+        )
+        self.embedding_dim = live
 
     def _quantize_embedding(self, embedding: list[float]) -> list[int] | None:
         """Quantize embedding from float32 to uint8 for 4x memory compression.
