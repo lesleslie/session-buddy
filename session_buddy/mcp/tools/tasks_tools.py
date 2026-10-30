@@ -272,6 +272,11 @@ async def tasks_create(
             "parent_task_id": parent_task_id,
             "workflow_id": None,
             "created_at": now.isoformat(),
+            # The caller's own metadata rides in its own blob key so it
+            # survives the round trip -- ``_build_task`` reads it back
+            # from here. It was previously accepted by the request model
+            # and dropped.
+            "metadata": dict(task.metadata),
         },
         tags=task.tags,
     )
@@ -423,8 +428,17 @@ def _build_task(
     created_at = _parse_iso_optional(sidecar_meta.get("created_at")) or datetime.now(
         UTC
     )
+    updated_at = _parse_iso_optional(sidecar_meta.get("updated_at")) or created_at
     due_at = _parse_iso_optional(sidecar_meta.get("due_at"))
     parent_task_id = sidecar_meta.get("parent_task_id")
+    # Caller-supplied metadata travels in its own blob key so it survives
+    # the round trip. It is the caller's own data and is never treated as
+    # a server-set field -- notably NOT ``workflow_id``: the spec makes
+    # that server-set only, and promoting it out of caller metadata would
+    # let any caller claim a task is bound to a workflow it never
+    # dispatched.
+    task_metadata = sidecar_meta.get("metadata")
+    task_metadata = dict(task_metadata) if isinstance(task_metadata, dict) else {}
     workflow_id = sidecar_meta.get("workflow_id")
 
     # ``task_id`` is the full 32-hex id persisted at create time so the
@@ -466,12 +480,20 @@ def _build_task(
             workflow_id=str(workflow_id) if workflow_id else None,
             due_at=due_at,
             created_at=created_at,
-            updated_at=created_at,
+            updated_at=updated_at,
             created_by=str(owner) if owner else None,
-            completed_at=None,
-            completed_by=None,
-            result_notes=None,
-            metadata={},
+            completed_at=_parse_iso_optional(sidecar_meta.get("completed_at")),
+            completed_by=(
+                str(sidecar_meta["completed_by"])
+                if sidecar_meta.get("completed_by")
+                else None
+            ),
+            result_notes=(
+                str(sidecar_meta["result_notes"])
+                if sidecar_meta.get("result_notes")
+                else None
+            ),
+            metadata=cast("dict[str, JsonValue]", task_metadata),
         )
     except ValueError, TypeError:
         return None
@@ -841,6 +863,25 @@ async def _persist_task_update(
     new_meta["due_at"] = task.due_at.isoformat() if task.due_at is not None else None
     new_meta["parent_task_id"] = task.parent_task_id
     new_meta["updated_at"] = task.updated_at.isoformat()
+    # Completion fields. ``_build_task`` reads these back from the blob,
+    # so without writing them here the values the tools compute are
+    # returned to the caller and then dropped: the task comes back with
+    # ``completed_by=None`` on the next read. They are written only when
+    # set, so an update to a task that was never completed cannot blank
+    # a completion recorded earlier.
+    if task.completed_at is not None:
+        new_meta["completed_at"] = task.completed_at.isoformat()
+    if task.completed_by is not None:
+        new_meta["completed_by"] = task.completed_by
+    if task.result_notes is not None:
+        new_meta["result_notes"] = task.result_notes
+    # Caller-supplied metadata is part of the task contract -- it is
+    # accepted by the request model and was then dropped on the floor.
+    # It is stored under its own blob key, never merged into the top
+    # level, so it cannot forge a server-set field such as ``kind`` or
+    # ``owner``.
+    if task.metadata:
+        new_meta["metadata"] = dict(task.metadata)
 
     synced_tags = task.tags.copy()
     for diff in diff_events:
