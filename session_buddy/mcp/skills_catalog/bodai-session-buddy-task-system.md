@@ -65,7 +65,17 @@ Fetch a single task by id. Validates `task_id` matches `^t-[0-9a-f]{32}$`. Retur
 
 ### `tasks_update(task_id, request: UpdateTaskRequest) -> Task | error_envelope`
 
-Update mutable fields. **Caller-supplied `owner` / `created_by` / `completed_by` are REJECTED** with `owner_mutation_forbidden` envelope (defense-in-depth via `getattr` since `UpdateTaskRequest` already excludes them via Pydantic `extra="forbid"`). `workflow_id` is server-set ONLY by `tasks_handoff_to_workflow`. Rate limit: 120/min per caller (shared with `tasks_complete`).
+Update mutable fields. **Caller-supplied `owner` / `created_by` / `completed_by` are REJECTED** with `owner_mutation_forbidden` envelope (defense-in-depth via `getattr` since `UpdateTaskRequest` already excludes them via Pydantic `extra="forbid"`). `workflow_id` is server-set and is **NOT** reachable through `metadata` — a metadata dict is caller-supplied content whatever key it carries. Use `tasks_link_workflow` to bind a workflow. Rate limit: 120/min per caller (shared with `tasks_complete`).
+
+### `tasks_link_workflow(task_id, workflow_id) -> Task | error_envelope`
+
+Bind a task to the workflow it was dispatched to. **The only writer of `Task.workflow_id`.**
+
+- **Owner-scoped.** Only the task's owner may link, plus any identity in `task_system.link_service_principals` (empty by default — e.g. mahavishnu's orphan sweeper). Everyone else gets the 404-shaped `not_found` envelope, so the task's existence and its existing binding are not disclosed. The visibility filter is deliberately NOT the gate: it lets any caller write a `public` task, and a link asserts "this task is running under that workflow".
+- **Link-once.** A task binds to exactly one workflow. Re-linking to the SAME id is an idempotent no-op (returns the task unchanged, no write, no event); re-linking to a DIFFERENT id is refused with `workflow_already_linked`. The decision is atomic — a concurrent conflicting link is refused by the storage layer, not by a read-then-write race.
+- **Provenance.** Sets `workflow_linked_at` (server clock) and `workflow_linked_by` (the derived caller identity), and records the link in the task's `history`.
+- **`workflow_id` shape.** Must match `^[A-Za-z0-9._-]{1,128}$` and must not be `.` or `..` — the value is spliced into a substrate key path on the mahavishnu side. A trailing newline is rejected too.
+- Rate limit: 120/min per caller (shared with `tasks_update`).
 
 ### `tasks_complete(task_id, result_notes=None) -> Task | error_envelope`
 
@@ -100,13 +110,22 @@ task = await tasks_create(content="...", tags=["task", "workflow"])
 workflow_id = await mcp__mahavishnu__tasks_handoff_to_workflow(
     task_id=task.id,
     adapter="prefect",  # or "llamaindex" | "agno"
-    task_type="code_review",
-    params={"prompt": "..."},
+    params={"repo": "/path/to/repo"},  # ONE repo — an unscoped dispatch
+                                        # would run over every repo in the
+                                        # catalog
     timeout=300,
 )
-# Step 3: The handoff tool updates task.workflow_id server-side.
-# Do NOT try to set workflow_id via tasks_update; it's rejected.
+# Step 3: mahavishnu calls tasks_link_workflow(task_id, workflow_id)
+# server-side. The task comes back with workflow_id populated.
+#
+# Do NOT try to set workflow_id via tasks_update(metadata=...): a metadata
+# dict is caller-supplied content and can never become a server-set field.
 ```
+
+The dispatch is **fire-and-forget**: `tasks_handoff_to_workflow` returns
+while the workflow is still running, so the task is bound to a live
+workflow. If the binding fails, mahavishnu emits `task.handoff_orphan`
+and its sweeper re-links the task later.
 
 **Critical:** `tasks_complete` does NOT dispatch. The only path from a task to a running workflow is the explicit two-call sequence above.
 

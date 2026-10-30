@@ -281,13 +281,22 @@ TaskHistoryResult.model_rebuild()
 
 class HandoffParams(BaseModel):
     """Typed parameters for dispatch. Replaces free-form ``dict`` so the
-    MCP schema advertises valid values to clients."""
+    MCP schema advertises valid values to clients.
+
+    ``repo`` scopes the dispatch to ONE repository. It is required
+    (directly or via the task's ``metadata["repo"]``): a durable
+    workflow with no repo scope fans out over the whole repository
+    catalog, which for a single task dispatch is a fleet-wide run.
+
+    ``pool_selector`` / ``pool_name`` were removed when the dispatch
+    edge moved from the pool router to the durable-workflow path — a
+    durable workflow has neither.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=False)
 
     timeout_seconds: int | None = None
-    pool_selector: Literal["least_loaded", "round_robin", "affinity"] = "least_loaded"
-    pool_name: str | None = None
+    repo: str | None = None
     idempotency_key: str | None = None
     extra_metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
