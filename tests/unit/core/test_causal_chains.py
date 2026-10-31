@@ -17,6 +17,7 @@ from session_buddy.core.causal_chains import (
     ErrorEvent,
     FixAttempt,
 )
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 
 
 class Result:
@@ -121,7 +122,7 @@ async def test_ensure_tables_without_connection_logs_warning(
 async def test_record_error_event_persists_context_and_embedding(
     tracker: CausalChainTracker, connection: MagicMock
 ) -> None:
-    embedding = [0.25] * 384
+    embedding = [0.25] * DEFAULT_EMBEDDING_DIM
     with patch(
         "session_buddy.reflection_tools.generate_embedding",
         new=AsyncMock(return_value=embedding),

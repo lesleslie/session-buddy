@@ -16,7 +16,8 @@ from session_buddy.reflection import embeddings
 #: The real chain, captured at import time.
 #:
 #: ``tests/unit/conftest.py`` stubs ``_try_http_embedding_providers``
-#: with a deterministic 384-dim fake so the suite needs no live service.
+#: with a deterministic canonical-width fake so the suite needs no live
+#: service.
 #: That stub short-circuits the chain entirely. The module is imported
 #: during collection -- before any fixture runs -- so this reference is
 #: the genuine function, and restoring it inside the test body puts it
@@ -148,3 +149,28 @@ def test_the_shipped_chain_has_a_local_and_a_cloud_leg() -> None:
     # The chat server's width does not match, so it is present but
     # ineligible -- it comes back if the canonical width changes.
     assert "llama_server" in names
+
+
+async def test_the_harness_stub_returns_the_canonical_width() -> None:
+    """The stubbed provider has to honour the width contract too.
+
+    ``tests/unit/conftest.py`` replaces the HTTP provider legs with a
+    deterministic fake, and that fake *stands in for* the provider -- so
+    its width is part of the contract, not an implementation detail. A
+    vector of the wrong width cannot be bound into the ``FLOAT[N]``
+    column, and every test that writes a row then fails with a
+    ``ConversionException``.
+
+    The stub is autouse, so its width governs every test under
+    ``tests/unit/``. That is how a stale width in the harness turned
+    into 265 failures with one stack trace.
+    """
+    stubbed = await embeddings._try_http_embedding_providers("hello")
+
+    assert stubbed is not None
+    assert len(stubbed) == DEFAULT_EMBEDDING_DIM
+
+    vector = await embeddings.generate_embedding("hello")
+
+    assert vector is not None
+    assert len(vector) == DEFAULT_EMBEDDING_DIM

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.settings import (
     DatabaseConfig,
     EntityExtractionConfig,
@@ -262,7 +263,7 @@ async def fast_temp_db(tmp_path) -> AsyncGenerator[ReflectionDatabase]:
     settings = ReflectionAdapterSettings(
         database_path=temp_db_path,
         collection_name="default",
-        embedding_dim=384,
+        embedding_dim=DEFAULT_EMBEDDING_DIM,
         distance_metric="cosine",
         enable_vss=False,  # Disable vector similarity search for tests
         threads=1,
@@ -650,7 +651,7 @@ async def reflection_db(temp_db_path: str) -> AsyncGenerator[ReflectionDatabase]
     settings = ReflectionAdapterSettings(
         database_path=Path(temp_db_path),
         collection_name="default",
-        embedding_dim=384,
+        embedding_dim=DEFAULT_EMBEDDING_DIM,
         distance_metric="cosine",
         enable_vss=False,  # Disable vector similarity search for tests
         threads=1,
@@ -729,7 +730,7 @@ async def shared_reflection_db() -> AsyncGenerator[ReflectionDatabase]:
     settings = ReflectionAdapterSettings(
         database_path=Path(db_path),
         collection_name="default",
-        embedding_dim=384,
+        embedding_dim=DEFAULT_EMBEDDING_DIM,
         distance_metric="cosine",
         enable_vss=False,  # Disable vector similarity search for tests
         threads=1,
@@ -832,7 +833,7 @@ def sample_embedding() -> Any:
 
     # Create a consistent sample embedding
     rng = np.random.default_rng(42)
-    return rng.random((384,)).astype(np.float32)
+    return rng.random((DEFAULT_EMBEDDING_DIM,)).astype(np.float32)
 
 
 @pytest.fixture

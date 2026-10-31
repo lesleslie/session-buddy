@@ -11,9 +11,11 @@ import hashlib
 from unittest.mock import patch, Mock, MagicMock
 import pytest
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 
 def _deterministic_embedding(text: str) -> list[float]:
-    """Generate a deterministic 384-dim vector from text.
+    """Generate a deterministic canonical-width vector from text.
 
     The vector combines whole-word and 3-character n-gram features so
     that:
@@ -26,14 +28,20 @@ def _deterministic_embedding(text: str) -> list[float]:
     Properties:
     - Deterministic: same input always produces the same vector
     - Bags-of-features so shared words/n-grams lift similarity
-    - 384 dimensions, roughly half-positive half-negative
+    - ``DEFAULT_EMBEDDING_DIM`` dimensions, roughly half-positive
+      half-negative
+
+    The width MUST track ``DEFAULT_EMBEDDING_DIM``: this stub stands in
+    for the HTTP embedding providers, and a vector whose width differs
+    from the ``FLOAT[N]`` column it is bound into raises a DuckDB
+    ``ConversionException``.
     """
     import re
 
     # Normalize: lowercase, strip non-alphanumeric
     normalized = re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
     if not normalized:
-        return [0.0] * 384
+        return [0.0] * DEFAULT_EMBEDDING_DIM
 
     from collections import Counter
     # Combine whole words + 3-char n-grams
@@ -45,11 +53,11 @@ def _deterministic_embedding(text: str) -> list[float]:
             features.append(f"n:{token[i:i+3]}")
     feature_counts = Counter(features)
 
-    vec = [0.0] * 384
+    vec = [0.0] * DEFAULT_EMBEDDING_DIM
     for feat, count in feature_counts.items():
         digest = hashlib.sha256(feat.encode("utf-8")).digest()  # 32 bytes
         for i in range(8):
-            offset = (digest[i % 32] + i) % 384
+            offset = (digest[i % 32] + i) % DEFAULT_EMBEDDING_DIM
             sign = 1.0 if digest[(i + 16) % 32] % 2 == 0 else -1.0
             vec[offset] += sign * float(count)
     return vec
@@ -97,7 +105,7 @@ async def adapter_with_vss(tmp_path):
 
     Embeddings: the autouse `_stub_embedding_provider` fixture above
     patches `_try_http_embedding_providers` to return deterministic
-    384d vectors from a text hash. No HTTP, no model loading.
+    canonical-width vectors from a text hash. No HTTP, no model loading.
 
     VSS: requires DuckDB's `vss` community extension for
     `array_cosine_similarity()`. Skips if install/load fails (matches
@@ -112,7 +120,7 @@ async def adapter_with_vss(tmp_path):
     settings = ReflectionAdapterSettings(
         database_path=tmp_path / "test_vss.duckdb",
         collection_name="default",
-        embedding_dim=384,
+        embedding_dim=DEFAULT_EMBEDDING_DIM,
         distance_metric="cosine",
         enable_embeddings=True,  # stubbed by autouse _stub_embedding_provider
         enable_vss=True,

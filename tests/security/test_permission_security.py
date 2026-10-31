@@ -19,6 +19,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.reflection_tools import ReflectionDatabase
 from tests.fixtures.data_factories import SecurityTestDataFactory
 
@@ -504,11 +505,11 @@ class TestDatabaseSecurity:
         """Test security of embedding vector handling."""
         # Test with malformed embedding vectors
         malformed_embeddings = [
-            [float("inf")] * 384,  # Infinity values
-            [float("-inf")] * 384,  # Negative infinity
-            [float("nan")] * 384,  # NaN values
-            [1e100] * 384,  # Very large values
-            [-1e100] * 384,  # Very large negative values
+            [float("inf")] * DEFAULT_EMBEDDING_DIM,  # Infinity values
+            [float("-inf")] * DEFAULT_EMBEDDING_DIM,  # Negative infinity
+            [float("nan")] * DEFAULT_EMBEDDING_DIM,  # NaN values
+            [1e100] * DEFAULT_EMBEDDING_DIM,  # Very large values
+            [-1e100] * DEFAULT_EMBEDDING_DIM,  # Very large negative values
             [1] * 1000,  # Wrong dimension
             [],  # Empty vector
             None,  # None value

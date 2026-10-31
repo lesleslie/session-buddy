@@ -6,6 +6,8 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 if TYPE_CHECKING:
     from session_buddy.adapters.reflection_adapter_oneiric import (
         ReflectionDatabaseAdapterOneiric,
@@ -35,7 +37,7 @@ def create_test_reflection_database(
     # Create settings with test configuration
     settings = ReflectionAdapterSettings(
         database_path=Path(db_path),
-        embedding_dim=384,
+        embedding_dim=DEFAULT_EMBEDDING_DIM,
         distance_metric="cosine",
         enable_vss=False,  # Disable vector similarity search for tests
         threads=1,
@@ -62,7 +64,7 @@ def create_test_reflection_database_with_path(db_path: str | Path):
     # Create settings with test configuration
     settings = ReflectionAdapterSettings(
         database_path=Path(db_path),
-        embedding_dim=384,
+        embedding_dim=DEFAULT_EMBEDDING_DIM,
         distance_metric="cosine",
         enable_vss=False,  # Disable vector similarity search for tests
         threads=1,

@@ -20,6 +20,8 @@ from typing import Any
 
 import pytest
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 
 def _new_memory_id(prefix: str) -> str:
     """Stable-ish ID generator for test data (avoids importing the real one)."""
@@ -36,7 +38,7 @@ async def v2_db(tmp_path) -> AsyncGenerator[Any]:
     settings = ReflectionAdapterSettings(
         database_path=db_path,
         collection_name="default",
-        embedding_dim=384,
+        embedding_dim=DEFAULT_EMBEDDING_DIM,
         distance_metric="cosine",
         enable_vss=False,
         threads=1,

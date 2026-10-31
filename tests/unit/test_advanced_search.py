@@ -17,6 +17,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 # Import the module under test
 from session_buddy.advanced_search import AdvancedSearchEngine
 from session_buddy.adapters.reflection_adapter import (
@@ -60,7 +62,7 @@ async def reflection_db(temp_db_path: str) -> AsyncGenerator[ReflectionDatabase]
     settings = ReflectionAdapterSettings(
         database_path=Path(temp_db_path),
         collection_name="default",
-        embedding_dim=384,
+        embedding_dim=DEFAULT_EMBEDDING_DIM,
         distance_metric="cosine",
         enable_vss=False,
         threads=1,

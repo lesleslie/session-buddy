@@ -16,6 +16,8 @@ from datetime import datetime, timedelta
 import factory
 from faker import Faker
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 fake = Faker()
 
 
@@ -58,9 +60,9 @@ class ReflectionDataFactory(factory.Factory):
         ),
     )
 
-    # Embedding simulation (384-dimensional vector)
+    # Embedding simulation (canonical-width vector)
     embedding = factory.LazyFunction(
-        lambda: [random.uniform(-1, 1) for _ in range(384)],
+        lambda: [random.uniform(-1, 1) for _ in range(DEFAULT_EMBEDDING_DIM)],
     )
 
     # Conversation metadata

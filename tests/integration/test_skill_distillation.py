@@ -31,6 +31,8 @@ from collections.abc import AsyncGenerator
 
 import pytest
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 
 # ---------------------------------------------------------------------------
 # Test 1: distill_skills_now produces >= 1 skill from repeated-access patterns
@@ -113,7 +115,7 @@ def test_check_constraint_rejects_low_importance() -> None:
         settings = ReflectionAdapterSettings(
             database_path=path,
             collection_name="default",
-            embedding_dim=384,
+            embedding_dim=DEFAULT_EMBEDDING_DIM,
             enable_vss=False,
             enable_embeddings=False,
         )

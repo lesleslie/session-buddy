@@ -18,6 +18,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
+
 
 def _get_reflection_database_class() -> type[Any]:
     """Import the reflection database adapter lazily for test fixtures."""
@@ -114,7 +116,7 @@ async def fast_temp_db(temp_test_dir: Path) -> AsyncGenerator[ReflectionDatabase
     settings = ReflectionAdapterSettings(
         database_path=temp_db_path,
         collection_name="default",
-        embedding_dim=384,
+        embedding_dim=DEFAULT_EMBEDDING_DIM,
         distance_metric="cosine",
         enable_vss=False,  # Disable vector similarity search for tests
         threads=1,
