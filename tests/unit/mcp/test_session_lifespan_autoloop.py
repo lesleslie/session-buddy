@@ -146,6 +146,20 @@ async def test_session_lifecycle_starts_and_stops_autocheckpoint_loop(
             "session_buddy.mcp.events.bodai_events_publisher.BodaiEventsPublisher",
             lambda **kw: fake_publisher,
         )
+        # The lifespan installs the publisher into the module-level slot
+        # ``tasks_events._publisher`` and never clears it. Patching the
+        # class above restores only the class attribute, so without this
+        # the slot keeps pointing at the spec'd fake for the rest of the
+        # session. A later test that reads the slot — /health's
+        # ``_build_health_snapshot`` reads ``publisher.entities_count`` —
+        # then fails with "Mock object has no attribute
+        # 'entities_count'", because the fake never sets that attribute.
+        # Registering the slot with monkeypatch makes the original value
+        # be restored when the context exits.
+        mp.setattr(
+            "session_buddy.mcp.tools.tasks_events._publisher",
+            fake_publisher,
+        )
 
         # Drive the lifespan. Pre-yield, start_autocheckpoint_loop
         # must have been called and start() invoked on the returned
