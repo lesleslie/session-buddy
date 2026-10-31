@@ -592,7 +592,7 @@ class TestStderrSanitization:
         """
         from session_buddy.utils.git_worktrees import _sanitize_git_error
 
-        wt = "/Users/les/Projects/dhara/.worktrees/feat-x"
+        wt = "/Users/les/Projects/example-repo/.worktrees/feat-x"
         result = _sanitize_git_error(
             f"fatal: '{wt}' is not a working tree",
             wt,
@@ -601,7 +601,7 @@ class TestStderrSanitization:
         assert "is not a working tree" in result, result
         # The literal placeholders are fine; the actual path must NOT appear
         assert wt not in result
-        assert "/Users/les/Projects/dhara" not in result
+        assert "/Users/les/Projects/example-repo" not in result
 
     def test_single_segment_path_not_redacted(self) -> None:
         """Two-segment minimum prevents collateral redaction of short tokens.
@@ -613,7 +613,7 @@ class TestStderrSanitization:
 
         result = _sanitize_git_error(
             "fatal: bad ref /x in object",
-            "/Users/les/Projects/dhara/.worktrees/feat-x",
+            "/Users/les/Projects/example-repo/.worktrees/feat-x",
         )
         assert "<path>" not in result
         assert "/x in object" in result

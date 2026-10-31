@@ -12,7 +12,7 @@ The heavy contract for ``CommonMCPClient`` lives in
 ``mcp-common/tests/unit/clients/test_common_mcp_client.py`` (11
 tests). This file complements those with a smoke focus: confirm
 Session-Buddy's migration sites can be exercised end-to-end via the
-new SDK shape without spinning up a live Dhara / Akosha server.
+new SDK shape without spinning up a live MCP server.
 """
 
 from __future__ import annotations
@@ -83,12 +83,10 @@ def _make_mock_session() -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_dhara_put_call_tool_round_trips_arguments() -> None:
+async def test_put_call_tool_round_trips_arguments() -> None:
     """``CommonMCPClient.call_tool`` forwards ``name`` + ``arguments``.
 
-    Anchors the same wire shape that
-    ``session_buddy.server_optimized._register_to_dhara_once`` now
-    relies on (``put`` → ``{key, value}``). A regression in the
+    Anchors the wire shape of a ``put`` call (``put`` → ``{key, value}``). A regression in the
     argument forwarding would surface here.
     """
     session = _make_mock_session()
@@ -125,9 +123,7 @@ async def test_dhara_put_call_tool_round_trips_arguments() -> None:
 async def test_record_time_series_call_tool_round_trips_arguments() -> None:
     """``call_tool("record_time_series", ...)`` forwards the full arg dict.
 
-    Anchors the wire shape that
-    ``session_buddy.mcp.tools.session.channel_tracking_tools.DharaChannelPublisher``
-    now relies on for fire-and-forget time-series recording.
+    Anchors the wire shape of a ``record_time_series`` call.
     """
     session = _make_mock_session()
 
@@ -168,8 +164,8 @@ async def test_record_time_series_call_tool_round_trips_arguments() -> None:
 async def test_call_tool_5xx_surfaces_as_mcp_client_http_error() -> None:
     """A 5xx response surfaces as ``MCPClientHTTPError``.
 
-    ``_register_to_dhara_once`` and ``DharaChannelPublisher.publish``
-    both swallow ``Exception`` to keep Dhara outages non-fatal. This
+    Callers that treat a remote outage as non-fatal swallow ``Exception``.
+    This
     test pins that the SDK raises the documented error type (so the
     callers' catch-all actually triggers on transport-level failures,
     not on hidden ``BaseException`` surprises).
@@ -205,9 +201,9 @@ async def test_call_tool_5xx_surfaces_as_mcp_client_http_error() -> None:
 async def test_call_tool_timeout_surfaces_as_mcp_client_timeout_error() -> None:
     """An ``httpx.ReadTimeout`` surfaces as ``MCPClientTimeoutError``.
 
-    The DharaChannelPublisher swallows this so a slow Dhara never
-    blocks channel-tracking. Pinning the error type ensures the
-    SDK's transport-level error contract stays stable.
+    Callers treat this as non-fatal so a slow remote never blocks the
+    caller. Pinning the error type ensures the SDK's transport-level
+    error contract stays stable.
     """
     from mcp_common.clients import MCPClientTimeoutError
 

@@ -118,10 +118,7 @@ PROFILE_REGISTRATIONS: dict[ToolProfile, list[str | Callable] | type[ALL_TOOLS]]
 # REGISTRATION_MAP: str (function name) -> Callable[[FastMCP], None]
 #
 # Each entry is invoked by the W0 helper with the FastMCP server as its
-# only positional argument. ``register_channel_tracking_tools`` requires
-# an extra ``dhara_publisher`` kwarg; this module pre-builds the
-# publisher at import time and captures it in a closure so the helper
-# can call this wrapper with just the server.
+# only positional argument.
 # ---------------------------------------------------------------------------
 
 from . import (
@@ -169,21 +166,7 @@ from .infrastructure.natural_scheduling_tools import (
     register_natural_scheduling_tools,
 )
 from .monitoring.prometheus_metrics_tools import register_prometheus_metrics_tools
-from .session.channel_tracking_tools import (
-    _make_dhara_publisher,
-    register_channel_tracking_tools,
-)
-
-# Build a single Dhara publisher at module load so every
-# ``register_channel_tracking_tools`` invocation shares the same
-# httpx.AsyncClient (avoids the per-call socket churn the legacy loop
-# avoided by pre-building).
-_dhara_publisher = _make_dhara_publisher()
-
-
-def _register_channel_tracking(server: FastMCP) -> None:
-    """Wrap register_channel_tracking_tools with the pre-built publisher."""
-    register_channel_tracking_tools(server, dhara_publisher=_dhara_publisher)
+from .session.channel_tracking_tools import register_channel_tracking_tools
 
 
 def _register_skills_signer_tools(server: FastMCP) -> None:
@@ -259,7 +242,7 @@ REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
     "register_bottleneck_tools": register_bottleneck_tools,
     "register_cache_tools": register_cache_tools,
     "register_channel_session_state_tools": register_channel_session_state_tools,
-    "register_channel_tracking_tools": _register_channel_tracking,
+    "register_channel_tracking_tools": register_channel_tracking_tools,
     "register_code_analysis_tools": register_code_analysis_tools,
     "register_code_graph_tools": register_code_graph_tools,
     "register_conscious_agent_tools": register_conscious_agent_tools,

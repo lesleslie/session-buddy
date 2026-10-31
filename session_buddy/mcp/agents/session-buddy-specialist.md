@@ -96,7 +96,8 @@ This specialist DOES NOT:
 - Run quality checks. Use ``mcp__crackerjack__crackerjack_run`` for that.
 - Orchestrate workflows. Use ``mcp__mahavishnu__pool_route_execute`` for
   that.
-- Store persistent objects. Use ``mcp__dhara__*`` for that.
+- Store persistent objects. Use ``mcp__session-buddy__store_reflection`` for
+  that.
 - Provide semantic search across the entire ecosystem. Use
   ``mcp__akosha__search`` for that.
 

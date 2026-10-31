@@ -875,14 +875,6 @@ class TestSessionLifecycleContextManager:
         monkeypatch.setattr(so, "is_git_repository", lambda _: True)
         monkeypatch.setattr(so, "get_git_root", lambda _: mock_current_dir)
 
-        # Dhara registration is a fire-and-forget task that retries forever
-        # when the Dhara server is unreachable; the gather() below would
-        # never return. Stub it to a no-op coroutine.
-        async def _noop_register(_mcp_url: str) -> None:
-            return None
-
-        monkeypatch.setattr(so, "_register_component_to_dhara", _noop_register)
-
         # BodaiEventsPublisher is installed pre-yield (Phase 4, Bug
         # 2026-10-10 health-cold-feed fix). Without an explicit stub the
         # constructor+init would open a real coredis connection that
@@ -986,11 +978,6 @@ class TestSessionLifecycleContextManager:
             patch.object(
                 so,
                 "_delayed_session_init",
-                new=AsyncMock(return_value=None),
-            ),
-            patch.object(
-                so,
-                "_register_component_to_dhara",
                 new=AsyncMock(return_value=None),
             ),
             patch.object(

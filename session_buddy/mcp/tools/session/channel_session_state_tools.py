@@ -5,15 +5,15 @@ Read-back consumer for the channel session state plan lineage v1.2
 Mirrors the producer-side pattern in
 ``session_buddy/channel/state_writer.py``.
 
-Per Phase 8 Task 7: the entity type moved from ``dhara.schema`` to
-a session-buddy-local msgspec.Struct (see
+Per Phase 8 Task 7: the entity type moved from the external substrate
+schema to a session-buddy-local msgspec.Struct (see
 ``session_buddy/channel/_models.py``). The producer/consumer pair
 shares the local class; round-trip wire compatibility is pinned
 in ``tests/unit/channel/test_models.py``.
 
 Phase 5 of the UUID7-only migration plan (2026-10-11) deleted the
-dhara substrate-compat shim (``session_buddy._dhara_substrate_compat``)
-because the dhara substrate is being retired (per memory rule
+substrate-compat shim (removed in the same phase)
+because the substrate is being retired (per memory rule
 ``feedback-substrate-compat-shim-rot.md``, confirmed 2026-10-11 in
 the Bodai ULID→UUID7 migration). The tool therefore has no backing
 store and always returns ``None`` until a replacement substrate is
@@ -42,7 +42,7 @@ def register_channel_session_state_tools(mcp_server: Any) -> None:
 
     Registers:
     - channel_session_get_state_tool: Read back a persisted
-      ``ChannelSessionState`` from the dhara substrate, returning
+      ``ChannelSessionState`` from the substrate, returning
       the struct as a dict (or ``None`` when the record is missing
       or the substrate is unavailable).
 
@@ -78,7 +78,7 @@ def register_channel_session_state_tools(mcp_server: Any) -> None:
             sender_id: Actor identifier within the channel.
             token: Optional auth token (handled by ``require_auth``).
         """
-        # Phase 5: dhara substrate retired. Read is a well-typed no-op
+        # Phase 5: substrate retired. Read is a well-typed no-op
         # until a replacement substrate is wired. Key construction is
         # kept (commented) so the producer/consumer key shape stays
         # documented; logging gives operators the channel/sender

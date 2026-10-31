@@ -8,7 +8,6 @@ It's organized into focused modules for better maintainability and performance.
 
 import asyncio
 import inspect
-import itertools
 import os
 import subprocess  # nosec B404
 import sys
@@ -103,83 +102,6 @@ lifecycle_manager = SessionLifecycleManager()
 # Global connection info for notification display
 _connection_info: dict[str, Any] | None = None
 
-# Module-level task reference so shutdown can cancel the heartbeat loop
-_heartbeat_task: asyncio.Task[None] | None = None
-
-DHARA_DEFAULT_URL = (
-    "http://localhost:8683/mcp"  # Implements: REQ-005 (Bodai MCP transport unification)
-)
-
-
-async def _register_to_dhara_once(dhara_url: str, key: str, mcp_url: str) -> bool:
-    """Single attempt to write component_endpoint/{name} -> mcp_url to Dhara.
-
-    Returns True on success, False on failure.
-
-    Uses :class:`mcp_common.clients.CommonMCPClient` (the Bodai MCP
-    transport SDK) instead of a hand-rolled ``/tools/call`` POST. See
-    REQ-004 in
-    ``docs/plans/2026-09-14-common-mcp-client-transport-unification.md``.
-    """
-    from mcp_common.clients import CommonMCPClient
-
-    client: CommonMCPClient | None = None
-    try:
-        client = CommonMCPClient(base_url=dhara_url, timeout=10.0)
-        await client.call_tool("put", {"key": key, "value": mcp_url}, timeout=10.0)
-        return True
-    except Exception:  # noqa: BLE001 - best-effort Dhara registration; caller retries with exponential backoff, so any failure (transport, timeout, 5xx, JSON-RPC) returns False to trigger the next attempt
-        return False
-    finally:
-        if client is not None:
-            await client.aclose()
-
-
-async def _register_component_to_dhara(mcp_url: str) -> None:
-    """Register Session-Buddy's MCP endpoint to Dhara with retry + periodic heartbeat.
-
-    Key: component_endpoint/session-buddy
-    Value: MCP server URL string
-
-    Phase 1 (startup): retries with exponential backoff (1s, 2s, 4s, 8s, 16s)
-    until registration succeeds.
-    Phase 2 (heartbeat): re-registers every 5 minutes to keep the TTL fresh.
-    Akosha's FitnessAnalyzer is the consumer of this key.
-    """
-    dhara_url = os.getenv("SESSION_BUDDY_DHARA_URL", DHARA_DEFAULT_URL)
-    key = "component_endpoint/session-buddy"
-
-    # Phase 1: exponential-backoff retry until registration succeeds
-    for attempt in itertools.count():
-        if await _register_to_dhara_once(dhara_url, key, mcp_url):
-            logger.info(
-                "Phase 0: registered session-buddy endpoint to Dhara",
-                context={"key": key, "mcp_url": mcp_url},
-            )
-            break
-        wait = min(2**attempt, 32)
-        logger.debug(
-            "Phase 0: registration attempt %d failed, retrying in %ds",
-            attempt=attempt + 1,
-            wait=wait,
-        )
-        await asyncio.sleep(wait)
-    else:
-        logger.warning(
-            "Phase 0: exhausted retries for %s — heartbeat will continue",
-            key=key,
-        )
-
-    # Phase 2: periodic heartbeat
-    async def heartbeat() -> None:
-        while True:
-            await asyncio.sleep(300)  # 5 minutes
-            if not await _register_to_dhara_once(dhara_url, key, mcp_url):
-                logger.debug("Phase 0 heartbeat: failed to refresh %s", key=key)
-
-    global _heartbeat_task
-    _heartbeat_task = asyncio.create_task(heartbeat())
-
 
 async def _delayed_session_init(current_dir: Path) -> None:
     """Background task for session initialization after MCP handshake completes.
@@ -273,8 +195,8 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     """Automatic session lifecycle for git repositories only.
 
     IMPORTANT: Server must be able to accept MCP connections immediately after
-    yield. Expensive operations (initialize_session, Dhara registration) run
-    as background tasks to prevent blocking the MCP handshake.
+    yield. Expensive operations (initialize_session, the Oneiric runtime push)
+    run as background tasks to prevent blocking the MCP handshake.
 
     Phase 1.5 (plan §10.3.2): the skills_signer feed state is initialized
     BEFORE the yield so /health always sees a populated state once the
@@ -385,8 +307,8 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
     asyncio.create_task(lifecycle_manager.drain_pending_markers())
 
     # Plan 4b (2026-10-18): start the AutoCheckpointLoop in the canonical
-    # ``session_lifecycle`` (extracted from the dead ``_lifespan_with_dhara_cleanup``
-    # wrapper, commit c820d210). Best-effort: a start failure (e.g.
+    # ``session_lifecycle`` (extracted from a dead cleanup wrapper,
+    # commit c820d210). Best-effort: a start failure (e.g.
     # cwd validation, mode off, missing settings) MUST NOT block startup.
     # The returned loop is tracked on ``_auto_loop`` so the try/finally
     # below can ``stop()`` it on lifespan exit — even if the yield or
@@ -429,21 +351,13 @@ async def session_lifecycle(app: Any) -> AsyncGenerator[None]:
                     f"auto_checkpoint_loop_stop_failed error={exc!s}",
                 )
 
-    # Register to Dhara AFTER yield as fire-and-forget task
-    # Registration needs server to be UP (HTTP POST to self), so it must come after yield
-    try:
-        asyncio.create_task(_register_component_to_dhara("http://127.0.0.1:8678/mcp"))
-    except (RuntimeError, OSError, ValueError) as e:
-        logger.warning(f"Dhara registration task failed (non-critical): {e}")
-
     # Fire expensive initialization in background AFTER yield
     # This prevents MCP handshake blocking when multiple clients connect
     asyncio.create_task(_delayed_session_init(current_dir))
 
     # Phase 3: push a single runtime fact (keyed ``__main__``) to Oneiric.
-    # Mirrors the Dhara registration pattern above: fire-and-forget task,
-    # Oneiric unavailability MUST NOT block SB boot — the helper itself
-    # catches all exceptions and logs status=fail.
+    # Fire-and-forget task: Oneiric unavailability MUST NOT block SB boot
+    # — the helper itself catches all exceptions and logs status=fail.
     try:
         asyncio.create_task(_report_runtime_to_oneiric())
     except (RuntimeError, OSError, ValueError) as e:

@@ -85,14 +85,6 @@ def stubbed_lifespan(monkeypatch: pytest.MonkeyPatch, tmp_path):
     )
     monkeypatch.setattr(server_optimized, "is_git_repository", lambda _path: False)
 
-    async def _noop_dhara_register(*_a, **_kw):
-        return None
-
-    monkeypatch.setattr(
-        server_optimized,
-        "_register_component_to_dhara",
-        _noop_dhara_register,
-    )
     monkeypatch.setattr(server_optimized, "_delayed_session_init", AsyncMock())
     monkeypatch.setattr(server_optimized, "_report_runtime_to_oneiric", AsyncMock())
 
@@ -219,14 +211,6 @@ async def test_a_disabled_sidecar_leaves_the_default_engine(
     )
     monkeypatch.setattr(server_optimized, "is_git_repository", lambda _path: False)
 
-    async def _noop_dhara_register(*_a, **_kw):
-        return None
-
-    monkeypatch.setattr(
-        server_optimized,
-        "_register_component_to_dhara",
-        _noop_dhara_register,
-    )
     monkeypatch.setattr(server_optimized, "_delayed_session_init", AsyncMock())
     monkeypatch.setattr(server_optimized, "_report_runtime_to_oneiric", AsyncMock())
 

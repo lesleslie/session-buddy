@@ -78,7 +78,7 @@ async def _drive_session_lifecycle(app: Any) -> AsyncGenerator[None]:
     """Drive ``session_lifecycle`` end-to-end with hermetic stubs.
 
     The post-yield block schedules three background tasks
-    (Dhara registration, delayed session init, lifecycle_manager
+    (delayed session init, lifecycle_manager
     end-of-session). Without mocks those touch real network and
     git state. Each is replaced with an ``AsyncMock`` that returns
     immediately so the async-with exit cleans up cleanly.
@@ -92,11 +92,6 @@ async def _drive_session_lifecycle(app: Any) -> AsyncGenerator[None]:
         patch.object(
             so,
             "_delayed_session_init",
-            new=AsyncMock(return_value=None),
-        ),
-        patch.object(
-            so,
-            "_register_component_to_dhara",
             new=AsyncMock(return_value=None),
         ),
         patch.object(

@@ -2,7 +2,7 @@
 
 Task 4 of the S-CHANNEL-DURABLE plan originally demonstrated
 durability across a simulated process restart. Phase 5 of the
-UUID7-only migration plan (2026-10-11) deleted the dhara
+UUID7-only migration plan (2026-10-11) deleted the substrate
 substrate-compat shim, so the durability-across-restart contract
 is structurally impossible: there is no backing store.
 

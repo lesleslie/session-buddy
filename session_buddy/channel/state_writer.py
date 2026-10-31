@@ -6,14 +6,14 @@ with the actor/context observed from a channel event; this module
 validates the payload against the locally-owned
 :class:`session_buddy.channel._models.ChannelSessionState` schema.
 
-Per Phase 8 Task 7: the entity type moved from ``dhara.schema``
-to a session-buddy-local msgspec.Struct (mirrors the architectural
-decision made for mahavishnu's WorkflowOutcome/ApprovalLog/
+Per Phase 8 Task 7: the entity type moved from the external substrate
+schema to a session-buddy-local msgspec.Struct (mirrors the
+architectural decision made for mahavishnu's WorkflowOutcome/ApprovalLog/
 WebhookIngress — see plan Task 2 for the rationale).
 
 Phase 5 of the UUID7-only migration plan (2026-10-11) deleted the
-dhara substrate-compat shim (``session_buddy._dhara_substrate_compat``)
-because the dhara substrate is being retired (per memory rule
+substrate-compat shim (removed in the same phase)
+because the substrate is being retired (per memory rule
 ``feedback-substrate-compat-shim-rot.md``, confirmed 2026-10-11 in
 the Bodai ULID→UUID7 migration). Channel session state
 persistence is therefore a no-op until a replacement substrate is
@@ -77,7 +77,7 @@ def record_channel_session_state(
     owns the feature-flag gate; this function unconditionally
     validates.
 
-    Phase 5 post-state: there is no substrate wired (dhara retired).
+    Phase 5 post-state: there is no substrate wired (substrate retired).
     The function still validates the payload (so caller bugs
     surface as :class:`msgspec.ValidationError`) and increments the
     ``attempted`` + ``skipped`` Prometheus counters. The structured
@@ -94,8 +94,8 @@ def record_channel_session_state(
     validated: ChannelSessionState = msgspec.convert(payload, ChannelSessionState)  # ty: ignore[invalid-assignment]
 
     # Phase 5: no substrate wired. Counter + log are the only side effects
-    # until a replacement substrate is wired. The pre-Phase-5 "dhara.put
-    # unbound" branch is structurally identical to this one — what
+    # until a replacement substrate is wired. The pre-Phase-5 substrate
+    # write-unbound branch is structurally identical to this one — what
     # changed is that the unbound state is now permanent.
     COUNTERS.attempted.labels(producer=_PRODUCER_NAME).inc()
     COUNTERS.skipped.labels(producer=_PRODUCER_NAME).inc()

@@ -103,16 +103,17 @@ def test_registration_map_has_baseline_wrapper() -> None:
     assert callable(profiles_mod.REGISTRATION_MAP["register_baseline_tools"])
 
 
-def test_registration_map_channel_tracking_uses_wrapper() -> None:
-    """register_channel_tracking_tools is wrapped via _register_channel_tracking."""
+def test_registration_map_channel_tracking_registers_directly() -> None:
+    """register_channel_tracking_tools takes only the server, so it is
+    registered directly rather than through a wrapper."""
     from session_buddy.mcp.tools.session.channel_tracking_tools import (
         register_channel_tracking_tools,
     )
 
-    wrapper = profiles_mod.REGISTRATION_MAP["register_channel_tracking_tools"]
-    # The wrapper pre-binds a Dhara publisher so it accepts just the server
-    assert wrapper is not register_channel_tracking_tools
-    assert wrapper is profiles_mod._register_channel_tracking
+    assert (
+        profiles_mod.REGISTRATION_MAP["register_channel_tracking_tools"]
+        is register_channel_tracking_tools
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -136,44 +137,6 @@ def test_mandatory_groups_subset_of_registration_map_keys() -> None:
     for group in profiles_mod.SESSION_BUDDY_MANDATORY_GROUPS:
         assert group in profiles_mod.REGISTRATION_MAP
 
-
-# ---------------------------------------------------------------------------
-# Dhara publisher wrapper
-# ---------------------------------------------------------------------------
-
-
-def test_dhara_publisher_built_at_module_load() -> None:
-    """_dhara_publisher is created at module load time (may be None or an object)."""
-    # The publisher is created via _make_dhara_publisher() at import time.
-    # The factory is error-tolerant and may return None (no HTTP service configured).
-    # We only verify the attribute exists; the value depends on environment.
-    assert hasattr(profiles_mod, "_dhara_publisher")
-
-
-def test_register_channel_tracking_wrapper_invokes_underlying(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """_register_channel_tracking forwards to register_channel_tracking_tools
-    with the module-load Dhara publisher."""
-    captured: dict[str, object] = {}
-
-    class _ToolCapturingMCP:
-        def tool(self):
-            def decorator(fn):
-                return fn
-
-            return decorator
-
-    def fake_register(server, dhara_publisher):
-        captured["server"] = server
-        captured["publisher"] = dhara_publisher
-
-    # Patch the symbol bound in profiles' module namespace, not the original
-    monkeypatch.setattr(profiles_mod, "register_channel_tracking_tools", fake_register)
-    profiles_mod._register_channel_tracking(server=_ToolCapturingMCP())
-    assert isinstance(captured["server"], _ToolCapturingMCP)
-    # The publisher passed in is the one created at module load
-    assert captured["publisher"] is profiles_mod._dhara_publisher
 
 
 # ---------------------------------------------------------------------------
@@ -233,16 +196,3 @@ def test_get_active_profile_invalid_value_falls_back() -> None:
     # ToolProfile.from_env behaviour: invalid → FULL
     assert result is ToolProfile.FULL
 
-
-# ---------------------------------------------------------------------------
-# _make_dhara_publisher import check
-# ---------------------------------------------------------------------------
-
-
-def test_make_dhara_publisher_callable_from_module() -> None:
-    """_make_dhara_publisher is importable from channel_tracking_tools."""
-    from session_buddy.mcp.tools.session.channel_tracking_tools import (
-        _make_dhara_publisher,
-    )
-
-    assert callable(_make_dhara_publisher)

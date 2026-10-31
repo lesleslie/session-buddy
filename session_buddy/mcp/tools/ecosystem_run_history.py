@@ -8,8 +8,8 @@ summary block.
 Phase 1 scope:
 
 * Reads workflow outcomes persisted by each component under a canonical
-  substrate key (``session-buddy://runs/{workflow_id}`` — defined in
-  Dhara's Phase 1 substrate schema).
+  substrate key (``session-buddy://runs/{workflow_id}`` — defined in the
+  Phase 1 substrate schema).
 * Falls back to a deterministic stub when the substrate is unreachable
   so the tool stays usable in lite-mode environments.
 * The aggregator is intentionally pluggable: Phase 2 can wire real
@@ -36,7 +36,6 @@ BODAI_COMPONENT_KEYS: tuple[str, ...] = (
     "mahavishnu",
     "akosha",
     "session-buddy",
-    "dhara",
     "crackerjack",
     "oneiric",
 )
@@ -64,7 +63,7 @@ class EcosystemRunHistoryRequest(BaseModel):
         max_length=50,
         description=(
             "Optional component scope filter: 'mahavishnu' | 'akosha' | "
-            "'session-buddy' | 'dhara' | 'crackerjack' | 'oneiric' | "
+            "'session-buddy' | 'crackerjack' | 'oneiric' | "
             "'all' (default)."
         ),
     )

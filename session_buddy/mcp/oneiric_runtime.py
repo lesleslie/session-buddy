@@ -17,10 +17,8 @@ Pure httpx. NO direct oneiric imports — that would re-introduce the
 resolver chain that Phase 1/2 spent effort decoupling.
 
 Fail-soft on push failure. Oneiric unavailability MUST NOT block SB
-boot — mirrors the Dhara registration pattern at
-``server_optimized.py:320-323`` where the existing
-``_register_component_to_dhara`` call is wrapped in
-``asyncio.create_task`` and protected by a narrow except.
+boot — the push is wrapped in ``asyncio.create_task`` and protected by
+a narrow except.
 """
 
 from __future__ import annotations
@@ -113,10 +111,8 @@ def _build_runtime_facts(settings: Any) -> dict[str, Any]:
 async def report_runtime_to_oneiric() -> None:
     """Snapshot SB config and push a single fact to Oneiric.
 
-    No-op (logged) if Oneiric is unreachable. Mirrors the
-    ``_register_component_to_dhara`` fail-soft pattern at
-    ``server_optimized.py:320-323`` so a Oneiric outage cannot block
-    SB's MCP handshake.
+    No-op (logged) if Oneiric is unreachable. Fail-soft, so a Oneiric
+    outage cannot block SB's MCP handshake.
     """
     status = "fail"
     try:

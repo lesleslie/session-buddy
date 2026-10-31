@@ -1,8 +1,8 @@
 """Unit tests for the channel_session_get_state MCP tool (Phase 5).
 
 Phase 5 of the UUID7-only migration plan (2026-10-11) deleted the
-dhara substrate-compat shim (``session_buddy._dhara_substrate_compat``)
-because the dhara substrate is being retired (per memory rule
+substrate-compat shim (removed in the same phase)
+because the substrate is being retired (per memory rule
 ``feedback-substrate-compat-shim-rot.md``). The tool therefore has
 no backing store and always returns ``None`` with a structured INFO
 log carrying the reason ``no_substrate_wired_post_phase5``. The
@@ -10,8 +10,8 @@ contract surface is preserved so downstream MCP clients do not
 need to change.
 
 Phase 8 Task 7 update: the schema-registry lazy-load (which used
-``dhara.schema.from_dict / to_dict``) was removed in Phase 5 because
-dhara is being retired. The consumer now short-circuits to
+the substrate's ``from_dict / to_dict``) was removed in Phase 5 because
+the substrate is being retired. The consumer now short-circuits to
 ``return None`` after the structured log; there is no
 ``msgspec.convert`` call. Test cases that exercised the now-removed
 substrate-round-trip path are dropped.
@@ -84,7 +84,7 @@ class TestChannelSessionGetStateTool:
     def test_always_returns_none_post_phase5(self) -> None:
         """Phase 5: no substrate wired. The tool returns ``None`` unconditionally.
 
-        Previously, the tool returned ``None`` only when the dhara
+        Previously, the tool returned ``None`` only when the substrate
         substrate was unbound. After Phase 5, "unbound" is the only
         state, so the unconditional return is the canonical
         representation of "no backing store available."

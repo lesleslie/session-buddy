@@ -5,20 +5,16 @@ Lifts coverage on ``channel_tracking_tools`` from the existing baseline
 Mirrors ``tests/unit/test_channel_tracking_tools.py`` with extra
 coverage for branches the parallel test file leaves untouched:
 
-- ``DharaChannelPublisher.__aenter__`` / ``__aexit__`` / ``aclose``
 - ``_ChannelSessionStore.query`` filter branches (channel_id, sender_id, scope)
 - ``_parse_event_timestamp`` fallback when the input is malformed
 - ``track_channel_session`` exception paths
 - ``get_channel_sessions`` exception path
-- ``_make_dhara_publisher`` when ``SESSION_BUDDY_DHARA_URL`` is unset
 """
 
 from __future__ import annotations
 
-import asyncio as _asyncio
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 from types import SimpleNamespace
 
 import pytest
@@ -26,9 +22,7 @@ import pytest
 from session_buddy.mcp.event_models import ChannelSessionEvent
 from session_buddy.mcp.tools.session import channel_tracking_tools as mod
 from session_buddy.mcp.tools.session.channel_tracking_tools import (
-    DharaChannelPublisher,
     _ChannelSessionStore,
-    _make_dhara_publisher,
     _parse_event_timestamp,
     register_channel_tracking_tools,
 )
@@ -166,42 +160,6 @@ class TestStoreStartIdempotencyAndMissing:
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# DharaChannelPublisher — async context manager + aclose
-# ---------------------------------------------------------------------------
-
-
-class TestDharaChannelPublisherAsyncContextManager:
-    """``__aenter__`` / ``__aexit__`` / ``aclose`` are uncovered in the baseline."""
-
-    @pytest.mark.asyncio
-    async def test_aclose_calls_underlying_client(self) -> None:
-        pub = DharaChannelPublisher(dhara_url="http://localhost:8683")
-        pub._client = AsyncMock()
-        await pub.aclose()
-        pub._client.aclose.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_aenter_returns_self(self) -> None:
-        pub = DharaChannelPublisher(dhara_url="http://localhost:8683")
-        result = await pub.__aenter__()
-        assert result is pub
-
-    @pytest.mark.asyncio
-    async def test_aexit_closes_client(self) -> None:
-        pub = DharaChannelPublisher(dhara_url="http://localhost:8683")
-        pub._client = AsyncMock()
-        # ``__aexit__`` accepts (*exc_info) positional args
-        await pub.__aexit__(None, None, None)
-        pub._client.aclose.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_async_with_statement_closes_client(self) -> None:
-        pub = DharaChannelPublisher(dhara_url="http://localhost:8683")
-        pub._client = AsyncMock()
-        async with pub as bound:
-            assert bound is pub
-        pub._client.aclose.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -347,42 +305,6 @@ class TestTrackChannelSessionExceptions:
         result = await self._call(session_scope="invalid")
         assert result["status"] == "error"
 
-    @pytest.mark.asyncio
-    async def test_track_session_fires_dhara_publisher(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """When ``dhara_publisher`` is injected, ``publish`` is fired."""
-        publisher = MagicMock()
-        publisher.publish = AsyncMock()
-
-        server = _FakeMCP()
-        register_channel_tracking_tools(server, dhara_publisher=publisher)
-        tools = server.tools
-
-        await tools["track_channel_session"](
-            event_id="evt-dhara",
-            event_type="channel_session_start",
-            channel_type="slack",
-            channel_id="D-DHARA",
-            sender_id="U-DHARA",
-            timestamp="2026-09-05T08:00:00Z",
-            token=None,
-        )
-        # Drain fire-and-forget tasks
-        pending = [
-            t for t in _asyncio.all_tasks() if t is not _asyncio.current_task()
-        ]
-        if pending:
-            await _asyncio.gather(*pending, return_exceptions=True)
-        publisher.publish.assert_awaited_once()
-
-
-# ---------------------------------------------------------------------------
-# get_channel_sessions — exception path
-# ---------------------------------------------------------------------------
-
-
-class TestGetChannelSessionsExceptions:
     @pytest.fixture(autouse=True)
     def _setup(self, fresh_store):
         server = _FakeMCP()
@@ -441,107 +363,5 @@ def test_register_attaches_both_tools() -> None:
     assert "get_channel_sessions" in server.tools
 
 
-# ---------------------------------------------------------------------------
-# _make_dhara_publisher — env var unset
-# ---------------------------------------------------------------------------
 
 
-class TestMakeDharaPublisher:
-    def test_env_unset_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("SESSION_BUDDY_DHARA_URL", raising=False)
-        result = _make_dhara_publisher()
-        assert result is None
-
-    def test_env_set_returns_publisher(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SESSION_BUDDY_DHARA_URL", "http://example.invalid:8683")
-        result = _make_dhara_publisher()
-        assert isinstance(result, DharaChannelPublisher)
-        assert result.dhara_url == "http://example.invalid:8683"
-
-    def test_env_strips_trailing_slash(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("SESSION_BUDDY_DHARA_URL", "http://example.invalid:8683/")
-        result = _make_dhara_publisher()
-        assert isinstance(result, DharaChannelPublisher)
-        # The trailing slash should be stripped.
-        assert result.dhara_url == "http://example.invalid:8683"
-
-    def test_whitespace_only_env_returns_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("SESSION_BUDDY_DHARA_URL", "   ")
-        result = _make_dhara_publisher()
-        # Whitespace-only is treated as empty.
-        assert result is None
-
-    def test_settings_path_removed_obsolete(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Settings.dhara_url was removed 2026-10-04. The env var is the
-        only configuration path; ``_make_dhara_publisher`` must not
-        consult settings even if a stale ``dhara_url`` attribute hangs
-        around on the settings instance.
-        """
-        monkeypatch.delenv("SESSION_BUDDY_DHARA_URL", raising=False)
-
-        class _StaleSettings:
-            dhara_url = "http://stale.invalid:8683"
-
-        monkeypatch.setattr(
-            "session_buddy.settings.get_settings",
-            lambda: _StaleSettings(),
-        )
-        result = _make_dhara_publisher()
-        # The stale settings path must be ignored — env var is unset.
-        assert result is None
-
-
-# ---------------------------------------------------------------------------
-# DharaChannelPublisher.publish — exception path with custom httpx error
-# ---------------------------------------------------------------------------
-
-
-class TestDharaChannelPublisherPublishEdgeCases:
-    @pytest.mark.asyncio
-    async def test_publish_handles_request_exception(self) -> None:
-        """Publish swallows MCPClientTimeoutError so a Dhara outage is non-fatal."""
-        from mcp_common.clients import MCPClientTimeoutError
-
-        pub = DharaChannelPublisher(dhara_url="http://example.invalid:8683")
-        pub._client = AsyncMock()
-        pub._client.call_tool = AsyncMock(
-            side_effect=MCPClientTimeoutError("call_tool timed out")
-        )
-        # MUST NOT raise
-        await pub.publish("metric", "entity-1", {"k": "v"})
-
-    @pytest.mark.asyncio
-    async def test_publish_uses_correct_endpoint(self) -> None:
-        """Publish routes through CommonMCPClient.call_tool with the right name+args.
-
-        Pre-migration this asserted the URL was suffixed with ``/tools/call``;
-        after the migration to ``mcp_common.clients.CommonMCPClient`` (Phase 3
-        REQ-004) the SDK owns the URL routing — the caller's contract is the
-        tool ``name`` and ``arguments`` it forwards.
-        """
-        pub = DharaChannelPublisher(dhara_url="http://example.invalid:8683")
-        mock_client = AsyncMock()
-        mock_client.call_tool = AsyncMock(
-            return_value={
-                "isError": False,
-                "content": [{"type": "text", "text": "{}"}],
-            }
-        )
-        pub._client = mock_client
-
-        await pub.publish(
-            "session_buddy.channel_event",
-            "chan_xyz",
-            {"event_type": "channel_session_start"},
-        )
-        mock_client.call_tool.assert_awaited_once()
-        call_args = mock_client.call_tool.call_args
-        # Signature: (name, arguments, *, timeout)
-        assert call_args.args[0] == "record_time_series"
-        assert call_args.args[1]["metric_type"] == "session_buddy.channel_event"
-        assert call_args.args[1]["entity_id"] == "chan_xyz"
-        assert call_args.args[1]["record"]["event_type"] == "channel_session_start"

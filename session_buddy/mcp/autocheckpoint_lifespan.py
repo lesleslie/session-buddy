@@ -10,14 +10,13 @@ also drains any ``~/.session-buddy/pending/*.json`` markers created by
 subagent-timeout events. All behavior is opt-in — deployments that do
 not flip the flag see no difference.
 
-This module was extracted from
-``session_buddy/mcp/server.py:_lifespan_with_dhara_cleanup`` after that
-wrapper was deleted in commit c820d210 (the wrapper was dead code in
-production: no production caller imports ``session_buddy.mcp.server``,
-so the module-load side-effect that installed the wrapper as the
-canonical ``mcp`` lifespan never ran). The helpers below are now wired
-into the canonical ``session_lifecycle`` in
-``session_buddy/server_optimized.py``.
+This module was extracted from a dead cleanup wrapper in
+``session_buddy/mcp/server.py`` after that wrapper was deleted in commit
+c820d210 (the wrapper was dead code in production: no production caller
+imports ``session_buddy.mcp.server``, so the module-load side-effect
+that installed the wrapper as the canonical ``mcp`` lifespan never ran).
+The helpers below are now wired into the canonical ``session_lifecycle``
+in ``session_buddy/server_optimized.py``.
 
 See ``docs/plans/2026-10-18-session-buddy-autocheckpoint-loop-move.md``
 for the audit trail.

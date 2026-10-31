@@ -10,8 +10,8 @@ v1.1 hardening coverage (multi-agent review addressed):
   observe the no-op
 
 Phase 5 of the UUID7-only migration plan (2026-10-11) deleted the
-dhara substrate-compat shim (``session_buddy._dhara_substrate_compat``)
-and the ``dhara.put`` call site. The producer's persistence is now
+substrate-compat shim (removed in the same phase)
+and the substrate write call site. The producer's persistence is now
 a structured log + counter increment — there is no substrate to put
 to. Validation, counter, and log behavior is preserved.
 
@@ -77,7 +77,7 @@ def test_record_validates_payload_post_phase5() -> None:
     The producer MUST raise ``msgspec.ValidationError`` when the
     payload is malformed — validation failures DO propagate (per the
     pre-Phase-5 contract) because they indicate a programming error
-    in the caller. The dhara-persistence removal does not change
+    in the caller. The substrate-persistence removal does not change
     this.
     """
     import msgspec
@@ -120,7 +120,7 @@ def test_record_logs_warning_with_phase5_reason(
     """Phase 5: every call logs a WARNING carrying the Phase 5 reason.
 
     Operator observability requires the structured log line on every
-    call so the no-op behavior is observable in Dhara/Akosha traces.
+    call so the no-op behavior is observable in Oneiric/Akosha traces.
     The ``reason`` field carries the canonical Phase 5 marker.
 
     Mocks the module-level ``logger`` (oneiric.core.logging handles

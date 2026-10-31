@@ -1,8 +1,8 @@
 """Round-trip test for ``session_buddy.channel._models.ChannelSessionState``.
 
-Pins wire-format compatibility with the original dhara type by
+Pins wire-format compatibility with the original substrate type by
 asserting that ``msgspec.to_builtins(...)`` produces the exact field
-set dhara would produce for an equivalent instance. Any drift in
+set the substrate would produce for an equivalent instance. Any drift in
 field name, type, or ``frozen=True`` status surfaces here as a test
 failure rather than as silent data corruption at the durable store
 boundary.
@@ -17,7 +17,7 @@ import msgspec
 from session_buddy.channel._models import ChannelSessionState
 
 
-def test_channel_session_state_roundtrip_matches_dhara_shape() -> None:
+def test_channel_session_state_roundtrip_matches_substrate_shape() -> None:
     """Round-trip a ChannelSessionState through msgspec.to_builtins."""
     record = ChannelSessionState(
         channel_id="C123",
@@ -40,7 +40,7 @@ def test_channel_session_state_roundtrip_matches_dhara_shape() -> None:
 
 
 def test_metadata_defaults_to_empty_dict() -> None:
-    """``metadata`` defaults to ``{}`` (matches Dhara original)."""
+    """``metadata`` defaults to ``{}`` (matches the substrate original)."""
     record = ChannelSessionState(
         channel_id="C-empty",
         channel_type="signal",

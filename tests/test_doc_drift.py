@@ -62,13 +62,12 @@ async def test_mcp_tool_count_matches_documented() -> None:
 # is verified to be read via ``os.getenv`` (or ``os.environ.get``) somewhere
 # in the package source tree.
 #
-# Limitation: ``SESSION_BUDDY_TOOL_PROFILE`` and ``DHARA_URL`` are documented
+# Limitation: ``SESSION_BUDDY_TOOL_PROFILE`` is documented
 # but consumed indirectly via Pydantic Settings or string-literal forwarding
 # to ``mcp-common``. They are NOT pinned here because the wiring is dispatched
 # through a helper, not a direct ``os.getenv`` call. Update the README to add
 # a new entry here whenever a new ``os.getenv``-backed env var is documented.
 DOCUMENTED_ENV_VARS: tuple[str, ...] = (
-    "SESSION_BUDDY_DHARA_URL",
     "SESSION_BUDDY_ENVIRONMENT",
     "AKOSHA_URL",
     "MAHAVISHNU__LLAMA_SERVER_URL",

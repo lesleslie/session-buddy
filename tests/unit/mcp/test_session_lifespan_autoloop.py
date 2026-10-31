@@ -1,7 +1,7 @@
 """Unit test: session_lifecycle wires the AutoCheckpointLoop (plan 4b).
 
 Plan 4 (commit ``c820d210``) deleted the dead
-``_lifespan_with_dhara_cleanup`` wrapper. Plan 4b moves the
+dead cleanup wrapper. Plan 4b moves the
 ``AutoCheckpointLoop`` wiring from the wrapper into the canonical
 ``session_lifecycle`` in ``server_optimized.py``. This test pins the
 new contract: ``session_lifecycle`` must invoke
@@ -47,7 +47,7 @@ async def test_session_lifecycle_starts_and_stops_autocheckpoint_loop(
 
     Patches the entry point to record invocations. All other side
     effects (signer feed init, BodaiEventsPublisher install, lifecycle
-    manager, dhara, delayed init, oneiric, end_session, is_git_repository)
+    manager, delayed init, oneiric, end_session, is_git_repository)
     are stubbed so the test runs in a clean environment without real
     settings, Redis, or git repo.
     """
@@ -95,17 +95,6 @@ async def test_session_lifecycle_starts_and_stops_autocheckpoint_loop(
         server_optimized,
         "is_git_repository",
         lambda _path: False,
-    )
-    # _register_component_to_dhara is invoked via asyncio.create_task
-    # post-yield, so the patch must be async (create_task needs a
-    # coroutine, not None).
-    async def _noop_dhara_register(*_a, **_kw):
-        return None
-
-    monkeypatch.setattr(
-        server_optimized,
-        "_register_component_to_dhara",
-        _noop_dhara_register,
     )
     monkeypatch.setattr(
         server_optimized,

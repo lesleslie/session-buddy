@@ -18,12 +18,10 @@ Storage:
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any
 
 from session_buddy.channel.state_writer import (
     _channel_session_state_v1_enabled,
@@ -41,55 +39,6 @@ _VALID_EVENT_TYPES = frozenset(
 _VALID_SCOPES = frozenset({"conversation", "thread", "day"})
 
 logger = logging.getLogger(__name__)
-
-
-class DharaChannelPublisher:
-    """Fire-and-forget publisher for channel session events to Dhara time-series.
-
-    Uses :class:`mcp_common.clients.CommonMCPClient` (the Bodai MCP
-    transport SDK) to invoke Dhara's ``record_time_series`` tool over
-    streamable-HTTP. All errors are swallowed so a Dhara outage never
-    blocks channel tracking.
-
-    Args:
-        dhara_url: Base URL of the Dhara MCP server (e.g. ``http://localhost:8683``).
-    """
-
-    def __init__(self, dhara_url: str) -> None:
-        from mcp_common.clients import CommonMCPClient
-
-        self.dhara_url = dhara_url.rstrip("/")
-        self._client = CommonMCPClient(base_url=dhara_url, timeout=5.0)
-
-    async def publish(
-        self,
-        metric_type: str,
-        entity_id: str,
-        record: dict[str, Any],
-    ) -> None:
-        """Record a time-series entry in Dhara. Errors are silently dropped."""
-        try:
-            await self._client.call_tool(
-                "record_time_series",
-                {
-                    "metric_type": metric_type,
-                    "entity_id": entity_id,
-                    "record": record,
-                },
-                timeout=5.0,
-            )
-        except Exception:
-            logger.exception("Dhara channel publish failed (non-fatal)")
-
-    async def aclose(self) -> None:
-        """Close the underlying HTTP client."""
-        await self._client.aclose()
-
-    async def __aenter__(self) -> Self:
-        return self
-
-    async def __aexit__(self, *_: object) -> None:
-        await self.aclose()
 
 
 class _ChannelSessionStore:
@@ -189,24 +138,8 @@ def _parse_event_timestamp(timestamp: str) -> datetime:
         return datetime.now(UTC)
 
 
-def _make_dhara_publisher() -> DharaChannelPublisher | None:
-    """Return a DharaChannelPublisher if a Dhara URL is configured, else None.
-
-    URL is read from the ``SESSION_BUDDY_DHARA_URL`` environment variable
-    only — the previously-supported ``SessionBuddySettings.dhara_url``
-    field was removed 2026-10-04 (obsolete; env-var path was already the
-    primary one and the YAML fallback never carried weight).
-    """
-    url: str | None = os.environ.get("SESSION_BUDDY_DHARA_URL", "").strip() or None
-
-    if not url:
-        return None
-    return DharaChannelPublisher(dhara_url=url)
-
-
 def register_channel_tracking_tools(
     mcp_server: FastMCP,
-    dhara_publisher: DharaChannelPublisher | None = None,
 ) -> None:
     """Register channel session tracking tools with the MCP server.
 
@@ -216,9 +149,6 @@ def register_channel_tracking_tools(
 
     Args:
         mcp_server: FastMCP server instance
-        dhara_publisher: Optional Dhara publisher for fire-and-forget
-            time-series recording of channel events.  When ``None``
-            (default) no Dhara publishing occurs.
     """
 
     @mcp_server.tool()
@@ -305,24 +235,6 @@ def register_channel_tracking_tools(
                     sender_id=sender_id,
                     last_event_at=last_event_at,
                     metadata=event.metadata,
-                )
-
-            # Phase 2: fire-and-forget Dhara time-series publish
-            if dhara_publisher is not None and session_id is not None:
-                asyncio.create_task(
-                    dhara_publisher.publish(
-                        "session_buddy.channel_event",
-                        session_id,
-                        {
-                            "event_type": event_type,
-                            "channel_type": channel_type,
-                            "channel_id": channel_id,
-                            "sender_id": sender_id,
-                            "timestamp": timestamp,
-                            "status": status,
-                        },
-                    ),
-                    name=f"dhara_publish_{session_id}",
                 )
 
             logger.info(
