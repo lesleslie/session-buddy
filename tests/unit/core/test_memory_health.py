@@ -28,10 +28,15 @@ def _make_analyzer_with_conn(conn: Any) -> MemoryHealthAnalyzer:
 
 
 def _create_empty_reflections_table(conn: Any) -> None:
-    """Create an empty ``reflections`` table the analyzer queries."""
+    """Create an empty ``reflections_v2`` table the analyzer queries.
+
+    The analyzer resolves the table through ``REFLECTIONS_TABLE``, which
+    names the V2 table -- the V1 ``reflections`` table was retired by the
+    2026-10-04 schema promotion.
+    """
     conn.execute(
         """
-        CREATE TABLE reflections (
+        CREATE TABLE reflections_v2 (
             id VARCHAR PRIMARY KEY,
             content VARCHAR,
             tags VARCHAR[],
@@ -298,7 +303,7 @@ class TestGetReflectionHealthPopulated:
         """
         duckdb_connection.execute(
             """
-            CREATE TABLE reflections (
+            CREATE TABLE reflections_v2 (
                 id VARCHAR,
                 content TEXT,
                 tags VARCHAR[],
@@ -309,7 +314,7 @@ class TestGetReflectionHealthPopulated:
         )
         duckdb_connection.execute(
             """
-            INSERT INTO reflections (id, content, tags, timestamp, metadata)
+            INSERT INTO reflections_v2 (id, content, tags, timestamp, metadata)
             VALUES
                 ('r1', 'alpha', ['alpha', 'beta'], '2026-01-01', NULL),
                 ('r2', 'beta',  ['alpha'],         '2026-01-02', NULL),

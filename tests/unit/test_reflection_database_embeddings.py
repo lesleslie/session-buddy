@@ -6,12 +6,11 @@ Nothing was ever stored with an embedding and semantic search never ran,
 so the class silently degraded to text-only search even though the HTTP
 embedding provider was reachable.
 
-These tests pin the gate itself. The write path still targets the V1
-``conversations`` table that ``reflection/schema.py`` retired on
-2026-10-04 (the schema bootstrap creates the V2 tables instead), so that
-table is created explicitly here. The V1/V2 mismatch is tracked
-separately — it is why the class only works against a database that still
-carries the retired V1 tables.
+These tests pin the gate itself. The write path targets the V2
+``conversations_v2`` table -- the V1 ``conversations`` table was retired
+by the 2026-10-04 schema promotion, and the legacy write path now
+resolves the table through the same constants the adapter uses. The
+schema bootstrap creates the V2 tables, so no explicit DDL is needed.
 """
 
 from __future__ import annotations
@@ -24,51 +23,12 @@ import pytest
 from session_buddy.memory.embedding_dim import DEFAULT_EMBEDDING_DIM
 from session_buddy.reflection.database import ReflectionDatabase
 
-V1_CONVERSATIONS_DDL = """
-CREATE TABLE conversations (
-    id VARCHAR PRIMARY KEY,
-    content VARCHAR NOT NULL,
-    embedding FLOAT[{dim}],
-    project VARCHAR,
-    timestamp TIMESTAMP,
-    metadata JSON
-)
-"""
-
-V1_REFLECTIONS_DDL = """
-CREATE TABLE reflections (
-    id VARCHAR PRIMARY KEY,
-    content VARCHAR NOT NULL,
-    embedding FLOAT[{dim}],
-    project VARCHAR,
-    tags VARCHAR[],
-    timestamp TIMESTAMP,
-    metadata JSON
-)
-"""
-
-
-def _create_v1_tables(db: Any) -> None:
-    """Create the V1 tables the legacy write path targets."""
-    conn = db.conn
-    assert conn is not None
-    # DuckDB cannot parameterize a fixed-size array width -- "FLOAT[?]"
-    # raises "Expected a constant number as array size" -- so the width has
-    # to be a literal in the DDL text. The interpolated value is
-    # DEFAULT_EMBEDDING_DIM, an int constant rather than input, so there is
-    # no injection surface here.
-    # nosemgrep: formatted-sql-query, sqlalchemy-execute-raw-query
-    conn.execute(V1_CONVERSATIONS_DDL.format(dim=DEFAULT_EMBEDDING_DIM))
-    # nosemgrep: formatted-sql-query, sqlalchemy-execute-raw-query
-    conn.execute(V1_REFLECTIONS_DDL.format(dim=DEFAULT_EMBEDDING_DIM))
-
 
 @pytest.fixture
 async def legacy_db(tmp_path: Path) -> Any:
-    """A ``ReflectionDatabase`` over V1-shaped ``conversations``/``reflections``."""
+    """A ``ReflectionDatabase`` over the V2 ``conversations_v2`` table."""
     db = ReflectionDatabase(db_path=str(tmp_path / "legacy.duckdb"))
     await db.initialize()
-    _create_v1_tables(db)
     yield db
     db.close()
 
@@ -105,7 +65,7 @@ class TestEmbeddingGate:
 
         conn = legacy_db.conn
         assert conn is not None
-        row = conn.execute("SELECT embedding FROM conversations").fetchone()
+        row = conn.execute("SELECT embedding FROM conversations_v2").fetchone()
         assert row is not None
         assert row[0] is not None, "conversation was stored without an embedding"
         assert len(row[0]) == DEFAULT_EMBEDDING_DIM
@@ -118,14 +78,13 @@ class TestEmbeddingGate:
             db_path=str(tmp_path / "disabled.duckdb"), enable_embeddings=False
         )
         await db.initialize()
-        _create_v1_tables(db)
         conn = db.conn
         assert conn is not None
 
         await db.store_conversation("hello world", {"project": "demo"})
 
         assert stub_provider == []
-        row = conn.execute("SELECT embedding FROM conversations").fetchone()
+        row = conn.execute("SELECT embedding FROM conversations_v2").fetchone()
         assert row is not None
         assert row[0] is None
 
@@ -148,7 +107,7 @@ class TestEmbeddingGate:
 
         conn = legacy_db.conn
         assert conn is not None
-        row = conn.execute("SELECT content, embedding FROM conversations").fetchone()
+        row = conn.execute("SELECT content, embedding FROM conversations_v2").fetchone()
         assert row is not None
         assert row[0] == "still stored"
         assert row[1] is None, "a failed provider must not store a partial vector"
@@ -169,7 +128,6 @@ class TestEmbeddingGate:
             db_path=str(tmp_path / "disabled_stats.duckdb"), enable_embeddings=False
         )
         await db.initialize()
-        _create_v1_tables(db)
 
         stats = await db.get_stats()
         assert stats["embedding_provider"] == "text-search-only"
