@@ -179,12 +179,20 @@ class MemoryHealthAnalyzer:
         """
         conn = self._get_conn()
 
-        # Check if reflections table exists
+        # Check if the reflections table exists.
+        #
+        # The check has to name the SAME table the queries below read.
+        # Hardcoding the retired V1 name here made a V2-only database look
+        # empty -- every count came back zero because the probe looked for
+        # a table that no longer exists.
+        # DuckDB connection, not SQLAlchemy; the only interpolated
+        # value is a module-level table-name constant.
+        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         table_check = conn.execute(
-            """
+            f"""
             SELECT table_name
             FROM information_schema.tables
-            WHERE table_name = 'reflections'
+            WHERE table_name = '{REFLECTIONS_TABLE}'
         """
         ).fetchone()
 
