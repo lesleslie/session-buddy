@@ -131,6 +131,26 @@ def _result_score(row: dict[str, Any]) -> float:
         return 0.0
 
 
+def _format_score(row: dict[str, Any]) -> str:
+    """Render a row's relevance for display.
+
+    Distinct from :func:`_result_score`, which exists to *order* results.
+    A row that came back through the lexical fallback has no relevance
+    score at all, and the display contract for that is ``"N/A"`` -- not
+    the zero the sort key uses.
+    """
+    raw = row.get("similarity")
+    if raw is None:
+        raw = row.get("score")
+    if raw is None:
+        return "N/A"
+    try:
+        float(raw)
+    except TypeError, ValueError:
+        return "N/A"
+    return str(raw)
+
+
 async def _quick_search_operation(
     db: ReflectionDatabase,
     query: str,
@@ -158,8 +178,7 @@ async def _quick_search_operation(
 
     top_result = total_results[0]
     result = f"🔍 **{len(total_results)} results** for '{query}'\n\n"
-    top_score = _result_score(top_result)
-    result += f"**Top Result** (score: {top_score:.2f}):\n"
+    result += f"**Top Result** (score: {_format_score(top_result)}):\n"
     result += f"{top_result.get('content', '')[:200]}..."
 
     if len(total_results) > 1:

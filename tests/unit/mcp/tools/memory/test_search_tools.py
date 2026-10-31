@@ -178,14 +178,22 @@ def _make_db(**methods: Any) -> MagicMock:
     db = MagicMock()
     for name, value in methods.items():
         setattr(db, name, AsyncMock(return_value=value))
-    # Default for any missing method
+    # Default for any method the caller did not supply.
+    #
+    # The membership test has to be against the caller's keywords, not
+    # ``hasattr``: a MagicMock auto-creates every attribute, so
+    # ``hasattr(db, name)`` is always True and this loop was a no-op. A
+    # method left as a plain MagicMock attribute cannot be awaited, so the
+    # production code's ``await db.method(...)`` raised
+    # "TypeError: 'MagicMock' object can't be awaited".
     for default in (
-        "store_reflection", "search_conversations", "search_by_source",
+        "store_reflection", "search_conversations", "search_reflections",
+        "search_by_source",
         "memory_lineage", "peer_context", "update_peer_model",
         "causal_chain", "distill_skills_now", "search_distilled_skills",
         "get_stats", "generate_session_differential",
     ):
-        if not hasattr(db, default):
+        if default not in methods:
             setattr(db, default, AsyncMock(return_value=[]))
     return db
 
