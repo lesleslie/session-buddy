@@ -13,7 +13,7 @@ Usage:
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Quality thresholds (configurable)
@@ -150,7 +150,7 @@ class QualityGate:
     def save_results(self):
         """Save quality gate results to file."""
         results = {
-            "timestamp": datetime.now(tz=datetime.UTC).isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
             "passed": len(self.failures) == 0,
             "score": self.metrics,
             "thresholds": self.thresholds,

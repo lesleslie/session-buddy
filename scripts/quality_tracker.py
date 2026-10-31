@@ -14,7 +14,7 @@ import argparse
 import json
 import subprocess
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -279,7 +279,7 @@ class QualityTracker:
                 history = []
 
             entry = {
-                "timestamp": datetime.now(tz=datetime.UTC).isoformat(),
+                "timestamp": datetime.now(tz=UTC).isoformat(),
                 "score": score,
             }
             history.append(entry)
