@@ -216,6 +216,3 @@ class TestGetChannelSessionsTool:
 
 
 # ── Phase 2 tests ───────────────────────────────────────────────
-
-
-

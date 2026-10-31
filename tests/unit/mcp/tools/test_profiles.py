@@ -195,4 +195,3 @@ def test_get_active_profile_invalid_value_falls_back() -> None:
         result = profiles_mod.get_active_profile()
     # ToolProfile.from_env behaviour: invalid → FULL
     assert result is ToolProfile.FULL
-

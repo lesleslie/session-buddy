@@ -133,7 +133,7 @@ pointing at anything.
 - **launchd plists** (`~/Library/LaunchAgents/com.mcp.*.plist`) — none
   reference `.claude/data`; the generated plists do not pin DB paths
 - **`mcp-ctl`** — no data-path references
-- **akosha, oneiric, dhara, mcp-common** — zero references; they reach
+- **akosha, oneiric, mcp-common** — zero references; they reach
   Session-Buddy over the MCP API on 8678, not the files
 
 ## There is no single knob

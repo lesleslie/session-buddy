@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Migrate skills metrics from JSON to Dhara storage.
+"""Migrate skills metrics from JSON to the SQLite store.
 
 This script migrates existing skills metrics data from the crackerjack JSON
-format to the new Dhara SQLite database with ACID guarantees.
+format to the SQLite database with ACID guarantees.
 
 Features:
 - Discovery of JSON metrics files
@@ -13,16 +13,16 @@ Features:
 
 Usage:
     # Migrate with backup
-    python -m session_buddy.scripts.migrate_json_to_dhara migrate
+    python -m session_buddy.scripts.migrate_json_to_sqlite migrate
 
     # Dry-run (no changes)
-    python -m session_buddy.scripts.migrate_json_to_dhara migrate --dry-run
+    python -m session_buddy.scripts.migrate_json_to_sqlite migrate --dry-run
 
     # Validate migration
-    python -m session_buddy.scripts.migrate_json_to_dhara validate
+    python -m session_buddy.scripts.migrate_json_to_sqlite validate
 
     # Show migration status
-    python -m session_buddy.scripts.migrate_json_to_dhara status
+    python -m session_buddy.scripts.migrate_json_to_sqlite status
 """
 
 from __future__ import annotations
@@ -106,8 +106,8 @@ class MigrationStats:
 # ============================================================================
 
 
-class JSONToDharaMigrator:
-    """Migrate skills metrics from JSON to Dhara storage."""
+class JSONToSQLiteMigrator:
+    """Migrate skills metrics from JSON to the SQLite store."""
 
     def __init__(
         self,
@@ -536,7 +536,7 @@ class JSONToDharaMigrator:
 
 def cmd_migrate(args: argparse.Namespace) -> int:
     """Run migration."""
-    migrator = JSONToDharaMigrator(
+    migrator = JSONToSQLiteMigrator(
         db_path=args.db_path,
         json_dir=args.json_dir,
         backup_dir=args.backup_dir,
@@ -574,7 +574,7 @@ def cmd_migrate(args: argparse.Namespace) -> int:
 
 def cmd_status(args: argparse.Namespace) -> int:
     """Show migration status."""
-    migrator = JSONToDharaMigrator(
+    migrator = JSONToSQLiteMigrator(
         db_path=args.db_path,
         json_dir=args.json_dir,
     )
@@ -582,7 +582,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     status = migrator.get_status()
 
     print("=" * 60)
-    print("JSON to Dhara Migration Status")
+    print("JSON to SQLite Migration Status")
     print("=" * 60)
     print(f"\nDatabase: {args.db_path}")
     print(f"Search Directory: {args.json_dir}")
@@ -604,7 +604,7 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def cmd_validate(args: argparse.Namespace) -> int:
     """Validate migration."""
-    migrator = JSONToDharaMigrator(
+    migrator = JSONToSQLiteMigrator(
         db_path=args.db_path,
         json_dir=args.json_dir,
     )
@@ -625,7 +625,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Migrate skills metrics from JSON to Dhara",
+        description="Migrate skills metrics from JSON to SQLite",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -669,7 +669,7 @@ Examples:
     # migrate command
     migrate_parser = subparsers.add_parser(
         "migrate",
-        help="Migrate JSON data to Dhara",
+        help="Migrate JSON data to SQLite",
     )
     migrate_parser.add_argument(
         "--dry-run",

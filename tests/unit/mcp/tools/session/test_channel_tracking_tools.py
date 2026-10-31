@@ -361,7 +361,3 @@ def test_register_attaches_both_tools() -> None:
     register_channel_tracking_tools(server)
     assert "track_channel_session" in server.tools
     assert "get_channel_sessions" in server.tools
-
-
-
-
