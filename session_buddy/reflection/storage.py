@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Import ULID generator for conversation IDs
+# UUID7 generator for conversation and reflection IDs
 from uuid import uuid7
 
 # Text encoding constants for Unicode support
@@ -300,19 +300,25 @@ async def store_reflection(
     # renamed it to ``id``, and the UUID7 consolidation replaced the ULID
     # contract outright. The old "does this schema still have the ULID
     # column" branch could therefore never be taken on any migrated schema.
+    #
+    # ``category`` is the one NOT NULL column in the v2 schema that has no
+    # DEFAULT, so it has to be supplied. The adapter writes the same
+    # fallback value for it, and ``MIGRATION_SQL`` backfills migrated rows
+    # with it too.
     def _store() -> None:
         # DuckDB connection, not SQLAlchemy; the only interpolated
         # value is a module-level table-name constant.
         # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         conn.execute(
             f"""
-            INSERT INTO {REFLECTIONS_TABLE} (id, content, embedding, project, tags, timestamp, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO {REFLECTIONS_TABLE} (id, content, embedding, category, project, tags, timestamp, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 reflection_id,
                 db_content,
                 embedding,
+                "context",
                 metadata.get("project") if metadata else None,
                 tags_list,
                 datetime.now(UTC),
@@ -395,11 +401,11 @@ async def get_reflection(
     is_temp_db: bool = False,
     lock: Any = None,
 ) -> dict[str, Any] | None:
-    """Get a reflection by ID (supports both MD5 and ULID).
+    """Get a reflection by ID.
 
     Args:
         db: Database connection (or ReflectionDatabase instance)
-        refl_id: Reflection ID (MD5 hash or ULID)
+        refl_id: Reflection ID (UUID7, as 32 lowercase hex characters)
         is_temp_db: Whether this is an in-memory temp DB
         lock: Optional lock for thread-safe temp DB access
 
