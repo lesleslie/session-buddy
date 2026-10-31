@@ -33,7 +33,7 @@ import shutil
 import sqlite3
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -431,7 +431,7 @@ class JSONToSQLiteMigrator:
     def _ensure_schema(self, conn: sqlite3.Connection) -> None:
         """Ensure database schema exists.
 
-        Applies V1 migration if skill_invocation table doesn't exist.
+        Applies all pending migrations if skill_invocation table doesn't exist.
 
         Args:
             conn: Database connection
@@ -445,19 +445,22 @@ class JSONToSQLiteMigrator:
             # Schema already exists
             return
 
-        # Apply V1 migration directly
+        # Apply all migrations via the migration manager
         # Use absolute path from this file's location
         # Script is in scripts/, go up to root, then into session_buddy/storage/migrations
         script_dir = Path(__file__).parent
         migration_dir = script_dir.parent / "session_buddy" / "storage" / "migrations"
-        up_migration = migration_dir / "V1__initial_schema__up.sql"
 
-        if not up_migration.exists():
-            raise FileNotFoundError(f"Migration file not found: {up_migration}")
+        if not migration_dir.exists():
+            raise FileNotFoundError(f"Migration directory not found: {migration_dir}")
 
-        # Read and execute migration SQL
-        sql = up_migration.read_text()
-        conn.executescript(sql)
+        # Use the migration manager to apply all pending migrations
+        from session_buddy.storage.migrations import get_migration_manager
+
+        manager = get_migration_manager(
+            db_path=self.db_path, migration_dir=migration_dir
+        )
+        manager.migrate()
 
     # -----------------------------------------------------------------------#
     # Backup
@@ -471,7 +474,7 @@ class JSONToSQLiteMigrator:
         """
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
-        timestamp = datetime.now(tz=datetime.UTC).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
         backup_path = self.backup_dir / f"skills_backup_{timestamp}.db"
 
         if self.db_path.exists():

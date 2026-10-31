@@ -3,7 +3,7 @@
 """Skills metrics schema migrations.
 
 This package provides database schema migration support for the skills metrics
-storage system using Druva (SQLite-based ACID storage).
+storage system using SQLite (SQLite-based ACID storage).
 
 Usage:
     >>> from session_buddy.storage.migrations import MigrationManager

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: EXE001
-"""Druva-backed persistent storage for skills metrics.
+"""SQLite-backed persistent storage for skills metrics.
 
 Provides ACID-compliant storage for skills tracking with:
 - SQLite3 with WAL mode for concurrency
@@ -58,7 +58,7 @@ class ValidationError(SkillsStorageError):
 
 
 # ============================================================================
-# Skills Storage: Druva-backed persistent storage
+# Skills Storage: SQLite-backed persistent storage
 # ============================================================================
 
 
@@ -115,7 +115,7 @@ class TransitionEntry(TypedDict):
 
 
 class SkillsStorage:
-    """Druva-backed persistent storage for skills metrics.
+    """SQLite-backed persistent storage for skills metrics.
 
     Provides ACID-compliant storage with:
     - Explicit transaction management
@@ -1955,7 +1955,7 @@ def migrate_from_crackerjack(
     json_file: Path,
     storage: SkillsStorage | None = None,
 ) -> dict[str, int]:
-    """Migrate metrics from crackerjack JSON to Druva storage.
+    """Migrate metrics from crackerjack JSON to SQLite storage.
 
     This is a convenience wrapper for SkillsStorage.import_from_json().
 
