@@ -527,3 +527,42 @@ Two further facts the fix exposed:
   behaved differently from the running server: the poisoned-WAL
   recovery path was the thing making the connection healthy.
 
+## Follow-on — the 265 failing unit tests
+
+The unit suite reported **265 failures**, all sharing one stack trace:
+
+```
+_duckdb.ConversionException: Conversion Error:
+Cannot cast list with length 384 to array with length 768
+```
+
+The canonical width is 768 (`session_buddy/memory/embedding_dim.py`),
+and the DuckDB `embedding` column is a fixed-size `FLOAT[N]` ARRAY, so
+a wrong-width vector cannot be bound into it at all. The 384-wide
+vector came from the **test harness**, not from production:
+`tests/unit/conftest.py` carries an autouse fixture that stubs
+`_try_http_embedding_providers` to return `_deterministic_embedding(text)`,
+and that helper hardcoded 384 after the canonical width had already
+moved (384 → 4096 → 768). Because the fixture is autouse it governed
+every test under `tests/unit/`, so the blast radius was the whole
+directory rather than one test.
+
+The rule is broader than that one helper: any fixture that constructs
+`ReflectionAdapterSettings(embedding_dim=...)` *creates* the `FLOAT[N]`
+column, so a stale value there produces a schema that cannot accept the
+canonical-width vector. Every such site now derives the width from
+`DEFAULT_EMBEDDING_DIM`.
+
+**The width fix unmasked a second defect.** `reflections_v2.category` is
+`NOT NULL` with no `DEFAULT`, and `storage.store_reflection` did not
+supply it — so once the vector width matched, the insert failed on the
+constraint instead. It now writes the same `"context"` fallback the
+Oneiric adapter and `MIGRATION_SQL` use; `conversations_v2.category` has
+the same shape and was already handled.
+
+One failure is **not** from this work and is still open:
+`tests/integration/test_uuid7_consolidation.py::test_uuid7_pk_enforced`
+fails on `main` because the test seeds `source_type='manual'` (valid
+per the v2 schema) while migration 007's CHECK constraint allows a
+disjoint vocabulary (`conversation`, `reflection`, `code_graph`,
+`session_window`, `memory_access`, `imported`).
