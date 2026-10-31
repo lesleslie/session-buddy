@@ -20,8 +20,9 @@
 --
 --   * /Users/les/Library/Application Support/akosha/warm
 --       The dead akosha warm directory. Its contents are untracked (no
---       live writer since `dhara` was removed from all six core
---       component pyproject.toml manifests, per Phase 1 findings). The
+--       live writer since the component that owned this scratchpad was
+--       removed from all six core component pyproject.toml manifests,
+--       per Phase 1 findings). The
 --       canonical akosha storage is /Users/les/Projects/akosha/data/, not
 --       the ~/Library/Application Support/warm scratchpad. Per Phase 0.5
 --       step 7, the directory itself (not just the file inside) is
