@@ -89,7 +89,7 @@ and this project adheres to Semantic Versioning.
 
 ### Changed
 
-- session-buddy: Delete _lifespan_with_dhara_cleanup wrapper (oneiric-substrate cleanup)
+- session-buddy: Delete _lifespan_with_publisher_cleanup wrapper (oneiric-substrate cleanup)
 
 ### Fixed
 
@@ -178,7 +178,7 @@ and this project adheres to Semantic Versioning.
 ### Changed
 
 - Phase 0 UUID7 Migration Scripts [migration/2026-10-11-uuid7-phase-0]
-- Phase 5 PR-A retire dhara substrate-compat shim [migration/2026-10-12-uuid7-phase5]
+- Phase 5 PR-A retire the substrate-compat shim [migration/2026-10-12-uuid7-phase5]
 - Phase 5 PR-B retire ULID generator + tasks_legacy [migration/2026-10-12-uuid7-phase5]
 - session-buddy: Adopt OneiricSettings.substrate for embedding/auth
 
@@ -195,7 +195,7 @@ and this project adheres to Semantic Versioning.
 - Add CheckpointOrchestrator with retry, lock, narrow exceptions
 - Add CheckpointPolicy + WorkingTreeInspector
 - Add code_call_chain and code_impact_analysis MCP tools
-- Add DharaChannelPublisher for Phase 2 time-series publishing
+- Add the channel publisher for Phase 2 time-series publishing
 - Add health check tools using mcp-common
 - Add JWT authentication to Session-Buddy WebSocket
 - Add MCP tool input validation for crackerjack integration
@@ -299,7 +299,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: Bodai.apps entry-point (Phase 5.1)
 - session-buddy: BodaiEventsPublisher owns Redis Streams + OTel
 - session-buddy: Emit health-aggregator metrics from /health probe
-- session-buddy: Expand canonical ecosystem diagram with Dhara + Oneiric
+- session-buddy: Expand canonical ecosystem diagram with the storage service + Oneiric
 - session-buddy: Hook single-flight gate + thin-shell plugin manifest
 - session-buddy: Introduce SessionBuddySettings Oneiric-shaped schema alongside legacy
 - session-buddy: Migrate to mcp-common CommonMCPClient (Phase 3 REQ-004)
@@ -345,7 +345,7 @@ and this project adheres to Semantic Versioning.
 - Week 8 Day 1 - Fix test isolation with before/after cleanup pattern
 - Wire CheckpointOrchestrator into session_manager with lite-mode bypass
 - Wire cross-repo work accounting into checkpoint pipeline (wave-1)
-- Wire DharaChannelPublisher in server startup via SESSION_BUDDY_DHARA_URL
+- Wire the channel publisher in server startup via SESSION_BUDDY_PUBLISHER_URL
 - Wire track_channel_session to record_channel_session_state
 - Wire track_channel_session to record_channel_session_state
 - worker: Backend protocol with PlaceholderBackend + LLMBackend
@@ -502,7 +502,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: Use bootstrap_baseline_tools from mcp-common
 - session-buddy: Use path= instead of project_root= in load_settings()
 - session-buddy: Use project_root= instead of path= in load_settings()
-- session-buddy: Vendor ChannelSessionState locally, drop dhara fallback chain
+- session-buddy: Vendor ChannelSessionState locally, drop the storage fallback chain
 - Session-mgmt-mcp (quality: 66/100) - 2025-11-09 01:16:15
 - Session-mgmt-mcp (quality: 66/100) - 2025-11-09 03:04:03
 - Session-mgmt-mcp (quality: 68/100) - 2025-11-07 22:29:21
@@ -607,12 +607,12 @@ and this project adheres to Semantic Versioning.
 - Code_graph tool wireup + typer 0.27.1 regression + checkpoint cycle
 - complexity-score: Drop complexity_weighted_avg orphan
 - Correct 3 bugs blocking scripts/backfill_reflection_project.py
-- Correct dhara_url docstring priority, close publisher on shutdown
+- Correct publisher_url docstring priority, close publisher on shutdown
 - Correct import paths for auto-compaction and reflection database
 - Correct test fixtures and imports for IDE tools
 - Coverage parser decimals + asyncio import (checkpoint bugfix batch)
 - crackerjack-fallback: Address 14 final-review issues in single consolidated patch
-- DharaChannelPublisher aclose, named task, stable tests, declare httpx dep
+- Channel publisher aclose, named task, stable tests, declare httpx dep
 - Dispatch git checkpoint ops via to_thread (partial)
 - docs: Resolve two broken local links in PLAN_INDEX + decisions index
 - Env-var gate + call-time substrate compat (S-CHANNEL-DURABLE v1.1)
@@ -621,7 +621,7 @@ and this project adheres to Semantic Versioning.
 - fixup! chore(discovery): audit and fill ALL_TOOLS_REGISTRY (Item 5)
 - fixup! feat(akosha): include source_type in sync payload (Item 1)
 - fixup! feat(metrics): expose Conscious Agent stats as Prometheus counters (Item 6)
-- Hoist dhara publisher out of loop, settings integration, robust test task drain
+- Hoist the publisher out of loop, settings integration, robust test task drain
 - Import typing as t to resolve NameError in SessionLifecycleManager
 - Improve type safety - reduce pyright errors by 77%
 - Initialize reflection database before storing checkpoint
@@ -630,7 +630,7 @@ and this project adheres to Semantic Versioning.
 - mcp: Drop spurious await on get_activity_summary
 - mcp: Guard redundant signer init in lifespan wrapper
 - mcp: Install bodai_events publisher before lifespan yield
-- mcp: Restore blanket suppression for _dhara_publisher.aclose()
+- mcp: Restore blanket suppression for _publisher.aclose()
 - memory: Thread project through store_reflection + render real dates in quick_search
 - Move TYPE_CHECKING-only imports to runtime scope
 - multi-project: Add context column to session_links table
@@ -665,7 +665,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: App_monitor + conscious_agent — 3 tests
 - session-buddy: App_monitor get_active_files naive/aware subtraction
 - session-buddy: App_monitor tz-aware compare against system local time
-- session-buddy: Append /mcp to DHARA_DEFAULT_URL (Phase 2 REQ-005)
+- session-buddy: Append /mcp to the publisher default URL (Phase 2 REQ-005)
 - session-buddy: Bump mcp-common floor to >=0.19.0
 - session-buddy: Catch duckdb.CatalogException in advanced_search
 - session-buddy: Category_evolution + context_manager — 5 tests
@@ -706,7 +706,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: Register baseline tools via register_baseline_tools
 - session-buddy: Register ReflectionDatabaseAdapterOneiric in DI container
 - session-buddy: Remove duplicate session lifecycle flowchart from README
-- session-buddy: Remove obsolete dhara_url field, fix nested-dict merge drift
+- session-buddy: Remove obsolete publisher_url field, fix nested-dict merge drift
 - session-buddy: Remove orphan tool + sync profile docstring
 - session-buddy: Remove unused register_baseline_tools import
 - session-buddy: Remove unused ty ignore directives
@@ -838,7 +838,7 @@ and this project adheres to Semantic Versioning.
 - design: Mark SKILL_METRICS_AGGREGATION as historical; record proposed layout was not built
 - design: Mark SKILL_METRICS_IMPLEMENTATION as historical; record proposed layout was not built
 - docs: Update 6 files
-- Drop 'Dhara publisher' qualifier from CLAUDE.md (Phase 8 T16)
+- Drop 'publisher' qualifier from CLAUDE.md (Phase 8 T16)
 - feature-tracking: Correct TOOL_REGISTRATION_GAPS (2026-09-09)
 - Fix broken badge images in README + Mahavishnu typos in ARCHITECTURE
 - fix: Correct cwd for uv run session-buddy server start
@@ -1042,7 +1042,7 @@ and this project adheres to Semantic Versioning.
 
 ### Build
 
-- deps: Drop dhara dep from runtime dependencies (Phase 8 T11)
+- deps: Drop the storage dep from runtime dependencies (Phase 8 T11)
 - session-buddy: Declare coredis dep for BodaiEventsPublisher
 
 ### Internal
@@ -1219,7 +1219,7 @@ and this project adheres to Semantic Versioning.
 - Add CheckpointOrchestrator with retry, lock, narrow exceptions
 - Add CheckpointPolicy + WorkingTreeInspector
 - Add code_call_chain and code_impact_analysis MCP tools
-- Add DharaChannelPublisher for Phase 2 time-series publishing
+- Add the channel publisher for Phase 2 time-series publishing
 - Add health check tools using mcp-common
 - Add JWT authentication to Session-Buddy WebSocket
 - Add MCP tool input validation for crackerjack integration
@@ -1323,7 +1323,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: Bodai.apps entry-point (Phase 5.1)
 - session-buddy: BodaiEventsPublisher owns Redis Streams + OTel
 - session-buddy: Emit health-aggregator metrics from /health probe
-- session-buddy: Expand canonical ecosystem diagram with Dhara + Oneiric
+- session-buddy: Expand canonical ecosystem diagram with the storage service + Oneiric
 - session-buddy: Hook single-flight gate + thin-shell plugin manifest
 - session-buddy: Introduce SessionBuddySettings Oneiric-shaped schema alongside legacy
 - session-buddy: Migrate to mcp-common CommonMCPClient (Phase 3 REQ-004)
@@ -1369,7 +1369,7 @@ and this project adheres to Semantic Versioning.
 - Week 8 Day 1 - Fix test isolation with before/after cleanup pattern
 - Wire CheckpointOrchestrator into session_manager with lite-mode bypass
 - Wire cross-repo work accounting into checkpoint pipeline (wave-1)
-- Wire DharaChannelPublisher in server startup via SESSION_BUDDY_DHARA_URL
+- Wire the channel publisher in server startup via SESSION_BUDDY_PUBLISHER_URL
 - Wire track_channel_session to record_channel_session_state
 - Wire track_channel_session to record_channel_session_state
 - worker: Backend protocol with PlaceholderBackend + LLMBackend
@@ -1526,7 +1526,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: Use bootstrap_baseline_tools from mcp-common
 - session-buddy: Use path= instead of project_root= in load_settings()
 - session-buddy: Use project_root= instead of path= in load_settings()
-- session-buddy: Vendor ChannelSessionState locally, drop dhara fallback chain
+- session-buddy: Vendor ChannelSessionState locally, drop the storage fallback chain
 - Session-mgmt-mcp (quality: 66/100) - 2025-11-09 01:16:15
 - Session-mgmt-mcp (quality: 66/100) - 2025-11-09 03:04:03
 - Session-mgmt-mcp (quality: 68/100) - 2025-11-07 22:29:21
@@ -1631,12 +1631,12 @@ and this project adheres to Semantic Versioning.
 - Code_graph tool wireup + typer 0.27.1 regression + checkpoint cycle
 - complexity-score: Drop complexity_weighted_avg orphan
 - Correct 3 bugs blocking scripts/backfill_reflection_project.py
-- Correct dhara_url docstring priority, close publisher on shutdown
+- Correct publisher_url docstring priority, close publisher on shutdown
 - Correct import paths for auto-compaction and reflection database
 - Correct test fixtures and imports for IDE tools
 - Coverage parser decimals + asyncio import (checkpoint bugfix batch)
 - crackerjack-fallback: Address 14 final-review issues in single consolidated patch
-- DharaChannelPublisher aclose, named task, stable tests, declare httpx dep
+- Channel publisher aclose, named task, stable tests, declare httpx dep
 - Dispatch git checkpoint ops via to_thread (partial)
 - docs: Resolve two broken local links in PLAN_INDEX + decisions index
 - Env-var gate + call-time substrate compat (S-CHANNEL-DURABLE v1.1)
@@ -1645,14 +1645,14 @@ and this project adheres to Semantic Versioning.
 - fixup! chore(discovery): audit and fill ALL_TOOLS_REGISTRY (Item 5)
 - fixup! feat(akosha): include source_type in sync payload (Item 1)
 - fixup! feat(metrics): expose Conscious Agent stats as Prometheus counters (Item 6)
-- Hoist dhara publisher out of loop, settings integration, robust test task drain
+- Hoist the publisher out of loop, settings integration, robust test task drain
 - Import typing as t to resolve NameError in SessionLifecycleManager
 - Improve type safety - reduce pyright errors by 77%
 - Initialize reflection database before storing checkpoint
 - mcp: Align Session-Buddy with streamable-http transport
 - mcp: Drop spurious await on get_activity_summary
 - mcp: Guard redundant signer init in lifespan wrapper
-- mcp: Restore blanket suppression for _dhara_publisher.aclose()
+- mcp: Restore blanket suppression for _publisher.aclose()
 - memory: Thread project through store_reflection + render real dates in quick_search
 - Move TYPE_CHECKING-only imports to runtime scope
 - multi-project: Add context column to session_links table
@@ -1685,7 +1685,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: App_monitor + conscious_agent — 3 tests
 - session-buddy: App_monitor get_active_files naive/aware subtraction
 - session-buddy: App_monitor tz-aware compare against system local time
-- session-buddy: Append /mcp to DHARA_DEFAULT_URL (Phase 2 REQ-005)
+- session-buddy: Append /mcp to the publisher default URL (Phase 2 REQ-005)
 - session-buddy: Bump mcp-common floor to >=0.19.0
 - session-buddy: Catch duckdb.CatalogException in advanced_search
 - session-buddy: Category_evolution + context_manager — 5 tests
@@ -1726,7 +1726,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: Register baseline tools via register_baseline_tools
 - session-buddy: Register ReflectionDatabaseAdapterOneiric in DI container
 - session-buddy: Remove duplicate session lifecycle flowchart from README
-- session-buddy: Remove obsolete dhara_url field, fix nested-dict merge drift
+- session-buddy: Remove obsolete publisher_url field, fix nested-dict merge drift
 - session-buddy: Remove orphan tool + sync profile docstring
 - session-buddy: Remove unused register_baseline_tools import
 - session-buddy: Remove unused ty ignore directives
@@ -1858,7 +1858,7 @@ and this project adheres to Semantic Versioning.
 - design: Mark SKILL_METRICS_AGGREGATION as historical; record proposed layout was not built
 - design: Mark SKILL_METRICS_IMPLEMENTATION as historical; record proposed layout was not built
 - docs: Update 6 files
-- Drop 'Dhara publisher' qualifier from CLAUDE.md (Phase 8 T16)
+- Drop 'publisher' qualifier from CLAUDE.md (Phase 8 T16)
 - feature-tracking: Correct TOOL_REGISTRATION_GAPS (2026-09-09)
 - Fix broken badge images in README + Mahavishnu typos in ARCHITECTURE
 - fix: Correct cwd for uv run session-buddy server start
@@ -2062,7 +2062,7 @@ and this project adheres to Semantic Versioning.
 
 ### Build
 
-- deps: Drop dhara dep from runtime dependencies (Phase 8 T11)
+- deps: Drop the storage dep from runtime dependencies (Phase 8 T11)
 - session-buddy: Declare coredis dep for BodaiEventsPublisher
 
 ### Internal
@@ -2247,7 +2247,7 @@ and this project adheres to Semantic Versioning.
 
 - session-buddy: Adapters/settings.py reads paths.data_dir (nested)
 - session-buddy: Point task-system spec link at canonical docs/specs path
-- session-buddy: Remove obsolete dhara_url field, fix nested-dict merge drift
+- session-buddy: Remove obsolete publisher_url field, fix nested-dict merge drift
 
 ### Testing
 
@@ -2272,7 +2272,7 @@ and this project adheres to Semantic Versioning.
 - Add CheckpointOrchestrator with retry, lock, narrow exceptions
 - Add CheckpointPolicy + WorkingTreeInspector
 - Add code_call_chain and code_impact_analysis MCP tools
-- Add DharaChannelPublisher for Phase 2 time-series publishing
+- Add the channel publisher for Phase 2 time-series publishing
 - Add health check tools using mcp-common
 - Add JWT authentication to Session-Buddy WebSocket
 - Add MCP tool input validation for crackerjack integration
@@ -2376,7 +2376,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: Bodai.apps entry-point (Phase 5.1)
 - session-buddy: BodaiEventsPublisher owns Redis Streams + OTel
 - session-buddy: Emit health-aggregator metrics from /health probe
-- session-buddy: Expand canonical ecosystem diagram with Dhara + Oneiric
+- session-buddy: Expand canonical ecosystem diagram with the storage service + Oneiric
 - session-buddy: Hook single-flight gate + thin-shell plugin manifest
 - session-buddy: Migrate to mcp-common CommonMCPClient (Phase 3 REQ-004)
 - session-buddy: Mirror wave-11 mermaid CI guard from crackerjack
@@ -2419,7 +2419,7 @@ and this project adheres to Semantic Versioning.
 - Week 8 Day 1 - Fix test isolation with before/after cleanup pattern
 - Wire CheckpointOrchestrator into session_manager with lite-mode bypass
 - Wire cross-repo work accounting into checkpoint pipeline (wave-1)
-- Wire DharaChannelPublisher in server startup via SESSION_BUDDY_DHARA_URL
+- Wire the channel publisher in server startup via SESSION_BUDDY_PUBLISHER_URL
 - Wire track_channel_session to record_channel_session_state
 - Wire track_channel_session to record_channel_session_state
 - worker: Backend protocol with PlaceholderBackend + LLMBackend
@@ -2578,7 +2578,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: Use bootstrap_baseline_tools from mcp-common
 - session-buddy: Use path= instead of project_root= in load_settings()
 - session-buddy: Use project_root= instead of path= in load_settings()
-- session-buddy: Vendor ChannelSessionState locally, drop dhara fallback chain
+- session-buddy: Vendor ChannelSessionState locally, drop the storage fallback chain
 - Session-mgmt-mcp (quality: 66/100) - 2025-11-09 01:16:15
 - Session-mgmt-mcp (quality: 66/100) - 2025-11-09 03:04:03
 - Session-mgmt-mcp (quality: 68/100) - 2025-11-07 22:29:21
@@ -2686,12 +2686,12 @@ and this project adheres to Semantic Versioning.
 - Code_graph tool wireup + typer 0.27.1 regression + checkpoint cycle
 - complexity-score: Drop complexity_weighted_avg orphan
 - Correct 3 bugs blocking scripts/backfill_reflection_project.py
-- Correct dhara_url docstring priority, close publisher on shutdown
+- Correct publisher_url docstring priority, close publisher on shutdown
 - Correct import paths for auto-compaction and reflection database
 - Correct test fixtures and imports for IDE tools
 - Coverage parser decimals + asyncio import (checkpoint bugfix batch)
 - crackerjack-fallback: Address 14 final-review issues in single consolidated patch
-- DharaChannelPublisher aclose, named task, stable tests, declare httpx dep
+- Channel publisher aclose, named task, stable tests, declare httpx dep
 - Dispatch git checkpoint ops via to_thread (partial)
 - docs: Resolve two broken local links in PLAN_INDEX + decisions index
 - Env-var gate + call-time substrate compat (S-CHANNEL-DURABLE v1.1)
@@ -2700,14 +2700,14 @@ and this project adheres to Semantic Versioning.
 - fixup! chore(discovery): audit and fill ALL_TOOLS_REGISTRY (Item 5)
 - fixup! feat(akosha): include source_type in sync payload (Item 1)
 - fixup! feat(metrics): expose Conscious Agent stats as Prometheus counters (Item 6)
-- Hoist dhara publisher out of loop, settings integration, robust test task drain
+- Hoist the publisher out of loop, settings integration, robust test task drain
 - Import typing as t to resolve NameError in SessionLifecycleManager
 - Improve type safety - reduce pyright errors by 77%
 - Initialize reflection database before storing checkpoint
 - mcp: Align Session-Buddy with streamable-http transport
 - mcp: Drop spurious await on get_activity_summary
 - mcp: Guard redundant signer init in lifespan wrapper
-- mcp: Restore blanket suppression for _dhara_publisher.aclose()
+- mcp: Restore blanket suppression for _publisher.aclose()
 - memory: Thread project through store_reflection + render real dates in quick_search
 - Move TYPE_CHECKING-only imports to runtime scope
 - multi-project: Add context column to session_links table
@@ -2739,7 +2739,7 @@ and this project adheres to Semantic Versioning.
 - session-buddy: App_monitor + conscious_agent — 3 tests
 - session-buddy: App_monitor get_active_files naive/aware subtraction
 - session-buddy: App_monitor tz-aware compare against system local time
-- session-buddy: Append /mcp to DHARA_DEFAULT_URL (Phase 2 REQ-005)
+- session-buddy: Append /mcp to the publisher default URL (Phase 2 REQ-005)
 - session-buddy: Bump mcp-common floor to >=0.19.0
 - session-buddy: Catch duckdb.CatalogException in advanced_search
 - session-buddy: Category_evolution + context_manager — 5 tests
@@ -2910,7 +2910,7 @@ and this project adheres to Semantic Versioning.
 - design: Mark SKILL_METRICS_AGGREGATION as historical; record proposed layout was not built
 - design: Mark SKILL_METRICS_IMPLEMENTATION as historical; record proposed layout was not built
 - docs: Update 6 files
-- Drop 'Dhara publisher' qualifier from CLAUDE.md (Phase 8 T16)
+- Drop 'publisher' qualifier from CLAUDE.md (Phase 8 T16)
 - feature-tracking: Correct TOOL_REGISTRATION_GAPS (2026-09-09)
 - Fix broken badge images in README + Mahavishnu typos in ARCHITECTURE
 - fix: Correct cwd for uv run session-buddy server start
@@ -3106,7 +3106,7 @@ and this project adheres to Semantic Versioning.
 
 ### Build
 
-- deps: Drop dhara dep from runtime dependencies (Phase 8 T11)
+- deps: Drop the storage dep from runtime dependencies (Phase 8 T11)
 - session-buddy: Declare coredis dep for BodaiEventsPublisher
 
 ### Internal
@@ -3449,15 +3449,15 @@ and this project adheres to Semantic Versioning.
 ### Changed
 
 - session-buddy: Re-export canonical AgentMetadata/SkillMetadata aliases (Phase 10 task 4)
-- session-buddy: Vendor ChannelSessionState locally, drop dhara fallback chain
+- session-buddy: Vendor ChannelSessionState locally, drop the storage fallback chain
 
 ### Documentation
 
-- Drop 'Dhara publisher' qualifier from CLAUDE.md (Phase 8 T16)
+- Drop 'publisher' qualifier from CLAUDE.md (Phase 8 T16)
 
 ### Build
 
-- deps: Drop dhara dep from runtime dependencies (Phase 8 T11)
+- deps: Drop the storage dep from runtime dependencies (Phase 8 T11)
 
 ## [0.26.4] - 2026-09-15
 
@@ -3505,7 +3505,7 @@ and this project adheres to Semantic Versioning.
 
 ### Fixed
 
-- session-buddy: Append /mcp to DHARA_DEFAULT_URL (Phase 2 REQ-005)
+- session-buddy: Append /mcp to the publisher default URL (Phase 2 REQ-005)
 
 ### Internal
 
@@ -3775,7 +3775,7 @@ and this project adheres to Semantic Versioning.
 
 ### Added
 
-- session-buddy: Expand canonical ecosystem diagram with Dhara + Oneiric
+- session-buddy: Expand canonical ecosystem diagram with the storage service + Oneiric
 - session-buddy: Mirror wave-11 mermaid CI guard from crackerjack
 
 ### Fixed
@@ -3886,7 +3886,7 @@ and this project adheres to Semantic Versioning.
 - crackerjack-fallback: Address 14 final-review issues in single consolidated patch
 - Env-var gate + call-time substrate compat (S-CHANNEL-DURABLE v1.1)
 - fallback: Route get_feature_flags through module attribute and cover enabled path
-- mcp: Restore blanket suppression for _dhara_publisher.aclose()
+- mcp: Restore blanket suppression for _publisher.aclose()
 - session-buddy: Deprecation-safe loop + symbol mapping in code-graph SQL fallback
 - session-buddy: Remove orphan tool + sync profile docstring
 - utils: 2 worktree MCP bugs (sanitization, timeout)
@@ -4216,14 +4216,14 @@ and this project adheres to Semantic Versioning.
 
 ### Added
 
-- Add DharaChannelPublisher for Phase 2 time-series publishing
-- Wire DharaChannelPublisher in server startup via SESSION_BUDDY_DHARA_URL
+- Add the channel publisher for Phase 2 time-series publishing
+- Wire the channel publisher in server startup via SESSION_BUDDY_PUBLISHER_URL
 
 ### Fixed
 
-- Correct dhara_url docstring priority, close publisher on shutdown
-- DharaChannelPublisher aclose, named task, stable tests, declare httpx dep
-- Hoist dhara publisher out of loop, settings integration, robust test task drain
+- Correct publisher_url docstring priority, close publisher on shutdown
+- Channel publisher aclose, named task, stable tests, declare httpx dep
+- Hoist the publisher out of loop, settings integration, robust test task drain
 
 ## [0.17.0] - 2026-05-10
 
