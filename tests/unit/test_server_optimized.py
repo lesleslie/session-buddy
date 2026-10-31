@@ -653,7 +653,17 @@ class TestGetPermissionsManager:
 
 
 class TestRunServer:
-    """Tests for run_server function."""
+    """Tests for run_server function.
+
+    ``run_server`` delegates the actual serve to
+    ``mcp_common.server.launch`` (commit 441b5812 moved it there), so
+    that is what these tests mock. Mocking ``so.mcp.run`` instead — as
+    an earlier revision of this class did — intercepts nothing: the
+    launcher builds the server from ``build_live_server`` and calls
+    ``run_async`` on it, never ``run``. The test then started a real
+    server, which either failed to bind (the production port was taken)
+    or hung until the pytest timeout.
+    """
 
     def test_run_server_logs_info(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should log server startup information."""
@@ -662,12 +672,13 @@ class TestRunServer:
         mock_logger = MagicMock()
         monkeypatch.setattr(so, "logger", mock_logger)
 
-        with patch.object(so.mcp, "run") as mock_run:
+        mock_launch = AsyncMock()
+        with patch("mcp_common.server.launch", mock_launch):
             monkeypatch.setattr(so, "MCP_AVAILABLE", True)
             so.run_server(host="127.0.0.1", port=8678)
 
             mock_logger.info.assert_any_call("Starting optimized session-buddy server")
-            mock_run.assert_called_once()
+            assert mock_launch.await_count == 1
 
     def test_run_server_with_custom_host_port(
         self, monkeypatch: pytest.MonkeyPatch
@@ -678,31 +689,33 @@ class TestRunServer:
         mock_logger = MagicMock()
         monkeypatch.setattr(so, "logger", mock_logger)
 
-        with patch.object(so.mcp, "run") as mock_run:
+        mock_launch = AsyncMock()
+        with patch("mcp_common.server.launch", mock_launch):
             monkeypatch.setattr(so, "MCP_AVAILABLE", True)
             so.run_server(host="0.0.0.0", port=9000)
 
-            mock_run.assert_called_once_with(
-                transport="streamable-http",
-                host="0.0.0.0",
-                port=9000,
-                path="/mcp",
-                uvicorn_config={"timeout_graceful_shutdown": 30},
-            )
+            kwargs = mock_launch.await_args.kwargs
+            assert kwargs["host"] == "0.0.0.0"
+            assert kwargs["port"] == 9000
+            assert kwargs["component_name"] == "session-buddy"
 
     def test_run_server_handles_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Should handle exceptions during startup."""
+        """Should propagate startup failures to the caller.
+
+        ``run_server`` has no exception handling of its own: a launcher
+        failure reaches the caller as-is.
+        """
         import session_buddy.server_optimized as so
 
         mock_logger = MagicMock()
         monkeypatch.setattr(so, "logger", mock_logger)
 
-        with patch.object(so.mcp, "run", side_effect=Exception("Server error")):
+        mock_launch = AsyncMock(side_effect=RuntimeError("Server error"))
+        with patch("mcp_common.server.launch", mock_launch):
             monkeypatch.setattr(so, "MCP_AVAILABLE", True)
 
-            with pytest.raises(SystemExit) as exc_info:
+            with pytest.raises(RuntimeError, match="Server error"):
                 so.run_server()
-            assert exc_info.value.code == 1
 
 
 # ==============================================================================
