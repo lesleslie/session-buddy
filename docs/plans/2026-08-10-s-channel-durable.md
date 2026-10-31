@@ -2,19 +2,33 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire the `channel_session_state` typed schema (from `dhara.schema`) into session-buddy's `_ChannelSessionStore`. Replace in-memory state with durable structured records.
+> **Superseded in part (2026-10-11, Phase 5 of the UUID7 migration; doc pass 2026-10-30).**
+> The external substrate schema package this plan depended on was retired. The
+> `channel_session_state` schema now lives in session-buddy itself
+> (`session_buddy/channel/_models.py`), the substrate-compat shim was deleted,
+> and the producer's persistence is a no-op until a replacement substrate is
+> wired. The step structure, the TDD discipline, and the feature-flag contract
+> below are unchanged. Where the plan referenced the retired package, the
+> schema import now points at the local module, and the substrate registry /
+> write / read calls are marked `REMOVED` because they no longer exist.
 
-**Architecture:** Producer module `session_buddy/channel/state_writer.py` imports `ChannelSessionState` from `dhara.schema`, validates via `validate("channel_session_state", payload)`, persists via Dhara. Consumer module exposes a `channel_session_get_state(channel_id, sender_id)` MCP tool that reads back via `from_dict` and returns validated struct.
+**Goal:** Wire the `channel_session_state` typed schema into session-buddy's `_ChannelSessionStore`. Replace in-memory state with durable structured records.
 
-**Tech Stack:** Python 3.13, msgspec.Struct (substrate), Dhara + FastMCP (existing), pytest-asyncio, no new third-party deps.
+**Architecture:** Producer module `session_buddy/channel/state_writer.py` imports `ChannelSessionState` from the local schema module (`session_buddy/channel/_models.py`), validates the payload, persists via the durable substrate. Consumer module exposes a `channel_session_get_state(channel_id, sender_id)` MCP tool that reads the record back and returns the validated struct.
+
+**Tech Stack:** Python 3.13, msgspec.Struct (substrate), FastMCP (existing), pytest-asyncio, no new third-party deps.
 
 ## Global Constraints
 
 These constraints apply to **every task** below.
 
-- All payloads validated via `validate("channel_session_state", payload)` from `dhara.schema.SCHEMA_REGISTRY`.
-- Read paths use `from_dict("channel_session_state", payload)`.
-- Use ONLY the public `dhara.schema` re-exports.
+- All payloads validated against the `channel_session_state` schema before they are persisted.
+- Read paths reconstruct the typed struct from the persisted payload.
+- Use ONLY the public schema exports.
+- REMOVED (Phase 5, 2026-10-11): the substrate schema registry (`validate(...)`
+  / `from_dict(...)`) is gone. The local struct validates through
+  `msgspec.convert(payload, ChannelSessionState)` and raises
+  `msgspec.ValidationError` on a malformed payload.
 - `from __future__ import annotations` first non-comment line.
 - Imports sorted stdlib → third-party → first-party with `force-sort-within-sections = true`, `known-first-party = ["session_buddy"]`.
 - `X | None = None` (no implicit Optional).
@@ -34,9 +48,9 @@ ______________________________________________________________________
 
 **Interfaces:**
 
-- Consumes: `dhara.schema.channel_session_state.ChannelSessionState`, `validate(...)` from `SCHEMA_REGISTRY`
+- Consumes: `ChannelSessionState` from the local schema module (`session_buddy/channel/_models.py`)
 
-- Produces: `record_channel_session_state(channel_type, channel_id, sender_id, started_at, last_event_at, metadata=None) -> ChannelSessionState`
+- Produces: `record_channel_session_state(channel_type, channel_id, sender_id, last_event_at, metadata=None) -> ChannelSessionState`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -50,49 +64,55 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from dhara.schema.channel_session_state import ChannelSessionState
+from session_buddy.channel._models import ChannelSessionState
 
 
 @pytest.fixture
-def dhara_storage(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+def substrate_storage(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     captured: list[tuple[str, dict]] = []
     mock_put = MagicMock(side_effect=lambda key, value: captured.append((key, value)))
-    monkeypatch.setattr("session_buddy.channel.state_writer.dhara.put", mock_put)
+    # REMOVED (Phase 5, 2026-10-11): the substrate write path was retired, so
+    # there is no `state_writer.substrate.put` left to patch. The producer
+    # validates only, then increments the `attempted` / `skipped` counters and
+    # logs `channel_session_state_persistence_skipped`.
+    # monkeypatch.setattr("session_buddy.channel.state_writer.substrate.put", mock_put)
     return mock_put
 
 
 def test_record_channel_session_state_persists_validated_struct(
-    dhara_storage: MagicMock,
+    substrate_storage: MagicMock,
 ) -> None:
     from session_buddy.channel.state_writer import record_channel_session_state
     record = record_channel_session_state(
         channel_type="slack",
         channel_id="C123",
         sender_id="U456",
-        started_at=datetime(2026, 8, 10, 12, 0, 0, tzinfo=UTC),
         last_event_at=datetime(2026, 8, 10, 12, 5, 0, tzinfo=UTC),
     )
     assert isinstance(record, ChannelSessionState)
     assert record.channel_type == "slack"
-    assert dhara_storage.call_count == 1
+    # REMOVED (Phase 5, 2026-10-11): there is no substrate write to assert on;
+    # the no-op path is pinned by the counter/log assertions in
+    # `tests/unit/channel/test_state_writer.py`.
 
 
 def test_record_channel_session_state_rejects_unknown_channel_type(
-    dhara_storage: MagicMock,
+    substrate_storage: MagicMock,
 ) -> None:
-    """channel_type must be str (substrate does not enforce enum)."""
-    from dhara.schema._registry import SchemaValidationError
+    """channel_type must be str (the schema does not enforce enum)."""
     from session_buddy.channel.state_writer import record_channel_session_state
-    # Substrate accepts arbitrary str for channel_type (per spec)
+    # The schema accepts arbitrary str for channel_type (per spec)
     record = record_channel_session_state(
         channel_type="custom_unknown",
         channel_id="C1",
         sender_id="U1",
-        started_at=datetime.now(UTC),
         last_event_at=datetime.now(UTC),
     )
     assert isinstance(record, ChannelSessionState)
-    assert dhara_storage.call_count == 1
+    # REMOVED (Phase 5, 2026-10-11): the substrate write assertion above is
+    # gone with the write path. A malformed payload raises
+    # `msgspec.ValidationError` instead — see
+    # `tests/unit/channel/test_state_writer.py::test_record_validates_payload_post_phase5`.
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -110,14 +130,12 @@ Create `session_buddy/channel/state_writer.py`:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import Any
 
-from dhara.schema._registry import validate
-from dhara.schema.channel_session_state import ChannelSessionState
+import msgspec
 from oneiric.logging import get_logger
 
-if TYPE_CHECKING:
-    pass
+from session_buddy.channel._models import ChannelSessionState
 
 logger = get_logger(__name__)
 
@@ -126,23 +144,21 @@ def record_channel_session_state(
     channel_type: str,
     channel_id: str,
     sender_id: str,
-    started_at: datetime,
     last_event_at: datetime,
-    metadata: dict[str, object] | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> ChannelSessionState:
-    """Validate the channel session state payload, persist via dhara.put."""
-    payload = {
+    """Validate the channel session state payload and persist it."""
+    payload: dict[str, Any] = {
         "channel_type": channel_type,
         "channel_id": channel_id,
         "sender_id": sender_id,
-        "started_at": started_at,
         "last_event_at": last_event_at,
         "metadata": metadata or {},
     }
-    validated = validate("channel_session_state", payload)
-    assert isinstance(validated, ChannelSessionState)
-    import dhara
-    dhara.put(f"channel-sessions/{channel_id}/{sender_id}/", validated)
+    validated: ChannelSessionState = msgspec.convert(payload, ChannelSessionState)
+    # REMOVED (Phase 5, 2026-10-11): the substrate write call was retired —
+    # there is no durable substrate wired yet, so persistence is a no-op.
+    #     substrate.put(f"channel-sessions/{channel_id}/{sender_id}/", validated)
     logger.info(
         "channel_session_state_recorded",
         extra={"channel_type": channel_type, "channel_id": channel_id, "sender_id": sender_id},
@@ -174,7 +190,7 @@ ______________________________________________________________________
 
 **Interfaces:**
 
-- Consumes: `from_dict("channel_session_state", payload)`, `dhara.get(...)`
+- Consumes: the persisted payload and the typed-struct reconstruction step
 
 - Produces: `channel_session_get_state(channel_id, sender_id) -> ChannelSessionState | None`
 
@@ -186,30 +202,35 @@ ______________________________________________________________________
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
 
-import pytest
-
-from dhara.schema.channel_session_state import ChannelSessionState
+from session_buddy.channel._models import ChannelSessionState
 
 
-def test_channel_session_get_state_returns_validated_struct(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_channel_session_get_state_returns_validated_struct() -> None:
     payload = {
         "channel_type": "slack",
         "channel_id": "C123",
         "sender_id": "U456",
-        "started_at": datetime(2026, 8, 10, 12, 0, 0, tzinfo=UTC).isoformat(),
         "last_event_at": datetime(2026, 8, 10, 12, 5, 0, tzinfo=UTC).isoformat(),
         "metadata": {},
     }
-    monkeypatch.setattr(
-        "session_buddy.mcp_tools.channel_tools.dhara.get",
-        MagicMock(return_value=payload),
+    # REMOVED (Phase 5, 2026-10-11): the substrate read path was retired, so
+    # there is no `channel_tools.substrate.get` to patch and the registered
+    # consumer tool returns `None` until a replacement substrate is wired. The
+    # reconstruction contract below is the one it will follow once one is.
+    # monkeypatch.setattr(
+    #     "session_buddy.mcp.tools.session.channel_session_state_tools.substrate.get",
+    #     MagicMock(return_value=payload),
+    # )
+    record = ChannelSessionState(
+        channel_type=payload["channel_type"],
+        channel_id=payload["channel_id"],
+        sender_id=payload["sender_id"],
+        last_event_at=datetime.fromisoformat(payload["last_event_at"]),
+        metadata=payload["metadata"],
     )
-    from session_buddy.mcp_tools.channel_tools import channel_session_get_state
-    result = channel_session_get_state("C123", "U456")
-    assert isinstance(result, ChannelSessionState)
-    assert result.channel_type == "slack"
+    assert isinstance(record, ChannelSessionState)
+    assert record.channel_type == "slack"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -226,22 +247,22 @@ Create `session_buddy/mcp_tools/channel_tools.py`:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any
 
-from dhara.schema._registry import from_dict
-from dhara.schema.channel_session_state import ChannelSessionState
+import msgspec
 
-if TYPE_CHECKING:
-    pass
+from session_buddy.channel._models import ChannelSessionState
 
 
 def channel_session_get_state(channel_id: str, sender_id: str) -> ChannelSessionState | None:
-    """Read back the persisted ChannelSessionState via from_dict, validating the payload."""
-    import dhara
-    payload = dhara.get(f"channel-sessions/{channel_id}/{sender_id}/")
+    """Read back the persisted ChannelSessionState, validating the payload."""
+    # REMOVED (Phase 5, 2026-10-11): the substrate read call was retired —
+    # there is no durable substrate wired yet, so the consumer returns `None`.
+    #     payload = substrate.get(f"channel-sessions/{channel_id}/{sender_id}/")
+    payload: dict[str, Any] | None = None
     if payload is None:
         return None
-    return from_dict("channel_session_state", payload)
+    return msgspec.convert(payload, ChannelSessionState)
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -337,7 +358,7 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_channel_session_state_survives_restart(tmp_path) -> None:
-    pytest.skip("Replace with the actual Dhara fixture once located")
+    pytest.skip("Replace with the actual durable-substrate fixture once located")
 ```
 
 - [ ] **Step 2: Run crackerjack gate**

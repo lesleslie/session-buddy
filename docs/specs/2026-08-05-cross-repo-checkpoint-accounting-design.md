@@ -10,7 +10,7 @@
 
 ## Context
 
-Session-buddy's checkpoint pipeline is currently strictly single-project: when a session runs `mcp__session-buddy__checkpoint`, the work captured is scoped to `working_directory.name` only. Other Bodai ecosystem repos (mahavishnu, akosha, dhara, crackerjack, oneiric) are invisible to the checkpoint.
+Session-buddy's checkpoint pipeline is currently strictly single-project: when a session runs `mcp__session-buddy__checkpoint`, the work captured is scoped to `working_directory.name` only. Other Bodai ecosystem repos (mahavishnu, akosha, crackerjack, oneiric) are invisible to the checkpoint.
 
 This breaks down when a single session spans multiple repos — e.g., the session that built mahavishnu's pool routing AND ran crackerjack quality work AND fixed session-buddy itself. The handoff doc captures session-buddy work but not the cross-repo work. Future consumers (routing, trigger follow-ups) have no audit trail.
 
@@ -462,7 +462,7 @@ Per-review trend-analyst C1, C2, I5 (and Important #1, #2): the Bodai Observabil
 
 **Position of `cross_repo_work_v2` in the convergence roadmap:**
 
-- `cross_repo_work_v2` is a **pre-EventBridge materialization** for repos that haven't shipped their EventBridge publishers yet (mahavishnu, akosha, dhara, crackerjack are scheduled for 6.2a/6.2b; the rest of the 26 Bodai repos are not on that roadmap).
+- `cross_repo_work_v2` is a **pre-EventBridge materialization** for repos that haven't shipped their EventBridge publishers yet (mahavishnu, akosha, crackerjack are scheduled for 6.2a/6.2b; the rest of the 26 Bodai repos are not on that roadmap).
 - EventBridge activity events for entry kinds `test_run.completed`, `workflow.completed`, `agent.task.*` are the **primary live path** once publishers ship. `cross_repo_work_v2` rows are a **checkpoint-time snapshot** that catches work the publishers missed (commits, manual `plan_ref` entries, `blocker` markers).
 - Future routing/trigger consumers in Mahavishnu should be designed against the EventBridge envelope (per Bodai Observability Pattern); `cross_repo_work_v2` is a fallback for the gap period.
 - The `contributor_sources JSON` column records `["ambient", "explicit"]` per row, providing the audit trail that EventBridge eventually replaces.
@@ -504,7 +504,7 @@ Per-review trend-analyst C1, C2, I5 (and Important #1, #2): the Bodai Observabil
 - Trigger follow-ups via `broadcast_repository_message`.
 - Per-task attribution finer than git commits.
 - Cross-repo identifier registry (`ext:<id>`); git SHAs serve as canonical work IDs for now.
-- EventBridge publishers for the rest of the 26 Bodai repos (mahavishnu/akosha/crackerjack/dhara publishers are scheduled for Phase 6.2a/6.2b).
+- EventBridge publishers for the rest of the 26 Bodai repos (mahavishnu/akosha/crackerjack publishers are scheduled for Phase 6.2a/6.2b).
 - Migration story for when EventBridge publishers land (open question in §Convergence-plan alignment — the implementation plan will pick one of (a)/(b)/(c)).
 
 ## References

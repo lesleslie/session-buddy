@@ -117,7 +117,7 @@ Acceptance criteria:
 - [ ] No false positives: a clearly bogus FQN like
       `mcp_common.health.metrics.does_not_exist` still fails.
 - [ ] Coverage of all common Bodai dep top-levels: `mcp_common`, `crackerjack`,
-      `mahavishnu`, `oneiric`, `session_buddy`, `akosha`, `dhara`.
+      `mahavishnu`, `oneiric`, `session_buddy`, `akosha`.
 - [ ] No regression on the 0 errors currently passing in session-buddy.
 
 ## 5. Test Plan (when implementing)

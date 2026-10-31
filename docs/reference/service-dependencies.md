@@ -583,40 +583,32 @@ graph TB
         MV["Mahavishnu<br/>(Orchestrator)"]
         AK["Akosha<br/>(Seer/Intelligence)"]
         CJ["Crackerjack<br/>(Inspector/Quality)"]
-        DH["Dhara<br/>(Curator/State)"]
         ON["Oneiric<br/>(Foundation)"]
     end
 
     MV --> SB
     SB --> AK
     SB --> CJ
-    SB --> DH
-    AK --> DH
-    CJ --> DH
-    DH --> ON
-    MV --> DH
     AK --> SB
     ON --> MV
     ON --> SB
     ON --> AK
     ON --> CJ
-    ON --> DH
 
     style SB fill:#90EE90,stroke:#2E7D32,stroke-width:3px
     style MV fill:#FFD700,stroke:#B8860B,stroke-width:2px
     style AK fill:#FFD700,stroke:#B8860B,stroke-width:2px
     style CJ fill:#FFD700,stroke:#B8860B,stroke-width:2px
-    style DH fill:#FFD700,stroke:#B8860B,stroke-width:2px
     style ON fill:#FFD700,stroke:#B8860B,stroke-width:2px
 ```
 
 **Legend**:
 
 - **Green**: Required (Session-Buddy itself)
-- **Yellow**: Optional Bodai ecosystem components (all 5 others)
+- **Yellow**: Optional Bodai ecosystem components (all 4 others)
 
 This diagram shows **only Bodai-ecosystem topology**. External
-dependencies (PostgreSQL as Dhara's opt-in storage backend; llama.cpp
+dependencies (PostgreSQL for Session-Buddy's own storage; llama.cpp
 for local embeddings with Ollama retained as a fallback tier in
 Mahavishnu's three-tier chain) are implementation details — see
 per-component docs for those.
@@ -627,7 +619,6 @@ per-component docs for those.
 - **Mahavishnu** — Orchestrator / Routing (port 8680)
 - **Akosha** — Seer / Intelligence (port 8682)
 - **Crackerjack** — Inspector / Quality (port 8676)
-- **Dhara** — Curator / Persistent state (port 8683)
 - **Oneiric** — Foundation / Layered config (no port by default; an
   optional scheduler HTTP server binds 8080 in the `serverless` profile)
 
@@ -635,8 +626,6 @@ per-component docs for those.
 
 - `SB --> CJ` is implemented via `subprocess.run("python -m crackerjack ...")`,
   not over MCP. See `session_buddy/crackerjack_integration.py:210-225`.
-- Oneiric directly depends on Dhara too (`oneiric/core/ulid.py` imports
-  from `dhara`); the `ON --> DH` arrow captures that.
 
 This is the **canonical** Bodai ecosystem diagram. If you find a
 copy in another repo's docs, please link here instead of duplicating.
@@ -651,7 +640,6 @@ ______________________________________________________________________
 | Mahavishnu MCP | 8680 | Yes | No |
 | Akosha MCP | 8682 | Yes | No |
 | Crackerjack MCP | 8676 | Yes | No |
-| Dhara MCP | 8683 | Yes | No |
 | Oneiric | n/a | n/a | Yes (library) |
 
 **Configure Ports**:

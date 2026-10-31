@@ -13,7 +13,7 @@ topic: lifecycle
 # P7 Cross-Repo Plan-Lifecycle-Unification Playbook
 
 **Date:** 2026-07-16
-**Audience:** P7.B fan-out agents (one per repo: dhara / crackerjack / akosha / oneiric).
+**Audience:** P7.B fan-out agents (one per repo: crackerjack / akosha / oneiric).
 **Owning repo:** `session-buddy` (this file is the P7.A template artifact).
 **Source plan:** `docs/plans/2026-07-16-frontmatter-validator-wiring-plan.md` (Task 8 fan-out reads this).
 
@@ -137,7 +137,6 @@ When you encounter topics that aren't in the seed list, **add them to `docs/sche
 
 ### Likely additions for other repos
 
-- **dhara** — `consensus`, `state-machine`, `snapshot-replication` (search body for patterns).
 - **crackerjack** — `phase-coordinator`, `quality-gate`, `release-bump`.
 - **akosha** — `embeddings`, `semantic-search`, `cross-system-knowledge`.
 - **oneiric** — `resolver`, `configuration`, `lifecycle-hooks`.

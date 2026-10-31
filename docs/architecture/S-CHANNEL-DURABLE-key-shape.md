@@ -56,6 +56,6 @@ The M-APPROVAL-LOG and M-WORKFLOW-OUTCOME producers in mahavishnu use
 trailing slashes (e.g. `approval-history/{id}/`); that convention is
 intentional for those plans and does NOT transfer to S-CHANNEL-DURABLE.
 The Bodai portfolio deliberately mixes both conventions per the
-producer's intent — see
-`dhara/docs/superpowers/specs/2026-08-10-substrate-call-boundary-contract.md`
-for the broader substrate contract.
+producer's intent — the broader substrate call-boundary contract
+governs which convention applies, and S-CHANNEL-DURABLE follows the
+no-trailing-slash side of it.

@@ -1,7 +1,7 @@
 # Session-Buddy Memory Architecture
 
 > **Status**: Living document. Updated whenever the storage schema, MCP surface, or integration contracts change.
-> **Audience**: Bodai ecosystem contributors, Claude Code users, and downstream components (Akosha, Dhara, Mahavishnu, Crackerjack).
+> **Audience**: Bodai ecosystem contributors, Claude Code users, and downstream components (Akosha, Crackerjack, Mahavishnu, mcp-common, Oneiric).
 > **Source of truth**: The runtime schema in `session_buddy/adapters/reflection_adapter_oneiric.py` and the MCP tool implementations in `session_buddy/mcp/tools/`.
 
 Session-Buddy is the **memory component** of the Bodai ecosystem. It owns
@@ -246,7 +246,7 @@ sequenceDiagram
     HK->>SCR: spawn pre_compact_sync.py
     SCR->>MCP: pre_compact_sync()
     MCP->>DB: promote tier=working → short_term reflections (importance > 0.5)
-    MCP->>MCP: emit change-feed events to Akosha/Dhara
+    MCP->>MCP: emit change-feed events to Akosha
     DB-->>MCP: promoted_count
     MCP-->>SCR: status: synced
 
@@ -361,7 +361,6 @@ selected views.
 | Consumer | Surface | What it reads | What it writes |
 |----------|---------|---------------|----------------|
 | **Akosha** | Semantic search MCP (`search_all_systems`, `find_function_usage`, `search_code_patterns`, `get_code_problems`) | `reflections_v2`, `kg_entities`, `distilled_skills` | (read-only) — sends feedback via `akosha.fitness_analyzer` to Conscious Agent |
-| **Dhara** | State replication (`akosha_sync_status`, `sync_to_akosha`) | `reflections_v2`, `conversations_v2`, `distilled_skills` | (read-only locally; curates versioned snapshots in Dhara) |
 | **Mahavishnu** | Worker pool tools (`pool_route_execute`, `store_code_graph_from_mahavishnu`, `__code_ingest_*`) | `reflections_v2` (for workflow context), `kg_*` (for code recall) | `kg_entities` via `store_code_graph_from_mahavishnu`; `reflections_v2` via `store_reflection` from worker output |
 | **Crackerjack** | Memory layer MCP (`crackerjack_run`, `crackerjack_help`, `crackerjack_metrics`, `crackerjack_history`, `self_improvement_*`, `record_fix_success`) | `distilled_skills`, `fix_attempts`, `distilled_skill_health` | `fix_attempts` via `record_fix_success`; `distilled_skills` via Conscious Agent distillation |
 | **Oneiric** | Settings + adapter discovery | (config only — does not query data) | (config only) — provides `ReflectionAdapterSettings` |
@@ -373,7 +372,7 @@ To avoid double-bookkeeping with neighbors, Session-Buddy intentionally
 **does not** store:
 
 - **OpenTelemetry trace spans** — those live in Akosha (`mcp__akosha__query_local_traces`) and Mahavishnu's OTel ingester.
-- **Pool/worker runtime state** — that lives in Dhara (`mahavishnu/workflow-results/{id}/`) and the pool manager's in-memory state.
+- **Pool/worker runtime state** — that lives in Mahavishnu (`mahavishnu/workflow-results/{id}/`) and the pool manager's in-memory state.
 - **Crackerjack fix attempts and skill effectiveness** — those live in Crackerjack's own DB; only the cross-system distilled skill view is replicated into SB.
 - **Code graph topology** — Mahavishnu owns the indexer; SB stores the persisted snapshot for recall only.
 - **Active alerts** — those live in Mahavishnu's alerting subsystem.
@@ -661,7 +660,7 @@ The Conscious Agent runs as a background task and:
 1. **Distills** high-evidence patterns into `distilled_skills` (calls `distill_skills_now`).
 1. **Prunes** stale reflections (older than 90 days, never accessed).
 1. **Updates** peer models via `update_peer_model` (Honcho-style theory of mind).
-1. **Emits** change-feed events to Akosha and Dhara for replication.
+1. **Emits** change-feed events to Akosha for replication.
 
 ### Performance characteristics
 

@@ -38,7 +38,7 @@ every profile without duplication.
   profile cuts.
 - **STANDARD** — daily-development essentials: conversation replay,
   extraction, knowledge graph, cache, intent classification, crackerjack
-  integration, monitoring, and channel-tracking (Dhara publisher).
+  integration, monitoring, and channel-tracking.
 - **FULL** — everything including serverless, conscious agent, code-graph,
   memory-health, migration, and worktree tools. These are heavy and only
   meaningful for specific workflows.
@@ -53,12 +53,11 @@ Env-only. session-buddy does not expose `tool_profile` in its YAML; the
 
 ## Cross-Repo / Architectural Notes
 
-- **Dhara publisher build pattern:** `register_channel_tracking_tools` requires
-  an extra `dhara_publisher` kwarg (the Dhara HTTP client). profiles.py
-  pre-builds a single `_dhara_publisher = _make_dhara_publisher()` at module
-  load and captures it in the `_register_channel_tracking` wrapper so the W0
-  helper can call this wrapper with `(server)` only. This avoids per-call
-  socket churn.
+- **Single-argument registration contract:** every entry in `REGISTRATION_MAP`
+  is invoked by the W0 helper with the FastMCP server as its only positional
+  argument. `register_channel_tracking_tools` follows that same contract, so
+  profiles.py maps it directly — no per-group wrapper and no module-load
+  client construction is needed.
 - **Subagent-killing recovery:** The W1.2 implementer was terminated by a
   Token Plan rate limit mid-execution. The orchestrator committed the partial
   work at `c28124e8` and the test pass (75 tests, 0 regressions) was confirmed
