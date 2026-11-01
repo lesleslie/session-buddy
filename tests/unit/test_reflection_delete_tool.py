@@ -25,6 +25,7 @@ from session_buddy.adapters.reflection_adapter import (
     ReflectionDatabaseAdapter,
 )
 from session_buddy.mcp.tools import tasks_storage
+from session_buddy.mcp.tools.advanced import fingerprint_tools
 from session_buddy.mcp.tools.memory import memory_tools
 
 if TYPE_CHECKING:
@@ -242,8 +243,77 @@ class TestDeleteReflectionTool:
 
         result = await memory_tools._delete_reflection_impl(reflection_id)
 
-        assert "backs a task" in result
+        assert "task lifecycle" in result
         assert await adapter.get_reflection_by_id(reflection_id) is not None
+
+    async def test_refusal_does_not_disclose_the_task_owner(
+        self,
+        adapter: ReflectionDatabaseAdapter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The refusal must not name the task's owner.
+
+        This tool has no caller identity to check visibility against, so
+        naming the owner back would hand an unauthorised caller the
+        identity of whoever owns the task they just probed for.
+        """
+        monkeypatch.setattr(memory_tools, "_reflection_db", adapter)
+        reflection_id = await adapter.store_reflection("A task-backed reflection.")
+        engine = tasks_storage.create_metadata_engine()
+        tasks_storage.persist_task_metadata(
+            engine, reflection_id, {"kind": "task", "owner": "user:alice"}
+        )
+        monkeypatch.setattr(tasks_storage, "get_engine", lambda: engine)
+
+        result = await memory_tools._delete_reflection_impl(reflection_id)
+
+        assert "alice" not in result
+        assert "user:alice" not in result
+
+    async def test_refuses_to_delete_a_task_tagged_reflection_without_a_sidecar(
+        self,
+        adapter: ReflectionDatabaseAdapter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The ``"task"`` tag alone is enough to refuse the delete.
+
+        The sidecar engine defaults to in-memory SQLite, so it starts
+        empty in every new process. The tag lives in DuckDB and survives
+        a restart, so it is the discriminator that still holds when the
+        sidecar does not. Without this, every task-backed reflection
+        becomes deletable across a restart -- which is exactly when the
+        ownership guard is supposed to matter.
+        """
+        monkeypatch.setattr(memory_tools, "_reflection_db", adapter)
+        reflection_id = await adapter.store_reflection(
+            "A task-tagged reflection.", tags=["task"]
+        )
+        # No sidecar row at all: the sidecar is empty, as it is in a
+        # freshly started process.
+        engine = tasks_storage.create_metadata_engine()
+        monkeypatch.setattr(tasks_storage, "get_engine", lambda: engine)
+        assert tasks_storage.read_task_metadata(engine, reflection_id) is None
+
+        result = await memory_tools._delete_reflection_impl(reflection_id)
+
+        assert "task lifecycle" in result
+        assert await adapter.get_reflection_by_id(reflection_id) is not None
+
+    async def test_deletes_an_untagged_reflection_with_no_sidecar(
+        self,
+        adapter: ReflectionDatabaseAdapter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The guard must not block ordinary reflections."""
+        monkeypatch.setattr(memory_tools, "_reflection_db", adapter)
+        reflection_id = await adapter.store_reflection("Just a reflection.")
+        engine = tasks_storage.create_metadata_engine()
+        monkeypatch.setattr(tasks_storage, "get_engine", lambda: engine)
+
+        result = await memory_tools._delete_reflection_impl(reflection_id)
+
+        assert "Deleted reflection" in result
+        assert await adapter.get_reflection_by_id(reflection_id) is None
 
     async def test_refuses_to_delete_when_the_sidecar_cannot_be_read(
         self,
@@ -299,3 +369,83 @@ class TestDeleteReflectionTool:
         memory_tools.register_memory_tools(_FakeMCP())
 
         assert "delete_reflection" in registered
+
+
+# ==============================================================================
+# Sibling path: the deduplication delete
+# ==============================================================================
+
+
+class TestDeduplicationDeletePath:
+    """The dedup path is a delete path, so it carries the same guard.
+
+    ``deduplicate_content`` removes duplicate reflections. Without the
+    task-ownership gate it would remove a task-backed reflection -- and
+    with it another owner's private task -- with no ownership check,
+    which is exactly what the gate on the MCP tool exists to prevent.
+    """
+
+    async def test_task_backed_reflection_is_not_deleted(
+        self,
+        adapter: ReflectionDatabaseAdapter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A task-backed reflection survives deduplication."""
+        monkeypatch.setattr(tasks_storage, "get_engine", tasks_storage.create_metadata_engine)
+        reflection_id = await adapter.store_reflection(
+            "A task that happens to be a duplicate.", tags=["task"]
+        )
+
+        result = await fingerprint_tools._delete_duplicate_content(
+            adapter,
+            [{"id": reflection_id, "type": "reflection"}],
+            "default",
+            0.85,
+        )
+
+        assert result["duplicates_removed"] == 0
+        assert await adapter.get_reflection_by_id(reflection_id) is not None
+
+    async def test_ordinary_reflection_is_deleted(
+        self,
+        adapter: ReflectionDatabaseAdapter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The gate must not stop deduplication from doing its job."""
+        monkeypatch.setattr(tasks_storage, "get_engine", tasks_storage.create_metadata_engine)
+        reflection_id = await adapter.store_reflection("Just a duplicate.")
+
+        result = await fingerprint_tools._delete_duplicate_content(
+            adapter,
+            [{"id": reflection_id, "type": "reflection"}],
+            "default",
+            0.85,
+        )
+
+        assert result["duplicates_removed"] == 1
+        assert await adapter.get_reflection_by_id(reflection_id) is None
+
+    async def test_fails_closed_when_the_sidecar_cannot_be_read(
+        self,
+        adapter: ReflectionDatabaseAdapter,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An unreadable sidecar means the row is left alone, not deleted."""
+        engine = tasks_storage.create_metadata_engine()
+        monkeypatch.setattr(tasks_storage, "get_engine", lambda: engine)
+
+        def _boom(*_args: object, **_kwargs: object) -> None:
+            raise RuntimeError("sidecar store is broken")
+
+        monkeypatch.setattr(tasks_storage, "read_task_metadata", _boom)
+        reflection_id = await adapter.store_reflection("A duplicate of unknown status.")
+
+        result = await fingerprint_tools._delete_duplicate_content(
+            adapter,
+            [{"id": reflection_id, "type": "reflection"}],
+            "default",
+            0.85,
+        )
+
+        assert result["duplicates_removed"] == 0
+        assert await adapter.get_reflection_by_id(reflection_id) is not None

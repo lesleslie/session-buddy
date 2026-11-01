@@ -279,7 +279,7 @@ async def _reembed(target_path: Path, tables: dict[str, list[str]]) -> int:
         # to a file.
         conn.execute("LOAD 'vss'")
         conn.execute("SET hnsw_enable_experimental_persistence=true")
-    except Exception:  # noqa: BLE001 - the vss extension may not be installed
+    except Exception:
         print(
             "WARNING: the vss extension is not available; the rows will be "
             "re-embedded later, from the server."
@@ -490,7 +490,7 @@ def migrate(
 
     try:
         conn = duckdb.connect(str(db_path))
-    except Exception as exc:  # noqa: BLE001 - the lock message is the actionable part
+    except Exception as exc:
         print(f"ERROR: could not open {db_path}: {exc}")
         print("DuckDB is single-writer -- stop the session-buddy server first.")
         return 1

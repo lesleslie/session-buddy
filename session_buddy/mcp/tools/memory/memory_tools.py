@@ -929,11 +929,18 @@ async def _delete_reflection_operation(
     # orphans a sidecar row, not an unauthorized deletion. Closing it
     # fully would need a transaction across two database engines, which
     # SQLite and DuckDB do not offer.
-    metadata: dict[str, t.Any] | None
+    #
+    # The row is read for its tags, which are one of the two sources the
+    # discriminator consults. Reading it first also means a request for
+    # a reflection that does not exist can be answered without touching
+    # the sidecar.
+    row = await db.get_reflection_by_id(reflection_id)
+    tags = list(row.get("tags") or []) if row else []
     try:
-        metadata = tasks_storage.read_task_metadata(
+        is_task = tasks_storage.is_task_reflection(
             tasks_storage.get_engine(),
             reflection_id,
+            tags,
         )
     except Exception:  # noqa: BLE001 - fail closed; see below
         # Fail closed. An unreadable sidecar means the task-ownership
@@ -957,12 +964,16 @@ async def _delete_reflection_operation(
             f"be deleted. Retry once it is healthy.",
         )
 
-    if metadata and metadata.get("kind") == "task":
+    if is_task:
+        # Deliberately does not name the task's owner. This tool has no
+        # caller identity to check visibility against, so echoing the
+        # owner back would hand an unauthorised caller the identity of
+        # whoever owns the task they just probed for.
         return ToolMessages.operation_failed(
             "Delete reflection",
-            f"Reflection {reflection_id} backs a task owned by "
-            f"{metadata.get('owner', 'an unknown owner')}. Remove the task "
-            f"through the task lifecycle tools instead.",
+            f"Reflection {reflection_id} is managed by the task lifecycle "
+            f"tools and cannot be deleted here. Close it or update it with "
+            f"the task tools instead.",
         )
 
     deleted = await db.delete_reflection(reflection_id)

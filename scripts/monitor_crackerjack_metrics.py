@@ -223,9 +223,7 @@ class CrackerjackMetricsMonitor:
     ) -> dict[str, MetricTrend]:
         """Analyze quality metric trends over time."""
         since = (datetime.now(tz=UTC) - timedelta(days=days)).isoformat()
-        mid_point = (
-            datetime.now(tz=UTC) - timedelta(days=days // 2)
-        ).isoformat()
+        mid_point = (datetime.now(tz=UTC) - timedelta(days=days // 2)).isoformat()
 
         where_clause = "WHERE timestamp >= ?"
         params = [since]

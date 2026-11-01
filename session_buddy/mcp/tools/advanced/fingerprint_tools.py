@@ -734,6 +734,46 @@ def _format_dedup_dry_run_result(
     }
 
 
+async def _is_task_backed_reflection(db: Any, reflection_id: str) -> bool:
+    """True when the reflection backs a task and must not be deleted.
+
+    Fails closed: when the discriminator cannot be established the row is
+    treated as task-backed, so a broken sidecar makes the caller skip the
+    row rather than delete a task it cannot identify.
+
+    Args:
+        db: The reflection adapter.
+        reflection_id: The reflection to classify.
+
+    Returns:
+        True when the reflection is task-backed, or when that cannot be
+        determined.
+    """
+    from session_buddy.mcp.tools import tasks_storage
+
+    try:
+        row = await db.get_reflection_by_id(reflection_id)
+    except Exception:
+        logger.exception(
+            f"Could not read reflection {reflection_id} to check task ownership"
+        )
+        return True
+
+    tags = list(row.get("tags") or []) if row else []
+    try:
+        return tasks_storage.is_task_reflection(
+            tasks_storage.get_engine(),
+            reflection_id,
+            tags,
+        )
+    except Exception:
+        logger.exception(
+            f"Could not establish whether reflection {reflection_id} backs a task; "
+            "treating it as task-backed so it is not deleted"
+        )
+        return True
+
+
 async def _delete_duplicate_content(
     db: Any,
     all_ids_to_remove: list[dict[str, t.Any]],
@@ -766,6 +806,21 @@ async def _delete_duplicate_content(
                     [item_id],
                 )
             else:  # reflection
+                # Same task-ownership gate the delete_reflection MCP tool
+                # applies. Deduplication is a delete path like any other:
+                # without the gate it would remove a task-backed reflection
+                # -- and with it another owner's private task -- with no
+                # ownership check, which is exactly what the gate on the
+                # MCP tool exists to prevent. tasks_storage.is_task_reflection
+                # is the single definition of "this is a task" for both
+                # paths.
+                if await _is_task_backed_reflection(db, item_id):
+                    logger.warning(
+                        f"Skipping duplicate {item_id}: it backs a task and is "
+                        f"managed by the task lifecycle tools"
+                    )
+                    continue
+
                 # Route through the adapter so the derived state is cleaned
                 # the same way the delete_reflection MCP tool cleans it.
                 await db.delete_reflection(item_id)

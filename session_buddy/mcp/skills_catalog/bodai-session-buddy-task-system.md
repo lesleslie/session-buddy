@@ -111,8 +111,8 @@ workflow_id = await mcp__mahavishnu__tasks_handoff_to_workflow(
     task_id=task.id,
     adapter="prefect",  # or "llamaindex" | "agno"
     params={"repo": "/path/to/repo"},  # ONE repo — an unscoped dispatch
-                                        # would run over every repo in the
-                                        # catalog
+    # would run over every repo in the
+    # catalog
     timeout=300,
 )
 # Step 3: mahavishnu calls tasks_link_workflow(task_id, workflow_id)

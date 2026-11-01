@@ -9,6 +9,88 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.38.0] - 2026-10-31
+
+### Added
+
+- Add tasks_link_workflow -- the one writer of Task.workflow_id
+- embeddings: Add a width-aware provider chain and move to 768 dims
+- health: Publish a liveness marker so the feed is populated at boot
+- memory: Add a per-reflection delete tool
+- tasks: Derive the caller identity from a real source
+
+### Changed
+
+- Drop the retired external KV integration
+- Drop the ruff findings from the new tests
+- examples: Revive the storage example against the Oneiric registry
+- Finish the removal of the retired external KV integration
+- paths: Point the settings layer at the XDG data and state roots
+- paths: Resolve Session-Buddy's runtime data through XDG
+- storage: Drop the retired service's older names from the skills store
+
+### Fixed
+
+- docs: Give the openai embedding plan a valid lifecycle status
+- duckdb: Compose the index rebuild instead of executing catalog SQL
+- duckdb: Flush a poisoned WAL instead of discarding its writes
+- embeddings: Migrate every embedding path to the canonical width
+- embeddings: Read the credential store's export convention
+- embeddings: Serialise embedding requests so vectors stop being dropped
+- embeddings: Take the vector width from the live schema
+- Make the search surfaces reach the reflection store
+- mcp: Apply the tool profile on the path that serves
+- memory-health: Probe the table the queries actually read
+- memory: Fail closed when the task sidecar cannot be read
+- memory: Stop awaiting the synchronous DuckDB connection and adopt the live vector width
+- Open the embedding gate in ReflectionDatabase
+- Persist the task sidecar so tasks survive a restart
+- reflection: Point the legacy module at the v2 tables
+- scripts: Resolve the UTC constant on the datetime module
+- search: Fall back to a lexical match when nothing clears min_score
+- search: Restore the N/A score display and the test db stub
+- sql: Justify the array-width literals DuckDB requires
+- Supply the NOT NULL category when storing a reflection
+- tasks: Align the handoff result's status default with the dispatch edge
+- tasks: Await the context state read
+- tasks: Close four authorization gaps in the workflow link channel
+- tasks: Drop the stale ty suppressions from the metadata sidecar reads
+- tasks: Enforce the principal's permission scope
+- tasks: Make the link channel type-clean under ty
+- tasks: Persist the fields the task tools compute
+- tests: Build the attached schema with the schema helper
+- tests: Derive every embedding width from DEFAULT_EMBEDDING_DIM
+- tests: Derive the skills-embedding width pin from the canonical width
+- tests: Mock the launcher that run_server actually calls
+- tests: Restore the publisher slot the lifespan writes to
+- tests: Write the V2 tables the code under test now reads
+
+### Documentation
+
+- changelog: Describe the retired storage service without naming it
+- migrations: Drop the retired component name from the outbox marker
+- plans: Localise the WAL poison to the server's startup
+- plans: Make the XDG migration plan execution-ready
+- plans: Record how the XDG migration actually went
+- plans: Record the cross-repo audit for the XDG data directory move
+- plans: Record the embedding-width defect the unit suite exposed
+- plans: Record the test-row cleanup and the orphans it left
+- plans: Record the unresolved WAL-poison trigger
+- plans: Regenerate the plan index for the XDG migration
+- Remove Dhara references from documentation
+- tasks: Align the handoff envelopes and document the link channel
+
+### Testing
+
+- tasks: Re-pin the HandoffParams envelope to the repo-scoped contract
+
+### Internal
+
+- deps: Refresh uv.lock for mcp-common 0.34.0
+- scripts: Drop the dead ACB vector-database migration
+- security: Silence the SQL rules on the DuckDB calls I changed
+- security: Silence the SQL rules on the remaining DuckDB call sites
+
 ## [0.37.0] - 2026-10-28
 
 ### Changed

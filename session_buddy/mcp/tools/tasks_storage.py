@@ -30,6 +30,7 @@ is orphaned and ignored by ``find_tasks_by_metadata`` consumers.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -237,6 +238,52 @@ def find_tasks_by_metadata(
         return matching
 
 
+def is_task_reflection(
+    engine: Engine,
+    reflection_id: str,
+    tags: Sequence[str] | None = None,
+) -> bool:
+    """True when the reflection is a task.
+
+    Two independent sources, because either one alone can be wrong:
+
+    - The sidecar metadata carries ``kind="task"``. It is authoritative
+      while it is there, but the default engine is in-memory SQLite
+      (``get_engine`` builds ``sqlite:///:memory:``), so the sidecar
+      starts empty in every new process.
+    - The reflection row's tags carry the ``"task"`` discriminator. The
+      ``Task`` model validator rejects any tag list without it, so every
+      row created through ``tasks_create`` has it, and it lives in DuckDB
+      -- so it survives a restart that empties the sidecar.
+
+    ``tasks_search`` already treats the tag as the fallback for a missing
+    sidecar entry (``tasks_tools.py``: ``if kind != "task" and "task" not
+    in tags_in``). This helper exists so there is ONE definition of "this
+    is a task" for every caller that has to decide destructively, rather
+    than each path re-deriving it and drifting.
+
+    Args:
+        engine: The sidecar engine.
+        reflection_id: The reflection to classify.
+        tags: The reflection row's tags, when the caller already has the
+            row. Passing them avoids a needless sidecar read for rows
+            that are obviously not tasks.
+
+    Returns:
+        True when the reflection is a task.
+
+    Raises:
+        Exception: Whatever the sidecar read raises. Callers making a
+            destructive decision must fail closed on that — "could not
+            check" is not "not a task".
+    """
+    if "task" in (tags or ()):
+        return True
+    metadata = read_task_metadata(engine, reflection_id) or {}
+    kind = metadata.get("kind") if isinstance(metadata, dict) else None
+    return kind == "task"
+
+
 __all__ = [
     "ReflectionMetadata",
     "create_metadata_engine",
@@ -244,6 +291,7 @@ __all__ = [
     "ensure_metadata_schema",
     "find_tasks_by_metadata",
     "get_engine",
+    "is_task_reflection",
     "persist_task_metadata",
     "read_task_metadata",
     "set_engine",
