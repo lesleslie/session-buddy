@@ -147,6 +147,36 @@ from session_buddy.utils.fingerprint import MinHashSignature
 
 logger = logging.getLogger(__name__)
 
+#: Fetch SQL for the rows a cached conversation search points at.
+#:
+#: The ids bind as a LIST parameter through ``unnest`` rather than being
+#: interpolated into the SQL text: they come back from the query cache,
+#: which is a store this class does not own, so they are not a trust
+#: boundary we get to assume.
+#:
+#: The statement is a plain literal -- no interpolation, no
+#: concatenation -- so the call site passes a ready-made, fully
+#: parameterized query. The table name is the same one ``_table()``
+#: resolves for the ``conversations`` suffix (the v2 rewire pins it to
+#: the global v2 table) and the same one
+#: ``session_buddy.reflection.storage.CONVERSATIONS_TABLE`` names.
+_CACHED_CONVERSATIONS_SQL = """
+    SELECT id, content, metadata, timestamp
+    FROM conversations_v2
+    WHERE id IN (SELECT unnest(?::VARCHAR[]))
+    ORDER BY timestamp DESC
+"""
+
+#: Fetch SQL for the rows a cached reflection search points at. See
+#: ``_CACHED_CONVERSATIONS_SQL`` for why the ids are bound rather than
+#: interpolated, and why the statement is a plain literal.
+_CACHED_REFLECTIONS_SQL = """
+    SELECT id, content, tags, created_at, updated_at, project
+    FROM reflections_v2
+    WHERE id IN (SELECT unnest(?::VARCHAR[]))
+    ORDER BY created_at DESC
+"""
+
 
 def _extract_provenance_from_tags(
     tags: list[str] | None,
@@ -1722,6 +1752,7 @@ class ReflectionDatabaseAdapterOneiric:
             project=project,
             limit=limit,
             use_cache=use_cache,
+            threshold=threshold,
         )
         if cached_results is not None:
             return cached_results
@@ -1741,6 +1772,7 @@ class ReflectionDatabaseAdapterOneiric:
             limit=limit,
             results=results,
             use_cache=use_cache,
+            threshold=threshold,
         )
 
         return results
@@ -1884,6 +1916,7 @@ class ReflectionDatabaseAdapterOneiric:
         project: str | None,
         limit: int,
         use_cache: bool,
+        threshold: float = 0.7,
     ) -> list[dict[str, t.Any]] | None:
         """Retrieve cached conversation search results if available.
 
@@ -1904,6 +1937,8 @@ class ReflectionDatabaseAdapterOneiric:
             query=query,
             project=project,
             limit=limit,
+            kind="conversations",
+            threshold=threshold,
         )
         cached_result_ids = await self._query_cache.get(cache_key)
 
@@ -1916,14 +1951,13 @@ class ReflectionDatabaseAdapterOneiric:
 
         # Fetch cached results by IDs. The conversations_v2 schema uses
         # ``timestamp`` rather than ``created_at``/``updated_at``.
-        id_list = "', '".join(cached_result_ids)
+        #
+        # DuckDB connection, not SQLAlchemy. The ids bind as a list
+        # parameter rather than being interpolated into the SQL text.
+        # nosemgrep: sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         result = self.conn.execute(
-            f"""
-            SELECT id, content, metadata, timestamp
-            FROM {self._table("conversations")}
-            WHERE id IN ('{id_list}')
-            ORDER BY timestamp DESC
-            """
+            _CACHED_CONVERSATIONS_SQL,
+            [list(cached_result_ids)],
         ).fetchall()
         return [
             {
@@ -2101,7 +2135,7 @@ class ReflectionDatabaseAdapterOneiric:
         params.append(limit)
         # DuckDB connection, not SQLAlchemy; the only interpolated
         # value is a module-level table-name constant.
-        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        # nosemgrep: sqlalchemy-execute-raw-query, python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         result = self.conn.execute(sql, rank_params + params).fetchall()
 
         return [
@@ -2124,6 +2158,7 @@ class ReflectionDatabaseAdapterOneiric:
         limit: int,
         results: list[dict[str, t.Any]],
         use_cache: bool,
+        threshold: float = 0.7,
     ) -> None:
         """Cache conversation search results for future queries.
 
@@ -2142,6 +2177,8 @@ class ReflectionDatabaseAdapterOneiric:
             query=query,
             project=project,
             limit=limit,
+            kind="conversations",
+            threshold=threshold,
         )
         result_ids = [r["id"] for r in results]
 
@@ -2421,6 +2458,9 @@ class ReflectionDatabaseAdapterOneiric:
             query=query,
             limit=limit,
             use_cache=use_cache,
+            project=project,
+            min_score=min_score,
+            use_embeddings=use_embeddings,
         )
         if cached_results is not None:
             return cached_results
@@ -2440,6 +2480,9 @@ class ReflectionDatabaseAdapterOneiric:
             limit=limit,
             results=results,
             use_cache=use_cache,
+            project=project,
+            min_score=min_score,
+            use_embeddings=use_embeddings,
         )
 
         return results
@@ -2449,6 +2492,9 @@ class ReflectionDatabaseAdapterOneiric:
         query: str,
         limit: int,
         use_cache: bool,
+        project: str | None = None,
+        min_score: float | None = None,
+        use_embeddings: bool = True,
     ) -> list[dict[str, t.Any]] | None:
         """Retrieve cached reflection search results if available.
 
@@ -2466,8 +2512,11 @@ class ReflectionDatabaseAdapterOneiric:
 
         cache_key = compute_cache_key(
             query=query,
-            project=None,  # reflections don't have project filter
+            project=project,
             limit=limit,
+            kind="reflections",
+            min_score=min_score,
+            use_embeddings=use_embeddings,
         )
         cached_result_ids = await self._query_cache.get(cache_key)
 
@@ -2478,15 +2527,14 @@ class ReflectionDatabaseAdapterOneiric:
         if not cached_result_ids:
             return []
 
-        # Fetch cached results by IDs
-        id_list = "', '".join(cached_result_ids)
+        # Fetch cached results by IDs.
+        #
+        # DuckDB connection, not SQLAlchemy. The ids bind as a list
+        # parameter rather than being interpolated into the SQL text.
+        # nosemgrep: sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         result = self.conn.execute(
-            f"""
-            SELECT id, content, tags, created_at, updated_at
-            FROM {self._table("reflections")}
-            WHERE id IN ('{id_list}')
-            ORDER BY created_at DESC
-            """
+            _CACHED_REFLECTIONS_SQL,
+            [list(cached_result_ids)],
         ).fetchall()
 
         # Reconstruct cached results
@@ -2497,6 +2545,7 @@ class ReflectionDatabaseAdapterOneiric:
                 "tags": list(row[2]) if row[2] else [],
                 "created_at": row[3].isoformat() if row[3] else None,
                 "updated_at": row[4].isoformat() if row[4] else None,
+                "project": row[5],
                 "similarity": 1.0,  # Cached results don't have original scores
                 "_cached": True,  # Mark as cached result
             }
@@ -2539,6 +2588,9 @@ class ReflectionDatabaseAdapterOneiric:
         limit: int,
         results: list[dict[str, t.Any]],
         use_cache: bool,
+        project: str | None = None,
+        min_score: float | None = None,
+        use_embeddings: bool = True,
     ) -> None:
         """Cache reflection search results for future queries.
 
@@ -2554,8 +2606,11 @@ class ReflectionDatabaseAdapterOneiric:
 
         cache_key = compute_cache_key(
             query=query,
-            project=None,
+            project=project,
             limit=limit,
+            kind="reflections",
+            min_score=min_score,
+            use_embeddings=use_embeddings,
         )
         result_ids = [r["id"] for r in results]
 

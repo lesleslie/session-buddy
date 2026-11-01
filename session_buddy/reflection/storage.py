@@ -140,7 +140,7 @@ def _table_columns(conn: Any, table_name: str) -> set[str]:
     try:
         # DuckDB connection, not SQLAlchemy; the only interpolated
         # value is a module-level table-name constant.
-        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        # nosemgrep: sqlalchemy-execute-raw-query, python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         rows = conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
     except Exception:
         logger.exception("Failed to inspect table columns")
@@ -211,7 +211,7 @@ async def store_conversation(
     def _store() -> None:
         # DuckDB connection, not SQLAlchemy; the only interpolated
         # value is a module-level table-name constant.
-        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        # nosemgrep: sqlalchemy-execute-raw-query, python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         conn.execute(
             f"""
             INSERT INTO {CONVERSATIONS_TABLE} (id, content, embedding, category, project, timestamp, metadata)
@@ -308,7 +308,7 @@ async def store_reflection(
     def _store() -> None:
         # DuckDB connection, not SQLAlchemy; the only interpolated
         # value is a module-level table-name constant.
-        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        # nosemgrep: sqlalchemy-execute-raw-query, python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         conn.execute(
             f"""
             INSERT INTO {REFLECTIONS_TABLE} (id, content, embedding, category, project, tags, timestamp, metadata)
@@ -365,7 +365,7 @@ async def get_conversation(
     def _get() -> dict[str, Any] | None:
         # DuckDB connection, not SQLAlchemy; the only interpolated
         # value is a module-level table-name constant.
-        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        # nosemgrep: sqlalchemy-execute-raw-query, python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         result = conn.execute(
             f"""
             SELECT id, content, embedding, project, timestamp, metadata
@@ -426,7 +426,7 @@ async def get_reflection(
     def _get() -> dict[str, Any] | None:
         # DuckDB connection, not SQLAlchemy; the only interpolated
         # value is a module-level table-name constant.
-        # nosemgrep: python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        # nosemgrep: sqlalchemy-execute-raw-query, python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
         result = conn.execute(
             f"""
             SELECT id, content, embedding, project, tags, timestamp, metadata

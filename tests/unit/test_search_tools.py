@@ -59,6 +59,7 @@ def mock_db():
     """Create a mock reflection database."""
     db = MagicMock()
     db.search_conversations = AsyncMock(return_value=[])
+    db.search_reflections = AsyncMock(return_value=[])
     db.store_reflection = AsyncMock(return_value="reflection-123")
     db.get_stats = AsyncMock(return_value={
         "total_reflections": 100,
@@ -1050,7 +1051,7 @@ class TestFormatConceptResults:
         """Test formatting concept search results."""
         result = await _format_concept_results("async", sample_search_results, include_files=False)
 
-        assert "conversations" in result
+        assert "results" in result
         assert "async" in result
 
     @pytest.mark.asyncio
@@ -1058,7 +1059,7 @@ class TestFormatConceptResults:
         """Test formatting with empty results."""
         result = await _format_concept_results("async", [], include_files=True)
 
-        assert "No conversations found" in result
+        assert "No results found" in result
 
 
 class TestFormatTemporalResults:

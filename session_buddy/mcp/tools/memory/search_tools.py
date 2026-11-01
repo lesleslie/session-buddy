@@ -151,6 +151,34 @@ def _format_score(row: dict[str, Any]) -> str:
     return str(raw)
 
 
+async def _search_both_stores(
+    db: ReflectionDatabase,
+    query: str,
+    project: str | None,
+    min_score: float,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Search conversations AND reflections, merged by relevance.
+
+    The two stores are separate tables with separate embeddings: a
+    conversation-context block is session context, a reflection is a
+    durable note. Searching only one of them makes the other
+    unreachable, which is how the ``project``/``reference`` half of the
+    memory-routing table became write-only through these tools -- a
+    reflection could be stored and then never found again.
+
+    Merging here (rather than in each caller) also keeps the three
+    search surfaces consistent with each other.
+    """
+    conversations = await db.search_conversations(
+        query=query, project=project, min_score=min_score, limit=limit
+    )
+    reflections = await db.search_reflections(
+        query=query, limit=limit, project=project, min_score=min_score
+    )
+    return sorted([*conversations, *reflections], key=_result_score, reverse=True)
+
+
 async def _quick_search_operation(
     db: ReflectionDatabase,
     query: str,
@@ -159,19 +187,11 @@ async def _quick_search_operation(
     limit: int = 5,
 ) -> str:
     """Execute quick search and format results."""
-    conversations = await db.search_conversations(
-        query=query, project=project, min_score=min_score, limit=limit
-    )
     # Reflections are the durable memory store; conversations are session
     # context. A quick search that only looked at conversations could not
     # see a stored reflection at all, which is what made this tool look
     # broken for anyone searching for something they had stored.
-    reflections = await db.search_reflections(
-        query=query, limit=limit, project=project, min_score=min_score
-    )
-    total_results = sorted(
-        [*conversations, *reflections], key=_result_score, reverse=True
-    )
+    total_results = await _search_both_stores(db, query, project, min_score, limit)
 
     if not total_results:
         return f"🔍 No results found for '{query}'"
@@ -228,7 +248,7 @@ async def _format_search_summary(query: str, results: list[dict[str, Any]]) -> s
 
     lines = [
         f"🔍 **Search Summary for '{query}'**\n",
-        f"**Found**: {len(results)} relevant conversations\n",
+        f"**Found**: {len(results)} relevant results\n",
     ]
 
     # Time distribution
@@ -251,9 +271,7 @@ async def _search_summary_operation(
     db: ReflectionDatabase, query: str, project: str | None, min_score: float
 ) -> str:
     """Execute search summary operation."""
-    results = await db.search_conversations(
-        query=query, project=project, min_score=min_score, limit=20
-    )
+    results = await _search_both_stores(db, query, project, min_score, 20)
     return await _format_search_summary(query, results)
 
 
@@ -432,9 +450,9 @@ async def _format_concept_results(
 ) -> str:
     """Format concept search results."""
     if not results:
-        return f"🔍 No conversations found about concept: {concept}"
+        return f"🔍 No results found about concept: {concept}"
 
-    output = f"🔍 **{len(results)} conversations** about `{concept}`\n\n"
+    output = f"🔍 **{len(results)} results** about `{concept}`\n\n"
 
     for i, result in enumerate(results, 1):
         output += f"**{i}.** "
@@ -462,9 +480,7 @@ async def _search_by_concept_operation(
     project: str | None,
 ) -> str:
     """Execute concept search operation."""
-    results = await db.search_conversations(
-        query=concept, project=project, limit=limit, min_score=0.6
-    )
+    results = await _search_both_stores(db, concept, project, 0.6, limit)
     return await _format_concept_results(concept, results, include_files)
 
 
