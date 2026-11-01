@@ -315,6 +315,21 @@ class HandoffResult(BaseModel):
     ``status`` and ``repos_processed`` are the fields that path actually
     returns. See
     ``docs/specs/2026-10-30-task-workflow-backlink-design.md`` (C6/C7).
+
+    This model is the SOURCE OF TRUTH for the shared envelope (C7);
+    mahavishnu keeps an inline copy at
+    ``mahavishnu/mcp/tools/tasks_handoff.py``. The two copies are checked
+    field-by-field by mahavishnu's ``tasks_handoff_gate``, and that check
+    compares DEFAULTS as well as names. A mismatch does NOT raise: the
+    gate returns False and mahavishnu SKIPS registering
+    ``tasks_handoff_to_workflow``, so the tool silently disappears from
+    the running server. Keep the ``status`` default below identical to
+    mahavishnu's copy.
+
+    The default is ``"running"`` because the durable dispatch returns
+    ``{"workflow_id", "status": "running"}`` immediately (C6, spec
+    section 7.5) -- the workflow is still running when the binding is
+    written, which is what makes the orphan case recoverable.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=False)
@@ -323,7 +338,7 @@ class HandoffResult(BaseModel):
     workflow_id: Annotated[str, Field(pattern=WORKFLOW_ID_PATTERN)]
     adapter: Literal["prefect", "llamaindex", "agno"]
     started_at: datetime
-    status: str = "queued"
+    status: str = "running"
     repos_processed: int = 0
 
 
