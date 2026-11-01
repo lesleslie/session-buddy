@@ -350,8 +350,16 @@ class TestSearchConfig:
         assert settings.search.max_search_results == 10000
 
     def test_embedding_model_default(self) -> None:
+        # Phase E2 (Plan 2 Task 2): ``search.embedding_model`` now defaults
+        # from ``OneiricSettings.substrate.embedding__model`` via a
+        # ``default_factory`` resolver. The legacy hardcoded
+        # ``"all-MiniLM-L6-v2"`` was deleted in the same commit that adopted
+        # the substrate (atomic per-file rule), and the substrate default is
+        # ``"nomic-embed-text"`` (oneiric.core.substrate_settings). The
+        # sibling assertion lives in
+        # ``tests/unit/test_settings_core.py::TestSearchConfig``.
         settings = SessionBuddySettings()
-        assert settings.search.embedding_model == "all-MiniLM-L6-v2"
+        assert settings.search.embedding_model == "nomic-embed-text"
 
     def test_embedding_cache_size_default(self) -> None:
         settings = SessionBuddySettings()
