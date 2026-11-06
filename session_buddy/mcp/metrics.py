@@ -35,7 +35,7 @@ from prometheus_client.registry import CollectorRegistry
 
 try:
     from prometheus_client.exposition import (
-        choose_formatter,  # ty: ignore[unresolved-import]
+        choose_formatter,  # ty: ignore[import-not-found]
     )
 except ImportError:
     # prometheus_client < 0.20.0

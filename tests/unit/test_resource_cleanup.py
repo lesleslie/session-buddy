@@ -1403,7 +1403,7 @@ class TestCleanupHttpClientsCoverageGap:
 
     The production import ``from mcp_common.adapters.http.client import
     HTTPClientAdapter`` does not exist in this environment (the ty/type
-    comment ``# ty: ignore[unresolved-import]`` confirms the upstream is
+    comment ``# ty: ignore[import-not-found]`` confirms the upstream is
     aware). To exercise the post-import branch we inject the symbol via
     ``sys.modules`` so the ``import`` statement resolves cleanly.
     """

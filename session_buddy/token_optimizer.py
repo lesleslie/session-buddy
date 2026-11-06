@@ -16,7 +16,7 @@ from typing import Any
 from session_buddy.utils.time import parse_utc_timestamp, utc_now
 
 try:
-    import tiktoken  # ty: ignore[unresolved-import]
+    import tiktoken  # ty: ignore[import-not-found]
 except ImportError:
     tiktoken: Any = None
 

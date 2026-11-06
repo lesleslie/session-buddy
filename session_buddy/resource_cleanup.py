@@ -94,7 +94,7 @@ async def cleanup_http_clients() -> None:
     logger.info("Cleaning up HTTP client connections")
 
     try:
-        from mcp_common.adapters.http.client import (  # ty: ignore[unresolved-import]
+        from mcp_common.adapters.http.client import (  # ty: ignore[import-not-found]
             HTTPClientAdapter,
         )
 

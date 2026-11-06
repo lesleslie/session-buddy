@@ -190,7 +190,7 @@ class LLMEntityExtractor:
 
         try:
             if self.llm_provider == "openai":
-                from openai import (  # ty: ignore[unresolved-import] - optional dep; guarded ImportError
+                from openai import (  # ty: ignore[import-not-found] - optional dep; guarded ImportError
                     AsyncOpenAI,
                 )
 

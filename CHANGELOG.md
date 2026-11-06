@@ -9,6 +9,24 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.38.1] - 2026-11-06
+
+### Fixed
+
+- settings: Let operator cloud credentials reach the cloud_sync group
+
+### Documentation
+
+- Add the conversation transcript ingestion and fleet embedding width plans
+
+### Testing
+
+- settings: Assert the substrate-resolved embedding model default
+
+### Internal
+
+- gitignore: Ignore the Understand-Anything knowledge graph
+
 ## [0.38.0] - 2026-10-31
 
 ### Added
