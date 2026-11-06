@@ -15,6 +15,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import yaml
+from pydantic import ValidationError
 
 import pytest
 
@@ -948,6 +949,27 @@ class TestFilesystemExtractionConfig:
 class TestAkoshaSyncConfig:
     """Test ``cloud_sync`` group (formerly flat ``akosha_*``)."""
 
+    @pytest.fixture(autouse=True)
+    def _clear_cloud_sync_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Keep the operator's live cloud credentials out of these assertions.
+
+        Oneiric's BaseSettings gives env vars precedence over constructor
+        kwargs ("Phase 1 Option A: env > init precedence" in
+        oneiric/core/config.py), and an env-sourced nested group replaces
+        the group the test supplies wholesale. Without this, a
+        ``SESSION_BUDDY_CLOUD_SYNC__*`` variable in the ambient
+        environment makes these schema-level assertions read the
+        operator's values instead of the ones under test.
+
+        Add any further cloud_sync env var to this list when one is
+        introduced.
+        """
+        for name in (
+            "SESSION_BUDDY_CLOUD_SYNC__CLOUD_ACCESS_KEY_ID",
+            "SESSION_BUDDY_CLOUD_SYNC__CLOUD_SECRET_ACCESS_KEY",
+        ):
+            monkeypatch.delenv(name, raising=False)
+
     def test_akosha_cloud_bucket_default_empty(self) -> None:
         settings = SessionBuddySettings()
         assert settings.cloud_sync.cloud_bucket == ""
@@ -1336,6 +1358,77 @@ class TestSessionBuddySettingsLoad:
         result = SessionBuddySettings.load(config_path=config_file)
         assert result.mcp_server.server_name == "Test Server"
         assert result.mcp_transport.server_port == 9999
+
+
+class TestCloudSyncEnvTolerance:
+    """Operator-supplied cloud credentials must not break settings loading.
+
+    ``SessionBuddySettings`` is a ``BaseSettings``, so Pydantic's env
+    source applies ``SESSION_BUDDY_CLOUD_SYNC__*`` to the nested
+    ``cloud_sync`` group during validation -- after the loader's
+    ``_filter_model_dump`` has already stripped them from the config
+    dump. Under the inherited ``extra="forbid"`` that raised
+    ``extra_forbidden`` at import time, which aborted collection for
+    every test module in the suite.
+    """
+
+    def test_cloud_sync_env_credentials_do_not_break_load(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The loader must survive credentials arriving via the environment."""
+        monkeypatch.setenv(
+            "SESSION_BUDDY_CLOUD_SYNC__CLOUD_ACCESS_KEY_ID", "test-access-key-id"
+        )
+        monkeypatch.setenv(
+            "SESSION_BUDDY_CLOUD_SYNC__CLOUD_SECRET_ACCESS_KEY", "test-secret-key"
+        )
+
+        result = SessionBuddySettings.load()
+
+        assert result.cloud_sync.cloud_bucket is not None
+        # getattr, not attribute access: the key is not declared on the
+        # model, and akosha_config.py:from_settings() reads it the same way.
+        assert getattr(result.cloud_sync, "cloud_access_key_id") == (  # noqa: B009, RUF100
+            "test-access-key-id"
+        )
+
+    def test_env_credentials_merge_with_yaml_config(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """An operator credential must not wipe the rest of the group.
+
+        Oneiric gives env vars precedence over constructor kwargs, and an
+        env-sourced nested group replaces the group wholesale when the
+        caller passes a model *instance* for it. Through the loader path
+        the config dump is a dict, so the two merge -- which is what
+        keeps cloud_bucket and friends alive next to the credential.
+        """
+        monkeypatch.setenv(
+            "SESSION_BUDDY_CLOUD_SYNC__CLOUD_ACCESS_KEY_ID", "test-access-key-id"
+        )
+        config_file = tmp_path / "cloud.yaml"
+        config_file.write_text(
+            yaml.dump(
+                {"cloud_sync": {"cloud_bucket": "my-bucket", "system_id": "sys-1"}}
+            )
+        )
+
+        result = SessionBuddySettings.load(config_path=config_file)
+
+        assert result.cloud_sync.cloud_bucket == "my-bucket"
+        assert result.cloud_sync.system_id == "sys-1"
+        # See the note on the getattr above.
+        assert getattr(result.cloud_sync, "cloud_access_key_id") == (  # noqa: B009, RUF100
+            "test-access-key-id"
+        )
+
+    def test_other_groups_still_reject_unknown_keys(self) -> None:
+        """Other nested groups must keep rejecting keys they do not declare.
+
+        ``extra="allow"`` is scoped to ``AkoshaSyncConfig`` alone.
+        """
+        with pytest.raises(ValidationError):
+            LLMConfig.model_validate({"definitely_not_a_field": "x"})
 
 
 # ===========================================================================

@@ -810,6 +810,27 @@ class AkoshaSyncConfig(_BaseConfig):
     ``akosha_`` prefix.
     """
 
+    # This group is the one place operators supply credentials, and they
+    # supply them through the environment:
+    # SESSION_BUDDY_CLOUD_SYNC__CLOUD_ACCESS_KEY_ID and
+    # SESSION_BUDDY_CLOUD_SYNC__CLOUD_SECRET_ACCESS_KEY.
+    #
+    # SessionBuddySettings is a BaseSettings, so Pydantic's env source
+    # applies those to this nested group during validation -- *after* the
+    # loader's _filter_model_dump has already stripped them from the
+    # config dump. Under the inherited extra="forbid" that is a hard
+    # extra_forbidden error raised at import time, which aborts
+    # collection for every test module in the suite.
+    #
+    # Note that _filter_model_dump already drops unknown YAML keys for
+    # every nested group, so extra="forbid" only ever fires for
+    # env-supplied keys -- the opposite of what _BaseConfig's docstring
+    # intends. Exempting this one group keeps the other 21 strict where
+    # strictness still means something, and leaves the values reachable
+    # through the same getattr that akosha_config.py:from_settings()
+    # already uses for nested fields.
+    model_config = ConfigDict(extra="allow")
+
     cloud_bucket: str = Field(default="", description="Akosha cloud bucket name")
     cloud_endpoint: str = Field(default="", description="Akosha cloud endpoint")
     cloud_region: str = Field(default="auto", description="Akosha cloud region")
