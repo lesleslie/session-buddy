@@ -18,10 +18,11 @@ generated markdown to stdout and skip writing.
 Default stores scanned (POSIX, relative to repo root):
     docs/adr/
     docs/plans/                    (excluding drafts/ subdirectory)
-    docs/superpowers/specs/
-    docs/superpowers/plans/
+    docs/specs/
     .claude/decisions/
     docs/followups/
+
+Stores whose directory does not exist in this repo are skipped entirely.
 
 Always excluded:
     docs/plans/PLAN_INDEX.md (this script's own output — self-skip)
@@ -37,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import posixpath
 import re
 import sys
 import tempfile
@@ -64,13 +66,16 @@ ROLE_VALUES: tuple[str, ...] = (
     "superseded",
 )
 
-# The six stores scanned, relative to the repo root. Order in this list is
-# the order they appear in the registry section.
+# The stores scanned, relative to the repo root. Order in this list is the
+# order they appear in the registry section. Paths match the canonical
+# doc homes (crackerjack's services.frontmatter.STORE_LOOKUP); the legacy
+# `docs/superpowers/{specs,plans}/` paths were scratch and no longer exist,
+# so scanning them silently produced empty tables and dropped the whole
+# spec store from the index.
 DEFAULT_STORES: tuple[str, ...] = (
     "docs/adr/",
     "docs/plans/",
-    "docs/superpowers/specs/",
-    "docs/superpowers/plans/",
+    "docs/specs/",
     ".claude/decisions/",
     "docs/followups/",
 )
@@ -78,9 +83,8 @@ DEFAULT_STORES: tuple[str, ...] = (
 # Display labels per store (used as section headers).
 STORE_LABELS: dict[str, str] = {
     "docs/adr/": "Architecture Decision Records (`docs/adr/`)",
-    "docs/plans/": "Plans & Specifications (`docs/plans/`)",
-    "docs/superpowers/specs/": "Superpowers Specs (`docs/superpowers/specs/`)",
-    "docs/superpowers/plans/": "Superpowers Plans (`docs/superpowers/plans/`)",
+    "docs/plans/": "Plans (`docs/plans/`)",
+    "docs/specs/": "Specifications (`docs/specs/`)",
     ".claude/decisions/": "Repo-local Decisions (`.claude/decisions/`)",
     "docs/followups/": "Follow-up Notes (`docs/followups/`)",
 }
@@ -326,19 +330,18 @@ Last regenerated: {generated_at}.
 # ---------------------------------------------------------------------------
 
 
-def _entry_link(rel: str, store: str) -> str:
-    """POSIX link to the file from the index's home at docs/plans/.
-    Files outside docs/plans/ need an explicit relative prefix."""
-    if rel.startswith("docs/plans/"):
-        depth = 1  # file lives in same directory as the index
-    elif rel.startswith("docs/"):
-        depth = 2  # up one (docs/), then down into the actual path
-    elif rel.startswith(".claude/"):
-        depth = 2  # up one to repo root, then into .claude/
-    else:
-        depth = 2
-    prefix = "../" * (depth - 1)
-    return f"[`{rel}`]({prefix}{rel})"
+def _entry_link(rel: str) -> str:
+    """POSIX link to the file, rebased onto the index's home at docs/plans/.
+
+    The link target is resolved relative to the directory holding
+    PLAN_INDEX.md, so the repo-relative path has to be rebased onto
+    ``docs/plans/``. Prefixing ``../`` while keeping the whole
+    repo-relative path double-counts the prefix and yields a dead link
+    (a ``docs/plans/x.md`` target would resolve to
+    ``docs/plans/docs/plans/x.md``).
+    """
+    target = posixpath.relpath(rel, "docs/plans")
+    return f"[`{rel}`]({target})"
 
 
 def _render_store_table(store: str, entries: list[Entry]) -> str:
@@ -357,7 +360,7 @@ def _render_store_table(store: str, entries: list[Entry]) -> str:
     # two files share the same date.
     sorted_entries = sorted(entries, key=lambda e: (-_date_sort_key(e.date), e.rel))
     for entry in sorted_entries:
-        link = _entry_link(entry.rel, entry.store)
+        link = _entry_link(entry.rel)
         rows.append(
             f"| {link} "
             f"| {entry.date or '—'} "
@@ -489,7 +492,9 @@ def _render_index(entries_by_store: dict[str, list[Entry]], generated_at: str) -
 
     all_entries: list[Entry] = []
     for store in DEFAULT_STORES:
-        store_entries = entries_by_store.get(store, [])
+        if store not in entries_by_store:
+            continue  # store does not exist in this repo — no table
+        store_entries = entries_by_store[store]
         all_entries.extend(store_entries)
         sections.append(_render_store_table(store, store_entries).rstrip())
         sections.append("")
@@ -548,6 +553,12 @@ def main(argv: list[str] | None = None) -> int:
     total_with_frontmatter = 0
     total_discovered = 0
     for store in DEFAULT_STORES:
+        if not (repo_root / store).is_dir():
+            # A store this repo does not have is not rendered at all; a store
+            # that exists but holds no frontmatter-bearing docs still gets
+            # its table (with the "no entries" row) so the omission is
+            # visible rather than silent.
+            continue
         files = discover_files(repo_root, store)
         store_entries: list[Entry] = []
         for abs_path, rel in files:
@@ -594,7 +605,7 @@ def main(argv: list[str] | None = None) -> int:
             "discovered": total_discovered,
             "with_frontmatter": total_with_frontmatter,
             "per_store": {
-                store: len(entries_by_store.get(store, [])) for store in DEFAULT_STORES
+                store: len(entries) for store, entries in entries_by_store.items()
             },
         }
         sys.stderr.write(json.dumps(summary, indent=2) + "\n")
