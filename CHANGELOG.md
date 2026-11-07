@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [0.38.2] - 2026-11-07
+
+### Fixed
+
+- subscriber: Resolve the DuckDB connection on the querying thread
+
 ## [0.38.1] - 2026-11-06
 
 ### Fixed
