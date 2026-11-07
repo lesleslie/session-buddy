@@ -7,6 +7,7 @@ Covers the helper utilities and the registered MCP tools exposed by
 from __future__ import annotations
 
 import json
+import threading
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -27,6 +28,7 @@ from session_buddy.subscribers.code_graph_subscriber import (
     _normalize_call_edges,
     _query_code_graph,
     _query_code_graphs_list,
+    _resolve_conn,
     _traverse_call_chain,
     register_code_graph_tools,
 )
@@ -906,3 +908,87 @@ async def _invoke_code_impact_analysis(
         include_indirect=include_indirect,
         max_depth=max_depth,
     )
+
+
+def _collect_registered_tools() -> dict[str, Any]:
+    """Register the code-graph tools against a stub and return them by name.
+
+    The registrar wires each tool through ``@mcp.tool()``, so a stub whose
+    ``tool()`` returns a pass-through decorator captures the callables
+    without needing a live FastMCP server.
+    """
+    tools: dict[str, Any] = {}
+
+    class _StubMCP:
+        def tool(self, *_args: Any, **_kwargs: Any) -> Any:
+            def decorator(fn: Any) -> Any:
+                tools[fn.__name__] = fn
+                return fn
+
+            return decorator
+
+    register_code_graph_tools(_StubMCP())
+    return tools
+
+
+class TestResolveConn:
+    """The connection must be resolved on the thread that will USE it."""
+
+    def test_resolves_on_the_calling_thread(self) -> None:
+        class _ThreadLocalDB:
+            is_temp_db = False
+
+            def _get_conn(self) -> str:
+                return f"conn-for-{threading.current_thread().name}"
+
+        db = _ThreadLocalDB()
+        assert _resolve_conn(db) == f"conn-for-{threading.current_thread().name}"
+
+    def test_prefers_the_database_itself_when_it_exposes_execute(self) -> None:
+        db = SimpleNamespace(execute=lambda *a, **k: None)
+        assert _resolve_conn(db) is db
+
+    async def test_the_worker_resolves_its_own_connection(self) -> None:
+        """The regression test.
+
+        A persistent reflection database keeps its DuckDB connection
+        thread-local. The code-graph query used to be handed the event
+        loop's connection and then run on a worker thread, so two threads
+        shared one DuckDB connection. DuckDB refuses that rather than
+        queueing it -- "Resource In Use Error: connection is busy with
+        another call" -- which is what made the read fail intermittently
+        while the same query succeeded on the event loop.
+        """
+        resolved_on: list[str] = []
+
+        class _DB:
+            is_temp_db = False
+
+            def _get_conn(self) -> str:
+                resolved_on.append(threading.current_thread().name)
+                return "conn"
+
+        db = _DB()
+        tools = _collect_registered_tools()
+        get_code_graph = tools["get_code_graph"]
+
+        with (
+            patch.object(
+                code_graph_subscriber,
+                "require_reflection_database",
+                AsyncMock(return_value=db),
+            ),
+            patch.object(
+                code_graph_subscriber,
+                "_query_code_graph",
+                lambda conn, repo_path, commit_hash: None,
+            ),
+        ):
+            result = await get_code_graph(repo_path="/repo", commit_hash="abc")
+
+        assert result["status"] == "not_found"
+        assert resolved_on, "the query never resolved a connection"
+        assert threading.current_thread().name not in resolved_on, (
+            "the connection was resolved on the event loop thread and handed "
+            "to a worker -- the worker needs its own"
+        )

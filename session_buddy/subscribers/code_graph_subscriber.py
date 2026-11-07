@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import typing as t
 from datetime import UTC
 from typing import Any
 
@@ -23,6 +22,34 @@ def _get_lock(reflection_db: Any) -> Any:
         reflection_db.lock
         if hasattr(reflection_db, "is_temp_db") and reflection_db.is_temp_db
         else None
+    )
+
+
+def _resolve_conn(reflection_db: Any) -> Any:
+    """The connection to query with, resolved on the CALLING thread.
+
+    A persistent reflection database keeps its DuckDB connection
+    thread-local (``self.local``) precisely so that concurrent access does
+    not put two threads on one connection. That guarantee only holds if
+    the connection is resolved on the thread that will USE it.
+
+    Capturing the connection on the event loop thread and then running the
+    query on a worker thread does the opposite: the worker gets handed the
+    event loop's connection and the two threads share it. DuckDB does not
+    queue a second call on a busy connection -- it refuses it outright with
+    ``Resource In Use Error: connection is busy with another call`` -- so
+    the query fails rather than merely running slowly.
+
+    The symptom was a code-graph read failing intermittently with that
+    error while the same query succeeded when it ran on the event loop.
+
+    A temp database shares one connection across threads and its callers
+    hold the lock while querying, so the same helper is correct for both.
+    """
+    return (
+        reflection_db
+        if hasattr(reflection_db, "execute")
+        else reflection_db._get_conn()
     )
 
 
@@ -449,14 +476,14 @@ def _register_code_graph_retrieval_tool(mcp: Any) -> None:
         """
         try:
             reflection_db = await require_reflection_database()
-            conn = (
-                reflection_db
-                if hasattr(reflection_db, "execute")
-                else t.cast(Any, reflection_db)._get_conn()
-            )
 
             def _query() -> dict[str, Any] | None:
-                return _query_code_graph(conn, repo_path, commit_hash)
+                # Resolve the connection HERE, on the thread that runs the
+                # query -- see _resolve_conn. Resolving it in the caller
+                # would hand a worker thread the event loop's connection.
+                return _query_code_graph(
+                    _resolve_conn(reflection_db), repo_path, commit_hash
+                )
 
             lock = _get_lock(reflection_db)
             if lock:
@@ -508,14 +535,14 @@ def _register_code_graph_list_tool(mcp: Any) -> None:
         """
         try:
             reflection_db = await require_reflection_database()
-            conn = (
-                reflection_db
-                if hasattr(reflection_db, "execute")
-                else t.cast(Any, reflection_db)._get_conn()
-            )
 
             def _query() -> list[dict[str, Any]]:
-                return _query_code_graphs_list(conn, repo_path, limit)
+                # Resolve the connection HERE, on the thread that runs the
+                # query -- see _resolve_conn. Resolving it in the caller
+                # would hand a worker thread the event loop's connection.
+                return _query_code_graphs_list(
+                    _resolve_conn(reflection_db), repo_path, limit
+                )
 
             lock = _get_lock(reflection_db)
             if lock:
