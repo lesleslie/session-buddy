@@ -735,6 +735,74 @@ async def test_a_link_keeps_history_that_lives_only_in_the_reflection_row(
 
 
 @pytest.mark.unit
+async def test_a_link_mirrors_the_merged_document_not_a_row_subset(
+    engine: Any,
+) -> None:
+    """The mirror must carry the IDENTITY fields forward, not drop them.
+
+    The mirror is written into the authoritative store. If it is built
+    from the reflection row's own document and that document is partial
+    (no ``owner`` / ``visibility`` / ``task_id``), the mirror persists a
+    document WITHOUT them — and the backfill skips any row whose
+    document is non-empty, so the row is never completed. When the
+    sidecar is retired, that task loses its authorization metadata.
+
+    The mirror is therefore built from the MERGED document, which holds
+    the identity fields whichever store supplied them.
+    """
+    _reset_limiters()
+    ctx = _make_ctx({"user_email": "les@example.com"})
+    _FAKE_REFLECTIONS.clear()
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(side_effect=lambda rid: _reflection_for(rid)),
+        ),
+        patch.object(
+            tasks_tools,
+            "_update_reflection",
+            new=AsyncMock(side_effect=_fake_update_reflection),
+        ),
+    ):
+        created = await _create_task(ctx)
+        reflection_id = tasks_tools._find_reflection_id_by_task_id(
+            engine=engine,
+            task_id=created.id,
+        )
+        assert reflection_id is not None
+
+        # A partial reflection document: the link fields only. The
+        # sidecar still holds the identity fields.
+        _FAKE_REFLECTIONS[reflection_id]["metadata"] = {"workflow_id": None}
+
+        linked = await tasks_tools.tasks_link_workflow(
+            ctx,
+            task_id=created.id,
+            workflow_id=_WORKFLOW_ID,
+        )
+        assert isinstance(linked, Task)
+
+    mirrored = _FAKE_REFLECTIONS[reflection_id]["metadata"]
+    assert mirrored.get("owner") == "user:les@example.com", (
+        f"the mirror dropped the owner; got {mirrored!r}"
+    )
+    assert mirrored.get("task_id") == created.id, (
+        f"the mirror dropped the task id; got {mirrored!r}"
+    )
+    assert mirrored.get("kind") == "task", (
+        f"the mirror dropped the task discriminator; got {mirrored!r}"
+    )
+    # ``visibility`` is not asserted: a task that has never been updated
+    # carries no visibility key in its document at all (the model's
+    # default is "private"), and the update path writes one. The
+    # identity fields above are the ones that must survive the mirror.
+
+
+@pytest.mark.unit
 async def test_an_ordinary_update_does_not_clear_an_existing_link(
     engine: Any,
 ) -> None:

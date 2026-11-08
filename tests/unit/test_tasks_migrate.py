@@ -92,7 +92,7 @@ async def test_backfill_copies_sidecar_metadata_into_the_reflection_row(
 
 @pytest.mark.asyncio
 async def test_backfill_does_not_overwrite_existing_metadata(_engine: Any) -> None:
-    """A reflection row that already has metadata is left alone."""
+    """A reflection row that already carries the identity fields is left alone."""
     from session_buddy.mcp.tools.tasks_migrate import backfill_task_metadata
 
     _seed(_engine, "ref-1", "t-" + "0" * 32, priority="high")
@@ -102,7 +102,12 @@ async def test_backfill_does_not_overwrite_existing_metadata(_engine: Any) -> No
                 "id": "ref-1",
                 "content": "body",
                 "tags": ["task"],
-                "metadata": {"kind": "task", "priority": "critical"},
+                "metadata": {
+                    "kind": "task",
+                    "owner": "user:les@example.com",
+                    "task_id": "t-" + "0" * 32,
+                    "priority": "critical",
+                },
             }
         }
     )
@@ -209,3 +214,43 @@ async def test_main_backfills_the_configured_sidecar_not_an_in_memory_one(
 
     assert summary["migrated"] == 1, summary
     assert db.updates[0][0] == "ref-1"
+
+
+@pytest.mark.asyncio
+async def test_backfill_merges_into_a_partial_document_instead_of_skipping_it(
+    _engine: Any,
+) -> None:
+    """A non-empty document WITHOUT the identity fields is completed.
+
+    The backfill skipped any row whose document was non-empty, which is
+    the wrong test: a document that carries only, say, a workflow link
+    has no ``owner`` / ``task_id`` / ``kind``, and skipping it leaves the
+    task without its identity for good. Once the sidecar is retired that
+    task is unreadable. The backfill must MERGE the sidecar blob into a
+    document that lacks the identity fields.
+    """
+    from session_buddy.mcp.tools.tasks_migrate import backfill_task_metadata
+
+    _seed(_engine, "ref-1", "t-" + "0" * 32, priority="high")
+    db = _FakeDb(
+        {
+            "ref-1": {
+                "id": "ref-1",
+                "content": "body",
+                "tags": ["task"],
+                # Non-empty, but no identity fields.
+                "metadata": {"workflow_id": "wf_1"},
+            }
+        }
+    )
+
+    result = await backfill_task_metadata(_engine, db)
+
+    assert result["migrated"] == 1, result
+    assert result["skipped"] == 0, result
+    migrated = db.reflections["ref-1"]["metadata"]
+    assert migrated["kind"] == "task"
+    assert migrated["owner"] == "user:les@example.com"
+    assert migrated["task_id"] == "t-" + "0" * 32
+    # The existing document's own field is preserved, not overwritten.
+    assert migrated["workflow_id"] == "wf_1", migrated

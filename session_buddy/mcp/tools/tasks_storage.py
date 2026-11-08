@@ -30,6 +30,7 @@ is orphaned and ignored by ``find_tasks_by_metadata`` consumers.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -147,7 +148,27 @@ def persist_task_metadata(
     inserted. Uses ``Session.exec`` with a SQLAlchemy 2.x-style ``select``
     + ``update_or_create`` pattern so the same call shape works against
     SQLite (dev/test) and any future SQLAlchemy-supported backend.
+
+    The document is SCREENED and BOUNDED here, because the sidecar is a
+    write path in its own right: the reflection store screens the
+    document at the adapter, and a sidecar that kept the raw copy
+    would hold a value the screen removed — and the read path merges
+    the sidecar into the document, so it would come back.
     """
+    from session_buddy.security.memory_guard_adapter import (
+        MAX_METADATA_BYTES,
+        MemoryGuardAdapter,
+    )
+
+    screened = MemoryGuardAdapter().screen_metadata(metadata).metadata
+    serialized = json.dumps(screened)
+    size = len(serialized.encode("utf-8", errors="replace"))
+    if size > MAX_METADATA_BYTES:
+        raise ValueError(
+            f"metadata document is {size} bytes; the limit is "
+            f"{MAX_METADATA_BYTES} bytes",
+        )
+
     ensure_metadata_schema(engine)
     with Session(engine) as session:
         # ``select`` is SQLModel's, so it returns a ``SelectOfScalar`` and
@@ -159,12 +180,12 @@ def persist_task_metadata(
             session.add(
                 ReflectionMetadata(
                     id=reflection_id,
-                    metadata_json=metadata,
+                    metadata_json=screened,
                     updated_at=datetime.now(tz=UTC),
                 ),
             )
         else:
-            existing.metadata_json = metadata
+            existing.metadata_json = screened
             existing.updated_at = datetime.now(tz=UTC)
             session.add(existing)
         session.commit()

@@ -257,6 +257,12 @@ async def _screen_and_persist_reflection(
     content = decision.content
     tags = decision.tags
 
+    # The metadata document is a SECOND channel into the same canonical
+    # store. It is screened by the ADAPTER, not here: the adapter is
+    # the write path every writer of the column goes through — this
+    # tool, the task system's update path, the backfill. A screen that
+    # lived in one caller would leave its sibling paths open.
+
     db = await _get_reflection_database()
     return await _store_reflection_operation(
         db,

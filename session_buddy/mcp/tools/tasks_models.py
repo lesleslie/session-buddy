@@ -186,6 +186,19 @@ class UpdateTaskRequest(BaseModel):
     result_notes: str | None = None
     metadata: dict[str, JsonValue] | None = None
 
+    @field_validator("metadata")
+    @classmethod
+    def metadata_size_cap(
+        cls,
+        value: dict[str, JsonValue] | None,
+    ) -> dict[str, JsonValue] | None:
+        # The SAME cap the create path enforces on ``Task.metadata``.
+        # Without it the update path was the one that could grow the
+        # document past the bound the rest of the system relies on.
+        if value is not None and len(json.dumps(value)) > 1024:
+            raise ValueError("metadata serialized size > 1 KiB")
+        return value
+
 
 class FieldDiff(BaseModel):
     """One field's before/after in a ``tasks_update`` mutation.

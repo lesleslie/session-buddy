@@ -410,6 +410,15 @@ def _read_task_metadata(
     that holds one; otherwise a failed mirror into the reflection store
     would make the binding invisible, and the next ``tasks_update``
     would merge that "no link" back over the sidecar and erase it.
+
+    ONE MORE EXCEPTION — ``history``. The history is append-only: every
+    writer appends to the merged list and writes the FULL list to both
+    stores, so one store's history is always a prefix of the other's.
+    The LONGER list is therefore the fresher one, whichever store it
+    came from. Without this, a write that reached one store but not the
+    other would silently drop the newer entries from the audit trail —
+    and "a shorter history" looks exactly like "a task with no
+    history".
     """
     merged: dict[str, Any] = {}
     if isinstance(sidecar_meta, dict):
@@ -423,7 +432,68 @@ def _read_task_metadata(
         for key in ("workflow_id", "workflow_linked_at", "workflow_linked_by"):
             if key in sidecar_meta:
                 merged[key] = sidecar_meta[key]
-    return merged
+    freshest_history = _freshest_history(
+        sidecar_meta.get("history") if isinstance(sidecar_meta, dict) else None,
+        reflection_meta.get("history") if isinstance(reflection_meta, dict) else None,
+    )
+    # Only override when there IS a history. Adding an empty ``history``
+    # key to a document that never had one would make the drift
+    # reconciler report every such row as divergent.
+    if freshest_history:
+        merged["history"] = freshest_history
+
+    # The MERGED document is screened on the read path too. The merge
+    # fills gaps from the sidecar, so a store that still holds a value
+    # the screen dropped (written before the screen existed, or by a
+    # path that skipped it) would otherwise hand the value back — the
+    # read path is where that resurrection would happen.
+    from session_buddy.security.memory_guard_adapter import MemoryGuardAdapter
+
+    return MemoryGuardAdapter().screen_metadata(merged).metadata
+
+
+def _freshest_history(
+    sidecar_history: Any,
+    reflection_history: Any,
+) -> list[Any]:
+    """Return the fresher of two append-only history lists.
+
+    The history is append-only and every writer writes the full merged
+    list to both stores, so one list is normally a PREFIX of the other
+    and the longer one is the fresher — that is the case where a write
+    reached one store but not the other, and the newer entries must not
+    be dropped.
+
+    When the two lists DIVERGE (two writers raced, each appending its
+    own entry to the same base) neither is a prefix of the other, and
+    length alone says nothing about freshness. Then the AUTHORITATIVE
+    document wins: the sidecar is the store being retired, and it must
+    not win on length alone.
+    """
+    sidecar_list = list(sidecar_history) if isinstance(sidecar_history, list) else []
+    reflection_list = (
+        list(reflection_history) if isinstance(reflection_history, list) else []
+    )
+    if not reflection_list:
+        return sidecar_list
+    if not sidecar_list:
+        return reflection_list
+    if len(reflection_list) > len(sidecar_list) and _is_prefix(
+        sidecar_list,
+        reflection_list,
+    ):
+        return reflection_list
+    if len(sidecar_list) > len(reflection_list) and _is_prefix(
+        reflection_list,
+        sidecar_list,
+    ):
+        return sidecar_list
+    return reflection_list
+
+
+def _is_prefix(shorter: list[Any], longer: list[Any]) -> bool:
+    """True when ``shorter`` is a leading prefix of ``longer``."""
+    return longer[: len(shorter)] == shorter
 
 
 def _build_task(
@@ -999,16 +1069,33 @@ async def _persist_task_update(
     history.extend(_history_entries(diff_events, actor, datetime.now(UTC).isoformat()))
     new_meta["history"] = history
 
-    tasks_storage.persist_task_metadata(
-        tasks_storage.get_engine(),
-        reflection_id,
-        new_meta,
-    )
+    # The AUTHORITATIVE store is written first, the fallback second.
+    #
+    # The read path prefers the reflection document per key, so the
+    # reflection row is the authoritative copy during the transition and
+    # the sidecar is the fallback being retired. Writing the fallback
+    # first means a failure of the authoritative write leaves the
+    # fallback AHEAD — and the merge then out-votes the fresh fallback
+    # with the stale authoritative row. The concrete damage: an owner
+    # tightens a task's visibility from public to private, the
+    # reflection write fails (the DuckDB WAL poison is a recurring
+    # failure in this environment), and the task stays publicly
+    # readable while the sidecar says "private".
+    #
+    # A failure of the FALLBACK write leaves the authoritative copy
+    # current and propagates to the caller, which is the correct
+    # report: the update landed, the fallback lagged, and the operator
+    # is told the write was not clean.
     await _update_reflection(
         reflection_id=reflection_id,
         content=task.content,
         tags=synced_tags,
         metadata=new_meta,
+    )
+    tasks_storage.persist_task_metadata(
+        tasks_storage.get_engine(),
+        reflection_id,
+        new_meta,
     )
 
 
@@ -1662,9 +1749,16 @@ async def tasks_link_workflow(
     # permanently. The sidecar write above stays the authority for the
     # link-once invariant (it is the atomic conditional UPDATE); this
     # write mirrors the result into the reflection store.
-    reflection_meta = (
-        dict(reflection.get("metadata") or {}) if isinstance(reflection, dict) else {}
-    )
+    #
+    # The mirrored document is built from the MERGED document, not from
+    # the reflection row's own. The reflection row's document may be
+    # PARTIAL — a row written before the metadata column existed, or by
+    # a writer that only set the link keys. Mirroring that subset would
+    # persist a document without ``owner`` / ``visibility`` / ``task_id``
+    # into the authoritative store, and the backfill skips any row whose
+    # document is non-empty — so the row would never be completed, and
+    # the task would lose its identity when the sidecar is retired.
+    reflection_meta = dict(merged_meta)
     reflection_meta.update(
         {
             "workflow_id": workflow_id,

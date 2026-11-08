@@ -30,13 +30,29 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: The fields that make a metadata document a TASK's identity. A
+#: document without them is partial — it may hold a link or a note, but
+#: not enough for the task to be read back.
+_IDENTITY_FIELDS = ("kind", "owner", "task_id")
+
+
+def _has_identity_fields(document: dict[str, t.Any]) -> bool:
+    """True when the document carries the task's identity fields."""
+    return all(document.get(field) is not None for field in _IDENTITY_FIELDS)
+
 
 async def backfill_task_metadata(engine: Engine, db: t.Any) -> dict[str, int]:
     """Copy every task's sidecar metadata into its reflection row.
 
-    A reflection row that already has a non-empty ``metadata`` document
-    is left alone — the backfill must never clobber fresher data. A
-    sidecar row whose reflection no longer exists is counted, not
+    A reflection row that already carries the task's IDENTITY fields
+    (``kind``, ``owner``, ``task_id``) is left alone — the backfill must
+    never clobber fresher data. A row whose document is PARTIAL (no
+    identity fields — a link mirror, a document written before the
+    column existed) is COMPLETED by merging the sidecar blob into it:
+    skipping it would leave the task without its identity for good,
+    because the sidecar is deleted right after this runs.
+
+    A sidecar row whose reflection no longer exists is counted, not
     resurrected.
 
     Every task row is scanned. The scan is NOT capped: a cap silently
@@ -79,10 +95,17 @@ async def backfill_task_metadata(engine: Engine, db: t.Any) -> dict[str, int]:
             missing += 1
             continue
         existing = reflection.get("metadata")
-        if isinstance(existing, dict) and existing:
+        if isinstance(existing, dict) and _has_identity_fields(existing):
             skipped += 1
             continue
-        updated = await db.update_reflection(reflection_id, metadata=sidecar)
+        # Merge, so a partial document keeps its own fields and gains the
+        # identity fields the sidecar holds. The EXISTING document wins per
+        # key: it is the authoritative store and may already be fresher
+        # than the sidecar.
+        merged = dict(sidecar)
+        if isinstance(existing, dict):
+            merged.update(existing)
+        updated = await db.update_reflection(reflection_id, metadata=merged)
         if updated:
             migrated += 1
         else:

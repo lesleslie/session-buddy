@@ -53,6 +53,9 @@ from session_buddy.ingesters.redaction import (
     redact_metadata,
 )
 from session_buddy.memory.category_evolution import CategoryEvolutionEngine
+from session_buddy.security.memory_guard_adapter import (
+    MAX_METADATA_BYTES as _MAX_METADATA_BYTES,
+)
 
 _SAFE_COLLECTION_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_]+$")
 _SQL_KEYWORDS = frozenset(
@@ -146,6 +149,14 @@ from session_buddy.skills.distiller import (
 from session_buddy.utils.fingerprint import MinHashSignature
 
 logger = logging.getLogger(__name__)
+
+#: Upper bound on the serialised ``metadata`` document. Defined by the
+#: write-path policy module so the reflection store and the task
+#: metadata sidecar enforce the SAME bound — they hold the same
+#: document, and a bound on one but not the other means a caller can
+#: write a bounded document to one store and an unbounded one to the
+#: other.
+MAX_METADATA_BYTES = _MAX_METADATA_BYTES
 
 #: Fetch SQL for the rows a cached conversation search points at.
 #:
@@ -399,6 +410,61 @@ class ReflectionDatabaseAdapterOneiric:
     # This eliminates the class of SQL injection that cannot be caught by
     # parameterized queries (identifier vs value injection).
     # -------------------------------------------------------------------------
+
+    def _screen_metadata_document(
+        self,
+        metadata: dict[str, t.Any] | None,
+        tags: list[str] | None,
+    ) -> tuple[dict[str, t.Any] | None, list[str] | None]:
+        """Screen and bound the metadata document before it is written.
+
+        The screen lives HERE — in the canonical store's write path —
+        so every writer of the ``metadata`` column is covered: the
+        memory tool, the task system's update path, the backfill. A
+        control that lived in one caller would leave its sibling paths
+        open.
+
+        Args:
+            metadata: The document about to be written (``None`` leaves
+                the column NULL).
+            tags: The tags about to be written, or ``None`` when the
+                caller is not changing the tags. A quarantined document
+                marks the row when the caller is writing tags anyway.
+
+        Returns:
+            ``(screened_metadata, tags_to_write)``. ``tags_to_write`` is
+            ``None`` when the caller is not changing the tags.
+
+        Raises:
+            ValueError: The document is larger than
+                ``MAX_METADATA_BYTES`` once serialised.
+        """
+        if metadata is None:
+            return None, tags
+
+        from session_buddy.security.memory_guard_adapter import (
+            GuardAction,
+            MemoryGuardAdapter,
+        )
+
+        decision = MemoryGuardAdapter().screen_metadata(metadata)
+        screened = decision.metadata
+        effective_tags = list(tags) if tags is not None else None
+        if decision.action == GuardAction.QUARANTINE and effective_tags is not None:
+            effective_tags = [
+                "quarantine",
+                f"hash:{decision.content_hash}",
+                *effective_tags,
+            ]
+
+        serialized = json.dumps(screened)
+        size = len(serialized.encode("utf-8", errors="replace"))
+        if size > MAX_METADATA_BYTES:
+            raise ValueError(
+                f"metadata document is {size} bytes; the limit is "
+                f"{MAX_METADATA_BYTES} bytes",
+            )
+        return screened, effective_tags
 
     def _table(self, suffix: str) -> str:
         """Return a validated table name for this collection.
@@ -2361,6 +2427,11 @@ class ReflectionDatabaseAdapterOneiric:
         # Serialise the metadata document BEFORE touching the database, so
         # an unserialisable value raises without leaving a partial write.
         # ``None`` means "no metadata" and leaves the column NULL.
+        # The tags are always written on this path (``tags or []``), so
+        # ``None`` here means "an empty tag list", not "do not touch the
+        # tags" — which means a quarantined document can always mark
+        # the row.
+        metadata, tags = self._screen_metadata_document(metadata, list(tags or []))
         metadata_json = json.dumps(metadata) if metadata is not None else None
 
         # Store reflection. v2 rewire (Phase 0): write to ``reflections_v2``
@@ -2907,6 +2978,7 @@ class ReflectionDatabaseAdapterOneiric:
         if content is not None:
             sets.append("content = ?")
             params.append(content)
+        metadata, tags = self._screen_metadata_document(metadata, tags)
         if tags is not None:
             sets.append("tags = ?")
             params.append(json.dumps(tags))

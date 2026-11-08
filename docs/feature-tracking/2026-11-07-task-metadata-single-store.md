@@ -136,6 +136,72 @@ The review also found two Review Focus input classes with no test (a
 reflection row whose metadata column is NULL, and a metadata bag that
 cannot be serialised). Both are now pinned.
 
+## Security review of the merged branch (2026-11-07)
+
+The automated security review of the merge commit raised four MEDIUM
+findings against the transition code. Three were real defects; all are
+fixed on `fix/task-store-write-order`:
+
+| # | Finding | Disposition |
+|---|---|---|
+| S1 | the update path wrote the FALLBACK before the authoritative store; a failed authoritative write left the fallback ahead, and the merge out-voted it with the stale row (an owner tightening a task's visibility could leave it publicly readable) | **fixed** — the authoritative write happens first |
+| S2 | a failed link mirror left the append-only history stale, and the merge preferred the stale copy | **fixed** — the history is append-only, so the LONGER list is the fresher one, whichever store it came from. The reviewer's separate suggestion to stop swallowing the mirror failure is **declined**: the link DID happen (the sidecar's atomic conditional UPDATE is the link-once authority), so failing the tool would report a durable link as a failure |
+| S3 | the link mirror was built from the reflection row's own document, so a partial document lost `owner` / `task_id` / `kind` — and the backfill then skipped the row forever | **fixed** — the mirror is built from the merged document, and the backfill completes a partial document instead of skipping it |
+| S4 | the metadata document was a second, unscreened write channel into the canonical store | **fixed** — the guard screens it with the same rules as the content (injection drops the offending value, secrets are redacted) and the adapter caps the serialised document at 10 KB |
+
+One sub-suggestion in S1 was **declined**: giving the sidecar precedence
+over the reflection document for `owner` / `visibility`. The sidecar is
+the store being retired, so the authoritative copy must win for those
+fields — the defect was the write ORDER, not the precedence.
+
+A second review, run against the first round's fix, found a **CRITICAL
+defect in that fix** and three more gaps:
+
+| # | Finding | Disposition |
+|---|---|---|
+| S5 | the metadata screen redacted the OWNER — a principal is `user:<email>` and the PII redactor matched the email inside it, so every task's owner became `user:[REDACTED-EMAIL]` and the task's access control collapsed | **fixed** — server-set fields (principals, identifiers, timestamps) are protected and never rewritten, at any depth |
+| S6 | document KEYS were copied verbatim, so an injection hidden in a key reached the model untouched | **fixed** — keys are screened with the same rules as values |
+| S7 | the screen lived in the memory tool, so the task system's update path — which writes the same column directly — was still open | **fixed** — the screen now lives in the **adapter**, the write path every writer of the column goes through |
+| S8 | the size cap covered the insert path but not the update path, which is the one that grows the row | **fixed** — both writers are bounded. The limit is 1 MiB (later tightened to 256 KiB), not 10 KB, because the task document legitimately grows with its append-only history (~200 bytes per update) and a tight cap would make a long-lived task unupdatable |
+| S9 | the length-based history recovery could let the retired fallback override the authoritative document when the two histories DIVERGED (two writers raced) | **fixed** — the recovery applies only when the shorter list is a strict prefix of the longer; otherwise the authoritative document wins |
+
+A third review found three more gaps, all in the paths the screen had
+not yet reached:
+
+| # | Finding | Disposition |
+|---|---|---|
+| S10 | the SIDECAR stored the raw document while the reflection store stored the screened one — and the read path merges the sidecar *into* the document, so a key the screen dropped came back from the fallback store | **fixed** — the sidecar screens and bounds what it stores, and the MERGED document is screened on the read path, so a store holding a pre-screen copy cannot hand the value back |
+| S11 | `UpdateTaskRequest` did not honour the 1 KiB caller-facing metadata cap that the create path enforces, so the update path was the one that could grow the document past the bound | **fixed** — the update request carries the same validator |
+| S12 | the screen applied DROP semantics inside the append-only history, deleting a *record of a change* — a silent loss in the audit trail | **fixed** — a value inside the history is REDACTED with an explicit marker and the entry survives |
+
+The document carries three kinds of data, and each needs a different
+rule: a **principal** must never be rewritten (or the task's access
+control collapses), **free text** must be dropped when it carries an
+injection, and an **audit record** must never be deleted — only
+marked. One "sanitize everything" rule silently corrupts two of the
+three.
+
+The size bound is now **256 KiB**, defined once in the write-path policy
+module so the reflection store and the sidecar enforce the SAME bound.
+256 KiB is about 1 300 updates' worth of history; past that the right
+answer is a separate table for the history, not a bigger row.
+
+### Known limitations (deferred)
+
+- **The task document grows without bound over a task's lifetime.** It
+  carries the append-only history, which gains an entry per update.
+  The 256 KiB adapter cap bounds the ROW but the document is rewritten
+  whole on every update, so the write cost is O(history). The fix is
+  a separate table for the history — a design change, not a security
+  fix, and one that would undo this plan's "one document" simplification.
+- **The task path writes the reflection's CONTENT without the content
+  guard.** `tasks_update` sets the reflection's content column
+  directly; only the memory tool's writes are content-screened. A task
+  body is task state rather than a memory body, and screening it would
+  change the task system's semantics — but the same column is read by
+  memory search, so it is the same class of channel the metadata
+  screen now closes. Flagged for a decision, not fixed here.
+
 ## Why Phase 3 is deferred
 
 Retiring the sidecar requires the live backfill to have run first — until
