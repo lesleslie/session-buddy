@@ -387,6 +387,45 @@ def _parse_iso_optional(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def _read_task_metadata(
+    reflection: dict[str, Any] | None,
+    sidecar_meta: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Return the task metadata for a reflection, merging both stores.
+
+    The reflection row's ``metadata`` document is authoritative; the
+    sidecar blob fills the gaps. The sidecar remains the fallback for
+    rows written before the backfill — see
+    ``docs/plans/2026-11-07-task-metadata-single-store.md``.
+
+    Merging (rather than preferring one store wholesale) keeps a partial
+    reflection document from silently dropping fields the sidecar still
+    has. The reflection store wins per key, so a stale sidecar field can
+    never override a fresher one.
+
+    ONE EXCEPTION — the workflow link. ``workflow_id`` is write-once:
+    ``tasks_link_workflow`` is its only writer, and the sidecar write is
+    the atomic conditional UPDATE that enforces link-once. A reflection
+    document that says "no link" therefore cannot override a sidecar
+    that holds one; otherwise a failed mirror into the reflection store
+    would make the binding invisible, and the next ``tasks_update``
+    would merge that "no link" back over the sidecar and erase it.
+    """
+    merged: dict[str, Any] = {}
+    if isinstance(sidecar_meta, dict):
+        merged.update(sidecar_meta)
+    reflection_meta = (
+        reflection.get("metadata") if isinstance(reflection, dict) else None
+    )
+    if isinstance(reflection_meta, dict):
+        merged.update(reflection_meta)
+    if isinstance(sidecar_meta, dict) and sidecar_meta.get("workflow_id") is not None:
+        for key in ("workflow_id", "workflow_linked_at", "workflow_linked_by"):
+            if key in sidecar_meta:
+                merged[key] = sidecar_meta[key]
+    return merged
+
+
 def _build_task(
     reflection: dict[str, Any] | None, sidecar_meta: dict[str, Any] | None
 ) -> Task | None:
@@ -664,10 +703,17 @@ async def tasks_list(
     )
 
     typed_items: list[Task] = []
+    unreadable_ids: list[str] = []
     for rid in candidate_ids:
         reflection = await _read_reflection(rid)
         if reflection is None:
-            continue  # orphan sidecar row — skip silently
+            # The sidecar row resolves but the backing reflection row is
+            # not readable. That is a durability fault, not a filter --
+            # skipping it silently made a lost task indistinguishable from
+            # a task that was never created (proven 2026-11-07). Count it
+            # and report it instead.
+            unreadable_ids.append(rid)
+            continue
         sidecar_meta = (
             tasks_storage.read_task_metadata(
                 tasks_storage.get_engine(),
@@ -675,7 +721,7 @@ async def tasks_list(
             )
             or {}
         )
-        task = _build_task(reflection, sidecar_meta)
+        task = _build_task(reflection, _read_task_metadata(reflection, sidecar_meta))
         if task is None:
             continue
         if not enforce_visibility_filter(caller, task):
@@ -713,10 +759,17 @@ async def tasks_list(
         page_items = page_items.copy() + legacy_items
 
     total_count = len(typed_items) + (len(legacy_items) if include_legacy else 0)
+    if unreadable_ids:
+        logger.warning(
+            "tasks_list: %d task reflection(s) unreadable and therefore not listed: %s",
+            len(unreadable_ids),
+            unreadable_ids[:10],
+        )
     return TaskListResult(
         items=page_items,
         next_cursor=next_cursor,
         total=total_count,
+        unreadable_count=len(unreadable_ids),
     )
 
 
@@ -796,12 +849,18 @@ async def _update_reflection(
     reflection_id: str,
     content: str,
     tags: list[str],
+    metadata: dict[str, Any] | None = None,
 ) -> None:
-    """Persist updated content + tags to the canonical reflection DB.
+    """Persist updated content + tags (+ metadata) to the canonical reflection DB.
 
     Delegates to the reflection adapter's ``update_reflection`` primitive
     (added in T6 fix round 1). Raises if the row doesn't exist or the
     adapter is unavailable.
+
+    ``metadata`` is written to the reflection row's ``metadata`` column.
+    The task system passes the full task metadata blob so the reflection
+    store stays authoritative; the sidecar write is the transition
+    fallback until the sidecar is retired.
     """
     from session_buddy.reflection_tools import get_reflection_database
 
@@ -811,6 +870,7 @@ async def _update_reflection(
         reflection_id,
         content=content,
         tags=tags,
+        metadata=metadata,
     )
     if not updated:
         raise RuntimeError(
@@ -885,8 +945,11 @@ async def _persist_task_update(
         engine=engine,
         reflection_id=reflection_id,
     )
-    base = dict(current) if isinstance(current, dict) else dict(sidecar_meta)
-    new_meta = base
+    sidecar_base = dict(current) if isinstance(current, dict) else dict(sidecar_meta)
+    # The reflection row's metadata document is authoritative; the sidecar
+    # blob fills the gaps for rows written before the backfill.
+    reflection = await _read_reflection(reflection_id)
+    new_meta = _read_task_metadata(reflection, sidecar_base)
     new_meta["priority"] = task.priority
     new_meta["effort"] = task.effort
     if getattr(task, "visibility", None) is not None:
@@ -932,7 +995,7 @@ async def _persist_task_update(
     # ``history`` is append-only: extend the STORED list with this
     # update's entries. The base above already carries the stored
     # history, so the new entries are appended to it.
-    history = list(base.get("history") or [])
+    history = list(new_meta.get("history") or [])
     history.extend(_history_entries(diff_events, actor, datetime.now(UTC).isoformat()))
     new_meta["history"] = history
 
@@ -945,6 +1008,7 @@ async def _persist_task_update(
         reflection_id=reflection_id,
         content=task.content,
         tags=synced_tags,
+        metadata=new_meta,
     )
 
 
@@ -1035,6 +1099,26 @@ async def _emit_update_events(
 # signature; an invalid id raises ``ValidationError`` BEFORE this body runs.
 
 
+def _sidecar_visible_to(caller: str, sidecar_meta: dict[str, Any] | None) -> bool:
+    """Return True iff ``caller`` may read the task described by ``sidecar_meta``.
+
+    Mirrors :func:`enforce_visibility_filter` but works from the raw
+    metadata dict, so it can run BEFORE the backing reflection row is
+    read. ``tasks_get`` needs that ordering: when the reflection row is
+    unreadable there is no :class:`Task` to hand to the real filter, and
+    the ``reflection_unreadable`` error code must not become an existence
+    oracle for a caller who does not own the task.
+
+    A missing sidecar blob is treated as "not visible" -- an ownerless row
+    is not disclosed to anyone.
+    """
+    if not sidecar_meta:
+        return False
+    if sidecar_meta.get("visibility", "private") == "public":
+        return True
+    return caller == sidecar_meta.get("owner")
+
+
 async def tasks_get(
     ctx: Context,
     task_id: Annotated[str, Field(pattern=TASK_ID_PATTERN)],
@@ -1062,9 +1146,36 @@ async def tasks_get(
             "message": f"No task with id {task_id}",
         }
 
-    reflection = await _read_reflection(target)
     sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
-    task = _build_task(reflection, sidecar_meta)
+    reflection = await _read_reflection(target)
+    if reflection is None:
+        # The task's metadata resolves but its backing reflection row is
+        # not readable. That is a durability fault, not a deletion --
+        # answering "not_found" would report a delete that never happened.
+        # Proven on 2026-11-07: a DuckDB WAL-poison recovery dropped two
+        # tasks from the live connection's view while both stores still
+        # held their rows.
+        #
+        # Only disclose it to a caller who could have read the task, so
+        # the new error code cannot be used as an existence oracle (the
+        # spec §Authz Model pins 404 over 403 for exactly this reason).
+        if not _sidecar_visible_to(caller, sidecar_meta):
+            return {
+                "status": "error",
+                "error_code": "not_found",
+                "message": f"No task with id {task_id}",
+            }
+        return {
+            "status": "error",
+            "error_code": "reflection_unreadable",
+            "message": (
+                f"Task {task_id} exists but its backing reflection "
+                f"{target} could not be read."
+            ),
+            "details": {"task_id": task_id, "reflection_id": target},
+        }
+
+    task = _build_task(reflection, _read_task_metadata(reflection, sidecar_meta))
     if task is None:
         return {
             "status": "error",
@@ -1155,7 +1266,7 @@ async def tasks_update(
 
     reflection = await _read_reflection(target)
     sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
-    task = _build_task(reflection, sidecar_meta)
+    task = _build_task(reflection, _read_task_metadata(reflection, sidecar_meta))
     if task is None or not enforce_visibility_filter(caller, task):
         return {
             "status": "error",
@@ -1277,7 +1388,7 @@ async def tasks_complete(
 
     reflection = await _read_reflection(target)
     sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
-    task = _build_task(reflection, sidecar_meta)
+    task = _build_task(reflection, _read_task_metadata(reflection, sidecar_meta))
     if task is None or not enforce_visibility_filter(caller, task):
         return {
             "status": "error",
@@ -1459,7 +1570,8 @@ async def tasks_link_workflow(
         tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
         or dict[str, Any]()
     )
-    task = _build_task(reflection, sidecar_meta)
+    merged_meta = _read_task_metadata(reflection, sidecar_meta)
+    task = _build_task(reflection, merged_meta)
     if task is None:
         return {
             "status": "error",
@@ -1503,7 +1615,12 @@ async def tasks_link_workflow(
 
     # The history the link appends to. Merge-patch replaces the array,
     # so the patch must carry the FULL list.
-    history = list(sidecar_meta.get("history") or [])
+    #
+    # The list comes from the MERGED document: the history is append-only
+    # and the reflection document is the authoritative copy, so an entry
+    # that never reached the sidecar must not be dropped by the write
+    # that carries it forward.
+    history = list(merged_meta.get("history") or [])
     history.extend(_history_entries(diff_events, caller, now.isoformat()))
 
     outcome = link_task_workflow(
@@ -1535,6 +1652,48 @@ async def tasks_link_workflow(
             ),
             "details": {"task_id": task_id},
         }
+
+    # Dual-write: the link must reach the reflection store too.
+    #
+    # The read path prefers the reflection row's ``metadata`` document
+    # over the sidecar blob, so a link that lives only in the sidecar is
+    # invisible to every reader — and the next ``tasks_update`` merges
+    # that stale document back over the sidecar, destroying the binding
+    # permanently. The sidecar write above stays the authority for the
+    # link-once invariant (it is the atomic conditional UPDATE); this
+    # write mirrors the result into the reflection store.
+    reflection_meta = (
+        dict(reflection.get("metadata") or {}) if isinstance(reflection, dict) else {}
+    )
+    reflection_meta.update(
+        {
+            "workflow_id": workflow_id,
+            "workflow_linked_at": now.isoformat(),
+            "workflow_linked_by": caller,
+            "updated_at": task.updated_at.isoformat(),
+            "history": history,
+        }
+    )
+    try:
+        await _update_reflection(
+            reflection_id=target,
+            content=task.content,
+            tags=task.tags,
+            metadata=reflection_meta,
+        )
+    except Exception:
+        # The sidecar write above is the authority for link-once and it
+        # already succeeded, so the link is NOT lost. The reflection
+        # document is now stale, which the reconciler reports as drift
+        # and the next task update repairs. Failing the tool here would
+        # tell the caller the link did not happen when it did.
+        logger.exception(
+            "tasks_link_workflow: mirrored workflow_id %r into the "
+            "reflection store for reflection_id=%r failed; the sidecar "
+            "link stands",
+            workflow_id,
+            target,
+        )
 
     await _emit_update_events(task=task, diff_events=diff_events, actor=caller)
 
@@ -1618,8 +1777,19 @@ async def tasks_search(
         # dict shape (id/content/tags/project/created_at/updated_at).
         reflection = await _read_reflection(rid)
         if reflection is None:
+            # Not a silent skip: the task exists but its reflection row is
+            # not readable, which is a durability fault. ``tasks_get``
+            # answers ``reflection_unreadable`` for the same condition and
+            # ``tasks_list`` counts it — a search that dropped it quietly
+            # would make the loss invisible on the one path that has no
+            # error envelope to carry it.
+            logger.warning(
+                "tasks_search: task reflection %r is unreadable and was "
+                "omitted from the results",
+                rid,
+            )
             continue
-        task = _build_task(reflection, sidecar_meta)
+        task = _build_task(reflection, _read_task_metadata(reflection, sidecar_meta))
         if task is None:
             continue
 
@@ -1708,7 +1878,8 @@ async def tasks_history(
 
     reflection = await _read_reflection(target)
     sidecar_meta = tasks_storage.read_task_metadata(engine=engine, reflection_id=target)
-    task = _build_task(reflection, sidecar_meta)
+    merged_meta = _read_task_metadata(reflection, sidecar_meta)
+    task = _build_task(reflection, merged_meta)
     if task is None or not enforce_visibility_filter(caller, task):
         return {
             "status": "error",
@@ -1716,17 +1887,12 @@ async def tasks_history(
             "message": f"No task with id {task_id}",
         }
 
-    # Narrow the optional sidecar metadata to a non-None dict for the
-    # ``.get("history")`` lookup below. Same body-rebind pattern used in
-    # ``_build_task`` / ``_persist_task_update`` so ty sees ``dict[str,
-    # Any]`` (not ``dict[str, Any] | None``) for the post-``_build_task``
-    # consumers in this scope.
-    if sidecar_meta is None:
-        sidecar_meta = dict[str, Any]()
-
-    # Read the append-only history list from the sidecar. ``list()`` copies
-    # so a torn / missing list never crashes the reader — default to [].
-    history_list = sidecar_meta.get("history") or []
+    # Read the append-only history list from the MERGED document, not the
+    # raw sidecar blob. The sidecar is the transition fallback; once it
+    # is retired the history lives only in the reflection row's
+    # ``metadata`` document, and reading the sidecar alone would return
+    # an empty history for every task.
+    history_list = merged_meta.get("history") or []
 
     # Offset-based pagination via T5's cursor helpers (same scheme as
     # ``tasks_list``). Garbage cursors decode to offset=0 — defensive

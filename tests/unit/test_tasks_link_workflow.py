@@ -76,16 +76,29 @@ def engine() -> Any:
         tasks_storage.set_engine(None)
 
 
+#: In-memory stand-in for the reflection rows' ``metadata`` document.
+_FAKE_REFLECTIONS: dict[str, dict[str, Any]] = {}
+
+
 def _fake_store_reflection(
     content: str,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> str:
-    """Stand in for ``store_reflection``: mint an id and write the sidecar.
+    """Stand in for ``store_reflection``: mint an id and write BOTH stores.
 
     The production path persists the caller's metadata into the task
     metadata sidecar keyed by the returned reflection id — that is the
-    row ``_find_reflection_id_by_task_id`` searches.
+    row ``_find_reflection_id_by_task_id`` searches — AND into the
+    reflection row's own ``metadata`` document, which is the document
+    the read path prefers.
+
+    The fake reflection store below is what makes the second store
+    visible to these tests. Before it existed, ``_reflection_for``
+    returned a row with no ``metadata`` key at all, so the merge always
+    fell back to the sidecar and the tests could not express the
+    production state (a reflection document carrying a stale
+    ``workflow_id: None``).
     """
     reflection_id = f"ref-{uuid.uuid4().hex[:12]}"
     if metadata is not None:
@@ -94,7 +107,36 @@ def _fake_store_reflection(
             reflection_id,
             dict(metadata),
         )
+    _FAKE_REFLECTIONS[reflection_id] = {
+        "id": reflection_id,
+        "content": content,
+        "tags": list(tags) if tags is not None else ["task"],
+        "metadata": dict(metadata) if metadata is not None else {},
+    }
     return reflection_id
+
+
+async def _fake_update_reflection(
+    reflection_id: str,
+    content: str | None = None,
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Stand in for ``tasks_tools._update_reflection``.
+
+    Writes back into the fake reflection store so a test can assert what
+    the reflection row holds after a mutation.
+    """
+    row = _FAKE_REFLECTIONS.setdefault(
+        reflection_id,
+        {"id": reflection_id, "content": "", "tags": ["task"], "metadata": {}},
+    )
+    if content is not None:
+        row["content"] = content
+    if tags is not None:
+        row["tags"] = list(tags)
+    if metadata is not None:
+        row["metadata"] = dict(metadata)
 
 
 def _store_reflection_mock() -> Any:
@@ -102,11 +144,38 @@ def _store_reflection_mock() -> Any:
 
 
 def _reflection_for(reflection_id: str, content: str = "task body") -> dict[str, Any]:
+    row = _FAKE_REFLECTIONS.get(reflection_id)
+    if row is None:
+        return {
+            "id": reflection_id,
+            "content": content,
+            "tags": ["task"],
+            "metadata": {},
+        }
     return {
-        "id": reflection_id,
-        "content": content,
-        "tags": ["task"],
+        "id": row["id"],
+        "content": row["content"],
+        "tags": list(row["tags"]),
+        "metadata": dict(row["metadata"]),
     }
+
+
+@pytest.fixture(autouse=True)
+def _isolate_reflection_writes() -> Any:
+    """Keep every reflection-store write inside the fake store.
+
+    The link path mirrors the workflow id into the reflection row's
+    ``metadata`` document. Without this, ``_update_reflection`` would
+    reach the REAL adapter — and the live DuckDB — for the rows the fake
+    store invented.
+    """
+    _FAKE_REFLECTIONS.clear()
+    with patch.object(
+        tasks_tools,
+        "_update_reflection",
+        new=AsyncMock(side_effect=_fake_update_reflection),
+    ):
+        yield
 
 
 async def _create_task(ctx: Any, content: str = "task body") -> Task:
@@ -525,6 +594,144 @@ async def test_the_metadata_bag_cannot_set_the_workflow_id(engine: Any) -> None:
     )
     # The caller's own data is still persisted — under its own key.
     assert updated.metadata == {"workflow_id": "wf_forged"}
+
+
+@pytest.mark.unit
+async def test_a_link_reaches_the_reflection_store_and_survives_an_update(
+    engine: Any,
+) -> None:
+    """The link must live in BOTH stores, and survive an ordinary update.
+
+    Regression: the link was written only to the sidecar while the
+    reflection document kept a stale ``workflow_id: None``. The read
+    path prefers the reflection document, so the link was invisible to
+    every reader — and the next ``tasks_update`` merged that stale
+    ``None`` back over the sidecar, destroying the binding permanently.
+    The two link tests above could not catch it because their reflection
+    fixture carried no ``metadata`` at all, so the merge always fell
+    back to the sidecar.
+    """
+    _reset_limiters()
+    ctx = _make_ctx({"user_email": "les@example.com"})
+    _FAKE_REFLECTIONS.clear()
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(side_effect=lambda rid: _reflection_for(rid)),
+        ),
+        patch.object(
+            tasks_tools,
+            "_update_reflection",
+            new=AsyncMock(side_effect=_fake_update_reflection),
+        ),
+    ):
+        created = await _create_task(ctx)
+        linked = await tasks_tools.tasks_link_workflow(
+            ctx,
+            task_id=created.id,
+            workflow_id=_WORKFLOW_ID,
+        )
+        assert isinstance(linked, Task)
+        assert linked.workflow_id == _WORKFLOW_ID
+
+        reflection_id = tasks_tools._find_reflection_id_by_task_id(
+            engine=engine,
+            task_id=created.id,
+        )
+        assert reflection_id is not None
+
+        # The link reached the reflection document, not just the sidecar.
+        assert (
+            _FAKE_REFLECTIONS[reflection_id]["metadata"]["workflow_id"] == _WORKFLOW_ID
+        )
+
+        # A reader that prefers the reflection document sees the link.
+        fetched = await tasks_tools.tasks_get(ctx, task_id=created.id)
+        assert isinstance(fetched, Task)
+        assert fetched.workflow_id == _WORKFLOW_ID
+
+        # An ordinary update must not clear it.
+        updated = await tasks_tools.tasks_update(
+            ctx,
+            task_id=created.id,
+            request=UpdateTaskRequest(priority="high"),
+        )
+        assert isinstance(updated, Task)
+        assert updated.workflow_id == _WORKFLOW_ID
+        assert (
+            _FAKE_REFLECTIONS[reflection_id]["metadata"]["workflow_id"] == _WORKFLOW_ID
+        )
+
+
+@pytest.mark.unit
+async def test_a_link_keeps_history_that_lives_only_in_the_reflection_row(
+    engine: Any,
+) -> None:
+    """The link must append to the MERGED history, not to the sidecar's.
+
+    The history is append-only, and the reflection document is the
+    authoritative copy. A link that rebuilt the list from the sidecar
+    alone would drop every entry the sidecar never received — silently,
+    because a shorter history still looks like a history.
+    """
+    _reset_limiters()
+    ctx = _make_ctx({"user_email": "les@example.com"})
+    _FAKE_REFLECTIONS.clear()
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        patch.object(
+            tasks_tools,
+            "_read_reflection",
+            new=AsyncMock(side_effect=lambda rid: _reflection_for(rid)),
+        ),
+        patch.object(
+            tasks_tools,
+            "_update_reflection",
+            new=AsyncMock(side_effect=_fake_update_reflection),
+        ),
+    ):
+        created = await _create_task(ctx)
+        reflection_id = tasks_tools._find_reflection_id_by_task_id(
+            engine=engine,
+            task_id=created.id,
+        )
+        assert reflection_id is not None
+
+        # An entry that lives ONLY in the reflection document — the state
+        # a task reaches when the sidecar lags behind the store that is
+        # authoritative.
+        _FAKE_REFLECTIONS[reflection_id]["metadata"]["history"] = [
+            {
+                "field": "priority",
+                "before": "normal",
+                "after": "high",
+                "actor": "user:les@example.com",
+                "at": "2026-11-07T11:00:00+00:00",
+            },
+        ]
+
+        linked = await tasks_tools.tasks_link_workflow(
+            ctx,
+            task_id=created.id,
+            workflow_id=_WORKFLOW_ID,
+        )
+        assert isinstance(linked, Task)
+
+    history = _FAKE_REFLECTIONS[reflection_id]["metadata"]["history"]
+    assert len(history) >= 2, (
+        f"expected the pre-existing entry plus the link's own entries; got {history!r}"
+    )
+    assert history[0]["field"] == "priority", (
+        f"the pre-existing history entry was dropped; got {history!r}"
+    )
+    assert history[0]["before"] == "normal"
+    assert history[0]["after"] == "high"
 
 
 @pytest.mark.unit

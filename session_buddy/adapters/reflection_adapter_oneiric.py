@@ -178,6 +178,36 @@ _CACHED_REFLECTIONS_SQL = """
 """
 
 
+def _decode_metadata_column(value: t.Any, reflection_id: str) -> dict[str, t.Any]:
+    """Return the ``metadata`` column as a dict.
+
+    DuckDB returns a ``JSON`` column as its text form over the Python
+    client, but a dict is accepted too (some drivers decode it). A NULL
+    column means "no structured attributes" and decodes to an empty dict.
+
+    A malformed document is a corrupt row: it is logged and decoded as
+    empty rather than raising, so one bad row cannot take down a read
+    path that serves many rows.
+    """
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        if not value:
+            return {}
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            logger.exception(
+                "reflection %s has a malformed metadata document; decoding it as empty",
+                reflection_id,
+            )
+            return {}
+        return decoded if isinstance(decoded, dict) else {}
+    return {}
+
+
 def _extract_provenance_from_tags(
     tags: list[str] | None,
     *,
@@ -2235,6 +2265,7 @@ class ReflectionDatabaseAdapterOneiric:
         dedup_threshold: float = 0.85,
         project: str | None = None,
         *,
+        metadata: dict[str, t.Any] | None = None,
         source_session_id: str | None = None,
         source_artifact_uri: str | None = None,
     ) -> str:
@@ -2246,6 +2277,12 @@ class ReflectionDatabaseAdapterOneiric:
             deduplicate: If True, check for duplicates before storing (Phase 4)
             dedup_threshold: Minimum Jaccard similarity to consider a duplicate (0.0 to 1.0)
             project: Optional project identifier to scope the reflection to.
+            metadata: Optional JSON-serialisable document persisted in the
+                reflection row's ``metadata`` column. The task system uses
+                it to carry per-row structured attributes (owner, status,
+                workflow link) that a tag list cannot express. ``None``
+                leaves the column NULL, which is what every reflection
+                without structured attributes gets.
             source_session_id: Optional provenance pointer to the session
                 (or pool id) that produced this reflection. Persisted in
                 ``reflections.source_session_id`` so ``search_by_source_session``
@@ -2321,6 +2358,11 @@ class ReflectionDatabaseAdapterOneiric:
         # Convert MinHash fingerprint to bytes for storage
         fingerprint_bytes = fingerprint.to_bytes()
 
+        # Serialise the metadata document BEFORE touching the database, so
+        # an unserialisable value raises without leaving a partial write.
+        # ``None`` means "no metadata" and leaves the column NULL.
+        metadata_json = json.dumps(metadata) if metadata is not None else None
+
         # Store reflection. v2 rewire (Phase 0): write to ``reflections_v2``
         # (the global Memori-style table). The INSERT now lists the v2 column
         # set so the table stores both v2 fields (category, importance_score,
@@ -2335,9 +2377,9 @@ class ReflectionDatabaseAdapterOneiric:
                     id, content, embedding, category, importance_score,
                     memory_tier, tags, related_entities, project, namespace,
                     timestamp, created_at, updated_at, fingerprint,
-                    source_session_id, source_artifact_uri
+                    source_session_id, source_artifact_uri, metadata
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON))
                 """,
                 (
                     reflection_id,
@@ -2356,6 +2398,7 @@ class ReflectionDatabaseAdapterOneiric:
                     fingerprint_bytes,
                     source_session_id,
                     source_artifact_uri,
+                    metadata_json,
                 ),
             )
         else:
@@ -2366,9 +2409,9 @@ class ReflectionDatabaseAdapterOneiric:
                     id, content, embedding, category, importance_score,
                     memory_tier, tags, related_entities, project, namespace,
                     timestamp, created_at, updated_at, fingerprint,
-                    source_session_id, source_artifact_uri
+                    source_session_id, source_artifact_uri, metadata
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON))
                 """,
                 (
                     reflection_id,
@@ -2387,6 +2430,7 @@ class ReflectionDatabaseAdapterOneiric:
                     fingerprint_bytes,
                     source_session_id,
                     source_artifact_uri,
+                    metadata_json,
                 ),
             )
 
@@ -2813,7 +2857,7 @@ class ReflectionDatabaseAdapterOneiric:
 
         result = self.conn.execute(
             f"""
-            SELECT id, content, tags, created_at, updated_at
+            SELECT id, content, tags, created_at, updated_at, metadata
             FROM {self._table("reflections")}
             WHERE id = ?
             """,
@@ -2829,6 +2873,7 @@ class ReflectionDatabaseAdapterOneiric:
             "tags": list(result[2]) if result[2] else [],
             "created_at": result[3].isoformat() if result[3] else None,
             "updated_at": result[4].isoformat() if result[4] else None,
+            "metadata": _decode_metadata_column(result[5], str(result[0])),
         }
 
     async def update_reflection(
@@ -2837,6 +2882,7 @@ class ReflectionDatabaseAdapterOneiric:
         *,
         content: str | None = None,
         tags: list[str] | None = None,
+        metadata: dict[str, t.Any] | None = None,
     ) -> bool:
         """Update an existing reflection's content and/or tags.
 
@@ -2853,7 +2899,7 @@ class ReflectionDatabaseAdapterOneiric:
         if not self._initialized:
             await self.initialize()
 
-        if content is None is tags:
+        if content is None and tags is None and metadata is None:
             return False  # nothing to do
 
         sets: list[str] = []
@@ -2864,6 +2910,9 @@ class ReflectionDatabaseAdapterOneiric:
         if tags is not None:
             sets.append("tags = ?")
             params.append(json.dumps(tags))
+        if metadata is not None:
+            sets.append("metadata = CAST(? AS JSON)")
+            params.append(json.dumps(metadata))
         params.append(reflection_id)
 
         sql = f"""

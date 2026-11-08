@@ -20,6 +20,7 @@ Per the Task 4 brief, these tests pin the ``tasks_create`` tool:
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -983,6 +984,267 @@ async def test_tasks_get_returns_404_for_unknown_id(_t5_engine: Any) -> None:
     assert result.get("error_code") == "not_found"
 
 
+@pytest.mark.asyncio
+async def test_tasks_get_reports_unreadable_reflection_not_not_found(
+    _t5_engine: Any,
+) -> None:
+    """A task whose sidecar row resolves but whose reflection is unreadable.
+
+    ``not_found`` means "no such task". This task DOES exist — the sidecar
+    row resolves it — so answering ``not_found`` would report a deletion
+    that never happened. Proven on 2026-11-07: two tasks went invisible
+    after a DuckDB WAL-poison recovery dropped them from the live
+    connection's view while both stores still held their rows.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+    ):
+        created = await tasks_tools.tasks_create(
+            ctx,
+            content="unreadable-body",
+            tags=["task"],
+        )
+        assert isinstance(created, Task)
+
+    # The reflection row is now invisible to the live store (WAL divergence).
+    with patch.object(
+        tasks_tools, "_read_reflection", new=AsyncMock(return_value=None)
+    ):
+        result = await tasks_tools.tasks_get(ctx, task_id=created.id)
+
+    assert isinstance(result, dict), f"Expected an error envelope, got {result!r}"
+    assert result.get("status") == "error"
+    assert result.get("error_code") == "reflection_unreadable"
+    details = result.get("details") or {}
+    assert details.get("task_id") == created.id
+    assert details.get("reflection_id")
+
+
+@pytest.mark.asyncio
+async def test_tasks_get_does_not_leak_unreadable_to_a_non_owner(
+    _t5_engine: Any,
+) -> None:
+    """A non-owner must not learn that a task exists from the error code.
+
+    The spec §Authz Model pins 404 (not 403) so an attacker cannot probe
+    for existence by status code. ``reflection_unreadable`` is a NEW
+    error code, so it must not become an existence oracle: a caller who
+    does not own the task gets the same ``not_found`` envelope as for an
+    id that never existed.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx_alice = _make_ctx({"user_email": "alice@example.com"})
+    ctx_bob = _make_ctx({"user_email": "bob@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+    ):
+        created = await tasks_tools.tasks_create(
+            ctx_alice,
+            content="alice-private",
+            tags=["task"],
+        )
+        assert isinstance(created, Task)
+
+    with patch.object(
+        tasks_tools, "_read_reflection", new=AsyncMock(return_value=None)
+    ):
+        result = await tasks_tools.tasks_get(ctx_bob, task_id=created.id)
+
+    assert isinstance(result, dict), f"Expected an error envelope, got {result!r}"
+    assert result.get("error_code") == "not_found"
+
+
+@pytest.mark.asyncio
+async def test_tasks_get_prefers_the_reflection_row_metadata(_t5_engine: Any) -> None:
+    """The reflection store is authoritative for task metadata.
+
+    The reflection row's ``metadata`` document wins over the sidecar blob;
+    the sidecar remains the transition fallback for rows written before the
+    backfill. Without this, a task's identity and its payload keep living
+    in two databases with no transaction between them.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    tasks_tools._update_rate_limiter = RateLimiter(limit=120, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+    ):
+        created = await tasks_tools.tasks_create(ctx, content="body", tags=["task"])
+        assert isinstance(created, Task)
+
+    # The reflection row says priority=high; the create-time sidecar blob
+    # says the default, normal.
+    reflection_meta = {
+        "kind": "task",
+        "owner": "user:les@example.com",
+        "task_id": created.id,
+        "uuid_alias": created.id[2:14],
+        "priority": "high",
+        "status": "open",
+        "visibility": "private",
+    }
+
+    async def _read(rid: str) -> dict[str, Any]:
+        return _t5_reflection_for(
+            rid,
+            content="body",
+            tags=["task"],
+            extra={"metadata": reflection_meta},
+        )
+
+    with patch.object(
+        tasks_tools, "_read_reflection", new=AsyncMock(side_effect=_read)
+    ):
+        fetched = await tasks_tools.tasks_get(ctx, task_id=created.id)
+
+    assert isinstance(fetched, Task), f"Expected Task, got {fetched!r}"
+    assert fetched.priority == "high"
+
+
+@pytest.mark.asyncio
+async def test_an_empty_reflection_document_falls_back_to_the_sidecar(
+    _t5_engine: Any,
+) -> None:
+    """A reflection row whose metadata decodes to ``{}`` has no opinion.
+
+    The adapter's NULL column decodes to an empty dict, not to a
+    missing key. The merge must treat an empty document as "nothing to
+    say", so the sidecar's ``task_id`` and ``owner`` still reach the
+    caller instead of being erased by the empty document.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+    ):
+        created = await tasks_tools.tasks_create(ctx, content="body", tags=["task"])
+        assert isinstance(created, Task)
+
+    async def _read(rid: str) -> dict[str, Any]:
+        return _t5_reflection_for(
+            rid,
+            content="body",
+            tags=["task"],
+            extra={"metadata": {}},
+        )
+
+    with patch.object(
+        tasks_tools, "_read_reflection", new=AsyncMock(side_effect=_read)
+    ):
+        fetched = await tasks_tools.tasks_get(ctx, task_id=created.id)
+
+    assert isinstance(fetched, Task), f"Expected Task, got {fetched!r}"
+    # The id lives ONLY in the sidecar (as ``task_id``); the owner too.
+    assert fetched.id == created.id, (
+        f"the sidecar's task_id was dropped: {fetched.id!r} != {created.id!r}"
+    )
+    assert fetched.owner == "user:les@example.com"
+
+
+@pytest.mark.asyncio
+async def test_tasks_create_rejects_a_metadata_bag_that_cannot_be_serialised() -> None:
+    """A non-JSON metadata bag is rejected before either store is written.
+
+    The caller's metadata bag is validated at the tool boundary; a bag
+    that cannot be serialised must never reach the adapter, where it
+    would raise mid-write and leave a partial row.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    store_mock = AsyncMock(return_value=True)
+    with (
+        patch.object(tasks_tools, "store_reflection", new=store_mock),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+        pytest.raises(ValidationError),
+    ):
+        await tasks_tools.tasks_create(
+            ctx,
+            content="body",
+            tags=["task"],
+            metadata={"bad": object()},  # ty: ignore[invalid-argument-type]
+        )
+
+    store_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_tasks_list_reports_unreadable_reflections(_t5_engine: Any) -> None:
+    """A task whose reflection row is unreadable is counted, not silently dropped.
+
+    The old code did ``continue  # orphan sidecar row - skip silently``, so
+    a task that vanished from the live store looked exactly like a task
+    that was never created. The count makes the loss visible to the caller
+    and to the logs.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+    ):
+        created = []
+        for i in range(2):
+            result = await tasks_tools.tasks_create(
+                ctx,
+                content=f"body-{i}",
+                tags=["task"],
+            )
+            assert isinstance(result, Task)
+            created.append(result)
+
+    # Map the first task's id to the reflection_id the sidecar recorded.
+    engine = tasks_storage.get_engine()
+    hidden_reflection_id = None
+    for rid in tasks_storage.find_tasks_by_metadata(engine, {"kind": "task"}):
+        meta = tasks_storage.read_task_metadata(engine, rid) or {}
+        if meta.get("task_id") == created[0].id:
+            hidden_reflection_id = rid
+            break
+    assert hidden_reflection_id is not None, "sidecar did not record the task"
+
+    async def _read(rid: str) -> dict[str, Any] | None:
+        if rid == hidden_reflection_id:
+            return None
+        return _t5_reflection_for(rid, content="body", tags=["task"])
+
+    with patch.object(
+        tasks_tools, "_read_reflection", new=AsyncMock(side_effect=_read)
+    ):
+        listing = await tasks_tools.tasks_list(ctx)
+
+    assert isinstance(listing, TaskListResult), (
+        f"Expected TaskListResult, got {listing!r}"
+    )
+    assert listing.unreadable_count == 1
+    assert listing.total == 1
+
+
 # ---------------------------------------------------------------------------
 # tasks_update
 # ---------------------------------------------------------------------------
@@ -1336,10 +1598,16 @@ async def test_tasks_update_content_round_trips_through_reflection_db(
     captured: dict[str, Any] = {}
     original_update_reflection = tasks_tools._update_reflection
 
-    async def spy(reflection_id: str, content: str, tags: list[str]) -> None:
+    async def spy(
+        reflection_id: str,
+        content: str,
+        tags: list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
         captured["reflection_id"] = reflection_id
         captured["content"] = content
         captured["tags"] = tags
+        captured["metadata"] = metadata
 
     tasks_tools._update_reflection = spy  # type: ignore[assignment]
     try:
@@ -2160,6 +2428,56 @@ async def test_tasks_user_team_visibility_persists(_t5_engine: Any) -> None:
     )
 
 
+@pytest.mark.asyncio
+async def test_tasks_search_warns_when_a_task_reflection_is_unreadable(
+    _t5_engine: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unreadable task row is logged, not dropped in silence.
+
+    ``tasks_get`` answers ``reflection_unreadable`` for the same
+    condition and ``tasks_list`` counts the loss. ``tasks_search`` is
+    the one read path with no error envelope to carry it, so a silent
+    skip is the last place the loss could hide — and the plan's Review
+    Focus pins "never a silent skip".
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+    ):
+        created = await tasks_tools.tasks_create(ctx, content="body", tags=["task"])
+        assert isinstance(created, Task)
+
+    engine = tasks_storage.get_engine()
+    reflection_ids = tasks_storage.find_tasks_by_metadata(engine, {"kind": "task"})
+    assert reflection_ids, "sidecar did not record the task"
+    target = reflection_ids[0]
+
+    search_mock = AsyncMock(
+        side_effect=lambda query, limit=10, project=None: [
+            _t8_hit(target, "body", tags=["task"]),
+        ],
+    )
+
+    with (
+        patch.object(tasks_tools, "_read_reflection", new=AsyncMock(return_value=None)),
+        patch.object(tasks_tools, "search_reflections", new=search_mock),
+        caplog.at_level(logging.WARNING),
+    ):
+        results = await tasks_tools.tasks_search(ctx, query="body")
+
+    assert results == []
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert any(target in message for message in warnings), (
+        f"no WARNING named the unreadable reflection {target!r}; warnings={warnings!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # T9: tasks_history — cursor-paginated change history
 # ---------------------------------------------------------------------------
@@ -2469,3 +2787,72 @@ async def test_tasks_history_validates_id_format(_t5_engine: Any) -> None:
     assert isinstance(result, dict)
     assert result.get("status") == "error"
     assert result.get("error_code") == "invalid_id_format"
+
+
+@pytest.mark.asyncio
+async def test_tasks_history_reads_history_from_the_reflection_row(
+    _t5_engine: Any,
+) -> None:
+    """The history comes from the merged document, not the raw sidecar.
+
+    Phase 3 retires the sidecar, and after that the only place the
+    history exists is the reflection row's ``metadata`` document. A read
+    path that consults the sidecar alone answers "no history" for every
+    task — and "no history" is a valid answer, so the loss is silent.
+    """
+    from session_buddy.mcp.tools import tasks_tools
+
+    tasks_tools._create_rate_limiter = RateLimiter(limit=60, window_seconds=60)
+    ctx = _make_ctx({"user_email": "les@example.com"})
+
+    with (
+        patch.object(tasks_tools, "store_reflection", new=_t5_store_reflection_mock()),
+        patch.object(tasks_tools, "publish_task_event", new=AsyncMock()),
+    ):
+        created = await tasks_tools.tasks_create(ctx, content="body", tags=["task"])
+        assert isinstance(created, Task)
+
+    # The reflection row carries the history; the sidecar blob (written at
+    # create time) carries none. Only a read of the merged document
+    # returns the entry.
+    reflection_meta = {
+        "kind": "task",
+        "owner": "user:les@example.com",
+        "task_id": created.id,
+        "uuid_alias": created.id[2:14],
+        "priority": "high",
+        "status": "open",
+        "visibility": "private",
+        "history": [
+            {
+                "field": "priority",
+                "before": "normal",
+                "after": "high",
+                "actor": "user:les@example.com",
+                "at": "2026-11-07T12:00:00+00:00",
+            },
+        ],
+    }
+
+    async def _read(rid: str) -> dict[str, Any]:
+        return _t5_reflection_for(
+            rid,
+            content="body",
+            tags=["task"],
+            extra={"metadata": reflection_meta},
+        )
+
+    with patch.object(
+        tasks_tools, "_read_reflection", new=AsyncMock(side_effect=_read)
+    ):
+        history = await tasks_tools.tasks_history(ctx, task_id=created.id)
+
+    assert isinstance(history, TaskHistoryResult), (
+        f"Expected TaskHistoryResult, got {history!r}"
+    )
+    assert len(history.items) == 1, (
+        f"expected the reflection row's history entry; got {history.items!r}"
+    )
+    event = history.items[0]
+    assert event.diff == {"priority": ("normal", "high")}
+    assert event.actor == "user:les@example.com"

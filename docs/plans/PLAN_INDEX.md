@@ -1,6 +1,6 @@
 # Plan Index
 
-_Regenerated 2026-11-07 by `crackerjack.tools.plan_index_sync` (phase)._
+_Regenerated 2026-11-08 by `crackerjack.tools.plan_index_sync` (phase)._
 
 ### Docs: adr
 
@@ -18,6 +18,7 @@ _Regenerated 2026-11-07 by `crackerjack.tools.plan_index_sync` (phase)._
 | [`docs/plans/2026-10-30-xdg-data-directory-migration.md`](2026-10-30-xdg-data-directory-migration.md) | 2026-10-30 | `shipped` | `implementation` | `data-directory` | XDG Data Directory Migration — 2026-10-30 |
 | [`docs/plans/2026-11-06-conversation-transcript-ingestion.md`](2026-11-06-conversation-transcript-ingestion.md) | 2026-11-06 | `draft` | `implementation` | `memory-architecture` | Conversation Transcript Ingestion Implementation Plan |
 | [`docs/plans/2026-11-06-fleet-embedding-width-768.md`](2026-11-06-fleet-embedding-width-768.md) | 2026-11-06 | `draft` | `implementation` | `embeddings` | Fleet Embedding Width 768 Implementation Plan |
+| [`docs/plans/2026-11-07-task-metadata-single-store.md`](2026-11-07-task-metadata-single-store.md) | 2026-11-07 | `active` | `implementation` | `memory-architecture` | Task Metadata Single-Store Implementation Plan |
 
 ### Docs: specs
 
@@ -48,8 +49,8 @@ _Regenerated 2026-11-07 by `crackerjack.tools.plan_index_sync` (phase)._
 | Role \\ Lifecycle | draft | active | partial | shipped | complete | Total |
 |---|---|---|---|---|---|---|
 | `canonical` | 4 | 3 | · | · | · | **7** |
-| `implementation` | 2 | 2 | · | 2 | 1 | **7** |
+| `implementation` | 2 | 3 | · | 2 | 1 | **8** |
 | `umbrella` | · | · | · | · | · | **0** |
 | `historical` | · | · | · | · | · | **0** |
 | `superseded` | · | · | · | · | · | **0** |
-| **Total** | **6** | **5** | **·** | **2** | **1** | **14** |
+| **Total** | **6** | **6** | **·** | **2** | **1** | **15** |

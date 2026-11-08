@@ -213,7 +213,7 @@ def delete_task_metadata(
 def find_tasks_by_metadata(
     engine: Engine,
     metadata_filter: dict[str, Any],
-    limit: int = 100,
+    limit: int | None = 100,
 ) -> list[str]:
     """Return reflection_ids whose metadata JSON contains every filter pair.
 
@@ -222,6 +222,12 @@ def find_tasks_by_metadata(
     row's ``metadata_json`` dict is checked with ``all(md.get(k) == v)``
     so partial overlap returns nothing (matches the spec's "contains all
     key/value pairs" semantics).
+
+    ``limit=None`` means NO limit. The filter already loads every row
+    into memory, so a limit is not a performance guard — it is pure
+    truncation of the result set, and a truncated scan looks exactly
+    like a complete one to the caller. Callers that must see every row
+    (the reconcilers, the backfill) pass ``None``.
     """
     ensure_metadata_schema(engine)
     with Session(engine) as session:
@@ -233,7 +239,7 @@ def find_tasks_by_metadata(
             md = dict(row.metadata_json) if row.metadata_json else {}
             if all(md.get(k) == v for k, v in metadata_filter.items()):
                 matching.append(row.id)
-                if len(matching) >= limit:
+                if limit is not None and len(matching) >= limit:
                     break
         return matching
 

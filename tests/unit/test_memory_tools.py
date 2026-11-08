@@ -481,6 +481,35 @@ class TestStoreReflectionImpl:
             assert "stored" in result.lower() or "success" in result.lower()
 
     @pytest.mark.asyncio
+    async def test_store_reflection_forwards_metadata_to_the_adapter(self):
+        """The metadata document must reach the reflection row itself.
+
+        Before this, the adapter's ``store_reflection`` had no ``metadata``
+        parameter, so task metadata could only be written to the SQLite
+        sidecar -- splitting a task's identity from its payload across two
+        databases with no transaction between them.
+        """
+        mock_db = AsyncMock()
+        mock_db.store_reflection = AsyncMock(return_value="ref-123")
+
+        with patch.dict(
+            "session_buddy.mcp.tools.memory.memory_tools.__dict__",
+            {"_reflection_tools_available": True, "_reflection_db": mock_db},
+            clear=False,
+        ), patch(
+            "session_buddy.mcp.tools.memory.memory_tools._get_reflection_database",
+            return_value=mock_db,
+        ):
+            await _store_reflection_impl(
+                "c",
+                ["task"],
+                metadata={"kind": "task", "owner": "user:les"},
+            )
+
+        kwargs = mock_db.store_reflection.await_args.kwargs
+        assert kwargs["metadata"] == {"kind": "task", "owner": "user:les"}
+
+    @pytest.mark.asyncio
     async def test_store_reflection_failure(self):
         """Should handle storage failure."""
         mock_db = AsyncMock()
@@ -624,13 +653,17 @@ class TestStoreReflectionImpl:
             )
             # metadata kwarg accepted by the impl — no TypeError.
             assert "error" not in result.lower()
-            # metadata kwarg was NOT forwarded to the adapter
-            # (adapter signature is intentionally out of scope; the
-            # sidecar absorbs the metadata instead).
+            # The metadata IS forwarded to the adapter, which writes it to
+            # the reflection row's own ``metadata`` column. Before the
+            # single-store migration the adapter signature was
+            # "intentionally out of scope" and only the sidecar absorbed
+            # it — which is what split a task's identity from its payload
+            # across two databases with no transaction between them.
             adapter_kwargs = mock_db.store_reflection.await_args.kwargs
-            assert "metadata" not in adapter_kwargs
+            assert adapter_kwargs["metadata"] == metadata
             # AND the metadata reached the SQLModel sidecar keyed by
-            # the adapter's returned reflection_id.
+            # the adapter's returned reflection_id (the transition
+            # fallback until the sidecar is retired).
             stored = tasks_storage.read_task_metadata(
                 tasks_storage.get_engine(),
                 "ref-round-2-id",

@@ -265,6 +265,13 @@ class TaskListResult(BaseModel):
     items: list[Task | LegacyTaskRow]
     next_cursor: str | None = None
     total: int
+    #: Number of task rows whose sidecar metadata resolved but whose
+    #: backing reflection row could not be read. These are NOT filters --
+    #: a non-zero value means the reflection store and the task-metadata
+    #: store have diverged, and the affected tasks are missing from
+    #: ``items`` because their payload is unreadable (see the
+    #: ``reflection_unreadable`` error code on ``tasks_get``).
+    unreadable_count: int = 0
 
 
 # Resolve forward references so the ``list[TaskEvent]`` /

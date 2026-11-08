@@ -154,13 +154,20 @@ async def _store_reflection_operation(
     ``kind=task`` discriminator). The metadata is also captured in
     the returned dict for the impl's log envelope.
     """
-    success = await db.store_reflection(
-        content,
-        tags=tags,
-        project=project,
-        source_session_id=source_session_id,
-        source_artifact_uri=source_artifact_uri,
-    )
+    # ``metadata`` is forwarded to the adapter only when the caller
+    # supplied it, so every existing caller's call shape is unchanged.
+    # The adapter writes it to the reflection row's ``metadata`` column;
+    # the sidecar write below is the transition fallback until the
+    # sidecar is retired.
+    store_kwargs: dict[str, t.Any] = {
+        "tags": tags,
+        "project": project,
+        "source_session_id": source_session_id,
+        "source_artifact_uri": source_artifact_uri,
+    }
+    if metadata is not None:
+        store_kwargs["metadata"] = metadata
+    success = await db.store_reflection(content, **store_kwargs)
 
     # T4 fix round 2: thread ``metadata`` into the SQLModel sidecar so
     # ``tasks_list`` (T5) can filter by discriminator fields after a
