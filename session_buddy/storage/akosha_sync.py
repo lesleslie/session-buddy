@@ -25,10 +25,11 @@ import hashlib
 import json
 import time
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx2 as httpx
 
+from session_buddy.memory.duckdb_open import open_healthy_duckdb
 from session_buddy.paths import data_dir, state_dir
 from session_buddy.storage.akosha_config import AkoshaSyncConfig
 from session_buddy.storage.cloud_sync import CloudSyncMethod
@@ -38,6 +39,11 @@ from session_buddy.storage.sync_protocol import (
     SyncMethod,
 )
 from session_buddy.utils.error_management import _get_logger
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import duckdb
 
 logger = _get_logger()
 
@@ -84,6 +90,31 @@ class HttpSyncMethod(SyncMethod):
         # Database paths (same as CloudSyncMethod)
         self.reflection_db_path = data_dir() / "reflection.duckdb"
         self.knowledge_graph_db_path = data_dir() / "knowledge_graph.duckdb"
+
+    def _open_reader(
+        self, db_path: Path, config: dict[str, Any] | None = None
+    ) -> duckdb.DuckDBPyConnection:
+        """Open one of this process's DuckDB files for reading.
+
+        DuckDB refuses a second connection to the same file whose
+        configuration differs from the one already established, and
+        ``read_only`` counts as part of that configuration. Opening the
+        reflection database read-only while the reflection adapter held
+        it open read-write therefore failed with "Can't open a
+        connection to same database file with a different configuration",
+        which silently emptied this sync -- and, through it, the
+        cross-repo-work section of the session handoff.
+
+        Each file has exactly one configuration in this process:
+        ``reflection.duckdb`` is opened with
+        ``allow_unsigned_extensions`` (the adapter needs unsigned vector
+        extensions) and ``knowledge_graph.duckdb`` with no extra config.
+        Routing every reader through ``open_healthy_duckdb`` with that
+        same configuration keeps one instance per file, and also recovers
+        a poisoned WAL sidecar instead of leaving the instance invalid
+        on arrival.
+        """
+        return open_healthy_duckdb(str(db_path), config=config)
 
     def _load_sync_state(self) -> None:
         """Load last sync timestamps from state file."""
@@ -361,7 +392,10 @@ class HttpSyncMethod(SyncMethod):
             return []
 
         try:
-            conn = duckdb.connect(str(self.reflection_db_path), read_only=True)
+            conn = self._open_reader(
+                self.reflection_db_path,
+                config={"allow_unsigned_extensions": True},
+            )
 
             # Build query with optional incremental filter
             where_clause = ""
@@ -546,7 +580,10 @@ class HttpSyncMethod(SyncMethod):
             return []
 
         try:
-            conn = duckdb.connect(str(self.reflection_db_path), read_only=True)
+            conn = self._open_reader(
+                self.reflection_db_path,
+                config={"allow_unsigned_extensions": True},
+            )
 
             where_clause = ""
             params: list[Any] = []
@@ -743,7 +780,7 @@ class HttpSyncMethod(SyncMethod):
             return []
 
         try:
-            conn = duckdb.connect(str(self.knowledge_graph_db_path), read_only=True)
+            conn = self._open_reader(self.knowledge_graph_db_path)
 
             where_clause = ""
             params: list[Any] = []
@@ -810,7 +847,7 @@ class HttpSyncMethod(SyncMethod):
             return []
 
         try:
-            conn = duckdb.connect(str(self.knowledge_graph_db_path), read_only=True)
+            conn = self._open_reader(self.knowledge_graph_db_path)
 
             where_clause = ""
             params: list[Any] = []

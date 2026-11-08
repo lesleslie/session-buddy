@@ -9,6 +9,17 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog,
 and this project adheres to Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- akosha-sync: Open the reflection and knowledge-graph databases with the
+  configuration the rest of the process uses, instead of read-only. DuckDB
+  refuses a second connection to the same file whose configuration differs,
+  so the sync was failing with "Can't open a connection to same database
+  file with a different configuration" and silently returning nothing --
+  which also emptied the cross-repo-work section of the session handoff.
+
 ## [0.38.2] - 2026-11-07
 
 ### Fixed
