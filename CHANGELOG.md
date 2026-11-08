@@ -19,19 +19,16 @@ and this project adheres to Semantic Versioning.
   "already connected" and returned early. Every consumer therefore received
   an unconnected adapter whose `_get_conn()` raises "called before
   initialize()". The session handoff's cross-repo-work query hit exactly
-  that and reported "No cross-repo work captured" when there was cross-repo
-  work to capture.
+  that and failed instead of querying.
 - handoff: Resolve the reflection database connection on the querying thread.
   `ReflectionDatabase.conn` is a thread-local property and the adapter is a
   singleton initialised on whichever thread first acquired it, so a handler
   running on another thread got `None` and the cross-repo-work query raised.
-  The handoff therefore always reported "No cross-repo work captured".
 - akosha-sync: Open the reflection and knowledge-graph databases with the
   configuration the rest of the process uses, instead of read-only. DuckDB
   refuses a second connection to the same file whose configuration differs,
   so the sync was failing with "Can't open a connection to same database
-  file with a different configuration" and silently returning nothing --
-  which also emptied the cross-repo-work section of the session handoff.
+  file with a different configuration" and silently returning nothing.
 
 ## [0.38.2] - 2026-11-07
 
