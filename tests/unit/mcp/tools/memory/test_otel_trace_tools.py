@@ -57,6 +57,17 @@ class TestFilterBySystemId:
         result = {"id": "x"}
         assert _filter_result_by_system_id(result, "akosha") is False
 
+    def test_none_means_do_not_filter(self) -> None:
+        """``system_id=None`` means "every system" — the fleet-wide sentinel."""
+        result = {"id": "x", "system_id": "mahavishnu"}
+        assert _filter_result_by_system_id(result, None) is False
+
+    def test_wildcard_means_do_not_filter(self) -> None:
+        """``""`` and ``"*"`` are the same "every system" sentinel."""
+        result = {"id": "x", "system_id": "mahavishnu"}
+        assert _filter_result_by_system_id(result, "") is False
+        assert _filter_result_by_system_id(result, "*") is False
+
 
 # ---------------------------------------------------------------------------
 # _filter_result_by_time_range
@@ -117,6 +128,30 @@ class TestFilterByTimeRange:
         # When timestamp is missing but created_at is present, use it.
         result = {"created_at": "2025-01-01T00:00:00+00:00"}
         assert _filter_result_by_time_range(result, "2026-01-01T00:00:00+00:00", None) is True
+
+    def test_naive_window_bound_is_read_as_utc(self) -> None:
+        """A bound without an offset is UTC, matching the store.
+
+        Comparing a naive bound against a UTC-aware record timestamp raises
+        TypeError, which the tool's broad handler would swallow into an
+        empty list — so the same window would match on one server and
+        silently return nothing here.
+        """
+        result = {"timestamp": "2026-06-15T12:00:00+00:00"}
+        assert _filter_result_by_time_range(result, "2026-01-01T00:00:00", None) is False
+        assert _filter_result_by_time_range(result, "2026-12-31T00:00:00", None) is True
+
+    def test_offset_window_bound_is_converted_to_utc(self) -> None:
+        """An offset-bearing bound is converted, not compared as if it were UTC."""
+        result = {"timestamp": "2026-06-15T12:00:00+00:00"}
+        # 14:00+02:00 == 12:00Z — the record is exactly on the bound.
+        assert _filter_result_by_time_range(result, "2026-06-15T14:00:00+02:00", None) is False
+        assert _filter_result_by_time_range(result, "2026-06-15T14:00:01+02:00", None) is True
+
+    def test_unparseable_window_bound_is_treated_as_absent(self) -> None:
+        """A bound that does not parse must not raise; it is ignored."""
+        result = {"timestamp": "2026-06-15T12:00:00+00:00"}
+        assert _filter_result_by_time_range(result, "not-a-timestamp", None) is False
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +267,9 @@ class TestQueryLocalTraces:
             fake_get_db,
         )
 
-        result = await query_local_traces(system_id="mahavishnu")
+        result = await query_local_traces(
+            task_class="code", system_id="mahavishnu"
+        )
         assert result == []
 
     @pytest.mark.asyncio
@@ -247,13 +284,19 @@ class TestQueryLocalTraces:
                         "id": "t1",
                         "system_id": "mahavishnu",
                         "timestamp": "2025-01-01T00:00:00+00:00",  # before start
-                        "metadata": {"system_id": "mahavishnu"},
+                        "metadata": {
+                            "system_id": "mahavishnu",
+                            "attributes": {"task.class": ["code"]},
+                        },
                     },
                     {
                         "id": "t2",
                         "system_id": "mahavishnu",
                         "timestamp": "2026-06-01T00:00:00+00:00",
-                        "metadata": {"system_id": "mahavishnu"},
+                        "metadata": {
+                            "system_id": "mahavishnu",
+                            "attributes": {"task.class": ["code"]},
+                        },
                     },
                 ]
             )
@@ -265,6 +308,7 @@ class TestQueryLocalTraces:
         )
 
         result = await query_local_traces(
+            task_class="code",
             system_id="mahavishnu",
             start_time="2026-01-01T00:00:00+00:00",
             end_time="2026-12-31T23:59:59+00:00",
@@ -295,10 +339,97 @@ class TestQueryLocalTraces:
             fake_get_db,
         )
 
-        await query_local_traces(system_id="mahavishnu", limit=42)
+        await query_local_traces(task_class="code", system_id="mahavishnu", limit=42)
         assert captured["query"] == "mahavishnu"
         assert captured["limit"] == 42
         assert captured["threshold"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_empty_task_class_returns_empty_list(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An empty ``task_class`` must not widen the query to the whole store.
+
+        The other three servers reject it and return ``[]``; an empty filter
+        here would silently match everything.
+        """
+        called = False
+
+        async def fake_get_db():
+            nonlocal called
+            called = True
+            return MagicMock()
+
+        monkeypatch.setattr(
+            "session_buddy.reflection_tools.get_reflection_database",
+            fake_get_db,
+        )
+
+        assert await query_local_traces(task_class="") == []
+        assert not called
+
+    @pytest.mark.asyncio
+    async def test_dry_run_keeps_filters_and_clamps_limit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``dry_run`` changes the output shape; the filters stay in force."""
+        captured: dict = {}
+
+        async def fake_get_db():
+            db = MagicMock()
+
+            async def search(query, limit, threshold):
+                captured["query"] = query
+                captured["limit"] = limit
+                return []
+
+            db.search_conversations = search
+            return db
+
+        monkeypatch.setattr(
+            "session_buddy.reflection_tools.get_reflection_database",
+            fake_get_db,
+        )
+
+        await query_local_traces(
+            task_class="code", system_id="mahavishnu", limit=500, dry_run=True
+        )
+        assert captured["query"] == "mahavishnu"
+        assert captured["limit"] == 20
+
+    @pytest.mark.asyncio
+    async def test_dry_run_omits_the_bulky_content_blob(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``dry_run`` drops ``content`` so a wide probe stays readable."""
+        async def fake_get_db():
+            db = MagicMock()
+            db.search_conversations = AsyncMock(
+                return_value=[
+                    {
+                        "id": "t1",
+                        "system_id": "mahavishnu",
+                        "content": "the bulky blob",
+                        "timestamp": "2026-06-01T00:00:00+00:00",
+                        "metadata": {
+                            "system_id": "mahavishnu",
+                            "attributes": {"task.class": ["code"]},
+                        },
+                    }
+                ]
+            )
+            return db
+
+        monkeypatch.setattr(
+            "session_buddy.reflection_tools.get_reflection_database",
+            fake_get_db,
+        )
+
+        result = await query_local_traces(
+            task_class="code", system_id="mahavishnu", dry_run=True
+        )
+        assert len(result) == 1
+        assert "content" not in result[0]
 
 
 def _async_return(value):

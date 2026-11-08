@@ -1633,6 +1633,18 @@ def _register_code_and_error_search_tools(mcp: Any) -> None:
         limit: int = 10,
         project: str | None = None,
     ) -> str:
+        """Find code snippets recorded in past sessions.
+
+        Searches session memory for code that appeared in previous conversations
+        and returns a formatted markdown string listing each snippet in a
+        fenced code block. Do NOT use to search the source tree for a regular
+        expression — Crackerjack's `search_code` does that; this tool searches
+        what was written during past sessions, not the files on disk. Returns
+        "No code patterns found for: <query>" when nothing matches, and
+        returns at most `limit` snippets. Pass `project` to restrict the search
+        to one project. Side effect: none; reads session memory only.
+        """
+        # Implements: REQ-MCPTD-001
         return await _search_code_impl(query, pattern_type, limit, project)
 
     @mcp.tool()  # type: ignore[untyped-decorator]

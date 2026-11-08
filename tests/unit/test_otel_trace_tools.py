@@ -144,8 +144,8 @@ def test_query_local_traces_and_registration(monkeypatch: pytest.MonkeyPatch) ->
 
     result = asyncio.run(
         otel_trace_tools.query_local_traces(
-            "alpha",
             task_class="build",
+            system_id="alpha",
             limit=10,
         ),
     )
@@ -186,4 +186,4 @@ def test_query_local_traces_and_registration(monkeypatch: pytest.MonkeyPatch) ->
         "session_buddy.adapters.reflection_adapter_oneiric",
         SimpleNamespace(get_reflection_database=broken_get_reflection_database),
     )
-    assert asyncio.run(otel_trace_tools.query_local_traces("alpha")) == []
+    assert asyncio.run(otel_trace_tools.query_local_traces(task_class="alpha")) == []

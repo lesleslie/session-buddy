@@ -273,6 +273,8 @@ def register_channel_tracking_tools(
         """Query active channel sessions, optionally filtered by channel/sender/scope.
 
         All parameters are optional.  Omit to retrieve all active sessions.
+        ``token`` is the signed authentication credential; ``sender_id``
+        identifies the end user within the channel.
         """
         if limit < 1 or limit > 200:
             return {"status": "error", "error": "limit must be between 1 and 200"}
