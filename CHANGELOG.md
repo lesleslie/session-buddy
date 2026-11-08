@@ -13,6 +13,14 @@ and this project adheres to Semantic Versioning.
 
 ### Fixed
 
+- reflection: Initialise the DI-registered adapter before handing it out.
+  The DI container registers the adapter WITHOUT opening its DuckDB
+  connection, but `init_reflection_adapter` treated "already registered" as
+  "already connected" and returned early. Every consumer therefore received
+  an unconnected adapter whose `_get_conn()` raises "called before
+  initialize()". The session handoff's cross-repo-work query hit exactly
+  that and reported "No cross-repo work captured" when there was cross-repo
+  work to capture.
 - handoff: Resolve the reflection database connection on the querying thread.
   `ReflectionDatabase.conn` is a thread-local property and the adapter is a
   singleton initialised on whichever thread first acquired it, so a handler

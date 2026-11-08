@@ -130,6 +130,35 @@ async def get_serverless_manager() -> ServerlessSessionManager | None:
     return manager
 
 
+async def _ensure_initialized(db: ReflectionDatabase) -> ReflectionDatabase:
+    """Return the adapter, connected if it is not connected yet.
+
+    The DI container registers the reflection adapter WITHOUT opening its
+    DuckDB connection -- the adapter connects lazily in
+    ``await adapter.initialize()``, and its registration documents that
+    "consumers must invoke await adapter.initialize() after fetching the
+    singleton". So a registered adapter is not necessarily a READY one.
+
+    Handing out an unconnected adapter makes every consumer that reads
+    ``adapter.conn`` fail with "called before initialize()". The session
+    handoff's cross-repo-work query hit exactly that, and reported "No
+    cross-repo work captured" when there was cross-repo work to capture.
+
+    ``initialize()`` is idempotent, so this costs a flag check once the
+    adapter is connected.
+    """
+    if not getattr(db, "_initialized", False):
+        # An adapter with no initializer (a test double, or a legacy
+        # implementation) is as ready as it is ever going to be. Calling
+        # it unconditionally would raise, and the surrounding
+        # ``suppress(Exception)`` would swallow the failure and fall
+        # through to a different code path entirely.
+        initializer = getattr(db, "initialize", None)
+        if initializer is not None:
+            await initializer()
+    return db
+
+
 async def get_reflection_database() -> ReflectionDatabase | None:
     """Resolve reflection database via DI, creating it on demand.
 
@@ -154,7 +183,7 @@ async def get_reflection_database() -> ReflectionDatabase | None:
     with suppress(Exception):
         db = depends.get_sync(ReflectionDatabaseAdapter)
         if isinstance(db, ReflectionDatabaseAdapter):
-            return db
+            return await _ensure_initialized(db)
 
     from session_buddy.adapters.lifecycle import init_reflection_adapter
 
@@ -162,7 +191,7 @@ async def get_reflection_database() -> ReflectionDatabase | None:
     with suppress(Exception):
         db = depends.get_sync(ReflectionDatabaseAdapter)
         if isinstance(db, ReflectionDatabaseAdapter):
-            return db
+            return await _ensure_initialized(db)
     return None
 
 

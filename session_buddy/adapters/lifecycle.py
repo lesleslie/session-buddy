@@ -68,6 +68,16 @@ async def init_reflection_adapter() -> None:
     with suppress(Exception):
         existing = depends.get_sync(ReflectionDatabaseAdapter)
         if isinstance(existing, ReflectionDatabaseAdapter):
+            # Registered does not imply connected: the DI registration
+            # path puts the adapter in the container WITHOUT opening its
+            # DuckDB connection. Initialise it here -- ``initialize()``
+            # is idempotent -- so consumers get a usable connection.
+            # An adapter with no initializer (a test double, or a legacy
+            # implementation) is as ready as it will ever be.
+            if not getattr(existing, "_initialized", False):
+                initializer = getattr(existing, "initialize", None)
+                if initializer is not None:
+                    await initializer()
             return
 
     settings = get_reflection_settings()

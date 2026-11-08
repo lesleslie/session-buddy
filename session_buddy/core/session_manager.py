@@ -1127,9 +1127,7 @@ class SessionLifecycleManager:
             # resolves the connection for the CURRENT thread, opening one
             # if this thread has none.
             conn = (
-                adapter._get_conn()
-                if hasattr(adapter, "_get_conn")
-                else adapter.conn
+                adapter._get_conn() if hasattr(adapter, "_get_conn") else adapter.conn
             )
             rows = conn.execute(
                 "SELECT id, conversation_id, repo_name, repo_path, repo_role, "
