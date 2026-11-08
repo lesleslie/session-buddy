@@ -63,10 +63,11 @@ async def find_unreadable_task_reflections(engine: Engine) -> list[str]:
         limit=1000,
     )
 
-    unreadable: list[str] = []
-    for reflection_id in candidate_ids:
-        if await _read_reflection(reflection_id) is None:
-            unreadable.append(reflection_id)
+    unreadable: list[str] = [
+        reflection_id
+        for reflection_id in candidate_ids
+        if await _read_reflection(reflection_id) is None
+    ]
     return sorted(unreadable)
 
 

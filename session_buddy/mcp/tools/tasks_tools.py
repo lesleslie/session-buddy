@@ -1758,7 +1758,7 @@ async def tasks_link_workflow(
     # into the authoritative store, and the backfill skips any row whose
     # document is non-empty — so the row would never be completed, and
     # the task would lose its identity when the sidecar is retired.
-    reflection_meta = dict(merged_meta)
+    reflection_meta = merged_meta.copy()
     reflection_meta.update(
         {
             "workflow_id": workflow_id,

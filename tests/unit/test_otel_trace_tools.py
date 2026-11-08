@@ -1,171 +1,147 @@
+"""The fleet contract for session-buddy's ``query_local_traces``.
+
+Every Bodai server exposes ``query_local_traces`` with the same parameter
+names, requiredness and defaults, so a caller can issue one query against
+whichever server holds the answer. This file pins that contract for
+session-buddy: what the tool forwards to the store, and how the two
+"every system" sentinels and the dry-run flag behave.
+
+The store-side behaviour (record shape, the SQL the query runs) lives in
+``tests/unit/mcp/tools/memory/test_otel_trace_tools.py``.
+"""
+
 from __future__ import annotations
 
-import asyncio
-import sys
-from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
+from datetime import UTC, datetime
 
 import pytest
 
+from session_buddy.mcp.tools.memory.otel_trace_tools import (
+    query_local_traces,
+    register_otel_trace_tools,
+)
 
-def test_otel_trace_filters_cover_all_branches() -> None:
-    from session_buddy.mcp.tools.memory import otel_trace_tools
 
-    now = datetime.now(tz=UTC)
-    result = {
-        "system_id": "alpha",
-        "timestamp": now,
-        "metadata": {
-            "system_id": "alpha",
-            "attributes": {"task.class": ["build", "test"]},
-        },
-    }
+class RecordingDB:
+    """Captures the arguments the tool forwards to the store."""
 
-    assert otel_trace_tools._filter_result_by_system_id(result, "alpha") is False
-    assert (
-        otel_trace_tools._filter_result_by_system_id(
-            {"metadata": {"system_id": "beta"}},
-            "alpha",
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    async def query_conversations_by_classification(self, **kwargs) -> list[dict]:
+        self.calls.append(kwargs)
+        return []
+
+
+@pytest.fixture
+def db(monkeypatch: pytest.MonkeyPatch) -> RecordingDB:
+    recording = RecordingDB()
+
+    async def fake_get_db():
+        return recording
+
+    monkeypatch.setattr(
+        "session_buddy.reflection_tools.get_reflection_database",
+        fake_get_db,
+    )
+    return recording
+
+
+class TestForwardedContract:
+    @pytest.mark.asyncio
+    async def test_the_filters_reach_the_store(self, db: RecordingDB) -> None:
+        await query_local_traces(
+            task_class="facts",
+            system_id="mahavishnu",
+            start_time="2026-06-01T00:00:00",
+            end_time="2026-06-30T00:00:00",
+            limit=42,
         )
-        is True
-    )
-    assert (
-        otel_trace_tools._filter_result_by_system_id({"metadata": {}}, "alpha")
-        is False
-    )
 
-    assert (
-        otel_trace_tools._filter_result_by_time_range(
-            result,
-            start_time=(now - timedelta(minutes=1)).isoformat(),
-            end_time=(now + timedelta(minutes=1)).isoformat(),
+        assert db.calls == [
+            {
+                "classification": "facts",
+                "project": "mahavishnu",
+                "start_time": datetime(2026, 6, 1, tzinfo=UTC),
+                "end_time": datetime(2026, 6, 30, tzinfo=UTC),
+                "limit": 42,
+            }
+        ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("sentinel", [None, "", "*"])
+    async def test_the_all_systems_sentinel_means_every_project(
+        self, db: RecordingDB, sentinel: str | None
+    ) -> None:
+        """``None``, ``""`` and ``"*"`` all mean "every project"."""
+        await query_local_traces(task_class="facts", system_id=sentinel)
+
+        assert db.calls[0]["project"] is None
+
+    @pytest.mark.asyncio
+    async def test_an_offset_bound_is_converted_to_utc(self, db: RecordingDB) -> None:
+        await query_local_traces(
+            task_class="facts", start_time="2026-06-15T14:00:00+02:00"
         )
-        is False
-    )
-    assert (
-        otel_trace_tools._filter_result_by_time_range(
-            {"timestamp": "not-a-timestamp"},
-            start_time=now.isoformat(),
-            end_time=None,
+
+        assert db.calls[0]["start_time"] == datetime(2026, 6, 15, 12, tzinfo=UTC)
+
+    @pytest.mark.asyncio
+    async def test_an_unparseable_bound_is_rejected_not_widened(
+        self, db: RecordingDB
+    ) -> None:
+        """A bad bound must be rejected, not treated as absent.
+
+        Treating it as absent drops that side of the window and returns
+        MORE records than the caller asked for. Mahavishnu's tool rejects
+        it the same way.
+        """
+        assert await query_local_traces(task_class="facts", start_time="nope") == []
+        assert db.calls == []
+
+    @pytest.mark.asyncio
+    async def test_dry_run_clamps_the_limit_and_keeps_the_filters(
+        self, db: RecordingDB
+    ) -> None:
+        """``dry_run`` changes the output shape; the filters stay in force."""
+        await query_local_traces(
+            task_class="facts",
+            system_id="mahavishnu",
+            limit=500,
+            dry_run=True,
         )
-        is False
-    )
-    assert (
-        otel_trace_tools._filter_result_by_time_range(
-            {"timestamp": now.replace(tzinfo=None)},
-            start_time=(now - timedelta(minutes=1)).isoformat(),
-            end_time=(now + timedelta(minutes=1)).isoformat(),
+
+        assert db.calls[0]["limit"] == 20
+        assert db.calls[0]["project"] == "mahavishnu"
+        assert db.calls[0]["classification"] == "facts"
+
+
+class TestGuards:
+    @pytest.mark.asyncio
+    async def test_an_empty_task_class_never_queries(self, db: RecordingDB) -> None:
+        """An empty filter must not widen the query to the whole store."""
+        assert await query_local_traces(task_class="") == []
+        assert db.calls == []
+
+    @pytest.mark.asyncio
+    async def test_a_store_failure_returns_an_empty_list(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        async def fake_get_db():
+            raise RuntimeError("db unavailable")
+
+        monkeypatch.setattr(
+            "session_buddy.reflection_tools.get_reflection_database",
+            fake_get_db,
         )
-        is False
-    )
-    assert (
-        otel_trace_tools._filter_result_by_time_range(
-            result,
-            start_time=(now + timedelta(minutes=1)).isoformat(),
-            end_time=None,
-        )
-        is True
-    )
 
-    assert (
-        otel_trace_tools._filter_result_by_task_class(result, "build") is False
-    )
-    assert (
-        otel_trace_tools._filter_result_by_task_class(result, "deploy") is True
-    )
-    assert (
-        otel_trace_tools._filter_result_by_task_class(
-            {"metadata": {"attributes": {"task_class": "deploy"}}},
-            "deploy",
-        )
-        is False
-    )
-    assert (
-        otel_trace_tools._filter_result_by_task_class(
-            {"metadata": {"attributes": {"task.class": "other"}}},
-            "deploy",
-        )
-        is True
-    )
+        assert await query_local_traces(task_class="facts") == []
 
 
-def test_query_local_traces_and_registration(monkeypatch: pytest.MonkeyPatch) -> None:
-    from session_buddy.mcp.tools.memory import otel_trace_tools
-
-    class FakeDB:
-        async def search_conversations(self, query: str, limit: int, threshold: float):
-            assert query == "alpha"
-            assert limit == 10
-            assert threshold == 0.0
-            now = datetime.now(tz=UTC)
-            return [
-                {
-                    "id": "1",
-                    "content": "keep",
-                    "timestamp": now,
-                    "metadata": {
-                        "system_id": "alpha",
-                        "attributes": {"task.class": ["build"]},
-                    },
-                },
-                {
-                    "id": "2",
-                    "content": "wrong system",
-                    "timestamp": now,
-                    "metadata": {
-                        "system_id": "beta",
-                        "attributes": {"task.class": ["build"]},
-                    },
-                },
-                {
-                    "id": "3",
-                    "content": "wrong class",
-                    "timestamp": now,
-                    "metadata": {
-                        "system_id": "alpha",
-                        "attributes": {"task.class": ["test"]},
-                    },
-                },
-            ]
-
-    async def fake_get_reflection_database():
-        return FakeDB()
-
-    fake_module = SimpleNamespace(get_reflection_database=fake_get_reflection_database)
-    # Production imports from ``session_buddy.reflection_tools``, so the
-    # fake module also has to be parked under that key for ``get_reflection_database``
-    # to resolve into the test's FakeDB.
-    monkeypatch.setitem(sys.modules, "session_buddy.reflection_tools", fake_module)
-    monkeypatch.setitem(
-        sys.modules,
-        "session_buddy.adapters.reflection_adapter_oneiric",
-        fake_module,
-    )
-
-    result = asyncio.run(
-        otel_trace_tools.query_local_traces(
-            task_class="build",
-            system_id="alpha",
-            limit=10,
-        ),
-    )
-
-    assert result == [
-        {
-            "conversation_id": "1",
-            "content": "keep",
-            "timestamp": str(result[0]["timestamp"]),
-            "metadata": {
-                "system_id": "alpha",
-                "attributes": {"task.class": ["build"]},
-            },
-            "attributes": {"task.class": ["build"]},
-        }
-    ]
-
+def test_the_tool_is_registered_on_the_server() -> None:
     class FakeMCP:
         def __init__(self) -> None:
-            self.tools = []
+            self.tools: list[object] = []
 
         def tool(self):
             def decorator(func):
@@ -175,15 +151,5 @@ def test_query_local_traces_and_registration(monkeypatch: pytest.MonkeyPatch) ->
             return decorator
 
     mcp = FakeMCP()
-    otel_trace_tools.register_otel_trace_tools(mcp)
-    assert mcp.tools == [otel_trace_tools.query_local_traces]
-
-    async def broken_get_reflection_database():
-        raise RuntimeError("boom")
-
-    monkeypatch.setitem(
-        sys.modules,
-        "session_buddy.adapters.reflection_adapter_oneiric",
-        SimpleNamespace(get_reflection_database=broken_get_reflection_database),
-    )
-    assert asyncio.run(otel_trace_tools.query_local_traces(task_class="alpha")) == []
+    register_otel_trace_tools(mcp)
+    assert mcp.tools == [query_local_traces]

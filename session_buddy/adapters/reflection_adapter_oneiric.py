@@ -189,7 +189,7 @@ _CACHED_REFLECTIONS_SQL = """
 """
 
 
-def _decode_metadata_column(value: t.Any, reflection_id: str) -> dict[str, t.Any]:
+def _decode_metadata_column(value: t.Any, record_id: str) -> dict[str, t.Any]:
     """Return the ``metadata`` column as a dict.
 
     DuckDB returns a ``JSON`` column as its text form over the Python
@@ -211,8 +211,8 @@ def _decode_metadata_column(value: t.Any, reflection_id: str) -> dict[str, t.Any
             decoded = json.loads(value)
         except json.JSONDecodeError:
             logger.exception(
-                "reflection %s has a malformed metadata document; decoding it as empty",
-                reflection_id,
+                "record %s has a malformed metadata document; decoding it as empty",
+                record_id,
             )
             return {}
         return decoded if isinstance(decoded, dict) else {}
@@ -2006,6 +2006,137 @@ class ReflectionDatabaseAdapterOneiric:
             for row in rows
         ]
 
+    async def query_conversations_by_classification(
+        self,
+        *,
+        classification: str,
+        project: str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, t.Any]]:
+        """Query conversations by their stored classification and provenance.
+
+        Unlike :meth:`search_conversations`, this runs no similarity search
+        and no text search. It reads the store directly, so it can answer
+        "every record classified X, from component Y, inside this window".
+        It also does not depend on the embedding chain being up: the text
+        path treats an empty query as "matches nothing", so a search-backed
+        implementation of an all-projects query returns an empty list
+        unless the vector index happens to be warm.
+
+        The filter columns are the ones the store actually populates:
+
+        * ``classification`` matches ``category`` or ``subcategory``
+        * ``project`` matches the ``project`` column (the component or repo
+          the record came from)
+        * the window matches ``timestamp``
+
+        Args:
+            classification: Classification to match, case-insensitively.
+                An empty value matches nothing -- it never widens to the
+                whole table.
+            project: Optional component filter. ``None``, ``""`` and ``"*"``
+                all mean "every project". A record with no project is
+                excluded by a project filter; only the unfiltered query
+                returns it.
+            start_time: Optional inclusive lower bound on ``timestamp``.
+                Naive values are read as UTC.
+            end_time: Optional inclusive upper bound on ``timestamp``.
+                Naive values are read as UTC.
+            limit: Maximum number of records to return, clamped to 1..1000.
+
+        Returns:
+            Matching records, newest first, each with ``id``, ``content``,
+            ``metadata``, ``timestamp`` (timezone-aware), ``project`` and
+            ``classification``.
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        # An empty classification matches nothing. Returning the whole table
+        # here would be the one way this query could return something the
+        # caller did not ask for.
+        if not classification:
+            return []
+
+        # DuckDB reads ``LIMIT -1`` as "no limit", so a caller-supplied
+        # negative limit would pull the whole table. Clamp instead of
+        # trusting the value. A zero limit stays zero, so it returns no
+        # rows the way the other servers' stores do.
+        limit = max(0, min(limit, 1000))
+
+        clauses: list[str] = [
+            "(LOWER(category) = ? OR LOWER(subcategory) = ?)",
+        ]
+        params: list[t.Any] = [classification.lower(), classification.lower()]
+
+        # ``""`` and ``"*"`` mean "every project" -- the same sentinel the
+        # fleet's trace tools accept on the wire. Normalising here keeps
+        # the promise in this method's own contract rather than leaving it
+        # to whichever caller happens to remember.
+        if project and project != "*":
+            clauses.append("LOWER(project) = ?")
+            params.append(project.lower())
+
+        if start_time is not None:
+            clauses.append("timestamp >= ?")
+            params.append(start_time)
+
+        if end_time is not None:
+            clauses.append("timestamp <= ?")
+            params.append(end_time)
+
+        # DuckDB connection, not SQLAlchemy; the only interpolated value is
+        # a module-level table-name constant.
+        # nosemgrep: sqlalchemy-execute-raw-query, python.lang.security.audit.formatted-sql-query.formatted-sql-query, python.lang.security.audit.formatted-sql-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query, python.sqlalchemy.security.sqlalchemy-execute-raw-query
+        rows = self.conn.execute(
+            f"""
+            SELECT id, content, metadata, timestamp::TIMESTAMPTZ, project,
+                   category, subcategory
+            FROM {self._table("conversations")}
+            WHERE {" AND ".join(clauses)}
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            params + [limit],
+        ).fetchall()
+
+        records: list[dict[str, t.Any]] = []
+        for row in rows:
+            category = row[5]
+            subcategory = row[6]
+            # Report the value that actually matched, so a caller that
+            # matched on ``subcategory`` is not told it matched on
+            # ``category``.
+            if category and category.lower() == classification.lower():
+                matched = category
+            else:
+                matched = subcategory
+            metadata = _decode_metadata_column(row[2], str(row[0]))
+            # ``redact_metadata`` moves every non-allowlisted key into a
+            # ``_redacted`` bucket with its value intact. Returning that
+            # bucket would hand the caller exactly the metadata the
+            # redaction policy kept out of the allowlist, so it is
+            # dropped here rather than exposed.
+            metadata.pop("_redacted", None)
+            records.append(
+                {
+                    "id": row[0],
+                    "content": row[1],
+                    "metadata": metadata,
+                    # The column holds host-local wall-clock. Casting it
+                    # through TIMESTAMPTZ re-attaches the session time
+                    # zone, so the value is a real instant rather than a
+                    # local reading of one -- as long as the reader's time
+                    # zone is the writer's.
+                    "timestamp": row[3],
+                    "project": row[4],
+                    "classification": matched,
+                }
+            )
+        return records
+
     async def _get_cached_conversations(
         self,
         query: str,
@@ -2970,7 +3101,7 @@ class ReflectionDatabaseAdapterOneiric:
         if not self._initialized:
             await self.initialize()
 
-        if content is None and tags is None and metadata is None:
+        if content is tags is metadata is None:
             return False  # nothing to do
 
         sets: list[str] = []

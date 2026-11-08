@@ -102,7 +102,7 @@ async def backfill_task_metadata(engine: Engine, db: t.Any) -> dict[str, int]:
         # identity fields the sidecar holds. The EXISTING document wins per
         # key: it is the authoritative store and may already be fresher
         # than the sidecar.
-        merged = dict(sidecar)
+        merged = sidecar.copy()
         if isinstance(existing, dict):
             merged.update(existing)
         updated = await db.update_reflection(reflection_id, metadata=merged)

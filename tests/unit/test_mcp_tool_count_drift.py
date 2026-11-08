@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import asyncio
 
-EXPECTED_FULL_TOOL_COUNT = 224
+EXPECTED_FULL_TOOL_COUNT = 226
 
 
 def test_full_profile_tool_count_pinned() -> None:

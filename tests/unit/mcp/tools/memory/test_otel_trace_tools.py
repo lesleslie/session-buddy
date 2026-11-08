@@ -1,469 +1,374 @@
-"""Tests for session_buddy.mcp.tools.memory.otel_trace_tools.
+"""Store-side behaviour for session-buddy's ``query_local_traces``.
 
-Covers the OTel trace query MCP tool:
-- ``_filter_result_by_system_id``: top-level, metadata-nested, missing,
-  matching, mismatched
-- ``_filter_result_by_time_range``: no range (always included),
-  timestamp before start, after end, inside range, invalid timestamp
-  string, naive datetime handling, missing timestamp
-- ``_filter_result_by_task_class``: no filter (always included),
-  list-of-classes match/mismatch, single-class match/mismatch,
-  top-level vs attributes-level
-- ``query_local_traces``: end-to-end with patched reflection DB,
-  result shape, all filters combined, exception path returns []
-- ``register_otel_trace_tools``: attaches tools to the MCP server
-- ``__all__`` exports
+The fleet contract -- what the tool forwards and how the sentinels and
+the dry-run flag behave -- lives in ``tests/unit/test_otel_trace_tools.py``.
+This file covers what comes back: the record shape, the dry-run output
+shape, the profile wiring, and the store query the tool depends on.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
-from unittest.mock import MagicMock
+from datetime import UTC, datetime
 
 import pytest
 
 from session_buddy.mcp.tools.memory import otel_trace_tools
 from session_buddy.mcp.tools.memory.otel_trace_tools import (
-    _filter_result_by_system_id,
-    _filter_result_by_task_class,
-    _filter_result_by_time_range,
+    _parse_window_bound,
     query_local_traces,
     register_otel_trace_tools,
 )
 
 
-# ---------------------------------------------------------------------------
-# _filter_result_by_system_id
-# ---------------------------------------------------------------------------
+class FakeDB:
+    """Returns canned rows and records the arguments it was called with."""
+
+    def __init__(self, rows: list[dict] | None = None) -> None:
+        self.rows = rows if rows is not None else []
+        self.calls: list[dict] = []
+
+    async def query_conversations_by_classification(self, **kwargs) -> list[dict]:
+        self.calls.append(kwargs)
+        return self.rows
 
 
-class TestFilterBySystemId:
-    def test_top_level_match(self) -> None:
-        result = {"system_id": "mahavishnu", "id": "x"}
-        # Mismatched → filtered out (returns True).
-        assert _filter_result_by_system_id(result, "akosha") is True
-        # Matched → not filtered (returns False).
-        assert _filter_result_by_system_id(result, "mahavishnu") is False
+def _patch_db(monkeypatch: pytest.MonkeyPatch, db: FakeDB) -> None:
+    async def fake_get_db():
+        return db
 
-    def test_metadata_nested(self) -> None:
-        # system_id only in metadata → also matched.
-        result = {"id": "x", "metadata": {"system_id": "akosha"}}
-        assert _filter_result_by_system_id(result, "akosha") is False
-        assert _filter_result_by_system_id(result, "mahavishnu") is True
-
-    def test_missing_system_id(self) -> None:
-        # No system_id → not filtered (records without provenance pass).
-        result = {"id": "x"}
-        assert _filter_result_by_system_id(result, "akosha") is False
-
-    def test_none_means_do_not_filter(self) -> None:
-        """``system_id=None`` means "every system" — the fleet-wide sentinel."""
-        result = {"id": "x", "system_id": "mahavishnu"}
-        assert _filter_result_by_system_id(result, None) is False
-
-    def test_wildcard_means_do_not_filter(self) -> None:
-        """``""`` and ``"*"`` are the same "every system" sentinel."""
-        result = {"id": "x", "system_id": "mahavishnu"}
-        assert _filter_result_by_system_id(result, "") is False
-        assert _filter_result_by_system_id(result, "*") is False
+    monkeypatch.setattr(
+        "session_buddy.reflection_tools.get_reflection_database",
+        fake_get_db,
+    )
 
 
-# ---------------------------------------------------------------------------
-# _filter_result_by_time_range
-# ---------------------------------------------------------------------------
-
-
-class TestFilterByTimeRange:
-    def test_no_range_passes_through(self) -> None:
-        result = {"id": "x", "timestamp": "2026-01-01T00:00:00"}
-        assert _filter_result_by_time_range(result, None, None) is False
-
-    def test_empty_string_treated_as_none(self) -> None:
-        result = {"id": "x"}
-        assert _filter_result_by_time_range(result, "", "") is False
-
-    def test_missing_timestamp(self) -> None:
-        # No timestamp on the result → can't filter, so not filtered out.
-        result = {"id": "x"}
-        start = "2026-01-01T00:00:00"
-        assert _filter_result_by_time_range(result, start, None) is False
-
-    def test_timestamp_before_start_filtered(self) -> None:
-        # Use timezone-aware string format to avoid the naive/aware bug.
-        result = {"timestamp": "2025-01-01T00:00:00+00:00"}
-        start = "2026-01-01T00:00:00+00:00"
-        assert _filter_result_by_time_range(result, start, None) is True
-
-    def test_timestamp_after_end_filtered(self) -> None:
-        result = {"timestamp": "2027-01-01T00:00:00+00:00"}
-        end = "2026-12-31T23:59:59+00:00"
-        assert _filter_result_by_time_range(result, None, end) is True
-
-    def test_timestamp_inside_range_passes(self) -> None:
-        result = {"timestamp": "2026-06-15T12:00:00+00:00"}
-        start = "2026-01-01T00:00:00+00:00"
-        end = "2026-12-31T23:59:59+00:00"
-        assert _filter_result_by_time_range(result, start, end) is False
-
-    def test_invalid_timestamp_string(self) -> None:
-        # Unparsable timestamp → not filtered (the function returns False).
-        result = {"timestamp": "not-a-date"}
-        assert _filter_result_by_time_range(result, "2026-01-01T00:00:00+00:00", None) is False
-
-    def test_naive_datetime_promoted_to_utc(self) -> None:
-        # A naive datetime on the result is treated as UTC for comparison
-        # (production code promotes it via .replace(tzinfo=UTC)).
-        ts = datetime(2026, 6, 15, 12, 0, 0)  # naive
-        result = {"timestamp": ts}
-        start = "2026-01-01T00:00:00+00:00"
-        end = "2026-12-31T23:59:59+00:00"
-        assert _filter_result_by_time_range(result, start, end) is False
-        # Before the start date → filtered out.
-        ts_early = datetime(2025, 6, 15, 12, 0, 0)
-        result_early = {"timestamp": ts_early}
-        assert _filter_result_by_time_range(result_early, start, None) is True
-
-    def test_uses_created_at_fallback(self) -> None:
-        # When timestamp is missing but created_at is present, use it.
-        result = {"created_at": "2025-01-01T00:00:00+00:00"}
-        assert _filter_result_by_time_range(result, "2026-01-01T00:00:00+00:00", None) is True
-
-    def test_naive_window_bound_is_read_as_utc(self) -> None:
-        """A bound without an offset is UTC, matching the store.
-
-        Comparing a naive bound against a UTC-aware record timestamp raises
-        TypeError, which the tool's broad handler would swallow into an
-        empty list — so the same window would match on one server and
-        silently return nothing here.
-        """
-        result = {"timestamp": "2026-06-15T12:00:00+00:00"}
-        assert _filter_result_by_time_range(result, "2026-01-01T00:00:00", None) is False
-        assert _filter_result_by_time_range(result, "2026-12-31T00:00:00", None) is True
-
-    def test_offset_window_bound_is_converted_to_utc(self) -> None:
-        """An offset-bearing bound is converted, not compared as if it were UTC."""
-        result = {"timestamp": "2026-06-15T12:00:00+00:00"}
-        # 14:00+02:00 == 12:00Z — the record is exactly on the bound.
-        assert _filter_result_by_time_range(result, "2026-06-15T14:00:00+02:00", None) is False
-        assert _filter_result_by_time_range(result, "2026-06-15T14:00:01+02:00", None) is True
-
-    def test_unparseable_window_bound_is_treated_as_absent(self) -> None:
-        """A bound that does not parse must not raise; it is ignored."""
-        result = {"timestamp": "2026-06-15T12:00:00+00:00"}
-        assert _filter_result_by_time_range(result, "not-a-timestamp", None) is False
+def _row(**overrides) -> dict:
+    row = {
+        "id": "t1",
+        "content": "the record body",
+        "metadata": {"checkpoint_type": "auto"},
+        "timestamp": datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+        "project": "mahavishnu",
+        "classification": "facts",
+    }
+    row.update(overrides)
+    return row
 
 
 # ---------------------------------------------------------------------------
-# _filter_result_by_task_class
+# _parse_window_bound
 # ---------------------------------------------------------------------------
 
 
-class TestFilterByTaskClass:
-    def test_no_filter_passes_through(self) -> None:
-        result = {"id": "x", "metadata": {"attributes": {}}}
-        assert _filter_result_by_task_class(result, None) is False
+class TestParseWindowBound:
+    def test_naive_bound_is_read_as_utc(self) -> None:
+        assert _parse_window_bound("2026-06-15T12:00:00") == datetime(
+            2026, 6, 15, 12, 0, tzinfo=UTC
+        )
 
-    def test_empty_string_filter_passes_through(self) -> None:
-        result = {"id": "x"}
-        assert _filter_result_by_task_class(result, "") is False
+    def test_offset_bound_is_converted_to_utc(self) -> None:
+        assert _parse_window_bound("2026-06-15T14:00:00+02:00") == datetime(
+            2026, 6, 15, 12, 0, tzinfo=UTC
+        )
 
-    def test_list_match(self) -> None:
-        result = {
-            "metadata": {
-                "attributes": {"task.class": ["code_generation", "review"]}
-            }
-        }
-        assert _filter_result_by_task_class(result, "code_generation") is False
-        assert _filter_result_by_task_class(result, "missing") is True
-
-    def test_single_match(self) -> None:
-        result = {"metadata": {"attributes": {"task.class": "code_generation"}}}
-        assert _filter_result_by_task_class(result, "code_generation") is False
-        assert _filter_result_by_task_class(result, "missing") is True
-
-    def test_dotted_key(self) -> None:
-        # The function checks both ``task.class`` and ``task_class``.
-        result = {
-            "metadata": {
-                "attributes": {"task_class": "code_generation"}
-            }
-        }
-        assert _filter_result_by_task_class(result, "code_generation") is False
-
-    def test_top_level_metadata_task_class(self) -> None:
-        # When ``task.class`` attribute is missing, fall back to top-level.
-        result = {
-            "metadata": {
-                "attributes": {},
-                "task_class": "code_generation",
-            }
-        }
-        assert _filter_result_by_task_class(result, "code_generation") is False
-        assert _filter_result_by_task_class(result, "other") is True
+    def test_unparseable_bound_is_absent(self) -> None:
+        assert _parse_window_bound("not-a-timestamp") is None
 
 
 # ---------------------------------------------------------------------------
-# query_local_traces
+# The record the tool returns
 # ---------------------------------------------------------------------------
 
 
-class TestQueryLocalTraces:
+class TestRecordShape:
     @pytest.mark.asyncio
-    async def test_returns_filtered_records(
+    async def test_returns_the_fleet_record_shape(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        async def fake_db():
-            db = MagicMock()
-            db.search_conversations = AsyncMock(
-                return_value=[
-                    {
-                        "id": "t1",
-                        "system_id": "mahavishnu",
-                        "timestamp": "2026-06-01T00:00:00",
-                        "content": "trace 1",
-                        "metadata": {
-                            "system_id": "mahavishnu",
-                            "attributes": {"task.class": ["code"]},
-                        },
-                    },
-                    {
-                        "id": "t2",
-                        "system_id": "akosha",  # different system
-                        "timestamp": "2026-06-01T00:00:00",
-                        "content": "trace 2",
-                        "metadata": {"system_id": "akosha"},
-                    },
-                ]
-            )
-            return db
+        db = FakeDB([_row()])
+        _patch_db(monkeypatch, db)
 
-        async def fake_get_db():
-            return await fake_db()
+        result = await query_local_traces(task_class="facts", system_id="mahavishnu")
 
-        monkeypatch.setattr(
-            "session_buddy.reflection_tools.get_reflection_database",
-            fake_get_db,
-        )
-
-        result = await query_local_traces(
-            system_id="mahavishnu", task_class="code"
-        )
         assert len(result) == 1
-        assert result[0]["conversation_id"] == "t1"
-        assert result[0]["content"] == "trace 1"
-        assert result[0]["metadata"]["system_id"] == "mahavishnu"
-        assert result[0]["attributes"]["task.class"] == ["code"]
+        record = result[0]
+        assert record["conversation_id"] == "t1"
+        assert record["system_id"] == "mahavishnu"
+        assert record["project"] == "mahavishnu"
+        assert record["task_class"] == "facts"
+        assert record["metadata"] == {"checkpoint_type": "auto"}
+        assert record["content"] == "the record body"
+        # An absolute, offset-bearing timestamp -- not the store's naive
+        # local wall-clock, which a caller cannot compare against its own
+        # window.
+        assert record["timestamp"] == "2026-06-01T12:00:00+00:00"
 
     @pytest.mark.asyncio
-    async def test_handles_db_exception(
+    async def test_dry_run_omits_the_record_body(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        async def fake_get_db():
-            raise RuntimeError("db unavailable")
+        """``dry_run`` returns the stored metadata, not the body."""
+        db = FakeDB([_row()])
+        _patch_db(monkeypatch, db)
 
-        monkeypatch.setattr(
-            "session_buddy.reflection_tools.get_reflection_database",
-            fake_get_db,
-        )
+        result = await query_local_traces(task_class="facts", dry_run=True)
 
-        result = await query_local_traces(
-            task_class="code", system_id="mahavishnu"
-        )
-        assert result == []
-
-    @pytest.mark.asyncio
-    async def test_with_time_range_filters_outside(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        async def fake_get_db():
-            db = MagicMock()
-            db.search_conversations = AsyncMock(
-                return_value=[
-                    {
-                        "id": "t1",
-                        "system_id": "mahavishnu",
-                        "timestamp": "2025-01-01T00:00:00+00:00",  # before start
-                        "metadata": {
-                            "system_id": "mahavishnu",
-                            "attributes": {"task.class": ["code"]},
-                        },
-                    },
-                    {
-                        "id": "t2",
-                        "system_id": "mahavishnu",
-                        "timestamp": "2026-06-01T00:00:00+00:00",
-                        "metadata": {
-                            "system_id": "mahavishnu",
-                            "attributes": {"task.class": ["code"]},
-                        },
-                    },
-                ]
-            )
-            return db
-
-        monkeypatch.setattr(
-            "session_buddy.reflection_tools.get_reflection_database",
-            fake_get_db,
-        )
-
-        result = await query_local_traces(
-            task_class="code",
-            system_id="mahavishnu",
-            start_time="2026-01-01T00:00:00+00:00",
-            end_time="2026-12-31T23:59:59+00:00",
-        )
-        assert len(result) == 1
-        assert result[0]["conversation_id"] == "t2"
-
-    @pytest.mark.asyncio
-    async def test_limit_passed_to_search(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        captured: dict = {}
-
-        async def fake_get_db():
-            db = MagicMock()
-
-            async def search(query, limit, threshold):
-                captured["query"] = query
-                captured["limit"] = limit
-                captured["threshold"] = threshold
-                return []
-
-            db.search_conversations = search
-            return db
-
-        monkeypatch.setattr(
-            "session_buddy.reflection_tools.get_reflection_database",
-            fake_get_db,
-        )
-
-        await query_local_traces(task_class="code", system_id="mahavishnu", limit=42)
-        assert captured["query"] == "mahavishnu"
-        assert captured["limit"] == 42
-        assert captured["threshold"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_empty_task_class_returns_empty_list(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """An empty ``task_class`` must not widen the query to the whole store.
-
-        The other three servers reject it and return ``[]``; an empty filter
-        here would silently match everything.
-        """
-        called = False
-
-        async def fake_get_db():
-            nonlocal called
-            called = True
-            return MagicMock()
-
-        monkeypatch.setattr(
-            "session_buddy.reflection_tools.get_reflection_database",
-            fake_get_db,
-        )
-
-        assert await query_local_traces(task_class="") == []
-        assert not called
-
-    @pytest.mark.asyncio
-    async def test_dry_run_keeps_filters_and_clamps_limit(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """``dry_run`` changes the output shape; the filters stay in force."""
-        captured: dict = {}
-
-        async def fake_get_db():
-            db = MagicMock()
-
-            async def search(query, limit, threshold):
-                captured["query"] = query
-                captured["limit"] = limit
-                return []
-
-            db.search_conversations = search
-            return db
-
-        monkeypatch.setattr(
-            "session_buddy.reflection_tools.get_reflection_database",
-            fake_get_db,
-        )
-
-        await query_local_traces(
-            task_class="code", system_id="mahavishnu", limit=500, dry_run=True
-        )
-        assert captured["query"] == "mahavishnu"
-        assert captured["limit"] == 20
-
-    @pytest.mark.asyncio
-    async def test_dry_run_omits_the_bulky_content_blob(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """``dry_run`` drops ``content`` so a wide probe stays readable."""
-        async def fake_get_db():
-            db = MagicMock()
-            db.search_conversations = AsyncMock(
-                return_value=[
-                    {
-                        "id": "t1",
-                        "system_id": "mahavishnu",
-                        "content": "the bulky blob",
-                        "timestamp": "2026-06-01T00:00:00+00:00",
-                        "metadata": {
-                            "system_id": "mahavishnu",
-                            "attributes": {"task.class": ["code"]},
-                        },
-                    }
-                ]
-            )
-            return db
-
-        monkeypatch.setattr(
-            "session_buddy.reflection_tools.get_reflection_database",
-            fake_get_db,
-        )
-
-        result = await query_local_traces(
-            task_class="code", system_id="mahavishnu", dry_run=True
-        )
-        assert len(result) == 1
         assert "content" not in result[0]
-
-
-def _async_return(value):
-    """Helper to build a coroutine that resolves to ``value``."""
-    async def _coro():
-        return value
-    return _coro()
-
-
-# Import AsyncMock here to avoid breaking the helper above if import fails.
-from unittest.mock import AsyncMock  # noqa: E402
+        assert result[0]["metadata"] == {"checkpoint_type": "auto"}
 
 
 # ---------------------------------------------------------------------------
-# register_otel_trace_tools
+# The tool group is wired into the profile dispatch
 # ---------------------------------------------------------------------------
 
 
-class TestRegister:
-    def test_registers_query_local_traces(self) -> None:
-        mcp = MagicMock()
-        tool_calls: list[object] = []
+class TestProfileWiring:
+    def test_the_group_is_in_the_registration_map(self) -> None:
+        """The tool must go through REGISTRATION_MAP, not a direct call.
 
-        def tool_decorator():
-            def decorator(fn):
-                tool_calls.append(fn)
-                return fn
-            return decorator
+        A direct registration in server_optimized.py would sit outside the
+        tier gating, so a MINIMAL/STANDARD deployment would still expose
+        it -- and the map's own bookkeeping would not know about it.
+        """
+        from session_buddy.mcp.tools import profiles
 
-        mcp.tool = tool_decorator
-        register_otel_trace_tools(mcp)
-        # The tool is registered.
-        assert query_local_traces in tool_calls
+        assert "register_otel_trace_tools" in profiles.REGISTRATION_MAP
+        assert (
+            profiles.REGISTRATION_MAP["register_otel_trace_tools"]
+            is register_otel_trace_tools
+        )
 
-    def test_module_exports(self) -> None:
-        assert "query_local_traces" in otel_trace_tools.__all__
-        assert "register_otel_trace_tools" in otel_trace_tools.__all__
+    def test_the_group_is_not_mandatory(self) -> None:
+        """It is a FULL-tier diagnostic, not an always-on group."""
+        from session_buddy.mcp.tools import profiles
+
+        assert "register_otel_trace_tools" not in profiles.SESSION_BUDDY_MANDATORY_GROUPS
+
+
+# ---------------------------------------------------------------------------
+# The store-side query
+# ---------------------------------------------------------------------------
+
+
+class TestQueryConversationsByClassification:
+    """The adapter method the tool depends on."""
+
+    @pytest.fixture
+    async def adapter(self, tmp_path):
+        from session_buddy.adapters import (
+            reflection_adapter_oneiric as reflection_module,
+        )
+        from session_buddy.adapters.settings import ReflectionAdapterSettings
+
+        settings = ReflectionAdapterSettings(
+            database_path=tmp_path / "test.duckdb",
+            enable_embeddings=False,
+            enable_vss=False,
+            enable_hnsw_index=False,
+        )
+        adapter = reflection_module.ReflectionDatabaseAdapterOneiric(settings=settings)
+        await adapter.initialize()
+        yield adapter
+        await adapter.aclose()
+
+    async def _store(self, adapter, **kwargs) -> None:
+        """Store one conversation row.
+
+        ``project`` rides in the metadata -- the writer lifts it out to the
+        dedicated column, and it is the only allowlisted key that carries a
+        component name.
+        """
+        project = kwargs.pop("project", "mahavishnu")
+        content = kwargs.pop("content", f"body {project}")
+        await adapter.store_conversation(
+            content=content,
+            metadata={"project": project},
+            category=kwargs.pop("category", "facts"),
+            **kwargs,
+        )
+
+    @pytest.mark.asyncio
+    async def test_filters_by_category(self, adapter) -> None:
+        await self._store(adapter, category="facts", content="a")
+        await self._store(adapter, category="context", content="b")
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts"
+        )
+
+        assert len(rows) == 1
+        assert rows[0]["classification"] == "facts"
+
+    @pytest.mark.asyncio
+    async def test_the_category_match_is_case_insensitive(self, adapter) -> None:
+        await self._store(adapter)
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="FACTS"
+        )
+
+        assert len(rows) == 1
+
+    @pytest.mark.asyncio
+    async def test_filters_by_project(self, adapter) -> None:
+        await self._store(adapter, project="mahavishnu", content="a")
+        await self._store(adapter, project="session-buddy", content="b")
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts", project="session-buddy"
+        )
+
+        assert len(rows) == 1
+        assert rows[0]["project"] == "session-buddy"
+
+    @pytest.mark.asyncio
+    async def test_omitting_the_project_filter_returns_every_project(
+        self, adapter
+    ) -> None:
+        await self._store(adapter, project="mahavishnu", content="a")
+        await self._store(adapter, project="session-buddy", content="b")
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts"
+        )
+
+        assert len(rows) == 2
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("sentinel", ["", "*"])
+    async def test_the_all_projects_sentinel_is_honoured_here_too(
+        self, adapter, sentinel: str
+    ) -> None:
+        """The adapter's own contract promises this, not just the tool's.
+
+        The tool normalises the sentinel before calling, so without this
+        the promise would live only in a docstring.
+        """
+        await self._store(adapter, project="mahavishnu", content="a")
+        await self._store(adapter, project="session-buddy", content="b")
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts", project=sentinel
+        )
+
+        assert len(rows) == 2
+
+    @pytest.mark.asyncio
+    async def test_an_empty_classification_matches_nothing(self, adapter) -> None:
+        """An empty filter must never widen the query to the whole table."""
+        await self._store(adapter)
+
+        rows = await adapter.query_conversations_by_classification(classification="")
+
+        assert rows == []
+
+    @pytest.mark.asyncio
+    async def test_filters_by_the_time_window(self, adapter) -> None:
+        await self._store(adapter)
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts",
+            start_time=datetime(2000, 1, 1, tzinfo=UTC),
+            end_time=datetime(2000, 1, 2, tzinfo=UTC),
+        )
+
+        assert rows == []
+
+    @pytest.mark.asyncio
+    async def test_a_window_around_now_matches(self, adapter) -> None:
+        """An absolute window selects the record by its true instant.
+
+        The column holds host-local wall-clock; DuckDB re-attaches the
+        session time zone when comparing it against an aware value, so
+        the window still selects the right records.
+        """
+        await self._store(adapter)
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts",
+            start_time=datetime(2000, 1, 1, tzinfo=UTC),
+            end_time=datetime(2100, 1, 1, tzinfo=UTC),
+        )
+
+        assert len(rows) == 1
+
+    @pytest.mark.asyncio
+    async def test_the_returned_timestamp_is_an_instant(self, adapter) -> None:
+        """Not the store's naive local wall-clock."""
+        await self._store(adapter)
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts"
+        )
+
+        assert isinstance(rows[0]["timestamp"], datetime)
+        assert rows[0]["timestamp"].tzinfo is not None
+
+    @pytest.mark.asyncio
+    async def test_honours_the_limit(self, adapter) -> None:
+        for index in range(3):
+            await self._store(adapter, content=f"body {index}")
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts", limit=2
+        )
+
+        assert len(rows) == 2
+
+    @pytest.mark.asyncio
+    async def test_a_negative_limit_is_clamped_not_taken_as_unlimited(
+        self, adapter
+    ) -> None:
+        """DuckDB reads ``LIMIT -1`` as "no limit" -- clamp it."""
+        await self._store(adapter)
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts", limit=-1
+        )
+
+        assert rows == []
+
+    @pytest.mark.asyncio
+    async def test_a_zero_limit_returns_no_rows(self, adapter) -> None:
+        """A zero limit is zero rows, the way the other servers' stores do."""
+        await self._store(adapter)
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts", limit=0
+        )
+
+        assert rows == []
+
+    @pytest.mark.asyncio
+    async def test_an_unmatched_classification_returns_nothing(self, adapter) -> None:
+        await self._store(adapter)
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="code_generation"
+        )
+
+        assert rows == []
+
+    @pytest.mark.asyncio
+    async def test_a_corrupt_metadata_row_does_not_take_down_the_read(
+        self, adapter
+    ) -> None:
+        """One bad row must not empty the whole result set."""
+        await self._store(adapter, content="a")
+        await self._store(adapter, content="b")
+        adapter.conn.execute(
+            "UPDATE conversations_v2 SET metadata = '{not json' "
+            "WHERE id = (SELECT id FROM conversations_v2 ORDER BY timestamp LIMIT 1)"
+        )
+
+        rows = await adapter.query_conversations_by_classification(
+            classification="facts"
+        )
+
+        assert len(rows) == 2
+        assert any(row["metadata"] == {} for row in rows)
+
+
+def test_the_module_exports_the_expected_names() -> None:
+    assert "query_local_traces" in otel_trace_tools.__all__
+    assert "register_otel_trace_tools" in otel_trace_tools.__all__

@@ -85,6 +85,7 @@
   "tasks_create",
   "tasks_get",
   "tasks_history",
+  "tasks_link_workflow",
   "tasks_list",
   "tasks_search",
   "tasks_update",

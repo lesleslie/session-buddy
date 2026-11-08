@@ -90,9 +90,11 @@ STANDARD_REGISTRATIONS: list[str | Callable] = MINIMAL_REGISTRATIONS + [
     # audience; FULL inherits via the ALL_TOOLS sentinel.
     "register_skill_tools",
     # Phase 3 — server-published agents tools (plan §5 Phase 3 task #1-2).
-    # Mirror Phase 1's STANDARD exposure; agents are reachable from the
-    # picker at STANDARD tier so daily-development can list/get them.
-    "register_agents_tools",
+    # Reachable at STANDARD tier, but NOT listed here: the group is in
+    # SESSION_BUDDY_MANDATORY_GROUPS, so the mandatory-groups pass
+    # registers it at every tier. Listing it in both places registered
+    # the group twice at STANDARD -- the duplicate the wiring test
+    # forbids.
 ]
 
 # FULL uses the ALL_TOOLS sentinel so the W0 helper invokes
@@ -146,6 +148,7 @@ from . import (
     register_llm_tools,
     register_memory_health_tools,
     register_monitoring_tools,
+    register_otel_trace_tools,
     register_phase3_knowledge_graph_tools,
     register_phase4_tools,
     register_pool_tools,
@@ -263,6 +266,14 @@ REGISTRATION_MAP: dict[str, Callable[[FastMCP], Any]] = {
     "register_monitoring_tools": register_monitoring_tools,
     "register_multi_project_tools": register_multi_project_tools,
     "register_natural_scheduling_tools": register_natural_scheduling_tools,
+    # Fleet trace query. Session-Buddy had the implementation and the
+    # registration helper but never mounted either, so the tool had
+    # never appeared in any live surface (the module landed whole in
+    # 1fd8b45f, 2026-05-29). It goes through REGISTRATION_MAP so the
+    # profile dispatch owns it -- registering it directly in
+    # server_optimized.py would put it outside the tier gating and
+    # duplicate the map's job.
+    "register_otel_trace_tools": register_otel_trace_tools,
     "register_phase3_knowledge_graph_tools": register_phase3_knowledge_graph_tools,
     "register_phase4_tools": register_phase4_tools,
     "register_pool_tools": register_pool_tools,
