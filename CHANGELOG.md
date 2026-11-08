@@ -13,6 +13,11 @@ and this project adheres to Semantic Versioning.
 
 ### Fixed
 
+- handoff: Resolve the reflection database connection on the querying thread.
+  `ReflectionDatabase.conn` is a thread-local property and the adapter is a
+  singleton initialised on whichever thread first acquired it, so a handler
+  running on another thread got `None` and the cross-repo-work query raised.
+  The handoff therefore always reported "No cross-repo work captured".
 - akosha-sync: Open the reflection and knowledge-graph databases with the
   configuration the rest of the process uses, instead of read-only. DuckDB
   refuses a second connection to the same file whose configuration differs,

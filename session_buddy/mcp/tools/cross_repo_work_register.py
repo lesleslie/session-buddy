@@ -43,7 +43,13 @@ def register_cross_repo_work_tools(mcp_server: FastMCP) -> None:
     ) -> CrossRepoStoreResult:
         ecosystem_path = resolve_manifest_path()
         adapter = await require_reflection_database()
-        conn = adapter.conn
+        # ``adapter.conn`` is thread-local; the adapter is initialised on
+        # whichever thread first acquired it, so this handler's thread may
+        # have no connection and the property returns None. ``_get_conn``
+        # resolves the connection for the CURRENT thread.
+        conn = (
+            adapter._get_conn() if hasattr(adapter, "_get_conn") else adapter.conn
+        )
         return await store_cross_repo_work(
             request=request,
             merge_primitive=merge_primitive,

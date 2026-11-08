@@ -1120,7 +1120,17 @@ class SessionLifecycleManager:
             )
 
             adapter = await require_reflection_database()
-            conn = adapter.conn
+            # ``adapter.conn`` is a thread-local property. The adapter is
+            # a singleton initialised on whichever thread first acquired
+            # it (server startup), so a handler running on a different
+            # thread sees None and the query below raises. ``_get_conn``
+            # resolves the connection for the CURRENT thread, opening one
+            # if this thread has none.
+            conn = (
+                adapter._get_conn()
+                if hasattr(adapter, "_get_conn")
+                else adapter.conn
+            )
             rows = conn.execute(
                 "SELECT id, conversation_id, repo_name, repo_path, repo_role, "
                 "session_window_start, session_window_end, work_entries, "
@@ -1463,7 +1473,12 @@ class SessionLifecycleManager:
                     # acquire itself raises, the outer try/except catches
                     # it (G6) — narrow inner try only wraps the SELECT.
                     adapter = await require_reflection_database()
-                    conn = adapter.conn
+                    # Thread-local, same as the handoff renderer above.
+                    conn = (
+                        adapter._get_conn()
+                        if hasattr(adapter, "_get_conn")
+                        else adapter.conn
+                    )
 
                     # Load session_window_start from the canonical
                     # conversation identity table (v2.1 amendment).
