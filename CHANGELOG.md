@@ -185,6 +185,10 @@ and this project adheres to Semantic Versioning.
   as its namespace would have been quarantined as namespace drift even
   once the endpoint was right.
 
+### Build
+
+- deps: Add a 7-day dependency cooldown with CVE and tooling carve-outs
+
 ## [0.36.0] - 2026-10-19
 
 ### Added
