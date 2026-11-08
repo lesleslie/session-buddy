@@ -30,6 +30,25 @@ from session_buddy.utils.git_operations import (
 )
 from session_buddy.utils.time import utc_now
 
+# Wall-clock ceiling for a quality assessment.
+#
+# The assessment shells out to crackerjack (``run --comp --skip-hooks``,
+# ~25s measured) plus git, security and type scans. With a cold metrics
+# cache the whole assessment runs ~40s and the complete ``end`` call
+# ~54s -- close enough to the MCP client's request timeout that a
+# transient stall (a concurrent test suite, a slower disk, a bigger
+# tree) turns the call into a timeout. When the client disconnects the
+# server-side handler is cancelled, so the handoff file and the
+# checkpoint that the caller actually asked for are never written.
+#
+# The deadline sits deliberately ABOVE the crackerjack fallback's own
+# 30s budget (``session_buddy/utils/crackerjack/fallback.py``): the
+# fallback has to be allowed to finish so it can populate the metrics
+# cache. A deadline below the fallback's runtime would cancel it every
+# time, and the score would be permanently degraded rather than merely
+# delayed.
+_QUALITY_ASSESSMENT_DEADLINE_S = 32.0
+
 
 def get_session_logger() -> logging.Logger:
     """Get the session logger instance.
@@ -318,6 +337,49 @@ class SessionLifecycleManager:
 
         quality_score = quality_data["total_score"]
         return quality_score, quality_data
+
+    async def _quality_assessment_with_deadline(
+        self, project_dir: Path | None = None
+    ) -> tuple[int, dict[str, t.Any]]:
+        """Assess quality under a wall-clock deadline.
+
+        A slow assessment may cost the SCORE, never the ARTIFACT. The
+        handoff file and the conversation checkpoint are written AFTER
+        this returns, so an unbounded assessment can lose them entirely
+        when the MCP client's request timeout fires and the server-side
+        handler is cancelled mid-flight.
+
+        On timeout the assessment is cancelled and a degraded result is
+        returned. The degraded result keeps the same shape as a normal
+        one -- ``recommendations`` and ``breakdown`` are read with
+        ``.get()`` by the handoff writer -- so downstream callers need
+        no special case.
+        """
+        try:
+            return await asyncio.wait_for(
+                self.perform_quality_assessment(project_dir=project_dir),
+                timeout=_QUALITY_ASSESSMENT_DEADLINE_S,
+            )
+        except TimeoutError:
+            self.logger.warning(
+                "quality assessment exceeded %ss deadline; using a degraded score",
+                _QUALITY_ASSESSMENT_DEADLINE_S,
+            )
+            return 75, {
+                "total_score": 75,
+                "version": "unknown",
+                "project_health": {"total": 75},
+                "permissions_health": {"score": 10},
+                "session_health": {"status": "unknown"},
+                "tool_health": {"count": 0},
+                "recommendations": [
+                    (
+                        "Quality assessment timed out -- this score is a "
+                        "placeholder, not a measurement of the project."
+                    ),
+                ],
+                "breakdown": {},
+            }
 
     def _format_trust_score(self, trust: t.Any) -> list[str]:
         """Format trust score section (helper to reduce complexity). Target complexity: ≤5."""
@@ -1147,7 +1209,7 @@ class SessionLifecycleManager:
 
             # Analyze project and assess quality
             project_context = await self.analyze_project_context(current_dir)
-            quality_score, quality_data = await self.perform_quality_assessment(
+            quality_score, quality_data = await self._quality_assessment_with_deadline(
                 project_dir=current_dir,
             )
 
@@ -1314,7 +1376,7 @@ class SessionLifecycleManager:
             self.logger.debug(
                 "Starting quality assessment for project: %s", current_dir
             )
-            quality_score, quality_data = await self.perform_quality_assessment(
+            quality_score, quality_data = await self._quality_assessment_with_deadline(
                 project_dir=current_dir,
             )
             self.logger.debug(
@@ -1735,7 +1797,7 @@ class SessionLifecycleManager:
                 self.logger.warning("PRE_SESSION_END hooks failed: %s", str(e))
 
             # Final quality assessment
-            quality_score, quality_data = await self.perform_quality_assessment(
+            quality_score, quality_data = await self._quality_assessment_with_deadline(
                 project_dir=current_dir,
             )
 
@@ -1834,7 +1896,7 @@ class SessionLifecycleManager:
 
             # Get comprehensive status
             project_context = await self.analyze_project_context(current_dir)
-            quality_score, quality_data = await self.perform_quality_assessment(
+            quality_score, quality_data = await self._quality_assessment_with_deadline(
                 project_dir=current_dir,
             )
 
